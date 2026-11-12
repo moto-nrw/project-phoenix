@@ -10,6 +10,7 @@ type GuardianRelationship care.GuardianRelationship
 type GuardianLinkedChild care.GuardianLinkedChild
 type GuardianRelationshipCallbacks struct {
 	ByStudent      func(context.Context, int64) ([]*GuardianRelationship, error)
+	ByStudents     func(context.Context, []int64) ([]*GuardianRelationship, error)
 	ByProfile      func(context.Context, int64) ([]*GuardianRelationship, error)
 	Lock           func(context.Context, int64, int64) (*GuardianRelationship, error)
 	LinkedChildren func(context.Context, []int64) ([]*GuardianLinkedChild, error)
@@ -34,6 +35,9 @@ func nativeGuardianRelationships(rows []*GuardianRelationship, err error) ([]*ca
 }
 func (r studentGuardianReads) FindByStudentID(ctx context.Context, id int64) ([]*care.GuardianRelationship, error) {
 	return nativeGuardianRelationships(r.callbacks.ByStudent(ctx, id))
+}
+func (r studentGuardianReads) FindByStudentIDs(ctx context.Context, ids []int64) ([]*care.GuardianRelationship, error) {
+	return nativeGuardianRelationships(r.callbacks.ByStudents(ctx, ids))
 }
 func (r studentGuardianReads) FindByGuardianProfileID(ctx context.Context, id int64) ([]*care.GuardianRelationship, error) {
 	return nativeGuardianRelationships(r.callbacks.ByProfile(ctx, id))

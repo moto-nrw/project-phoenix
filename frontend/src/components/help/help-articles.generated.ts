@@ -6541,7 +6541,8 @@ export const parentGuardiansTopic = function parentGuardiansTopic(): HelpTopic {
  * die Karte `Ferienbetreuung` auf der Startseite der Eltern-App (#6671).
  * Die Frage nach dem Elternkonto, die zweite E-Mail und der Stand unter
  * `Ferienanmeldungen` (#6673). Der Stand über den Link der E-Mail, ohne
- * Konto (#6676).
+ * Konto (#6676). Anschrift, zweite Person und Kontakte aus dem Elternkonto
+ * (#6682).
  */
 export const parentHolidayRegistrationTopic =
   function parentHolidayRegistrationTopic(): HelpTopic {
@@ -6609,8 +6610,11 @@ export const parentHolidayRegistrationTopic =
         "Steht in der Eltern-App `Anmeldung ab` mit einem Datum? Dann beginnt die Anmeldung an diesem Tag. Ab dann sehen Sie den Knopf `Jetzt anmelden`.",
         "Sie haben den Link geöffnet und sind nicht angemeldet? Oben steht `Sie haben schon die Eltern-App?`. Wählen Sie `Anmelden`. Danach kommen Sie zurück zum Formular.",
         "Ist die Anmeldung verbindlich, heißt der Knopf `Verbindlich anmelden`.",
-        "Sind Sie mit Ihrem Elternkonto in moto angemeldet? Dann steht unter `Kinder` der Abschnitt `Ihre Kinder aus dem Elternkonto`. Setzen Sie den Haken bei Ihrem Kind. Name, Geburtsdatum und Schule stehen dann schon im Formular, Ihre Angaben auch.",
-        "Sie können diese Angaben vor dem Absenden ändern. Das gilt nur für die Ferienanmeldung. Bei der Schule ändert sich nichts.",
+        "Sind Sie mit Ihrem Elternkonto in moto angemeldet? Dann steht unter `Kinder` der Abschnitt `Ihre Kinder aus dem Elternkonto`. Setzen Sie den Haken bei Ihrem Kind. Name, Geburtsdatum und Schule stehen dann schon im Formular, Ihre Angaben und Ihre Anschrift auch.",
+        "Mit dem Haken trägt moto auch die `Zweite sorgeberechtigte Person` und die `Kontakte` ein, so wie die Schule sie kennt. Diese Karten tragen dann `Aus dem Elternkonto`.",
+        "Hat eine Person ein eigenes Elternkonto, steht nur ihr Name im Formular. Tragen Sie die Telefonnummer selbst ein.",
+        "Gesundheitsangaben übernimmt moto nicht. Tragen Sie sie bei jedem Kind selbst ein.",
+        "Sie können alle Angaben vor dem Absenden ändern. Das gilt nur für die Ferienanmeldung. Bei der Schule ändert sich nichts.",
         "Mit Elternkonto fragt moto am Ende nicht nach einem Konto. Die Anmeldung steht sofort unter `Ferienanmeldungen`. Nach dem Absenden führt `Zu Ihren Ferienanmeldungen` dorthin.",
       ],
       troubleshootingDetails: [

@@ -47,8 +47,15 @@ import {
   ContactList,
   GuardianAddressCard,
   KnownChildPicker,
+  PrefillBadge,
   SecondGuardianCard,
 } from "./holiday-registration-sections";
+import {
+  addressFromAccount,
+  isPrefilledContact,
+  isPrefilledSecondGuardian,
+  withKnownContacts,
+} from "./holiday-registration-prefill";
 import { HolidayQuestions } from "./holiday-registration-questions";
 import { HolidayRegistrationCriteria } from "./holiday-registration-criteria";
 import { HolidayRegistrationDeclaration } from "./holiday-registration-declaration";
@@ -333,6 +340,17 @@ export function HolidayRegistrationForm({
   );
   const setGuardian = (patch: Partial<RegistrationDraft["guardian"]>) =>
     setDraft({ ...draft, guardian: { ...draft.guardian, ...patch } });
+  // The badge stays while the values are the ones of the account (#6682).
+  const guardianFromAccount =
+    !!family &&
+    draft.guardian.firstName === family.guardian.firstName &&
+    draft.guardian.lastName === family.guardian.lastName &&
+    draft.guardian.email === family.guardian.email &&
+    draft.guardian.phone === family.guardian.phone;
+  const relationshipLabel = (type: string) =>
+    type === "parent" || type === "guardian" || type === "relative"
+      ? t(`relationshipTypes.${type}`)
+      : "";
 
   return (
     <form
@@ -366,7 +384,13 @@ export function HolidayRegistrationForm({
               draft={draft}
               offer={offer}
               onToggle={(known) =>
-                setDraft(toggleKnownChild(draft, known, offer))
+                setDraft(
+                  withKnownContacts(
+                    toggleKnownChild(draft, known, offer),
+                    family,
+                    relationshipLabel,
+                  ),
+                )
               }
             />
           ) : null}
@@ -389,10 +413,16 @@ export function HolidayRegistrationForm({
                 })
               }
               onRemove={() =>
-                setDraft({
-                  ...draft,
-                  children: draft.children.filter((_, i) => i !== index),
-                })
+                setDraft(
+                  withKnownContacts(
+                    {
+                      ...draft,
+                      children: draft.children.filter((_, i) => i !== index),
+                    },
+                    family,
+                    relationshipLabel,
+                  ),
+                )
               }
             />
           ))}
@@ -414,7 +444,11 @@ export function HolidayRegistrationForm({
         </div>
       </SectionCard>
 
-      <SectionCard title={t("guardianTitle")} description={t("guardianText")}>
+      <SectionCard
+        title={t("guardianTitle")}
+        titleBadge={guardianFromAccount ? <PrefillBadge /> : undefined}
+        description={t("guardianText")}
+      >
         <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
           <Input
             name="guardian.first_name"
@@ -465,6 +499,7 @@ export function HolidayRegistrationForm({
         <GuardianAddressCard
           address={draft.guardianAddress}
           required={offer.form.addressRequirement === "required"}
+          fromAccount={addressFromAccount(draft.guardianAddress, family)}
           fieldError={fieldError}
           onChange={(guardianAddress) =>
             setDraft({ ...draft, guardianAddress })
@@ -474,6 +509,7 @@ export function HolidayRegistrationForm({
 
       <SecondGuardianCard
         guardian={draft.secondGuardian}
+        fromAccount={isPrefilledSecondGuardian(draft)}
         fieldError={fieldError}
         onChange={(secondGuardian) => setDraft({ ...draft, secondGuardian })}
       />
@@ -507,6 +543,7 @@ export function HolidayRegistrationForm({
       <ContactList
         contacts={draft.contacts}
         max={MAX_CONTACTS}
+        fromAccount={draft.contacts.some(isPrefilledContact)}
         fieldError={fieldError}
         onChange={(contacts) => setDraft({ ...draft, contacts })}
       />

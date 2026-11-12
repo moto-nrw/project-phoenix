@@ -28,7 +28,7 @@
   "addChild": "Add a sibling",
   "removeChild": "Remove child",
   "knownChildrenTitle": "Your children from your parent account",
-  "knownChildrenText": "Choose your child. Their details then appear in the form. You can change them before you send it. This only changes this registration.",
+  "knownChildrenText": "Choose your child. Their details, your address and the school's contacts then appear in the form. You can change everything before you send it. This only changes this registration.",
   "knownChildMeta": "{school} · born on {birthDate}",
   "knownChildrenFull": "You can register at most three children together.",
   "firstName": "First name",
@@ -195,5 +195,13 @@
   },
   "doneAccountTitle": "Next step: your parent account",
   "doneAccountText": "We have sent you a second email to {email}. Open the link in it. There you set your password or sign in.",
-  "doneToRegistrations": "To your holiday registrations"
+  "doneToRegistrations": "To your holiday registrations",
+  "prefillBadge": "From the parent account",
+  "healthNotPrefilled": "We do not copy health details. Please enter them here.",
+  "knownContactPhoneHint": "You cannot see this number in the parent account. Please enter it.",
+  "relationshipTypes": {
+    "parent": "Parent",
+    "guardian": "Legal guardian",
+    "relative": "Relative"
+  }
 }

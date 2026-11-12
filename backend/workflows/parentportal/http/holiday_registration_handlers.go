@@ -32,11 +32,36 @@ type HolidayRegistrationLinks interface {
 }
 
 // HolidayRegistrationGuardianResponse is the prefill of the parent fields.
+// address is the parent's postal address as the school knows it (#6682).
 type HolidayRegistrationGuardianResponse struct {
-	FirstName string `json:"first_name"`
-	LastName  string `json:"last_name"`
-	Email     string `json:"email"`
-	Phone     string `json:"phone"`
+	FirstName string                              `json:"first_name"`
+	LastName  string                              `json:"last_name"`
+	Email     string                              `json:"email"`
+	Phone     string                              `json:"phone"`
+	Address   *HolidayRegistrationAddressResponse `json:"address,omitempty"`
+}
+
+// HolidayRegistrationAddressResponse is a postal address of the prefill.
+type HolidayRegistrationAddressResponse struct {
+	Street     string `json:"street"`
+	PostalCode string `json:"postal_code"`
+	City       string `json:"city"`
+}
+
+// HolidayRegistrationContactResponse is another guardian of a child the
+// form may offer as the second custodian (full_guardian) or as an emergency
+// or pickup contact (#6682). email and phone are absent where the parent
+// portal shows the guardian's name only.
+type HolidayRegistrationContactResponse struct {
+	GuardianProfileID string `json:"guardian_profile_id"`
+	FirstName         string `json:"first_name"`
+	LastName          string `json:"last_name"`
+	Email             string `json:"email,omitempty"`
+	Phone             string `json:"phone,omitempty"`
+	RelationshipType  string `json:"relationship_type"`
+	FullGuardian      bool   `json:"full_guardian"`
+	Emergency         bool   `json:"emergency"`
+	Pickup            bool   `json:"pickup"`
 }
 
 // HolidayRegistrationChildResponse is a child the parent may pick.
@@ -52,6 +77,8 @@ type HolidayRegistrationChildResponse struct {
 	BirthDate        *timezone.Date `json:"birth_date,omitempty"`
 	HolidayWish      string         `json:"holiday_wish,omitempty"`
 	HolidayWishProof string         `json:"holiday_wish_proof,omitempty"`
+	// Contacts are the child's other guardians (#6682); never health data.
+	Contacts []HolidayRegistrationContactResponse `json:"contacts"`
 }
 
 // HolidayRegistrationFamilyResponse is the body of GET
@@ -120,6 +147,9 @@ func holidayRegistrationFamilyResponse(claims sessiontoken.AppClaims, family *pa
 			FirstName: firstNonEmpty(profile.FirstName, guardian.FirstName), LastName: firstNonEmpty(profile.LastName, guardian.LastName),
 			Email: firstNonEmpty(profile.Email, guardian.Email), Phone: profile.Phone,
 		}
+		if address := profile.Address; address != nil {
+			guardian.Address = &HolidayRegistrationAddressResponse{Street: address.Street, PostalCode: address.PostalCode, City: address.City}
+		}
 	}
 	children := make([]HolidayRegistrationChildResponse, 0, len(family.Children))
 	for _, child := range family.Children {
@@ -127,9 +157,23 @@ func holidayRegistrationFamilyResponse(claims sessiontoken.AppClaims, family *pa
 			StudentID: strconv.FormatInt(child.StudentID, 10), SchoolID: strconv.FormatInt(child.SchoolID, 10),
 			FirstName: child.FirstName, LastName: child.LastName, BirthDate: child.BirthDate,
 			HolidayWish: child.HolidayWish, HolidayWishProof: child.HolidayWishProof,
+			Contacts: holidayRegistrationContactsResponse(child.Contacts),
 		})
 	}
 	return HolidayRegistrationFamilyResponse{Guardian: guardian, Children: children, AccountProof: family.AccountProof}
+}
+
+func holidayRegistrationContactsResponse(contacts []parentService.HolidayRegistrationContact) []HolidayRegistrationContactResponse {
+	out := make([]HolidayRegistrationContactResponse, 0, len(contacts))
+	for _, contact := range contacts {
+		out = append(out, HolidayRegistrationContactResponse{
+			GuardianProfileID: strconv.FormatInt(contact.GuardianProfileID, 10),
+			FirstName:         contact.FirstName, LastName: contact.LastName, Email: contact.Email, Phone: contact.Phone,
+			RelationshipType: contact.RelationshipType, FullGuardian: contact.FullGuardian,
+			Emergency: contact.Emergency, Pickup: contact.Pickup,
+		})
+	}
+	return out
 }
 
 func firstNonEmpty(value, fallback string) string {

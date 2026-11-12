@@ -91,6 +91,8 @@ type (
 	HolidayOfferChild                = care.HolidayOfferChild
 	HolidayRegistrationFamily        = care.HolidayRegistrationFamily
 	HolidayRegistrationGuardian      = care.HolidayRegistrationGuardian
+	HolidayRegistrationAddress       = care.HolidayRegistrationAddress
+	HolidayRegistrationContact       = care.HolidayRegistrationContact
 	HolidayRegistrationScope         = care.HolidayRegistrationScope
 	HolidayWishClaim                 = care.HolidayWishClaim
 	HolidayParentRegistrations       = care.HolidayParentRegistrations

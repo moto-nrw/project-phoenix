@@ -205,3 +205,66 @@ func TestHolidayRegistrationFamilyCarriesTheAccountProofForEveryAccount(t *testi
 	assert.Equal(t, fmt.Sprintf("proof-42-420-%d", withoutChild.ID), empty.AccountProof, "the proof is there for every account")
 	assert.Equal(t, [][3]int64{{42, 420, chain.AccountID}, {42, 420, withoutChild.ID}}, sealed)
 }
+
+// TestHolidayRegistrationFamilyOffersAddressAndContacts pins #6682 (option
+// A): the prefill carries the parent's own postal address and, per offered
+// child, the other guardians the school knows: a custodian for the second
+// custodian and the emergency and pickup contacts. It shows the parent no
+// more than the child's guardian list in the parent portal: a guardian with
+// an own account comes with the name only, a social worker not at all.
+func TestHolidayRegistrationFamilyOffersAddressAndContacts(t *testing.T) {
+	t.Parallel()
+	svc, db := buildHolidayRegistrationFamilyService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	_, err := db.ExecContext(ctx, `UPDATE users.guardian_profiles SET address_street = 'Lindenweg 4', address_postal_code = '49143', address_city = 'Bissendorf' WHERE id = ?`, chain.GuardianProfileID)
+	require.NoError(t, err)
+
+	coParent := testpkg.CreateTestGuardianProfileNamed(t, db, "Jonas", "Schneider", "jonas.schneider")
+	testpkg.CreateTestStudentGuardianLink(t, db, chain.StudentID, coParent.ID, "co_guardian")
+	_, err = db.ExecContext(ctx, `INSERT INTO users.guardian_phone_numbers (tenant_id, guardian_profile_id, phone_number, phone_type, is_primary) VALUES (?, ?, '+49 5402 1234', 'mobile', true)`, chain.TenantID, coParent.ID)
+	require.NoError(t, err)
+	grandma := testpkg.CreateTestGuardianProfileNamed(t, db, "Erika", "Brandt", "erika.brandt")
+	testpkg.CreateTestStudentGuardianLinkOfType(t, db, chain.TenantID, chain.StudentID, grandma.ID, "relative", "pickup_only")
+	_, err = db.ExecContext(ctx, `INSERT INTO users.guardian_phone_numbers (tenant_id, guardian_profile_id, phone_number, phone_type, is_primary) VALUES (?, ?, '+49 5402 9876', 'home', true)`, chain.TenantID, grandma.ID)
+	require.NoError(t, err)
+	ownAccount := testpkg.CreateTestAccount(t, db, "ferien-eigenes-konto")
+	stepParent := testpkg.CreateTestGuardianProfileNamed(t, db, "Lena", "Vogt", "lena.vogt")
+	_, err = db.ExecContext(ctx, `UPDATE users.guardian_profiles SET account_id = ?, has_account = true WHERE id = ?`, ownAccount.ID, stepParent.ID)
+	require.NoError(t, err)
+	testpkg.CreateTestStudentGuardianLink(t, db, chain.StudentID, stepParent.ID, "emergency_contact")
+	socialWorker := testpkg.CreateTestGuardianProfileNamed(t, db, "Paul", "Amt", "paul.amt")
+	testpkg.CreateTestStudentGuardianLinkOfType(t, db, chain.TenantID, chain.StudentID, socialWorker.ID, "other", "social_worker")
+
+	family, err := svc.HolidayRegistrationFamily(ctx, chain.AccountID, parentService.HolidayRegistrationScope{OrganizationID: 42, SchoolIDs: []int64{chain.TenantID}})
+	require.NoError(t, err)
+	require.NotNil(t, family.Guardian)
+	assert.Equal(t, &parentService.HolidayRegistrationAddress{Street: "Lindenweg 4", PostalCode: "49143", City: "Bissendorf"}, family.Guardian.Address)
+	require.Len(t, family.Children, 1)
+
+	byProfile := map[int64]parentService.HolidayRegistrationContact{}
+	for _, contact := range family.Children[0].Contacts {
+		byProfile[contact.GuardianProfileID] = contact
+	}
+	assert.Len(t, byProfile, 3, "co-parent, grandma and step-parent; not the caller, not the social worker")
+	assert.NotContains(t, byProfile, chain.GuardianProfileID, "the caller fills in the own fields")
+	assert.NotContains(t, byProfile, socialWorker.ID, "a social worker is no family contact")
+
+	co := byProfile[coParent.ID]
+	assert.True(t, co.FullGuardian, "a co-guardian is the second custodian")
+	assert.Equal(t, "Jonas", co.FirstName)
+	assert.Equal(t, *coParent.Email, co.Email)
+	assert.Equal(t, "+49 5402 1234", co.Phone)
+
+	oma := byProfile[grandma.ID]
+	assert.False(t, oma.FullGuardian)
+	assert.True(t, oma.Pickup)
+	assert.True(t, oma.Emergency)
+	assert.Equal(t, "relative", oma.RelationshipType)
+	assert.Equal(t, "+49 5402 9876", oma.Phone)
+
+	step := byProfile[stepParent.ID]
+	assert.Equal(t, "Lena", step.FirstName, "the name stays, as in the guardian list")
+	assert.Empty(t, step.Email, "a guardian with an own account keeps the contact data")
+	assert.Empty(t, step.Phone)
+}

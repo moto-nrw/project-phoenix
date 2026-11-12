@@ -1,0 +1,148 @@
+package care
+
+import (
+	"context"
+	"fmt"
+)
+
+// Contacts of the holiday registration prefill (#6682): the other guardians
+// of a child the parent may register, as the school knows them. The form
+// offers a full guardian as the second custodian and every emergency or
+// pickup contact as a contact. The parent reads here what the child's
+// guardian list in the parent portal already shows (ListChildGuardians):
+// the same predicate redacts the contact data of a guardian with an own
+// account, of a social worker and of a contact shared with another family,
+// so those come with their name only. Social workers stay out entirely:
+// the school manages them, they are no family contact. Health data is not
+// part of the prefill (Art. 9 DSGVO, issue decision option A).
+
+// HolidayRegistrationAddress is the postal address of the calling guardian.
+type HolidayRegistrationAddress struct {
+	Street     string
+	PostalCode string
+	City       string
+}
+
+// HolidayRegistrationContact is another guardian of an offered child.
+// Email and Phone are empty when the parent portal redacts them. FullGuardian
+// marks a custodian (primary, legal or co-guardian), Emergency and Pickup the
+// child's arrangement at the school.
+type HolidayRegistrationContact struct {
+	GuardianProfileID int64
+	FirstName         string
+	LastName          string
+	Email             string
+	Phone             string
+	RelationshipType  string
+	FullGuardian      bool
+	Emergency         bool
+	Pickup            bool
+}
+
+// attachHolidayRegistrationContacts loads the other guardians of the
+// offered children of one school in a fixed number of statements and adds
+// them to each child. It runs in the school's tenant transaction, where the
+// child's read is already recorded in the data access log.
+func (s *Service) attachHolidayRegistrationContacts(ctx context.Context, accountID int64, offered []*HolidayRegistrationChild) error {
+	if len(offered) == 0 {
+		return nil
+	}
+	studentIDs := make([]int64, 0, len(offered))
+	for _, child := range offered {
+		studentIDs = append(studentIDs, child.StudentID)
+	}
+	links, err := s.StudentGuardianRepo.FindByStudentIDs(ctx, studentIDs)
+	if err != nil {
+		return err
+	}
+	profileIDs := uniqueGuardianProfileIDs(links)
+	if len(profileIDs) == 0 {
+		return nil
+	}
+	profiles, err := s.GuardianProfileRepo.FindByIDs(ctx, profileIDs)
+	if err != nil {
+		return err
+	}
+	phones, err := s.GuardianPhoneRepo.FindByGuardianIDs(ctx, profileIDs)
+	if err != nil {
+		return err
+	}
+	callerStudents, editableStudents, err := s.callerStudentSets(ctx, accountID)
+	if err != nil {
+		return err
+	}
+	shared, _, err := s.profilesEscapingFamily(ctx, profileIDs, callerStudents, editableStudents)
+	if err != nil {
+		return err
+	}
+	byStudent := make(map[int64]*HolidayRegistrationChild, len(offered))
+	for _, child := range offered {
+		byStudent[child.StudentID] = child
+	}
+	for _, link := range links {
+		child := byStudent[link.StudentID]
+		if child == nil {
+			continue
+		}
+		profile, ok := profiles[link.GuardianProfileID]
+		if !ok {
+			return fmt.Errorf("parent: student_guardian %d references missing guardian profile %d", link.ID, link.GuardianProfileID)
+		}
+		if contact, ok := s.holidayRegistrationContact(profile, link, phones[profile.ID], accountID, shared[profile.ID]); ok {
+			child.Contacts = append(child.Contacts, contact)
+		}
+	}
+	return nil
+}
+
+// holidayRegistrationContact projects one guardian of a child for the
+// prefill. It reports false for the caller, a social worker, and a guardian
+// who is neither custodian nor emergency nor pickup contact.
+func (s *Service) holidayRegistrationContact(profile *GuardianProfile, link *GuardianRelationship, phones []*GuardianPhoneNumber, accountID int64, sharedAcrossFamilies bool) (HolidayRegistrationContact, bool) {
+	isSelf := profile.AccountID != nil && *profile.AccountID == accountID
+	if isSelf || link.GuardianRole == GuardianRoleSocialWorker {
+		return HolidayRegistrationContact{}, false
+	}
+	contact := HolidayRegistrationContact{
+		GuardianProfileID: profile.ID, FirstName: profile.FirstName, LastName: profile.LastName,
+		RelationshipType: link.RelationshipType, FullGuardian: s.GuardianPolicy.IsFullRole(link.GuardianRole),
+		Emergency: link.IsEmergencyContact, Pickup: link.CanPickup,
+	}
+	if !contact.FullGuardian && !contact.Emergency && !contact.Pickup {
+		return HolidayRegistrationContact{}, false
+	}
+	if contactProtected(profile, link, false, sharedAcrossFamilies) {
+		return contact, true
+	}
+	contact.Email = deref(profile.Email)
+	if primary := pickPrimaryPhone(phones, func(phone *GuardianPhoneNumber) bool { return phone.IsPrimary }); primary != nil {
+		contact.Phone = primary.PhoneNumber
+	}
+	return contact, true
+}
+
+func uniqueGuardianProfileIDs(links []*GuardianRelationship) []int64 {
+	seen := make(map[int64]bool, len(links))
+	ids := make([]int64, 0, len(links))
+	for _, link := range links {
+		if link == nil || seen[link.GuardianProfileID] {
+			continue
+		}
+		seen[link.GuardianProfileID] = true
+		ids = append(ids, link.GuardianProfileID)
+	}
+	return ids
+}
+
+// holidayRegistrationAddress is the calling guardian's own postal address
+// as the school knows it, also an incomplete one: the form then asks for the
+// missing part. Nil when the school knows none.
+func holidayRegistrationAddress(profile *GuardianProfile) *HolidayRegistrationAddress {
+	address := HolidayRegistrationAddress{
+		Street: deref(profile.AddressStreet), PostalCode: deref(profile.AddressPostalCode), City: deref(profile.AddressCity),
+	}
+	if address == (HolidayRegistrationAddress{}) {
+		return nil
+	}
+	return &address
+}

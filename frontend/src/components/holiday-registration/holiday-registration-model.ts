@@ -143,6 +143,13 @@ export interface ContactDraft {
   readonly name: string;
   readonly phone: string;
   readonly relationship: string;
+  /** The guardian of a known child this contact came from (#6682). */
+  readonly knownGuardianId?: string;
+  /** What the prefill wrote, to keep the parent's own changes (#6682). */
+  readonly prefilled?: Pick<
+    ContactDraft,
+    "name" | "phone" | "relationship" | "emergency" | "pickup"
+  >;
 }
 
 export interface AddressDraft {
@@ -161,6 +168,14 @@ export interface RegistrationDraft {
   /** Postal address of the parent, when the form asks for it (#5625). */
   readonly guardianAddress: AddressDraft;
   readonly secondGuardian: RegistrationDraft["guardian"];
+  /**
+   * The custodian the prefill wrote into the second guardian (#6682); gone
+   * once nothing of the prefill is left there.
+   */
+  readonly secondGuardianPrefill?: {
+    readonly guardianId: string;
+    readonly values: RegistrationDraft["guardian"];
+  };
   readonly children: readonly ChildDraft[];
   readonly contacts: readonly ContactDraft[];
   readonly legalAcceptances?: Readonly<Record<string, boolean>>;
@@ -271,17 +286,20 @@ export function emptyRegistration(): RegistrationDraft {
 }
 
 /**
- * A registration of a parent with an account (#4662): the parent fields come
- * from what the school knows. Without a family the registration starts empty.
+ * A registration of a parent with an account (#4662): the parent fields and
+ * the postal address (#6682) come from what the school knows. Without a
+ * family the registration starts empty.
  */
 export function registrationFromFamily(
   family: HolidayKnownFamily | null,
 ): RegistrationDraft {
   const draft = emptyRegistration();
   if (!family) return draft;
+  const { address, ...guardian } = family.guardian;
   return {
     ...draft,
-    guardian: { ...family.guardian },
+    guardian,
+    ...(address ? { guardianAddress: { ...address } } : {}),
     ...(family.accountProof ? { parentAccountProof: family.accountProof } : {}),
   };
 }

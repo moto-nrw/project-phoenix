@@ -28,7 +28,7 @@
   "addChild": "Geschwisterkind hinzufügen",
   "removeChild": "Kind entfernen",
   "knownChildrenTitle": "Ihre Kinder aus dem Elternkonto",
-  "knownChildrenText": "Wählen Sie Ihr Kind. Seine Angaben stehen dann im Formular. Sie können sie vor dem Absenden ändern. Das ändert nur diese Anmeldung.",
+  "knownChildrenText": "Wählen Sie Ihr Kind. Dann stehen seine Angaben, Ihre Anschrift und die Kontakte der Schule im Formular. Sie können alles vor dem Absenden ändern. Das ändert nur diese Anmeldung.",
   "knownChildMeta": "{school} · geboren am {birthDate}",
   "knownChildrenFull": "Sie können höchstens drei Kinder zusammen anmelden.",
   "firstName": "Vorname",
@@ -195,5 +195,13 @@
   },
   "doneAccountTitle": "Nächster Schritt: Ihr Elternkonto",
   "doneAccountText": "Wir haben Ihnen eine zweite E-Mail an {email} geschickt. Öffnen Sie den Link darin. Dort legen Sie Ihr Passwort fest oder melden sich an.",
-  "doneToRegistrations": "Zu Ihren Ferienanmeldungen"
+  "doneToRegistrations": "Zu Ihren Ferienanmeldungen",
+  "prefillBadge": "Aus dem Elternkonto",
+  "healthNotPrefilled": "Gesundheitsangaben übernehmen wir nicht. Bitte tragen Sie sie hier ein.",
+  "knownContactPhoneHint": "Diese Nummer sehen Sie im Elternkonto nicht. Bitte tragen Sie sie ein.",
+  "relationshipTypes": {
+    "parent": "Elternteil",
+    "guardian": "Vormund",
+    "relative": "Verwandte"
+  }
 }

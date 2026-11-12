@@ -60,6 +60,15 @@ import { ChildHealthFields } from "./holiday-registration-health";
 import { HolidayQuestions } from "./holiday-registration-questions";
 import { useCareTermTranslations } from "~/lib/care-facility-term";
 
+/**
+ * Marks a card whose values come from the parent account (#6682). It names
+ * the source, so a parent checks the values instead of typing them again.
+ */
+export function PrefillBadge() {
+  const t = useTranslations("holidayRegistration");
+  return <StatusBadge tone="blue" compact label={t("prefillBadge")} />;
+}
+
 export function useWeekLabels() {
   const t = useTranslations("holidayRegistration");
   const locale = useLocale();
@@ -518,11 +527,14 @@ export function ChildCard({
 export function ContactList({
   contacts,
   max,
+  fromAccount = false,
   fieldError,
   onChange,
 }: Readonly<{
   contacts: readonly ContactDraft[];
   max: number;
+  /** Some contacts still hold the values of the parent account (#6682). */
+  fromAccount?: boolean;
   fieldError: FieldError;
   onChange: (contacts: readonly ContactDraft[]) => void;
 }>) {
@@ -531,12 +543,18 @@ export function ContactList({
     onChange(contacts.map((current, i) => (i === index ? contact : current)));
 
   return (
-    <SectionCard title={t("contactsTitle")} description={t("contactsText")}>
+    <SectionCard
+      title={t("contactsTitle")}
+      titleBadge={fromAccount ? <PrefillBadge /> : undefined}
+      description={t("contactsText")}
+    >
       <div className="space-y-4">
         {contacts.map((contact, index) => (
           <fieldset
             key={contact.key}
-            className="grid grid-cols-1 gap-3 sm:grid-cols-3"
+            // A line between people: with the prefill a list holds several
+            // contacts at once (#6682).
+            className="grid grid-cols-1 gap-3 border-t border-gray-100 pt-4 first:border-t-0 first:pt-0 sm:grid-cols-3"
           >
             <legend className="sr-only">
               {t("contactTitle", { number: index + 1 })}
@@ -557,6 +575,15 @@ export function ContactList({
               type="tel"
               label={contact.emergency ? t("phone") : t("phoneOptional")}
               required={contact.emergency}
+              // A contact from the account whose number the parent may not
+              // see (own account, other family) still needs one (#6682).
+              hint={
+                contact.knownGuardianId &&
+                contact.emergency &&
+                contact.phone.trim() === ""
+                  ? t("knownContactPhoneHint")
+                  : undefined
+              }
               maxLength={40}
               value={contact.phone}
               error={fieldError(`contacts.${index}.phone`)}
@@ -564,27 +591,57 @@ export function ContactList({
                 setContact(index, { ...contact, phone: event.target.value })
               }
             />
-            <div className="flex items-end gap-2">
-              <div className="min-w-0 flex-1">
-                <Input
-                  name={`contacts.${index}.relationship`}
-                  label={t("relationship")}
-                  maxLength={60}
-                  error={fieldError(`contacts.${index}.relationship`)}
-                  value={contact.relationship}
-                  onChange={(event) =>
-                    setContact(index, {
-                      ...contact,
-                      relationship: event.target.value,
-                    })
-                  }
-                />
+            <Input
+              name={`contacts.${index}.relationship`}
+              label={t("relationship")}
+              maxLength={60}
+              error={fieldError(`contacts.${index}.relationship`)}
+              value={contact.relationship}
+              onChange={(event) =>
+                setContact(index, {
+                  ...contact,
+                  relationship: event.target.value,
+                })
+              }
+            />
+            {/* Roles left, removal at the end of the row: the three fields
+                keep one width and line up (#6682). */}
+            <div className="flex items-start justify-between gap-3 sm:col-span-3">
+              <div className="space-y-2">
+                {(["emergency", "pickup"] as const).map((role) => {
+                  const name = `contacts.${index}.${role}`;
+                  const error = fieldError(name);
+                  const hintId = `${contact.key}-${role}-error`;
+                  return (
+                    <div key={role}>
+                      <label className="flex items-center gap-2 text-sm text-gray-700">
+                        <Checkbox
+                          name={name}
+                          checked={contact[role]}
+                          aria-invalid={error ? true : undefined}
+                          aria-describedby={error ? hintId : undefined}
+                          onChange={(event) =>
+                            setContact(index, {
+                              ...contact,
+                              [role]: event.target.checked,
+                            })
+                          }
+                        />
+                        {t(
+                          role === "emergency" ? "emergencyRole" : "pickupRole",
+                        )}
+                      </label>
+                      <FieldErrorHint id={hintId} message={error} />
+                    </div>
+                  );
+                })}
               </div>
               {contacts.length === 1 ? null : (
                 <Button
                   type="button"
                   variant="ghost"
                   size="compact"
+                  className="shrink-0"
                   onClick={() =>
                     onChange(contacts.filter((_, i) => i !== index))
                   }
@@ -592,33 +649,6 @@ export function ContactList({
                   {t("remove")}
                 </Button>
               )}
-            </div>
-            <div className="space-y-2 sm:col-span-3">
-              {(["emergency", "pickup"] as const).map((role) => {
-                const name = `contacts.${index}.${role}`;
-                const error = fieldError(name);
-                const hintId = `${contact.key}-${role}-error`;
-                return (
-                  <div key={role}>
-                    <label className="flex items-center gap-2 text-sm text-gray-700">
-                      <Checkbox
-                        name={name}
-                        checked={contact[role]}
-                        aria-invalid={error ? true : undefined}
-                        aria-describedby={error ? hintId : undefined}
-                        onChange={(event) =>
-                          setContact(index, {
-                            ...contact,
-                            [role]: event.target.checked,
-                          })
-                        }
-                      />
-                      {t(role === "emergency" ? "emergencyRole" : "pickupRole")}
-                    </label>
-                    <FieldErrorHint id={hintId} message={error} />
-                  </div>
-                );
-              })}
             </div>
           </fieldset>
         ))}
@@ -722,10 +752,13 @@ export function KnownChildPicker({
 /** Exactly one optional co-guardian; the registering parent's data stays separate. */
 export function SecondGuardianCard({
   guardian,
+  fromAccount = false,
   fieldError,
   onChange,
 }: Readonly<{
   guardian: RegistrationDraft["guardian"];
+  /** The values are the custodian the school knows (#6682). */
+  fromAccount?: boolean;
   fieldError: FieldError;
   onChange: (guardian: RegistrationDraft["guardian"]) => void;
 }>) {
@@ -736,6 +769,7 @@ export function SecondGuardianCard({
   return (
     <SectionCard
       title={t("secondGuardianTitle")}
+      titleBadge={fromAccount ? <PrefillBadge /> : undefined}
       description={t("secondGuardianText")}
     >
       <div className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -799,11 +833,14 @@ export function SecondGuardianCard({
 export function GuardianAddressCard({
   address,
   required,
+  fromAccount = false,
   fieldError,
   onChange,
 }: Readonly<{
   address: AddressDraft;
   required: boolean;
+  /** The address is the one the school knows (#6682). */
+  fromAccount?: boolean;
   fieldError: FieldError;
   onChange: (address: AddressDraft) => void;
 }>) {
@@ -811,6 +848,7 @@ export function GuardianAddressCard({
   return (
     <SectionCard
       title={required ? t("addressTitle") : t("addressTitleOptional")}
+      titleBadge={fromAccount ? <PrefillBadge /> : undefined}
       description={required ? t("addressText") : t("addressOptionalText")}
     >
       <GuardianAddressFields

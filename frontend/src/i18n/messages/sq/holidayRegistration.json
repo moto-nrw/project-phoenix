@@ -28,7 +28,7 @@
   "addChild": "Shto vëlla ose motër",
   "removeChild": "Hiq fëmijën",
   "knownChildrenTitle": "Fëmijët tuaj nga llogaria e prindit",
-  "knownChildrenText": "Zgjidhni fëmijën tuaj. Të dhënat e tij shfaqen atëherë në formular. Mund t'i ndryshoni para dërgimit. Kjo ndryshon vetëm këtë regjistrim.",
+  "knownChildrenText": "Zgjidhni fëmijën tuaj. Të dhënat e tij, adresa juaj dhe kontaktet e shkollës shfaqen atëherë në formular. Mund t'i ndryshoni të gjitha para dërgimit. Kjo ndryshon vetëm këtë regjistrim.",
   "knownChildMeta": "{school} · lindur më {birthDate}",
   "knownChildrenFull": "Mund të regjistroni së bashku më së shumti tre fëmijë.",
   "firstName": "Emri",
@@ -195,5 +195,13 @@
   },
   "doneAccountTitle": "Hapi tjetër: llogaria juaj e prindit",
   "doneAccountText": "Ju dërguam një email të dytë në {email}. Hapni lidhjen në të. Atje vendosni fjalëkalimin ose hyni.",
-  "doneToRegistrations": "Te regjistrimet tuaja për pushimet"
+  "doneToRegistrations": "Te regjistrimet tuaja për pushimet",
+  "prefillBadge": "Nga llogaria e prindit",
+  "healthNotPrefilled": "Të dhënat shëndetësore nuk i marrim. Ju lutemi shkruajini këtu.",
+  "knownContactPhoneHint": "Këtë numër nuk e shihni në llogarinë e prindit. Ju lutemi shkruajeni.",
+  "relationshipTypes": {
+    "parent": "Prind",
+    "guardian": "Kujdestar ligjor",
+    "relative": "I afërm"
+  }
 }

@@ -132,6 +132,7 @@ const family: HolidayKnownFamily = {
     lastName: "Schneider",
     email: "sabine@example.org",
     phone: "0151 2",
+    address: null,
   },
   children: [
     {
@@ -142,6 +143,7 @@ const family: HolidayKnownFamily = {
       birthDate: "2018-03-01",
       holidayWish: "",
       holidayWishProof: "",
+      contacts: [],
     },
   ],
   accountProof: "",
@@ -1069,6 +1071,77 @@ describe("HolidayRegistrationForm", () => {
     fireEvent.click(known);
     expect(known).not.toBeChecked();
     expect(screen.getAllByLabelText("Vorname")[0]).toHaveValue("");
+  });
+
+  it("fills address, second custodian and contacts from the account, never health (#6682)", () => {
+    const known: HolidayKnownFamily = {
+      ...family,
+      guardian: {
+        ...family.guardian,
+        address: {
+          street: "Lindenweg 4",
+          postalCode: "49143",
+          city: "Bissendorf",
+        },
+      },
+      children: [
+        {
+          ...family.children[0]!,
+          contacts: [
+            {
+              guardianProfileId: "51",
+              firstName: "Jonas",
+              lastName: "Schneider",
+              email: "",
+              phone: "",
+              relationshipType: "parent",
+              fullGuardian: true,
+              emergency: true,
+              pickup: true,
+            },
+          ],
+        },
+      ],
+    };
+    renderForm(known, {
+      ...offer,
+      form: { ...offer.form, addressRequirement: "optional" },
+    });
+    // Own fields and address come with the account at once.
+    expect(screen.getByLabelText(/Straße/)).toHaveValue("Lindenweg 4");
+    expect(screen.getAllByText("Aus dem Elternkonto")).toHaveLength(2);
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Felix Schneider/ }));
+    const second = within(
+      screen
+        .getByRole("heading", { name: "Zweite sorgeberechtigte Person" })
+        .closest("section")!,
+    );
+    expect(second.getByLabelText(/Vorname/)).toHaveValue("Jonas");
+    expect(second.getByText("Aus dem Elternkonto")).toBeInTheDocument();
+    const contacts = within(
+      screen.getByRole("heading", { name: "Kontakte" }).closest("section")!,
+    );
+    expect(contacts.getByLabelText(/^Name/)).toHaveValue("Jonas Schneider");
+    expect(contacts.getByLabelText(/Beziehung/)).toHaveValue("Elternteil");
+    // The account shows this number to nobody else: the parent types it.
+    expect(
+      contacts.getByText(
+        "Diese Nummer sehen Sie im Elternkonto nicht. Bitte tragen Sie sie ein.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Gesundheitsangaben übernehmen wir nicht. Bitte tragen Sie sie hier ein.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Allergien und Unverträglichkeiten"),
+    ).toHaveValue("");
+
+    fireEvent.click(screen.getByRole("checkbox", { name: /Felix Schneider/ }));
+    expect(second.getByLabelText(/Vorname/)).toHaveValue("");
+    expect(contacts.getByLabelText(/^Name/)).toHaveValue("");
   });
 
   it("offers no known children without a parent account", () => {
