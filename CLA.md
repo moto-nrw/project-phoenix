@@ -1,6 +1,6 @@
 # Contributor License Agreement
 
-Thank you for your interest in contributing to Project Phoenix ("Project"), owned and managed by moto-nrw ("Organization"). This Contributor License Agreement ("Agreement") documents the rights granted by contributors to the Organization.
+Thank you for your interest in contributing to Project Phoenix ("Project"), owned and managed by moto-ogs ("Organization"). This Contributor License Agreement ("Agreement") documents the rights granted by contributors to the Organization.
 
 ## Why a CLA?
 

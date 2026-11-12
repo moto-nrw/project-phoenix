@@ -3,8 +3,8 @@ package notifications
 import (
 	"context"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	deliveryModels "github.com/moto-ogs/project-phoenix/modules/delivery/subscriptions"
 )
 
 func NewPushAuthorizationChecker(execute func(context.Context, int64, func(context.Context) error) error, subscriptions PushSubscriptionAuthorizer, contains func([]*deliveryModels.PushSubscription, deliveryContract.PushRecipient) bool) func(context.Context, deliveryContract.ClaimedIntent) (bool, error) {

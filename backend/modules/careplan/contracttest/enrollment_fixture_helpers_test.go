@@ -6,14 +6,14 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	enrollmentTest "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Small enrollment fixtures the offering suites share (moved from

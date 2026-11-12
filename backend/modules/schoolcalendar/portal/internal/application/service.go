@@ -7,10 +7,10 @@ import (
 	"strconv"
 	"time"
 
-	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
+	appointmentcap "github.com/moto-ogs/project-phoenix/modules/appointments"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal/internal/ports"
 	"golang.org/x/sync/singleflight"
 )
 

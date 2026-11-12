@@ -7,7 +7,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/http/pwa"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/http/pwa"
 	"github.com/stretchr/testify/assert"
 )
 

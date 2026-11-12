@@ -3,8 +3,8 @@ package requestreviewbinding
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/requestreview"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/requestreview"
 )
 
 // SubmitterPeople is the People Directory read that names who filed a request:

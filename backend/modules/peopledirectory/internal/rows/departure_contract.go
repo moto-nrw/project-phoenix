@@ -1,6 +1,6 @@
 package users
 
-import "github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+import "github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 
 // Retained model fields use the native departure values; their behavior lives with People Directory.
 type (

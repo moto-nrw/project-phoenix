@@ -178,7 +178,7 @@ Next writes its `.next`, lock, `next-env.d.ts` and TypeScript changes
 only there. Local env files are not copied. Changing suite or ports therefore
 never reuses another run's compilation, and the native dev loop can keep running
 in the same worktree without losing its warm cache or generated files
-([#5371](https://github.com/moto-nrw/project-phoenix/issues/5371)). Source edits
+([#5371](https://github.com/moto-ogs/project-phoenix/issues/5371)). Source edits
 made after startup take effect on the next run, not in the current snapshot.
 Readiness compiles the tenant login page, not just a health endpoint, before
 browser action timeouts begin. Retries, assertions and test timeouts are unchanged.
@@ -912,7 +912,7 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
   attaches the output as the artifact `product-screenshots-<version>` (7 days)
   and as `product-screenshots-<version>.zip` to the GitHub release `v<version>`,
   plus the same file as `product-screenshots.zip`: the newest images are always
-  at `https://github.com/moto-nrw/project-phoenix/releases/latest/download/product-screenshots.zip`
+  at `https://github.com/moto-ogs/project-phoenix/releases/latest/download/product-screenshots.zip`
   (PyrePortal does the same for the kiosk). A rerun of the same version replaces
   both ZIPs. Pull requests into `main` that
   touch the pipeline run the capture without the release asset; pull requests

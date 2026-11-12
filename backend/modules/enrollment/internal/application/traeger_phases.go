@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // TraegerPhaseReads read the Träger phases; the administration serves them

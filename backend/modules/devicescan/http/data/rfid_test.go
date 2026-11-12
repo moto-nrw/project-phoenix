@@ -12,9 +12,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	dataAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/data"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	dataAPI "github.com/moto-ogs/project-phoenix/modules/devicescan/http/data"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // rfidTestContext holds shared test dependencies.

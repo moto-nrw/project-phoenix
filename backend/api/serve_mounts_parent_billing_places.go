@@ -8,10 +8,10 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/workflows/holidayallocation"
-	holidayAllocationCompose "github.com/moto-nrw/project-phoenix/workflows/holidayallocation/compose"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/workflows/holidayallocation"
+	holidayAllocationCompose "github.com/moto-ogs/project-phoenix/workflows/holidayallocation/compose"
 )
 
 // The places of the holiday weeks as the Elternabrechnung's routes change

@@ -8,16 +8,16 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
-	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication/communicationtest"
+	messaging "github.com/moto-ogs/project-phoenix/modules/communication/internal/parentmessages"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The leadership conversations of #5200: a staff member without

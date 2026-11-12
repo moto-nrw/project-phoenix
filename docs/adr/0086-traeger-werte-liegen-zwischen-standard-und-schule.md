@@ -4,8 +4,8 @@ status: accepted
 
 # Träger-Werte liegen zwischen Standard und Schule
 
-Entscheidung vom 23.10.2026 zu [#4646](https://github.com/moto-nrw/project-phoenix/issues/4646),
-Etappe 0 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung vom 23.10.2026 zu [#4646](https://github.com/moto-ogs/project-phoenix/issues/4646),
+Etappe 0 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 8, 9 und 14. Der Product Owner hat sie am 23.10.2026 angenommen.
 Sie baut auf
 [ADR 0084](0084-traeger-portal-liest-ueber-eine-projektion-und-schreibt-in-der-schule.md)

@@ -1,8 +1,8 @@
 package compose
 
 import (
-	applicationBindings "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
-	internalports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
+	applicationBindings "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application"
+	internalports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/ports"
 )
 
 // StudentPhotoConsentSnapshot is the photo slice of a consent change the

@@ -6,9 +6,9 @@ import (
 	sort "sort"
 	strings "strings"
 
-	lists "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	departure "github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	lists "github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	departure "github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 )
 
 // classListEntryExportEligible reports whether the export may carry list

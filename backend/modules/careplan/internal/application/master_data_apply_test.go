@@ -4,8 +4,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests"
 )
 
 // TestMasterDataPersonValue pins how a live person field reads against a

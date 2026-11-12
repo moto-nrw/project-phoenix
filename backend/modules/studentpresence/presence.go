@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The presence capability is published as small facades. A consumer declares

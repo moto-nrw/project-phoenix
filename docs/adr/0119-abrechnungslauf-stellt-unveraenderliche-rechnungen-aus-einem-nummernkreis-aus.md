@@ -4,8 +4,8 @@ status: accepted
 
 # Abrechnungslauf stellt unveränderliche Rechnungen aus einem Nummernkreis aus
 
-Entscheidung vom 26.10.2026 zu [#4668](https://github.com/moto-nrw/project-phoenix/issues/4668),
-Etappe 1 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung vom 26.10.2026 zu [#4668](https://github.com/moto-ogs/project-phoenix/issues/4668),
+Etappe 1 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 70, 71, 75 und 78. Sie ist der zweite Bau-Schnitt des Owners
 Elternabrechnung aus
 [ADR 0088](0088-betreuungsvertrag-und-elternabrechnung-sind-eigene-owner-beim-traeger.md)

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/internal/ports"
 )
 
 type rejectedTenantTransaction struct{ ports.Transaction }

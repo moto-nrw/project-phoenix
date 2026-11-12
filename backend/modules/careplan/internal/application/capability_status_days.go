@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/domain"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type StatusDayStore interface {

@@ -3,8 +3,8 @@ package owners
 import (
 	"errors"
 
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	careplanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // PickupPlanStudents binds the Care Plan pickup schedules' bulk students to

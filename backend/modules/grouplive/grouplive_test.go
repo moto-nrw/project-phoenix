@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
 )
 
 const today Date = "2026-08-21"

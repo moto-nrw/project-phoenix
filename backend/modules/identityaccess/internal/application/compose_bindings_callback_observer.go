@@ -1,7 +1,7 @@
 package application
 
 import (
-	internalports "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	internalports "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 func NewObserver(observe func(internalports.Observation)) func(observation internalports.Observation) {

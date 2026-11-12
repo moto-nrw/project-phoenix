@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // fallbackRemovedProvider answers as the mailer of a deployment whose fallback was

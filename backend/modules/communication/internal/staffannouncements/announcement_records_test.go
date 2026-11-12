@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	values "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
-	records "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements"
+	values "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
+	records "github.com/moto-ogs/project-phoenix/modules/communication/internal/staffannouncements"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

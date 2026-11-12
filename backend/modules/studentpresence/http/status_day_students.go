@@ -4,8 +4,8 @@ import (
 	context "context"
 	errors "errors"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // statusDayStudentRows is the owner surface the status-day write port needs:

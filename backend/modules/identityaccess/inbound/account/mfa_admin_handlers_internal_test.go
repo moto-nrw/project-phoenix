@@ -9,7 +9,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

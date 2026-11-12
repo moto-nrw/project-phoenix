@@ -5,12 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api"
 
 	"testing"
 
-	owner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	owner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )

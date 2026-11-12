@@ -23,11 +23,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	activeService "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -693,6 +693,7 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 		// ASSERT: Should fail - no active group for device
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "device must have an active group")
+		assert.ErrorIs(t, err, activeService.ErrNoActiveSession, "the kiosk contract answers a missing session with its 404 code (#5710)")
 	})
 }
 

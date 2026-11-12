@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	careplanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func traegerOfferingDraft(name string, capacity int) careplan.TraegerOfferingDraft {

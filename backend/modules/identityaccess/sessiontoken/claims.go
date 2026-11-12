@@ -3,7 +3,7 @@ package sessiontoken
 import (
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 type CommonClaims struct {

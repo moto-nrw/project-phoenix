@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // errStudentConsentAuditRequired marks a consent write whose history could

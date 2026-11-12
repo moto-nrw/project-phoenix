@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	"github.com/moto-ogs/project-phoenix/realtime"
 )
 
 // SettingsChangedNotifier tells the school's open tenant tabs that a setting

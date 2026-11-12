@@ -3,8 +3,8 @@ package api
 import (
 	"context"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	"github.com/moto-ogs/project-phoenix/realtime"
 )
 
 // staffTimeTrackingNotifier returns the post-commit notification that

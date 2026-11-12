@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/moto-nrw/project-phoenix/modules/classday"
+	"github.com/moto-ogs/project-phoenix/modules/classday"
 )
 
 // TestListSignature guards the #1565 review-pass-2 atomic export drift guard:

@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/workflows/reminderdelivery/ports"
 )
 
 // ReminderClock derives both evaluation inputs from the same Berlin instant.

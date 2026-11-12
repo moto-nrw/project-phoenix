@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	listrecords "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
+	listrecords "github.com/moto-ogs/project-phoenix/modules/documentrendering/records"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func sampleRecord(title string) listrecords.Record {

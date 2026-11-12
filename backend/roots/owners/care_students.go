@@ -3,10 +3,10 @@ package owners
 import (
 	"context"
 
-	owner1 "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	owner1 "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // CareMembershipCommands is bound by the root to School Membership. Care Plan

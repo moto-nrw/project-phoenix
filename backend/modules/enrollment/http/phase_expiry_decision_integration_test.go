@@ -5,20 +5,20 @@ import (
 	"testing"
 	"time"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func TestPhaseExpiryService_ApprovedRolloverWithInactiveOfferingStaysOpen(t *testing.T) {

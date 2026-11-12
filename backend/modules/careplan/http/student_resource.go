@@ -7,16 +7,16 @@ import (
 	time "time"
 
 	chi "github.com/go-chi/chi/v5"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	permissions "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
-	carerequests "github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	excusedrequests "github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	masterdatarequests "github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
-	parentrequests "github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	realtime "github.com/moto-nrw/project-phoenix/realtime"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	permissions "github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	careplan "github.com/moto-ogs/project-phoenix/modules/careplan"
+	carerequests "github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	excusedrequests "github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
+	masterdatarequests "github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests"
+	parentrequests "github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	realtime "github.com/moto-ogs/project-phoenix/realtime"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type ResourceConfig struct {

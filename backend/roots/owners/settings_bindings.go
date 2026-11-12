@@ -3,7 +3,7 @@ package owners
 import (
 	"context"
 
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // StaffSickNoteRetentionSettings resolves the staff sick note retention

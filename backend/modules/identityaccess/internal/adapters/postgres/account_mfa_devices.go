@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 const accountTrustedDeviceColumns = "id, account_id, tenant_id, token_hash, user_agent, ip_address, expires_at, last_used_at, revoked_at, created_at, updated_at"

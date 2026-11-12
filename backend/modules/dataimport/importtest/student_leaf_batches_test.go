@@ -15,8 +15,8 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Step 5b of #5552 (PR #6408): the batch command collects each row's

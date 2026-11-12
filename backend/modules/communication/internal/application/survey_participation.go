@@ -8,8 +8,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // staffSurveyDeepLink is the staff portal page that lists the open surveys.

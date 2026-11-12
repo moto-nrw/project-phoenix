@@ -5,7 +5,7 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/deviceauth"
 )
 
 // The kiosk half of the attendance context. Production builds it in device

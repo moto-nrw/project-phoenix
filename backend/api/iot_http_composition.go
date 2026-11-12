@@ -6,17 +6,17 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	iotCore "github.com/moto-nrw/project-phoenix/api/iot"
-	iotCompose "github.com/moto-nrw/project-phoenix/api/iot/compose"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
-	devicesAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/http/devices"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	checkinAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/checkin"
-	dataAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/data"
-	sessionsAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/sessions"
-	staffclockAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/staffclock"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	iotCore "github.com/moto-ogs/project-phoenix/api/iot"
+	iotCompose "github.com/moto-ogs/project-phoenix/api/iot/compose"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/deviceauth"
+	devicesAPI "github.com/moto-ogs/project-phoenix/modules/devicefleet/http/devices"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	checkinAPI "github.com/moto-ogs/project-phoenix/modules/devicescan/http/checkin"
+	dataAPI "github.com/moto-ogs/project-phoenix/modules/devicescan/http/data"
+	sessionsAPI "github.com/moto-ogs/project-phoenix/modules/devicescan/http/sessions"
+	staffclockAPI "github.com/moto-ogs/project-phoenix/modules/devicescan/http/staffclock"
 )
 
 // NewIoTHTTPRuntime binds the native HTTP leaf constructors without a Root service graph.

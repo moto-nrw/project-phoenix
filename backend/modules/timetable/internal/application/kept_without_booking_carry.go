@@ -3,8 +3,8 @@ package application
 import (
 	"maps"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // keptDecisions carries the school's „Bleibt so“ (#5102) from the hand rows

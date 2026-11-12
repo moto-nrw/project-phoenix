@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	postgresNative "github.com/moto-nrw/project-phoenix/modules/timetable/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
-	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	postgresNative "github.com/moto-ogs/project-phoenix/modules/timetable/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/application"
+	scheduleModels "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 

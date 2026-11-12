@@ -7,9 +7,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-	peopleEnrollment "github.com/moto-nrw/project-phoenix/modules/peopledirectory/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
+	peopleEnrollment "github.com/moto-ogs/project-phoenix/modules/peopledirectory/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // companionWeekdayKeys maps the ISO weekday of a companion edge onto the

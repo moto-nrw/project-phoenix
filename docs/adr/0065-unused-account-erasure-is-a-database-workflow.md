@@ -4,8 +4,8 @@ status: accepted
 
 # Unused account erasure is a database workflow
 
-Decision for [#4043](https://github.com/moto-nrw/project-phoenix/issues/4043)
-under [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580). It is
+Decision for [#4043](https://github.com/moto-ogs/project-phoenix/issues/4043)
+under [#2580](https://github.com/moto-ogs/project-phoenix/issues/2580). It is
 the further cross-owner database workflow that
 [ADR 0062](0062-demo-visitor-erasure-is-a-database-workflow.md) requires a
 decision of its own for.

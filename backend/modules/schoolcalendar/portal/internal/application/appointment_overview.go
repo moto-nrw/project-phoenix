@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strings"
 
-	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
+	appointmentcap "github.com/moto-ogs/project-phoenix/modules/appointments"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
 )
 
 func (s *service) GetStaffAppointmentOverview(ctx context.Context, appointmentID int64) (*AppointmentOverview, error) {

@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"testing"
 
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	enrollment "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	enrollment "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 

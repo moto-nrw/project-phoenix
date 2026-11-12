@@ -116,6 +116,18 @@ export function traegerBillingRunTopic(): HelpTopic {
         ],
       },
       {
+        title: "Versand und Exporte einer Rechnung ansehen",
+        description:
+          "Das geht, sobald der Lauf freigegeben ist. Sie sehen, was mit einer Rechnung geschah. Ändern können Sie dort nichts.",
+        steps: [
+          "Öffnen Sie den freigegebenen Lauf.",
+          "Wählen Sie bei der Rechnung das Menü mit den drei Punkten.",
+          "Wählen Sie `Versand und Exporte ansehen`.",
+          "Jeder Schritt steht mit Zeit und Konto da: Ausstellung, Versand, Storno und Lastschrift.",
+          "Jede Datei für Kämmerei, Steuerbüro oder Bank steht mit Nummer und Dateiname da.",
+        ],
+      },
+      {
         title: "Rechnung stornieren und neu ausstellen",
         description:
           "Eine ausgestellte Rechnung ändert sich nie. Stimmt sie nicht, stornieren Sie sie. Der Storno ist ein eigenes Dokument mit eigener Nummer und eigenem Schreiben.",
@@ -210,6 +222,7 @@ export function traegerBillingRunTopic(): HelpTopic {
       "Ein Klick auf eine Rechnung zeigt kein Schreiben? Die Schreiben des Laufs sind noch nicht erstellt. Erstellen Sie sie bei `Bestätigungsschreiben`.",
       "Auf dem Handy oder einem schmalen Bildschirm steht das Schreiben an der Stelle der Liste. Mit `Zurück zu den Rechnungen` kommen Sie zur Liste.",
       "Statt des Schreibens steht, dass sich die Datei auf diesem Gerät hier nicht zeigen lässt? Wählen Sie `In neuem Tab öffnen` oder `Herunterladen`.",
+      "Im Menü fehlt `Versand und Exporte ansehen`? Der Lauf ist noch nicht freigegeben, oder die Zeile ist ein Storno oder eine Gutschrift. Beide stehen bei ihrer Rechnung.",
       "Im Menü einer Rechnung fehlt `Rechnung stornieren`? Die Rechnung hat schon eine Gutschrift oder ist schon storniert. Schreiben Sie dann den Rest gut.",
       "Vor der Freigabe steht, dass Anmeldungen noch keine Debitorennummer haben? Ihr Träger fragt die Nummer ab. Diese Anmeldungen wurden ohne Nummer bestätigt, und auch die Familie hat keine. Tragen Sie die Nummer in der Anmeldung ein. Freigeben können Sie trotzdem. Nennt Ihr eigener Zahlungstext die Debitorennummer, lassen sich die Schreiben ohne Nummer aber nicht erstellen.",
       "Vor der Freigabe steht `Schreiben brauchen die Debitorennummer`? Ihr eigener Zahlungstext nennt die Debitorennummer, und Rechnungen mit Betrag haben keine. Tragen Sie die Nummern vor dem Freigeben in den Anmeldungen ein. Das Feld dafür erscheint, wenn in den Einstellungen unter `Allgemein` im Bereich `Ferienbetreuung` `Debitorennummer beim Bestätigen abfragen` an ist. Freigeben geht trotzdem, der Knopf heißt dann `Trotzdem freigeben`. Die Schreiben lassen sich danach nur ohne den Platzhalter erstellen.",

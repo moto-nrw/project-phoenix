@@ -3,7 +3,7 @@ package ports
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
 // StudentNoteStore is the persistence port over users.student_notes. Every
@@ -37,4 +37,18 @@ type StudentNoteStore interface {
 	// RetireSchoolDayHints soft-deletes the author's live hints of the target
 	// and returns them; for a class target, the children in keep are spared.
 	RetireSchoolDayHints(ctx context.Context, target domain.ClearSchoolDayHint, keep []int64) ([]domain.StudentNote, domain.OperationStats, error)
+}
+
+// StudentNoteTeamStore is the persistence port over
+// users.student_note_team_notices (#6854): who was told about which note and
+// whether they read it.
+type StudentNoteTeamStore interface {
+	// UpsertTeamNotices marks the note unread for every recipient; a
+	// recipient told before is told again (informed now, unread).
+	UpsertTeamNotices(ctx context.Context, noteID int64, recipientAccountIDs []int64) (int, domain.OperationStats, error)
+	// ListUnreadTeamNotices returns the reader's unread markers on live notes
+	// for the whole team, newest first.
+	ListUnreadTeamNotices(ctx context.Context, readerAccountID int64, limit int) ([]domain.StudentNoteTeamNotice, domain.OperationStats, error)
+	// MarkTeamNoticesRead clears the reader's markers on the child's notes.
+	MarkTeamNoticesRead(ctx context.Context, readerAccountID, studentID int64) (domain.OperationStats, error)
 }

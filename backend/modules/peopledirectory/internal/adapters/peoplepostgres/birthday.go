@@ -5,14 +5,14 @@ import (
 	"context"
 	"fmt"
 
-	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleBirthday "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	directory "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleBirthday "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
 
 	"github.com/uptrace/bun"
 
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
-	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	users "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
+	ports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // birthdayRow is the ad-hoc scan target for both birthday queries. Its Birthday

@@ -7,13 +7,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // assertPhaseKept checks that a refused delete left the phase and its

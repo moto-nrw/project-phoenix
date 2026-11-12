@@ -5,7 +5,7 @@ import (
 	errors "errors"
 	time "time"
 
-	domain "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
+	domain "github.com/moto-ogs/project-phoenix/modules/devicefleet/internal/domain"
 )
 
 // ErrDashboardNotComposed is returned by every dashboard collaborator a

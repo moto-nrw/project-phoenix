@@ -6,8 +6,8 @@ status: accepted
 
 Freigegeben von Yannick Wenger am 07.11.2026
 
-Vorschlag vom 06.11.2026 zu [#4683](https://github.com/moto-nrw/project-phoenix/issues/4683),
-Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Vorschlag vom 06.11.2026 zu [#4683](https://github.com/moto-ogs/project-phoenix/issues/4683),
+Etappe 2 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 56, 57 und 118. Er baut auf
 [ADR 0139](0139-soll-und-ist-je-kind-is-a-statistics-read-over-a-swappable-soll-port.md)
 (Soll und Ist je Kind) und
@@ -105,7 +105,7 @@ User Stories 56, 57 und 118. Er baut auf
 ## Nachtrag 07.11.2026: Ferienbuchung (#5994)
 
 Die Vorrangregel war in #4683 offen. Diese Umsetzung nimmt Option 1 aus
-[#5994](https://github.com/moto-nrw/project-phoenix/issues/5994) an; eine
+[#5994](https://github.com/moto-ogs/project-phoenix/issues/5994) an; eine
 andere fachliche Entscheidung ändert diesen Abschnitt und die Tests.
 
 1. **Ferienbuchung vor Vertrag.** An einem Tag mit bestätigter Ferienbuchung

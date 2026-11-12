@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // StudentStatusDayService owns status-day persistence and the absence-overview

@@ -37,6 +37,7 @@ import { isDemoBuild } from "~/lib/demo-access";
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
 import { RefreshButton } from "./header/refresh-button";
 import { RemindersBell } from "./header/reminders-bell";
+import { TeamNotesButton } from "./header/team-notes-button";
 import { SessionWarning } from "./header/session-warning";
 import {
   ProfileDropdownHeader,
@@ -155,6 +156,9 @@ const TRAEGER_PAGE_TITLES: ReadonlyArray<
   ["/stichtagszahlen", "Stichtagszahlen"],
   ["/belegung", "Belegung"],
   ["/ferien", "Ferienbetreuung"],
+  ["/anmeldephasen", "Anmeldephasen"],
+  ["/schliesstage", "Schließtage"],
+  ["/zeitvergleich", "Länger als gebucht"],
   ["/dokumente", "Dokumente"],
   ["/abrechnung", "Abrechnung"],
   ["/vertraege", "Verträge"],
@@ -164,6 +168,7 @@ const TRAEGER_PAGE_TITLES: ReadonlyArray<
   ["/einstellungen/dokumentarten", "Dokumentarten"],
   ["/einstellungen/zugriffsprotokoll", "Zugriffsprotokoll"],
   ["/einstellungen", "Allgemein"],
+  ["/konto", "Konto"],
 ];
 
 function traegerTitleForPath(pathname: string): string | null {
@@ -520,6 +525,7 @@ export function Header() {
                 mode !== "traeger" && <RefreshButton />}
             </div>
 
+            {mode === "teacher" ? <TeamNotesButton /> : null}
             {mode === "teacher" ? <RemindersBell /> : null}
             {/* User menu */}
             <AnchoredPopover
@@ -560,7 +566,7 @@ export function Header() {
                         ? tParentNav("settings")
                         : mode === "school"
                           ? "Einstellungen"
-                          : mode === "caterer"
+                          : mode === "caterer" || mode === "traeger"
                             ? "Konto"
                             : undefined
                   }

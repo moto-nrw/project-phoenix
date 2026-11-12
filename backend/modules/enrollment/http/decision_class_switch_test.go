@@ -3,15 +3,15 @@ package enrollmenthttp_test
 import (
 	"testing"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Approving next school year's re-enrollment of a child the school still cares

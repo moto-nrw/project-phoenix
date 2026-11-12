@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/traegerview"
+	"github.com/moto-ogs/project-phoenix/modules/traegerview"
 )
 
 // KeyDateCounts returns the captured Stichtagszahlen of every school of the

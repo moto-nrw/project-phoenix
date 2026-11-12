@@ -1,6 +1,6 @@
 package schoolsetuphttp
 
-import "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+import "github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 
 // WritePermissions are the permissions of which the wizard's caller must
 // hold at least one: config:update, or config:manage, which includes it. The

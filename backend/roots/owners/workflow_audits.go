@@ -4,11 +4,11 @@ import (
 	"context"
 	"log/slog"
 
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/workflows/studentdeletion"
 )
 
 // NewWorkflowAuditCommand builds the fail-closed append command a workflow

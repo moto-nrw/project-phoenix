@@ -6,10 +6,10 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
-	"github.com/moto-nrw/project-phoenix/workflows/sessionend/internal/application"
-	"github.com/moto-nrw/project-phoenix/workflows/sessionend/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/workflows/sessionend"
+	"github.com/moto-ogs/project-phoenix/workflows/sessionend/internal/application"
+	"github.com/moto-ogs/project-phoenix/workflows/sessionend/ports"
 )
 
 type Observation = ports.Observation

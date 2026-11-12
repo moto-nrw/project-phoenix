@@ -3,7 +3,7 @@ package care
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // These are the workflow's cross-school reads, not persistence models. The

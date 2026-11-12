@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
 )
 

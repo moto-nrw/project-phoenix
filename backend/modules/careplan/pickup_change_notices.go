@@ -3,7 +3,7 @@ package careplan
 import (
 	"context"
 
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // PickupChangeNotice is a one-day pickup time a family asked for that became

@@ -6,8 +6,8 @@ status: accepted
 
 **Status: Akzeptiert.** Freigegeben von Yannick Wenger am 07.11.2026.
 
-Entscheidung vom 07.11.2026 zu [#4684](https://github.com/moto-nrw/project-phoenix/issues/4684),
-Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung vom 07.11.2026 zu [#4684](https://github.com/moto-ogs/project-phoenix/issues/4684),
+Etappe 2 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 59 und 63. Sie ist ein weiterer Bau-Schnitt des Owners
 Elternabrechnung aus
 [ADR 0088](0088-betreuungsvertrag-und-elternabrechnung-sind-eigene-owner-beim-traeger.md)

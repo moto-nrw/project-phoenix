@@ -160,6 +160,9 @@ export const studentKeys = {
     `student-note-activities-${encodeURIComponent(id)}`,
   permanentNotes: (id: string) =>
     `student-permanent-notes-${encodeURIComponent(id)}`,
+  /** The reader's notes the team shared and they have not read (#6854). */
+  teamNotices: (accountId: string) =>
+    `student-note-team-notices:${encodeURIComponent(accountId)}`,
   enrollments: (id: string) => `student-enrollments-${encodeURIComponent(id)}`,
   holidayGuest: (id: string) => `holiday-guest:${encodeURIComponent(id)}`,
   carePlanDay: (id: string, date: string) =>

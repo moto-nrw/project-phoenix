@@ -12,13 +12,13 @@ import (
 	time "time"
 
 	render "github.com/go-chi/render"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	absencerecords "github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	securityruntime "github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	absencerecords "github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	securityruntime "github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // attendanceHistoryResponse is the shape returned by GET /students/{id}/attendance-history.

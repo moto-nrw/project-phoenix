@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 )
 
 // targetedFieldSyncOptions tune one targeted-field dispatch.

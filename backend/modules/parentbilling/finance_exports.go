@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The finance exports of the Elternabrechnung (#4693): the frame every file
@@ -289,10 +289,14 @@ type ExportProtocolEntry struct {
 	CostCenterFallbacks []CostCenterFallback `json:"cost_center_fallbacks"`
 	// ExportedBy is the account that downloaded the file, nil after its
 	// erasure; ExportedByYou marks the reader's own downloads.
-	ExportedBy    *int64     `json:"exported_by_account_id"`
-	ExportedByYou bool       `json:"exported_by_you"`
-	ExportedAt    time.Time  `json:"exported_at"`
-	SubmittedAt   *time.Time `json:"submitted_at"`
+	// ExportedByName names a colleague who downloaded it at this Träger
+	// (#4693): empty for the reader's own downloads, for a person without a
+	// name and after the erasure of the account.
+	ExportedBy     *int64     `json:"exported_by_account_id"`
+	ExportedByYou  bool       `json:"exported_by_you"`
+	ExportedByName string     `json:"exported_by_name"`
+	ExportedAt     time.Time  `json:"exported_at"`
+	SubmittedAt    *time.Time `json:"submitted_at"`
 }
 
 // ExportRun is a released run as the export page lists it: what it holds
@@ -523,12 +527,15 @@ const (
 // InvoiceHistoryEntry is one step of an invoice: when, what, by whom and,
 // for an export, the file. Positions counts the positions of the issue.
 type InvoiceHistoryEntry struct {
-	Kind      string               `json:"kind"`
-	At        time.Time            `json:"at"`
-	AccountID *int64               `json:"account_id"`
-	ByYou     bool                 `json:"by_you"`
-	Positions int                  `json:"positions,omitempty"`
-	File      *ExportProtocolEntry `json:"file,omitempty"`
+	Kind      string    `json:"kind"`
+	At        time.Time `json:"at"`
+	AccountID *int64    `json:"account_id"`
+	ByYou     bool      `json:"by_you"`
+	// AccountName names the colleague of the step like ExportedByName
+	// (#4693).
+	AccountName string               `json:"account_name"`
+	Positions   int                  `json:"positions,omitempty"`
+	File        *ExportProtocolEntry `json:"file,omitempty"`
 	// Note is the number of the cancellation, the message ID of a debit
 	// or the recipient of a mail, as the step names it.
 	Note string `json:"note,omitempty"`
@@ -584,6 +591,16 @@ func ExportRunLabel(runKind string, careMonth, noticeMonth *calendar.Date, perio
 		return "Bescheidraten " + monthOf(noticeMonth)
 	}
 	return runKind
+}
+
+// ExportActorNames names the people of the Träger-Büro who exported a file
+// or acted on an invoice (#4693): the name each carries at the Träger, from
+// memberships in any state, so a person who left still names their past
+// steps. An account without a name is missing from the answer. It reads in
+// the caller's Träger transaction, never the address or any other account
+// data, and only for the Träger it is given.
+type ExportActorNames interface {
+	TraegerActorNames(ctx context.Context, organizationID int64, accountIDs []int64) (map[int64]string, error)
 }
 
 // InvoiceHistoryPost reads the existing Delivery states of a run in the caller's Träger transaction.

@@ -20,14 +20,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	classdayhttp "github.com/moto-nrw/project-phoenix/modules/classday/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	classdayhttp "github.com/moto-ogs/project-phoenix/modules/classday/http"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 const (

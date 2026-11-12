@@ -6,9 +6,9 @@ import (
 
 	"github.com/uptrace/bun"
 
-	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	authAPI "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // testSchoolDirectory binds the auth routes to the Organisation & Tenancy

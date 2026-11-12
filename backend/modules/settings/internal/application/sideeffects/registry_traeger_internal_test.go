@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	_ "github.com/moto-nrw/project-phoenix/modules/settings/internal/defaults" // registers the definitions
-	settingsRecords "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	_ "github.com/moto-ogs/project-phoenix/modules/settings/internal/defaults" // registers the definitions
+	settingsRecords "github.com/moto-ogs/project-phoenix/modules/settings/records"
 	"github.com/stretchr/testify/assert"
 )
 

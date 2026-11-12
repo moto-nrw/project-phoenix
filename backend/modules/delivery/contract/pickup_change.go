@@ -3,7 +3,7 @@ package contract
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // PickupChangeReport is a one-day pickup time of a child that changed, such

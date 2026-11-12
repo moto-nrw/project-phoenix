@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 type capturingAbsenceEmails struct {

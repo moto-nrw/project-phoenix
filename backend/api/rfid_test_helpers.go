@@ -3,13 +3,13 @@
 package api
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	devicescanCompose "github.com/moto-ogs/project-phoenix/modules/devicescan/compose"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // RFIDTestModule is the Device Scan side of the RFID graph: the feedback

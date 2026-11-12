@@ -3,9 +3,9 @@ package api
 import (
 	"context"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
 )
 
 // Care Plan's offering-change review (#3561) reads and writes its own

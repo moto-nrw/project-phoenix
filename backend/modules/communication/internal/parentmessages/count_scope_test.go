@@ -6,11 +6,11 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	"github.com/moto-ogs/project-phoenix/modules/communication/communicationtest"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -20,14 +20,14 @@ import (
 	// and the caller's groups are stand-ins, because the store has its own test in
 	// the composition package and the groups come from the caller context.
 
-	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+	messaging "github.com/moto-ogs/project-phoenix/modules/communication/internal/parentmessages"
 
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 
-	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
+	settingsValues "github.com/moto-ogs/project-phoenix/modules/settings"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // memoryCountPreferences keeps count scopes per account, like the real store

@@ -14,15 +14,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
-	portalCompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
-	parentHTTP "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
+	portalCompose "github.com/moto-ogs/project-phoenix/workflows/parentportal/compose"
+	parentHTTP "github.com/moto-ogs/project-phoenix/workflows/parentportal/http"
 )
 
 // holidayOfferPeriod is a holiday period of a Träger as the test writes it.

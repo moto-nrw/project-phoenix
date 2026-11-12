@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	portalCompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	portalCompose "github.com/moto-ogs/project-phoenix/workflows/parentportal/compose"
 )
 
 func TestParentInvitationAndChildWriteShareAccountLockOrder(t *testing.T) {

@@ -3,8 +3,8 @@ package careplanhttp
 import (
 	http "net/http"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // getPersonForStudent fetches the person data for a student

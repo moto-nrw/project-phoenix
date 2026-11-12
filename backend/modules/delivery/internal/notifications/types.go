@@ -16,7 +16,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 )
 
 // Portals a notification type can belong to.
@@ -53,9 +53,9 @@ const permissionUsersDelete = "users:delete"
 // TestStaffQualificationNoticeFollowsTheRight pins it to the registry.
 const permissionStaffStammdaten = "staff:stammdaten"
 
-// permissionUsersRead restates the right that opens a child's pickup times:
-// the notice about a changed pickup time goes only to whoever may read them
-// (#6855). TestStudentPickupChangedNoticeFollowsTheRight pins it.
+// permissionUsersRead restates the right that opens a child's notes: a shared
+// note reaches whoever may read it (#6854).
+// TestStaffStudentNoteSharedFollowsTheRight pins it to the registry.
 const permissionUsersRead = "users:read"
 
 // Groups the profile page renders as headings, in this order.
@@ -104,6 +104,9 @@ const (
 	// TypeStaffPlannedExit reminds the Leitung of a planned staff exit and
 	// tells it when the exit is blocked (#4809).
 	TypeStaffPlannedExit = contract.NotificationStaffPlannedExit
+	// TypeStaffStudentNoteShared tells the team that a colleague shared a
+	// child's note with them (#6854). It names no child.
+	TypeStaffStudentNoteShared = contract.NotificationStaffStudentNoteShared
 
 	// TypeStaffQualificationExpiry reminds the Leitung of a Nachweis that
 	// expires (#4808); TypeStaffQualificationOwnExpiry reminds the person.
@@ -283,6 +286,7 @@ func init() {
 	registerPickupTypes()
 	registerActivityTypes()
 	registerStaffMessageTypes()
+	registerStaffNoteTypes()
 	registerStaffQualificationTypes()
 	registerParentMessageTypes()
 	registerParentStatusTypes()
@@ -362,6 +366,23 @@ func registerActivityTypes() {
 		Group:       GroupActivities,
 		Portal:      PortalStaff,
 		SortOrder:   4,
+	})
+}
+
+// registerStaffNoteTypes adds the notes a colleague shares with the team.
+func registerStaffNoteTypes() {
+	// A colleague chose "Speichern und Team informieren" (#6854): on until
+	// the person switches it off, and only offered to those who may read the
+	// notes. The notice names no child; the link opens the note.
+	RegisterType(TypeDefinition{
+		Key:         TypeStaffStudentNoteShared,
+		Label:       "Notizen für das Team",
+		Description: "Wenn jemand aus dem Team eine Notiz zu einem Kind mit Ihnen teilt.",
+		Group:       GroupChildren,
+		Portal:      PortalStaff,
+		Permission:  permissionUsersRead,
+		DefaultOn:   true,
+		SortOrder:   2,
 	})
 }
 

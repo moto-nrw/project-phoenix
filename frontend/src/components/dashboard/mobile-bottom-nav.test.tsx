@@ -120,6 +120,11 @@ vi.mock("~/lib/hooks/use-enrollments-unread", () => ({
   useEnrollmentsUnread: () => ({ unreadCount: enrollmentsUnread.count }),
 }));
 
+const teamNotes = vi.hoisted(() => ({ notices: [] as unknown[] }));
+vi.mock("~/lib/hooks/use-student-note-team-notices", () => ({
+  useStudentNoteTeamNotices: () => ({ notices: teamNotes.notices }),
+}));
+
 vi.mock("~/lib/operator-url", () => ({
   operatorPath: (path: string) => path,
 }));
@@ -380,6 +385,38 @@ describe("MobileBottomNav", () => {
         ).toBeInTheDocument();
       } finally {
         enrollmentsUnread.count = 0;
+      }
+    });
+
+    // Unter 1024 px fehlt die Kopfzeile: „Mehr“ trägt den roten Zähler der
+    // geteilten Notizen, das Menü ihre Liste (#6854).
+    it("zeigt geteilte Notizen am Mehr-Knopf und im Menü", () => {
+      teamNotes.notices = [
+        {
+          noteId: "11",
+          studentId: "7",
+          studentFirstName: "Mia",
+          studentLastName: "Muster",
+          authorName: "Sara Betreuerin",
+          informedAt: "2026-09-09T10:00:00Z",
+        },
+      ];
+      mockUseSession.mockReturnValue(createMockSession(false));
+      try {
+        render(<MobileBottomNav />);
+        expect(
+          screen.getByLabelText("1 neue Notizen vom Team"),
+        ).toBeInTheDocument();
+        fireEvent.click(screen.getByRole("button", { name: "Mehr" }));
+        expect(screen.getByText("Neue Notizen vom Team")).toBeInTheDocument();
+        expect(
+          screen.getByRole("link", { name: /Mia Muster/ }),
+        ).toHaveAttribute(
+          "href",
+          expect.stringContaining("/students/7?tab=notizen"),
+        );
+      } finally {
+        teamNotes.notices = [];
       }
     });
 

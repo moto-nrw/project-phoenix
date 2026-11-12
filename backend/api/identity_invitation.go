@@ -1,7 +1,7 @@
 package api
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // Identity & Access owns the school invitation flows (#2722). This file

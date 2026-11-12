@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 )
 
 // FilterOperator is a comparison operator of a QueryFilter condition.

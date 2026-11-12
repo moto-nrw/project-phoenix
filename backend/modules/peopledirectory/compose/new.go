@@ -8,12 +8,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
-	internalports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application"
+	internalports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/ports"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -87,6 +87,7 @@ type Directory struct {
 	students         *application.StudentService
 	PersonWrites     peoplePorts.PersonWriter
 	StudentDirectory peoplePorts.StudentDirectoryAccess
+	StudentNoteTeam  peopledirectory.StudentNoteTeamNotices // #6854, beside the owner's facade
 }
 
 // New composes the public capability and native same-owner operations. The
@@ -103,7 +104,7 @@ func New(dependencies Dependencies, memberships GuardianMembershipQuery) (*Direc
 		companions = application.NewStudentCompanions(dependencies.StudentCompanions)
 	}
 	owners := application.NewStudentOwners(dependencies.StudentOwners)
-	noteStore := postgres.NewStudentNoteStore(database)
+	noteStore := postgres.NewStudentNoteStore(database, dependencies.StudentDirectory)
 	var noteDeletionAudit internalports.StudentNoteDeletionAudit
 	if dependencies.StudentNoteDeletionAudit != nil {
 		noteDeletionAudit = dependencies.StudentNoteDeletionAudit
@@ -123,10 +124,8 @@ func New(dependencies Dependencies, memberships GuardianMembershipQuery) (*Direc
 	}
 	studentPhotos := application.NewStudentPhotos(
 		postgres.NewStudentStore(database, dependencies.StudentDirectory, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery), photoRuntime, transaction{}, observe, now)
-	studentNotes := application.NewStudentNotes(
-		noteStore, postgres.New(database),
-		postgres.NewStudentStore(database, dependencies.StudentDirectory, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery),
-		transaction{}, noteDeletionAudit, observe)
+	noteStudents := postgres.NewStudentStore(database, dependencies.StudentDirectory, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery)
+	studentNotes := application.NewStudentNotes(noteStore, postgres.New(database), noteStudents, transaction{}, noteDeletionAudit, observe)
 	providers, err := guardianProviders(dependencies.GuardianProvider)
 	if err != nil {
 		return nil, err
@@ -141,6 +140,7 @@ func New(dependencies Dependencies, memberships GuardianMembershipQuery) (*Direc
 		Owner: service, students: students,
 		PersonWrites:     application.NewPersonRows(service),
 		StudentDirectory: application.NewStudentDirectoryRows(students, studentPhotos),
+		StudentNoteTeam:  application.NewStudentNoteTeam(noteStore, noteStore, noteStudents, postgres.New(database), transaction{}, observe),
 	}, nil
 }
 

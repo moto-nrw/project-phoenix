@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // Guardian payment data (#2608). Two hard rules, carried over from the staff

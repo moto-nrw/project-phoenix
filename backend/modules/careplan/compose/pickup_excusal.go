@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/internal/careplanning"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	boundaryBinding "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/internal/careplanning"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	boundaryBinding "github.com/moto-ogs/project-phoenix/modules/careplan/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	carePlanPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 

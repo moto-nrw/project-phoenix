@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // NewParentExcusedRequestReads binds the absence request read of the parent

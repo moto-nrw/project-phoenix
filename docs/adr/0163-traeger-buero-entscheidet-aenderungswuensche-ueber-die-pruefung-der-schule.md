@@ -4,9 +4,9 @@ status: proposed
 
 # Das Träger-Büro entscheidet Änderungswünsche über die Prüfung der Schule
 
-Vorgeschlagen am 07.11.2026 zu [#5979](https://github.com/moto-nrw/project-phoenix/issues/5979),
-Folge von [#4681](https://github.com/moto-nrw/project-phoenix/issues/4681) und PR #5953,
-Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611).
+Vorgeschlagen am 07.11.2026 zu [#5979](https://github.com/moto-ogs/project-phoenix/issues/5979),
+Folge von [#4681](https://github.com/moto-ogs/project-phoenix/issues/4681) und PR #5953,
+Etappe 2 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611).
 Baut auf [ADR 0153](0153-betreuungsvertrag-entsteht-im-traeger-buero-aus-der-angenommenen-anmeldung.md)
 und [ADR 0067](0067-principle-owners-meet-through-contracts-and-write-together-in-workflows.md)
 (Teilnahme an einem Befehl) auf. Kein neuer Owner, keine Migration.

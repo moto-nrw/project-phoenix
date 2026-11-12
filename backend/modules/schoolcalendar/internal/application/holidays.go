@@ -5,7 +5,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
 
 	"github.com/wlbr/feiertage"
 )

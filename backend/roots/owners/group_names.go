@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
 )
 
 // GroupNamesByID returns the names of the groups the owner query sees for

@@ -222,6 +222,7 @@ export const HELP_TOPICS = {
   traegerTestSystem: "traeger-testsystem",
   traegerInvitation: "einladung-ins-traeger-buero-annehmen",
   traegerAccounts: "personen-ins-traeger-buero-einladen",
+  traegerProfile: "traeger-eigenen-namen-aendern",
   traegerHolidayPeriod: "traeger-ferienzeitraum",
   traegerClosingDays: "traeger-schliesstage",
   traegerHolidayRegistration: "traeger-ferienanmeldung-teilen",

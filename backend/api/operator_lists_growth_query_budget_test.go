@@ -17,11 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	provisioningHTTP "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
-	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	provisioningHTTP "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/inbound/operator"
+	settingsHTTP "github.com/moto-ogs/project-phoenix/modules/settings/inbound/operator"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 // These route-sized routers use the serving root's real owners, operator JWT

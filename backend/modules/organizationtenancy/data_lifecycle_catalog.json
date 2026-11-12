@@ -422,6 +422,7 @@
     {"name": "users.student_family_protection_events", "scope": "tenant", "export": "include", "personKeys": {"student_id": "users.student_profiles.id", "actor_account_id": "auth.accounts.id"}},
     {"name": "users.student_guardian_pickup_permissions", "scope": "tenant", "export": "include", "personKeys": {"relationship_id": "users.student_guardian_relationships.id"}},
     {"name": "users.student_guardian_relationships", "scope": "tenant", "export": "include", "personKeys": {"student_id": "users.student_profiles.id", "guardian_profile_id": "users.guardian_profiles.id"}},
+    {"name": "users.student_note_team_notices", "scope": "tenant", "export": "include", "personKeys": {"recipient_account_id": "auth.accounts.id"}},
     {"name": "users.student_notes", "scope": "tenant", "export": "include", "personKeys": {"student_id": "users.student_profiles.id", "author_account_id": "auth.accounts.id", "deleted_by_account_id": "auth.accounts.id"}},
     {"name": "users.student_profiles", "scope": "tenant", "export": "include", "allowedSensitiveColumns": {"address_postal_code": "Postal address, not an authentication code."}, "personKeys": {"person_id": "users.persons.id", "photo_consent_given_by": "auth.accounts.id"}},
     {"name": "users.student_school_memberships", "scope": "tenant", "export": "include", "personKeys": {"student_profile_id": "users.student_profiles.id"}},

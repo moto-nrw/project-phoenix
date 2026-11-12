@@ -213,7 +213,7 @@ func moduleFacadeMethodSetScan(backendRoot string) (map[string]int, error) {
 
 // moduleFacadeModulePath is the backend's module path; first-party imports
 // below it are type-checked from source.
-const moduleFacadeModulePath = "github.com/moto-nrw/project-phoenix"
+const moduleFacadeModulePath = "github.com/moto-ogs/project-phoenix"
 
 // moduleFacadeImporter type-checks first-party packages from source with the
 // standard library alone (the test-support role may not import

@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // ActiveGroup is a room session (one active.groups row) together with the

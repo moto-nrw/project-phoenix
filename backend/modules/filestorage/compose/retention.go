@@ -1,9 +1,9 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/filestorage"
-	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage/internal/application"
 )
 
 // NewCleanupRetention composes the retention of the technical remains of the

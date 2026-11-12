@@ -5,14 +5,14 @@ import (
 	"encoding/json"
 	"testing"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
-	api "github.com/moto-nrw/project-phoenix/roots/owners"
+	api "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	delivery "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	orm "github.com/uptrace/bun"
 )

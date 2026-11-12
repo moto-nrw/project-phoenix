@@ -5,7 +5,7 @@ import (
 	"maps"
 	"time"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // The Enrollment owner hands its offerings over with their availability rules

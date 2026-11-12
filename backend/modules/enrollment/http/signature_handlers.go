@@ -13,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
 )
 
 // The signature of an enrollment (#4786) on the wire: the parent sends it

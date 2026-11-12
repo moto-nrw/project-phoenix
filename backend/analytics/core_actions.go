@@ -408,6 +408,8 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/students/{id}/notes"}:                                 event("student_note_created"),
 	{http.MethodPut, "/api/students/{id}/notes/{noteId}"}:                         notCaptured,
 	{http.MethodDelete, "/api/students/{id}/notes/{noteId}"}:                      notCaptured,
+	{http.MethodPost, "/api/students/{id}/notes/{noteId}/team-notices"}:           event("student_note_team_informed"),
+	{http.MethodPost, "/api/students/{id}/team-notices/read"}:                     notCaptured,
 	{http.MethodPost, "/api/students/{id}/partial-absences"}:                      event("absence_reported"),
 	{http.MethodDelete, "/api/students/{id}/partial-absences/{partialAbsenceId}"}: notCaptured,
 	{http.MethodPut, "/api/students/{id}/partial-absences/{partialAbsenceId}"}:    notCaptured,

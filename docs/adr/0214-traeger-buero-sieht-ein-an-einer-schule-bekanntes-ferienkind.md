@@ -4,7 +4,7 @@ status: accepted
 
 # Träger-Büro sieht ein an einer Schule bekanntes Ferienkind
 
-Vorschlag vom 11.11.2026 zu [#6683](https://github.com/moto-nrw/project-phoenix/issues/6683),
+Vorschlag vom 11.11.2026 zu [#6683](https://github.com/moto-ogs/project-phoenix/issues/6683),
 Option A des Issues. Er ergänzt
 [ADR 0110](0110-oeffentliche-ferienanmeldung-schreibt-in-der-traeger-transaktion.md)
 Punkt 4 und [ADR 0114](0114-ferienanmeldungen-pruefen-mit-eigenem-protokoll-in-der-traeger-transaktion.md)

@@ -3,8 +3,8 @@ package compose
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/adapters/postgres"
 	"github.com/uptrace/bun"
 )
 

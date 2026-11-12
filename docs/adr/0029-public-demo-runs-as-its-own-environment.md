@@ -4,7 +4,7 @@ status: accepted
 
 # The public demo runs as its own environment
 
-The design interview for [#3194](https://github.com/moto-nrw/project-phoenix/issues/3194)
+The design interview for [#3194](https://github.com/moto-ogs/project-phoenix/issues/3194)
 settled this on 2026-09-20. Acceptance records the agreed design, not an
 implementation.
 

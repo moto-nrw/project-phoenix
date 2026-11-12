@@ -382,6 +382,8 @@ import type { traegerLoginTopic as authored_traegerLoginTopic } from "./articles
 
 import type { traegerOccupancyTopic as authored_traegerOccupancyTopic } from "./articles/traeger-occupancy";
 
+import type { traegerProfileTopic as authored_traegerProfileTopic } from "./articles/traeger-profile";
+
 import type { traegerSchoolSwitchTopic as authored_traegerSchoolSwitchTopic } from "./articles/traeger-school-switch";
 
 import type { traegerSchoolViewTopic as authored_traegerSchoolViewTopic } from "./articles/traeger-school-view";
@@ -5388,7 +5390,7 @@ export const ownGroupsTopic = function ownGroupsTopic(
       "Sehen Sie nur eine Gruppe? Dann öffnet moto sie direkt, ohne Auswahl.",
       "Ist für eine Gruppe keine Gruppenleitung eingetragen, fehlt diese Zeile auf ihrer Karte.",
       "Eine vorübergehend übernommene Gruppe ist mit `Vertretung` markiert.",
-      "In der Seitenleiste stehen unter `Gruppen` nur Ihre eigenen Gruppen. Dahinter steht, wie viele Kinder gerade da sind.",
+      "In der Seitenleiste stehen unter `Gruppen` Ihre eigenen Gruppen. Dahinter steht, wie viele Kinder gerade da sind. Haben Sie eine andere Gruppe geöffnet, steht sie markiert darunter.",
       "Fehlt eine Gruppe? Bitten Sie Ihre Leitung, Ihre Gruppenzuordnung zu prüfen.",
       // Einstellung „Kinder nur über ‚Alle Kinder‘ finden“ (#1321).
       "Fehlt `Gruppen` in der Navigation? Öffnen Sie `Alle Kinder` und wählen Sie oben `Meine Gruppe`. Die Gruppenseite öffnen Sie im Menü mit den drei Punkten unter `Zur Gruppenseite`.",
@@ -8392,6 +8394,11 @@ export const statisticsTopic = function statisticsTopic(): HelpTopic {
  * erscheint erst mit einem Bezug: `Gruppenleitung` bei der OGS-Gruppe,
  * `Angebotsleitung` bei einem Angebot. Der Bezug bleibt beim Bearbeiten fest.
  * An keine Einstellung gebunden.
+ *
+ * Team informieren (#6854): `Speichern und Team informieren` steht neben
+ * `Speichern` und geht nur mit `Ganzes Team`. Wer informiert wurde, sieht
+ * oben in der Kopfzeile `Neue Notizen vom Team` mit rotem Zähler; das Öffnen
+ * der Notizen des Kindes hakt sie ab.
  */
 export const studentNotesTopic = function studentNotesTopic(): HelpTopic {
   return {
@@ -8415,6 +8422,24 @@ export const studentNotesTopic = function studentNotesTopic(): HelpTopic {
           "Wählen Sie unter `Bezug`, worum es geht: `Nur das Kind`, die OGS-Gruppe oder ein Angebot.",
           "Wählen Sie unter `Wer sieht die Notiz?` die Reichweite.",
           "Wählen Sie `Speichern`.",
+        ],
+      },
+      {
+        title: "Eine wichtige Notiz mit dem Team teilen",
+        steps: [
+          "Schreiben Sie die Notiz wie oben.",
+          "Wählen Sie unter `Wer sieht die Notiz?` die Reichweite `Ganzes Team`.",
+          "Wählen Sie `Speichern und Team informieren`.",
+          "moto sagt Ihnen danach, wie viele Personen informiert sind.",
+        ],
+      },
+      {
+        title: "Eine geteilte Notiz lesen",
+        steps: [
+          "Oben in der Kopfzeile erscheint ein Notizblock mit rotem Zähler.",
+          "Tippen Sie darauf. Die Liste zeigt `Neue Notizen vom Team`.",
+          "Tippen Sie auf das Kind. Die Notizen des Kindes öffnen sich.",
+          "Die geteilte Notiz trägt `Neu`. Der Zähler geht zurück.",
         ],
       },
       {
@@ -8459,6 +8484,7 @@ export const studentNotesTopic = function studentNotesTopic(): HelpTopic {
       "Eltern sehen Notizen nie.",
       "Gesundheitsangaben gehören nicht in eine Notiz, sondern in die `Gesundheitsinformationen` der Stammdaten.",
       "Ändern kann eine Notiz nur, wer sie geschrieben hat.",
+      "`Speichern` allein informiert niemanden. Nur `Speichern und Team informieren` zeigt die Notiz allen im Team als neu. Auf dem Handy kommt zusätzlich eine Mitteilung, wenn Sie Mitteilungen eingeschaltet haben.",
       "Entfernen kann sie die Leitung der Gruppe oder des Angebots.",
       "Eine freigegebene Notiz liest nur die Lehrkraft der Klasse des Kindes, in moto schule. Die Schulverwaltung sieht sie nicht. Ohne Haken bleibt jede Notiz bei der OGS.",
       "Die `Bemerkung` an der Anwesenheit eines Angebots ist nur ein kurzer Satz zur Anwesenheit. Beobachtungen wie Verhalten oder einen Vorfall schreiben Sie als Notiz, mit dem Angebot als `Bezug`.",
@@ -8466,11 +8492,14 @@ export const studentNotesTopic = function studentNotesTopic(): HelpTopic {
     differences: [
       "Sie sehen weniger Notizen als eine Kollegin? Dann hat sie das Kind, Sie nicht. Die Reichweite entscheidet das je Notiz.",
       "Ein Hinweis trägt `Übernommen aus den Betreuernotizen`? Der stammt aus dem früheren Textfeld und hat deshalb keinen Verfasser.",
+      "Auf dem Handy gibt es keine Kopfzeile. Dort trägt `Mehr` unten den roten Zähler, und im Menü steht die Liste `Neue Notizen vom Team`.",
     ],
     troubleshootingDetails: [
       "Es fehlt der Reiter `Notizen`? Dann darf Ihre Rolle keine Notizen sehen. Fragen Sie Ihre Leitung.",
       "Ein Angebot fehlt unter `Bezug`? Dort stehen nur Angebote, in denen das Kind heute angemeldet ist.",
       "Es fehlt `Gruppenleitung` oder `Angebotsleitung`? Wählen Sie zuerst unter `Bezug` die Gruppe oder das Angebot.",
+      "`Speichern und Team informieren` lässt sich nicht wählen? Das geht nur mit `Ganzes Team` unter `Wer sieht die Notiz?`.",
+      "moto meldet `Die Notiz ist gespeichert. Das Team ist noch nicht informiert.`? Wählen Sie in der Meldung `Wiederholen`.",
     ],
     related: [HELP_TOPICS.leadManageStudent, HELP_TOPICS.studentSearch],
   };
@@ -10155,7 +10184,7 @@ export const traegerAccessLogTopic =
     };
   } satisfies typeof authored_traegerAccessLogTopic;
 
-/** `/traeger/einstellungen/mitglieder` (#4650, #5474, #5685): Personen einladen, Rollen ändern, entfernen, Verlauf. */
+/** `/traeger/einstellungen/mitglieder` (#4650, #5474, #5685, #4693): Personen einladen, Namen und Rollen ändern, entfernen, Verlauf. */
 export const traegerAccountsTopic = function traegerAccountsTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.traegerAccounts,
@@ -10178,6 +10207,16 @@ export const traegerAccountsTopic = function traegerAccountsTopic(): HelpTopic {
           "Tragen Sie die `E-Mail-Adresse` ein.",
           "Wählen Sie mindestens eine Rolle.",
           "Wählen Sie `Einladung senden`.",
+        ],
+      },
+      {
+        title: "Namen eintragen oder ändern",
+        steps: [
+          "Wählen Sie unten in der Navigation `Einstellungen`.",
+          "Wählen Sie `Mitglieder und Rollen`.",
+          "Öffnen Sie bei der Person das Menü mit den drei Punkten.",
+          "Wählen Sie `Namen eintragen`. Hat die Person schon einen Namen, heißt der Eintrag `Namen ändern`.",
+          "Tragen Sie den `Name` ein und wählen Sie `Speichern`.",
         ],
       },
       {
@@ -10219,7 +10258,9 @@ export const traegerAccountsTopic = function traegerAccountsTopic(): HelpTopic {
       "Eine Person kann mehrere Rollen haben. Wählen Sie alle Rollen auf einmal aus.",
       "Wer bisher `Verwaltung` hatte, hat `Dokumente` dazubekommen. Soll sich eine andere Person um die Dokumente kümmern? Geben Sie ihr `Dokumente` und nehmen Sie die Rolle bei der Verwaltung weg.",
       "Unter `Offene Einladungen` stehen auch Einladungen, die das moto-Team verschickt hat.",
-      "Unter `Verlauf` steht, wer wann eingeladen, Rollen geändert oder entfernt hat. Bei Rollen sehen Sie, welche vorher galten und welche jetzt gelten.",
+      "Der Name steht im Exportprotokoll und im Verlauf jeder Rechnung, die E-Mail-Adresse nie. Steht bei einer Person `Kein Name`, zeigen diese Stellen „von einem Konto ohne Namen“.",
+      "Jede Person kann ihren eigenen Namen auch selbst ändern: im Profil-Menü unter `Konto`.",
+      "Unter `Verlauf` steht, wer wann eingeladen, Rollen oder Namen geändert oder entfernt hat. Bei Rollen sehen Sie, welche vorher galten und welche jetzt gelten.",
       "Ändern Sie die Rollen einer Person oder entfernen Sie sie, bekommt die Person eine E-Mail. Darin steht, wer es war und wann. Das gilt auch, wenn Sie Ihre eigenen Rollen ändern.",
     ],
     differences: [
@@ -10232,7 +10273,7 @@ export const traegerAccountsTopic = function traegerAccountsTopic(): HelpTopic {
       "Die Einladung ist abgelaufen? Laden Sie die Person noch einmal ein. Die alte Einladung gilt dann nicht mehr.",
       "Eine Einladung soll nicht mehr gelten? Wählen Sie bei der Einladung `Einladung zurücknehmen`.",
     ],
-    related: [HELP_TOPICS.traegerInvitation],
+    related: [HELP_TOPICS.traegerInvitation, HELP_TOPICS.traegerProfile],
   };
 } satisfies typeof authored_traegerAccountsTopic;
 
@@ -10352,6 +10393,18 @@ export const traegerBillingRunTopic =
           ],
         },
         {
+          title: "Versand und Exporte einer Rechnung ansehen",
+          description:
+            "Das geht, sobald der Lauf freigegeben ist. Sie sehen, was mit einer Rechnung geschah. Ändern können Sie dort nichts.",
+          steps: [
+            "Öffnen Sie den freigegebenen Lauf.",
+            "Wählen Sie bei der Rechnung das Menü mit den drei Punkten.",
+            "Wählen Sie `Versand und Exporte ansehen`.",
+            "Jeder Schritt steht mit Zeit und Konto da: Ausstellung, Versand, Storno und Lastschrift.",
+            "Jede Datei für Kämmerei, Steuerbüro oder Bank steht mit Nummer und Dateiname da.",
+          ],
+        },
+        {
           title: "Rechnung stornieren und neu ausstellen",
           description:
             "Eine ausgestellte Rechnung ändert sich nie. Stimmt sie nicht, stornieren Sie sie. Der Storno ist ein eigenes Dokument mit eigener Nummer und eigenem Schreiben.",
@@ -10446,6 +10499,7 @@ export const traegerBillingRunTopic =
         "Ein Klick auf eine Rechnung zeigt kein Schreiben? Die Schreiben des Laufs sind noch nicht erstellt. Erstellen Sie sie bei `Bestätigungsschreiben`.",
         "Auf dem Handy oder einem schmalen Bildschirm steht das Schreiben an der Stelle der Liste. Mit `Zurück zu den Rechnungen` kommen Sie zur Liste.",
         "Statt des Schreibens steht, dass sich die Datei auf diesem Gerät hier nicht zeigen lässt? Wählen Sie `In neuem Tab öffnen` oder `Herunterladen`.",
+        "Im Menü fehlt `Versand und Exporte ansehen`? Der Lauf ist noch nicht freigegeben, oder die Zeile ist ein Storno oder eine Gutschrift. Beide stehen bei ihrer Rechnung.",
         "Im Menü einer Rechnung fehlt `Rechnung stornieren`? Die Rechnung hat schon eine Gutschrift oder ist schon storniert. Schreiben Sie dann den Rest gut.",
         "Vor der Freigabe steht, dass Anmeldungen noch keine Debitorennummer haben? Ihr Träger fragt die Nummer ab. Diese Anmeldungen wurden ohne Nummer bestätigt, und auch die Familie hat keine. Tragen Sie die Nummer in der Anmeldung ein. Freigeben können Sie trotzdem. Nennt Ihr eigener Zahlungstext die Debitorennummer, lassen sich die Schreiben ohne Nummer aber nicht erstellen.",
         "Vor der Freigabe steht `Schreiben brauchen die Debitorennummer`? Ihr eigener Zahlungstext nennt die Debitorennummer, und Rechnungen mit Betrag haben keine. Tragen Sie die Nummern vor dem Freigeben in den Anmeldungen ein. Das Feld dafür erscheint, wenn in den Einstellungen unter `Allgemein` im Bereich `Ferienbetreuung` `Debitorennummer beim Bestätigen abfragen` an ist. Freigeben geht trotzdem, der Knopf heißt dann `Trotzdem freigeben`. Die Schreiben lassen sich danach nur ohne den Platzhalter erstellen.",
@@ -12719,7 +12773,7 @@ export const traegerHolidayWishTopic =
     };
   } satisfies typeof authored_traegerHolidayWishTopic;
 
-/** `/traeger/invite` (#4650): Einladung aus der Mail annehmen. */
+/** `/traeger/invite` (#4650, #4693): Einladung aus der Mail annehmen, mit Namen. */
 export const traegerInvitationTopic =
   function traegerInvitationTopic(): HelpTopic {
     return {
@@ -12737,6 +12791,7 @@ export const traegerInvitationTopic =
       steps: [
         "Öffnen Sie die E-Mail `Einladung ins Träger-Portal von moto`.",
         "Wählen Sie `Einladung annehmen`.",
+        "Tragen Sie bei `Ihr Name` Ihren Namen ein. Personen im Träger-Büro sehen ihn im Exportprotokoll und im Verlauf jeder Rechnung.",
         "Haben Sie noch kein moto-Konto? Tragen Sie ein `Neues Passwort` ein und wiederholen Sie es.",
         "Haben Sie schon ein moto-Konto? Tragen Sie das Passwort dieses Kontos ein.",
         "Wählen Sie `Einladung annehmen`.",
@@ -12750,12 +12805,13 @@ export const traegerInvitationTopic =
       notes: [
         "Mit derselben E-Mail-Adresse und demselben Passwort melden Sie sich später an.",
         "Ein Konto in einer Schule brauchen Sie dafür nicht.",
+        "Ihren Namen ändern Sie später im Profil-Menü unter `Konto`.",
       ],
       troubleshootingDetails: [
         "moto sagt, die Einladung sei abgelaufen? Bitten Sie das Träger-Büro oder das moto-Team um eine neue Einladung.",
         "Sie kennen das Passwort Ihres vorhandenen moto-Kontos nicht mehr? Wählen Sie in der Anmeldung des Träger-Portals `Passwort vergessen?`.",
       ],
-      related: [HELP_TOPICS.traegerLogin],
+      related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.traegerProfile],
     };
   } satisfies typeof authored_traegerInvitationTopic;
 
@@ -12900,6 +12956,39 @@ export const traegerOccupancyTopic =
       related: [HELP_TOPICS.traegerDashboard, HELP_TOPICS.traegerKeyDateCounts],
     };
   } satisfies typeof authored_traegerOccupancyTopic;
+
+/** `/traeger/konto` (#4693): der eigene Name im Träger-Büro. */
+export const traegerProfileTopic = function traegerProfileTopic(): HelpTopic {
+  return {
+    id: HELP_TOPICS.traegerProfile,
+    title: "Eigenen Namen ändern",
+    question: "Wie ändere ich meinen Namen im Träger-Portal?",
+    summary:
+      "Ihr Name steht im Exportprotokoll und im Verlauf jeder Rechnung. So sehen andere im Träger-Büro, wer etwas getan hat.",
+    group: "einstieg",
+    audience: "traeger",
+    icon: "UserCircle",
+    steps: [
+      "Öffnen Sie oben rechts das Profil-Menü.",
+      "Wählen Sie `Konto`.",
+      "Tragen Sie bei `Ihr Name` Ihren Namen ein.",
+      "Wählen Sie `Speichern`.",
+    ],
+    result:
+      "Oben rechts steht sofort Ihr Name. Neue Einträge im Exportprotokoll und im Verlauf der Rechnungen zeigen ihn auch. Sie selbst sehen dort „von Ihnen“.",
+    notes: [
+      "Im Protokoll und im Verlauf steht Ihre E-Mail-Adresse nie. Sie sehen sie im Profil-Menü unter Ihrem Namen und unter `Konto` bei `Anmeldung`.",
+      "Ihren Namen geben Sie schon beim Annehmen der Einladung an.",
+      "Wer die Rolle `Leitung` hat, kann Namen auch unter `Mitglieder und Rollen` eintragen.",
+    ],
+    troubleshootingDetails: [
+      "Oben rechts steht Ihre E-Mail-Adresse statt eines Namens? Sie haben noch keinen Namen. Tragen Sie ihn unter `Konto` ein.",
+      "Im Protokoll steht „von einem Konto ohne Namen“? Diese Person hat noch keinen Namen. Sie kann ihn unter `Konto` eintragen.",
+      "Im Protokoll steht „von einem gelöschten Konto“? Das Konto gibt es nicht mehr. Der Name lässt sich nicht mehr zeigen.",
+    ],
+    related: [HELP_TOPICS.traegerInvitation, HELP_TOPICS.traegerAccounts],
+  };
+} satisfies typeof authored_traegerProfileTopic;
 
 /** `/traeger` (#4654): Absprung in eine Schule des Trägers. */
 export const traegerSchoolSwitchTopic =

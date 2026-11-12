@@ -7,11 +7,11 @@ import (
 	"net/http"
 	"strconv"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // PublicLegalTextsResponse carries the tenant-scoped legal documents

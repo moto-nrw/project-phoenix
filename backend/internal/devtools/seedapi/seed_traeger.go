@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // seedTraegerInvitees are the colleagues the seeded Träger-Büro has invited
@@ -72,24 +72,6 @@ func (seedTraegerBueroStep) Run(_ context.Context, rt *Runtime) error {
 	}
 	fmt.Println("  Träger-Büro: operator invited a person with roles Verwaltung, Dokumente and Abrechnung")
 	return seedTraegerInvitation(rt)
-}
-
-// seedTraegerInvitation signs the admin in to the Träger-Portal and invites
-// the seeded colleagues through the Träger route.
-func seedTraegerInvitation(rt *Runtime) error {
-	traeger, err := seedTraegerSession(rt)
-	if err != nil {
-		return err
-	}
-	for _, invitee := range seedTraegerInvitees {
-		if _, err := rt.Client.PostWithAuth(traeger, "/traeger/accounts/invitations", map[string]any{
-			"email": invitee.email, "roles": []string{invitee.role},
-		}); err != nil {
-			return fmt.Errorf("invite into the Träger-Büro: %w", err)
-		}
-	}
-	fmt.Printf("  Träger-Büro: %d colleagues invited\n", len(seedTraegerInvitees))
-	return nil
 }
 
 // seedTraegerHolidayPeriodStep plans a published holiday period for the

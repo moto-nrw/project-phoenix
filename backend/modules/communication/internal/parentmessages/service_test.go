@@ -6,14 +6,14 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication/communicationtest"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -29,16 +29,16 @@ import (
 	// school admin sees every child's inbox; the forbidden test drops to a
 	// permissionless caller to pin the CanReadStudent gate.
 
-	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+	messaging "github.com/moto-ogs/project-phoenix/modules/communication/internal/parentmessages"
 
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/realtime"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 // --- test doubles -------------------------------------------------------

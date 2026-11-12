@@ -4,9 +4,9 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan/internal/application"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
 )
 
 type FeedbackStudents = devicescan.FeedbackStudents

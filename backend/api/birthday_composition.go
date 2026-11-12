@@ -6,15 +6,15 @@ import (
 	"log/slog"
 	"time"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	birthdaysAPI "github.com/moto-ogs/project-phoenix/modules/peopledirectory/inbound/birthdays"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/workflows/staffoffboarding"
 
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // BirthdayRepositories are the retained rows the birthday display reads.

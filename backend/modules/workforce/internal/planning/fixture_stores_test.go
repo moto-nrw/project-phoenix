@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/planning"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/planning"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Fixture stores arrange persisted state and inspect it independently of the

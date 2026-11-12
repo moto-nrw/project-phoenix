@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
-	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
+	reminder "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery"
+	"github.com/moto-ogs/project-phoenix/workflows/reminderdelivery/ports"
 )
 
 type command struct {

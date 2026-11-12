@@ -4,8 +4,8 @@ import (
 	"errors"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	timetableModule "github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 // templateRefusalRules classify the refusals every Regeltermin write shares

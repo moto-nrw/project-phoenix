@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	directory "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )

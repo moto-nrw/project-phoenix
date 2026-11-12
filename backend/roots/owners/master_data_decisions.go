@@ -5,19 +5,19 @@ import (
 	"errors"
 	"log/slog"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // NewMasterDataDecisions composes the Stammdaten decision. Nil effects are

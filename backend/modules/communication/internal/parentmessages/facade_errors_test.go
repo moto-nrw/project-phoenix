@@ -4,12 +4,12 @@ import (
 	"errors"
 	"testing"
 
-	composition "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	values "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
+	composition "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	values "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	parentMessages "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
-	staffMessages "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffmessages"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	parentMessages "github.com/moto-ogs/project-phoenix/modules/communication/internal/parentmessages"
+	staffMessages "github.com/moto-ogs/project-phoenix/modules/communication/internal/staffmessages"
 	"github.com/stretchr/testify/assert"
 )
 

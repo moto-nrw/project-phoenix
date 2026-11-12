@@ -5,8 +5,8 @@ import (
 	fmt "fmt"
 	http "net/http"
 
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // getStaffIDFromJWT extracts the staff ID from JWT claims by looking up the person and staff

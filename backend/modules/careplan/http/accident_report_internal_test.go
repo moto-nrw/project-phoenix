@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	careplan "github.com/moto-ogs/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
-	gradetransitioncompose "github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/workflows/gradetransition"
+	gradetransitioncompose "github.com/moto-ogs/project-phoenix/workflows/gradetransition/compose"
 )
 
 // buildGradeTransition binds the school-year rollover workflow (#2711),

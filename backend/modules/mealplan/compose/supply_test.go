@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // ADR 0077: the caterer sees names only while the school shows them, and

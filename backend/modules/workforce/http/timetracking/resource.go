@@ -3,7 +3,7 @@ package timetracking
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // OwnAbsenceWrites are the staff member's absence writes that may cascade a

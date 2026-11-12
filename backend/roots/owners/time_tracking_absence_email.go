@@ -5,14 +5,14 @@ import (
 	"log/slog"
 	"time"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
 )
 
 type AbsenceEmailDispatcher struct {

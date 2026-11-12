@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 type seedTraegerRequest struct {
@@ -30,7 +30,11 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 	requests := map[string]seedTraegerRequest{}
 	var invitations, assignments, operatorInvitations []map[string]any
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
-		assert.Equal(t, http.MethodPost, r.Method)
+		if r.URL.Path == "/traeger/profile/name" {
+			assert.Equal(t, http.MethodPut, r.Method)
+		} else {
+			assert.Equal(t, http.MethodPost, r.Method)
+		}
 		raw, err := io.ReadAll(r.Body)
 		assert.NoError(t, err)
 		var body map[string]any
@@ -82,6 +86,9 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 	login := requests["/traeger/auth/login"]
 	assert.Empty(t, login.authorization, "the Träger sign-in carries no session")
 	assert.Equal(t, map[string]any{"email": "admin@example.test", "password": "Geheim1234%", "organization_id": float64(12)}, login.body)
+	name := requests["/traeger/profile/name"]
+	assert.Equal(t, "Bearer traeger-token", name.authorization, "the admin names themselves with the Träger session")
+	assert.Equal(t, map[string]any{"name": "Sabine Hartmann"}, name.body)
 	invite := requests["/traeger/accounts/invitations"]
 	assert.Equal(t, "Bearer traeger-token", invite.authorization, "the invitation uses the Träger session")
 	assert.Equal(t, []map[string]any{

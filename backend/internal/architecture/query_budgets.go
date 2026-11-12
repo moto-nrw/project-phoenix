@@ -7,7 +7,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/architecture/querybudget"
+	"github.com/moto-ogs/project-phoenix/architecture/querybudget"
 )
 
 // CompareQueryBudgets preserves each SQL contract against an immutable Git

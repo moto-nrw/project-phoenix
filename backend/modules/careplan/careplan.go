@@ -10,8 +10,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/offeringrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/offeringrequests"
 )
 
 const DateLayout = excusedrequests.DateLayout

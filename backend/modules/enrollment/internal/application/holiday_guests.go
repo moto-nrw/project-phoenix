@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Holiday guests of the hosting school (#4666, ADR 0120). The caller runs

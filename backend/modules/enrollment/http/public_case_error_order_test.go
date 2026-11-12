@@ -7,10 +7,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	enrollment "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	compose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	enrollment "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	compose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 

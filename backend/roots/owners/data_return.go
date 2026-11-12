@@ -1,8 +1,8 @@
 package owners
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // NewDataReturnCrypto binds the cryptography of the data return (ADR 0203)

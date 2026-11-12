@@ -14,7 +14,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 // weekdayAssignmentRequest is one weekday's roster deviation. It is a full

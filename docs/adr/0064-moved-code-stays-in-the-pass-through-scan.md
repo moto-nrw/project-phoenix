@@ -5,8 +5,8 @@ status: accepted
 # Moved code stays in the pass-through scan
 
 Decision of 2026-10-17 under
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), for
-[#4084](https://github.com/moto-nrw/project-phoenix/issues/4084). It raises a
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580), for
+[#4084](https://github.com/moto-ogs/project-phoenix/issues/4084). It raises a
 register that [ADR 0057](0057-only-the-target-is-a-rule.md) point 5 lets only
 fall.
 

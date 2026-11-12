@@ -1,9 +1,9 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // NewTraegerCareBookings composes the booked care offerings of the Träger's

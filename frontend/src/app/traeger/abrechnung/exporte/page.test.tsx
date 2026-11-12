@@ -155,6 +155,7 @@ it("offers older files of the protocol", async () => {
     costCenterFallbacks: [],
     exportedByYou: true,
     exportedByAccount: true,
+    exportedByName: "",
     exportedAt: "2026-11-09T10:00:00Z",
     submittedAt: null,
   };
@@ -353,6 +354,7 @@ const LAST_DATEV = {
   costCenterFallbacks: [],
   exportedByYou: true,
   exportedByAccount: true,
+  exportedByName: "",
   exportedAt: "2026-11-09T10:00:00Z",
   submittedAt: null,
 };

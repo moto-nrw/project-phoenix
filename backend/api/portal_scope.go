@@ -3,9 +3,9 @@ package api
 import (
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/tokenprimitives"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // The scope gates of the route groups, bound to the tenant runtime. Each

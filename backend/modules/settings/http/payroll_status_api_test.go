@@ -7,7 +7,7 @@ package settingshttp_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
 	"github.com/stretchr/testify/assert"
 )
 

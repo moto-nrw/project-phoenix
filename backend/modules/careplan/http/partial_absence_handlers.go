@@ -7,12 +7,12 @@ import (
 	time "time"
 
 	render "github.com/go-chi/render"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	careplan "github.com/moto-ogs/project-phoenix/modules/careplan"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
 )
 
 type PartialAbsenceRequest struct {

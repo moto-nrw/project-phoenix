@@ -2,7 +2,7 @@
 
 package api
 
-import "github.com/moto-nrw/project-phoenix/modules/workforce"
+import "github.com/moto-ogs/project-phoenix/modules/workforce"
 
 // SchoolStructureSuiteSubstitutionPage is the first page of size group
 // substitutions. The retained School Structure substitution suites may not

@@ -7,9 +7,9 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	calendarService "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // PublicFeeds is the subscription feed a calendar token opens.

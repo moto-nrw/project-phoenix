@@ -12,17 +12,17 @@ import (
 	"testing"
 	"time"
 
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	tenantsettings "github.com/moto-nrw/project-phoenix/modules/settings"
-	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	tenantsettings "github.com/moto-ogs/project-phoenix/modules/settings"
+	presenceAPI "github.com/moto-ogs/project-phoenix/modules/studentpresence/inbound/presence"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // testContext holds shared test resources

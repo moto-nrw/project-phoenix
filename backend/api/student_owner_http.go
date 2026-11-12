@@ -3,14 +3,14 @@ package api
 import (
 	"errors"
 
-	careStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/http"
-	peopleStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
-	projectionStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/presenceprojection/http"
-	"github.com/moto-nrw/project-phoenix/modules/requestreview"
-	reviewStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/requestreview/http"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	presenceStudentsHTTP "github.com/moto-nrw/project-phoenix/modules/studentpresence/http"
-	deleteStudentsHTTP "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/http"
+	careStudentsHTTP "github.com/moto-ogs/project-phoenix/modules/careplan/http"
+	peopleStudentsHTTP "github.com/moto-ogs/project-phoenix/modules/peopledirectory/inbound/students"
+	projectionStudentsHTTP "github.com/moto-ogs/project-phoenix/modules/presenceprojection/http"
+	"github.com/moto-ogs/project-phoenix/modules/requestreview"
+	reviewStudentsHTTP "github.com/moto-ogs/project-phoenix/modules/requestreview/http"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	presenceStudentsHTTP "github.com/moto-ogs/project-phoenix/modules/studentpresence/http"
+	deleteStudentsHTTP "github.com/moto-ogs/project-phoenix/workflows/studentdeletion/http"
 )
 
 // NewStudentHTTPResources binds owner transports at the existing students mount.

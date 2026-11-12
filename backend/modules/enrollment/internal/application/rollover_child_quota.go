@@ -5,7 +5,7 @@ import (
 	"errors"
 	"log/slog"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // childQuotaReachedCode is the stable code of a write School Membership
