@@ -30,7 +30,8 @@ const traegerBueroOnly = "Träger-Büro of the shared demo Träger: the seed ass
 // erasure path, not an entry. ADR 0187 adds parent_billing.sepa_debit_files,
 // which drops by trigger with its debits. ADR 0212 adds
 // users.message_attachments and users.message_attachment_cleanup, which stay
-// with the messages of the school.
+// with the messages of the school. ADR 0217 adds the recipient and the
+// handover journal of the Träger-Büro, which no visitor reaches.
 var demoErasureExceptions = map[string]string{
 	"active.activity_session_attendance":             schoolContentUntil5559,
 	"active.activity_sessions":                       schoolContentUntil5559,

@@ -67,13 +67,29 @@ const (
 		host_key_fingerprint, updated_at FROM config.traeger_export_recipients WHERE organization_id = ? FOR UPDATE`
 )
 
-func (s *TraegerStore) readRecipient(ctx context.Context, organizationID int64, query string) (domain.StoredRecipient, bool, error) {
+// Recipient reads the recipient of the Träger.
+func (s *TraegerStore) Recipient(ctx context.Context, organizationID int64) (domain.StoredRecipient, bool, error) {
 	db, err := s.database(ctx, organizationID)
 	if err != nil {
 		return domain.StoredRecipient{}, false, err
 	}
 	var row recipientRow
-	err = db.NewRaw(query, organizationID).Scan(ctx, &row)
+	err = db.NewRaw(selectRecipient, organizationID).Scan(ctx, &row)
+	return recipientOf(row, err)
+}
+
+// LockRecipient reads the recipient FOR UPDATE.
+func (s *TraegerStore) LockRecipient(ctx context.Context, organizationID int64) (domain.StoredRecipient, bool, error) {
+	db, err := s.database(ctx, organizationID)
+	if err != nil {
+		return domain.StoredRecipient{}, false, err
+	}
+	var row recipientRow
+	err = db.NewRaw(lockRecipient, organizationID).Scan(ctx, &row)
+	return recipientOf(row, err)
+}
+
+func recipientOf(row recipientRow, err error) (domain.StoredRecipient, bool, error) {
 	if errors.Is(err, sql.ErrNoRows) {
 		return domain.StoredRecipient{}, false, nil
 	}
@@ -81,16 +97,6 @@ func (s *TraegerStore) readRecipient(ctx context.Context, organizationID int64, 
 		return domain.StoredRecipient{}, false, fmt.Errorf("export transfer postgres: read the recipient: %w", err)
 	}
 	return domain.StoredRecipient(row), true, nil
-}
-
-// Recipient reads the recipient of the Träger.
-func (s *TraegerStore) Recipient(ctx context.Context, organizationID int64) (domain.StoredRecipient, bool, error) {
-	return s.readRecipient(ctx, organizationID, selectRecipient)
-}
-
-// LockRecipient reads the recipient FOR UPDATE.
-func (s *TraegerStore) LockRecipient(ctx context.Context, organizationID int64) (domain.StoredRecipient, bool, error) {
-	return s.readRecipient(ctx, organizationID, lockRecipient)
 }
 
 // SaveRecipient inserts or replaces the recipient of the Träger.

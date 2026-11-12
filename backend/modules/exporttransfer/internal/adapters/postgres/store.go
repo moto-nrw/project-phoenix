@@ -171,19 +171,20 @@ func (s *Store) SettleExpired(ctx context.Context, limit int) (int, error) {
 	}
 	// The school journal and the Träger journal (ADR 0217) share the fence
 	// protocol, so one recovery tick settles both.
-	settled := 0
-	for _, statement := range []string{settleExpiredSchoolTransfers, settleExpiredTraegerTransfers} {
-		result, err := db.NewRaw(statement, limit).Exec(ctx)
-		if err != nil {
-			return settled, err
-		}
-		count, err := result.RowsAffected()
-		if err != nil {
-			return settled, err
-		}
-		settled += int(count)
+	school, err := db.NewRaw(settleExpiredSchoolTransfers, limit).Exec(ctx)
+	if err != nil {
+		return 0, err
 	}
-	return settled, nil
+	traeger, err := db.NewRaw(settleExpiredTraegerTransfers, limit).Exec(ctx)
+	if err != nil {
+		return 0, err
+	}
+	schoolCount, err := school.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	traegerCount, err := traeger.RowsAffected()
+	return int(schoolCount + traegerCount), err
 }
 
 const settleExpiredSchoolTransfers = `WITH expired AS (

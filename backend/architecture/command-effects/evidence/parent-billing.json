@@ -465,43 +465,11 @@
       "target_owner": "care-contract"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.FinanceExportTransfer.DeleteExportRecipient",
-      "binding_digest": "ed7c71ead8b7acbf127dc0c7fcf07128",
-      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.FinanceExportTransfer.DeleteExportRecipient",
-      "source_owner": "parent-billing",
-      "target": "github.com/moto-nrw/project-phoenix/modules/exporttransfer.TraegerTransfers.DeleteRecipient",
-      "target_owner": "export-transfer"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.FinanceExportTransfer.ExportHandovers",
-      "binding_digest": "9d5405b2eebf991fb5478557fda87f05",
-      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.FinanceExportTransfer.ExportHandovers",
-      "source_owner": "parent-billing",
-      "target": "github.com/moto-nrw/project-phoenix/modules/exporttransfer.TraegerTransfers.Journal",
-      "target_owner": "export-transfer"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.FinanceExportTransfer.ExportRecipient",
-      "binding_digest": "cff15a532cd02a9399a7720132a19620",
-      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.FinanceExportTransfer.ExportRecipient",
-      "source_owner": "parent-billing",
-      "target": "github.com/moto-nrw/project-phoenix/modules/exporttransfer.TraegerTransfers.Recipient",
-      "target_owner": "export-transfer"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.FinanceExportTransfer.Handover",
       "binding_digest": "544fcb5bc5a431c17bb6aa420d629768",
       "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.FinanceExportTransfer.Handover",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/exporttransfer.TraegerTransfers.Transfer",
-      "target_owner": "export-transfer"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.FinanceExportTransfer.SaveExportRecipient",
-      "binding_digest": "2e3fb4eb03128ac4069121d7ccc9b314",
-      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.FinanceExportTransfer.SaveExportRecipient",
-      "source_owner": "parent-billing",
-      "target": "github.com/moto-nrw/project-phoenix/modules/exporttransfer.TraegerTransfers.SaveRecipient",
       "target_owner": "export-transfer"
     },
     {

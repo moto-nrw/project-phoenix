@@ -587,38 +587,7 @@
       "target_owner": "care-contract"
     },
     {
-      "adr": "0217",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.FinanceExportTransfer.DeleteExportRecipient",
-      "classification": "platform",
-      "effect": "mutation",
-      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.FinanceExportTransfer.DeleteExportRecipient",
-      "reason": "Platform mutation: parent-billing removes the recipient of its Träger through modules/exporttransfer.TraegerTransfers.DeleteRecipient (export-transfer), bound by roots/owners.FinanceExportTransfer.DeleteExportRecipient. Export Transfer owns config.traeger_export_recipients and runs the delete in the Träger transaction of the session's Träger (ADR 0217 section 1).",
-      "source_owner": "parent-billing",
-      "target": "github.com/moto-nrw/project-phoenix/modules/exporttransfer.TraegerTransfers.DeleteRecipient",
-      "target_owner": "export-transfer"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.FinanceExportTransfer.ExportHandovers",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.FinanceExportTransfer.ExportHandovers",
-      "reason": "Read-only: parent-billing reads the handover journal of its Träger through modules/exporttransfer.TraegerTransfers.Journal (export-transfer), bound by roots/owners.FinanceExportTransfer.ExportHandovers. No persistent, lock or scope effect (ADR 0217).",
-      "source_owner": "parent-billing",
-      "target": "github.com/moto-nrw/project-phoenix/modules/exporttransfer.TraegerTransfers.Journal",
-      "target_owner": "export-transfer"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.FinanceExportTransfer.ExportRecipient",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.FinanceExportTransfer.ExportRecipient",
-      "reason": "Read-only: parent-billing reads the credential-free recipient view of its Träger through modules/exporttransfer.TraegerTransfers.Recipient (export-transfer), bound by roots/owners.FinanceExportTransfer.ExportRecipient. No persistent, lock or scope effect (ADR 0217).",
-      "source_owner": "parent-billing",
-      "target": "github.com/moto-nrw/project-phoenix/modules/exporttransfer.TraegerTransfers.Recipient",
-      "target_owner": "export-transfer"
-    },
-    {
-      "adr": "0217",
+      "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.FinanceExportTransfer.Handover",
       "classification": "platform",
       "effect": "durable",
@@ -626,17 +595,6 @@
       "reason": "Platform protocol participation (durable): parent-billing reaches modules/exporttransfer.TraegerTransfers.Transfer (export-transfer) through roots/owners.FinanceExportTransfer.Handover. Export Transfer opens its own Träger transactions for intent, fence and completion and runs the producer and settlement callbacks of parent-billing inside them; transaction, fence and ordering correctness stay with the platform behavior tests (ADR 0098, ADR 0217 section 5).",
       "source_owner": "parent-billing",
       "target": "github.com/moto-nrw/project-phoenix/modules/exporttransfer.TraegerTransfers.Transfer",
-      "target_owner": "export-transfer"
-    },
-    {
-      "adr": "0217",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.FinanceExportTransfer.SaveExportRecipient",
-      "classification": "platform",
-      "effect": "mutation",
-      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.FinanceExportTransfer.SaveExportRecipient",
-      "reason": "Platform mutation: parent-billing saves the recipient of its Träger through modules/exporttransfer.TraegerTransfers.SaveRecipient (export-transfer), bound by roots/owners.FinanceExportTransfer.SaveExportRecipient. Export Transfer owns config.traeger_export_recipients, seals the password and writes in the Träger transaction of the session's Träger (ADR 0217 sections 1 and 3).",
-      "source_owner": "parent-billing",
-      "target": "github.com/moto-nrw/project-phoenix/modules/exporttransfer.TraegerTransfers.SaveRecipient",
       "target_owner": "export-transfer"
     },
     {
