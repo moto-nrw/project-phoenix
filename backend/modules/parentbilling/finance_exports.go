@@ -472,8 +472,9 @@ type ExportFileRecord struct {
 	DocumentCount int
 	// Content is the file; the store keeps only its SHA-256 fingerprint.
 	Content []byte
-	// BookingContent is DATEV with fixed file metadata for repeat detection;
-	// the store keeps its SHA-256 separately from the actual file hash.
+	// BookingContent is the content with fixed file metadata for repeat
+	// detection: DATEV, and a Sollstellung without its file number (ADR
+	// 0218); the store keeps its SHA-256 separately from the file hash.
 	BookingContent []byte
 	TotalCents     int64
 	Reference      string

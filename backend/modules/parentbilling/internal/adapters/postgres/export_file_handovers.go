@@ -37,6 +37,8 @@ func (s *Store) SameContentHandedOver(ctx context.Context, organizationID, expor
 				THEN earlier.reference = file.reference
 				WHEN file.format = 'datev' AND file.booking_sha256 IS NOT NULL
 				THEN earlier.booking_sha256 = file.booking_sha256
+				WHEN file.format = 'sollstellung' AND file.booking_sha256 IS NOT NULL
+				THEN COALESCE(earlier.booking_sha256, earlier.content_sha256) = file.booking_sha256
 				ELSE earlier.content_sha256 = file.content_sha256 END
 		JOIN parent_billing.export_file_transfers AS handover ON handover.organization_id = earlier.organization_id
 			AND handover.export_file_id = earlier.id

@@ -38,6 +38,14 @@ func init() {
 //     of a file of the export protocol, pending from the transaction that
 //     made the file until the one that completes the journal.
 const traegerExportTransferUpSQL = `
+-- Every booking a DATEV file holds, as i:<invoice>, c:<Storno> or
+-- d:<document>: the exact identity the release of a failed handover
+-- matches (ADR 0218 section 6). datev_booked_documents keeps only the
+-- first file of a booking.
+ALTER TABLE parent_billing.export_files
+	ADD COLUMN datev_booking_keys TEXT[],
+	ADD CONSTRAINT chk_export_files_datev_booking_keys CHECK (datev_booking_keys IS NULL OR format = 'datev');
+
 CREATE TABLE config.traeger_export_recipients (
 	organization_id BIGINT PRIMARY KEY REFERENCES platform.organizations(id) ON DELETE CASCADE,
 	enabled BOOLEAN NOT NULL DEFAULT false,
@@ -168,9 +176,9 @@ CREATE TRIGGER refuse_parent_billing_export_file_transfer_rewrite
 
 -- A handover that failed did not arrive: the bookings its DATEV file took
 -- become new again, so the next handover of the run sends them (ADR 0218
--- section 6). A booking that a later DATEV file held too, one whose
--- handover did not fail (an "all bookings" download, a repeated handover),
--- moves to that file instead: it went out there, and the next standard file
+-- section 6). A booking that a later DATEV file held too (by its exact key
+-- in datev_booking_keys), one whose handover did not fail (an "all
+-- bookings" download, a repeated handover), moves to that file instead: it went out there, and the next standard file
 -- must leave it out. Only a failure releases bookings; an unknown outcome
 -- stays pending and keeps them, a transferred file keeps them for good. The
 -- function runs as the table owner because the tenant role may not change
@@ -182,18 +190,15 @@ BEGIN
 		WITH moved AS (
 			SELECT booked.id, (
 				SELECT min(later.id) FROM parent_billing.export_files AS later
-				JOIN parent_billing.export_file_invoices AS held
-					ON held.organization_id = later.organization_id AND held.export_file_id = later.id
 				WHERE later.organization_id = booked.organization_id AND later.format = 'datev' AND later.id > booked.export_file_id
+					AND CASE WHEN booked.care_invoice_id IS NOT NULL THEN 'i:' || booked.care_invoice_id
+						WHEN booked.care_cancellation_id IS NOT NULL THEN 'c:' || booked.care_cancellation_id
+						ELSE 'd:' || booked.document_id END = ANY (later.datev_booking_keys)
 					AND NOT EXISTS (SELECT 1 FROM parent_billing.export_file_transfers AS handover
 						WHERE handover.organization_id = later.organization_id AND handover.export_file_id = later.id
 							AND handover.state = 'failed')
-					AND (held.care_invoice_id = COALESCE(booked.care_invoice_id, cancellation.invoice_id)
-						OR held.document_id = booked.document_id)
 			) AS file_id
 			FROM parent_billing.datev_booked_documents AS booked
-			LEFT JOIN parent_billing.care_invoice_cancellations AS cancellation
-				ON cancellation.organization_id = booked.organization_id AND cancellation.id = booked.care_cancellation_id
 			WHERE booked.organization_id = NEW.organization_id AND booked.export_file_id = NEW.export_file_id
 		)
 		UPDATE parent_billing.datev_booked_documents AS booked SET export_file_id = moved.file_id
@@ -248,6 +253,7 @@ DROP FUNCTION IF EXISTS audit.complete_traeger_export_transfer(BIGINT, BIGINT, T
 DROP FUNCTION IF EXISTS audit.claim_traeger_export_transfer(BIGINT, BIGINT);
 DROP TABLE IF EXISTS audit.traeger_export_transfers;
 DROP TABLE IF EXISTS config.traeger_export_recipients;
+ALTER TABLE parent_billing.export_files DROP COLUMN IF EXISTS datev_booking_keys;
 `
 
 func traegerExportTransferUp(ctx context.Context, db *bun.DB) error {

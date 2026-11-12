@@ -168,13 +168,22 @@ Träger-Transaktionen, getrennt von der Anfrage:
   wieder, statt mit „keine neuen Buchungen“ zu enden; das Steuerbüro bucht
   nichts doppelt, weil die fehlgeschlagene Datei nie ankam. Hielt eine
   spätere DATEV-Datei, deren Übergabe nicht fehlschlug, dieselbe Buchung
-  (laut `export_file_invoices`, etwa ein Download „Alle Buchungen erneut“),
-  wandert die Zeile zu dieser Datei: Die Buchung ging dort hinaus.
+  (etwa ein Download „Alle Buchungen erneut“), wandert die Zeile zu dieser
+  Datei: Die Buchung ging dort hinaus. Dafür hält jede DATEV-Datei ihre
+  Buchungen genau (`export_files.datev_booking_keys`: Rechnung, Storno oder
+  Beleg mit ID); eine Rechnung und ihr Storno sind verschiedene Buchungen.
+- **Gleicher Inhalt einer Sollstellung:** Schreibt die Feldzuordnung die
+  Dateinummer in jede Zeile, vergleicht die Wiederholungsprüfung die
+  Zeilen ohne Nummer (`booking_sha256`, wie bei DATEV); ältere Dateien ohne
+  diesen Wert vergleicht sie über den Inhalt. So fragt auch eine
+  nummerierte Sollstellung vor der zweiten Übergabe nach.
   „Alle Buchungen erneut“ gibt es auch als Übergabe, mit Wirtschaftsjahr,
   für eine Datei, die der Empfänger verloren hat.
 - **Ungeklärt:** Antwortet das Gegenüber nicht auf das Umbenennen (die
   Verbindung bricht ab, die Zeit läuft ab), kann die Datei angekommen
-  sein. Ein SFTP-Status ist eine Antwort und ein Fehlschlag; alles andere
+  sein. Ein SFTP-Status ist eine Antwort und ein Fehlschlag, auch
+  „keine Berechtigung“ und „nicht gefunden“, die `pkg/sftp` als
+  `os.ErrPermission`/`os.ErrNotExist` weitergibt; alles andere
   bleibt offen: kein Abschluss, keine Freigabe von Buchungen. Ebenso,
   wenn der Abschluss nach dem Senden scheitert. Dann bleibt die
   Übergabe `pending`. Nach Ablauf des Zauns zeigt das Protokoll „Ergebnis
@@ -239,6 +248,8 @@ Träger-Transaktionen, getrennt von der Anfrage:
     fehlgeschlagen.
 12. Eine Buchung, die eine spätere, nicht fehlgeschlagene DATEV-Datei hielt,
     bleibt nach dem Fehlschlag gebucht, auf dieser Datei.
+13. Eine nummerierte Sollstellung gleichen Inhalts geht ohne `repeat` nicht
+    erneut hinaus.
 
 Jede Invariante hat einen Test, der ohne den Schutz rot wird; die Belege
 stehen im PR.

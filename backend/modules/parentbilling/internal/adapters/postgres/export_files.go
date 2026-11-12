@@ -146,6 +146,8 @@ type exportFileRow struct {
 	// CostCenterFallbacks are the holiday positions the file booked on the
 	// KOST1 of the holiday care (#6624).
 	CostCenterFallbacks []parentbilling.CostCenterFallback `bun:"cost_center_fallbacks,type:jsonb"`
+	// DatevBookingKeys are the bookings of a DATEV file (ADR 0218).
+	DatevBookingKeys []string `bun:"datev_booking_keys,array"`
 }
 
 // exportFileListRow is a protocol entry with what the list shows besides:
@@ -206,12 +208,12 @@ func (s *Store) InsertExportFile(ctx context.Context, organizationID, accountID 
 	var row exportFileRow
 	if err := db.NewRaw(`INSERT INTO parent_billing.export_files (organization_id, file_number, format, run_kind, run_id, file_name,
 		content_sha256, booking_sha256, invoice_count, total_cents, reference, exported_by_account_id, datev_all,
-		resolved_positions, cost_center_fallbacks)
-		VALUES (?, ?, ?, ?, ?, ?, encode(sha256(?::bytea), 'hex'), encode(sha256(NULLIF(?::bytea, ''::bytea)), 'hex'), ?, ?, ?, ?, ?, ?, ?::jsonb)
+		resolved_positions, cost_center_fallbacks, datev_booking_keys)
+		VALUES (?, ?, ?, ?, ?, ?, encode(sha256(?::bytea), 'hex'), encode(sha256(NULLIF(?::bytea, ''::bytea)), 'hex'), ?, ?, ?, ?, ?, ?, ?::jsonb, ?)
 		RETURNING *`, organizationID, record.FileNumber, record.Format, record.RunKind, record.RunID, record.FileName, record.Content,
 		record.BookingContent, exportDocumentCount(record), record.TotalCents,
 		textRef(record.Reference), accountRef(accountID), record.DatevAll, record.ResolvedPositions,
-		costCenterFallbacksJSON(record.CostCenterFallbacks)).Scan(ctx, &row); err != nil {
+		costCenterFallbacksJSON(record.CostCenterFallbacks), datevBookingKeys(record)).Scan(ctx, &row); err != nil {
 		return parentbilling.ExportProtocolEntry{}, fmt.Errorf("insert the export file: %w", err)
 	}
 	if err := insertExportFileInvoices(ctx, db, organizationID, row.ID, record); err != nil {
@@ -262,6 +264,26 @@ func insertDatevBookings(ctx context.Context, db bun.IDB, organizationID, fileID
 }
 
 // datevBookingIDs splits the bookings by kind.
+// datevBookingKeys names every booking of a DATEV file exactly; other
+// formats hold none.
+func datevBookingKeys(record parentbilling.ExportFileRecord) any {
+	if record.Format != parentbilling.ExportFormatDatev {
+		return nil
+	}
+	keys := make([]string, 0, len(record.DatevBookings))
+	for _, booking := range record.DatevBookings {
+		switch {
+		case booking.CareCancellationID > 0:
+			keys = append(keys, fmt.Sprintf("c:%d", booking.CareCancellationID))
+		case booking.CareInvoiceID > 0:
+			keys = append(keys, fmt.Sprintf("i:%d", booking.CareInvoiceID))
+		case booking.DocumentID > 0:
+			keys = append(keys, fmt.Sprintf("d:%d", booking.DocumentID))
+		}
+	}
+	return pgdialect.Array(keys)
+}
+
 func datevBookingIDs(bookings []parentbilling.DatevBookingRef) (invoices, cancellations, documents []int64) {
 	invoices, cancellations, documents = []int64{}, []int64{}, []int64{}
 	for _, booking := range bookings {
@@ -313,7 +335,9 @@ func insertExportFileInvoices(ctx context.Context, db bun.IDB, organizationID, f
 // exportFileListQuery reads the protocol entries of a Träger with the
 // label of their run and the earliest earlier file of the same content.
 // PAIN.008 uses its stable collection/message ID; CreDtTm changes the byte hash.
-// DATEV compares bookings and accounting settings with fixed file metadata.
+// DATEV compares bookings and accounting settings with fixed file metadata;
+// a Sollstellung its rows with the file number left out (ADR 0218), an
+// older one without that hash its content.
 const exportFileListQuery = `SELECT file.*,
 	(SELECT run.billing_month FROM parent_billing.care_runs AS run
 		WHERE run.organization_id = file.organization_id AND run.id = file.run_id AND file.run_kind = 'care') AS care_month,
@@ -327,6 +351,8 @@ const exportFileListQuery = `SELECT file.*,
 				THEN earlier.reference = file.reference
 				WHEN file.format = 'datev' AND file.booking_sha256 IS NOT NULL
 				THEN earlier.booking_sha256 = file.booking_sha256
+				WHEN file.format = 'sollstellung' AND file.booking_sha256 IS NOT NULL
+				THEN COALESCE(earlier.booking_sha256, earlier.content_sha256) = file.booking_sha256
 				ELSE earlier.content_sha256 = file.content_sha256 END
 			AND earlier.file_number < file.file_number) AS repeat_of,
 	CASE WHEN handover.state = 'pending' AND handover.started_at < CURRENT_TIMESTAMP - INTERVAL '` + handoverUnknownAfter + `'

@@ -213,3 +213,36 @@ func TestFinanceExportHandoverIgnoresARequestedOrganization(t *testing.T) {
 	rec = handOver(t, other, run, "pain008", map[string]any{"organization_id": f.office.organization})
 	assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
 }
+
+// A Sollstellung whose mapping writes the file number into every row is
+// still the same content: the protocol marks the repeat and a handover asks
+// before it goes out again (ADR 0218 section 6).
+func TestNumberedSollstellungRepeatsTheSameContent(t *testing.T) {
+	t.Parallel()
+	f := sepaDebitFixture(t, "Träger Übergabe nummeriert")
+	contract := careContract(t, f.db, f.office.organization, f.office.schools[0], "Ben", sepaDebitMonth, sjrServices()...)
+	createMandate(t, f, mandateBody(contract, "SJR-H-BEN"))
+	run := releaseDebitRun(t, f, sepaDebitMonth)
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, financeExportsPath+"/settings/sollstellung", map[string]any{
+		"columns":   []map[string]any{{"field": "invoice_number", "header": "Nr"}, {"field": "file_number", "header": "Datei"}},
+		"delimiter": ";", "decimal_separator": ",", "date_format": "dd.mm.yyyy", "encoding": "utf-8", "header_row": true,
+		"file_name_pattern": "soll-{NR}.csv",
+	})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	_, first := sollstellung(t, f, run)
+	_, second := sollstellung(t, f, run)
+	require.NotEqual(t, first, second, "the rows carry their file number")
+	files := exportFiles(t, f, "")
+	require.Len(t, files, 2)
+	assert.Equal(t, files[1].FileNumber, files[0].RepeatOf, "the protocol knows the repeat")
+
+	_, err := f.db.NewRaw(`INSERT INTO parent_billing.export_file_transfers (organization_id, export_file_id, target_host, target_directory,
+		state, settled_at) SELECT organization_id, id, 'kaemmerei.example.org', '/eingang', 'transferred', NOW()
+		FROM parent_billing.export_files WHERE organization_id = ? AND file_number = ?`, f.office.organization, files[1].FileNumber).
+		Exec(context.Background())
+	require.NoError(t, err)
+	require.Equal(t, http.StatusOK, saveRecipient(t, f, readyRecipient()).Code)
+	rec = handOver(t, f, run, "sollstellung", nil)
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), common.CodeParentBillingExportAlreadyHandedOver)
+}

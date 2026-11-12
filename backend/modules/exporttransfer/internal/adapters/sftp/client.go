@@ -431,8 +431,10 @@ func (uncertainRename) OutcomeUncertain() bool { return true }
 // outcome open.
 func renameFailure(step string, err error) error {
 	failure := fmt.Errorf("%w: %s: %w", ErrUpload, step, withheld(err))
+	// pkg/sftp hands some statuses on as os errors: denied and missing are
+	// answers too.
 	var status *sftp.StatusError
-	if errors.As(err, &status) {
+	if errors.As(err, &status) || errors.Is(err, os.ErrPermission) || errors.Is(err, os.ErrNotExist) {
 		return failure
 	}
 	return uncertainRename{failure}

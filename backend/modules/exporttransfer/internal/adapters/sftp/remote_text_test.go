@@ -37,11 +37,16 @@ func TestUpload_AnUnansweredRenameLeavesTheOutcomeOpen(t *testing.T) {
 }
 
 // A rename the counterpart refused with an SFTP status failed for certain.
+// pkg/sftp hands a denied rename on as os.ErrPermission: an answer too.
 func TestUpload_ARefusedRenameFailsForCertain(t *testing.T) {
 	t.Parallel()
-	server := testServer{Server: sftptest.StartRefusingRename(t)}
-	err := newTestClient(t).Upload(context.Background(), server.target("/"), "zeitkonten.csv", []byte("4711;100\r\n"))
-	require.ErrorIs(t, err, sftp.ErrUpload)
-	var uncertain interface{ OutcomeUncertain() bool }
-	assert.False(t, errors.As(err, &uncertain), "an SFTP status is an answer")
+	for name, start := range map[string]func(*testing.T) sftptest.Server{
+		"failure status": sftptest.StartRefusingRename, "permission denied": sftptest.StartDenyingRename,
+	} {
+		server := testServer{Server: start(t)}
+		err := newTestClient(t).Upload(context.Background(), server.target("/"), "zeitkonten.csv", []byte("4711;100\r\n"))
+		require.ErrorIs(t, err, sftp.ErrUpload, name)
+		var uncertain interface{ OutcomeUncertain() bool }
+		assert.False(t, errors.As(err, &uncertain), "%s is an answer", name)
+	}
 }

@@ -395,6 +395,11 @@ func (f *FinanceExports) SollstellungFile(ctx context.Context, reviewer parentbi
 	}
 	file.documentCount = len(content.Invoices)
 	file.costCenterFallbacks = sollCostCenterFallbacks(soll.Mapping, rows)
+	// The rows without the file number: a mapping that writes the number
+	// into every row still repeats the same content (ADR 0218 section 6).
+	if file.bookingContent, err = renderSollRows(soll.Mapping, rows, 0); err != nil {
+		return parentbilling.ExportedFile{}, err
+	}
 	entry, data, err := recordExportFile(ctx, f.store, reviewer, file)
 	if err != nil {
 		return parentbilling.ExportedFile{}, err

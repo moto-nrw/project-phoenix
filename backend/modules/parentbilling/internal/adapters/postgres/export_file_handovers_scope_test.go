@@ -9,6 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
@@ -120,21 +121,32 @@ func TestFailedHandoverReleasesItsDatevBookings(t *testing.T) {
 		_, released := seedHolidayExportRun(t, ctx, tx, own, "DATEV frei", 1000, false)
 		_, kept := seedHolidayExportRun(t, ctx, tx, own, "DATEV angekommen", 1000, false)
 		_, repeated := seedHolidayExportRun(t, ctx, tx, own, "DATEV wiederholt", 1000, false)
-		file := func(number int64) int64 {
+		file := func(number int64, keys ...string) int64 {
 			var id int64
 			require.NoError(t, tx.NewRaw(`INSERT INTO parent_billing.export_files (organization_id, file_number, format, run_kind, run_id,
-				file_name, content_sha256, booking_sha256, invoice_count, total_cents) VALUES (?, ?, 'datev', 'care', 77, ?, repeat('d', 64), repeat('e', 64), 1, 7800)
-				RETURNING id`, own, number, fmt.Sprintf("EXTF_Buchungsstapel_%d.csv", number)).Scan(ctx, &id))
+				file_name, content_sha256, booking_sha256, invoice_count, total_cents, datev_booking_keys)
+				VALUES (?, ?, 'datev', 'care', 77, ?, repeat('d', 64), repeat('e', 64), 1, 7800, ?) RETURNING id`,
+				own, number, fmt.Sprintf("EXTF_Buchungsstapel_%d.csv", number), pgdialect.Array(append([]string{}, keys...))).Scan(ctx, &id))
 			return id
 		}
-		failed, arrived, again, lost := file(5), file(6), file(7), file(8)
+		key := func(document int64) string { return fmt.Sprintf("d:%d", document) }
+		failed, arrived := file(5), file(6)
+		// A later "all bookings" file held one booking of the failed file too;
+		// another later file held the other one, but its handover failed; a
+		// third held the Storno of an invoice whose invoice booking the failed
+		// file took, never the invoice itself.
+		again, lost := file(7, key(repeated)), file(8, key(released))
+		file(9, fmt.Sprintf("c:%d", unique))
 		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.datev_booked_documents (organization_id, export_file_id, document_id)
 			VALUES (?, ?, ?), (?, ?, ?), (?, ?, ?)`, own, failed, released, own, arrived, kept, own, failed, repeated)
 		require.NoError(t, err)
-		// A later "all bookings" file held one booking of the failed file too;
-		// another later file held the other one, but its handover failed.
-		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.export_file_invoices (organization_id, export_file_id, document_id)
-			VALUES (?, ?, ?), (?, ?, ?)`, own, again, repeated, own, lost, released)
+		// The invoice booking of an invoice this test does not create.
+		_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = replica`)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.datev_booked_documents (organization_id, export_file_id, care_invoice_id)
+			VALUES (?, ?, ?)`, own, failed, unique)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = origin`)
 		require.NoError(t, err)
 		_, err = tx.ExecContext(ctx, `SET LOCAL ROLE phoenix_tenant`)
 		require.NoError(t, err)
@@ -153,6 +165,10 @@ func TestFailedHandoverReleasesItsDatevBookings(t *testing.T) {
 		assert.Empty(t, bookedIn(released), "a failed handover releases the bookings of its file, also one a failed later file held")
 		assert.Equal(t, []int64{again}, bookedIn(repeated), "a booking a later file held stays booked, on that file")
 		assert.Equal(t, []int64{arrived}, bookedIn(kept), "a file that arrived keeps its bookings")
+		var invoiceBooked int
+		require.NoError(t, tx.NewRaw(`SELECT count(*) FROM parent_billing.datev_booked_documents WHERE organization_id = ? AND care_invoice_id = ?`,
+			own, unique).Scan(ctx, &invoiceBooked))
+		assert.Zero(t, invoiceBooked, "a later file with only the Storno does not keep the invoice booked")
 		return rollback
 	})
 	require.ErrorIs(t, err, rollback)
