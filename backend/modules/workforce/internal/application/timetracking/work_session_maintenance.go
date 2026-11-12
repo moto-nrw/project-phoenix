@@ -42,6 +42,10 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 
 	// One read finds the running break of every stale session (#5855).
 	activeBreaks, breakErr := s.firstActiveBreaksBySession(ctx, openSessions)
+	credit, err := s.closingCreditRule(ctx, false)
+	if err != nil {
+		return 0, err
+	}
 
 	count := 0
 	for _, session := range openSessions {
@@ -64,14 +68,11 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 			// Continue cleanup even if break ending fails
 		}
 
-		closed, err := s.repo.CloseWorkSession(ctx, session.ID, closeAt, true)
-		err = workSessionWriteError("close session", err)
+		closed, err := s.closeForgottenSession(ctx, session.ID, closeAt, credit)
 		if err != nil {
-			return count, fmt.Errorf("failed to close session %d: %w", session.ID, err)
+			return count, err
 		}
-		if closed {
-			count++
-		}
+		count += closed
 	}
 
 	if count > 0 {
@@ -182,6 +183,9 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 	if run.latestEndByDate, err = s.latestShiftEndsByDate(ctx, candidates); err != nil {
 		return 0, err
 	}
+	if run.credit, err = s.closingCreditRule(ctx, false); err != nil {
+		return 0, err
+	}
 
 	count := 0
 	for _, listedSession := range candidates {
@@ -208,6 +212,9 @@ type autoCheckoutRun struct {
 	grace           time.Duration
 	latestEndByDate map[calendar.Date]map[int64]*TimeTrackingShift
 	tenantID        int64
+	// credit is the rounding an automatic checkout closes with; it earns no
+	// pack-up minutes (#6852).
+	credit workforce.WorkSessionCreditRule
 }
 
 // dueSessions keeps the listed sessions whose checkout is due, in list order.
@@ -291,7 +298,7 @@ func (s *workSessionService) autoCheckoutSession(ctx context.Context, run autoCh
 		return false, nil
 	}
 
-	closed, err := s.repo.CloseWorkSession(ctx, session.ID, closeAt, true)
+	closed, err := s.repo.CloseWorkSession(ctx, session.ID, closeAt, true, run.credit)
 	err = workSessionWriteError("close session", err)
 	if err != nil {
 		return false, fmt.Errorf("failed to auto-checkout session %d: %w", session.ID, err)

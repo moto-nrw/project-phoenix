@@ -79,14 +79,8 @@ func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day 
 		return nil, err
 	}
 
-	// Close the session using repository method
-	closed, err := s.repo.CloseWorkSession(ctx, session.ID, now, false)
-	err = workSessionWriteError("close session", err)
-	if err != nil {
-		return nil, fmt.Errorf("failed to close session: %w", err)
-	}
-	if !closed {
-		return nil, workforce.ErrNoActiveSession
+	if err := s.closeRegularCheckout(ctx, session.ID, now); err != nil {
+		return nil, err
 	}
 
 	if deviation != nil {

@@ -152,6 +152,8 @@ function splitSessionByBerlinDate(
     createdAt: "",
     updatedAt: "",
     netMinutes: session.net_minutes,
+    packUpMinutes: session.pack_up_minutes,
+    roundingMinutes: session.rounding_minutes,
     isOvertime: false,
     isBreakCompliant: true,
     restPeriodWarning: null,
@@ -188,9 +190,10 @@ function splitSessionByBerlinDate(
     now,
   );
 
-  return [...valuesByDate.entries()].map(([date, values], index) => {
+  const dayEntries = [...valuesByDate.entries()];
+  return dayEntries.map(([date, values], index) => {
     const isFirstDay = date === berlinTodayISO(start);
-    const isLastDay = date === berlinTodayISO(end);
+    const isLastDay = index === dayEntries.length - 1;
     const previousDay = parseISODate(date);
     previousDay.setDate(previousDay.getDate() - 1);
     const segmentStart = isFirstDay
@@ -218,6 +221,10 @@ function splitSessionByBerlinDate(
       // `edit_count`, damit auch dort erkennbar bleibt, dass die gezeigten
       // Minuten aus einem korrigierten Block stammen.
       audit_count: index === 0 ? session.audit_count : 0,
+      // Die Gutschrift (#6851, #6852) bucht der Server auf den Tag des
+      // Ausstempelns; nur dessen Segment zeigt ihre Hinweise.
+      pack_up_minutes: isLastDay ? session.pack_up_minutes : 0,
+      rounding_minutes: isLastDay ? session.rounding_minutes : 0,
     };
   });
 }
@@ -1494,6 +1501,43 @@ function SourceBadges({
 
 const NO_LABOR_HINTS: readonly LaborHint[] = [];
 
+// Die Gutschrift steckt schon in der Ist-Zeit (#6851, #6852). Die Pills
+// zeigen, woher die Abweichung von den gestempelten Zeiten kommt.
+function creditPills(
+  sessions: readonly StaffHistorySession[],
+): { key: string; label: string; title: string; tone: StatusBadgeTone }[] {
+  const packUp = sessions.reduce((sum, s) => sum + (s.pack_up_minutes ?? 0), 0);
+  const rounding = sessions.reduce(
+    (sum, s) => sum + (s.rounding_minutes ?? 0),
+    0,
+  );
+  const pills: {
+    key: string;
+    label: string;
+    title: string;
+    tone: StatusBadgeTone;
+  }[] = [];
+  if (packUp > 0) {
+    pills.push({
+      key: "pack-up",
+      label: `+${packUp} Min. Wegpackzeit`,
+      title:
+        "Beim Ausstempeln zählt moto die Wegpackzeit zur Arbeitszeit dazu. Die gestempelten Zeiten bleiben gleich.",
+      tone: "gray",
+    });
+  }
+  if (rounding !== 0) {
+    pills.push({
+      key: "rounding",
+      label: `Gerundet ${rounding > 0 ? "+" : "-"}${Math.abs(rounding)} Min.`,
+      title:
+        "moto rundet die Dauer jedes Arbeitsblocks. Die gestempelten Zeiten bleiben gleich.",
+      tone: "gray",
+    });
+  }
+  return pills;
+}
+
 // Hinweis-Spalte für orthogonale System- und Korrektur-Hinweise. Mehrere
 // Pills können gleichzeitig sichtbar sein (z.B. NFC-Session mit Auto-Checkout
 // UND nachträglicher Korrektur).
@@ -1536,6 +1580,7 @@ function HintBadges({
       tone: "warning",
     });
   }
+  pills.push(...creditPills(sessions));
   if (pills.length === 0 && laborHints.length === 0) {
     return <span className="text-xs text-gray-300">–</span>;
   }

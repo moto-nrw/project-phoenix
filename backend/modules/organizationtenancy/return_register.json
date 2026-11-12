@@ -3165,6 +3165,24 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": true
+        },
+        {
+          "name": "pack_up_minutes",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": false
+        },
+        {
+          "name": "rounding_interval_minutes",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": false
+        },
+        {
+          "name": "rounding_mode",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
         }
       ],
       "relationships": [
