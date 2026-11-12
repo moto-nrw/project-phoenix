@@ -310,3 +310,9 @@ var parentMailTemplates = map[string]bool{
 
 // IsParentMail reports whether a mail template goes to parents.
 func IsParentMail(template string) bool { return parentMailTemplates[template] }
+
+// HolidayClosureMailRecovery exposes only the key and whether a retry needs outcome clarification.
+type HolidayClosureMailRecovery struct {
+	IdempotencyKey string
+	Unknown        bool
+}

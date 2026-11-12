@@ -14,7 +14,7 @@ func init() {
 		Version:     traegerParentAccessVersion,
 		Description: "Ferienanmeldung: Elternkonto am Träger ohne Schule (#6673, ADR 0216)",
 		DependsOn: []string{
-			holidayKnownChildrenVersion,            // the newest on development (1.15.940)
+			holidayClosureEventsVersion,            // the newest on development (1.15.942)
 			traegerSchoolSessionsVersion,           // chk_tokens_session_owner as it stands
 			retireDirectPermissionsVersion,         // auth.account_is_unused as it stands
 			unusedAccountErasureWithoutWaitVersion, // auth.erase_unused_accounts as it stands
@@ -169,8 +169,8 @@ func traegerParentAccessUp(ctx context.Context, db *bun.DB) error {
 		if _, err := tx.ExecContext(ctx, traegerParentAccessUpSQL); err != nil {
 			return fmt.Errorf("add the parents-portal access at a Träger: %w", err)
 		}
-		if _, err := tx.ExecContext(ctx, traegerParentAccessAccountErasureSQL); err != nil {
-			return fmt.Errorf("erase Träger parent access with unused accounts: %w", err)
+		if err := installTraegerParentAccessAccountErasure(ctx, tx); err != nil {
+			return err
 		}
 		return installTraegerParentAccessAccountUnused(ctx, tx)
 	})
@@ -190,7 +190,7 @@ func traegerParentAccessDown(ctx context.Context, db *bun.DB) error {
 		if err := installDirectPermissionAccountUnusedUp(ctx, tx); err != nil {
 			return fmt.Errorf("restore auth.account_is_unused of 1.15.646: %w", err)
 		}
-		if _, err := tx.ExecContext(ctx, unusedAccountErasureWithoutWaitUpSQL); err != nil {
+		if err := installUnusedAccountErasureWithoutWait(ctx, tx); err != nil {
 			return fmt.Errorf("restore account erasure of 1.15.736: %w", err)
 		}
 		if _, err := tx.ExecContext(ctx, traegerParentAccessDownSQL); err != nil {

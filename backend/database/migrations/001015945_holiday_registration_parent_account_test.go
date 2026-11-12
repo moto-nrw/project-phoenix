@@ -12,19 +12,19 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The erasure of 1.15.945 is the erasure of 1.15.927 whose statement for the
+// The erasure of 1.15.945 is the erasure of 1.15.942 whose statement for the
 // mails of a registration also deletes the offer of a parent account (ADR
 // 0216), and deletes Träger parent access when it anonymizes an account.
-func TestParentAccountOfferErasureIsTheErasureOf927WithTheOffer(t *testing.T) {
+func TestParentAccountOfferErasureIsTheErasureOf942WithTheOffer(t *testing.T) {
 	t.Parallel()
 	before := `'holiday_closure_notice', 'holiday_registration_accepted')`
 	after := `'holiday_closure_notice', 'holiday_registration_accepted',
 							'holiday_parent_account_offer')`
 	commentBefore := "-- mail of the Träger, named by the registration alone.\n"
 	commentAfter := "-- mail of the Träger, named by the registration alone. So is\n\t\t\t\t\t-- the offer of a parent account (ADR 0216).\n"
-	require.Equal(t, 1, strings.Count(demoVisitorErasureHolidayAcceptanceSQL, before), "the statement for the mails of a registration is in the erasure of 1.15.927 exactly once")
-	require.Equal(t, 1, strings.Count(demoVisitorErasureHolidayAcceptanceSQL, commentBefore))
-	want := strings.Replace(strings.Replace(demoVisitorErasureHolidayAcceptanceSQL, before, after, 1), commentBefore, commentAfter, 1)
+	require.Equal(t, 1, strings.Count(demoVisitorErasureHolidayClosuresSQL, before), "the statement for the mails of a registration is in the erasure of 1.15.942 exactly once")
+	require.Equal(t, 1, strings.Count(demoVisitorErasureHolidayClosuresSQL, commentBefore))
+	want := strings.Replace(strings.Replace(demoVisitorErasureHolidayClosuresSQL, before, after, 1), commentBefore, commentAfter, 1)
 	accessBefore := "DELETE FROM auth.tokens WHERE account_id = ANY (erased_account_ids);"
 	accessAfter := accessBefore + "\n\t\t\t\t\t\tDELETE FROM auth.traeger_parent_access WHERE account_id = ANY (erased_account_ids);"
 	require.Equal(t, 1, strings.Count(want, accessBefore))

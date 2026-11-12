@@ -16,7 +16,8 @@ func init() {
 		Description: "Ferienanmeldung: Elternkonto an der Anmeldung und Angebot eines Kontos per Mail (#6673, ADR 0216)",
 		DependsOn: []string{
 			traegerParentAccessVersion,   // the newest migration on this branch (1.15.944)
-			holidayAcceptanceMailVersion, // the outbox CHECK and the erasure this one extends (1.15.927)
+			holidayAcceptanceMailVersion, // the outbox CHECK this one extends (1.15.927)
+			holidayClosureEventsVersion,  // the erasure this one extends (1.15.942)
 		},
 	})
 	Migrations.MustRegister(holidayRegistrationParentAccountUp, holidayRegistrationParentAccountDown)
@@ -213,7 +214,7 @@ func holidayRegistrationParentAccountDown(ctx context.Context, db *bun.DB) error
 	if err := installTraegerParentAccessAccountUnused(ctx, db); err != nil {
 		return err
 	}
-	if err := installHolidayAcceptanceErasure(ctx, db); err != nil {
+	if err := installHolidayClosureDemoErasure(ctx, db); err != nil {
 		return err
 	}
 	if _, err := db.ExecContext(ctx, deleteHolidayParentAccountOffersSQL); err != nil {

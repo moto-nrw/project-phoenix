@@ -97,6 +97,18 @@ func (*workerStore) TraegerEmailStatuses(context.Context, int64, string, int64) 
 	return nil, nil
 }
 
+func (*workerStore) TraegerEmailStatusesByKey(context.Context, int64, []string) ([]domain.Intent, error) {
+	return nil, nil
+}
+
+func (*workerStore) UnresolvedHolidayClosureEmails(context.Context, int64) ([]domain.Intent, error) {
+	return nil, nil
+}
+
+func (*workerStore) RetryFailedTraegerEmails(context.Context, int64, []string) (int64, error) {
+	return 0, nil
+}
+
 func (*workerStore) Statuses(context.Context, int64, domain.Transport, string, int64) ([]domain.Intent, error) {
 	return nil, nil
 }

@@ -97,7 +97,8 @@ func TestTraegerClosingDaysStayWithTheirTraegerBelowRLS(t *testing.T) {
 			StartDate: bridge, EndDate: bridge, Reason: "Übernommen", SchoolIDs: own.schools,
 		})
 		require.ErrorIs(t, err, traegercalendar.ErrClosingDayNotFound, "a foreign closing day is not changed")
-		require.ErrorIs(t, days.DeleteClosingDay(ctx, own.id, other.ID), traegercalendar.ErrClosingDayNotFound, "nor deleted")
+		_, err = days.DeleteClosingDay(ctx, own.id, other.ID, "")
+		require.ErrorIs(t, err, traegercalendar.ErrClosingDayNotFound, "nor deleted")
 		return nil
 	}))
 	require.NoError(t, testpkg.WithinTraeger(ctx, foreign.id, func(ctx context.Context) error {

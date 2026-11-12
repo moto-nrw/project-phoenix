@@ -700,7 +700,7 @@ type HolidayRegistrationRetentionStore interface {
 	// children, bookings and contacts, the health information of the
 	// periods that ended more than healthDays before today, and the abuse
 	// counters whose window started before counterRetention.
-	DeleteExpiredHolidayRegistrations(ctx context.Context, today calendar.Date, healthDays int, counterRetention time.Duration) (int, error)
+	DeleteExpiredHolidayRegistrations(ctx context.Context, today calendar.Date, healthDays int, counterRetention time.Duration) (int, []enrollment.HolidayRegistrationReference, error)
 	// DeleteExpiredHolidayRegistrationDeletions deletes the rows of the
 	// deletion log older than years.
 	DeleteExpiredHolidayRegistrationDeletions(ctx context.Context, years int) (int, error)
@@ -712,20 +712,21 @@ type HolidayRegistrationRetentionStore interface {
 // HolidayRegistrationRetention serves enrollment.HolidayRegistrationRetention.
 type HolidayRegistrationRetention struct {
 	store HolidayRegistrationRetentionStore
+	mail  enrollment.HolidayRegistrationMailErasure
 	today func() calendar.Date
 	now   func() time.Time
 }
 
 // NewHolidayRegistrationRetention builds the retention over store; a nil
 // today uses the Berlin calendar day.
-func NewHolidayRegistrationRetention(store HolidayRegistrationRetentionStore, today func() calendar.Date) *HolidayRegistrationRetention {
-	if store == nil {
-		panic("enrollment: the holiday registration retention store is required")
+func NewHolidayRegistrationRetention(store HolidayRegistrationRetentionStore, mail enrollment.HolidayRegistrationMailErasure, today func() calendar.Date) *HolidayRegistrationRetention {
+	if store == nil || mail == nil {
+		panic("enrollment: the holiday registration retention store and mail erasure are required")
 	}
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	return &HolidayRegistrationRetention{store: store, today: today, now: time.Now}
+	return &HolidayRegistrationRetention{store: store, mail: mail, today: today, now: time.Now}
 }
 
 // DeleteExpiredHolidayRegistrations deletes every registration whose period
@@ -736,9 +737,13 @@ func NewHolidayRegistrationRetention(store HolidayRegistrationRetentionStore, to
 // claimed within a day (#5238). The claimed proofs go with their
 // registration.
 func (r *HolidayRegistrationRetention) DeleteExpiredHolidayRegistrations(ctx context.Context) (int, error) {
-	deleted, err := r.store.DeleteExpiredHolidayRegistrations(ctx, r.today(), enrollment.HolidayHealthRetentionDays, rateLimitRetention)
+	deleted, registrations, err := r.store.DeleteExpiredHolidayRegistrations(ctx, r.today(), enrollment.HolidayHealthRetentionDays, rateLimitRetention)
 	if err != nil {
 		return 0, fmt.Errorf("enrollment: delete ended holiday registrations: %w", err)
+	}
+	mails, err := r.mail.EraseHolidayRegistrationMails(ctx, registrations)
+	if err != nil {
+		return 0, fmt.Errorf("enrollment: erase mail copies of ended holiday registrations: %w", err)
 	}
 	logged, err := r.store.DeleteExpiredHolidayRegistrationDeletions(ctx, enrollment.HolidayRegistrationDeletionLogRetentionYears)
 	if err != nil {
@@ -748,5 +753,5 @@ func (r *HolidayRegistrationRetention) DeleteExpiredHolidayRegistrations(ctx con
 	if err != nil {
 		return 0, fmt.Errorf("enrollment: delete unclaimed holiday proofs: %w", err)
 	}
-	return deleted + logged + proofs, nil
+	return deleted + mails + logged + proofs, nil
 }

@@ -1,5 +1,12 @@
 package migrations
 
+import (
+	"context"
+	"fmt"
+
+	"github.com/uptrace/bun"
+)
+
 // The erasure of 1.15.736 with the Träger parent access introduced in
 // 1.15.944: accounts are anonymized, so ON DELETE CASCADE does not run.
 // Keep literal SQL so the architecture check sees every table it writes.
@@ -150,3 +157,12 @@ const traegerParentAccessAccountErasureSQL = `
 		END;
 		$$;
 `
+
+// installTraegerParentAccessAccountErasure installs auth.erase_unused_accounts
+// of traegerParentAccessVersion.
+func installTraegerParentAccessAccountErasure(ctx context.Context, tx bun.IDB) error {
+	if _, err := tx.ExecContext(ctx, traegerParentAccessAccountErasureSQL); err != nil {
+		return fmt.Errorf("erase Träger parent access with unused accounts: %w", err)
+	}
+	return nil
+}

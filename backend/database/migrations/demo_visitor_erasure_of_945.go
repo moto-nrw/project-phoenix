@@ -7,9 +7,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// demoVisitorErasureParentAccountOfferSQL extends the erasure of 1.15.927
+// demoVisitorErasureParentAccountOfferSQL extends the erasure of 1.15.942
 // with the parent account offer mail and the Träger access of anonymized
-// accounts (ADR 0216). TestParentAccountOfferErasureIsTheErasureOf927WithTheOffer
+// accounts (ADR 0216). TestParentAccountOfferErasureIsTheErasureOf942WithTheOffer
 // pins these additions. Literal SQL keeps the writes visible to the
 // architecture check.
 const demoVisitorErasureParentAccountOfferSQL = `
@@ -145,6 +145,9 @@ const demoVisitorErasureParentAccountOfferSQL = `
 					));
 				visitor.visitor_account_ids := array_remove(visitor.visitor_account_ids || recovered_visitor_account_ids, NULL);
 				visitor.visitor_parent_account_ids := array_remove(visitor.visitor_parent_account_ids || recovered_visitor_parent_account_ids, NULL);
+				-- Approval history is personal data; its proposal owns both cascades.
+				DELETE FROM calendar.holiday_closure_proposals
+				WHERE tenant_id = ANY (hidden_schools);
 				IF cardinality(visitor.visitor_account_ids) > 0 OR cardinality(visitor.visitor_parent_account_ids) > 0 THEN
 					UPDATE users.persons SET first_name = 'Demo', last_name = 'Besuch'
 					WHERE tenant_id = ANY (hidden_schools)
@@ -587,6 +590,17 @@ const demoVisitorErasureParentAccountOfferSQL = `
 					-- address with the children and their weeks (#4662); it is a
 					-- mail of the Träger, named by the registration alone. So is
 					-- the offer of a parent account (ADR 0216).
+					-- Preserve evidence for the retained registrations in a bundled
+					-- mail, but stop polling or retrying content intentionally erased.
+					UPDATE enrollment.holiday_closure_sends AS send SET mail_erased = true
+					FROM platform.email_outbox AS outbox
+					WHERE outbox.tenant_id IS NULL AND outbox.kind = 'holiday_closure_notice'
+					 AND outbox.related_entity_type = 'holiday_registration'
+					 AND send.organization_id = outbox.organization_id AND send.idempotency_key = outbox.idempotency_key
+					 AND EXISTS (SELECT 1 FROM enrollment.holiday_registration_children AS child
+					  WHERE child.home_school_id = ANY (hidden_schools) AND child.organization_id = outbox.organization_id
+					   AND (outbox.related_entity_id = child.holiday_registration_id
+					    OR outbox.payload->'registration_ids' @> to_jsonb(child.holiday_registration_id)));
 					DELETE FROM platform.email_outbox AS outbox
 					USING enrollment.holiday_registration_children AS child
 					WHERE child.home_school_id = ANY (hidden_schools)

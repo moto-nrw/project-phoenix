@@ -1117,9 +1117,20 @@ export const calendarPeriodsTopic = function calendarPeriodsTopic(): HelpTopic {
           "Gehen Sie zum Abschnitt `Schließtage`.",
           "Wählen Sie `Schließtag anlegen`.",
           "Tragen Sie `Grund`, `Von` und `Bis` ein, zum Beispiel `Herbstferien`.",
-          "Richtet Ihre OGS in dieser Zeit Ferienbetreuung für den Träger aus, zeigt der Dialog die Woche und wie viele Kinder gebucht haben. Die Buchungen bleiben. Der Träger informiert die Eltern.",
+          "Richtet Ihre OGS in dieser Zeit Ferienbetreuung für den Träger aus, zeigt der Dialog die Woche und wie viele Kinder gebucht haben. Die Buchungen bleiben.",
           "Wählen Sie `Speichern`.",
           "Stehen an diesen Tagen schon Termine, fragt moto nach. Sagen Sie sie ab wie im nächsten Abschnitt.",
+        ],
+      },
+      {
+        title: "Eltern der Ferienbetreuung informieren",
+        description:
+          "Liegt ein Schließtag in einer gebuchten Ferienwoche, bekommen die Eltern nicht von selbst eine E-Mail. Das gilt auch, wenn Sie den Schließtag ändern, verschieben oder löschen. Den Versand lösen Sie oder das Träger-Büro aus.",
+        steps: [
+          "Öffnen Sie `Schuljahr und Kalender`.",
+          "Oben steht die Karte `Eltern der Ferienbetreuung informieren`. Dort stehen der Grund, die Tage und wie viele Familien gebucht haben.",
+          "Wählen Sie `Eltern informieren`. Ein Klick genügt.",
+          "Der Hinweis zeigt den Versandstand: `Wird gesendet`, `Gesendet` oder `Keine E-Mail nötig`.",
         ],
       },
       {
@@ -1182,10 +1193,15 @@ export const calendarPeriodsTopic = function calendarPeriodsTopic(): HelpTopic {
       "Der Hinweis zu den Ferien zählt nur Termine, die schon im Plan stehen. Serien mit `Auch an Schließtagen planen` und Serien in einem Zeitraum der Art `Ferien` zählt er nicht mit.",
     ],
     differences: [
+      "Ein verschobener Schließtag nennt `Neu` und `Vorher`. Die Eltern erfahren in einer E-Mail, welche Tage geschlossen und welche doch geöffnet sind.",
+      "Ein gelöschter Schließtag steht mit `Gelöscht` in der Karte. Die Eltern erfahren, dass die Tage wieder geöffnet sind.",
       "Legen Sie eine Schicht auf einen Schließtag, fragt moto vorher nach.",
       "Sie sehen `Termine absagen` nicht? Dann fehlt Ihnen das Recht, den Betreuungsplan zu bearbeiten.",
     ],
     troubleshootingDetails: [
+      "Der Hinweis zeigt `Nicht angekommen`? Wählen Sie noch einmal `Eltern informieren`. Familien, die schon eine E-Mail haben, bekommen keine zweite.",
+      "Der Hinweis zeigt `Ergebnis unbekannt`? Schreiben Sie dem moto-Team. Es prüft den Versand.",
+      "Nach dem Klick steht, der Schließtag wurde geändert? Prüfen Sie den Hinweis und wählen Sie noch einmal `Eltern informieren`.",
       "Der Betreuungsplan sagt `Noch kein Planungszeitraum`? Dann fehlt für diese Woche ein Zeitraum.",
     ],
     related: [
@@ -11395,14 +11411,24 @@ export const traegerClosingDaysTopic =
           ],
         },
         {
+          title: "Schließtag ändern oder löschen",
+          steps: [
+            "Wählen Sie beim Schließtag die drei Punkte.",
+            "Wählen Sie `Ändern` oder `Löschen`.",
+            "Unter `Ferienbetreuung an diesen Tagen` steht, welche Tage wieder geöffnet sind und wie viele Familien eine E-Mail bekommen.",
+            "Wählen Sie `Speichern` oder beim Löschen `Ja, löschen` und dann `Endgültig löschen`. Die Eltern bekommen die E-Mail sofort.",
+          ],
+        },
+        {
           title: "Eltern zu einem Schließtag der Schule informieren",
           description:
-            "Trägt eine Schule selbst einen Schließtag in eine gebuchte Ferienwoche ein, informiert das Träger-Büro die Eltern.",
+            "Trägt eine Schule selbst einen Schließtag in eine gebuchte Ferienwoche ein, bekommen die Eltern nicht von selbst eine E-Mail. Das gilt auch, wenn die Schule ihn ändert oder löscht. Sie oder die Schule lösen den Versand aus.",
           steps: [
             "Wählen Sie in der Navigation `Schließtage`.",
-            "Oben steht dann die Karte `Eltern noch nicht informiert` mit den betroffenen Wochen.",
-            "Wählen Sie `Eltern informieren`.",
-            "Bestätigen Sie mit `E-Mails senden`.",
+            "Oben steht dann die Karte `Eltern noch nicht informiert`. Je Schließtag stehen dort Schule, Grund, Tage, Kinder und Familien.",
+            "Wählen Sie in der Zeile `Eltern informieren`. Ein Klick genügt.",
+            "Mehrere Schließtage auf einmal: Wählen Sie oben `Alle Eltern informieren`.",
+            "Die Zeile zeigt `Wird gesendet` und dann `Gesendet`.",
           ],
         },
         {
@@ -11429,6 +11455,10 @@ export const traegerClosingDaysTopic =
       ],
       troubleshootingDetails: [
         "Beim Speichern steht, die gebuchten Ferientage haben sich geändert? Inzwischen hat jemand gebucht oder storniert. Prüfen Sie die neue Liste im Dialog und speichern Sie noch einmal.",
+        "Auch ohne Schulhinweis können E-Mails ausfallen. Die Karte `Eltern noch nicht informiert` zeigt ihre Zahl. Wählen Sie `Erneut senden`. Bereits angenommene E-Mails werden nicht wiederholt.",
+        "Eine Zeile zeigt `Nicht angekommen`? Wählen Sie noch einmal `Eltern informieren`. Familien, die schon eine E-Mail haben, bekommen keine zweite.",
+        "Eine Zeile zeigt `Ergebnis unbekannt`? Schreiben Sie dem moto-Team. Es prüft den Versand.",
+        "Nach dem Klick steht, der Schließtag wurde geändert? Die Schule hat ihn inzwischen geändert. Prüfen Sie die Zeile und wählen Sie noch einmal `Eltern informieren`.",
       ],
       related: [
         HELP_TOPICS.traegerHolidayPeriod,

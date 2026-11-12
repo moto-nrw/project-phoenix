@@ -327,6 +327,18 @@ type HolidayRegistrationMail struct {
 // school (ADR 0118).
 const HolidayRegistrationDeletionLogRetentionYears = 3
 
+// HolidayRegistrationReference names a registration in its Träger.
+type HolidayRegistrationReference struct {
+	OrganizationID int64
+	RegistrationID int64
+}
+
+// HolidayRegistrationMailErasure removes copies of deleted registrations in
+// the caller's administrative transaction. The root binds Delivery's command.
+type HolidayRegistrationMailErasure interface {
+	EraseHolidayRegistrationMails(context.Context, []HolidayRegistrationReference) (int, error)
+}
+
 // HolidayRegistrationRetention deletes the registrations of every Träger
 // whose period ended more days ago than the registration keeps (#6691), and
 // the health information of the registrations whose period ended more than
