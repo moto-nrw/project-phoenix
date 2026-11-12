@@ -841,6 +841,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0090",
+      "id": "api/parentBillingActorNames.TraegerActorNames",
+      "reason": "#4693: consumer-port adapter of the Elternabrechnung onto the names of the Träger memberships of Organisation \u0026 Tenancy; it maps the list onto the map the port names."
+    },
+    {
       "decision": "0119",
       "id": "api/parentBillingBillingRegistrations.HolidayBillingPeriod",
       "reason": "ADR 0119 (#4668): Consumer-port adapter of the billing run's holiday periods; it reads the period of the session's Träger through Enrollment in the caller's Träger transaction and keeps its name and the days of its first and last week."
@@ -2739,6 +2744,11 @@
       "decision": "0090",
       "id": "roots/owners/TraegerBueroDirectory.DeactivateTraegerMembership",
       "reason": "#4650: root binding of the Organisation \u0026 Tenancy membership command to the Identity \u0026 Access port, dropping the result the port does not name and failing closed when unbound."
+    },
+    {
+      "decision": "0090",
+      "id": "roots/owners/TraegerBueroDirectory.NameTraegerMember",
+      "reason": "#4693: root binding of the Organisation \u0026 Tenancy name command to the Identity \u0026 Access port, translating a missing active membership into ErrTraegerMemberNotFound and failing closed when unbound."
     },
     {
       "decision": "0126",

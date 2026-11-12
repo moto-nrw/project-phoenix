@@ -55,6 +55,8 @@ type TraegerMembershipStore interface {
 	ListTraegerMemberships(ctx context.Context, organizationID int64) ([]organizationtenancy.TraegerMembership, domain.OperationStats, error)
 	UpsertActiveTraegerMembership(ctx context.Context, organizationID, accountID int64) (organizationtenancy.TraegerMembership, domain.OperationStats, error)
 	DeactivateTraegerMembership(ctx context.Context, organizationID, accountID int64) (bool, domain.OperationStats, error)
+	ListTraegerMemberNames(ctx context.Context, organizationID int64, accountIDs []int64) ([]organizationtenancy.TraegerMemberName, domain.OperationStats, error)
+	SetTraegerMemberName(ctx context.Context, organizationID, accountID int64, name string) (bool, domain.OperationStats, error)
 }
 
 type Transaction interface {

@@ -1178,6 +1178,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (n parentBillingActorNames) TraegerActorNames(ctx context.Context, organizationID int64, accountIDs []int64) (map[int64]string, error) {\n\tnames, err := n.names.ListTraegerMemberNames(ctx, organizationID, accountIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make(map[int64]string, len(names))\n\tfor _, name := range names {\n\t\tresult[name.AccountID] = name.Name\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/parentBillingActorNames.TraegerActorNames",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (b parentBillingBillingRegistrations) HolidayBillingPeriod(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) (parentbilling.HolidayBillingPeriod, error) {\n\tperiod, err := b.periods.HolidayPeriod(ctx, reviewer.OrganizationID, periodID)\n\tif err != nil {\n\t\treturn parentbilling.HolidayBillingPeriod{}, parentBillingHolidayError(err)\n\t}\n\treturn parentBillingPeriod(period), nil\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingBillingRegistrations.HolidayBillingPeriod",
@@ -3817,7 +3824,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (l TraegerAccountLedger) RecordTraegerAccountChange(ctx context.Context, change identityaccess.TraegerAccountChange) error {\n\tif l.Command == nil {\n\t\treturn errors.New(\"audit Träger account change: command is not configured\")\n\t}\n\treturn l.Command.Append(ctx, \u0026auditModels.TraegerAccountChange{OrganizationID: change.OrganizationID, ActorAccountID: change.ActorAccountID, Action: change.Action, TargetAccountID: change.TargetAccountID, TargetEmail: change.TargetEmail, RolesBefore: change.RolesBefore, RolesAfter: change.RolesAfter})\n}",
+      "evidence": "func (l TraegerAccountLedger) RecordTraegerAccountChange(ctx context.Context, change identityaccess.TraegerAccountChange) error {\n\tif l.Command == nil {\n\t\treturn errors.New(\"audit Träger account change: command is not configured\")\n\t}\n\treturn l.Command.Append(ctx, \u0026auditModels.TraegerAccountChange{OrganizationID: change.OrganizationID, ActorAccountID: change.ActorAccountID, Action: change.Action, TargetAccountID: change.TargetAccountID, TargetEmail: change.TargetEmail, TargetName: change.TargetName, RolesBefore: change.RolesBefore, RolesAfter: change.RolesAfter})\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/TraegerAccountLedger.RecordTraegerAccountChange",
       "owner": "roots"
@@ -3834,6 +3841,13 @@
       "evidence": "func (d TraegerBueroDirectory) DeactivateTraegerMembership(ctx context.Context, organizationID, accountID int64) error {\n\tif d.Organizations == nil {\n\t\treturn errTraegerBueroDirectoryUnavailable\n\t}\n\t_, err := d.Organizations.DeactivateTraegerMembership(ctx, organizationID, accountID)\n\treturn err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/TraegerBueroDirectory.DeactivateTraegerMembership",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (d TraegerBueroDirectory) NameTraegerMember(ctx context.Context, organizationID, accountID int64, name string) error {\n\tif d.Names == nil {\n\t\treturn errTraegerBueroDirectoryUnavailable\n\t}\n\tset, err := d.Names.SetTraegerMemberName(ctx, organizationID, accountID, name)\n\tif err != nil {\n\t\treturn err\n\t}\n\tif !set {\n\t\treturn identityaccess.ErrTraegerMemberNotFound\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/TraegerBueroDirectory.NameTraegerMember",
       "owner": "roots"
     },
     {

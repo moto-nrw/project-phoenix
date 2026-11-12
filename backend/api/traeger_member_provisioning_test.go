@@ -310,7 +310,7 @@ func TestOperatorInvitesTheFirstPersonOfATraegerBuero(t *testing.T) {
 
 	traeger, _ := traegerPortalOn(t, db, testpkg.TenantRuntime(t, db))
 	password := testpkg.NewTestPassword()
-	accepted := traegerCall(t, traeger, http.MethodPost, "/traeger/invitations/"+parsed.Query().Get("token")+"/accept", "", map[string]any{"password": password, "confirm_password": password})
+	accepted := traegerCall(t, traeger, http.MethodPost, "/traeger/invitations/"+parsed.Query().Get("token")+"/accept", "", map[string]any{"name": "Neue Kollegin", "password": password, "confirm_password": password})
 	require.Equal(t, http.StatusOK, accepted.Code, accepted.Body.String())
 	code, answer := traegerSignIn(t, traeger, address, password, 0)
 	require.Equal(t, http.StatusOK, code)
@@ -554,13 +554,13 @@ func TestOperatorManagesTheOpenInvitationsOfATraegerBuero(t *testing.T) {
 
 	traeger, _ := traegerPortalOn(t, db, testpkg.TenantRuntime(t, db))
 	password := testpkg.NewTestPassword()
-	refused := traegerCall(t, traeger, http.MethodPost, "/traeger/invitations/"+firstToken+"/accept", "", map[string]any{"password": password, "confirm_password": password})
+	refused := traegerCall(t, traeger, http.MethodPost, "/traeger/invitations/"+firstToken+"/accept", "", map[string]any{"name": "Neue Kollegin", "password": password, "confirm_password": password})
 	assert.Equal(t, http.StatusGone, refused.Code, "a withdrawn invitation cannot be accepted: %s", refused.Body.String())
-	refused = traegerCall(t, traeger, http.MethodPost, "/traeger/invitations/"+staleToken+"/accept", "", map[string]any{"password": password, "confirm_password": password})
+	refused = traegerCall(t, traeger, http.MethodPost, "/traeger/invitations/"+staleToken+"/accept", "", map[string]any{"name": "Neue Kollegin", "password": password, "confirm_password": password})
 	assert.Equal(t, http.StatusGone, refused.Code, "the replaced link cannot be accepted: %s", refused.Body.String())
 
 	// Accepting moves the person from the invitations to the members.
-	accepted := traegerCall(t, traeger, http.MethodPost, "/traeger/invitations/"+freshToken+"/accept", "", map[string]any{"password": password, "confirm_password": password})
+	accepted := traegerCall(t, traeger, http.MethodPost, "/traeger/invitations/"+freshToken+"/accept", "", map[string]any{"name": "Neue Kollegin", "password": password, "confirm_password": password})
 	require.Equal(t, http.StatusOK, accepted.Code, accepted.Body.String())
 	assert.Empty(t, list(), "an accepted invitation leaves the list")
 	members := call(http.MethodGet, fmt.Sprintf("/organizations/%d/traeger-members", organizationID), nil)

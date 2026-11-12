@@ -51,6 +51,9 @@ func mountTraegerRoutes(root, tenant chi.Router, limiters authRateLimiters, iden
 	healthData enrollmentOwner.HolidayHealthCipher, bankData parentbilling.BankDataCipher, statistics studentpresence.StatisticsReports, changes careplan.OfferingChangeCapability, contractHolidays carecontract.SchoolHolidays,
 	holidayCalendar enrollmentOwner.HolidaySchoolCalendar, closureHolidays owners.HolidayClosureHolidays, calendarSchools traegercalendar.Schools, schoolPhases *enrollmentCompose.Phases, schoolCatalog careplan.CareOfferingCatalogCapability, lockRecurrence func(context.Context) error,
 	parentsURL string, logger *slog.Logger) error {
+	if _, ok := identity.(identityaccess.TraegerMemberProfiles); !ok {
+		return errors.New("traeger portal: identity does not serve the names of the Träger-Büro")
+	}
 	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit, settings, healthData, holidayCalendar, holidayTraegerMail{delivery: delivery}, newHolidayOfficeTraeger(organizations)); err != nil {
 		return err
 	}

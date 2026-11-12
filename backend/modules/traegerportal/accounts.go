@@ -36,6 +36,7 @@ func (rs *Resource) accountRouter(protectedTraegerRoutes func(chi.Router, func(c
 		r.Post("/invitations", rs.inviteAccount)
 		r.Delete("/invitations/{invitationId}", rs.revokeInvitation)
 		r.Put("/{accountId}/roles", rs.changeRoles)
+		r.Put("/{accountId}/name", rs.changeMemberName)
 		r.Delete("/{accountId}", rs.removeMember)
 	})
 	return r
@@ -52,10 +53,12 @@ func (rs *Resource) invitationRouter(authRateLimiter func(http.Handler) http.Han
 	return r
 }
 
-// MemberResponse is a person of the Träger-Büro.
+// MemberResponse is a person of the Träger-Büro with the name the person
+// carries at this Träger (#4693), empty until set.
 type MemberResponse struct {
 	AccountID   int64      `json:"account_id"`
 	Email       string     `json:"email"`
+	Name        string     `json:"name"`
 	Roles       []string   `json:"roles"`
 	ActivatedAt *time.Time `json:"activated_at"`
 }
@@ -82,6 +85,7 @@ type HistoryEntryResponse struct {
 	Action      string    `json:"action"`
 	ActorEmail  string    `json:"actor_email"`
 	TargetEmail string    `json:"target_email"`
+	TargetName  string    `json:"target_name"`
 	RolesBefore []string  `json:"roles_before"`
 	RolesAfter  []string  `json:"roles_after"`
 }
@@ -128,7 +132,10 @@ type InvitationPreviewResponse struct {
 }
 
 // AcceptRequest is the body of POST /traeger/invitations/{token}/accept.
+// Name is the name the colleagues see (#4693); Identity & Access validates
+// it.
 type AcceptRequest struct {
+	Name            string `json:"name"`
 	Password        string `json:"password"`
 	ConfirmPassword string `json:"confirm_password"`
 }
@@ -188,7 +195,7 @@ func (rs *Resource) listHistory(w http.ResponseWriter, r *http.Request) {
 	for _, entry := range history.Entries {
 		response.Entries = append(response.Entries, HistoryEntryResponse{
 			ID: entry.ID, OccurredAt: entry.OccurredAt, Action: entry.Action,
-			ActorEmail: entry.ActorEmail, TargetEmail: entry.TargetEmail,
+			ActorEmail: entry.ActorEmail, TargetEmail: entry.TargetEmail, TargetName: entry.TargetName,
 			RolesBefore: entry.RolesBefore, RolesAfter: entry.RolesAfter,
 		})
 	}
@@ -275,7 +282,7 @@ func (rs *Resource) acceptInvitation(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	address, err := rs.accounts.AcceptTraegerInvitation(r.Context(), chi.URLParam(r, "token"), identityaccess.TraegerInvitationAcceptance{
-		Password: req.Password, ConfirmPassword: req.ConfirmPassword,
+		Name: req.Name, Password: req.Password, ConfirmPassword: req.ConfirmPassword,
 		IPAddress: common.GetClientIPString(r), UserAgent: r.UserAgent(),
 	})
 	if err != nil {
@@ -291,6 +298,11 @@ func (rs *Resource) actor(w http.ResponseWriter, r *http.Request) (identityacces
 		common.RenderError(w, r, common.ErrorInternalServer(errAccountsUnavailable))
 		return identityaccess.TraegerActor{}, false
 	}
+	return sessionActor(w, r)
+}
+
+// sessionActor reads the account and the Träger of the session.
+func sessionActor(w http.ResponseWriter, r *http.Request) (identityaccess.TraegerActor, bool) {
 	principal, err := common.CurrentPrincipal(r.Context())
 	if err != nil || principal.OrganizationID() <= 0 || principal.AccountID() <= 0 {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
@@ -321,6 +333,9 @@ var accountErrorRules = []common.ErrorRule{
 	{Target: identityaccess.ErrInvalidTraegerRole, Render: common.ErrorInvalidRequest},
 	{Target: identityaccess.ErrTraegerInvalidEmail, Render: func(err error) render.Renderer {
 		return common.ErrorInvalidOnField(err, common.CodeGeneralInput, "email")
+	}},
+	{Target: identityaccess.ErrTraegerInvalidName, Render: func(err error) render.Renderer {
+		return common.ErrorInvalidOnField(err, common.CodeGeneralInput, "name")
 	}},
 	{Target: identityaccess.ErrTraegerAlreadyMember, Render: func(err error) render.Renderer {
 		return common.ErrorConflictWithCode(err, common.CodeTraegerAlreadyMember)
@@ -363,7 +378,7 @@ func renderAccountError(err error) render.Renderer {
 }
 
 func memberResponse(member identityaccess.TraegerMember) MemberResponse {
-	return MemberResponse{AccountID: member.AccountID, Email: member.Email, Roles: member.Roles, ActivatedAt: member.ActivatedAt}
+	return MemberResponse{AccountID: member.AccountID, Email: member.Email, Name: member.Name, Roles: member.Roles, ActivatedAt: member.ActivatedAt}
 }
 
 func invitationResponse(invitation identityaccess.TraegerInvitation) InvitationResponse {
