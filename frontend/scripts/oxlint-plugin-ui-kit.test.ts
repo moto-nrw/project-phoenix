@@ -4839,6 +4839,7 @@ describe.concurrent("ui-kit/menu-item-needs-description", () => {
           `{ kind: "radio", label: "Woche", checked: true, onClick: go }`,
           `{ kind: "checkbox", label: "Klasse", checked: false, onClick: go }`,
           `{ label: "Mehr", ...extra, onClick: go }`,
+          `{ ...extra, label: "Leeren", description: "Löscht sofort.", onClick: go }`,
           `{ label: "Nur Text" }`,
         ].join(",\n"),
       ),
@@ -4848,41 +4849,49 @@ describe.concurrent("ui-kit/menu-item-needs-description", () => {
     expect(output).not.toMatch(/error|Parse/i);
   });
 
-  it.each([
-    [
-      "an entry without description",
-      `{ label: "Entfernen", onClick: go }`,
-      "Menüeintrag ohne Erklärung",
-    ],
-    [
-      "a link entry without description",
-      `{ label: "Öffnen", href: "/x", onClick: go }`,
-      "Menüeintrag ohne Erklärung",
-    ],
-    [
-      "an empty description",
-      `{ label: "Entfernen", description: " ", onClick: go }`,
-      "Leere `description`",
-    ],
-    [
-      "an empty noDescription reason",
-      `{ label: "Hilfe", noDescription: "", onClick: go }`,
-      "braucht einen Grund",
-    ],
-    [
-      "a noDescription set to undefined",
-      `{ label: "Hilfe", noDescription: undefined, onClick: go }`,
-      "braucht einen Grund",
-    ],
-    [
-      "description and noDescription together",
-      `{ label: "Hilfe", description: "Öffnet die Hilfe.", noDescription: "Reicht.", onClick: go }`,
-      "dürfen nicht zusammen",
-    ],
-  ])("rejects %s", async (_name, item, message) => {
-    const { output } = await lintSource(probe(item), IN_SCOPE);
-    expect(output).toContain(RULE);
-    expect(output).toContain(message);
+  // Alle Ablehnungen in einem Lauf; jede Meldung muss genau einmal kommen.
+  it("rejects missing, empty, conflicting and overridable explanations", async () => {
+    const cases: [string, string][] = [
+      [`{ label: "Entfernen", onClick: go }`, "Menüeintrag ohne Erklärung"],
+      [
+        `{ label: "Öffnen", href: "/x", onClick: go }`,
+        "Menüeintrag ohne Erklärung",
+      ],
+      [
+        `{ label: "Löschen", selected: false, onClick: go }`,
+        "Menüeintrag ohne Erklärung",
+      ],
+      [
+        `{ label: "Entfernen", description: " ", onClick: go }`,
+        "Leere `description`",
+      ],
+      [
+        `{ label: "Hilfe", noDescription: "", onClick: go }`,
+        "braucht einen Grund",
+      ],
+      [
+        `{ label: "Hilfe", noDescription: undefined, onClick: go }`,
+        "braucht einen Grund",
+      ],
+      [
+        `{ label: "Hilfe", description: "Öffnet die Hilfe.", noDescription: "Reicht.", onClick: go }`,
+        "dürfen nicht zusammen",
+      ],
+      [
+        `{ label: "Entfernen", description: "Löscht sofort.", ...extra, onClick: go }`,
+        "Spread vor die Erklärung",
+      ],
+    ];
+    const { output } = await lintSource(
+      probe(cases.map(([item]) => item).join(",\n")),
+      IN_SCOPE,
+    );
+    expect(output.split(RULE).length - 1).toBe(cases.length);
+    for (const message of new Set(cases.map(([, message]) => message))) {
+      expect(output.split(message).length - 1).toBe(
+        cases.filter(([, m]) => m === message).length,
+      );
+    }
   });
 
   it("uses the tooltip scope list", async () => {

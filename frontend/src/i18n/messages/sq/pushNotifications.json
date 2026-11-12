@@ -49,5 +49,5 @@
   "installTooltip": "Nis instalimin e moto si aplikacion në këtë pajisje.",
   "checkAgainTooltip": "Kontrollon përsëri nëse moto mund t'ju njoftojë në këtë pajisje.",
   "sendTestDescription": "Ju dërgon menjëherë një njoftim për provë.",
-  "restartDescription": "Ju udhëheq përsëri nëpër hapat e ndezjes."
+  "restartDescription": "Ju udhëheq përsëri nëpër hapat e aktivizimit."
 }

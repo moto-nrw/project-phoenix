@@ -210,7 +210,7 @@ Decided in #5529, enforced since #5531. Not up for renegotiation: if code cannot
 - „sofort“ when deleted or sent without a question, „moto fragt vorher nach“ before a confirmation; name who gets notified.
 - Same action, same sentence; repeated text lives in the kit piece. Translated portals: every language's catalog.
 - `noTooltip` only if the word says it all with no side effect („Abbrechen“, „Zurück“, a pure „Speichern“); never deleting, sending, releasing, icon buttons.
-- Menu entries: visible `description` or `noDescription: "<Grund>"` (`ui-kit/menu-item-needs-description`; `kind`, `selected` exempt). Full stop optional; say „sofort“ or „moto fragt vorher nach“.
+- Menu entries: visible `description` or `noDescription: "<Grund>"` (`ui-kit/menu-item-needs-description`; `kind`, `selected` exempt). Full stop optional; deleting says „sofort“ or „moto fragt vorher nach“.
 
 Examples: „Löscht die PDF sofort aus dem Anmeldeformular.“ · „Übernimmt Ihre Auswahl für die Startseite aller Mitarbeitenden.“ · „Öffnet den Rechtstext für Eltern zum Bearbeiten.“
 

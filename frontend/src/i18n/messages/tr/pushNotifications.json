@@ -49,5 +49,5 @@
   "installTooltip": "moto'yu bu cihaza uygulama olarak kurmaya başlar.",
   "checkAgainTooltip": "moto'nun bu cihazda size bildirim gönderip gönderemeyeceğini yeniden kontrol eder.",
   "sendTestDescription": "Size hemen deneme amaçlı bir bildirim gönderir.",
-  "restartDescription": "Açma adımlarında sizi yeniden yönlendirir."
+  "restartDescription": "Açma adımlarında size yeniden yol gösterir."
 }

@@ -6206,16 +6206,25 @@ const buttonNeedsTooltip = {
 // `bauart/no-disabled-menu-item` ein Objektliteral mit `label` und `onClick`
 // oder `href`. Ausgenommen sind Einträge mit `kind` (Auswahl, Schalter,
 // Überschrift: sie sagen, was sie sind) und rein navigierende Einträge mit
-// `selected`, etwa die „Mehr“-Leiste der Navigation. Verlangt wird
+// `selected`, etwa die „Mehr“-Leiste der Navigation; `selected: false` als
+// Literal ist keine Navigation und befreit nicht. Verlangt wird
 // `description` oder ein begründetes `noDescription: "<Grund>"`; ein leerer
-// oder `undefined` gesetzter Wert ist ein Fehler. Ein unbekannter Spread im
-// Objekt gilt als erfüllt, wie bei `ui-kit/button-needs-tooltip`. Die Regel
-// gilt in TOOLTIP_SCOPE.
+// oder `undefined` gesetzter Wert ist ein Fehler. Wie bei
+// `ui-kit/button-needs-tooltip` gilt ein unbekannter Spread ohne Erklärung als
+// erfüllt, ein Spread hinter der Erklärung wird gemeldet: Er kann sie
+// überschreiben. Die Regel gilt in TOOLTIP_SCOPE.
 
 function staticObjectProperty(node, name) {
   return node.properties.find(
-    (property) => !property.computed && propertyName(property) === name,
+    (property) =>
+      property.type === "Property" &&
+      !property.computed &&
+      propertyName(property) === name,
   );
+}
+
+function isLiteralFalse(expression) {
+  return expression?.type === "Literal" && expression.value === false;
 }
 
 const menuItemNeedsDescription = {
@@ -6234,6 +6243,8 @@ const menuItemNeedsDescription = {
         "`noDescription` braucht einen Grund, warum das Wort im Menü reicht (#6643).",
       conflictingExplanation:
         "`description` und `noDescription` dürfen nicht zusammen gesetzt sein (#6643).",
+      spreadAfterExplanation:
+        "Gespreizte Werte hinter `description`/`noDescription` können die Erklärung überschreiben: den Spread vor die Erklärung stellen (#6643).",
     },
     schema: [],
   },
@@ -6248,9 +6259,10 @@ const menuItemNeedsDescription = {
         ) {
           return;
         }
+        const selected = staticObjectProperty(node, "selected");
         if (
           staticObjectProperty(node, "kind") ||
-          staticObjectProperty(node, "selected")
+          (selected && !isLiteralFalse(selected.value))
         ) {
           return;
         }
@@ -6261,6 +6273,18 @@ const menuItemNeedsDescription = {
             node: noDescription,
             messageId: "conflictingExplanation",
           });
+          return;
+        }
+        const explanation = description ?? noDescription;
+        const unknownSpread = (property) =>
+          property.type === "SpreadElement" || property.computed;
+        if (
+          explanation &&
+          node.properties
+            .slice(node.properties.indexOf(explanation) + 1)
+            .some(unknownSpread)
+        ) {
+          context.report({ node, messageId: "spreadAfterExplanation" });
           return;
         }
         if (description) {
@@ -6278,10 +6302,7 @@ const menuItemNeedsDescription = {
           }
           return;
         }
-        const unknownSpread = node.properties.some(
-          (property) => property.type === "SpreadElement" || property.computed,
-        );
-        if (unknownSpread) return;
+        if (node.properties.some(unknownSpread)) return;
         context.report({ node, messageId: "missing" });
       },
     };
