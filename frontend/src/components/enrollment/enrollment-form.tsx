@@ -208,6 +208,8 @@ interface Props {
    */
   readonly restrictToOfferings?: boolean;
   readonly submitLabel?: string;
+  /** What a click on the submit button does; required with `submitLabel`. */
+  readonly submitTooltip?: string;
   /**
    * ADMIN ONLY (#2186). Renders offerings the child's grade level rules out
    * as disabled entries with the reason, instead of omitting them. Parents
@@ -252,6 +254,7 @@ export function EnrollmentForm({
   lockChildStructure = false,
   restrictToOfferings = false,
   submitLabel,
+  submitTooltip,
   showBlockedOfferings = false,
   offeringBookingStats,
   withoutSignature = false,
@@ -845,6 +848,16 @@ export function EnrollmentForm({
   const signatureRequired =
     Boolean(schema?.core_requirements?.signature) && !withoutSignature;
 
+  // Why the submit button is blocked; while sending it stays natively
+  // disabled without a reason (#5608).
+  const submitBlockedReason = submitting
+    ? undefined
+    : previewMode
+      ? tr("buttonHints.previewSubmit")
+      : captchaRequired && !captchaConfig.site_key
+        ? tr("buttonHints.captchaUnavailable")
+        : tr("buttonHints.captchaPending");
+
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
     setRetryPending(false);
@@ -1038,6 +1051,7 @@ export function EnrollmentForm({
                 variant="surface"
                 size="md"
                 onClick={addGuardian}
+                tooltip={tr("buttonHints.addGuardian")}
                 className="w-full gap-1.5 whitespace-nowrap sm:w-auto sm:shrink-0"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
@@ -1114,6 +1128,7 @@ export function EnrollmentForm({
                     variant="ghost_danger"
                     size="compact"
                     onClick={() => removeGuardian(i)}
+                    tooltip={tr("buttonHints.removeGuardian")}
                   >
                     {tr("actions.remove")}
                   </Button>
@@ -1238,6 +1253,7 @@ export function EnrollmentForm({
                 variant="surface"
                 size="md"
                 onClick={addChild}
+                tooltip={tr("buttonHints.addChild")}
                 className="w-full gap-1.5 whitespace-nowrap sm:w-auto sm:shrink-0"
               >
                 <Plus className="h-4 w-4" aria-hidden="true" />
@@ -1416,6 +1432,7 @@ export function EnrollmentForm({
                       variant="ghost_danger"
                       size="compact"
                       onClick={() => removeChild(i)}
+                      tooltip={tr("buttonHints.removeChild")}
                     >
                       {tr("actions.remove")}
                     </Button>
@@ -1908,6 +1925,8 @@ export function EnrollmentForm({
             previewMode ||
             (captchaRequired && (!captchaConfig.site_key || !captchaToken))
           }
+          disabledReason={submitBlockedReason}
+          tooltip={submitTooltip ?? tr("buttonHints.submit")}
           className="w-full disabled:cursor-not-allowed"
         >
           {previewMode
@@ -2375,6 +2394,8 @@ function ExistingChildrenPanel({
                 size="compact"
                 onClick={() => onAdopt(c)}
                 disabled={used}
+                disabledReason={tr("buttonHints.adopted")}
+                tooltip={tr("buttonHints.adopt")}
                 className="shrink-0"
               >
                 {used ? tr("structured.adopted") : tr("structured.adopt")}

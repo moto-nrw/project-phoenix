@@ -378,6 +378,7 @@ export function FileUploadInput({
             size="md"
             className="max-w-full gap-2"
             disabled={!canUpload}
+            tooltip={tr("buttonHints.chooseFile")}
             onClick={() => picker.current?.click()}
             aria-describedby={
               [hintId, error ? errorId : null].filter(Boolean).join(" ") ||

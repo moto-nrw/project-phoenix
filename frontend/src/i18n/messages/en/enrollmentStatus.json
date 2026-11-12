@@ -220,5 +220,25 @@
   "signatureDownload": "Proof as PDF",
   "signatureDownloading": "Loading proof …",
   "signatureEditHint": "If you change the enrollment, you sign it again.",
-  "errorObjectProof": "the proof"
+  "errorObjectProof": "the proof",
+  "buttonHints": {
+    "parentApp": "Opens the parents app, where you make changes.",
+    "editFull": "Opens the enrollment for editing.",
+    "requestChange": "Opens the enrollment to request a change from the {careTerm}.",
+    "withdrawChild": "Withdraws this child's enrollment; moto asks you to confirm first.",
+    "withdrawAll": "Withdraws the enrollment for all children; moto asks you to confirm first.",
+    "withdrawOne": "Withdraws the enrollment; moto asks you to confirm first.",
+    "editGuardian": "Opens your name and phone number for changes.",
+    "saveGuardian": "Saves your name and phone number in the enrollment.",
+    "replySubmit": "Sends your reply to the {careTerm}.",
+    "signatureDownload": "Downloads the proof of your signature as a PDF.",
+    "confirmRenewal": "Confirms the enrollment for the next period.",
+    "confirmTerms": "Saves your agreement to the terms of the new period.",
+    "adjust": "Opens the offerings and weekdays for changes.",
+    "declineRenewal": "Declines the enrollment for the next period; moto asks you to confirm first.",
+    "unsubscribe": "Ends the enrollment for the next period; moto asks you to confirm first.",
+    "termsRead": "Opens the full text to read.",
+    "editSubmit": "Saves your changes to the enrollment.",
+    "changeRequestSubmit": "Sends your changes as a request to the {careTerm}."
+  }
 }

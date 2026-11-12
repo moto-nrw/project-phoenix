@@ -220,5 +220,25 @@
   "signatureDownload": "Nachweis als PDF",
   "signatureDownloading": "Nachweis wird geladen …",
   "signatureEditHint": "Wenn Sie die Anmeldung ändern, unterschreiben Sie sie neu.",
-  "errorObjectProof": "der Nachweis"
+  "errorObjectProof": "der Nachweis",
+  "buttonHints": {
+    "parentApp": "Öffnet die Eltern-App, in der Sie Änderungen stellen.",
+    "editFull": "Öffnet die Anmeldung zum Bearbeiten.",
+    "requestChange": "Öffnet die Anmeldung, um eine Änderung bei der {careTerm} anzufragen.",
+    "withdrawChild": "Zieht die Anmeldung dieses Kindes zurück, moto fragt vorher nach.",
+    "withdrawAll": "Zieht die Anmeldung für alle Kinder zurück, moto fragt vorher nach.",
+    "withdrawOne": "Zieht die Anmeldung zurück, moto fragt vorher nach.",
+    "editGuardian": "Öffnet Ihren Namen und Ihre Telefonnummer zum Ändern.",
+    "saveGuardian": "Speichert Ihren Namen und Ihre Telefonnummer in der Anmeldung.",
+    "replySubmit": "Sendet Ihre Antwort an die {careTerm}.",
+    "signatureDownload": "Lädt den Nachweis Ihrer Unterschrift als PDF herunter.",
+    "confirmRenewal": "Bestätigt die Anmeldung für den nächsten Zeitraum.",
+    "confirmTerms": "Speichert Ihre Zustimmung zu den Bedingungen des neuen Zeitraums.",
+    "adjust": "Öffnet die Angebote und Wochentage zum Ändern.",
+    "declineRenewal": "Lehnt die Anmeldung für den nächsten Zeitraum ab, moto fragt vorher nach.",
+    "unsubscribe": "Beendet die Anmeldung für den nächsten Zeitraum, moto fragt vorher nach.",
+    "termsRead": "Öffnet den ganzen Text zum Lesen.",
+    "editSubmit": "Speichert Ihre Änderungen an der Anmeldung.",
+    "changeRequestSubmit": "Sendet Ihre Änderungen als Anfrage an die {careTerm}."
+  }
 }

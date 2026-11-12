@@ -489,6 +489,11 @@ export function ManualApprovedEnrollmentModal({
               showBlockedOfferings
               offeringBookingStats={bookingStats}
               submitLabel="Kind anlegen und freigeben"
+              submitTooltip={
+                sendNotification
+                  ? "Legt das Kind an, gibt die Anmeldung frei und benachrichtigt die Eltern."
+                  : "Legt das Kind an und gibt die Anmeldung frei, ohne E-Mail an Eltern."
+              }
             />
           ) : null}
         </div>

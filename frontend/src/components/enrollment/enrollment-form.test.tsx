@@ -593,12 +593,12 @@ describe("EnrollmentForm", () => {
     const submit = screen.getByRole("button", { name: "Anmeldung absenden" });
     fireEvent.click(submit);
     await screen.findByRole("alert");
-    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute("aria-disabled", "true");
     expect(document.querySelector('input[name="captcha_token"]')).toHaveValue(
       "",
     );
     fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
-    expect(submit).toBeEnabled();
+    expect(submit).not.toHaveAttribute("aria-disabled");
   });
 
   it("retries an unavailable submission only once the captcha is solved again (#6739)", async () => {
@@ -684,15 +684,15 @@ describe("EnrollmentForm", () => {
 
     expect(screen.getByTestId("turnstile")).toBeInTheDocument();
     const submit = screen.getByRole("button", { name: "Anmeldung absenden" });
-    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
-    expect(submit).toBeEnabled();
+    expect(submit).not.toHaveAttribute("aria-disabled");
     fireEvent.click(screen.getByRole("button", { name: "Expire captcha" }));
-    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
-    expect(submit).toBeEnabled();
+    expect(submit).not.toHaveAttribute("aria-disabled");
     fireEvent.click(screen.getByRole("button", { name: "Fail captcha" }));
-    expect(submit).toBeDisabled();
+    expect(submit).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
     await fillRequiredFields();
     fireEvent.click(submit);
@@ -791,7 +791,7 @@ describe("EnrollmentForm", () => {
     ).toBeTruthy();
     expect(
       screen.getByRole("button", { name: "Anmeldung absenden" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("shows offerings per child grade and clears an invalid selection after a grade change", async () => {
@@ -2291,7 +2291,9 @@ describe("EnrollmentForm", () => {
     fireEvent.click(screen.getByRole("button", { name: "Übernehmen" }));
 
     expect(screen.getAllByDisplayValue("Lina")[0]).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "✓ übernommen" })).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "✓ übernommen" }),
+    ).toHaveAttribute("aria-disabled", "true");
     expect(screen.getByLabelText("Klassenstufe")).toHaveTextContent(
       "2. Klasse",
     );
@@ -2583,7 +2585,7 @@ describe("EnrollmentForm", () => {
 
     expect(
       screen.getByRole("button", { name: "Vorschau, nicht absenden" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(screen.queryByText("Klassenstufe")).not.toBeInTheDocument();
     expect(screen.queryByText("Flexible Betreuung")).not.toBeInTheDocument();
   });
@@ -2632,7 +2634,7 @@ describe("EnrollmentForm", () => {
     expect(screen.queryByLabelText(/Freitag/)).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Vorschau, nicht absenden" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(mockSubmitEnrollment).not.toHaveBeenCalled();
   });
 

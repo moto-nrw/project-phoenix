@@ -69,7 +69,7 @@ export function EnrollmentConsent({
       action={
         hasLink ? (
           <LegalDetailsButton
-            title={legalTitle ?? label}
+            tooltip={tr("buttonHints.details")}
             label={tr("actions.details")}
             ariaLabel={tr("actions.detailsAria", {
               title: legalTitle ?? label,
@@ -110,7 +110,7 @@ export function EmailContactNotice({
           {onViewLegal && (
             <LegalDetailsButton
               variant="ghost_tone"
-              title={block.title}
+              tooltip={tr("buttonHints.details")}
               label={tr("actions.details")}
               ariaLabel={tr("actions.detailsAria", { title: block.title })}
               onClick={onViewLegal}
@@ -123,7 +123,7 @@ export function EmailContactNotice({
 }
 
 function LegalDetailsButton({
-  title,
+  tooltip,
   label,
   ariaLabel,
   onClick,
@@ -131,7 +131,8 @@ function LegalDetailsButton({
 }: {
   /** `ghost_tone` auf einem getönten Hinweis: übernimmt dessen Textfarbe. */
   readonly variant?: "ghost" | "ghost_tone";
-  readonly title: string;
+  /** What a click does; the legal title already travels in `ariaLabel`. */
+  readonly tooltip: string;
   readonly label: string;
   readonly ariaLabel: string;
   readonly onClick?: () => void;
@@ -142,7 +143,7 @@ function LegalDetailsButton({
       variant={variant}
       size="compact"
       aria-label={ariaLabel}
-      title={title}
+      tooltip={tooltip}
       onClick={onClick}
       className="shrink-0"
     >

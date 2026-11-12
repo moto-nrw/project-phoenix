@@ -180,6 +180,10 @@ export function EnrollmentFormEditor({
   const hasPendingLegalDocumentUpload = draftDocuments.uploading;
   // Saving and running uploads lock every control of the builder.
   const locked = saving || hasPendingLegalDocumentUpload;
+  // Saving keeps the native lock; a running upload names itself.
+  const lockedReason = saving
+    ? undefined
+    : LEGAL_DOCUMENT_UPLOAD_PENDING_MESSAGE;
 
   const latestByName = useMemo(
     () => latestSchemasByName(allSchemas),
@@ -849,6 +853,8 @@ export function EnrollmentFormEditor({
                         type="button"
                         onClick={addInfoField}
                         disabled={locked}
+                        disabledReason={lockedReason}
+                        tooltip="Fügt einen Hinweistext für Eltern ohne Antwortfeld hinzu."
                         variant="outline"
                         size="md"
                         className="inline-flex items-center justify-center gap-2"
@@ -860,6 +866,8 @@ export function EnrollmentFormEditor({
                         type="button"
                         onClick={addField}
                         disabled={locked}
+                        disabledReason={lockedReason}
+                        tooltip="Fügt eine eigene Frage hinzu, die Antwort bleibt nur in der Anmeldung."
                         variant="outline"
                         size="md"
                         className="inline-flex items-center justify-center gap-2"
@@ -911,6 +919,8 @@ export function EnrollmentFormEditor({
                       type="button"
                       onClick={requestStartNew}
                       disabled={locked}
+                      disabledReason={lockedReason}
+                      tooltip="Beginnt eine leere neue Vorlage, bei offenen Änderungen fragt moto nach."
                       variant="outline"
                       size="md"
                       className="inline-flex items-center justify-center"
@@ -921,6 +931,12 @@ export function EnrollmentFormEditor({
                       type="button"
                       onClick={handleSave}
                       disabled={locked}
+                      disabledReason={lockedReason}
+                      tooltip={
+                        isCreating
+                          ? "Legt die Formularvorlage an, Eltern sehen sie erst in einer Anmeldephase."
+                          : "Speichert die Vorlage, zugeordnete Anmeldephasen zeigen Eltern sofort die neue Fassung."
+                      }
                       variant="primary"
                       size="md"
                       className="inline-flex items-center justify-center"

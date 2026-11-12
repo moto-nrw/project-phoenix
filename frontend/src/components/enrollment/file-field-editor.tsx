@@ -284,11 +284,10 @@ export function IncomeDeclarationButton({
       type="button"
       onClick={onAdd}
       disabled={disabled || present}
-      title={
-        present
-          ? "Die Einkommenserklärung ist schon im Formular."
-          : "Fügt die Frage nach der Einkommensstufe und das Hochladen des Nachweises hinzu."
+      disabledReason={
+        present ? "Die Einkommenserklärung ist schon im Formular." : undefined
       }
+      tooltip="Fügt die Frage nach der Einkommensstufe und das Hochladen des Nachweises hinzu."
       variant="outline"
       size="md"
       className="inline-flex items-center justify-center gap-2"
