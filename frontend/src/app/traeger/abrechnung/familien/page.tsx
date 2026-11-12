@@ -288,6 +288,7 @@ export default function TraegerBillingFamiliesPage() {
                       type="button"
                       variant="outline"
                       size="md"
+                      tooltip="Leert Suche und Filter und zeigt wieder alle Familien."
                       onClick={resetFilters}
                     >
                       Filter zurücksetzen

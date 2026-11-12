@@ -5922,6 +5922,26 @@ const TOOLTIP_SCOPE = [
   "src/app/[tenant]/(protected)/settings/",
   "src/app/traeger/einstellungen/",
   "src/components/settings/",
+  // Träger-Abrechnung, Seiten (#6746).
+  "src/app/traeger/abrechnung/page.tsx",
+  "src/app/traeger/abrechnung/[id]/page.tsx",
+  "src/app/traeger/abrechnung/exporte/feldzuordnung/page.tsx",
+  "src/app/traeger/abrechnung/exporte/konten/page.tsx",
+  "src/app/traeger/abrechnung/exporte/page.tsx",
+  "src/app/traeger/abrechnung/familien/page.tsx",
+  "src/app/traeger/abrechnung/jahresbescheide/[id]/bescheid/[contractId]/page.tsx",
+  "src/app/traeger/abrechnung/jahresbescheide/[id]/page.tsx",
+  "src/app/traeger/abrechnung/jahresbescheide/[id]/versand/page.tsx",
+  "src/app/traeger/abrechnung/jahresbescheide/page.tsx",
+  "src/app/traeger/abrechnung/kinderzahl/page.tsx",
+  "src/app/traeger/abrechnung/kostentraeger/page.tsx",
+  "src/app/traeger/abrechnung/lastschrift/import/page.tsx",
+  "src/app/traeger/abrechnung/lastschrift/page.tsx",
+  "src/app/traeger/abrechnung/monatsbeitraege/[id]/page.tsx",
+  "src/app/traeger/abrechnung/monatsbeitraege/[id]/rechnung/[contractId]/page.tsx",
+  "src/app/traeger/abrechnung/monatsbeitraege/[id]/schreiben/page.tsx",
+  "src/app/traeger/abrechnung/monatsbeitraege/page.tsx",
+  "src/app/traeger/abrechnung/nachweise/page.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {

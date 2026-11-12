@@ -91,6 +91,22 @@ function runDescription(run: BillingRunDetail): string {
   return "Vorschau mit allen bestätigten Anmeldungen ohne gültige Rechnung. Eine stornierte Rechnung wird hier neu ausgestellt, mit ihren Korrekturen als Vorschlag. Neue Bestätigungen kommen bis zur Freigabe dazu.";
 }
 
+/** Why „Lauf freigeben“ is blocked, in the order the warnings show. */
+function releaseBlockReason(run: BillingRunDetail): string | undefined {
+  if (run.previewCount === 0) {
+    return run.unbilled > 0
+      ? "Noch keine Rechnung: Den Anmeldungen fehlt ein festgehaltener Beitrag."
+      : "Der Lauf hat keine Rechnung zum Freigeben.";
+  }
+  if (run.legalRemedyMissing) {
+    return "Tragen Sie zuerst die Rechtsbehelfsbelehrung in der Vorlage „Bescheid“ ein.";
+  }
+  if (!run.numberRangeSet) {
+    return "Legen Sie zuerst das Muster der Rechnungsnummern fest.";
+  }
+  return undefined;
+}
+
 /** „3 Rechnungen mit Betrag haben keine Debitorennummer.“ */
 function invoicesWithoutDebtorNumber(count: number): string {
   return count === 1
@@ -282,6 +298,7 @@ export default function TraegerBillingRunPage() {
             type="button"
             variant="outline_danger"
             size="md"
+            tooltip="moto fragt vorher nach, dann ist der Ferienzeitraum frei für einen neuen Lauf."
             onClick={() => setConfirmingDiscard(true)}
           >
             Leeren Lauf verwerfen
@@ -291,6 +308,7 @@ export default function TraegerBillingRunPage() {
             type="button"
             variant="primary"
             size="md"
+            tooltip="Öffnet den offenen Lauf dieses Ferienzeitraums oder startet einen neuen."
             onClick={() => void reissue()}
           >
             Neuen Lauf starten
@@ -301,6 +319,8 @@ export default function TraegerBillingRunPage() {
             variant="primary"
             size="md"
             disabled={!canRelease}
+            disabledReason={releaseBlockReason(run)}
+            tooltip="moto fragt vorher nach, dann bekommen alle Rechnungen ihre feste Nummer."
             onClick={() => setConfirmingRelease(true)}
           >
             Lauf freigeben
@@ -429,6 +449,7 @@ export default function TraegerBillingRunPage() {
                   )}
                   variant="outline"
                   size="md"
+                  tooltip="Öffnet die Fälligkeiten der Rechnungen dieses Laufs zum Ändern."
                 >
                   Fälligkeiten ändern
                 </ButtonLink>
@@ -500,6 +521,7 @@ export default function TraegerBillingRunPage() {
                   )}
                   variant="surface"
                   size="compact"
+                  tooltip="Öffnet die Vorlage „Bescheid“ in den Einstellungen."
                 >
                   Vorlage öffnen
                 </ButtonLink>
@@ -515,6 +537,7 @@ export default function TraegerBillingRunPage() {
                   href={traegerPath("/traeger/einstellungen/abrechnung")}
                   variant="surface"
                   size="compact"
+                  tooltip="Öffnet die Einstellungen für das Muster der Rechnungsnummern."
                 >
                   Abrechnungsvorgaben öffnen
                 </ButtonLink>

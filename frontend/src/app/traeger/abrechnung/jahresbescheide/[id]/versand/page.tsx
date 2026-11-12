@@ -126,7 +126,11 @@ function rowMenuItems(
 ): OverflowMenuItem[] {
   if (!notice.hasLetter) return [];
   const items: OverflowMenuItem[] = [
-    { label: "Original ansehen", onClick: () => actions.onShow(notice) },
+    {
+      label: "Original ansehen",
+      description: "Öffnet das gespeicherte PDF des Bescheids",
+      onClick: () => actions.onShow(notice),
+    },
   ];
   if (canSendMail(notice) && actions.sendingContract === null) {
     items.push({
@@ -485,6 +489,7 @@ export default function TraegerCareNoticeDeliveryPage() {
               size="md"
               isLoading={creating}
               loadingText="Wird gespeichert …"
+              tooltip="Speichert jeden Bescheid als PDF, gesendet wird noch nichts."
               onClick={() => void create()}
             >
               {missing === 1
@@ -514,6 +519,8 @@ export default function TraegerCareNoticeDeliveryPage() {
                 isLoading={sendingAll}
                 loadingText="Wird gesendet …"
                 disabled={toSend === 0}
+                disabledReason="Alle Bescheide mit E-Mail-Adresse sind schon gesendet."
+                tooltip="moto fragt vorher nach, dann gehen die Bescheide per E-Mail an die Familien."
                 onClick={() => setConfirming(true)}
               >
                 An alle senden

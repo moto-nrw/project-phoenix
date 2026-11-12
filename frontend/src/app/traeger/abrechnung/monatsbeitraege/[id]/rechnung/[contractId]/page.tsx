@@ -200,6 +200,7 @@ function CareInvoiceAmendPage() {
                   href={`${runHref}/schreiben`}
                   variant="surface"
                   size="compact"
+                  tooltip="Öffnet die Schreiben des Laufs, dort stornieren Sie Rechnungen."
                 >
                   Zu den Schreiben
                 </ButtonLink>
@@ -232,6 +233,7 @@ function CareInvoiceAmendPage() {
                   href={traegerPath("/traeger/einstellungen/abrechnung")}
                   variant="surface"
                   size="compact"
+                  tooltip="Öffnet die Einstellungen der Abrechnung, dort schalten Sie das Ändern ein."
                 >
                   Zu den Einstellungen
                 </ButtonLink>

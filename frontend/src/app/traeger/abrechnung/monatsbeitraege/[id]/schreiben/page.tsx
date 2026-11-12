@@ -401,6 +401,7 @@ export default function TraegerCareRunLettersPage() {
                   size="compact"
                   isLoading={reissuing}
                   loadingText="Wird geöffnet …"
+                  tooltip="Öffnet den offenen Lauf dieses Monats oder startet einen neuen."
                   onClick={() => void reissue()}
                 >
                   Neu ausstellen
