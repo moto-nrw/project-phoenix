@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"slices"
 )
 
 // Contacts of the holiday registration prefill (#6682): the other guardians
@@ -58,6 +59,7 @@ func (s *Service) attachHolidayRegistrationContacts(ctx context.Context, account
 	if err != nil {
 		return err
 	}
+	links = sortHolidayContactLinks(links)
 	profileIDs := uniqueGuardianProfileIDs(links)
 	if len(profileIDs) == 0 {
 		return nil
@@ -146,6 +148,39 @@ func (s *Service) holidayRegistrationContact(profile *GuardianProfile, link *Gua
 		contact.Phone = primary.PhoneNumber
 	}
 	return contact, true
+}
+
+// sortHolidayContactLinks puts the emergency contacts first, in the school's
+// emergency priority, and the other guardians after them by record. The form
+// keeps only the first contacts within its limits, so the order decides who
+// they are; the read itself has no order.
+func sortHolidayContactLinks(links []*GuardianRelationship) []*GuardianRelationship {
+	links = slices.DeleteFunc(links, func(link *GuardianRelationship) bool { return link == nil })
+	slices.SortStableFunc(links, func(a, b *GuardianRelationship) int {
+		switch {
+		case a.IsEmergencyContact != b.IsEmergencyContact:
+			if a.IsEmergencyContact {
+				return -1
+			}
+			return 1
+		case a.IsEmergencyContact && a.EmergencyPriority != b.EmergencyPriority:
+			return compareInt64(int64(a.EmergencyPriority), int64(b.EmergencyPriority))
+		default:
+			return compareInt64(a.ID, b.ID)
+		}
+	})
+	return links
+}
+
+func compareInt64(a, b int64) int {
+	switch {
+	case a < b:
+		return -1
+	case a > b:
+		return 1
+	default:
+		return 0
+	}
 }
 
 func uniqueGuardianProfileIDs(links []*GuardianRelationship) []int64 {

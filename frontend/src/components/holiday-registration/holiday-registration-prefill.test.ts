@@ -302,6 +302,93 @@ describe("prefill from the parent account (#6682)", () => {
     expect(draft.contacts.map((c) => c.name)).toEqual(["Erika Muster"]);
   });
 
+  it("keeps one row for a changed person when a sibling at another school goes", () => {
+    const twoSchools: HolidayKnownFamily = {
+      ...family,
+      children: [
+        child("10", [grandma]),
+        {
+          ...child("13", [{ ...grandma, guardianProfileId: "91" }]),
+          schoolId: "2",
+        },
+      ],
+    };
+    let draft = registrationFromFamily(twoSchools);
+    for (const known of twoSchools.children) {
+      draft = withKnownContacts(
+        toggleKnownChild(draft, known, offer),
+        twoSchools,
+        label,
+      );
+    }
+    draft = withEditedContacts(
+      draft,
+      draft.contacts.map((c) => ({ ...c, phone: "0170 99" })),
+    );
+    draft = withKnownContacts(
+      toggleKnownChild(draft, twoSchools.children[0]!, offer),
+      twoSchools,
+      label,
+    );
+    expect(draft.contacts.map((c) => [c.name, c.phone])).toEqual([
+      ["Erika Muster", "0170 99"],
+    ]);
+  });
+
+  it("adds no second row for a person the parent typed in", () => {
+    const typed = {
+      ...registrationFromFamily(family),
+      contacts: [{ ...emptyContact(), name: "Erika Muster", phone: "0170 1" }],
+    };
+    const draft = pick(typed, family.children[0]!);
+    expect(
+      draft.contacts.filter((c) => c.name === "Erika Muster"),
+    ).toHaveLength(1);
+  });
+
+  it("keeps a new row whose roles the parent changed", () => {
+    const ticked = {
+      ...registrationFromFamily(family),
+      contacts: [{ ...emptyContact(), emergency: false, pickup: true }],
+    };
+    const draft = pick(ticked, family.children[0]!);
+    expect(
+      draft.contacts.some((c) => c.name === "" && c.pickup && !c.emergency),
+    ).toBe(true);
+  });
+
+  it("writes a school number the form check accepts into the second custodian", () => {
+    const bracketed: HolidayKnownFamily = {
+      ...family,
+      children: [child("10", [{ ...coParent, phone: "+49 (0)5402 1234" }])],
+    };
+    const draft = withKnownContacts(
+      toggleKnownChild(
+        registrationFromFamily(bracketed),
+        bracketed.children[0]!,
+        offer,
+      ),
+      bracketed,
+      label,
+    );
+    expect(draft.secondGuardian.phone).toBe("+49 5402 1234");
+    const local = {
+      ...bracketed,
+      children: [child("10", [{ ...coParent, phone: "(05402) 1234" }])],
+    };
+    expect(
+      withKnownContacts(
+        toggleKnownChild(
+          registrationFromFamily(local),
+          local.children[0]!,
+          offer,
+        ),
+        local,
+        label,
+      ).secondGuardian.phone,
+    ).toBe("05402 1234");
+  });
+
   it("keeps the limits of the form", () => {
     const many = Array.from({ length: 5 }, (_, i) => contact(`3${i}`));
     const crowded = { ...family, children: [child("12", many)] };

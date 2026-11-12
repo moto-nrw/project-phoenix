@@ -635,6 +635,11 @@ export function bookedDayCount(
 const SECOND_EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$/;
 const PHONE = /^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$/;
 
+/** Whether the form takes this as the second custodian's phone. */
+export function looksLikePhone(phone: string): boolean {
+  return PHONE.test(phone.trim());
+}
+
 export function hasSecondGuardian(draft: RegistrationDraft): boolean {
   return Object.values(draft.secondGuardian).some(
     (value) => value.trim() !== "",
@@ -801,7 +806,7 @@ export function validateRegistration(
     if (second.email.trim() && !SECOND_EMAIL.test(second.email.trim())) {
       errors["second_guardian.email"] = "email";
     }
-    if (second.phone.trim() && !PHONE.test(second.phone.trim())) {
+    if (second.phone.trim() && !looksLikePhone(second.phone)) {
       errors["second_guardian.phone"] = "phone";
     }
   }

@@ -279,3 +279,31 @@ func TestHolidayRegistrationFamilyOffersAddressAndContacts(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, closed.Children, "no contacts beyond what the guardian list shows")
 }
+
+// TestHolidayRegistrationFamilyOrdersContactsByEmergencyPriority pins the
+// order of the contacts (#6682): the form keeps the first three emergency
+// contacts, so the school's priority decides who they are, not the order
+// the rows happen to come back in.
+func TestHolidayRegistrationFamilyOrdersContactsByEmergencyPriority(t *testing.T) {
+	t.Parallel()
+	svc, db := buildHolidayRegistrationFamilyService(t)
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+
+	names := []string{"Dritte", "Erste", "Zweite"}
+	for i, priority := range []int{3, 1, 2} {
+		profile := testpkg.CreateTestGuardianProfileNamed(t, db, names[i], "Kontakt", fmt.Sprintf("prio.%d", priority))
+		testpkg.CreateTestStudentGuardianLinkOfType(t, db, chain.TenantID, chain.StudentID, profile.ID, "relative", "emergency_contact")
+		_, err := db.ExecContext(ctx, `UPDATE users.student_guardian_relationships SET is_emergency_contact = true, emergency_priority = ? WHERE student_id = ? AND guardian_profile_id = ?`, priority, chain.StudentID, profile.ID)
+		require.NoError(t, err)
+	}
+
+	family, err := svc.HolidayRegistrationFamily(ctx, chain.AccountID, parentService.HolidayRegistrationScope{OrganizationID: 42, SchoolIDs: []int64{chain.TenantID}})
+	require.NoError(t, err)
+	require.Len(t, family.Children, 1)
+	var order []string
+	for _, contact := range family.Children[0].Contacts {
+		order = append(order, contact.FirstName)
+	}
+	assert.Equal(t, []string{"Erste", "Zweite", "Dritte"}, order)
+}

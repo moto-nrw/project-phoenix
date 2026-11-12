@@ -11,6 +11,7 @@ import type {
 import {
   type ContactDraft,
   emptyContact,
+  looksLikePhone,
   MAX_CONTACTS,
   MAX_EMERGENCY_CONTACTS,
   MAX_PICKUP_PERSONS,
@@ -77,12 +78,38 @@ export function isPrefilledSecondGuardian(draft: RegistrationDraft): boolean {
 }
 
 function isBlankContact(contact: ContactDraft): boolean {
+  const empty = emptyContact();
   return (
     contact.prefilled === undefined &&
     contact.name.trim() === "" &&
     contact.phone.trim() === "" &&
-    contact.relationship.trim() === ""
+    contact.relationship.trim() === "" &&
+    contact.emergency === empty.emergency &&
+    contact.pickup === empty.pickup
   );
+}
+
+/**
+ * The person a row of the list stands for, as personKey names it: the name
+ * the prefill wrote, also after the parent changed the row, else the typed
+ * name. Blank rows stand for nobody.
+ */
+function rowPerson(contact: ContactDraft): string {
+  return (contact.prefilled?.name ?? contact.name).trim().toLowerCase();
+}
+
+/**
+ * A school number in the form the second custodian's check takes. The
+ * school also stores brackets ("(05402) 1234", "+49 (0)5402 1234"); a number
+ * the form would still refuse stays out, the parent types it.
+ */
+function formPhone(phone: string): string {
+  const plain = phone
+    .replace(/\(0\)/g, "")
+    .replace(/[()]/g, "")
+    .replace(/\s+/g, " ")
+    .trim();
+  return looksLikePhone(plain) ? plain : "";
 }
 
 /**
@@ -157,7 +184,9 @@ function syncContacts(
   dismissed: ReadonlySet<string>,
   label: RelationshipLabel,
 ): readonly ContactDraft[] {
-  const byId = new Map(wanted.map((known) => [known.guardianProfileId, known]));
+  // By person, not by record: siblings at two schools bring the same person
+  // under two records, and either may be the one still picked.
+  const byPerson = new Map(wanted.map((known) => [personKey(known), known]));
   // A contact the parent typed or changed stays as it is. An untouched one
   // from the prefill follows the picked children: it takes their current
   // roles while they fit the limits, or goes when no picked child has it.
@@ -167,7 +196,7 @@ function syncContacts(
       kept.push(contact);
       continue;
     }
-    const known = byId.get(contact.knownGuardianId ?? "");
+    const known = byPerson.get(rowPerson(contact));
     if (!known || !(known.emergency || known.pickup)) continue;
     const values = contactValues(known, label);
     kept.push(
@@ -177,15 +206,22 @@ function syncContacts(
         ),
         values,
       )
-        ? { ...contact, ...values, prefilled: values }
+        ? {
+            ...contact,
+            ...values,
+            knownGuardianId: known.guardianProfileId,
+            prefilled: values,
+          }
         : contact,
     );
   }
-  const present = new Set(kept.map((contact) => contact.knownGuardianId));
+  // A person already in the list, from the prefill or typed by the parent,
+  // gets no second row.
+  const present = new Set(kept.map(rowPerson).filter((person) => person));
   let contacts = kept.filter((contact) => !isBlankContact(contact));
   for (const known of wanted) {
     if (!(known.emergency || known.pickup)) continue;
-    if (present.has(known.guardianProfileId)) continue;
+    if (present.has(personKey(known))) continue;
     // The parent removed this person; another child does not bring it back.
     if (dismissed.has(personKey(known))) continue;
     const values = contactValues(known, label);
@@ -235,7 +271,7 @@ function syncSecondGuardian(
     firstName: custodian.firstName,
     lastName: custodian.lastName,
     email: custodian.email,
-    phone: custodian.phone,
+    phone: formPhone(custodian.phone),
   };
   return {
     secondGuardian: values,
