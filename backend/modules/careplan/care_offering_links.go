@@ -15,6 +15,7 @@ import (
 
 // LinkedGroup is an activity group a care offering can link to.
 type LinkedGroup struct {
+	SeriesRootID     *int64
 	ID               int64
 	IsTemplate       bool
 	Archived         bool
@@ -151,4 +152,13 @@ func ValidatePhaseWithinPeriod(phase OfferingPhase, period *LinkedPeriod) error 
 			ErrCareOfferingTemplatePeriodMismatch)
 	}
 	return nil
+}
+
+// CatalogTimetableSnapshot is the batch validation input, read by Timetable
+// in a fixed number of statements while the recurrence gate is held.
+type CatalogTimetableSnapshot struct {
+	Groups     []LinkedGroup
+	Schedules  []LinkedSchedule
+	Timeframes []LinkedTimeframe
+	Exceptions []LinkedException
 }

@@ -24,11 +24,14 @@ import (
 type HolidayPeriodResource struct {
 	periods       capability.HolidayPeriods
 	review        capability.HolidayRegistrationReview
+	records       capability.HolidayRegistrationRecords
 	wishes        capability.HolidayWishReview
 	places        HolidayPlaceReads
 	allocation    HolidayAllocationReads
 	decide        HolidayAllocationDecision
 	schoolNames   capability.HolidaySchoolNames
+	known         capability.HolidayKnownChildren
+	knownTrail    capability.HolidayKnownChildTrail
 	requireManage common.Middleware
 	requireHealth common.Middleware
 }
@@ -42,11 +45,14 @@ type HolidayPeriodResource struct {
 // information of a registration (#4722).
 // places lists the places of the weeks (#4699), allocation names the
 // criteria and the proposal, decide decides on the places by them (#4700).
-func NewHolidayPeriodResource(periods capability.HolidayPeriods, review capability.HolidayRegistrationReview, wishes capability.HolidayWishReview, places HolidayPlaceReads, allocation HolidayAllocationReads, decide HolidayAllocationDecision, schoolNames capability.HolidaySchoolNames, requireManage, requireHealth common.Middleware) *HolidayPeriodResource {
-	if periods == nil || review == nil || wishes == nil || places == nil || allocation == nil || decide == nil || schoolNames == nil || requireManage == nil || requireHealth == nil {
-		panic("enrollment http: the holiday periods, the registration review, the wish review, the places, the allocation, the decision, the school names and the right checks are required")
+// records reads the registrations for their files (#6691). known finds the
+// registered children a school of the Träger knows and knownTrail records that
+// comparison (#6683, ADR 0214).
+func NewHolidayPeriodResource(periods capability.HolidayPeriods, review capability.HolidayRegistrationReview, records capability.HolidayRegistrationRecords, wishes capability.HolidayWishReview, places HolidayPlaceReads, allocation HolidayAllocationReads, decide HolidayAllocationDecision, schoolNames capability.HolidaySchoolNames, known capability.HolidayKnownChildren, knownTrail capability.HolidayKnownChildTrail, requireManage, requireHealth common.Middleware) *HolidayPeriodResource {
+	if periods == nil || review == nil || records == nil || wishes == nil || places == nil || allocation == nil || decide == nil || schoolNames == nil || known == nil || knownTrail == nil || requireManage == nil || requireHealth == nil {
+		panic("enrollment http: the holiday periods, the registration review, the registration records, the wish review, the places, the allocation, the decision, the school names, the known children with their trail and the right checks are required")
 	}
-	return &HolidayPeriodResource{periods: periods, review: review, wishes: wishes, places: places, allocation: allocation, decide: decide, schoolNames: schoolNames, requireManage: requireManage, requireHealth: requireHealth}
+	return &HolidayPeriodResource{periods: periods, review: review, records: records, wishes: wishes, places: places, allocation: allocation, decide: decide, schoolNames: schoolNames, known: known, knownTrail: knownTrail, requireManage: requireManage, requireHealth: requireHealth}
 }
 
 // HolidayAllocationReads names the Träger's criteria, shows the proposal of
@@ -125,7 +131,9 @@ type HolidayPeriodRequest struct {
 	RegistrationClosesOn calendar.Date `json:"registration_closes_on"`
 	Binding              bool          `json:"binding"`
 	Notes                string        `json:"notes"`
-	HolidayWishRule      bool          `json:"holiday_wish_rule"`
+	// AcceptanceMailText is the text of the acceptance mail (#6672).
+	AcceptanceMailText string `json:"acceptance_mail_text"`
+	HolidayWishRule    bool   `json:"holiday_wish_rule"`
 	// MaxDaysPerChild bounds the care days per child, null for no bound
 	// (#4701).
 	MaxDaysPerChild *int `json:"max_days_per_child"`
@@ -151,7 +159,7 @@ func (req *HolidayPeriodRequest) input() capability.HolidayPeriodInput {
 	}
 	return capability.HolidayPeriodInput{
 		Name: req.Name, RegistrationOpensOn: req.RegistrationOpensOn, RegistrationClosesOn: req.RegistrationClosesOn,
-		Binding: req.Binding, Notes: req.Notes, HolidayWishRule: req.HolidayWishRule, Weeks: weeks, MaxDaysPerChild: req.MaxDaysPerChild,
+		Binding: req.Binding, Notes: req.Notes, AcceptanceMailText: req.AcceptanceMailText, HolidayWishRule: req.HolidayWishRule, Weeks: weeks, MaxDaysPerChild: req.MaxDaysPerChild,
 		AllocationMode: req.AllocationMode,
 	}
 }

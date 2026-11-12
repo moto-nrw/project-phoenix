@@ -43,7 +43,6 @@ type FeedAudienceReads interface {
 type PollAudienceReads interface {
 	AnswerableChildren(ctx context.Context, accountID int64, announcementIDs []int64) ([]*communication.PortalAnnouncementPollChild, error)
 	AccountMayAnswerForStudent(ctx context.Context, schoolID, announcementID, accountID, studentID int64) (bool, error)
-	HoldAnswerPermission(ctx context.Context, schoolID, announcementID, accountID, studentID int64) (bool, error)
 	PollResults(ctx context.Context, schoolID, announcementID int64) (*communication.PortalAnnouncementPollResults, error)
 	PollChildren(ctx context.Context, schoolID, announcementID int64) ([]*communication.PortalAnnouncementPollChildStatus, error)
 	UnansweredReminderRecipients(ctx context.Context, schoolID, announcementID int64) ([]*communication.PortalAnnouncementPollReminderRecipient, error)

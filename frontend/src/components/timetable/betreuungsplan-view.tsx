@@ -101,6 +101,8 @@ import { staffNamesFromOverview } from "~/components/timetable/block-staff-names
 import { hasPermission } from "~/lib/auth-utils";
 import { canGrantExternalViewAccess } from "~/lib/external-caregiver-access";
 import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
+import { usePlanningHolidayWeeks } from "~/lib/hooks/use-holiday-care";
+import { holidayCareDays } from "~/lib/holiday-care";
 import { useTimetableDayHours } from "~/lib/hooks/use-timetable-day-hours";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
 import { createLogger } from "~/lib/logger";
@@ -623,6 +625,30 @@ function TimetablesContent() {
     closingDayRanges,
     isLoading: closingDaysLoading,
   } = useClosingDaysState(fetchFromISO, fetchToISO);
+  // Ferienwochen, die die Schule für ihren Träger ausrichtet (ADR 0116):
+  // an diesen Tagen kommen Ferienkinder, auch wenn kein Termin geplant ist.
+  const holidayWeeks = usePlanningHolidayWeeks();
+  // Erst mit den Schließtagen: ein Schließtag darf nicht kurz als
+  // Ferienbetreuung erscheinen.
+  const holidayCare = useMemo(
+    () =>
+      holidayCareDays(
+        closingDaysLoading ? [] : holidayWeeks.weeks,
+        fetchFromISO,
+        fetchToISO,
+        closingDays,
+      ),
+    [
+      holidayWeeks.weeks,
+      fetchFromISO,
+      fetchToISO,
+      closingDays,
+      closingDaysLoading,
+    ],
+  );
+  const holidayCareHref = holidayWeeks.canOpenList
+    ? tenantPath("/ferienwochen")
+    : undefined;
 
   const swrKey = `timetable-${view}-${fetchFromISO}-${fetchToISO}${planFilterKey(planFilter)}`;
   const shouldLoadInstances = view !== "series";
@@ -1701,6 +1727,12 @@ function TimetablesContent() {
     await tenantMutate(swrKey);
     await tenantMutate(gapsSWRKey);
   }, [gapsSWRKey, swrKey, templatePeriodID, tenantMutate]);
+  // Nachladen nach dem Verbinden: ein Fehler dabei steht über dem Plan, auch
+  // wenn der Dialog zu ist (#6652).
+  const connectRefresh = useRefreshAfterWrite(
+    "die Anzeige des Betreuungsplans",
+    handleOfferingConnected,
+  );
 
   // Aufrufer ist der Löschdialog im Termin-Formular; er zeigt den Fehler
   // selbst, weil er über den Toasts liegt.
@@ -2255,7 +2287,7 @@ function TimetablesContent() {
           periodId={templatePeriodID}
           deviation={connecting.deviation}
           onClose={() => setConnecting(null)}
-          onConnected={handleOfferingConnected}
+          onConnected={connectRefresh.refresh}
         />
       )}
 
@@ -2533,6 +2565,7 @@ function TimetablesContent() {
       }
     >
       <LoadErrorAlert error={archiveRefresh.error} />
+      <LoadErrorAlert error={connectRefresh.error} />
       <LoadErrorAlert error={periodsLoadError} />
       <LoadErrorAlert error={connectTemplatesLoadError} />
       <LoadErrorAlert error={connectLoadError} />
@@ -2545,6 +2578,7 @@ function TimetablesContent() {
         <LoadErrorAlert error={weekLoadError} />
       ) : null}
       <LoadErrorAlert error={gapsLoadError} />
+      <LoadErrorAlert error={holidayWeeks.loadError} />
       <LoadErrorAlert error={namesLoadError} />
       {canManageSchedules && <LoadErrorAlert error={ackLoadError} />}
       {/* #5345: Regeltermine in den nächsten Schulferien. */}
@@ -2580,6 +2614,8 @@ function TimetablesContent() {
           instances={visibleInstances}
           todayISO={todayISO}
           closingDays={closingDays}
+          holidayCare={holidayCare}
+          holidayCareHref={holidayCareHref}
           planningDisabledDateISOs={planningDisabledDateISOs}
           onDayClick={openWeekForDay}
           onInstanceClick={handleSelectInstance}
@@ -2597,6 +2633,8 @@ function TimetablesContent() {
           gapInstanceIds={gapInstanceIds}
           planningDisabledDateISOs={planningDisabledDateISOs}
           closingDays={closingDays}
+          holidayCare={holidayCare}
+          holidayCareHref={holidayCareHref}
           todayISO={todayISO}
           dayStartHour={dayStartHour}
           dayEndHour={dayEndHour}
@@ -2648,6 +2686,8 @@ function TimetablesContent() {
           gapInstanceIds={gapInstanceIds}
           planningDisabledDateISOs={planningDisabledDateISOs}
           closingDays={closingDays}
+          holidayCare={holidayCare}
+          holidayCareHref={holidayCareHref}
           todayISO={todayISO}
           dayStartHour={dayStartHour}
           dayEndHour={dayEndHour}

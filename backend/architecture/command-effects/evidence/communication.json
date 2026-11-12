@@ -873,6 +873,30 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.messageAttachmentUnits.DiscardMessageAttachment",
+      "binding_digest": "29a30a62c89bc64e40979307a05a30e1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/http/messageattachments.Units.DiscardMessageAttachment",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.messageAttachmentUnits.OpenMessageAttachment",
+      "binding_digest": "9588d79a1425a56d7267522de39d96ce",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/http/messageattachments.Units.OpenMessageAttachment",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.messageAttachmentUnits.PrepareMessageAttachment",
+      "binding_digest": "5f783b2ab4b3ea9fafd1d6c4e231de14",
+      "port": "github.com/moto-nrw/project-phoenix/modules/communication/http/messageattachments.Units.PrepareMessageAttachment",
+      "source_owner": "communication",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/api.classLetterCaller.MySchoolClasses",
       "binding_digest": "242712fe8db76f01a2523302c26d4737",
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements.ClassLetterCaller.MySchoolClasses",
@@ -1878,14 +1902,6 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.AnnouncementAudienceReads.HistoricalDeclarationFeed",
       "source_owner": "communication",
       "target": "*github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/internal/adapters/postgres.Projection.HistoricalDeclarationFeed",
-      "target_owner": "parent-announcement-audience"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.communicationAnnouncementAudience.HoldAnswerPermission",
-      "binding_digest": "3e188a2718d2e695467a9e4106625024",
-      "port": "github.com/moto-nrw/project-phoenix/modules/communication/ports.AnnouncementAudienceReads.HoldAnswerPermission",
-      "source_owner": "communication",
-      "target": "*github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/internal/adapters/postgres.Projection.HoldAnswerPermission",
       "target_owner": "parent-announcement-audience"
     },
     {

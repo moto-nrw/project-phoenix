@@ -226,6 +226,22 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Assign",
+      "binding_digest": "75ed6f5f805b3aeb8d41433cf303e516",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce.Capability.LockStaffBalanceWrites",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Assign",
+      "binding_digest": "437f2d9bc9edf08a7ee5030bc1289bd1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.LockStaffBalanceWrites",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionBoundary.Assign",
       "binding_digest": "3f5a79ffd4a19262ef4bf0f3975ac907",
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
       "source_owner": "school-structure",
@@ -262,6 +278,22 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
       "source_owner": "school-structure",
       "target": "github.com/moto-nrw/project-phoenix/modules/workforce.CanSeeAllSubstitutions",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionModule.Assign",
+      "binding_digest": "75ed6f5f805b3aeb8d41433cf303e516",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce.Capability.LockStaffBalanceWrites",
+      "target_owner": "workforce"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups.substitutionModule.Assign",
+      "binding_digest": "437f2d9bc9edf08a7ee5030bc1289bd1",
+      "port": "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract.SubstitutionModule.Assign",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-nrw/project-phoenix/modules/workforce/compose.WorkTime.LockStaffBalanceWrites",
       "target_owner": "workforce"
     },
     {

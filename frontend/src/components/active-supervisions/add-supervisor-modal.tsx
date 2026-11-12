@@ -12,6 +12,7 @@ import {
 import { SpinnerIcon } from "~/components/ui/icons";
 import { Modal } from "~/components/ui/modal";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { substitutionService } from "~/lib/substitution-api";
 import type { RunningSupervision } from "~/lib/substitution-helpers";
@@ -33,7 +34,8 @@ interface AddSupervisorModalProps {
   readonly canGrantExternalView?: boolean;
   readonly isOpen: boolean;
   readonly onClose: () => void;
-  readonly onAdded: () => Promise<unknown>;
+  /** Reloads the overview; never rejects (#6652). */
+  readonly onAdded: RefreshAfterWrite;
 }
 
 function SupervisionDetails({
@@ -125,22 +127,12 @@ function useAddSupervisor(
     if (!props.activeGroupId || !selectedStaffId) return;
     formErrors.clear();
     setIsSaving(true);
+    let result: Awaited<ReturnType<typeof substitutionService.addSupervisor>>;
     try {
-      const result = await substitutionService.addSupervisor(
+      result = await substitutionService.addSupervisor(
         props.activeGroupId,
         selectedStaffId,
       );
-      try {
-        await props.onAdded();
-      } catch (cause) {
-        // Bewusst still: die Person ist eingetragen; die Übersicht lädt beim
-        // nächsten Abruf den neuen Stand.
-        logger.warn("additional_supervision_refresh_failed", {
-          error: String(cause),
-        });
-      }
-      toast.success(`${result.targetName} ist jetzt als Betreuer eingetragen.`);
-      props.onClose();
     } catch (cause) {
       logger.error("additional_supervision_failed", {
         error: cause instanceof Error ? cause.message : String(cause),
@@ -149,9 +141,15 @@ function useAddSupervisor(
         object: "die zusätzliche Betreuung",
         retry: () => latestAddRef.current(),
       });
-    } finally {
       setIsSaving(false);
+      return;
     }
+    setIsSaving(false);
+    toast.success(`${result.targetName} ist jetzt als Betreuer eingetragen.`);
+    props.onClose();
+    // Die Person ist eingetragen; ein gescheitertes Nachladen zeigt die Seite
+    // als Ladefehler (#6652).
+    await props.onAdded();
   };
   useLayoutEffect(() => {
     latestAddRef.current = () => void add();

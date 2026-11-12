@@ -61,22 +61,21 @@ func mountTraegerCatalogRoutes(root chi.Router, schoolPhaseAdministration *enrol
 // traegerCatalogTariffs writes a school's module prices in Parent Billing
 // and marks its refusals with their registered codes.
 func traegerCatalogTariffs(billing parentbilling.CareModulePrices) ports.Tariffs {
-	return func(ctx context.Context, organizationID, accountID int64, prices ports.ModulePrices) error {
+	return func(ctx context.Context, organizationID, accountID int64, prices []ports.ModulePrices) error {
 		return saveTraegerCatalogPrices(ctx, billing, organizationID, accountID, prices)
 	}
 }
 
-func saveTraegerCatalogPrices(ctx context.Context, billing parentbilling.CareModulePrices, organizationID, accountID int64, prices ports.ModulePrices) error {
-	list := parentbilling.CareModulePriceList{
-		SchoolID: prices.SchoolID, CareOfferingID: prices.CareOfferingID, ModuleName: prices.ModuleName, ValidFrom: prices.ValidFrom,
+func saveTraegerCatalogPrices(ctx context.Context, billing parentbilling.CareModulePrices, organizationID, accountID int64, prices []ports.ModulePrices) error {
+	lists := make([]parentbilling.CareModulePriceList, 0, len(prices))
+	for _, module := range prices {
+		list := parentbilling.CareModulePriceList{SchoolID: module.SchoolID, CareOfferingID: module.CareOfferingID, ModuleName: module.ModuleName, ValidFrom: module.ValidFrom}
+		for _, price := range module.Prices {
+			list.Prices = append(list.Prices, parentbilling.CarePrice{Weekday: price.Weekday, DaysPerWeek: price.DaysPerWeek, MonthlyCents: price.MonthlyCents, SiblingCents: price.SiblingCents, MealExtra: price.MealExtra})
+		}
+		lists = append(lists, list)
 	}
-	for _, price := range prices.Prices {
-		list.Prices = append(list.Prices, parentbilling.CarePrice{
-			Weekday: price.Weekday, DaysPerWeek: price.DaysPerWeek, MonthlyCents: price.MonthlyCents,
-			SiblingCents: price.SiblingCents, MealExtra: price.MealExtra,
-		})
-	}
-	err := billing.SaveCareModulePrices(ctx, parentbilling.HolidayReviewer{OrganizationID: organizationID, AccountID: accountID}, list)
+	err := billing.SaveCareModulePrices(ctx, parentbilling.HolidayReviewer{OrganizationID: organizationID, AccountID: accountID}, lists)
 	var fields validation.Errors
 	switch {
 	case errors.Is(err, parentbilling.ErrCareTariffMonthBilled):
@@ -87,26 +86,25 @@ func saveTraegerCatalogPrices(ctx context.Context, billing parentbilling.CareMod
 	return err
 }
 
-// traegerCatalogContractTemplates writes a school's contract template in
-// Care Contract, which opens its own transactions.
+// traegerCatalogContractTemplates prepares a school batch through Care
+// Contract; the returned command joins the shared financial Träger unit.
 func traegerCatalogContractTemplates(intake carecontract.Intake) ports.ContractTemplates {
-	return func(ctx context.Context, organizationID, accountID, schoolID, careOfferingID int64, template careplan.TraegerContractTemplate) error {
-		return saveTraegerCatalogTemplate(ctx, intake, organizationID, accountID, schoolID, careOfferingID, template)
+	return func(ctx context.Context, organizationID, accountID, schoolID int64, templates []ports.ModuleTemplate) (func(context.Context) error, error) {
+		inputs := make([]carecontract.ModuleTemplateInput, 0, len(templates))
+		for _, module := range templates {
+			template := module.Template
+			inputs = append(inputs, carecontract.ModuleTemplateInput{CareOfferingID: module.CareOfferingID, Input: carecontract.TemplateInput{
+				TermKind: template.TermKind, TermMonths: template.TermMonths, NoticeMonths: template.NoticeMonths, NoticeTo: template.NoticeTo,
+				SpecialTermination: template.SpecialTermination, SpecialTerminationNote: template.SpecialTerminationNote,
+				StatuteRequired: template.StatuteRequired, StatuteTitle: template.StatuteTitle, StatuteURL: template.StatuteURL, ContractPartner: template.ContractPartner}})
+		}
+		prepared, err := intake.PrepareTemplateBatch(ctx, carecontract.Reviewer{OrganizationID: organizationID, AccountID: accountID}, schoolID, inputs)
+		var invalid *carecontract.ValidationError
+		if errors.As(err, &invalid) {
+			return nil, &ports.Refusal{Code: common.CodeCareContractTemplateInvalid, Err: err}
+		}
+		return prepared, err
 	}
-}
-
-func saveTraegerCatalogTemplate(ctx context.Context, intake carecontract.Intake, organizationID, accountID, schoolID, careOfferingID int64, template careplan.TraegerContractTemplate) error {
-	_, err := intake.SaveTemplate(ctx, carecontract.Reviewer{OrganizationID: organizationID, AccountID: accountID}, schoolID, careOfferingID, carecontract.TemplateInput{
-		TermKind: template.TermKind, TermMonths: template.TermMonths, NoticeMonths: template.NoticeMonths, NoticeTo: template.NoticeTo,
-		SpecialTermination: template.SpecialTermination, SpecialTerminationNote: template.SpecialTerminationNote,
-		StatuteRequired: template.StatuteRequired, StatuteTitle: template.StatuteTitle, StatuteURL: template.StatuteURL,
-		ContractPartner: template.ContractPartner,
-	})
-	var invalid *carecontract.ValidationError
-	if errors.As(err, &invalid) {
-		return &ports.Refusal{Code: common.CodeCareContractTemplateInvalid, Err: err}
-	}
-	return err
 }
 
 // newTraegerCatalogBilling builds the Parent Billing and Care Contract

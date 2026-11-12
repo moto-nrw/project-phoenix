@@ -224,7 +224,9 @@ describe("payloadFromDraft", () => {
     const payload = payloadFromDraft(complete(), offer, "captcha");
     expect(payload.custody_confirmed).toBe(true);
     expect(payload.declaration_name).toBe("Eva Muster");
-    expect(payload.consent_version).toBe(3);
+    expect(payload.consent_version).toBe(4);
+    // The retention the privacy text named (#6691).
+    expect(payload.retention_days).toBe(365);
   });
 
   it("sends the school of a child of the Träger without a guest school name", () => {
@@ -263,6 +265,7 @@ describe("known children of a parent account (#4662)", () => {
         phone: "0151",
       },
       children: [felix],
+      accountProof: "",
     });
     expect(draft.guardian.email).toBe("s@example.org");
     expect(draft.children).toHaveLength(1);
@@ -388,8 +391,11 @@ describe("optional second guardian", () => {
       payloadFromDraft(draft, offer, "captcha").second_guardian,
     ).toBeUndefined();
     expect(
-      registrationFromFamily({ guardian: draft.guardian, children: [] })
-        .secondGuardian,
+      registrationFromFamily({
+        guardian: draft.guardian,
+        children: [],
+        accountProof: "",
+      }).secondGuardian,
     ).toEqual(emptyRegistration().secondGuardian);
   });
 
@@ -776,5 +782,60 @@ describe("criteria of the allocation (#4700)", () => {
     const payload = payloadFromDraft(complete(), offer, "captcha");
     expect(payload).not.toHaveProperty("criteria");
     expect(payload.children[0]).not.toHaveProperty("criteria");
+  });
+});
+
+describe("parent account in the payload (#6673)", () => {
+  it("sends the answer of a parent without a session", () => {
+    expect(
+      payloadFromDraft(
+        { ...complete(), parentAccountRequested: true },
+        offer,
+        "c",
+      ),
+    ).toMatchObject({ parent_account_requested: true });
+    const declined = payloadFromDraft(
+      { ...complete(), parentAccountRequested: false },
+      offer,
+      "c",
+    );
+    expect(declined.parent_account_requested).toBe(false);
+    expect(declined).not.toHaveProperty("parent_account_proof");
+    // An unanswered question never reads as a yes.
+    expect(
+      payloadFromDraft(complete(), offer, "c").parent_account_requested,
+    ).toBe(false);
+  });
+
+  it("takes the account's proof from the prefill and asks nothing then", () => {
+    const draft = registrationFromFamily({
+      guardian: {
+        firstName: "Sabine",
+        lastName: "Schneider",
+        email: "s@example.org",
+        phone: "0151",
+      },
+      children: [],
+      accountProof: "sealed",
+    });
+    expect(draft.parentAccountProof).toBe("sealed");
+    const payload = payloadFromDraft(
+      {
+        ...complete(),
+        parentAccountProof: "sealed",
+        parentAccountRequested: true,
+      },
+      offer,
+      "c",
+    );
+    expect(payload.parent_account_proof).toBe("sealed");
+    expect(payload.parent_account_requested).toBe(false);
+    expect(
+      registrationFromFamily({
+        guardian: draft.guardian,
+        children: [],
+        accountProof: "",
+      }).parentAccountProof,
+    ).toBeUndefined();
   });
 });

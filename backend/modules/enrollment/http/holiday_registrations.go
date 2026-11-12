@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"net/http"
+	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
@@ -25,6 +26,8 @@ type HolidayRegistrationResource struct {
 	registrations capability.HolidayRegistrations
 	proofs        HolidayProofUploads
 	captcha       capability.CaptchaVerifier
+	exposeSeed    func(*http.Request) bool
+	seedLinks     capability.HolidayParentAccountLinks
 }
 
 // HolidayProofUploads stores a proof of benefits of the public link
@@ -38,11 +41,19 @@ type HolidayProofUploads interface {
 
 // NewHolidayRegistrationResource builds the resource. captcha is always
 // required for the public link; proofs stores the proofs of benefits.
-func NewHolidayRegistrationResource(registrations capability.HolidayRegistrations, proofs HolidayProofUploads, captcha capability.CaptchaVerifier) *HolidayRegistrationResource {
+// exposeSeed tells whether a request comes from the local seeder, which
+// alone receives a setup link of a parent account offer (ADR 0216), issued
+// by seedLinks for the answer only and stored nowhere; nil exposes it to
+// nobody.
+func NewHolidayRegistrationResource(registrations capability.HolidayRegistrations, proofs HolidayProofUploads, captcha capability.CaptchaVerifier,
+	exposeSeed func(*http.Request) bool, seedLinks capability.HolidayParentAccountLinks) *HolidayRegistrationResource {
 	if registrations == nil || proofs == nil || captcha == nil {
 		panic("enrollment http: the holiday registrations, the proof uploads and the captcha are required")
 	}
-	return &HolidayRegistrationResource{registrations: registrations, proofs: proofs, captcha: captcha}
+	if exposeSeed == nil || seedLinks == nil {
+		exposeSeed = func(*http.Request) bool { return false }
+	}
+	return &HolidayRegistrationResource{registrations: registrations, proofs: proofs, captcha: captcha, exposeSeed: exposeSeed, seedLinks: seedLinks}
 }
 
 // Router returns the public routes mounted at /traeger/holiday-registrations.
@@ -203,9 +214,17 @@ type HolidayRegistrationRequest struct {
 	CustomData        capability.HolidayAnswers `json:"custom_data"`
 	LegalAcceptances  map[string]bool           `json:"legal_acceptances"`
 	ConsentVersion    int                       `json:"consent_version"`
+	// RetentionDays are the days the privacy text the parent agreed to
+	// names, as the offer's consent_texts.retention_days gave them (#6691).
+	RetentionDays int `json:"retention_days"`
 	// Criteria are the answers to the family criteria by criterion ID
 	// (#4700).
 	Criteria map[int64]bool `json:"criteria"`
+	// ParentAccountRequested is the parent's yes to a parent account at the
+	// end of the form; ParentAccountProof the sealed proof of a signed-in
+	// account from the prefill (ADR 0216). Neither changes the answer.
+	ParentAccountRequested bool   `json:"parent_account_requested"`
+	ParentAccountProof     string `json:"parent_account_proof"`
 }
 
 // Bind accepts the body; the Owner validates the registration as a whole.
@@ -247,7 +266,7 @@ func (req *HolidayRegistrationRequest) input() capability.HolidayRegistrationInp
 		CustodyConfirmed: req.CustodyConfirmed, DeclarationName: req.DeclarationName,
 		LegalAcceptances: req.LegalAcceptances, BenefitsDeclared: req.BenefitsDeclared, BenefitsProofTokens: req.BenefitsProofs,
 		FormVersion: req.FormVersion, CustomData: req.CustomData, ConsentVersion: req.ConsentVersion,
-		Criteria: req.Criteria,
+		RetentionDays: req.RetentionDays, Criteria: req.Criteria, ParentAccountRequested: req.ParentAccountRequested, ParentAccountProof: req.ParentAccountProof,
 	}
 }
 
@@ -267,6 +286,32 @@ type HolidayRegistrationReceiptResponse struct {
 	// Placements say for every booking whether the child got a place or is
 	// on the waiting list (#4699), by the child's position in the form.
 	Placements []capability.HolidayReceiptPlacement `json:"placements"`
+	// ParentAccountOffered never leaves in this answer: the answer is the
+	// same whether or not the parent asked for an account.
+	ParentAccountOffered bool `json:"-"`
+}
+
+// seedHolidayReceiptResponse is the answer the local seeder alone receives:
+// the receipt with a setup link for the parent account the registration
+// offered (ADR 0216), issued for this answer only, so the seed redeems it
+// without waiting for the mail.
+type seedHolidayReceiptResponse struct {
+	HolidayRegistrationReceiptResponse
+	ParentAccountSetupURL string `json:"parent_account_setup_url"`
+}
+
+// holidayReceiptBody is the answer of a stored registration. Every caller
+// but the local seeder gets the same body, whether or not an offer went out.
+func (rs *HolidayRegistrationResource) holidayReceiptBody(r *http.Request, receipt capability.HolidayRegistrationReceipt, organizationID int64, email string) (any, error) {
+	response := HolidayRegistrationReceiptResponse(receipt)
+	if !response.ParentAccountOffered || !rs.exposeSeed(r) {
+		return response, nil
+	}
+	link, err := rs.seedLinks.HolidayParentAccountLink(strings.TrimSpace(email), organizationID)
+	if err != nil {
+		return nil, err
+	}
+	return seedHolidayReceiptResponse{HolidayRegistrationReceiptResponse: response, ParentAccountSetupURL: link.SetupURL}, nil
 }
 
 // resolveLink resolves the link in the administrative transaction.
@@ -350,9 +395,9 @@ func holidayFormFields(fields []capability.HolidayFormField) []capability.Holida
 	return fields
 }
 
-// submit counts the attempt, checks the captcha and stores the registration
-// with its receipt mail. The counter commits in a Träger transaction of its
-// own, so a refused registration still counts.
+// submit checks the captcha and stores the registration with its receipt
+// mail. The Owner counts the stored registration in the same Träger
+// transaction, so a refused one takes nothing from the limits (#6726).
 func (rs *HolidayRegistrationResource) submit(w http.ResponseWriter, r *http.Request) {
 	req := &HolidayRegistrationRequest{}
 	if err := render.Bind(r, req); err != nil {
@@ -365,19 +410,15 @@ func (rs *HolidayRegistrationResource) submit(w http.ResponseWriter, r *http.Req
 		return
 	}
 	remoteIP := remoteIPFromRequest(r)
-	if err := rs.countAttempt(r.Context(), link.OrganizationID, func(txCtx context.Context) error {
-		return rs.registrations.CountHolidayRegistrationAttempt(txCtx, link.OrganizationID, remoteIP, req.Guardian.Email)
-	}); err != nil {
-		renderHolidayRegistrationError(w, r, err)
-		return
-	}
 	if err := rs.captcha.Verify(r.Context(), req.CaptchaToken, remoteIP); err != nil {
 		renderHolidayRegistrationError(w, r, err)
 		return
 	}
+	input := req.input()
+	input.RemoteIP = remoteIP
 	var receipt capability.HolidayRegistrationReceipt
 	err = withinTraeger(r.Context(), link.OrganizationID, func(txCtx context.Context) error {
-		stored, submitErr := rs.registrations.SubmitHolidayRegistration(txCtx, link, req.input())
+		stored, submitErr := rs.registrations.SubmitHolidayRegistration(txCtx, link, input)
 		receipt = stored
 		return submitErr
 	})
@@ -385,17 +426,22 @@ func (rs *HolidayRegistrationResource) submit(w http.ResponseWriter, r *http.Req
 		renderHolidayRegistrationError(w, r, err)
 		return
 	}
-	common.Respond(w, r, http.StatusCreated, HolidayRegistrationReceiptResponse(receipt), "Holiday registration received")
+	body, err := rs.holidayReceiptBody(r, receipt, link.OrganizationID, req.Guardian.Email)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, body, "Holiday registration received")
 }
 
-// countAttempt runs one abuse counter of the public link, a registration or
-// a proof upload, in a Träger transaction of its own that commits even when
-// the count refuses, so a refused attempt still counts.
+// countAttempt runs the upload counter of the public link in a Träger
+// transaction of its own that commits even when the count refuses, so a
+// refused upload still counts.
 func (rs *HolidayRegistrationResource) countAttempt(ctx context.Context, organizationID int64, count func(context.Context) error) error {
 	var limitErr error
 	err := withinTraeger(ctx, organizationID, func(txCtx context.Context) error {
 		limitErr = count(txCtx)
-		if errors.Is(limitErr, capability.ErrRateLimited) || errors.Is(limitErr, capability.ErrUploadRateLimited) {
+		if errors.Is(limitErr, capability.ErrUploadRateLimited) {
 			return nil
 		}
 		return limitErr
@@ -422,7 +468,7 @@ func renderHolidayRegistrationError(w http.ResponseWriter, r *http.Request, err 
 		common.RenderError(w, r, common.ErrorInvalidRequestWithDetails(err, common.CodeEnrollmentUploadInvalid,
 			map[string]any{"max_mb": rejection.MaxMB, "allowed_types": rejection.AllowedTypes}))
 	case errors.Is(err, capability.ErrUploadRateLimited):
-		setRateLimitRetryAfter(w)
+		setRateLimitRetryAfter(w, rateLimitRetryAfterSeconds)
 		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeEnrollmentUploadRateLimited))
 	case errors.Is(err, capability.ErrHolidayProofExpired):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentUploadExpired))
@@ -442,8 +488,11 @@ func renderHolidayRegistrationError(w http.ResponseWriter, r *http.Request, err 
 	case errors.Is(err, capability.ErrHolidayWishMissing):
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentHolidayWishMissing))
 	case errors.Is(err, capability.ErrRateLimited):
-		setRateLimitRetryAfter(w)
+		setRateLimitRetryAfter(w, rateLimitRetryAfterSeconds)
 		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeEnrollmentSubmissionRateLimited))
+	case errors.Is(err, capability.ErrEmailRateLimited):
+		setRateLimitRetryAfter(w, emailRateLimitRetryAfterSeconds)
+		common.RenderError(w, r, common.ErrorTooManyRequestsWithCode(err, common.CodeEnrollmentSubmissionEmailRateLimited))
 	case errors.Is(err, capability.ErrCaptchaRequired):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentCaptchaRequired))
 	case errors.Is(err, capability.ErrCaptchaFailed):

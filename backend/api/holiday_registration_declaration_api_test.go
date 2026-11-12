@@ -19,10 +19,13 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 )
 
-// The texts of version 3 word for word. They bind; a change is a new version.
+// The texts of version 4 word for word, with the retention of a year the
+// Träger keeps by default (#6691). They bind; a change is a new version, and
+// another retention another wording of this one.
 const (
 	declarationPrivacyText = "Ich bin einverstanden, dass der Träger die Angaben für die Ferienbetreuung nutzt. " +
-		"Er löscht sie drei Monate nach den Ferien. Die OGS, die mein Kind in einer Ferienwoche betreut, " +
+		"Er löscht sie 365 Tage nach den Ferien. Gesundheitsangaben löscht er schon 92 Tage nach den Ferien. " +
+		"Die OGS, die mein Kind in einer Ferienwoche betreut, " +
 		"sieht Name und Telefon der zweiten sorgeberechtigten Person. Sie sieht auch die Antworten, " +
 		"die der Träger für sie freigibt. Gesundheitsangaben sieht sie nur, wenn ich zustimme. " +
 		"Die OGS sieht das schon vor der Ferienwoche. So kann sie sich vorbereiten. " +
@@ -48,7 +51,7 @@ func TestHolidayOfferServesTheTextsOfTheCurrentVersion(t *testing.T) {
 		ConsentTexts enrollment.HolidayConsentTexts `json:"consent_texts"`
 	}](t, rec.Body.Bytes())
 	assert.Equal(t, enrollment.HolidayConsentTexts{
-		Version: 3, PrivacyConsent: declarationPrivacyText, HealthConsent: declarationHealthText,
+		Version: 4, RetentionDays: 365, PrivacyConsent: declarationPrivacyText, HealthConsent: declarationHealthText,
 		BindingConfirmed: declarationBindingText, CustodyConfirmed: declarationCustodyText, DeclarationName: declarationNameText,
 	}, offer.ConsentTexts)
 	for _, word := range []string{"Unterschrift", "unterschreib", "schriftlich"} {
@@ -75,6 +78,7 @@ func TestHolidayRegistrationRequiresTheCustodyAndTheName(t *testing.T) {
 		{"with a name too long", func(body map[string]any) { body["declaration_name"] = strings.Repeat("a", 101) }, "declaration_name"},
 		{"under version 2", func(body map[string]any) { body["consent_version"] = 2 }, "consent_version"},
 		{"without a version", func(body map[string]any) { delete(body, "consent_version") }, "consent_version"},
+		{"under version 3 with its three months", func(body map[string]any) { body["consent_version"] = 3 }, "consent_version"},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			body := siblingsRegistration(offer, fmt.Sprintf("erklaerung-%d@example.org", i))
@@ -109,7 +113,7 @@ func TestHolidayRegistrationRequiresTheCustodyAndTheName(t *testing.T) {
 		SameAt  bool   `bun:"same_at"`
 		Name    string `bun:"declaration_name"`
 		Version int    `bun:"consent_version"`
-	}{Custody: true, SameAt: true, Name: "Eva Muster", Version: 3}, stored, "the custody, the trimmed name and version 3 are stored")
+	}{Custody: true, SameAt: true, Name: "Eva Muster", Version: 4}, stored, "the custody, the trimmed name and version 4 are stored")
 }
 
 // declarationMail is the declaration of a receipt mail as Delivery stores it.
@@ -144,7 +148,7 @@ func TestHolidayReceiptAndDetailRepeatTheDeclaration(t *testing.T) {
 	require.NoError(t, json.Unmarshal([]byte(payload), &mail))
 	require.NotNil(t, mail.Declaration, "the receipt carries the parent's copy of the declaration")
 	assert.Equal(t, "Eva Muster", mail.Declaration.Name)
-	assert.Equal(t, 3, mail.Declaration.ConsentVersion)
+	assert.Equal(t, 4, mail.Declaration.ConsentVersion)
 	assert.False(t, mail.Declaration.GivenAt.IsZero(), "the receipt names when the declaration was given")
 	assert.Equal(t, []enrollment.HolidayDeclarationStatement{
 		{Title: "Datenschutz", Text: declarationPrivacyText},
@@ -162,7 +166,7 @@ func TestHolidayReceiptAndDetailRepeatTheDeclaration(t *testing.T) {
 	detail := decodeSchoolPortalData[enrollment.HolidayRegistrationDetail](t, rec.Body.Bytes())
 	assert.Equal(t, "Eva Muster", detail.DeclarationName)
 	require.NotNil(t, detail.CustodyConfirmedAt)
-	assert.Equal(t, 3, detail.ConsentVersion)
+	assert.Equal(t, 4, detail.ConsentVersion)
 	require.NotNil(t, detail.ConsentTexts, "the detail names the texts of its version")
 	assert.Equal(t, declarationCustodyText, detail.ConsentTexts.CustodyConfirmed)
 	assert.Equal(t, declarationPrivacyText, detail.ConsentTexts.PrivacyConsent)
@@ -188,4 +192,7 @@ func TestHolidayReceiptAndDetailRepeatTheDeclaration(t *testing.T) {
 	require.NotNil(t, detail.ConsentTexts)
 	assert.Equal(t, 2, detail.ConsentTexts.Version)
 	assert.Empty(t, detail.ConsentTexts.CustodyConfirmed)
+	assert.Contains(t, detail.ConsentTexts.PrivacyConsent, "Er löscht sie drei Monate nach den Ferien.",
+		"a registration under an earlier version keeps the wording it agreed to (#6691)")
+	assert.Equal(t, 92, detail.ConsentTexts.RetentionDays)
 }

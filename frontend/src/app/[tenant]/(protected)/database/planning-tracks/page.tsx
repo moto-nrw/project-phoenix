@@ -6,7 +6,7 @@
 // Verwaltungsoberfläche in einem Auswahlfeld. Das Feld ist jetzt reine
 // Auswahl und verlinkt hierher.
 
-import { Suspense, useCallback, useMemo } from "react";
+import { Suspense, useCallback, useLayoutEffect, useMemo } from "react";
 import { useSearchParams } from "next/navigation";
 
 import {
@@ -16,6 +16,7 @@ import {
 } from "~/components/database/catalog/catalog-page";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { STALE_DATA_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { CatalogColorField } from "~/components/database/catalog-color-field";
 import type { SectionConfig } from "~/lib/database/types";
 import { formatCount } from "~/lib/format-utils";
@@ -24,6 +25,8 @@ import {
   planningTrackService,
   type PlanningTrack,
 } from "~/lib/planning-track-api";
+import { ApiError } from "~/lib/api-error";
+import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useTimetableEnabled } from "~/lib/tenant-context";
 import { carePlanConcept } from "~/lib/concepts/carePlan";
@@ -64,19 +67,33 @@ function PlanningTracksPageContent() {
   const tenantMutate = useTenantMutate();
   const timetableEnabled = useTimetableEnabled();
 
+  const discardRefused = useDiscardRefusedEntity();
   const {
-    data,
+    data: cachedData,
     isLoading,
     error: swrError,
     mutate,
   } = useSWRAuth<PlanningTrack[]>(timetableEnabled ? CACHE_KEY : null, () =>
     planningTrackService.list(),
   );
+  const accessRefused =
+    swrError instanceof ApiError &&
+    (swrError.status === 401 || swrError.status === 403);
+  const data = accessRefused ? undefined : cachedData;
+  useLayoutEffect(() => {
+    if (!accessRefused) return;
+    discardRefused(swrError, {
+      codes: [swrError.code ?? "general.permission"],
+      matches: (key) => key === CACHE_KEY,
+      refusedKey: CACHE_KEY,
+    });
+  }, [accessRefused, swrError, discardRefused]);
   // Ladefehler mit Katalogtext statt eines eigenen Satzes (#2516).
   const loadError = useSwrLoadError(
     swrError,
     "die Liste der Planungsspuren",
     () => mutate(),
+    data === undefined ? undefined : STALE_DATA_SUFFIX,
   );
 
   const onChanged = useCallback(() => tenantMutate(CACHE_KEY), [tenantMutate]);
@@ -144,6 +161,7 @@ function PlanningTracksPageContent() {
         menuLabel: "Archivieren",
         confirmTitle: "Planungsspur archivieren?",
         confirmLabel: "Archivieren",
+        loadingLabel: "Wird archiviert …",
         describe: (track) =>
           `Die Planungsspur „${track.name}“ wird für neue Termine nicht mehr angeboten. Bestehende Termine behalten sie. Sie können die Spur jederzeit wiederherstellen.`,
         run: (track) => planningTrackService.archive(track.id),

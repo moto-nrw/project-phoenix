@@ -96,7 +96,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | You need… | Use | Import from |
 |---|---|---|
 | Button / CTA | `Button` (actions), `ButtonLink` (navigation), `buttonClassName` (anything else that must look like a button) — rules in [Buttons](#buttons) below. Pass `type="button"` outside forms. | `~/components/ui/button` |
-| What a click does (hover, key focus, never tap) | `tooltip` on `Button`/`ButtonLink`, else `ActionHint`; no `title`. `Tooltip`: text only | `~/components/ui/button` |
+| What a click does (hover, key focus, never tap) | `tooltip` on `Button`/`ButtonLink`, else `ActionHint`; no `title`. `Tooltip`: text only. [Writing rule](#what-a-click-does) | `~/components/ui/button` |
 | Text input | `Input` (`controlSize` `compact` 40 px, `touch` 44 px below `lg`), multiline `Textarea` (`autoGrow`): `required`/`aria-required` shows the star; `error` sets hint and `aria-invalid`; `type="password" revealable`: eye button | `~/components/ui/input`, `ui/textarea` |
 | Field label, hint | `label`/`hint` of `Input`, `Textarea`, `CustomSelect`, `ISODatePicker`; `DatePicker`: `hint`; else `FieldLabel`. Never in Versalien. Field + button: `FormRow` | `~/components/ui/field-label`, `ui/form-row` |
 | Required field | `required` on the kit control. A control without its own label gets `FieldLabel required`, a required group `FormFieldset required`. Never a star in a label string or translation (#5217) | `~/components/ui/field-label` |
@@ -201,6 +201,17 @@ Decided in #5529, enforced since #5531. Not up for renegotiation: if code cannot
 **Deliberate exceptions (do not align):** the stamp buttons and the break stepper −/+ of time tracking; `global-error` (inline styles, loads no CSS; only colour, radius and weight follow kit `primary`); event rows and month chips in the parents calendar. **Not buttons in this sense:** list and selection rows, tiles (`TileCard`), tabs, `SegmentedControl`, checkboxes, switches, menu entries, navigation rows, steppers inside fields.
 
 **Ratchet (hard-zero, #6182).** `ui-kit/no-hand-rolled-button`: native `button`/`a`/`Link`/`NavLink`/`NavigationLink`/`role="button"` (or `label`/`span` + `cursor-pointer`) with fill or frame colour (also `moto-content-surface`, `style`; #5608) + radius + padding/height. `ui-kit/no-button-override`: such classes on `Button`/`ButtonLink`/`buttonClassName({ className })`. `ui-kit/no-grey-button-fill`: resting `bg-gray-100`–`-300`; exempt: switches, tabs, menus, `aria-pressed`, nav rows. Exceptions: `ui-kit-button-baseline.mjs`.
+
+## What a click does
+
+`ui-kit/button-needs-tooltip` (#6643): `tooltip` or `noTooltip="<Grund>"` on `Button`/`ButtonLink`, `ActionHint` around other `buttonClassName` elements, in the grow-only `TOOLTIP_SCOPE` paths of `oxlint-plugin-ui-kit.mjs`.
+
+- One sentence, ≤ ~12 words, verb in 3rd person, full stop; the consequence, not the button word. No technical words, no „Klicken Sie hier“.
+- „sofort“ when deleted or sent without a question, „moto fragt vorher nach“ before a confirmation; name who gets notified.
+- Same action, same sentence; repeated text lives in the kit piece. Translated portals: every language's catalog.
+- `noTooltip` only if the word says it all with no side effect („Abbrechen“, „Zurück“, a pure „Speichern“); never deleting, sending, releasing, icon buttons.
+
+Examples: „Löscht die PDF sofort aus dem Anmeldeformular.“ · „Übernimmt Ihre Auswahl für die Startseite aller Mitarbeitenden.“ · „Öffnet den Rechtstext für Eltern zum Bearbeiten.“
 
 ## Several notices of the same kind
 

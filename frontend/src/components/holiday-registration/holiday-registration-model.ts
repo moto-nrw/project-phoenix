@@ -29,9 +29,10 @@ import type {
  * Version of the consent texts the translations of this form belong to
  * (#4722, #5626). The German texts come with the offer and bind; a
  * translation is shown below them only while the offer has this version.
- * Version 3 adds the custody and the name as the declaration.
+ * Version 3 adds the custody and the name as the declaration. Version 4
+ * names the retention of the Träger in days instead of three months (#6691).
  */
-export const HOLIDAY_CONSENT_VERSION = 3;
+export const HOLIDAY_CONSENT_VERSION = 4;
 
 /** Bounds the typed name like the name of the parent. */
 export const DECLARATION_NAME_MAX_LENGTH = 100;
@@ -125,6 +126,16 @@ export interface RegistrationDraft {
   readonly answers: Readonly<Record<string, unknown>>;
   /** Yes/no to the criteria of the family, by criterion ID (#4700). */
   readonly criteria?: Readonly<Record<string, boolean>>;
+  /**
+   * The answer to „Möchten Sie ein Elternkonto anlegen?“ (#6673); absent
+   * until the parent chose. Only asked without a parent session.
+   */
+  readonly parentAccountRequested?: boolean;
+  /**
+   * The sealed proof of the signed-in parent's account from the prefill
+   * (#6673, ADR 0216). With it the question is not asked.
+   */
+  readonly parentAccountProof?: string;
 }
 
 /** Hint of a refused field, translated, or undefined. */
@@ -210,7 +221,12 @@ export function registrationFromFamily(
   family: HolidayKnownFamily | null,
 ): RegistrationDraft {
   const draft = emptyRegistration();
-  return family ? { ...draft, guardian: { ...family.guardian } } : draft;
+  if (!family) return draft;
+  return {
+    ...draft,
+    guardian: { ...family.guardian },
+    ...(family.accountProof ? { parentAccountProof: family.accountProof } : {}),
+  };
 }
 
 function childFromKnown(
@@ -852,6 +868,8 @@ export function payloadFromDraft(
     form_version: offer.form.version,
     // The version of the texts the form showed, as the offer named them.
     consent_version: offer.consentTexts.version,
+    // The retention its privacy text named; the server refuses another one.
+    retention_days: offer.consentTexts.retentionDays,
     custom_data: familyAnswersToSend(draft, offer.form),
     ...(offer.allocationMode === "criteria"
       ? {
@@ -860,6 +878,13 @@ export function payloadFromDraft(
             draft.criteria,
           ),
         }
+      : {}),
+    // The account of a signed-in parent travels as its proof; anyone else
+    // answered the question at the end of the form (#6673).
+    parent_account_requested:
+      !draft.parentAccountProof && draft.parentAccountRequested === true,
+    ...(draft.parentAccountProof
+      ? { parent_account_proof: draft.parentAccountProof }
       : {}),
   };
 }

@@ -57,6 +57,11 @@ func (d *Decisions) SyncApprovedChildData(ctx context.Context, input enrollmentN
 	if err := d.loadApprovedChildForSync(ctx, run); err != nil {
 		return nil, err
 	}
+	// The authority hold already locks the student. Take the class-writes
+	// and recurrence gates before it, as a concurrent class writer does.
+	if err := d.lockOfferingDerivedWrites(ctx); err != nil {
+		return nil, err
+	}
 	if err := d.syncApprovedChildRecords(ctx, run); err != nil {
 		return nil, err
 	}
@@ -173,7 +178,7 @@ func (d *Decisions) syncAuthorityRequest(ctx context.Context, run *approvedChild
 		return run.request, nil
 	}
 	if run.child.RolloverSourceChildID != nil {
-		origin, err := d.rolloverOriginRequest(ctx, run.child)
+		origin, err := rolloverOrigin(ctx, d.deps.Children, d.deps.Requests, d.deps.Runtime.NotFound, run.child)
 		if err != nil {
 			return nil, err
 		}
@@ -193,16 +198,23 @@ func (d *Decisions) syncAuthorityRequest(ctx context.Context, run *approvedChild
 // maxRolloverDepth bounds the walk to a rollover chain's first submission.
 const maxRolloverDepth = 50
 
-// rolloverOriginRequest loads the request a rollover chain started with, or
-// nil when a deleted phase cut the chain.
-func (d *Decisions) rolloverOriginRequest(ctx context.Context, child *enrollmentNative.RequestChild) (*enrollmentNative.Request, error) {
+// rolloverOrigin loads the request a rollover chain started with, or nil
+// when a deleted phase cut the chain.
+func rolloverOrigin(ctx context.Context, children interface {
+	ChildByID(context.Context, int64) (*enrollmentNative.RequestChild, error)
+}, requests interface {
+	RequestByID(context.Context, int64, bool) (*enrollmentNative.Request, error)
+}, notFound func(error) bool, child *enrollmentNative.RequestChild) (*enrollmentNative.Request, error) {
+	if origin, ok := approvalRolloverOrigin(ctx, child.ID); ok {
+		return origin, nil
+	}
 	source := child
 	for depth := 0; source.RolloverSourceChildID != nil; depth++ {
 		if depth >= maxRolloverDepth {
 			return nil, fmt.Errorf("decision: rollover chain of child %d exceeds %d phases", child.ID, maxRolloverDepth)
 		}
-		next, err := d.deps.Children.ChildByID(ctx, *source.RolloverSourceChildID)
-		if err != nil && d.deps.Runtime.NotFound(err) {
+		next, err := children.ChildByID(ctx, *source.RolloverSourceChildID)
+		if err != nil && notFound(err) {
 			return nil, nil
 		}
 		if err != nil {
@@ -213,8 +225,8 @@ func (d *Decisions) rolloverOriginRequest(ctx context.Context, child *enrollment
 		}
 		source = next
 	}
-	origin, err := d.deps.Requests.RequestByID(ctx, source.RequestID, false)
-	if err != nil && d.deps.Runtime.NotFound(err) {
+	origin, err := requests.RequestByID(ctx, source.RequestID, false)
+	if err != nil && notFound(err) {
 		return nil, nil
 	}
 	if err != nil {
@@ -239,19 +251,10 @@ func (d *Decisions) loadApprovedChildForSync(ctx context.Context, run *approvedC
 	return nil
 }
 
-// syncApprovedChildStudent takes the tenant-wide gates BEFORE the first
-// student row lock, in the project-wide class-change order (shared
-// class-writes gate first, recurrence gate second, row locks last) — the same
-// order the direct school_class PUT takes. Locking the row first and the
-// recurrence gate only later let this sync and a concurrent direct PUT on the
-// same child wait on each other cyclically until PostgreSQL aborted one
-// (#2147 review round 15). The gates are taken unconditionally because
-// whether the confirmed edit actually changes the class is only known once
-// the row is locked.
+// syncApprovedChildStudent writes under the class-writes and recurrence
+// gates SyncApprovedChildData took before the guardian hold's student lock,
+// in the same order as a direct school_class PUT (#2147, #6638).
 func (d *Decisions) syncApprovedChildStudent(ctx context.Context, run *approvedChildSync, fields enrollmentNative.ApprovedChildCorrection) error {
-	if err := d.lockOfferingDerivedWrites(ctx); err != nil {
-		return err
-	}
 	student, err := d.readEnrollmentStudent(ctx, *run.child.CreatedStudentID, "update")
 	if (err != nil && d.deps.Runtime.NotFound(err)) || (err == nil && student == nil) {
 		return enrollmentNative.ErrDecisionStudentNotFound

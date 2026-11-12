@@ -1,0 +1,56 @@
+package enrollment
+
+import "context"
+
+// The acceptance mail of a holiday registration (#6672): when the
+// Träger-Büro confirms a registration, the parent who registered gets one
+// mail of the Träger with the children, their weeks and time models and the
+// text the Träger wrote for the period. Without a text the mail has its
+// fixed part only. A parent with an account gets the link to the parents
+// portal, which Enrollment adds when Delivery sends the mail: the Träger
+// transaction of the confirmation does not read accounts. Everyone else
+// gets the link to set up a parent account at the Träger (ADR 0216 point
+// 11), added the same way, also for a registration from before.
+
+// MailKindHolidayRegistrationAccepted is the Delivery outbox kind of the
+// acceptance mail; the root registers its renderer under the same kind.
+const MailKindHolidayRegistrationAccepted = "holiday_registration_accepted"
+
+// HolidayAcceptanceMailTextMaxLength bounds the text of the acceptance mail
+// of a period in characters.
+const HolidayAcceptanceMailTextMaxLength = 2000
+
+// HolidayRegistrationAcceptedMail is the payload of the acceptance mail. It
+// names the children with their weeks and time models, no date of birth and
+// no health information. TraegerText is the period's text as the Träger
+// wrote it, plain text. ParentAppURL is the link to the parents portal for a
+// parent with an account, empty otherwise; the renderer sets it at sending, the
+// outbox never carries it.
+type HolidayRegistrationAcceptedMail struct {
+	Recipient    string                         `json:"recipient_email"`
+	GuardianName string                         `json:"guardian_name"`
+	TraegerName  string                         `json:"traeger_name"`
+	PeriodName   string                         `json:"period_name"`
+	Binding      bool                           `json:"binding"`
+	Children     []HolidayRegistrationMailChild `json:"children"`
+	TraegerText  string                         `json:"traeger_text,omitempty"`
+	ParentAppURL string                         `json:"parent_app_url,omitempty"`
+	// OrganizationID is the Träger the setup link of a parent account names
+	// (ADR 0216 point 11); a mail enqueued before has none and offers no
+	// setup. SetupURL is that link, set by the renderer at sending like
+	// ParentAppURL; the outbox never carries it.
+	OrganizationID int64  `json:"organization_id,omitempty"`
+	SetupURL       string `json:"setup_url,omitempty"`
+}
+
+// HolidayAcceptanceAccounts reports whether an address has a parent account:
+// an account with the guardian role at an active school or with access at
+// an active Träger (ADR 0216). HolidayParentSetupURL is the link to set up a
+// parent account at the Träger for an address without one, empty where none
+// is offered. The delivery worker supplies this capability in its
+// administrative scope, outside the Träger transaction that confirms the
+// registration.
+type HolidayAcceptanceAccounts interface {
+	HasParentAccount(ctx context.Context, address string) (bool, error)
+	HolidayParentSetupURL(address string, organizationID int64) (string, error)
+}

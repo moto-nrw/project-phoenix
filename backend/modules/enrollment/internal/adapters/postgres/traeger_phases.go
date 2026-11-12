@@ -224,7 +224,7 @@ func (s *TraegerPhaseStore) ReplaceTraegerPhaseSchools(ctx context.Context, orga
 	}
 	if _, err := db.NewRaw(`DELETE FROM enrollment.traeger_phase_schools
 		WHERE organization_id = ? AND traeger_phase_id = ? AND NOT (school_id = ANY(?::bigint[]))
-			AND (applied_version IS NULL OR outcome = 'withdrawn')`, organizationID, id, pgdialect.Array(schoolIDs)).Exec(ctx); err != nil {
+			AND ((applied_version IS NULL AND recorded_at IS NULL) OR outcome = 'withdrawn')`, organizationID, id, pgdialect.Array(schoolIDs)).Exec(ctx); err != nil {
 		return fmt.Errorf("enrollment postgres: drop träger phase schools: %w", err)
 	}
 	if _, err := db.NewRaw(`UPDATE enrollment.traeger_phase_schools SET selected = (school_id = ANY(?::bigint[]))

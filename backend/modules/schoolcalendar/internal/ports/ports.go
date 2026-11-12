@@ -27,6 +27,12 @@ type Store interface {
 	CreateClosingDay(context.Context, schoolcalendar.ClosingDayFields) (schoolcalendar.ClosingDay, domain.OperationStats, error)
 	UpdateClosingDay(context.Context, int64, schoolcalendar.ClosingDayFields) (schoolcalendar.ClosingDay, domain.OperationStats, error)
 	DeleteClosingDay(context.Context, int64) (domain.OperationStats, error)
+	// LockHolidayClosureRevision raises the revision of the school's closing
+	// days and holds it until the transaction ends (ADR 0196).
+	LockHolidayClosureRevision(context.Context) (int64, domain.OperationStats, error)
+	// RecordHolidayClosureChange proposes the parents' notice of a changed
+	// school closing day; it sends nothing.
+	RecordHolidayClosureChange(context.Context, domain.HolidayClosureChange) (domain.OperationStats, error)
 	// ListCareCalendarRanges lists the closing days and the active holiday
 	// periods overlapping [from, to] in one statement.
 	ListCareCalendarRanges(ctx context.Context, from, to string) (closing, holidays []schoolcalendar.ClosingDay, stats domain.OperationStats, err error)

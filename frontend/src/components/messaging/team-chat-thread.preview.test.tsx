@@ -24,6 +24,7 @@ vi.mock("~/lib/hooks/use-tenant-team-chat-portal", () => ({
   useTenantTeamChatPortal: () => ({
     kind: "tenant",
     api: { fetchThread: state.fetchThread },
+    attachments: { uploadUrl: "/upload", downloadUrl: () => "/file" },
     flagSaysEnabled: true,
   }),
 }));
@@ -32,6 +33,7 @@ vi.mock("~/lib/hooks/use-school-team-chat-portal", () => ({
   useSchoolTeamChatPortal: () => ({
     kind: "school",
     api: { fetchThread: state.fetchThread },
+    attachments: { uploadUrl: "/upload", downloadUrl: () => "/file" },
     flagSaysEnabled: true,
   }),
 }));

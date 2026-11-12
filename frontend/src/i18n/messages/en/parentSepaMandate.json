@@ -2,6 +2,8 @@
   "title": "Direct debit",
   "intro": "With the mandate you allow your provider to collect the fees from your account.",
   "errorObject": "the direct debit mandate",
+  "reloadObject": "the mandate view",
+  "savedButStale": "Your change is saved. Only the display is not up to date yet.",
   "offTitle": "Direct debit not possible here",
   "off": "Your provider does not accept the mandate in the app. Ask your provider for a paper form.",
   "creditorMissing": "Your provider cannot accept direct debits yet. Please try again later.",

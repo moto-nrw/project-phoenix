@@ -612,6 +612,8 @@ export const ERROR_CATALOG = {
         "Dieser Link ist ungültig oder abgelaufen. Bitte nutzen Sie den Link aus Ihrer E-Mail.",
       "enrollment.student_exists":
         "{object} gibt es bereits. Bitte wählen Sie eine andere Angabe.",
+      "enrollment.submission_email_rate_limited":
+        "Mit dieser E-Mail-Adresse wurden heute schon viele Anmeldungen gesendet. Bitte versuchen Sie es morgen noch einmal.",
       "enrollment.submission_rate_limited":
         "Es wurden zu viele Anmeldungen gesendet. Bitte versuchen Sie es in einer Stunde noch einmal.",
       "enrollment.traeger_catalog_invalid": "Bitte prüfen Sie Ihre Angaben.",
@@ -718,6 +720,8 @@ export const ERROR_CATALOG = {
         "Dieser Link gilt nicht mehr. Bitte fragen Sie die Schule nach einer neuen Einladung.",
       "identity.guardian_invitation_email_not_queued":
         "Die Einladung konnte gerade nicht verschickt werden. Bitte versuchen Sie es noch einmal.",
+      "identity.holiday_parent_setup_invalid":
+        "Dieser Link zum Elternkonto gilt nicht mehr. Haben Sie schon ein Konto? Dann melden Sie sich an. Sonst bitten Sie den Träger um einen neuen Link.",
       "identity.invalid_credentials":
         "Die E-Mail-Adresse oder das Passwort stimmt nicht. Bitte prüfen Sie Ihre Eingabe.",
       "identity.invitation_account_login_required":
@@ -1455,6 +1459,10 @@ export const ERROR_CATALOG = {
         "Bitte prüfen Sie die markierten Angaben zum Schließtag.",
       "timetable.closing_day_not_found":
         "Den Schließtag gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "timetable.closing_day_notice_changed":
+        "Der Schließtag wurde geändert. Bitte prüfen Sie den Hinweis und klicken Sie erneut.",
+      "timetable.closing_day_notice_not_found":
+        "Den Hinweis gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "timetable.complete_too_early":
         "Der Termin kann erst nach seinem Ende abgeschlossen werden.",
       "timetable.completion_confirmation_stale":
@@ -2314,6 +2322,8 @@ export const ERROR_CATALOG = {
       "enrollment.signature_required": "Please sign the enrollment.",
       "enrollment.status_link_invalid":
         "This link is invalid or has expired. Please use the link from your email.",
+      "enrollment.submission_email_rate_limited":
+        "Many enrollments were already sent with this email address today. Please try again tomorrow.",
       "enrollment.submission_rate_limited":
         "Too many enrollments were sent. Please try again in an hour.",
       "enrollment.traeger_catalog_invalid":
@@ -2370,6 +2380,8 @@ export const ERROR_CATALOG = {
         "This link is no longer valid. Please ask the school for a new invitation.",
       "identity.guardian_invitation_email_not_queued":
         "The invitation could not be sent right now. Please try again.",
+      "identity.holiday_parent_setup_invalid":
+        "This link to the parent account is no longer valid. Do you already have an account? Then sign in. Otherwise ask the provider for a new link.",
       "identity.invalid_credentials":
         "The email address or the password is not correct. Please check your entry.",
       "identity.invitation_account_login_required":
@@ -2534,6 +2546,10 @@ export const ERROR_CATALOG = {
         "Some days already have an entry. These days were not changed.",
       "substitutions.last_supervisor":
         "You are the only supervisor. Hand the supervision over to someone or end the activity.",
+      "timetable.closing_day_notice_changed":
+        "The closing day changed. Please check the notice and click again.",
+      "timetable.closing_day_notice_not_found":
+        "{object} could not be changed. Please check its current status.",
       "timetable.homework_feedback_child_not_in_supervision":
         "This child is not part of this supervision. Please reload the page.",
       "timetable.homework_feedback_not_allowed":
@@ -2953,6 +2969,8 @@ export const ERROR_CATALOG = {
       "enrollment.signature_required": "Пожалуйста, подпишите заявку.",
       "enrollment.status_link_invalid":
         "Эта ссылка недействительна или устарела. Используйте ссылку из вашего письма.",
+      "enrollment.submission_email_rate_limited":
+        "С этого адреса электронной почты сегодня уже отправлено много заявок. Попробуйте снова завтра.",
       "enrollment.submission_rate_limited":
         "Отправлено слишком много заявок. Попробуйте снова через час.",
       "enrollment.traeger_catalog_invalid":
@@ -3009,6 +3027,8 @@ export const ERROR_CATALOG = {
         "Эта ссылка больше не действует. Попросите школу прислать новое приглашение.",
       "identity.guardian_invitation_email_not_queued":
         "Сейчас не удалось отправить приглашение. Повторите попытку.",
+      "identity.holiday_parent_setup_invalid":
+        "Эта ссылка на родительский аккаунт больше не действует. У вас уже есть аккаунт? Тогда войдите. Иначе попросите у организатора новую ссылку.",
       "identity.invalid_credentials":
         "Неверный адрес электронной почты или пароль. Проверьте введённые данные.",
       "identity.invitation_account_login_required":
@@ -3154,6 +3174,8 @@ export const ERROR_CATALOG = {
         "На некоторые дни уже есть запись. Эти дни не изменены.",
       "substitutions.last_supervisor":
         "Вы единственный, кто ведёт присмотр. Передайте присмотр другому человеку или завершите занятие.",
+      "timetable.closing_day_notice_not_found":
+        "Не удалось изменить: {object}. Проверьте текущее состояние.",
       "timetable.homework_feedback_child_not_in_supervision":
         "Этот ребёнок не относится к этому присмотру. Обновите страницу.",
       "timetable.homework_feedback_not_allowed":
@@ -3535,6 +3557,8 @@ export const ERROR_CATALOG = {
       "enrollment.signature_required": "Ju lutemi nënshkruani regjistrimin.",
       "enrollment.status_link_invalid":
         "Kjo lidhje nuk është e vlefshme ose ka skaduar. Përdorni lidhjen nga emaili juaj.",
+      "enrollment.submission_email_rate_limited":
+        "Me këtë adresë e-mail sot janë dërguar tashmë shumë regjistrime. Ju lutemi provoni përsëri nesër.",
       "enrollment.submission_rate_limited":
         "U dërguan shumë regjistrime. Ju lutemi provoni përsëri pas një ore.",
       "enrollment.traeger_catalog_invalid":
@@ -3591,6 +3615,8 @@ export const ERROR_CATALOG = {
         "Kjo lidhje nuk është më e vlefshme. Kërkojini shkollës një ftesë të re.",
       "identity.guardian_invitation_email_not_queued":
         "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
+      "identity.holiday_parent_setup_invalid":
+        "Kjo lidhje për llogarinë e prindit nuk vlen më. Keni tashmë një llogari? Atëherë hyni. Përndryshe kërkoni nga organizatori një lidhje të re.",
       "identity.invalid_credentials":
         "Adresa e email-it ose fjalëkalimi nuk është i saktë. Kontrolloni të dhënat.",
       "identity.invitation_account_login_required":
@@ -3738,6 +3764,8 @@ export const ERROR_CATALOG = {
         "Disa ditë kanë tashmë një regjistrim. Këto ditë nuk u ndryshuan.",
       "substitutions.last_supervisor":
         "Jeni i vetmi mbikëqyrës. Ia dorëzoni mbikëqyrjen dikujt tjetër ose përfundoni aktivitetin.",
+      "timetable.closing_day_notice_not_found":
+        "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
       "timetable.homework_feedback_child_not_in_supervision":
         "Ky fëmijë nuk i përket këtij mbikëqyrjeje. Ringarkoni faqen.",
       "timetable.homework_feedback_not_allowed":
@@ -4106,6 +4134,8 @@ export const ERROR_CATALOG = {
       "enrollment.signature_required": "Prosimy podpisać zgłoszenie.",
       "enrollment.status_link_invalid":
         "Ten link jest nieprawidłowy lub wygasł. Użyj linku z e-maila.",
+      "enrollment.submission_email_rate_limited":
+        "Z tego adresu e-mail wysłano dziś już wiele zapisów. Spróbuj ponownie jutro.",
       "enrollment.submission_rate_limited":
         "Wysłano zbyt wiele zapisów. Spróbuj ponownie za godzinę.",
       "enrollment.traeger_catalog_invalid":
@@ -4162,6 +4192,8 @@ export const ERROR_CATALOG = {
         "Ten link jest już nieważny. Poproś szkołę o nowe zaproszenie.",
       "identity.guardian_invitation_email_not_queued":
         "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
+      "identity.holiday_parent_setup_invalid":
+        "Ten link do konta rodzica już nie działa. Mają już Państwo konto? Proszę się zalogować. W przeciwnym razie proszę poprosić organizatora o nowy link.",
       "identity.invalid_credentials":
         "Adres e-mail lub hasło są nieprawidłowe. Sprawdź wpisane dane.",
       "identity.invitation_account_login_required":
@@ -4308,6 +4340,8 @@ export const ERROR_CATALOG = {
         "Niektóre dni mają już wpis. Tych dni nie zmieniono.",
       "substitutions.last_supervisor":
         "Jesteś jedyną osobą sprawującą opiekę. Przekaż opiekę innej osobie lub zakończ zajęcia.",
+      "timetable.closing_day_notice_not_found":
+        "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
       "timetable.homework_feedback_child_not_in_supervision":
         "To dziecko nie należy do tej opieki. Odśwież stronę.",
       "timetable.homework_feedback_not_allowed":
@@ -4683,6 +4717,8 @@ export const ERROR_CATALOG = {
       "enrollment.signature_required": "Lütfen kaydı imzalayın.",
       "enrollment.status_link_invalid":
         "Bu bağlantı geçersiz veya süresi dolmuş. Lütfen e-postanızdaki bağlantıyı kullanın.",
+      "enrollment.submission_email_rate_limited":
+        "Bu e-posta adresiyle bugün zaten çok sayıda kayıt gönderildi. Lütfen yarın tekrar deneyin.",
       "enrollment.submission_rate_limited":
         "Çok fazla kayıt gönderildi. Lütfen bir saat sonra tekrar deneyin.",
       "enrollment.traeger_catalog_invalid":
@@ -4739,6 +4775,8 @@ export const ERROR_CATALOG = {
         "Bu bağlantı artık geçerli değil. Lütfen okuldan yeni bir davet isteyin.",
       "identity.guardian_invitation_email_not_queued":
         "Davet şu anda gönderilemedi. Yeniden deneyin.",
+      "identity.holiday_parent_setup_invalid":
+        "Veli hesabı için bu bağlantı artık geçerli değil. Zaten bir hesabınız var mı? O zaman giriş yapın. Yoksa kurumdan yeni bir bağlantı isteyin.",
       "identity.invalid_credentials":
         "E-posta adresi veya şifre doğru değil. Lütfen girdiğiniz bilgileri kontrol edin.",
       "identity.invitation_account_login_required":
@@ -4885,6 +4923,8 @@ export const ERROR_CATALOG = {
         "Bazı günlerde zaten bir kayıt var. Bu günler değiştirilmedi.",
       "substitutions.last_supervisor":
         "Gözetimi yapan tek kişi sizsiniz. Gözetimi başka birine devredin veya etkinliği bitirin.",
+      "timetable.closing_day_notice_not_found":
+        "{object} değiştirilemedi. Güncel durumu kontrol edin.",
       "timetable.homework_feedback_child_not_in_supervision":
         "Bu çocuk bu gözetime ait değil. Lütfen sayfayı yenileyin.",
       "timetable.homework_feedback_not_allowed":
@@ -5252,6 +5292,8 @@ export const ERROR_CATALOG = {
       "enrollment.signature_required": "Будь ласка, підпишіть заявку.",
       "enrollment.status_link_invalid":
         "Це посилання недійсне або застаріле. Скористайтеся посиланням з вашого листа.",
+      "enrollment.submission_email_rate_limited":
+        "З цієї адреси електронної пошти сьогодні вже надіслано багато заявок. Спробуйте ще раз завтра.",
       "enrollment.submission_rate_limited":
         "Надіслано забагато заявок. Спробуйте ще раз через годину.",
       "enrollment.traeger_catalog_invalid":
@@ -5308,6 +5350,8 @@ export const ERROR_CATALOG = {
         "Це посилання більше не дійсне. Попросіть школу надіслати нове запрошення.",
       "identity.guardian_invitation_email_not_queued":
         "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
+      "identity.holiday_parent_setup_invalid":
+        "Це посилання на батьківський обліковий запис більше не дійсне. У вас уже є обліковий запис? Тоді увійдіть. Інакше попросіть в організатора нове посилання.",
       "identity.invalid_credentials":
         "Неправильна адреса електронної пошти або пароль. Перевірте введені дані.",
       "identity.invitation_account_login_required":
@@ -5453,6 +5497,8 @@ export const ERROR_CATALOG = {
         "На деякі дні вже є запис. Ці дні не змінено.",
       "substitutions.last_supervisor":
         "Ви єдина особа, що здійснює нагляд. Передайте нагляд іншій особі або завершіть заняття.",
+      "timetable.closing_day_notice_not_found":
+        "Не вдалося змінити: {object}. Перевірте поточний стан.",
       "timetable.homework_feedback_child_not_in_supervision":
         "Ця дитина не належить до цього нагляду. Оновіть сторінку.",
       "timetable.homework_feedback_not_allowed":

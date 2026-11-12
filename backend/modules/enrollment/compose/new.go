@@ -20,3 +20,7 @@ func NewWithStore(store applicationNative.Store, observe func(enrollment.Offerin
 func newStore() *postgres.Store {
 	return postgres.NewStore(postgres.NewDatabase(), applicationNative.NewTenantID())
 }
+
+// NewOfferingSelectionReferences binds the catalog's deletion guard to the
+// caller's school transaction and Enrollment's own selection table.
+func NewOfferingSelectionReferences() enrollment.OfferingSelectionReferences { return newStore() }

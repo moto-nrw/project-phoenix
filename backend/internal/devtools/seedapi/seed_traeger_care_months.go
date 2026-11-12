@@ -210,7 +210,9 @@ func seedCareScale(module seedCareModule) []map[string]any {
 
 // seedCarePriceLists sets the prices of every school from month on, for the
 // weekdays Monday to Friday of each care offering of the Träger. A school
-// that already has prices keeps them.
+// that already has prices from month on keeps them; a price that starts
+// later, like the tariff a Träger offering brings for the next school year
+// (#4704), does not count.
 func seedCarePriceLists(client *Client, auth AuthRef, month calendar.Date, freeMonth int) (int, error) {
 	modules, err := seedCareOfferings(client, auth)
 	if err != nil {
@@ -223,7 +225,8 @@ func seedCarePriceLists(client *Client, auth AuthRef, month calendar.Date, freeM
 	var envelope struct {
 		Data struct {
 			Tariffs []struct {
-				SchoolID int64 `json:"school_id"`
+				SchoolID  int64         `json:"school_id"`
+				ValidFrom calendar.Date `json:"valid_from"`
 			} `json:"tariffs"`
 		} `json:"data"`
 	}
@@ -232,7 +235,9 @@ func seedCarePriceLists(client *Client, auth AuthRef, month calendar.Date, freeM
 	}
 	priced := map[int64]bool{}
 	for _, tariff := range envelope.Data.Tariffs {
-		priced[tariff.SchoolID] = true
+		if !tariff.ValidFrom.After(month) {
+			priced[tariff.SchoolID] = true
+		}
 	}
 	schools, bySchool := seedCarePrices(modules, priced)
 	count := 0

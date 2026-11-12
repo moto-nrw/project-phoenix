@@ -1,8 +1,9 @@
 "use client";
 
+import { useAccessControlledData } from "~/lib/hooks/use-access-controlled-data";
 import { operatorProvisioningKeys } from "~/lib/swr/portal-keys";
 
-import { Suspense, useCallback, useState } from "react";
+import { Suspense, useCallback, useLayoutEffect, useState } from "react";
 // eslint-disable-next-line no-restricted-imports -- operator pages are not tenant-scoped
 import { useSWRAuth, useTenantMutateMatching } from "~/lib/swr";
 import { Button } from "~/components/ui/button";
@@ -10,6 +11,10 @@ import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type { OperatorDevice } from "~/lib/operator/provisioning-helpers";
 import { SimpleEmptyState } from "../provisioning/provisioning-shared";
@@ -51,7 +56,7 @@ function OperatorDevicesPageContent() {
   );
 
   const {
-    data: schoolDevices,
+    data: cachedSchoolDevices,
     error: schoolDevicesError,
     isLoading: schoolDevicesLoading,
   } = useSWRAuth(
@@ -65,9 +70,17 @@ function OperatorDevicesPageContent() {
       dedupingInterval: 5000,
     },
   );
+  const { data: schoolDevices, accessRefused: schoolDevicesAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated && urlSchoolId
+        ? operatorProvisioningKeys.schoolDevices(urlSchoolId)
+        : null,
+      cachedSchoolDevices,
+      schoolDevicesError,
+    );
 
   const {
-    data: orgDevices,
+    data: cachedOrgDevices,
     error: orgDevicesError,
     isLoading: orgDevicesLoading,
   } = useSWRAuth(
@@ -81,9 +94,17 @@ function OperatorDevicesPageContent() {
       dedupingInterval: 5000,
     },
   );
+  const { data: orgDevices, accessRefused: orgDevicesAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated && filterOrgId && !urlSchoolId
+        ? operatorProvisioningKeys.orgDevices(filterOrgId)
+        : null,
+      cachedOrgDevices,
+      orgDevicesError,
+    );
 
   const {
-    data: allDevices,
+    data: cachedAllDevices,
     error: allDevicesError,
     isLoading: allDevicesLoading,
   } = useSWRAuth(
@@ -97,6 +118,14 @@ function OperatorDevicesPageContent() {
       dedupingInterval: 5000,
     },
   );
+  const { data: allDevices, accessRefused: allDevicesAccessRefused } =
+    useAccessControlledData(
+      isAuthenticated && !filterOrgId && !urlSchoolId
+        ? operatorProvisioningKeys.allDevices()
+        : null,
+      cachedAllDevices,
+      allDevicesError,
+    );
 
   const refreshDevices = useCallback(() => refreshFamily(), [refreshFamily]);
 
@@ -109,7 +138,30 @@ function OperatorDevicesPageContent() {
         : allDevicesError,
     "die Liste der Geräte",
     () => void refreshDevices(),
+    (urlSchoolId ? schoolDevices : filterOrgId ? orgDevices : allDevices)
+      ?.length
+      ? STALE_DATA_SUFFIX
+      : undefined,
   );
+  // A dialog's write reloads the list afterwards; a failed reload stands
+  // above the list, also after the dialog closed (#6652).
+  const devicesAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Geräte",
+    refreshDevices,
+  );
+
+  const accessRefused = urlSchoolId
+    ? schoolDevicesAccessRefused
+    : filterOrgId
+      ? orgDevicesAccessRefused
+      : allDevicesAccessRefused;
+  useLayoutEffect(() => {
+    if (!accessRefused) return;
+    setCreateDeviceOpen(false);
+    setSetKeyDevice(null);
+    setTransferDevice(null);
+    setDeleteDevice(null);
+  }, [accessRefused]);
 
   const count = selectedSchool
     ? schoolDevices?.length
@@ -138,7 +190,7 @@ function OperatorDevicesPageContent() {
           />
         )
       }
-      actions={actionButton}
+      actions={accessRefused ? undefined : actionButton}
       searchSlot={
         <OrgSchoolFilter
           idPrefix="device"
@@ -172,12 +224,12 @@ function OperatorDevicesPageContent() {
             device={transferDevice}
             schools={activeSchools}
             onClose={() => setTransferDevice(null)}
-            onTransferred={() => refreshDevices().then(() => undefined)}
+            onTransferred={devicesAfterWrite.refresh}
           />
           <DeleteDeviceModal
             device={deleteDevice}
             onClose={() => setDeleteDevice(null)}
-            onDeleted={() => refreshDevices().then(() => undefined)}
+            onDeleted={devicesAfterWrite.refresh}
           />
         </>
       }
@@ -185,6 +237,7 @@ function OperatorDevicesPageContent() {
       <LoadErrorAlert error={organizationsLoadError} />
       <LoadErrorAlert error={schoolsLoadError} />
       <LoadErrorAlert error={devicesLoadError} />
+      <LoadErrorAlert error={devicesAfterWrite.error} />
 
       {!urlSchoolId && filterOrgId && (
         <>
@@ -196,7 +249,7 @@ function OperatorDevicesPageContent() {
               description="Für diesen Träger gibt es noch keine registrierten Geräte."
             />
           ) : (orgDevices === undefined && !orgDevicesLoading) ||
-            orgDevicesError ? null : (
+            (orgDevicesError && !orgDevices?.length) ? null : (
             <DevicesTable
               devices={orgDevices ?? []}
               showSchool
@@ -219,7 +272,7 @@ function OperatorDevicesPageContent() {
               description="Es gibt noch keine registrierten Geräte im System."
             />
           ) : (allDevices === undefined && !allDevicesLoading) ||
-            allDevicesError ? null : (
+            (allDevicesError && !allDevices?.length) ? null : (
             <DevicesTable
               devices={allDevices ?? []}
               showSchool
@@ -261,7 +314,7 @@ function OperatorDevicesPageContent() {
               description="Für diese Schule gibt es noch keine registrierten Geräte."
             />
           ) : (schoolDevices === undefined && !schoolDevicesLoading) ||
-            schoolDevicesError ? null : (
+            (schoolDevicesError && !schoolDevices?.length) ? null : (
             <DevicesTable
               devices={schoolDevices ?? []}
               isLoading={schoolDevicesLoading}

@@ -23,14 +23,16 @@ import (
 // with the reason. A port method the classification does not know is a
 // violation as well, so a new port or a new method of a port is classified
 // before it can be reached, and an exemption that reaches no write is stale.
+// The renewal of an existing child in Enrollment's intake follows the same
+// guard (parentRenewalGuardViolations, #6638).
 func parentChildWriteGuardViolations(project, modulePath string, loaded []*packages.Package) []Violation {
+	violations := parentRenewalGuardViolations(project, modulePath, loaded)
 	flows := parentFlowPackages(modulePath, loaded)
 	if len(flows) == 0 {
-		return nil
+		return violations
 	}
 	graph := newFlowGraph(flows)
 	graph.project = project
-	var violations []Violation
 	reached := map[string]bool{}
 	for _, root := range graph.roots() {
 		violations = append(violations, graph.rootViolations(root, reached)...)
@@ -96,25 +98,25 @@ var guardedOpeners = map[string]int{
 // childWriteGuardExemptions are the entries that write without a child of
 // the account being the subject of the write. Each one names why.
 var childWriteGuardExemptions = map[string]string{
-	"care.Service.UpdatePortalLocale":                  "the account's own portal language in every school profile; no child is written",
-	"care.Service.StateFamilyChildren":                 "the family's number of children on a Träger contract, authorized per contract in the Träger unit",
-	"care.Service.DeclareContractNotice":               "withdrawal or termination of a Träger contract, authorized per contract in the Träger unit",
-	"care.Service.SignContract":                        "signature of a Träger contract, authorized per contract in the Träger unit",
-	"care.Service.GrantSEPAMandate":                    "the payer's SEPA mandate on a Träger contract",
-	"care.Service.RevokeSEPAMandate":                   "the payer's SEPA mandate on a Träger contract",
-	"care.Service.HolidayRegistrationFamily":           "records the prefill read of the family's children in the data access log and states a holiday wish; a read with its audit, no change of a child",
-	"care.Service.ContractSigningView":                 "reads a Träger contract; it shares contractSigning with SignContract, which writes only when a signature is given",
-	"care.Service.NotifyBillingDocument":               "push of a Träger document to its accounts, run by Delivery, not by a parent request",
-	"care.Service.NotifyContractDocument":              "push of a Träger document to its accounts, run by Delivery, not by a parent request",
-	"care.Service.NotifyTraegerDocumentRelease":        "push of a Träger release to its accounts, run by Delivery, not by a parent request",
-	"care.Service.NotifyTraegerDocumentReleaseAccount": "push of a Träger release to one account, run by Delivery, not by a parent request",
-	"messaging.Service.GetChildConversation":           "moves the reader's own read cursor while it reads the conversation (care.ReadReceiptOnly)",
-	"messaging.Service.GetGroupThread":                 "moves the reader's own read cursor while it reads the group thread",
-	"messaging.Service.MarkAnnouncementRead":           "the account's read receipt of an announcement of its audience",
-	"messaging.Service.AcknowledgeAnnouncement":        "the account's acknowledgement of an announcement of its audience",
-	"messaging.Service.SubmitAnnouncementSurvey":       "one survey answer per account of the announcement's audience",
-	"messaging.Service.RespondToAnnouncement":          "poll answer for a child: HoldAnswerPermission share-locks relationship, profile and membership in the answer's own transaction",
-	"messaging.Service.ShareRequestInTx":               "delegated: care calls it through RequestSharer, a write sink of care, only inside its guarded units",
+	"care.Service.UpdatePortalLocale":                   "the account's own portal language on the account or its school profiles; no child is written",
+	"care.Service.StateFamilyChildren":                  "the family's number of children on a Träger contract, authorized per contract in the Träger unit",
+	"care.Service.DeclareContractNotice":                "withdrawal or termination of a Träger contract, authorized per contract in the Träger unit",
+	"care.Service.SignContract":                         "signature of a Träger contract, authorized per contract in the Träger unit",
+	"care.Service.GrantSEPAMandate":                     "the payer's SEPA mandate on a Träger contract",
+	"care.Service.RevokeSEPAMandate":                    "the payer's SEPA mandate on a Träger contract",
+	"care.Service.HolidayRegistrationFamily":            "records the prefill read of the family's children in the data access log and states a holiday wish; a read with its audit, no change of a child",
+	"care.Service.ContractSigningView":                  "reads a Träger contract; it shares contractSigning with SignContract, which writes only when a signature is given",
+	"care.Service.NotifyBillingDocument":                "push of a Träger document to its accounts, run by Delivery, not by a parent request",
+	"care.Service.NotifyContractDocument":               "push of a Träger document to its accounts, run by Delivery, not by a parent request",
+	"care.Service.NotifyTraegerDocumentRelease":         "push of a Träger release to its accounts, run by Delivery, not by a parent request",
+	"care.Service.NotifyTraegerDocumentReleaseAccount":  "push of a Träger release to one account, run by Delivery, not by a parent request",
+	"care.Service.ClaimHolidayRegistrationsAfterSignIn": "links the holiday registrations of the signed-in address to the account (ADR 0216); a registration names no child of a school",
+	"messaging.Service.GetChildConversation":            "moves the reader's own read cursor while it reads the conversation (care.ReadReceiptOnly)",
+	"messaging.Service.GetGroupThread":                  "moves the reader's own read cursor while it reads the group thread",
+	"messaging.Service.MarkAnnouncementRead":            "the account's read receipt of an announcement of its audience",
+	"messaging.Service.AcknowledgeAnnouncement":         "the account's acknowledgement of an announcement of its audience",
+	"messaging.Service.SubmitAnnouncementSurvey":        "one survey answer per account of the announcement's audience",
+	"messaging.Service.ShareRequestInTx":                "delegated: care calls it through RequestSharer, a write sink of care, only inside its guarded units",
 }
 
 // portClasses classifies the port methods the flows call: a whole port by
@@ -185,6 +187,7 @@ var portClasses = map[string]string{
 	"care.OfferingChangeRequests.SubmitOfferingChange":          "write",
 	"care.OfferingChangeRequests.WithdrawCourseRequest":         "write",
 	"care.OfferingHistoryReads":                                 "read",
+	"care.ParentAccounts.SetAccountPortalLocale":                "write",
 	"care.ParentAccounts":                                       "read",
 	"care.PersonReads":                                          "read",
 	"care.PickupPermissionWrite":                                "write",
@@ -204,6 +207,9 @@ var portClasses = map[string]string{
 	"care.SEPAMandates.GrantSEPAMandate":                        "write",
 	"care.SEPAMandates.RevokeSEPAMandate":                       "write",
 	"care.HolidayRegistrationAnnouncements":                     "read",
+	"care.HolidayAccountProofs":                                 "read",
+	"care.HolidayParentRegistrations":                           "read",
+	"care.HolidayParentRegistrations.ClaimHolidayRegistrations": "write",
 	"care.SchoolTraeger":                                        "read",
 	"care.SelfServiceEvents.EmitSelfServicePill":                "write",
 	"care.SelfServiceEvents.WakeChildGuardians":                 "notice",
@@ -243,6 +249,8 @@ var portClasses = map[string]string{
 	"messaging.DeclarationReads":                                "read",
 	"messaging.PermissionValues":                                "read",
 	"messaging.AttachmentAudience":                              "read",
+	"messaging.MessageAttachments":                              "write",
+	"messaging.MessageAttachments.OpenGuardianAttachment":       "read",
 	"messaging.AttachmentFiles":                                 "read",
 	"messaging.CareRequestReads":                                "read",
 	"messaging.ChildResolver":                                   "read",

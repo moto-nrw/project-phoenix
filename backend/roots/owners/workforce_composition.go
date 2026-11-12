@@ -23,6 +23,17 @@ func WorkforceLiveStaffIDs(membership schoolmembership.Query) func(context.Conte
 	}
 }
 
+// SickReportStaffLock takes the staff rows a sick-report write locks after
+// its gates and days (#6702). An offboarded member has no live row: nothing
+// can offboard it again, so no cycle needs its row, and the write reports
+// its own refusal.
+func SickReportStaffLock(membership schoolmembership.Query) func(context.Context, []int64) error {
+	return func(ctx context.Context, staffIDs []int64) error {
+		_, err := membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: staffIDs, ForMutation: true, MembershipOnly: true})
+		return err
+	}
+}
+
 // WorkforceStaffAssignmentLock answers Workforce's lock on a staff
 // assignment: the School Membership row of the staff member is locked for
 // the mutation the caller's unit of work is about to make.

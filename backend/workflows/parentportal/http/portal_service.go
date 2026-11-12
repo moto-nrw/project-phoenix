@@ -54,6 +54,14 @@ type PortalService interface {
 	// closed, each with the children the account may register (#6671).
 	HolidayRegistrationOffers(ctx context.Context, accountID int64) ([]parentService.HolidayRegistrationOffer, error)
 
+	// HolidayRegistrationEntries reads the holiday registrations linked to
+	// the account, newest first (ADR 0216 point 9).
+	HolidayRegistrationEntries(ctx context.Context, accountID int64) ([]parentService.HolidayRegistrationEntry, error)
+	// ClaimHolidayRegistrationsAfterSignIn links the holiday registrations
+	// of the address a parent signed in with to its account (ADR 0216 point
+	// 3); a failure is logged and never fails the sign-in.
+	ClaimHolidayRegistrationsAfterSignIn(ctx context.Context, email string)
+
 	// ListBillingDocuments lists the documents the Träger of the account's
 	// schools sent to its address, where a relationship grants
 	// parent_portal.enrollments.view at a school of that Träger (#4671).
@@ -301,6 +309,15 @@ type PortalService interface {
 	// The audience selects the conversation (#5200); a new leadership
 	// conversation needs the school's leadership option.
 	PostChildReply(ctx context.Context, accountID, studentID int64, body string, groupThreadID int64, audience ...string) (*parentService.MessageThreadView, error)
+
+	// PrepareChildMessageAttachment stores the row of one upload for a
+	// message about the child (#6685); DiscardChildMessageAttachment removes
+	// it when its bytes could not be written. Both need
+	// parent_portal.notes.write. OpenChildMessageAttachment locates a file of
+	// the guardian's own conversations about the child.
+	PrepareChildMessageAttachment(ctx context.Context, accountID, studentID int64, upload parentService.MessageAttachmentUpload) (*parentService.StoredMessageAttachment, error)
+	DiscardChildMessageAttachment(ctx context.Context, accountID, studentID, attachmentID int64) error
+	OpenChildMessageAttachment(ctx context.Context, accountID, studentID, attachmentID int64) (*parentService.StoredMessageAttachment, error)
 
 	// ListGroupThreads returns the group threads that reached the guardian,
 	// newest first (#4784). Cross-tenant.

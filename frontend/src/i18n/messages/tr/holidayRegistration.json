@@ -70,7 +70,7 @@
   "addPickup": "Kişi ekle",
   "remove": "Kaldır",
   "consentTitle": "Onay",
-  "privacyConsent": "Kurumun bu bilgileri tatil bakımı için kullanmasını kabul ediyorum. Kurum bilgileri tatilden üç ay sonra siler. Çocuğuma bir tatil haftasında bakan OGS, ikinci yasal velinin adını ve telefonunu görür. Kurumun onunla paylaştığı cevapları da görür. Sağlık bilgilerini sadece ben kabul edersem görür. OGS bunları hazırlanabilmek için tatil haftasından önce görür. Çocuk listesini haftanın son gününe kadar görür. Sonrasında adı, telefonu ve cevapları en fazla 7 gün daha okuyabilir. Ardından bunlar silinir.",
+  "privacyConsent": "Kurumun bu bilgileri tatil bakımı için kullanmasını kabul ediyorum. Kurum bilgileri tatilden {days} gün sonra siler. Sağlık bilgilerini ise tatilden {healthDays} gün sonra siler. Çocuğuma bir tatil haftasında bakan OGS, ikinci yasal velinin adını ve telefonunu görür. Kurumun onunla paylaştığı cevapları da görür. Sağlık bilgilerini sadece ben kabul edersem görür. OGS bunları hazırlanabilmek için tatil haftasından önce görür. Çocuk listesini haftanın son gününe kadar görür. Sonrasında adı, telefonu ve cevapları en fazla 7 gün daha okuyabilir. Ardından bunlar silinir.",
   "healthConsent": "Kabul ediyorum: Kurum ve OGS çocuklarımın sağlık bilgilerini görür. Bu, bir çocuğa tatil haftasında bakan OGS'dir. OGS bilgileri onaydan haftanın son gününe kadar görür.",
   "bindingConfirmed": "Kaydın bağlayıcı olduğunu biliyorum.",
   "custodyConfirmed": "Kaydı tek başıma yapabilirim: Velayet yalnızca bende ya da velayeti olan diğer kişi onay veriyor.",
@@ -171,5 +171,16 @@
   "summaryDays": "Günler: {days}",
   "contributionDays": "{count} gün",
   "dayWithoutCare": "{date} tarihinde bakım yok ({name}).",
-  "noCareDayAria": "{day}, bakım yok"
+  "noCareDayAria": "{day}, bakım yok",
+  "account": {
+    "question": "Bir veli hesabı oluşturmak ister misiniz?",
+    "benefit": "Hesapla veli uygulamasında kaydın durumunu, onayı ve belgeleri görürsünüz.",
+    "yes": "Evet",
+    "no": "Hayır",
+    "mailNote": "{email} adresine bir e-posta alacaksınız. İçindeki bağlantıyla şifrenizi belirlersiniz.",
+    "required": "Lütfen Evet veya Hayır seçin."
+  },
+  "doneAccountTitle": "Sonraki adım: veli hesabınız",
+  "doneAccountText": "{email} adresine ikinci bir e-posta gönderdik. İçindeki bağlantıyı açın. Orada şifrenizi belirler veya giriş yaparsınız.",
+  "doneToRegistrations": "Tatil kayıtlarınıza git"
 }

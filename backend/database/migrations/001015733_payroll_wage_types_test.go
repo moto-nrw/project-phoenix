@@ -32,6 +32,9 @@ func insertPayrollWageTypes(t *testing.T, db *bun.DB, school int64) int64 {
 func TestPayrollWageTypesMigrationRoundTrip(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	// The message attachments (1.15.936, #6685) extend the erasure functions
+	// this test restores; they go first.
+	require.NoError(t, messageAttachmentsDown(t.Context(), db))
 	ctx := context.Background()
 	exists := func(relation string) bool {
 		var found bool
@@ -47,6 +50,8 @@ func TestPayrollWageTypesMigrationRoundTrip(t *testing.T) {
 
 	// The delivery events (1.15.758, #5932) extend the erasure functions of
 	// 1.15.733; they go first.
+	// 1.15.942 (ADR 0196) extends the erasure functions of 1.15.811; it goes first.
+	require.NoError(t, holidayClosureEventsDown(ctx, db))
 	require.NoError(t, emailDeliveryEventsDown(ctx, db))
 	require.NoError(t, payrollWageTypesUp(ctx, db), "the migration is idempotent")
 	require.NoError(t, payrollWageTypesDown(ctx, db))

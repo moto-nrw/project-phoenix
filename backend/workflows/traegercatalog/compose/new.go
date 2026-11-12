@@ -21,6 +21,10 @@ func New(deps ports.Dependencies) (traegercatalog.Catalog, error) {
 
 type runtime struct{}
 
+func (runtime) WithinExclusive(ctx context.Context, key string, fn func(context.Context) error) error {
+	return tenant.WithinExclusive(ctx, key, fn)
+}
+
 func (runtime) WithinTraeger(ctx context.Context, organizationID int64, fn func(context.Context) error) error {
 	return tenant.WithinTraeger(ctx, organizationID, fn)
 }

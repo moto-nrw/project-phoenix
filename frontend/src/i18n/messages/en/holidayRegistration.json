@@ -70,7 +70,7 @@
   "addPickup": "Add person",
   "remove": "Remove",
   "consentTitle": "Consent",
-  "privacyConsent": "I agree that the provider uses this information for the holiday care. It deletes it three months after the holidays. The OGS that cares for my child in a holiday week sees the name and phone number of the second legal guardian. It also sees the answers the provider shares with it. It only sees health information if I agree. The OGS sees this before the holiday week already, so it can prepare. It sees the list of children until the last day of the week. After that, it can read the name, phone number and answers for 7 more days at most. Then they are deleted.",
+  "privacyConsent": "I agree that the provider uses this information for the holiday care. It deletes it {days} days after the holidays. It deletes health information already {healthDays} days after the holidays. The OGS that cares for my child in a holiday week sees the name and phone number of the second legal guardian. It also sees the answers the provider shares with it. It only sees health information if I agree. The OGS sees this before the holiday week already, so it can prepare. It sees the list of children until the last day of the week. After that, it can read the name, phone number and answers for 7 more days at most. Then they are deleted.",
   "healthConsent": "I agree: the provider and the OGS can see my children's health information. This means the OGS that cares for a child in a holiday week. It sees the information from the confirmation until the last day of the week.",
   "bindingConfirmed": "I understand that the registration is binding.",
   "custodyConfirmed": "I may submit the registration on my own: I have sole custody or the other person with custody agrees.",
@@ -171,5 +171,16 @@
   "summaryDays": "Days: {days}",
   "contributionDays": "{count, plural, one {# day} other {# days}}",
   "dayWithoutCare": "There is no care on {date} ({name}).",
-  "noCareDayAria": "{day}, no care"
+  "noCareDayAria": "{day}, no care",
+  "account": {
+    "question": "Would you like to create a parent account?",
+    "benefit": "With the account you see the status of the registration, the confirmation and the documents in the parents app.",
+    "yes": "Yes",
+    "no": "No",
+    "mailNote": "You will get an email to {email}. Use the link in it to set your password.",
+    "required": "Please choose yes or no."
+  },
+  "doneAccountTitle": "Next step: your parent account",
+  "doneAccountText": "We have sent you a second email to {email}. Open the link in it. There you set your password or sign in.",
+  "doneToRegistrations": "To your holiday registrations"
 }

@@ -40,7 +40,7 @@ func holidayReceiptMail(traeger enrollment.HolidayTraeger, period enrollment.Hol
 // from the form version the registration keeps. The texts name no health
 // information of the children.
 func holidayMailDeclaration(period enrollment.HolidayPeriod, form enrollment.HolidayPeriodForm, input enrollment.HolidayRegistrationInput, givenAt time.Time) *enrollment.HolidayRegistrationMailDeclaration {
-	texts, ok := enrollment.HolidayConsentTextsOf(input.ConsentVersion)
+	texts, ok := enrollment.HolidayConsentTextsOf(input.ConsentVersion, input.RetentionDays)
 	if !ok {
 		return nil
 	}

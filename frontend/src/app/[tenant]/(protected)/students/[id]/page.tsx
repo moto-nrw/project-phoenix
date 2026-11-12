@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { HolidayGuestSection } from "~/components/students/holiday-guest-section";
-import { HolidayStudentHealthSection } from "~/components/students/holiday-student-health-section";
+import { HolidayStudentRegistrationSection } from "~/components/students/holiday-student-registration-section";
 import { HOLIDAY_GUEST_SCHOOL_CLASS } from "~/lib/holiday-host-api";
 import { hasPermission } from "~/lib/auth-utils";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -86,6 +86,7 @@ import {
   StudentExcusedReportSection,
   StudentStatusActionsMenu,
 } from "~/components/students/student-checkout-section";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { canReviewCareWithdrawals } from "~/lib/change-request-access";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
@@ -577,6 +578,12 @@ function StudentDetailPageContent() {
       });
     });
   }, [tenantMutate, refreshData, studentId]);
+  // The record actions reload after their write; a failure stands above the
+  // record, also after the dialog closed (#6652).
+  const recordAfterWrite = useRefreshAfterWrite(
+    "die Anzeige des Kindes",
+    refreshDataAndHistory,
+  );
   const canViewEnrollments =
     sessionStatus === "authenticated" &&
     hasPermission(session, "config:manage");
@@ -1462,7 +1469,7 @@ function StudentDetailPageContent() {
           <StudentRecordActions
             student={student}
             displayName={studentHeaderTitle(student)}
-            onChanged={refreshDataAndHistory}
+            onChanged={recordAfterWrite.refresh}
             onDeleted={() => tenantRouter.push(referrer)}
           />
         ) : undefined
@@ -1765,6 +1772,7 @@ function StudentDetailPageContent() {
         </>
       }
     >
+      <LoadErrorAlert error={recordAfterWrite.error} />
       {careWithdrawalLoad.error ? (
         <div>
           <LoadErrorAlert error={careWithdrawalLoad.error} />
@@ -1807,7 +1815,7 @@ function StudentDetailPageContent() {
         />
       )}
       {!isHolidayGuest && hasFullAccess && (
-        <HolidayStudentHealthSection
+        <HolidayStudentRegistrationSection
           studentId={studentId}
           schoolHealthInfo={student?.health_info ?? null}
         />

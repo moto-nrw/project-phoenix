@@ -53,6 +53,8 @@ const (
 	updateTraegerClosingDayQuery = `UPDATE schedule.traeger_closing_days
 		SET start_date = ?, end_date = ?, reason = ?, school_ids = ?
 		WHERE organization_id = ? AND id = ? RETURNING ` + traegerClosingDayColumns
+	lockTraegerClosingDayQuery = `SELECT ` + traegerClosingDayColumns + ` FROM schedule.traeger_closing_days
+		WHERE organization_id = ? AND id = ? FOR UPDATE`
 	deleteTraegerClosingDayQuery = `DELETE FROM schedule.traeger_closing_days WHERE organization_id = ? AND id = ?`
 )
 
@@ -119,6 +121,24 @@ func (s *TraegerClosingDayStore) UpdateTraegerClosingDay(ctx context.Context, or
 	}
 	if err != nil {
 		return domain.TraegerClosingDay{}, traegerClosingDayWriteError("update", err)
+	}
+	return traegerClosingDayToDomain(row), nil
+}
+
+// LockTraegerClosingDay reads a closing day of the Träger and holds it until
+// the Träger transaction ends: the stored version a change replaces.
+func (s *TraegerClosingDayStore) LockTraegerClosingDay(ctx context.Context, organizationID, id int64) (domain.TraegerClosingDay, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return domain.TraegerClosingDay{}, err
+	}
+	var row traegerClosingDayRow
+	err = db.NewRaw(lockTraegerClosingDayQuery, organizationID, id).Scan(ctx, &row)
+	if errors.Is(err, sql.ErrNoRows) {
+		return domain.TraegerClosingDay{}, domain.ErrTraegerClosingDayNotFound
+	}
+	if err != nil {
+		return domain.TraegerClosingDay{}, fmt.Errorf("school calendar postgres: lock Träger closing day: %w", err)
 	}
 	return traegerClosingDayToDomain(row), nil
 }

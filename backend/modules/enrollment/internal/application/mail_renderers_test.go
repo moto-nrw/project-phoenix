@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,7 +41,7 @@ func contentOf(t *testing.T, mail *enrollment.RenderedMail) map[string]any {
 
 func TestRenderersRejectAPayloadThatIsNotAnObject(t *testing.T) {
 	t.Parallel()
-	_, err := NewMailRenderers().Submitted(context.Background(), "enrollment_submitted", json.RawMessage(`[1,2]`))
+	_, err := NewMailRenderers(nil, "").Submitted(context.Background(), "enrollment_submitted", json.RawMessage(`[1,2]`))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "enrollment_submitted payload is not a JSON object")
 }
@@ -121,7 +122,7 @@ func TestSubmittedRendererRejectsMissingRecipient(t *testing.T) {
 	t.Parallel()
 	row := validSubmittedRow()
 	delete(row.Payload, enrollment.EnrollmentPayloadRecipientEmail)
-	_, err := render(NewMailRenderers().Submitted, row)
+	_, err := render(NewMailRenderers(nil, "").Submitted, row)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "recipient_email")
 }
@@ -130,14 +131,14 @@ func TestSubmittedRendererRejectsMissingStatusURL(t *testing.T) {
 	t.Parallel()
 	row := validSubmittedRow()
 	delete(row.Payload, enrollment.EnrollmentPayloadStatusURL)
-	_, err := render(NewMailRenderers().Submitted, row)
+	_, err := render(NewMailRenderers(nil, "").Submitted, row)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "status_url")
 }
 
 func TestSubmittedRendererHappyPath(t *testing.T) {
 	t.Parallel()
-	mail, err := render(NewMailRenderers().Submitted, validSubmittedRow())
+	mail, err := render(NewMailRenderers(nil, "").Submitted, validSubmittedRow())
 	require.NoError(t, err)
 	assert.Equal(t, "enrollment-submitted.html", mail.Template)
 	assert.Equal(t, "Anmeldung eingegangen - OGS Sonnenschule", mail.Subject)
@@ -150,7 +151,7 @@ func TestSubmittedRendererNoSchoolBareSubject(t *testing.T) {
 	t.Parallel()
 	row := validSubmittedRow()
 	row.Payload[enrollment.EnrollmentPayloadSchoolName] = ""
-	mail, err := render(NewMailRenderers().Submitted, row)
+	mail, err := render(NewMailRenderers(nil, "").Submitted, row)
 	require.NoError(t, err)
 	assert.Equal(t, "Anmeldung eingegangen", mail.Subject)
 	assert.Empty(t, mail.SenderName, "no school name keeps the default sender")
@@ -162,7 +163,7 @@ func TestAdminNotificationRendererRejectsMissingRecipient(t *testing.T) {
 	t.Parallel()
 	row := validAdminRow()
 	delete(row.Payload, enrollment.EnrollmentPayloadRecipientEmail)
-	_, err := render(NewMailRenderers().AdminNotification, row)
+	_, err := render(NewMailRenderers(nil, "").AdminNotification, row)
 	require.Error(t, err)
 }
 
@@ -170,14 +171,14 @@ func TestAdminNotificationRendererRejectsMissingAdminURL(t *testing.T) {
 	t.Parallel()
 	row := validAdminRow()
 	delete(row.Payload, enrollment.EnrollmentPayloadAdminURL)
-	_, err := render(NewMailRenderers().AdminNotification, row)
+	_, err := render(NewMailRenderers(nil, "").AdminNotification, row)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "admin_url")
 }
 
 func TestAdminNotificationRendererHappyPath(t *testing.T) {
 	t.Parallel()
-	mail, err := render(NewMailRenderers().AdminNotification, validAdminRow())
+	mail, err := render(NewMailRenderers(nil, "").AdminNotification, validAdminRow())
 	require.NoError(t, err)
 	assert.Equal(t, "enrollment-admin-notification.html", mail.Template)
 	assert.Equal(t, "Neue Anmeldung - OGS Sonnenschule", mail.Subject)
@@ -189,7 +190,7 @@ func TestAdminNotificationRendererNoSchoolBareSubject(t *testing.T) {
 	t.Parallel()
 	row := validAdminRow()
 	row.Payload[enrollment.EnrollmentPayloadSchoolName] = ""
-	mail, err := render(NewMailRenderers().AdminNotification, row)
+	mail, err := render(NewMailRenderers(nil, "").AdminNotification, row)
 	require.NoError(t, err)
 	assert.Equal(t, "Neue Anmeldung eingegangen", mail.Subject)
 }
@@ -198,7 +199,7 @@ func TestAdminNotificationRendererNoSchoolBareSubject(t *testing.T) {
 
 func TestRolloverRenderersRejectMissingRecipientAndStatusURL(t *testing.T) {
 	t.Parallel()
-	renderers := NewMailRenderers()
+	renderers := NewMailRenderers(nil, "")
 	for name, renderer := range map[string]enrollment.MailRenderer{"opt_in": renderers.RolloverOptIn, "opt_out": renderers.RolloverOptOut} {
 		for _, key := range []string{enrollment.EnrollmentPayloadRecipientEmail, enrollment.EnrollmentPayloadStatusURL} {
 			row := validRolloverRow()
@@ -212,7 +213,7 @@ func TestRolloverRenderersRejectMissingRecipientAndStatusURL(t *testing.T) {
 
 func TestRolloverOptInRendererHappyPath(t *testing.T) {
 	t.Parallel()
-	mail, err := render(NewMailRenderers().RolloverOptIn, validRolloverRow())
+	mail, err := render(NewMailRenderers(nil, "").RolloverOptIn, validRolloverRow())
 	require.NoError(t, err)
 	assert.Equal(t, "enrollment-rollover-opt-in.html", mail.Template)
 	assert.Equal(t, "Bitte bestätigen: Anmeldung Schuljahr 2027/28 - OGS Sonnenschule", mail.Subject)
@@ -223,19 +224,19 @@ func TestRolloverOptInRendererSubjectFallbacks(t *testing.T) {
 	t.Parallel()
 	row := validRolloverRow()
 	row.Payload[enrollment.EnrollmentPayloadSchoolName] = ""
-	mail, err := render(NewMailRenderers().RolloverOptIn, row)
+	mail, err := render(NewMailRenderers(nil, "").RolloverOptIn, row)
 	require.NoError(t, err)
 	assert.Equal(t, "Bitte bestätigen: Anmeldung Schuljahr 2027/28", mail.Subject)
 
 	row.Payload[enrollment.EnrollmentPayloadPhaseName] = ""
-	mail, err = render(NewMailRenderers().RolloverOptIn, row)
+	mail, err = render(NewMailRenderers(nil, "").RolloverOptIn, row)
 	require.NoError(t, err)
 	assert.Equal(t, "Bitte bestätigen Sie die Anmeldung", mail.Subject)
 }
 
 func TestRolloverOptOutRendererHappyPath(t *testing.T) {
 	t.Parallel()
-	mail, err := render(NewMailRenderers().RolloverOptOut, validRolloverRow())
+	mail, err := render(NewMailRenderers(nil, "").RolloverOptOut, validRolloverRow())
 	require.NoError(t, err)
 	assert.Equal(t, "enrollment-rollover-opt-out.html", mail.Template)
 	assert.Equal(t, "Anmeldung verlängert: Schuljahr 2027/28 - OGS Sonnenschule", mail.Subject)
@@ -245,12 +246,12 @@ func TestRolloverOptOutRendererSubjectFallbacks(t *testing.T) {
 	t.Parallel()
 	row := validRolloverRow()
 	row.Payload[enrollment.EnrollmentPayloadSchoolName] = ""
-	mail, err := render(NewMailRenderers().RolloverOptOut, row)
+	mail, err := render(NewMailRenderers(nil, "").RolloverOptOut, row)
 	require.NoError(t, err)
 	assert.Equal(t, "Anmeldung verlängert: Schuljahr 2027/28", mail.Subject)
 
 	row.Payload[enrollment.EnrollmentPayloadPhaseName] = ""
-	mail, err = render(NewMailRenderers().RolloverOptOut, row)
+	mail, err = render(NewMailRenderers(nil, "").RolloverOptOut, row)
 	require.NoError(t, err)
 	assert.Equal(t, "Anmeldung wurde verlängert", mail.Subject)
 }
@@ -328,7 +329,7 @@ func TestRenderDecisionMailToleratesMissingOptionalFields(t *testing.T) {
 // subject + template to guard against future copy-paste swaps.
 func TestDecisionRenderersUseTheirSubjectAndTemplate(t *testing.T) {
 	t.Parallel()
-	renderers := NewMailRenderers()
+	renderers := NewMailRenderers(nil, "")
 	for _, tt := range []struct {
 		renderer enrollment.MailRenderer
 		kind     string
@@ -354,7 +355,7 @@ func TestDecisionDigestRendererPopulatesStatusBuckets(t *testing.T) {
 	row.Payload["rejected_names"] = []string{"Mina"}
 	row.Payload["withdrawn_names"] = []string{"Noah"}
 
-	mail, err := render(NewMailRenderers().DecisionDigest, row)
+	mail, err := render(NewMailRenderers(nil, "").DecisionDigest, row)
 	require.NoError(t, err)
 	assert.Equal(t, "enrollment-decision-digest.html", mail.Template)
 	assert.Equal(t, []string{"Lara"}, contentOf(t, mail)["ApprovedNames"])
@@ -367,7 +368,7 @@ func TestDecisionDigestRendererPopulatesStatusBuckets(t *testing.T) {
 
 func TestChangeRequestRenderersRequireOnlyTheRecipient(t *testing.T) {
 	t.Parallel()
-	renderers := NewMailRenderers()
+	renderers := NewMailRenderers(nil, "")
 	_, err := render(renderers.ChangeRequestSubmitted, &outboxRow{Kind: "enrollment_change_request_submitted", Payload: map[string]any{}})
 	require.Error(t, err)
 	assert.Equal(t, "enrollment_change_request_submitted payload missing recipient_email", err.Error())
@@ -418,7 +419,7 @@ func TestSchoolSender(t *testing.T) {
 func TestRenderersPassTheCareFacilityTermToTheHeader(t *testing.T) {
 	t.Parallel()
 
-	renderers := NewMailRenderers()
+	renderers := NewMailRenderers(nil, "")
 	for name, renderer := range map[string]enrollment.MailRenderer{
 		"submitted":                   renderers.Submitted,
 		"admin_notification":          renderers.AdminNotification,
@@ -469,7 +470,7 @@ func TestCareFacilityBadgeStaysShort(t *testing.T) {
 		assert.Equal(t, want, careFacilityBadge(term), term)
 	}
 
-	renderers := NewMailRenderers()
+	renderers := NewMailRenderers(nil, "")
 	mail, err := render(renderers.Submitted, &outboxRow{Kind: "enrollment_submitted", Payload: map[string]any{
 		enrollment.EnrollmentPayloadRecipientEmail:   "guardian@example.test",
 		enrollment.EnrollmentPayloadStatusURL:        "https://parents.localhost:3000/status/abc",
@@ -483,7 +484,7 @@ func TestCareFacilityBadgeStaysShort(t *testing.T) {
 
 func TestHolidayClosureRendererKeepsPendingSeparateFromWaitlisted(t *testing.T) {
 	t.Parallel()
-	rendered, err := NewMailRenderers().HolidayClosureNotice(context.Background(), enrollment.MailKindHolidayClosureNotice, json.RawMessage(`{"recipient_email":"guardian@example.test","children":[{"name":"Tom","weeks":[{"week":"Sommerferien","pending":true}]}]}`))
+	rendered, err := NewMailRenderers(nil, "").HolidayClosureNotice(context.Background(), enrollment.MailKindHolidayClosureNotice, json.RawMessage(`{"recipient_email":"guardian@example.test","children":[{"name":"Tom","weeks":[{"week":"Sommerferien","pending":true}]}]}`))
 	require.NoError(t, err)
 	content := contentOf(t, rendered)
 	assert.Equal(t, true, content["Pending"])
@@ -491,4 +492,31 @@ func TestHolidayClosureRendererKeepsPendingSeparateFromWaitlisted(t *testing.T) 
 	weeks := content["Children"].([]map[string]any)[0]["Weeks"].([]map[string]any)
 	assert.Equal(t, true, weeks[0]["Pending"])
 	assert.Equal(t, false, weeks[0]["Waitlisted"])
+}
+
+func TestHolidayClosureRendererMarksElapsedDates(t *testing.T) {
+	t.Parallel()
+	rendered, err := NewMailRenderers(nil, "").HolidayClosureNotice(context.Background(), enrollment.MailKindHolidayClosureNotice,
+		json.RawMessage(`{"recipient_email":"guardian@example.test","contains_past_days":true,"children":[{"name":"Tom","weeks":[{"week":"Sommerferien"}]}]}`))
+	require.NoError(t, err)
+	assert.Equal(t, "Ferienbetreuung: Hinweis zu vergangenen Schließtagen", rendered.Subject)
+	assert.Equal(t, true, contentOf(t, rendered)["ContainsPastDays"])
+}
+
+func TestHolidayClosureRendererRecognizesDatesPassedInTheOutbox(t *testing.T) {
+	t.Parallel()
+	rendered, err := NewMailRenderers(nil, "").HolidayClosureNotice(t.Context(), enrollment.MailKindHolidayClosureNotice,
+		json.RawMessage(`{"recipient_email":"guardian@example.test","reopened_children":[{"name":"Tom","weeks":[{"week":"Sommerferien","closed_days":["Montag, 03.07.2000"],"dates":["2000-07-03"]}]}]}`))
+	require.NoError(t, err)
+	assert.Equal(t, true, contentOf(t, rendered)["ContainsPastDays"])
+	assert.Contains(t, rendered.Subject, "vergangenen")
+}
+
+func TestHolidayClosureMailDatesAreEvaluatedForEachDispatch(t *testing.T) {
+	t.Parallel()
+	for _, dates := range [][]calendar.Date{nil, {calendar.NewDate(2030, 7, 8)}} {
+		mail := enrollment.HolidayClosureMail{ReopenedChildren: []enrollment.HolidayClosureMailChild{{Weeks: []enrollment.HolidayClosureMailWeek{{ClosedDays: []string{"Montag, 08.07.2030"}, Dates: dates}}}}}
+		assert.False(t, holidayClosureMailHasPastDays(mail, calendar.NewDate(2030, 7, 7)))
+		assert.True(t, holidayClosureMailHasPastDays(mail, calendar.NewDate(2030, 7, 9)), "ISO and legacy persisted payloads both change with the dispatch day")
+	}
 }

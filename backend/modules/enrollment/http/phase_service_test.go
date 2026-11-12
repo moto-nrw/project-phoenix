@@ -138,7 +138,7 @@ func TestPhaseService_Update_AppliesChanges(t *testing.T) {
 	created.Name = "phase-" + t.Name() + "-renamed"
 	created.IsActive = false
 	created.CareOverflowMode = enrollmentNative.PhaseCareOverflowReject
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.UpdatePhase, created))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), phaseEdit(svc), created))
 
 	refreshed, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.PhaseByID, created.ID)
 	require.NoError(t, err)
@@ -180,12 +180,12 @@ func TestPhaseService_Update_ValidatesCareOfferingsOnlyWhenServiceWindowChanges(
 	})
 
 	created.Name += "-metadata-only"
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), guardedService.UpdatePhase, created),
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), phaseEdit(guardedService), created),
 		"metadata-only changes must not be rejected by unrelated legacy care-offering state")
 	assert.Zero(t, validatorCalls)
 
 	created.ServiceEndDate = enrollmentNative.Date(calendar.Date(originalEnd).AddDays(7))
-	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), guardedService.UpdatePhase, created)
+	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), phaseEdit(guardedService), created)
 	require.ErrorIs(t, err, enrollmentNative.ErrPhaseCareOfferingConflict)
 	assert.Equal(t, 2, lockCalls)
 	assert.Equal(t, 1, validatorCalls)
@@ -204,6 +204,11 @@ type recordingSourcedTemplateResyncer struct {
 	offeringIDs         []int64
 	detachedOfferingIDs []int64
 	err                 error
+}
+
+func (r *recordingSourcedTemplateResyncer) ResyncTemplatesSourcedFromOfferings(_ context.Context, offeringIDs []int64, _ calendar.Date) error {
+	r.offeringIDs = append(r.offeringIDs, offeringIDs...)
+	return r.err
 }
 
 func (r *recordingSourcedTemplateResyncer) ResyncTemplatesSourcedFromOffering(
@@ -249,12 +254,12 @@ func TestPhaseService_Update_ResyncsSourcedTemplatesOnServiceWindowChange(t *tes
 	})
 
 	created.Name += "-metadata-only"
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.UpdatePhase, created))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), phaseEdit(svc), created))
 	assert.Empty(t, resyncer.offeringIDs,
 		"metadata-only updates must not resync sourced templates")
 
 	created.ServiceEndDate = enrollmentNative.Date(calendar.Date(created.ServiceEndDate).AddDays(7))
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.UpdatePhase, created))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), phaseEdit(svc), created))
 	assert.Equal(t, []int64{offering.ID}, resyncer.offeringIDs,
 		"a service-window change must resync every template sourcing the phase's offerings")
 }
@@ -297,7 +302,7 @@ func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *t
 	})
 
 	created.ServiceEndDate = enrollmentNative.Date(calendar.Date(created.ServiceEndDate).AddDays(7))
-	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.UpdatePhase, created)
+	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), phaseEdit(svc), created)
 	require.ErrorIs(t, err, enrollmentNative.ErrPhaseCareOfferingConflict,
 		"an incompatible sourced template must reject the window change, not be skipped")
 	require.ErrorIs(t, err, timetable.ErrOfferingSourceInvalid)
@@ -309,7 +314,7 @@ func TestPhaseService_Update_RejectsWindowChangeInvalidatingSourcedTemplate(t *t
 	assert.Equal(t, enrollmentNative.Date(calendar.Date(created.ServiceEndDate).AddDays(-7)), persisted.ServiceEndDate,
 		"a standalone update must roll back the phase when sourced-template resync fails")
 	resyncer.err = nil
-	require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), testpkg.SetupTestDB(t), svc.UpdatePhase, created))
+	require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), testpkg.SetupTestDB(t), phaseEdit(svc), created))
 	persisted, err = testpkg.TenantQuery1(t, testpkg.Ctx(t), testpkg.SetupTestDB(t), baseService.PhaseByID, created.ID)
 	require.NoError(t, err)
 	assert.Equal(t, created.ServiceEndDate, persisted.ServiceEndDate,
@@ -328,7 +333,7 @@ func TestPhaseService_Update_RejectsDuplicateName(t *testing.T) {
 	require.NoError(t, err)
 
 	second.Name = first.Name
-	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.UpdatePhase, second)
+	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), phaseEdit(svc), second)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentNative.ErrPhaseDuplicateName))
 }
@@ -344,7 +349,7 @@ func TestPhaseService_Update_RejectsUnknownFormSchema(t *testing.T) {
 
 	missing := int64(999_999_999)
 	created.FormSchemaID = &missing
-	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.UpdatePhase, created)
+	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), phaseEdit(svc), created)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentNative.ErrInvalidPhase))
 }
@@ -358,7 +363,7 @@ func TestPhaseService_Update_MissingPhaseReturnsNotFound(t *testing.T) {
 	phase := minimalPhase(t, t.Name())
 	phase.ID = 999_999_999
 
-	err := testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.UpdatePhase, phase)
+	err := testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), phaseEdit(svc), phase)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentNative.ErrPhaseNotFound))
 }
@@ -674,7 +679,7 @@ func TestPhaseService_Update_PersistsCalendarPeriodLink(t *testing.T) {
 	require.Nil(t, created.CalendarPeriodID)
 
 	created.CalendarPeriodID = &period.ID
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, svc.UpdatePhase, created))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, phaseEdit(svc), created))
 
 	fetched, err := testpkg.TenantQuery1(t, ctx, db, svc.PhaseByID, created.ID)
 	require.NoError(t, err)
@@ -683,7 +688,7 @@ func TestPhaseService_Update_PersistsCalendarPeriodLink(t *testing.T) {
 
 	// Unlinking must persist too (NULL round-trip).
 	fetched.CalendarPeriodID = nil
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, svc.UpdatePhase, fetched))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, phaseEdit(svc), fetched))
 	unlinked, err := testpkg.TenantQuery1(t, ctx, db, svc.PhaseByID, created.ID)
 	require.NoError(t, err)
 	assert.Nil(t, unlinked.CalendarPeriodID)
@@ -715,7 +720,7 @@ func TestPhaseService_Update_RejectsUnknownCalendarPeriod(t *testing.T) {
 
 	missing := int64(999_999_999)
 	created.CalendarPeriodID = &missing
-	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), svc.UpdatePhase, created)
+	err = testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), phaseEdit(svc), created)
 	require.Error(t, err)
 	assert.True(t, errors.Is(err, enrollmentNative.ErrInvalidPhase))
 }

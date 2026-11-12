@@ -8,12 +8,14 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Schools lists the undeleted schools of a Träger (Organisation & Tenancy).
 type Schools interface {
 	ListTraegerSchoolIDs(ctx context.Context, organizationID int64) ([]int64, error)
+	FindSchoolForShare(ctx context.Context, schoolID int64) (organizationtenancy.School, error)
 }
 
 // PhaseTemplates are Enrollment's Träger phases, in the Träger transaction.
@@ -29,7 +31,7 @@ type PhaseTemplates interface {
 type OfferingTemplates interface {
 	ListTraegerOfferings(ctx context.Context, organizationID, traegerPhaseID int64) ([]careplan.TraegerOffering, error)
 	ReleaseTraegerOfferings(ctx context.Context, organizationID, traegerPhaseID, accountID int64) ([]careplan.TraegerOffering, error)
-	RecordTraegerOfferingOutcomes(ctx context.Context, organizationID, id int64, outcomes []careplan.TraegerOfferingOutcome) error
+	RecordTraegerOfferingOutcomes(ctx context.Context, organizationID int64, outcomes map[int64][]careplan.TraegerOfferingOutcome) error
 }
 
 // SchoolPhases copy a Träger phase in one school's tenant transaction.
@@ -49,15 +51,22 @@ type ModulePrices struct {
 
 // Tariffs write a school's prices of a module in Parent Billing, in the
 // Träger transaction.
-type Tariffs func(ctx context.Context, organizationID, accountID int64, prices ModulePrices) error
+type Tariffs func(ctx context.Context, organizationID, accountID int64, prices []ModulePrices) error
 
-// ContractTemplates write a school's contract template of a module in Care
-// Contract. The owner opens its own transactions; the caller holds none.
-type ContractTemplates func(ctx context.Context, organizationID, accountID, schoolID, careOfferingID int64, template careplan.TraegerContractTemplate) error
+// ModuleTemplate is the template of one validated school copy.
+type ModuleTemplate struct {
+	CareOfferingID int64
+	Template       careplan.TraegerContractTemplate
+}
+
+// ContractTemplates validates the complete set in the school's transaction
+// and returns a command participating in the subsequent Träger transaction.
+type ContractTemplates func(ctx context.Context, organizationID, accountID, schoolID int64, templates []ModuleTemplate) (func(context.Context) error, error)
 
 // Runtime opens the Träger transaction or one school's tenant transaction,
 // never both at once (ADR 0105 point 2).
 type Runtime interface {
+	WithinExclusive(ctx context.Context, key string, fn func(context.Context) error) error
 	WithinTraeger(ctx context.Context, organizationID int64, fn func(context.Context) error) error
 	WithinSchool(ctx context.Context, schoolID int64, fn func(context.Context) error) error
 }

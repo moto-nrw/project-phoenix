@@ -36,3 +36,21 @@ func TestModulePriceListKeepsTheOtherModules(t *testing.T) {
 		{CareOfferingID: 2, ModuleName: "Mittag neu", Weekday: "mon", MonthlyCents: 1700, SiblingCents: &sibling},
 	}, list.Prices, "the other module of the school stays; another school's price never joins")
 }
+
+func TestModulePriceBatchKeepsEveryModuleName(t *testing.T) {
+	t.Parallel()
+	month := calendar.NewDate(2026, 12, 1)
+	modules := []parentbilling.CareModulePriceList{}
+	for index := range 5 {
+		modules = append(modules, parentbilling.CareModulePriceList{SchoolID: 7, CareOfferingID: int64(index + 1), ModuleName: "Betreuung", ValidFrom: month,
+			Prices: []parentbilling.CarePrice{{Weekday: "mon", MonthlyCents: 1600}}})
+	}
+	lists, _, _, err := mergeModulePrices(nil, nil, modules)
+	assert.NoError(t, err)
+	if assert.Len(t, lists, 1) {
+		assert.Len(t, lists[0].Prices, 5)
+		for _, price := range lists[0].Prices {
+			assert.Equal(t, "Betreuung", price.ModuleName)
+		}
+	}
+}

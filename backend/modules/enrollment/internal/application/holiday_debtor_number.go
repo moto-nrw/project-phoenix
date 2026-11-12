@@ -22,7 +22,9 @@ import (
 
 // ConfirmHolidayRegistration confirms a received registration, frozen or
 // not, with the debtor number when one is given. The confirmation and the
-// number are one entry in the audit trail.
+// number are one entry in the audit trail; the acceptance mail to the
+// parent commits with them (#6672). A registration is confirmed once, so
+// it gets one acceptance mail, which a later cancellation leaves as it is.
 func (h *HolidayRegistrationReview) ConfirmHolidayRegistration(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID, registrationID int64, debtorNumber string) (enrollment.HolidayRegistrationDetail, error) {
 	number, err := normalizeHolidayDebtorNumber(debtorNumber)
 	if err != nil {
@@ -44,6 +46,9 @@ func (h *HolidayRegistrationReview) ConfirmHolidayRegistration(ctx context.Conte
 				return "", nil, err
 			}
 			details.DebtorNumber = &enrollment.HolidayDebtorNumberChange{Before: current.DebtorNumber, After: number}
+		}
+		if err := h.enqueueAcceptance(ctx, reviewer.OrganizationID, period, current.ID); err != nil {
+			return "", nil, err
 		}
 		return enrollment.HolidayAuditConfirm, details, nil
 	})

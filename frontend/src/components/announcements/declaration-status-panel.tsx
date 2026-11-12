@@ -30,6 +30,7 @@ import {
 import { formatChatDateTime } from "~/lib/date-helpers";
 import { formatBytes } from "~/lib/files-api";
 import { createLogger } from "~/lib/logger";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import {
   downloadDeclarationExport,
   fetchDeclarationStatus,
@@ -160,6 +161,7 @@ export function DeclarationStatusPanel({
 }) {
   const [status, setStatus] = useState<DeclarationStatus | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
+  const latestRequest = useRef(0);
   const loadError = useApiLoadError();
   const showLoadError = loadError.show;
   const clearLoadError = loadError.clear;
@@ -174,14 +176,32 @@ export function DeclarationStatusPanel({
     () => undefined,
   );
 
-  const load = useCallback(async () => {
+  // Rejects on failure: after a reminder the caller shows it as a reload of
+  // a saved change (#6652).
+  const readStatus = useCallback(async () => {
+    const request = ++latestRequest.current;
     try {
-      setStatus(
-        await withApiBase(fetchDeclarationStatus, announcementId, apiBase),
+      const next = await withApiBase(
+        fetchDeclarationStatus,
+        announcementId,
+        apiBase,
       );
+      if (request !== latestRequest.current) return;
+      setStatus(next);
       setLoadFailed(false);
       clearLoadError();
     } catch (error) {
+      if (request !== latestRequest.current) return;
+      throw error;
+    }
+  }, [announcementId, apiBase, clearLoadError]);
+  // Never rejects: a failed load shows its error in place.
+  const load = useCallback(async () => {
+    const request = latestRequest.current + 1;
+    try {
+      await readStatus();
+    } catch (error) {
+      if (request !== latestRequest.current) return;
       logger.error("declaration_status_load_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
@@ -191,14 +211,22 @@ export function DeclarationStatusPanel({
         retry: () => latestLoadRef.current(),
       });
     }
-  }, [announcementId, apiBase, showLoadError, clearLoadError]);
+  }, [readStatus, showLoadError]);
+  const afterRemind = useRefreshAfterWrite(
+    "die Anzeige der Antworten",
+    readStatus,
+  );
   useLayoutEffect(() => {
     latestLoadRef.current = () => void load();
   });
 
+  const invalidateRequest = useCallback(() => {
+    latestRequest.current++;
+  }, []);
   useEffect(() => {
     void load();
-  }, [load]);
+    return invalidateRequest;
+  }, [load, invalidateRequest]);
 
   const children = useMemo(() => {
     const all = sortDeclarationChildren(status?.children ?? []);
@@ -209,19 +237,11 @@ export function DeclarationStatusPanel({
   }, [status, childFilter]);
 
   const remind = async () => {
+    if (busy !== null) return;
     setBusy("remind");
+    let count: number;
     try {
-      const count = await withApiBase(
-        remindUnanswered,
-        announcementId,
-        apiBase,
-      );
-      toastSuccess(
-        count === 0
-          ? "Für alle Kinder liegt eine Antwort vor. Es wurde niemand erinnert."
-          : `${count} ${count === 1 ? "Person wurde" : "Personen wurden"} erinnert.`,
-      );
-      await load();
+      count = await withApiBase(remindUnanswered, announcementId, apiBase);
     } catch (error) {
       logger.error("declaration_remind_failed", {
         error: error instanceof Error ? error.message : String(error),
@@ -230,9 +250,16 @@ export function DeclarationStatusPanel({
         object: "das Senden der Erinnerung",
         retry: () => latestRemindRef.current(),
       });
-    } finally {
       setBusy(null);
+      return;
     }
+    toastSuccess(
+      count === 0
+        ? "Für alle Kinder liegt eine Antwort vor. Es wurde niemand erinnert."
+        : `${count} ${count === 1 ? "Person wurde" : "Personen wurden"} erinnert.`,
+    );
+    await afterRemind.refresh();
+    setBusy(null);
   };
 
   const download = async (format: "pdf" | "csv") => {
@@ -374,9 +401,11 @@ export function DeclarationStatusPanel({
         />
       </div>
 
-      {/* Ein Neuladen nach einer Aktion ist gescheitert: der alte Stand
-          bleibt sichtbar, der Fehler steht darüber. */}
+      {/* Ein Neuladen ist gescheitert: der alte Stand bleibt sichtbar, der
+          Fehler steht darüber. Nach einer Erinnerung sagt er, dass sie
+          gesendet ist (#6652). */}
       <LoadErrorAlert error={loadFailed ? loadError.error : null} />
+      <LoadErrorAlert error={afterRemind.error} className="mb-4" />
 
       <section>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">

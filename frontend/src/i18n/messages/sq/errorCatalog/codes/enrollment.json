@@ -129,6 +129,7 @@
   "status_link_invalid": "Kjo lidhje nuk është e vlefshme ose ka skaduar. Përdorni lidhjen nga emaili juaj.",
   "student_exists": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "submission_rate_limited": "U dërguan shumë regjistrime. Ju lutemi provoni përsëri pas një ore.",
+  "submission_email_rate_limited": "Me këtë adresë e-mail sot janë dërguar tashmë shumë regjistrime. Ju lutemi provoni përsëri nesër.",
   "waitlist_disabled": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "window_closed": "Afati i regjistrimit ka mbaruar ose nuk ka filluar ende. Ju lutemi kontaktoni shkollën.",
   "withdraw_not_allowed": "Ky regjistrim nuk mund të tërhiqet më. Ju lutemi kontaktoni shkollën.",

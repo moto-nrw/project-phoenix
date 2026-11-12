@@ -156,7 +156,12 @@ func (r *PasswordReset) portalEligible(ctx context.Context, accountID int64, sco
 	switch scope {
 	case domain.PasswordResetScopeParent:
 		eligible, _, err := r.auth.findGuardianTenant(ctx, accountID)
-		return eligible, err
+		if err != nil || eligible {
+			return eligible, err
+		}
+		// An account set up for a holiday registration signs in to the
+		// parents portal at its Träger (ADR 0216).
+		return r.auth.hasTraegerParentAccess(ctx, accountID)
 	case domain.PasswordResetScopeSchool:
 		eligible, _, err := r.auth.findSchoolPortalTenant(ctx, accountID)
 		return eligible, err

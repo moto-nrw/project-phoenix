@@ -328,3 +328,44 @@ func OwnTraegerCatalog(tb testing.TB, db *bun.DB, organizationID int64) {
 		require.NoError(tb, err, "Failed to clean up test Träger phases")
 	})
 }
+
+// HolidayRegistrationFixture is a holiday registration a test wrote: its
+// period and the registration.
+type HolidayRegistrationFixture struct {
+	PeriodID       int64
+	RegistrationID int64
+}
+
+// CreateTestHolidayRegistration writes a holiday period of the Träger named
+// periodName with one care week from 15.10.2029 to 19.10.2029 at hostSchool
+// and the time model "bis 16 Uhr", and a registration of guardianEmail with
+// one holiday guest per first name, each with a place in that week (ADR
+// 0216). The period and the registration go when the test ends.
+func CreateTestHolidayRegistration(tb testing.TB, db *bun.DB, organizationID, hostSchool int64, periodName, guardianEmail string, firstNames ...string) HolidayRegistrationFixture {
+	tb.Helper()
+	OwnTraegerHolidayPeriods(tb, db, organizationID)
+	ctx := context.Background()
+	var fixture HolidayRegistrationFixture
+	var week, model int64
+	require.NoError(tb, db.NewRaw(`INSERT INTO enrollment.holiday_periods (organization_id, name, registration_opens_on, registration_closes_on)
+		VALUES (?, ?, DATE '2029-09-01', DATE '2029-09-30') RETURNING id`, organizationID, periodName).Scan(ctx, &fixture.PeriodID))
+	require.NoError(tb, db.NewRaw(`INSERT INTO enrollment.holiday_period_weeks (organization_id, holiday_period_id, starts_on, ends_on, host_school_id)
+		VALUES (?, ?, DATE '2029-10-15', DATE '2029-10-19', ?) RETURNING id`, organizationID, fixture.PeriodID, hostSchool).Scan(ctx, &week))
+	require.NoError(tb, db.NewRaw(`INSERT INTO enrollment.holiday_week_time_models (organization_id, holiday_period_week_id, name, starts_at, ends_at, price_cents)
+		VALUES (?, ?, 'bis 16 Uhr', '08:00', '16:00', 4500) RETURNING id`, organizationID, week).Scan(ctx, &model))
+	require.NoError(tb, db.NewRaw(`INSERT INTO enrollment.holiday_registrations (organization_id, holiday_period_id, guardian_first_name,
+			guardian_last_name, guardian_email, guardian_phone, privacy_consent_at)
+		VALUES (?, ?, 'Eva', 'Muster', ?, '0151 2345678', NOW()) RETURNING id`, organizationID, fixture.PeriodID, guardianEmail).Scan(ctx, &fixture.RegistrationID))
+	for i, firstName := range firstNames {
+		var child int64
+		require.NoError(tb, db.NewRaw(`INSERT INTO enrollment.holiday_registration_children (organization_id, holiday_period_id,
+				holiday_registration_id, position, first_name, last_name, birth_date, guest_school_name)
+			VALUES (?, ?, ?, ?, ?, 'Muster', DATE '2019-03-01', 'Grundschule Melle') RETURNING id`,
+			organizationID, fixture.PeriodID, fixture.RegistrationID, i+1, firstName).Scan(ctx, &child))
+		_, err := db.ExecContext(ctx, `INSERT INTO enrollment.holiday_registration_bookings (organization_id, holiday_period_id,
+				holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id, placement)
+			VALUES (?, ?, ?, ?, ?, 'placed')`, organizationID, fixture.PeriodID, child, week, model)
+		require.NoError(tb, err)
+	}
+	return fixture
+}

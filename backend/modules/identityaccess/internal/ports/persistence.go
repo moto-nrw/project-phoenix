@@ -15,6 +15,7 @@ type Store interface {
 	ListSchoolRoles(context.Context, int64) ([]*domain.SchoolRole, domain.OperationStats, error)
 	FindSchoolRoleByName(context.Context, string, int64) (*domain.SchoolRole, domain.OperationStats, error)
 	FindRolePermissionsByRoleIDs(context.Context, []int64, int64) (map[int64][]string, domain.OperationStats, error)
+	FindSchoolEmailIdentities(context.Context, []string, int64) (map[string]int64, map[string][]int64, domain.OperationStats, error)
 	FindInvitedPersonIDs(ctx context.Context, email string, tenantID int64) ([]int64, domain.OperationStats, error)
 	CountStudentGuardianInvitations(ctx context.Context, studentID, tenantID int64) (int, domain.OperationStats, error)
 	HasActiveAccountTenant(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)
@@ -295,6 +296,20 @@ type AccountLoginStore interface {
 	// permissions the effective set derives from.
 	LockAccountPermissionSources(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error)
 	TraegerRoleStore
+	TraegerParentAccessStore
+}
+
+// TraegerParentAccessStore persists the parents-portal access of an account
+// at a Träger without a school (ADR 0216). Every method runs on the caller's
+// administrative transaction.
+type TraegerParentAccessStore interface {
+	// ListTraegerParentAccess returns the Träger of the account's access,
+	// oldest access first.
+	ListTraegerParentAccess(ctx context.Context, accountID int64) ([]int64, domain.OperationStats, error)
+	// HasTraegerParentAccess reports one access; forShare pins its row.
+	HasTraegerParentAccess(ctx context.Context, accountID, organizationID int64, forShare bool) (bool, domain.OperationStats, error)
+	// GrantTraegerParentAccess records the access once.
+	GrantTraegerParentAccess(ctx context.Context, accountID, organizationID int64) (domain.OperationStats, error)
 }
 
 // TraegerRoleStore persists the Träger roles (ADR 0084). Every method runs on
@@ -343,4 +358,9 @@ type SchoolMembershipLockStore interface {
 // GuardianInvitationLockStore pins the accounts an invitation participates in.
 type GuardianInvitationLockStore interface {
 	LockGuardianInvitationAccounts(ctx context.Context, inviterID int64, email string) error
+}
+
+// StaffOffboardingAccountLocks is the account-only prelock of a planned exit.
+type StaffOffboardingAccountLocks interface {
+	LockLoginAccounts(context.Context, []int64) ([]int64, domain.OperationStats, error)
 }

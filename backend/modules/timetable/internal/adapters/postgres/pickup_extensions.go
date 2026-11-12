@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
@@ -176,6 +177,9 @@ func (s *Store) FindPickupExtensionTask(ctx context.Context, id int64) (domain.P
 func (s *Store) FindPickupExtensionTaskForUpdate(ctx context.Context, id int64) (domain.PickupExtensionTask, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
+		return domain.PickupExtensionTask{}, false, domain.OperationStats{}, err
+	}
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "schedule.pickup_extension_tasks"); err != nil {
 		return domain.PickupExtensionTask{}, false, domain.OperationStats{}, err
 	}
 	row := pickupExtensionTaskRow{}

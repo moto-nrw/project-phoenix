@@ -11,6 +11,7 @@ import (
 // tenant in context when one is present; inside an admin transaction they
 // span every tenant. Writes always require a tenant.
 type StudentStore interface {
+	LockRows(context.Context, []int64) (int, domain.OperationStats, error)
 	ListDepartureModes(context.Context, []int64) (map[int64]map[string][]string, domain.OperationStats, error)
 	CurrentFamilyProtection(context.Context, []int64) (map[int64]bool, domain.OperationStats, error)
 	// AppendFamilyProtection inserts one immutable ledger row. The caller
@@ -43,6 +44,7 @@ type StudentStore interface {
 	// ListEnrolledIDsByNameAndBirthday resolves already-enrolled children by
 	// name and birthday, with the tenant given explicitly.
 	ListEnrolledIDsByNameAndBirthday(context.Context, int64, string, string, string) ([]int64, domain.OperationStats, error)
+	ListEnrolledIDsByIdentities(context.Context, int64, []peopledirectory.StudentIdentity) ([][]int64, domain.OperationStats, error)
 	// ListRosterByGroups is the live roster of the given groups.
 	ListRosterByGroups(context.Context, []int64, string) ([]domain.StudentRosterEntry, domain.OperationStats, error)
 	// ListRoster is the school's whole live roster.

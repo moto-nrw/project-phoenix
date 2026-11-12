@@ -48,7 +48,7 @@ func (s *TraegerPhaseCopies) ApplyTraegerPhase(ctx context.Context, copy enrollm
 	if copy.SourceID <= 0 || copy.Version <= 0 {
 		return enrollment.TraegerPhaseApplied{}, fmt.Errorf("%w: träger source and version are required", enrollment.ErrInvalidPhase)
 	}
-	traeger := traegerPhaseValues(copy.Fields, true)
+	traeger := traegerPhaseValues(copy.Fields, copy.Fields.Active())
 	state, err := s.TraegerPhaseCopyState(ctx, copy.SourceID, true)
 	if err != nil {
 		return enrollment.TraegerPhaseApplied{}, err
@@ -69,7 +69,7 @@ func (s *TraegerPhaseCopies) ApplyTraegerPhase(ctx context.Context, copy enrollm
 	if err := applyTraegerPhaseValues(phase, merged); err != nil {
 		return enrollment.TraegerPhaseApplied{}, err
 	}
-	if err := s.phases.UpdatePhase(ctx, phase); err != nil {
+	if _, err := s.phases.UpdatePhase(ctx, phase); err != nil {
 		return enrollment.TraegerPhaseApplied{}, err
 	}
 	if err := s.store.LinkTraegerPhaseCopy(ctx, phase.ID, copy.SourceID, copy.Version, traeger); err != nil {
@@ -117,7 +117,8 @@ func (s *TraegerPhaseCopies) WithdrawTraegerPhase(ctx context.Context, sourceID 
 		return enrollment.TraegerWithdrawal{}, err
 	}
 	phase.IsActive = false
-	return enrollment.TraegerWithdrawal{Found: true}, s.phases.UpdatePhase(ctx, phase)
+	_, err = s.phases.UpdatePhase(ctx, phase)
+	return enrollment.TraegerWithdrawal{Found: true}, err
 }
 
 // phaseKept reports whether an enrollment request or a care offering hangs
@@ -148,7 +149,7 @@ func traegerPhaseValues(fields enrollment.TraegerPhaseFields, active bool) map[s
 
 func traegerPhaseFieldsOf(phase *enrollment.Phase) enrollment.TraegerPhaseFields {
 	return enrollment.TraegerPhaseFields{
-		Name: phase.Name, Kind: phase.Kind, ServiceStartDate: phase.ServiceStartDate, ServiceEndDate: phase.ServiceEndDate,
+		IsActive: &phase.IsActive, Name: phase.Name, Kind: phase.Kind, ServiceStartDate: phase.ServiceStartDate, ServiceEndDate: phase.ServiceEndDate,
 		EnrollmentOpenAt: phase.EnrollmentOpenAt, EnrollmentCloseAt: phase.EnrollmentCloseAt, Audience: phase.Audience,
 		CareOverflowMode: phase.CareOverflowMode, CareOfferingSelectionMode: phase.CareOfferingSelectionMode,
 	}

@@ -43,6 +43,7 @@ type TraegerCopyRuntime struct {
 // catalog's own commands (ADR 0195 sections 5 to 7), in the school's tenant
 // transaction, which the caller opens.
 type TraegerOfferingCopies struct {
+	careplan.TraegerOfferingBatch
 	catalog careplan.CareOfferingCatalogCapability
 	store   TraegerOfferingCopyStore
 	runtime TraegerCopyRuntime
@@ -56,7 +57,11 @@ func NewTraegerOfferingCopies(catalog careplan.CareOfferingCatalogCapability, st
 	if catalog == nil || store == nil || runtime.LockRecurrence == nil || runtime.Savepoint == nil || runtime.ControlFailure == nil || runtime.ReferenceRefusal == nil {
 		return nil, errors.New("care plan träger offering copies: catalog, store and runtime are required")
 	}
-	return &TraegerOfferingCopies{catalog: catalog, store: store, runtime: runtime}, nil
+	batch, ok := catalog.(careplan.TraegerOfferingBatch)
+	if !ok {
+		return nil, errors.New("care plan träger offering copies: catalog batch command is required")
+	}
+	return &TraegerOfferingCopies{TraegerOfferingBatch: batch, catalog: catalog, store: store, runtime: runtime}, nil
 }
 
 // TraegerOfferingCopyStates reads the copies of sourceIDs. With lock it
@@ -79,7 +84,7 @@ func (s *TraegerOfferingCopies) ApplyTraegerOffering(ctx context.Context, copy c
 	if copy.SourceID <= 0 || copy.Version <= 0 || copy.PhaseID <= 0 {
 		return careplan.TraegerOfferingApplied{}, careOfferingInvalidf("träger source, version and phase are required")
 	}
-	traeger := traegerOfferingValues(copy.Fields, true)
+	traeger := traegerOfferingValues(copy.Fields, copy.Fields.Active())
 	states, err := s.TraegerOfferingCopyStates(ctx, []int64{copy.SourceID}, true)
 	if err != nil {
 		return careplan.TraegerOfferingApplied{}, err

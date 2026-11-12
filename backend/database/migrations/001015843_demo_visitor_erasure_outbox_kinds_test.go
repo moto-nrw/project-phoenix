@@ -33,7 +33,7 @@ func TestOutboxKindsOfATraegerAreDeclared(t *testing.T) {
 		return err
 	}
 	for table, kinds := range map[string][]string{
-		"platform.email_outbox": holidayClosureEmailOutboxTraegerKinds, // extended by 1.15.878 (#4699) and 1.15.887 (#6434)
+		"platform.email_outbox": holidayParentAccountOfferTraegerKinds, // extended by 1.15.878 (#4699), 1.15.887 (#6434), 1.15.927 (#6672) and 1.15.945 (ADR 0216)
 		"platform.push_outbox":  pushOutboxTraegerKinds,
 	} {
 		constraint := "chk_" + strings.TrimPrefix(table, "platform.") + "_traeger_kind"

@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+
 	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -80,7 +82,7 @@ func careOfferingCatalogDependencies(
 		Phases:                 CareOfferingCatalogPhases{Phases: enrollment.Bookings},
 		Timetable:              CareOfferingCatalogTimetable{Timetable: timetableOwner},
 		Calendar:               CareOfferingCatalogCalendar{Calendar: calendar},
-		Bookings:               CareOfferingCatalogBookings{Bookings: enrollment.Bookings},
+		Bookings:               CareOfferingCatalogBookings{Bookings: enrollment.Bookings, OfferingSelectionReferences: enrollmentCompose.NewOfferingSelectionReferences()},
 		Settings:               CareOfferingCatalogSettings{Settings: settings},
 		Translations:           CareOfferingCatalogTranslations{},
 		SourceRules:            CareOfferingSourceRules{},

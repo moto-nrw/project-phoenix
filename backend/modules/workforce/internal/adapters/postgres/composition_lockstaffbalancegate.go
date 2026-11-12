@@ -16,6 +16,9 @@ func LockStaffBalanceGate(ctx context.Context, staffID int64, lock func(context.
 	if tenantID <= 0 {
 		return errors.New("workforce compose: tenant id is required")
 	}
+	if err := tenant.OrderLock(ctx, tenant.LockStaffWorkTime, tenant.StaffWorkTimeKey(staffID, false)); err != nil {
+		return fmt.Errorf("lock staff balance writes: %w", err)
+	}
 	if err := lock(ctx, fmt.Sprintf("staff-balance:%d:%d", tenantID, staffID)); err != nil {
 		return fmt.Errorf("lock staff balance writes: %w", err)
 	}

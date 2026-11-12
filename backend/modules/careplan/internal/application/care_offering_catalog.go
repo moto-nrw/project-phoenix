@@ -19,14 +19,15 @@ import (
 // NewCareOfferingCatalogWithBookings binds both to the booking
 // materialization it builds.
 type CareOfferingCatalogDependencies struct {
-	Records      ports.CatalogRecords
-	Phases       ports.CatalogPhases
-	Timetable    ports.CatalogTimetable
-	Calendar     ports.CatalogCalendar
-	Bookings     ports.CatalogBookings
-	Settings     ports.CatalogSettings
-	Translations ports.CatalogTranslations
-	SourceRules  ports.OfferingSourceRules
+	CopyReferences ports.CatalogCopyReferences
+	Records        ports.CatalogRecords
+	Phases         ports.CatalogPhases
+	Timetable      ports.CatalogTimetable
+	Calendar       ports.CatalogCalendar
+	Bookings       ports.CatalogBookings
+	Settings       ports.CatalogSettings
+	Translations   ports.CatalogTranslations
+	SourceRules    ports.OfferingSourceRules
 
 	SourcedTemplates ports.SourcedTemplateResyncer
 	Pickup           ports.PickupResyncer
@@ -43,7 +44,8 @@ type CareOfferingCatalogDependencies struct {
 
 // CareOfferingCatalog is the Care Plan care-offering catalog (#3559).
 type CareOfferingCatalog struct {
-	deps CareOfferingCatalogDependencies
+	deps       CareOfferingCatalogDependencies
+	copyWrites ports.CatalogCopyWrites
 }
 
 var _ careplan.CareOfferingCatalogCapability = (*CareOfferingCatalog)(nil)
@@ -60,7 +62,8 @@ func newCareOfferingCatalog(deps CareOfferingCatalogDependencies) (*CareOffering
 	if deps.Today == nil {
 		deps.Today = calendar.TodayDate
 	}
-	return &CareOfferingCatalog{deps: deps}, nil
+	copyWrites, _ := deps.Records.(ports.CatalogCopyWrites)
+	return &CareOfferingCatalog{deps: deps, copyWrites: copyWrites}, nil
 }
 
 func (c *CareOfferingCatalog) ListCatalog(ctx context.Context) ([]careplan.CareOffering, error) {

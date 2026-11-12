@@ -389,6 +389,8 @@ const PARENT_EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   "/news": HELP_TOPICS.parentNews,
   "/meal-plan": HELP_TOPICS.parentMealPlan,
   "/documents": HELP_TOPICS.parentDocuments,
+  // Die eigenen Ferienanmeldungen und ihr Stand (#6673).
+  "/ferienanmeldungen": HELP_TOPICS.parentHolidayRegistration,
   // Die Seite traegt Sprache und Benachrichtigungen. Der Artikel dazu
   // ist `Benachrichtigungen einstellen`.
   "/settings": HELP_TOPICS.parentNotifications,
@@ -405,6 +407,8 @@ const PARENT_PREFIX_HELP_TOPICS: ReadonlyArray<
   ["/anmeldung", HELP_TOPICS.parentEnroll],
   // Der Link eines Trägers zur Ferienanmeldung (#4661).
   ["/ferienanmeldung", HELP_TOPICS.parentHolidayRegistration],
+  // Das Elternkonto aus dem Link der Ferienanmeldung (#6673).
+  ["/ferienkonto", HELP_TOPICS.parentHolidayRegistration],
   // Einen Betreuungsvertrag aus den Dokumenten oder über den Link der Mail
   // unterschreiben (#4679).
   ["/documents", HELP_TOPICS.parentDocuments],

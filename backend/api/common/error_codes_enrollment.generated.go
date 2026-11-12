@@ -158,6 +158,7 @@ const CodeEnrollmentSignatureNotFound = "enrollment.signature_not_found"
 const CodeEnrollmentSignatureRequired = "enrollment.signature_required"
 const CodeEnrollmentStatusLinkInvalid = "enrollment.status_link_invalid"
 const CodeEnrollmentStudentExists = "enrollment.student_exists"
+const CodeEnrollmentSubmissionEmailRateLimited = "enrollment.submission_email_rate_limited"
 const CodeEnrollmentSubmissionRateLimited = "enrollment.submission_rate_limited"
 const CodeEnrollmentTraegerCatalogInvalid = "enrollment.traeger_catalog_invalid"
 const CodeEnrollmentTraegerCopyDelete = "enrollment.traeger_copy_delete"
@@ -334,6 +335,7 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentSignatureRequired, "input"},
 	{CodeEnrollmentStatusLinkInvalid, "business_rejection"},
 	{CodeEnrollmentStudentExists, "business_rejection"},
+	{CodeEnrollmentSubmissionEmailRateLimited, "unavailable"},
 	{CodeEnrollmentSubmissionRateLimited, "unavailable"},
 	{CodeEnrollmentTraegerCatalogInvalid, "input"},
 	{CodeEnrollmentTraegerCopyDelete, "business_rejection"},

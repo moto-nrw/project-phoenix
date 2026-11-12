@@ -66,6 +66,7 @@ type PhaseDetail struct {
 
 // PhaseRequest is the office's draft of a Träger phase.
 type PhaseRequest struct {
+	IsActive                  *bool      `json:"is_active"`
 	Name                      string     `json:"name"`
 	Kind                      string     `json:"kind"`
 	ServiceStartDate          string     `json:"service_start_date"`
@@ -85,7 +86,7 @@ func (*PhaseRequest) Bind(*http.Request) error { return nil }
 func (req *PhaseRequest) input() enrollment.TraegerPhaseInput {
 	return enrollment.TraegerPhaseInput{
 		Fields: enrollment.TraegerPhaseFields{
-			Name: req.Name, Kind: req.Kind, ServiceStartDate: enrollment.Date(req.ServiceStartDate),
+			IsActive: req.IsActive, Name: req.Name, Kind: req.Kind, ServiceStartDate: enrollment.Date(req.ServiceStartDate),
 			ServiceEndDate: enrollment.Date(req.ServiceEndDate), EnrollmentOpenAt: req.EnrollmentOpenAt,
 			EnrollmentCloseAt: req.EnrollmentCloseAt, Audience: req.Audience, CareOverflowMode: req.CareOverflowMode,
 			CareOfferingSelectionMode: req.CareOfferingSelectionMode,

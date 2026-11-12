@@ -473,6 +473,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             title="Anmeldung wiederherstellen"
             confirmText="Wiederherstellen"
             isConfirmLoading={restoring}
+            loadingText="Wird wiederhergestellt …"
           >
             <FormErrorAlert message={restoreErrors.error} className="mb-3" />
             <p className="text-sm text-gray-600">

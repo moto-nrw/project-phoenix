@@ -28,6 +28,8 @@ export const PORTAL_PAGES = {
     "/demo",
     "/documents",
     "/ferienanmeldung",
+    "/ferienanmeldungen",
+    "/ferienkonto",
     "/invite",
     "/login",
     "/meal-plan",

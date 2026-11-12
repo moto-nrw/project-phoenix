@@ -11,10 +11,10 @@ import (
 	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
 )
 
-// NewMailRenderers returns Enrollment's mail renderers. Every field a
-// template needs is captured in the payload at enqueue time, so the
-// renderers are pure (no DB lookups).
-func NewMailRenderers() enrollment.MailRenderers {
+// NewMailRenderers returns Enrollment's mail renderers. Only holiday acceptance
+// mails look up account eligibility at delivery time; other fields are captured
+// in the outbox payload. Without a lookup or parents URL, no app link is shown.
+func NewMailRenderers(accounts enrollment.HolidayAcceptanceAccounts, parentsURL string) enrollment.MailRenderers {
 	return enrollment.MailRenderers{
 		Submitted:                decodingRenderer(renderSubmitted),
 		AdminNotification:        decodingRenderer(renderAdminNotification),
@@ -44,6 +44,12 @@ func NewMailRenderers() enrollment.MailRenderers {
 		HolidayRegistrationReceived: renderHolidayRegistrationReceived,
 		HolidayPlaceGranted:         renderHolidayPlaceGranted,
 		HolidayClosureNotice:        renderHolidayClosureNotice,
+		HolidayRegistrationAccepted: func(ctx context.Context, kind string, raw json.RawMessage) (*enrollment.RenderedMail, error) {
+			return renderHolidayRegistrationAccepted(ctx, kind, raw, accounts, parentsURL)
+		},
+		HolidayParentAccountOffer: func(ctx context.Context, kind string, raw json.RawMessage) (*enrollment.RenderedMail, error) {
+			return renderHolidayParentAccountOffer(ctx, kind, raw, accounts, parentsURL)
+		},
 	}
 }
 
@@ -131,7 +137,9 @@ func renderHolidayPlaceGranted(_ context.Context, kind string, raw json.RawMessa
 }
 
 // renderHolidayClosureNotice renders the mail that a booked holiday week has
-// a day without care (#6434). The Träger is the sender.
+// days without care (#6434) or days that open again (#6457), in two
+// sections when a closing day moved: one mail, not two (ADR 0196). The
+// Träger is the sender.
 func renderHolidayClosureNotice(_ context.Context, kind string, raw json.RawMessage) (*enrollment.RenderedMail, error) {
 	var payload enrollment.HolidayClosureMail
 	if err := json.Unmarshal(raw, &payload); err != nil {
@@ -140,9 +148,43 @@ func renderHolidayClosureNotice(_ context.Context, kind string, raw json.RawMess
 	if strings.TrimSpace(payload.Recipient) == "" {
 		return nil, fmt.Errorf("%s payload missing recipient_email", kind)
 	}
-	children := make([]map[string]any, 0, len(payload.Children))
+	payload.ContainsPastDays = payload.ContainsPastDays || holidayClosureMailHasPastDays(payload, calendar.TodayDate())
+	closed, closedWaitlisted, closedPending := holidayClosureMailChildren(payload.Children)
+	reopened, reopenedWaitlisted, reopenedPending := holidayClosureMailChildren(payload.ReopenedChildren)
+	subject := "Ferienbetreuung: An einem gebuchten Tag ist geschlossen"
+	switch {
+	case payload.ContainsPastDays:
+		subject = "Ferienbetreuung: Hinweis zu vergangenen Schließtagen"
+	case len(closed) > 0 && len(reopened) > 0:
+		subject = "Ferienbetreuung: Die Schließtage haben sich geändert"
+	case len(reopened) > 0:
+		subject = "Ferienbetreuung: Die Betreuung findet doch statt"
+	}
+	return &enrollment.RenderedMail{
+		SenderName: schoolSender(payload.TraegerName),
+		Recipient:  payload.Recipient,
+		Subject:    subject,
+		Template:   "holiday-closure-notice.html",
+		Content: map[string]any{
+			"GuardianName":      payload.GuardianName,
+			"SchoolName":        payload.TraegerName,
+			"Reasons":           payload.Reasons,
+			"Children":          closed,
+			"ReopenedChildren":  reopened,
+			"ContainsPastDays":  payload.ContainsPastDays,
+			"Waitlisted":        closedWaitlisted || reopenedWaitlisted,
+			"Pending":           closedPending || reopenedPending,
+			"KeepsContribution": payload.KeepsContribution,
+		},
+	}, nil
+}
+
+// holidayClosureMailChildren lays the children of one section of the
+// closing day mail out for the template.
+func holidayClosureMailChildren(mailChildren []enrollment.HolidayClosureMailChild) ([]map[string]any, bool, bool) {
+	children := make([]map[string]any, 0, len(mailChildren))
 	waitlisted, pending := false, false
-	for _, child := range payload.Children {
+	for _, child := range mailChildren {
 		weeks := make([]map[string]any, 0, len(child.Weeks))
 		for _, week := range child.Weeks {
 			weeks = append(weeks, map[string]any{"Week": week.Week, "ClosedDays": week.ClosedDays, "Waitlisted": week.Waitlisted, "Pending": week.Pending})
@@ -151,19 +193,124 @@ func renderHolidayClosureNotice(_ context.Context, kind string, raw json.RawMess
 		}
 		children = append(children, map[string]any{"Name": child.Name, "Guest": child.Guest, "Weeks": weeks})
 	}
+	return children, waitlisted, pending
+}
+
+// renderHolidayRegistrationAccepted renders the acceptance mail of a
+// confirmed holiday registration (#6672). The Träger is the sender; its
+// text is plain text, which the template escapes and keeps the lines of.
+func renderHolidayRegistrationAccepted(ctx context.Context, kind string, raw json.RawMessage, accounts enrollment.HolidayAcceptanceAccounts, parentsURL string) (*enrollment.RenderedMail, error) {
+	var payload enrollment.HolidayRegistrationAcceptedMail
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, fmt.Errorf("%s payload is not a holiday acceptance mail: %w", kind, err)
+	}
+	if strings.TrimSpace(payload.Recipient) == "" {
+		return nil, fmt.Errorf("%s payload missing recipient_email", kind)
+	}
+	var err error
+	if payload.ParentAppURL, payload.SetupURL, err = holidayAcceptanceLinks(ctx, accounts, parentsURL, payload); err != nil {
+		return nil, fmt.Errorf("%s: %w", kind, err)
+	}
+	subject := "Ferienanmeldung bestätigt"
+	if payload.PeriodName != "" {
+		subject += ": " + payload.PeriodName
+	}
+	children := make([]map[string]any, 0, len(payload.Children))
+	waitlisted := false
+	for _, child := range payload.Children {
+		children = append(children, map[string]any{
+			"Name": child.Name, "Guest": child.Guest, "Weeks": child.Weeks, "WaitlistWeeks": child.WaitlistWeeks,
+			"PendingWeeks": child.PendingWeeks,
+		})
+		waitlisted = waitlisted || len(child.WaitlistWeeks) > 0
+	}
 	return &enrollment.RenderedMail{
 		SenderName: schoolSender(payload.TraegerName),
 		Recipient:  payload.Recipient,
-		Subject:    "Ferienbetreuung: An einem gebuchten Tag ist geschlossen",
-		Template:   "holiday-closure-notice.html",
+		Subject:    subject,
+		Template:   "holiday-registration-accepted.html",
 		Content: map[string]any{
-			"GuardianName":      payload.GuardianName,
-			"SchoolName":        payload.TraegerName,
-			"Reasons":           payload.Reasons,
-			"Children":          children,
-			"Waitlisted":        waitlisted,
-			"Pending":           pending,
-			"KeepsContribution": payload.KeepsContribution,
+			"GuardianName": payload.GuardianName,
+			"SchoolName":   payload.TraegerName,
+			"PeriodName":   payload.PeriodName,
+			"Binding":      payload.Binding,
+			"Children":     children,
+			"Waitlisted":   waitlisted,
+			"TraegerText":  payload.TraegerText,
+			"ParentAppURL": payload.ParentAppURL,
+			"SetupURL":     payload.SetupURL,
+		},
+	}, nil
+}
+
+// holidayAcceptanceLinks are the links of the acceptance mail, decided at
+// sending: the parents portal for an address with a parent account, the
+// setup of a parent account at the Träger for every other address (ADR 0216
+// point 11). Links from the outbox are never trusted. Account eligibility is
+// checked at delivery time, after the confirmation's Träger transaction has
+// ended. Without a lookup or a parents URL the mail has no link.
+func holidayAcceptanceLinks(ctx context.Context, accounts enrollment.HolidayAcceptanceAccounts, parentsURL string,
+	payload enrollment.HolidayRegistrationAcceptedMail) (appURL, setupURL string, err error) {
+	if accounts == nil || strings.TrimSpace(parentsURL) == "" {
+		return "", "", nil
+	}
+	parent, err := accounts.HasParentAccount(ctx, payload.Recipient)
+	if err != nil {
+		return "", "", fmt.Errorf("find the parent account: %w", err)
+	}
+	if parent {
+		return strings.TrimRight(strings.TrimSpace(parentsURL), "/") + "/", "", nil
+	}
+	if payload.OrganizationID <= 0 {
+		return "", "", nil
+	}
+	setupURL, err = accounts.HolidayParentSetupURL(payload.Recipient, payload.OrganizationID)
+	if err != nil {
+		return "", "", fmt.Errorf("issue the setup link of a parent account: %w", err)
+	}
+	return "", setupURL, nil
+}
+
+// renderHolidayParentAccountOffer renders the offer of a parent account a
+// holiday registration mails (ADR 0216 point 4). The Träger is the sender.
+// The mail is decided when it is sent, by the rule of the acceptance mail:
+// an address with a parent account gets the sign-in of the parents portal
+// only, every other address the setup link, issued now and never taken from
+// the outbox, with the sign-in as a quiet second way. The mail goes to the
+// owner of the address alone; the form never tells.
+func renderHolidayParentAccountOffer(ctx context.Context, kind string, raw json.RawMessage, accounts enrollment.HolidayAcceptanceAccounts, parentsURL string) (*enrollment.RenderedMail, error) {
+	var payload enrollment.HolidayParentAccountOfferMail
+	if err := json.Unmarshal(raw, &payload); err != nil {
+		return nil, fmt.Errorf("%s payload is not a holiday parent account offer: %w", kind, err)
+	}
+	if strings.TrimSpace(payload.Recipient) == "" {
+		return nil, fmt.Errorf("%s payload missing recipient_email", kind)
+	}
+	parentsURL = strings.TrimRight(strings.TrimSpace(parentsURL), "/")
+	if accounts == nil || parentsURL == "" {
+		return nil, fmt.Errorf("%s: the parents portal and the account lookup are required", kind)
+	}
+	parent, err := accounts.HasParentAccount(ctx, payload.Recipient)
+	if err != nil {
+		return nil, fmt.Errorf("%s: find the parent account: %w", kind, err)
+	}
+	setupURL := ""
+	if !parent && payload.OrganizationID > 0 {
+		if setupURL, err = accounts.HolidayParentSetupURL(payload.Recipient, payload.OrganizationID); err != nil {
+			return nil, fmt.Errorf("%s: issue the setup link of a parent account: %w", kind, err)
+		}
+	}
+	return &enrollment.RenderedMail{
+		SenderName: schoolSender(payload.TraegerName),
+		Recipient:  payload.Recipient,
+		Subject:    "Ihr Elternkonto für die Ferienbetreuung",
+		Template:   "holiday-parent-account-offer.html",
+		Content: map[string]any{
+			"GuardianName": payload.GuardianName,
+			"SchoolName":   payload.TraegerName,
+			"PeriodName":   payload.PeriodName,
+			"SetupURL":     setupURL,
+			"LoginURL":     parentsURL + "/login",
 		},
 	}, nil
 }

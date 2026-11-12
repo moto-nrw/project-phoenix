@@ -58,6 +58,7 @@ export function teamChatTopic(): HelpTopic {
       "Neue Mitglieder eines Gruppenchats sehen die Nachrichten ab ihrem Beitritt, nicht die älteren.",
     ],
     notes: [
+      "Mit `Foto oder Datei anhängen` (Büroklammer neben dem Textfeld) hängen Sie bis zu 5 Dateien an eine Nachricht: Fotos, PDF, Word, Excel oder PowerPoint, je höchstens 10 MB. Ein Foto öffnen Sie mit einem Tipp groß.",
       "Unter Ihrer Nachricht in einem Gruppenchat steht, wie viele sie gelesen haben. Tippen Sie darauf, dann sehen Sie die Namen.",
       "Eltern können den Team-Chat nicht sehen. Für Eltern nutzen Sie `Nachrichten` im Bereich `Eltern`.",
       "Mit `Nur ungelesen` sehen Sie nur Unterhaltungen mit neuen Nachrichten.",

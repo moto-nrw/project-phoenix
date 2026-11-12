@@ -3,6 +3,8 @@
   "errorObjectEdit": "değişiklik",
   "errorObjectReply": "yanıt",
   "errorObjectChangeRequests": "değişiklik talepleri listesi",
+  "reloadObject": "kayıt görünümü",
+  "savedButStale": "Değişikliğiniz kaydedildi. Yalnızca görünüm henüz güncel değil.",
   "changeRequestSent": "Değişiklik talebi gönderildi. {careTerm} talebi inceleyecek.",
   "loading": "Durum yükleniyor…",
   "invalidTitle": "Durum bağlantısı geçersiz",

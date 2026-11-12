@@ -73,6 +73,20 @@ func (f *fakes) SupervisedGroups(ctx context.Context) ([]GroupRecord, error) {
 	return f.supervisedGroups(ctx)
 }
 
+// SupervisedGroupIDs serves the IDs of the supervised groups fixture, the
+// same groups the identity chain names.
+func (f *fakes) SupervisedGroupIDs(ctx context.Context) (map[int64]bool, error) {
+	groups, err := f.SupervisedGroups(ctx)
+	if err != nil {
+		return nil, err
+	}
+	ids := make(map[int64]bool, len(groups))
+	for _, group := range groups {
+		ids[group.ID] = true
+	}
+	return ids, nil
+}
+
 func (f *fakes) TenantGroups(ctx context.Context) ([]GroupRecord, error) {
 	f.tenantGroupsCalls++
 	if f.tenantGroups == nil {
@@ -108,6 +122,21 @@ func (f *fakes) GroupMembers(ctx context.Context, groupID int64) ([]RosterStuden
 		return []RosterStudent{}, nil
 	}
 	return f.members(ctx, groupID)
+}
+
+// GroupMemberIDs serves the members fixture for many groups.
+func (f *fakes) GroupMemberIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error) {
+	result := make(map[int64][]int64, len(groupIDs))
+	for _, groupID := range groupIDs {
+		members, err := f.GroupMembers(ctx, groupID)
+		if err != nil {
+			return nil, err
+		}
+		for _, member := range members {
+			result[groupID] = append(result[groupID], member.ID)
+		}
+	}
+	return result, nil
 }
 
 func (f *fakes) CareParticipants(ctx context.Context, ids []int64, date Date) (map[int64]bool, error) {

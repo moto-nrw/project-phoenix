@@ -62,6 +62,9 @@ type StaffDirectory interface {
 	// CreateStaff gives the person a live membership. When retiredStaffID is
 	// set, it continues that retired membership under its own ID (ADR 0021)
 	// and returns it, unless the automatic deletion of staff erased it.
+	// LockStaffPersonMerge shares the school's staff person merge gate for
+	// the caller's transaction (#6702).
+	LockStaffPersonMerge(ctx context.Context) error
 	CreateStaff(ctx context.Context, tenantID, personID int64, retiredStaffID *int64) (int64, error)
 	FindCaregiverProfile(ctx context.Context, staffID int64) (CaregiverProfile, bool, error)
 	// CreateCaregiverProfile gives the staff member a live caregiver profile,

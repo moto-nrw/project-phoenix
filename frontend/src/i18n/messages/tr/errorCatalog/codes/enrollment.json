@@ -129,6 +129,7 @@
   "status_link_invalid": "Bu bağlantı geçersiz veya süresi dolmuş. Lütfen e-postanızdaki bağlantıyı kullanın.",
   "student_exists": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "submission_rate_limited": "Çok fazla kayıt gönderildi. Lütfen bir saat sonra tekrar deneyin.",
+  "submission_email_rate_limited": "Bu e-posta adresiyle bugün zaten çok sayıda kayıt gönderildi. Lütfen yarın tekrar deneyin.",
   "waitlist_disabled": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "window_closed": "Kayıt süresi bitti veya henüz başlamadı. Lütfen okulla iletişime geçin.",
   "withdraw_not_allowed": "Bu kayıt artık geri çekilemez. Lütfen okulla iletişime geçin.",

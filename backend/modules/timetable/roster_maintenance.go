@@ -25,8 +25,16 @@ type RosterEnrollment struct {
 	StudentAlumnus   bool
 }
 
+type SourcedTemplateRosterReconcile struct {
+	TemplateID int64
+	StudentIDs []int64
+	From       calendar.Date
+	Prior      []RosterEnrollment
+}
+
 // RosterMaintenance reconciles materialized rosters.
 type RosterMaintenance interface {
+	ReconcileSourcedTemplateRosterBatch(context.Context, []SourcedTemplateRosterReconcile) error
 	// RemoveStudentsFromFutureRosters deletes the still-planned attendance
 	// rows of graduated children from today on, archiving every removed row
 	// under transitionID.

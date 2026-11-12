@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/communication"
 	"github.com/uptrace/bun"
 )
 
@@ -37,10 +38,10 @@ const repairThreadPreviewSQL = `UPDATE users.parent_message_threads AS thread
 SET last_message_id = latest.id,
     last_message_at = latest.created_at,
     last_sender_kind = latest.sender_kind,
-    last_message_body = COALESCE(latest.body, '')
+    last_message_body = COALESCE(NULLIF(btrim(latest.body), ''), '📎 ' || (latest.attachments -> 0 ->> 'filename'), '')
 FROM users.parent_message_threads AS stale
 LEFT JOIN LATERAL (
-    SELECT message.id, message.created_at, message.body,
+    SELECT message.id, message.created_at, message.body, message.attachments,
            CASE WHEN message.kind = 'event' THEN message.event_actor_kind ELSE message.sender_kind END AS sender_kind
     FROM users.parent_messages AS message
     WHERE message.thread_id = stale.id
@@ -76,6 +77,34 @@ WHERE thread.tenant_id = ?
   AND thread.created_at < ?
   AND NOT EXISTS (SELECT 1 FROM users.parent_group_messages AS message WHERE message.thread_id = thread.id)`
 
+// deleteUnsentAttachmentsSQL removes the uploads of the school nobody sent
+// in time (#6685), in the conversations with guardians and in the team
+// chat. A sent file needs no statement of its own: it goes with its message.
+// The delete trigger queues the objects.
+const deleteUnsentAttachmentsSQL = `DELETE FROM users.message_attachments
+WHERE tenant_id = ?
+  AND claimed_at IS NULL
+  AND created_at < clock_timestamp() - make_interval(secs => ?)`
+
+// deleteFinishedAttachmentCleanupsSQL removes the settled cleanup intents
+// once they have served as evidence of the removal.
+const deleteFinishedAttachmentCleanupsSQL = `DELETE FROM users.message_attachment_cleanup
+WHERE tenant_id = ?
+  AND cleaned_at IS NOT NULL
+  AND cleaned_at < clock_timestamp() - make_interval(secs => ?)`
+
+// deleteStaleAttachments removes the unsent uploads and the settled cleanup
+// intents of the school.
+func deleteStaleAttachments(ctx context.Context, db bun.IDB, tenantID int64) error {
+	if _, err := db.ExecContext(ctx, deleteUnsentAttachmentsSQL, tenantID, communication.UnclaimedMessageAttachmentLifetime.Seconds()); err != nil {
+		return fmt.Errorf("delete unsent message attachments: %w", err)
+	}
+	if _, err := db.ExecContext(ctx, deleteFinishedAttachmentCleanupsSQL, tenantID, communication.FinishedMessageAttachmentCleanupLifetime.Seconds()); err != nil {
+		return fmt.Errorf("delete finished message attachment cleanups: %w", err)
+	}
+	return nil
+}
+
 // DeleteMessagesBefore removes the school's messages written before cutoff,
 // repairs the previews they leave behind and removes the conversations left
 // empty. It reports how many messages and conversations went.
@@ -109,6 +138,9 @@ func (s *RetentionStore) DeleteMessagesBefore(ctx context.Context, cutoff time.T
 	}
 	groupMessages, groupThreads, err := deleteExpiredGroupThreads(ctx, db, scope.TenantID, cutoff)
 	if err != nil {
+		return 0, 0, err
+	}
+	if err := deleteStaleAttachments(ctx, db, scope.TenantID); err != nil {
 		return 0, 0, err
 	}
 	return messages + groupMessages, threads + groupThreads, nil

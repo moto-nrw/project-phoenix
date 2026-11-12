@@ -2,10 +2,12 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net/url"
 	"reflect"
 	"strings"
+	"unicode/utf8"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 )
@@ -25,7 +27,7 @@ type TraegerOfferingStore interface {
 	UpdateTraegerOfferingDraft(ctx context.Context, organizationID, id int64, draft careplan.TraegerOfferingDraft) (bool, error)
 	WithdrawTraegerOffering(ctx context.Context, organizationID, id int64) (bool, error)
 	InsertTraegerOfferingVersions(ctx context.Context, organizationID int64, versions map[int64]careplan.TraegerOffering, accountID int64) error
-	RecordTraegerOfferingOutcomes(ctx context.Context, organizationID, id int64, outcomes []careplan.TraegerOfferingOutcome) error
+	RecordTraegerOfferingOutcomes(ctx context.Context, organizationID int64, outcomes map[int64][]careplan.TraegerOfferingOutcome) error
 }
 
 // TraegerOfferings keeps the Träger care offerings (ADR 0195). It opens no
@@ -70,6 +72,9 @@ func (s *TraegerOfferings) UpdateTraegerOffering(ctx context.Context, organizati
 	if err != nil {
 		return careplan.TraegerOffering{}, err
 	}
+	if err := validateTraegerFinancialTransition(current.Released, normalized); err != nil {
+		return careplan.TraegerOffering{}, err
+	}
 	if _, err := s.store.UpdateTraegerOfferingDraft(ctx, organizationID, id, normalized); err != nil {
 		return careplan.TraegerOffering{}, err
 	}
@@ -98,7 +103,13 @@ func (s *TraegerOfferings) ReleaseTraegerOfferings(ctx context.Context, organiza
 	}
 	versions := map[int64]careplan.TraegerOffering{}
 	for index, offering := range offerings {
-		if offering.WithdrawnAt != nil || (offering.Released != nil && reflect.DeepEqual(*offering.Released, offering.Draft)) {
+		if offering.WithdrawnAt != nil {
+			continue
+		}
+		if err := validateTraegerFinancialTransition(offering.Released, offering.Draft); err != nil {
+			return nil, err
+		}
+		if offering.Released != nil && reflect.DeepEqual(*offering.Released, offering.Draft) {
 			continue
 		}
 		next := 1
@@ -116,20 +127,25 @@ func (s *TraegerOfferings) ReleaseTraegerOfferings(ctx context.Context, organiza
 }
 
 // RecordTraegerOfferingOutcomes writes the outcome of each school's copy.
-func (s *TraegerOfferings) RecordTraegerOfferingOutcomes(ctx context.Context, organizationID, id int64, outcomes []careplan.TraegerOfferingOutcome) error {
-	for _, outcome := range outcomes {
-		switch outcome.Outcome {
-		case "applied", "rejected", "stale", "withdrawn":
-		default:
-			return careOfferingInvalidf("outcome %q for school %d", outcome.Outcome, outcome.SchoolID)
+func (s *TraegerOfferings) RecordTraegerOfferingOutcomes(ctx context.Context, organizationID int64, outcomes map[int64][]careplan.TraegerOfferingOutcome) error {
+	for _, schools := range outcomes {
+		seen := make(map[int64]bool, len(schools))
+		for _, outcome := range schools {
+			if outcome.SchoolID <= 0 || seen[outcome.SchoolID] {
+				return careOfferingInvalidf("outcome school %d is invalid or repeated", outcome.SchoolID)
+			}
+			if outcome.AppliedCopyID != nil && (*outcome.AppliedCopyID <= 0 || outcome.AppliedVersion == nil) {
+				return careOfferingInvalidf("an applied copy needs a positive identifier and its applied version")
+			}
+			seen[outcome.SchoolID] = true
+			switch outcome.Outcome {
+			case "applied", "rejected", "stale", "withdrawn":
+			default:
+				return careOfferingInvalidf("outcome %q for school %d", outcome.Outcome, outcome.SchoolID)
+			}
 		}
 	}
-	// The offering must exist for the Träger; a missing one is reported as
-	// such, not as a foreign-key failure of the outcome rows.
-	if _, err := s.store.TraegerOffering(ctx, organizationID, id); err != nil {
-		return err
-	}
-	return s.store.RecordTraegerOfferingOutcomes(ctx, organizationID, id, outcomes)
+	return s.store.RecordTraegerOfferingOutcomes(ctx, organizationID, outcomes)
 }
 
 // normalizeTraegerOfferingDraft runs the catalog's own column rules on the
@@ -139,7 +155,10 @@ func (s *TraegerOfferings) RecordTraegerOfferingOutcomes(ctx context.Context, or
 func normalizeTraegerOfferingDraft(traegerPhaseID int64, draft careplan.TraegerOfferingDraft) (careplan.TraegerOfferingDraft, error) {
 	offering := traegerOfferingOf(draft.Fields, traegerPhaseID)
 	if err := validateOfferingFields(&offering); err != nil {
-		return draft, err
+		if errors.Is(err, careplan.ErrCareOfferingDaysRequired) {
+			return draft, err
+		}
+		return draft, wrapCareOfferingInvalid(err, "validate traeger care offering")
 	}
 	if missing := missingPickupWeekdays(offering); len(missing) > 0 {
 		return draft, fmt.Errorf("%w: %s", careplan.ErrCareOfferingPickupTimesRequired, strings.Join(missing, ", "))
@@ -236,7 +255,7 @@ func traegerTextProblems(template careplan.TraegerContractTemplate) []string {
 	if link := strings.TrimSpace(template.StatuteURL); link != "" && !webAddress(link) {
 		problems = append(problems, "the statute link is not a web address")
 	}
-	if len(template.SpecialTerminationNote) > 1000 || len(template.StatuteTitle) > 200 || len(template.StatuteURL) > 500 || len(template.ContractPartner) > 300 {
+	if utf8.RuneCountInString(template.SpecialTerminationNote) > 1000 || utf8.RuneCountInString(template.StatuteTitle) > 200 || utf8.RuneCountInString(template.StatuteURL) > 500 || utf8.RuneCountInString(template.ContractPartner) > 300 {
 		problems = append(problems, "a text of the contract template is too long")
 	}
 	return problems
@@ -253,7 +272,7 @@ func traegerOfferingOf(fields careplan.TraegerOfferingFields, phaseID int64) car
 	return careplan.CareOffering{
 		PhaseID: phaseID, Name: fields.Name, Description: fields.Description, DaysOfWeekMode: fields.DaysOfWeekMode,
 		AvailableDays: fields.AvailableDays, IncludesHolidayCare: fields.IncludesHolidayCare, IncludesLunch: fields.IncludesLunch,
-		Capacity: fields.Capacity, PriceCents: fields.PriceCents, IsActive: true, IsRequired: fields.IsRequired,
+		Capacity: fields.Capacity, PriceCents: fields.PriceCents, IsActive: fields.Active(), IsRequired: fields.IsRequired,
 		CountsAsCare: fields.CountsAsCare, SelectionGroup: fields.SelectionGroup, SelectionRule: fields.SelectionRule,
 		SortOrder: fields.SortOrder, PickupTimes: fields.PickupTimes, AutoAddGradeLevels: []int{},
 		AutoAddTriggerOfferingIDs: []int64{},
@@ -262,7 +281,7 @@ func traegerOfferingOf(fields careplan.TraegerOfferingFields, phaseID int64) car
 
 func traegerOfferingFieldsOf(offering careplan.CareOffering) careplan.TraegerOfferingFields {
 	return careplan.TraegerOfferingFields{
-		Name: offering.Name, Description: offering.Description, DaysOfWeekMode: offering.DaysOfWeekMode,
+		IsActive: &offering.IsActive, Name: offering.Name, Description: offering.Description, DaysOfWeekMode: offering.DaysOfWeekMode,
 		AvailableDays: offering.AvailableDays, IncludesHolidayCare: offering.IncludesHolidayCare,
 		IncludesLunch: offering.IncludesLunch, Capacity: offering.Capacity, PriceCents: offering.PriceCents,
 		IsRequired: offering.IsRequired, CountsAsCare: offering.CountsAsCare, SelectionGroup: offering.SelectionGroup,
@@ -273,4 +292,19 @@ func traegerOfferingFieldsOf(offering careplan.CareOffering) careplan.TraegerOff
 func validTraegerPriceDay(day string) bool {
 	_, ok := offeringDayWeekday(day)
 	return ok
+}
+
+// Removing released financial terms needs the owners' dedicated lifecycle
+// commands. A catalog release must never silently retain obsolete terms.
+func validateTraegerFinancialTransition(previous *careplan.TraegerOfferingDraft, next careplan.TraegerOfferingDraft) error {
+	if previous == nil {
+		return nil
+	}
+	if len(previous.Prices) > 0 && len(next.Prices) == 0 {
+		return careOfferingInvalidf("released module prices cannot be removed; set replacement prices or withdraw the offering")
+	}
+	if previous.ContractTemplate != nil && next.ContractTemplate == nil {
+		return careOfferingInvalidf("a released contract template cannot be removed; replace it or withdraw the offering")
+	}
+	return nil
 }

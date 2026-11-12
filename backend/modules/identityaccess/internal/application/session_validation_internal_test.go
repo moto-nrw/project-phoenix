@@ -45,6 +45,10 @@ func (s validationMemberships) ListAccountTraegerOrganizations(context.Context, 
 	return []identityaccess.TraegerOrganization{{ID: 7}}, s.err
 }
 
+func (s validationMemberships) LiveTraegers(context.Context, []int64, bool) ([]identityaccess.TraegerOrganization, error) {
+	return nil, s.err
+}
+
 func TestValidateSessionTokensPreservesLookupErrors(t *testing.T) {
 	t.Parallel()
 	for _, lookup := range []string{"account", "operator", "mapping", "membership", "switch-membership", "switch-roles", "school", "account-session", "operator-session"} {

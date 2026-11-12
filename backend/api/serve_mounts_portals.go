@@ -68,6 +68,9 @@ func newAccountResource(db transactionruntime.Database, identity identityaccess.
 	resource.RoleGrants = owners.RoleGrantPolicy{}
 	resource.MFAService = identity
 	resource.PasskeyService = identity
+	// The setup link of a parent account at a Träger is its own capability
+	// beside the Owner facade (ADR 0216).
+	resource.HolidayParentSetups, _ = identity.(identityaccess.HolidayParentSetups)
 	return resource
 }
 
@@ -199,6 +202,8 @@ func newParentResource(
 		PWAUsage:              devices.PWAUsage,
 		Reports:               newDeclarationReports(),
 		SupportedLocale:       bindParentLocale(notifications.Preferences),
+		// Fotos und Dateien in den Nachrichten der Eltern (#6685).
+		MessageAttachmentFiles: NewMessageAttachmentStorage(logger.With("handler", "parent-message-attachments")),
 	})
 }
 

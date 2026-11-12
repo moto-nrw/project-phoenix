@@ -1,4 +1,10 @@
 import type { ParentConferenceOffer } from "~/lib/parent-conferences";
+import type { MessageAttachment } from "~/lib/message-attachments";
+import {
+  type BackendHolidayRegistrationEntries,
+  type HolidayRegistrationEntry,
+  holidayRegistrationEntriesFromBackend,
+} from "~/lib/parent-holiday-registration-entries";
 import type { CareContractStatus } from "./traeger-care-contracts-api";
 import {
   ApiError,
@@ -1358,6 +1364,19 @@ export async function listHolidayOffers(): Promise<HolidayOffer[]> {
 }
 
 /**
+ * The holiday registrations linked to the account (#6673, ADR 0216), newest
+ * first. Empty for an account without one.
+ */
+export async function listHolidayRegistrationEntries(): Promise<
+  HolidayRegistrationEntry[]
+> {
+  const body = await getJson<BackendHolidayRegistrationEntries | null>(
+    "/api/parent/me/holiday-registration-entries",
+  );
+  return holidayRegistrationEntriesFromBackend(body);
+}
+
+/**
  * Counts the conversations with unread staff-side activity for the badge:
  * exactly the rows the inbox shows (#5200), team and leadership ones per
  * child plus the group threads.
@@ -1675,6 +1694,7 @@ export async function postChildMessage(
   groupThreadId?: string,
   audience: MessageAudience = "team",
   clientMessageId?: string,
+  attachmentIds?: readonly string[],
 ): Promise<ThreadView> {
   // An answer to a group thread always goes to the team conversation.
   return postJson<ThreadView>(
@@ -1684,6 +1704,7 @@ export async function postChildMessage(
       body,
       client_message_id: clientMessageId,
       group_thread_id: groupThreadId,
+      attachment_ids: attachmentIds?.length ? attachmentIds : undefined,
       audience: groupThreadId || audience === "team" ? undefined : audience,
     },
   );
@@ -1721,6 +1742,8 @@ interface GroupThreadMessage {
   readonly id: string;
   readonly body: string;
   readonly created_at: string; // ISO timestamp
+  /** Fotos und Dateien der Nachricht (#6685). */
+  readonly attachments?: readonly MessageAttachment[];
 }
 
 /** An opened group thread. */

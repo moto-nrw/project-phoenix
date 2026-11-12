@@ -255,12 +255,14 @@ export async function postMessage(
   body: string,
   handledUpToMessageId?: string,
   clientMessageId?: string,
+  attachmentIds?: readonly string[],
 ): Promise<Message[]> {
   const result = await postEnvelope<Message[]>(
     `/api/messages/threads/${threadId}`,
     {
       body,
       client_message_id: clientMessageId,
+      ...(attachmentIds?.length ? { attachment_ids: attachmentIds } : {}),
       ...(handledUpToMessageId
         ? { handled_up_to_message_id: handledUpToMessageId }
         : {}),

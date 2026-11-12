@@ -68,4 +68,35 @@ describe("useRefreshAfterWrite", () => {
     await waitFor(() => expect(onResult).toHaveBeenCalledWith(true));
     expect(screen.getByRole("button", { name: "Nachladen" })).toBeVisible();
   });
+
+  // #6652: a reload with arguments (`onUpdated(nextState)`) retries with the
+  // arguments of the failed attempt and still never throws.
+  it("retries a reload with the arguments of the failed attempt", async () => {
+    const reload = vi
+      .fn<(state: string) => Promise<unknown>>()
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue(undefined);
+
+    function ArgsProbe() {
+      const { error, refresh } = useRefreshAfterWrite("die Liste", reload);
+      return (
+        <>
+          <button type="button" onClick={() => void refresh("aktiv")}>
+            Nachladen
+          </button>
+          <LoadErrorAlert error={error} />
+        </>
+      );
+    }
+
+    render(<ArgsProbe />);
+    fireEvent.click(screen.getByRole("button", { name: "Nachladen" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() => expect(reload).toHaveBeenCalledTimes(2));
+    expect(reload).toHaveBeenNthCalledWith(1, "aktiv");
+    expect(reload).toHaveBeenNthCalledWith(2, "aktiv");
+  });
 });

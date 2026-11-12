@@ -3,6 +3,8 @@ package domain
 import (
 	"errors"
 	"time"
+
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // Sentinel outcomes of the student-photo lifecycle. They are the owner's
@@ -87,4 +89,21 @@ func PhotoFilenameOf(storedURL string) string {
 		}
 	}
 	return storedURL
+}
+
+// PhotoPurposeEndedOn reports whether the photo of the child has lost its
+// purpose on today (#6650): the photo serves the care, which is over once
+// the last care day lies before today or the child graduated. A planned
+// last care day still to come keeps the photo.
+func PhotoPurposeEndedOn(record StudentRecord, today calendar.Date) bool {
+	if record.IsAlumnus() {
+		return true
+	}
+	return record.EnrolledUntil != "" && today.After(calendar.Date(record.EnrolledUntil))
+}
+
+// HoldsPhotoData reports whether the row still holds a photo, a photo
+// consent or who recorded it: what the end of the purpose removes.
+func HoldsPhotoData(record StudentRecord) bool {
+	return record.PhotoPath != nil || record.PhotoConsentGivenAt != nil || record.PhotoConsentGivenBy != nil
 }

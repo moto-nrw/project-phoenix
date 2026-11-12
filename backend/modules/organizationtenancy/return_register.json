@@ -2,7 +2,7 @@
   "registerVersion": 1,
   "formatVersion": 1,
   "catalogVersion": 1,
-  "catalogSHA256": "2ca65dc782e2f43aeaf551103826803108148079f76d8ca447e8799ff59b0994",
+  "catalogSHA256": "816d6e4fae4396a284780e5259f97e14edf990629774df18a98056a4fea19c24",
   "about": "Dieses Register beschreibt das Rückgabepaket von moto: welche Tabellen und Felder es enthält, welche Typen sie haben, ob sie leer sein dürfen und wie die Tabellen verbunden sind. Es enthält keine Kundendaten. Jedes Paket enthält dieselbe Beschreibung für seine Tabellen als model.json. formatVersion und catalogSHA256 stehen auch in der manifest.json des Pakets.",
   "standards": [
     {
@@ -6592,6 +6592,12 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": true
+        },
+        {
+          "name": "portal_locale",
+          "type": "text",
+          "udt": "text",
+          "nullable": true
         }
       ],
       "relationships": null,
@@ -8066,6 +8072,45 @@
       }
     },
     {
+      "name": "auth.traeger_parent_access",
+      "columns": [
+        {
+          "name": "account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "relationships": [
+        {
+          "column": "account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "platform.organizations",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ]
+    },
+    {
       "name": "calendar.appointment_occurrence_overrides",
       "columns": [
         {
@@ -8621,6 +8666,419 @@
           "targetTable": "users.staff_school_memberships",
           "targetColumn": "id"
         },
+        {
+          "column": "tenant_id",
+          "targetTable": "platform.schools",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school"
+      ]
+    },
+    {
+      "name": "calendar.holiday_closure_authorizations",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "event_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "operation_id",
+          "type": "uuid",
+          "udt": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "revision",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "channel",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "occurred_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "relationships": [
+        {
+          "column": "account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        },
+        {
+          "column": "event_id",
+          "targetTable": "calendar.holiday_closure_events",
+          "targetColumn": "id"
+        },
+        {
+          "column": "tenant_id",
+          "targetTable": "calendar.holiday_closure_events",
+          "targetColumn": "tenant_id"
+        },
+        {
+          "column": "tenant_id",
+          "targetTable": "platform.schools",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school"
+      ]
+    },
+    {
+      "name": "calendar.holiday_closure_events",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "proposal_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "operation_id",
+          "type": "uuid",
+          "udt": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "source_kind",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "source_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "revision",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "span_from",
+          "type": "date",
+          "udt": "date",
+          "nullable": false
+        },
+        {
+          "name": "span_to",
+          "type": "date",
+          "udt": "date",
+          "nullable": false
+        },
+        {
+          "name": "state",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "lease_until",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "attempts",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": false
+        },
+        {
+          "name": "next_attempt_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "confirmed_channel",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "requested_channel",
+          "type": "text",
+          "udt": "text",
+          "nullable": true
+        },
+        {
+          "name": "requested_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "processed_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "prepared_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "completed_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "relationships": [
+        {
+          "column": "organization_id",
+          "targetTable": "platform.organizations",
+          "targetColumn": "id"
+        },
+        {
+          "column": "proposal_id",
+          "targetTable": "calendar.holiday_closure_proposals",
+          "targetColumn": "id"
+        },
+        {
+          "column": "tenant_id",
+          "targetTable": "platform.schools",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school"
+      ],
+      "excludedColumns": {
+        "error_code": "Technical failure code of the worker; operational diagnostics, not customer export content.",
+        "impact_token": "Operational fingerprint of approved recipients and dates; may encode contact changes and is not customer export content.",
+        "lease_token": "Worker lease fence; operational secret, not customer export content."
+      }
+    },
+    {
+      "name": "calendar.holiday_closure_proposals",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "source_kind",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "source_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "operation_id",
+          "type": "uuid",
+          "udt": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "reason",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "previous_start",
+          "type": "date",
+          "udt": "date",
+          "nullable": true
+        },
+        {
+          "name": "previous_end",
+          "type": "date",
+          "udt": "date",
+          "nullable": true
+        },
+        {
+          "name": "current_start",
+          "type": "date",
+          "udt": "date",
+          "nullable": true
+        },
+        {
+          "name": "current_end",
+          "type": "date",
+          "udt": "date",
+          "nullable": true
+        },
+        {
+          "name": "span_from",
+          "type": "date",
+          "udt": "date",
+          "nullable": false
+        },
+        {
+          "name": "span_to",
+          "type": "date",
+          "udt": "date",
+          "nullable": false
+        },
+        {
+          "name": "revision",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "state",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "supersedes_event_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "confirmed_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
+        }
+      ],
+      "relationships": [
+        {
+          "column": "organization_id",
+          "targetTable": "platform.organizations",
+          "targetColumn": "id"
+        },
+        {
+          "column": "tenant_id",
+          "targetTable": "platform.schools",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school"
+      ]
+    },
+    {
+      "name": "calendar.holiday_closure_revisions",
+      "columns": [
+        {
+          "name": "tenant_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "revision",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "relationships": [
         {
           "column": "tenant_id",
           "targetTable": "platform.schools",
@@ -12989,6 +13447,12 @@
           "nullable": true
         },
         {
+          "name": "applied_copy_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
           "name": "outcome",
           "type": "character varying",
           "udt": "varchar",
@@ -13438,6 +13902,12 @@
         },
         {
           "name": "allocation_mode",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "acceptance_mail_text",
           "type": "text",
           "udt": "text",
           "nullable": false
@@ -14221,6 +14691,12 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": false
+        },
+        {
+          "name": "health_records",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -14267,6 +14743,24 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": false
+        },
+        {
+          "name": "state",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "operation_id",
+          "type": "uuid",
+          "udt": "uuid",
+          "nullable": true
+        },
+        {
+          "name": "changed_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -14295,6 +14789,61 @@
         "school",
         "organization"
       ]
+    },
+    {
+      "name": "enrollment.holiday_closure_sends",
+      "columns": [
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "operation_id",
+          "type": "uuid",
+          "udt": "uuid",
+          "nullable": false
+        },
+        {
+          "name": "holiday_registration_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "mail_erased",
+          "type": "boolean",
+          "udt": "bool",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "relationships": [
+        {
+          "column": "holiday_registration_id",
+          "targetTable": "enrollment.holiday_registrations",
+          "targetColumn": "id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "enrollment.holiday_registrations",
+          "targetColumn": "organization_id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ],
+      "excludedColumns": {
+        "family_key": "Keyed fingerprint of the recipient address; operational identifier, not customer export content.",
+        "idempotency_key": "Delivery deduplication identifier with the family fingerprint; operational, not customer export content."
+      }
     },
     {
       "name": "enrollment.holiday_registration_bookings",
@@ -14900,6 +15449,24 @@
           "nullable": true
         },
         {
+          "name": "retention_days",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": false
+        },
+        {
+          "name": "parent_account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "parent_account_requested",
+          "type": "boolean",
+          "udt": "bool",
+          "nullable": false
+        },
+        {
           "name": "health",
           "type": "text",
           "udt": "text",
@@ -14935,6 +15502,11 @@
         {
           "column": "organization_id",
           "targetTable": "platform.organizations",
+          "targetColumn": "id"
+        },
+        {
+          "column": "parent_account_id",
+          "targetTable": "auth.accounts",
           "targetColumn": "id"
         }
       ],
@@ -30784,6 +31356,176 @@
       ]
     },
     {
+      "name": "users.message_attachment_cleanup",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "filename_stored",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "cleaned_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "relationships": [
+        {
+          "column": "tenant_id",
+          "targetTable": "platform.schools",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school"
+      ]
+    },
+    {
+      "name": "users.message_attachments",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "tenant_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "scope",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "uploaded_by_account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "parent_message_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "parent_group_message_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "staff_message_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "filename_display",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "filename_stored",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "size_bytes",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "content_type",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "width",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": true
+        },
+        {
+          "name": "height",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "claimed_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
+        }
+      ],
+      "relationships": [
+        {
+          "column": "parent_group_message_id",
+          "targetTable": "users.parent_group_messages",
+          "targetColumn": "id"
+        },
+        {
+          "column": "parent_message_id",
+          "targetTable": "users.parent_messages",
+          "targetColumn": "id"
+        },
+        {
+          "column": "staff_message_id",
+          "targetTable": "users.staff_messages",
+          "targetColumn": "id"
+        },
+        {
+          "column": "tenant_id",
+          "targetTable": "platform.schools",
+          "targetColumn": "id"
+        },
+        {
+          "column": "uploaded_by_account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school"
+      ]
+    },
+    {
       "name": "users.notification_preferences",
       "columns": [
         {
@@ -31656,6 +32398,12 @@
           "type": "character varying",
           "udt": "varchar",
           "nullable": true
+        },
+        {
+          "name": "attachments",
+          "type": "jsonb",
+          "udt": "jsonb",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -32221,6 +32969,12 @@
           "type": "character varying",
           "udt": "varchar",
           "nullable": true
+        },
+        {
+          "name": "attachments",
+          "type": "jsonb",
+          "udt": "jsonb",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -33506,6 +34260,12 @@
           "type": "character varying",
           "udt": "varchar",
           "nullable": true
+        },
+        {
+          "name": "attachments",
+          "type": "jsonb",
+          "udt": "jsonb",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -35964,6 +36724,11 @@
       "reason": "Public vacation calendar shared by all schools of a state; not school content."
     },
     {
+      "name": "enrollment.holiday_closure_family_keys",
+      "classification": "excludeInternal",
+      "reason": "Technical secret without personal data; no customer export content."
+    },
+    {
       "name": "enrollment.holiday_registration_rate_limits",
       "classification": "excludeInternal",
       "reason": "Abuse counter with SHA-256 digests only; no customer content."
@@ -36159,6 +36924,11 @@
       "kind": "enrollment-uploads",
       "export": "include",
       "reason": "Files parents attach to an enrollment request, such as income proofs, with enrollment.request_uploads metadata and cleanup intents (#4783)."
+    },
+    {
+      "kind": "message-attachments",
+      "export": "include",
+      "reason": "Photos and files of chat messages between staff and guardians and in the team chat, with users.message_attachments metadata and cleanup intents (#6685)."
     },
     {
       "kind": "enrollment-form-legal-documents",

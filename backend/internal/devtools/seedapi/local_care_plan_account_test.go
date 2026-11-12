@@ -26,9 +26,13 @@ func TestLocalCarePlanAccountIsSavedByFullWorkflow(t *testing.T) {
 	require.NoError(t, err)
 	profile, err := state.SelectProfile(DefaultProfileKey)
 	require.NoError(t, err)
-	require.Len(t, profile.Credentials.Accounts.Local, 1)
+	// The parent account a guest family set up at the Träger is the other
+	// local login (ADR 0216).
+	require.Len(t, profile.Credentials.Accounts.Local, 2)
 	account := profile.Credentials.Accounts.Local[0]
 	assert.Equal(t, localCarePlanAccountKey, account.Key)
+	assert.Equal(t, seedHolidayParentAccountKey, profile.Credentials.Accounts.Local[1].Key)
+	assert.Equal(t, seedHolidayGuestFamilyEmail, profile.Credentials.Accounts.Local[1].Email)
 	assert.Equal(t, "example-test-password", account.Password)
 	assert.Positive(t, account.AccountID)
 	assert.Positive(t, account.StaffID)

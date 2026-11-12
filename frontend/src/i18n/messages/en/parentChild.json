@@ -46,8 +46,9 @@
   "consents": {
     "title": "Consents and confirmations",
     "description": "Here you can see your child's consents.",
-    "staffDescription": "For information only. Parents change photo consent in the parent portal.",
+    "staffDescription": "Parents change photo consent in the parent portal. Parents without the portal tell you. Then remove the tick under “Bearbeiten” at the photo.",
     "photoDescription": "You can change photo consent here.",
+    "photoViaCareDescription": "To withdraw photo consent, contact the {careTerm}.",
     "items": {
       "agb": "General terms and conditions",
       "data_processing": "Privacy information acknowledged",

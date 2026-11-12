@@ -282,7 +282,7 @@ func (s *Erasure) eraseOrganizationRoot(ctx context.Context, r organizationtenan
 // destructive interpretation. Avatars retain global objects but erase legacy
 // school directories. This is an execution guard, not another data catalog.
 func validateErasureFiles(kinds []organizationtenancy.LifecycleFileKind) error {
-	supported := map[string]string{"files": "tenantDir", "announcement-attachments": "tenantDir", "student-documents": "tenantDir", "staff-documents": "tenantDir", "enrollment-uploads": "tenantDir", "student-photos": "tenantPrefix", "login-images": "tenantPrefix", "enrollment-legal-documents": "tenantPrefix", "enrollment-form-legal-documents": "tenantPrefix", "avatars": "account"}
+	supported := map[string]string{"files": "tenantDir", "announcement-attachments": "tenantDir", "student-documents": "tenantDir", "staff-documents": "tenantDir", "enrollment-uploads": "tenantDir", "message-attachments": "tenantDir", "student-photos": "tenantPrefix", "login-images": "tenantPrefix", "enrollment-legal-documents": "tenantPrefix", "enrollment-form-legal-documents": "tenantPrefix", "avatars": "account"}
 	if len(kinds) != len(supported) {
 		return errors.New("erasure: file catalog needs reviewed deletion paths")
 	}

@@ -54,6 +54,7 @@ import {
   type AbsenceTypeAllowanceSummary,
 } from "~/lib/absence-type-api";
 import { formatDate, berlinTodayISO, toISODate } from "~/lib/date-helpers";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { staffAbsenceService } from "~/lib/staff-api";
 import { InsetPanel } from "~/components/ui/inset-panel";
@@ -546,7 +547,8 @@ export function AbsenceBookingModal({
   readonly staff: SickReportStaff;
   readonly types: readonly AbsenceType[];
   readonly onClose: () => void;
-  readonly onSaved: () => Promise<void>;
+  /** Closes the dialog and reloads; never rejects (#6652). */
+  readonly onSaved: RefreshAfterWrite;
   /** Vorbelegter Tag, z. B. ein vergangener Tag ohne Eintrag (#3258). */
   readonly initialDate?: string;
 }) {
@@ -701,7 +703,6 @@ export function AbsenceBookingModal({
         note: note.trim() || undefined,
       });
       toast.success(`${selected.label} ist eingetragen.`);
-      await onSaved();
     } catch (error) {
       logger.error("absence_booking_failed", {
         staff_id: staff.id,
@@ -712,9 +713,11 @@ export function AbsenceBookingModal({
         object: "die Abwesenheit",
         retry: () => void latestSaveRef.current(),
       });
-    } finally {
       setSaving(false);
+      return;
     }
+    setSaving(false);
+    await onSaved();
   };
 
   useLayoutEffect(() => {

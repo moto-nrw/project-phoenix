@@ -99,6 +99,7 @@
       "inviteSent": "{email} adresine davet gönderildi.",
       "inviteLinked": "Kişi artık bağlı.",
       "grant": "Erişim ver",
+      "grantLoading": "Erişim veriliyor…",
       "grantTitle": "Tam erişim verilsin mi?",
       "grantBody": "{name} adlı kişinin bir hesabı var ama bu çocuğa henüz erişimi yok. Onaylarsanız {careTerm}'ye bir talep gider. Onaydan sonra bu kişi çocuğunuzla ilgili her şeyi görür.",
       "grantBodyWithRole": "{name} zaten {role} olarak kayıtlı ama uygulamaya henüz erişimi yok. Onaylarsanız {careTerm}'ye bir talep gider. Onaydan sonra bu kişi çocuğunuzla ilgili her şeyi görür.",
@@ -116,6 +117,8 @@
     "errorObjectAccounts": "bağlı hesaplar listesi",
     "errorObjectInvite": "davet",
     "errorObjectRemove": "bu hesabın erişimi",
+    "reloadObject": "kişiler görünümü",
+    "savedButStale": "Değişikliğiniz kaydedildi. Yalnızca görünüm henüz güncel değil.",
     "errorObjectContact": "kişi değişikliği",
     "errorObjectPickup": "teslim alma düzeni"
   },

@@ -129,6 +129,7 @@
   "status_link_invalid": "Ten link jest nieprawidłowy lub wygasł. Użyj linku z e-maila.",
   "student_exists": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "submission_rate_limited": "Wysłano zbyt wiele zapisów. Spróbuj ponownie za godzinę.",
+  "submission_email_rate_limited": "Z tego adresu e-mail wysłano dziś już wiele zapisów. Spróbuj ponownie jutro.",
   "waitlist_disabled": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "window_closed": "Termin zapisów minął lub jeszcze się nie zaczął. Skontaktuj się ze szkołą.",
   "withdraw_not_allowed": "Tego zapisu nie można już wycofać. Skontaktuj się ze szkołą.",

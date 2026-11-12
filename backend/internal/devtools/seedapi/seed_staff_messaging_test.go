@@ -40,6 +40,9 @@ func TestSeedStaffMessagingStepLeavesTwoThreadsUnreadForTheAdmin(t *testing.T) {
 			id := fmt.Sprintf("t%d", len(threadOf)+1)
 			threadOf[id] = who + ">" + body["account_id"].(string)
 			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"thread_id":"%s"}}`, id)
+		case "/api/staff-messages/attachments":
+			// The photo of a conversation's first message (#6685).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":"500"}}`)
 		case "/api/staff-messages/groups":
 			var body struct {
 				Name       string   `json:"name"`

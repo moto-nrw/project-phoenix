@@ -12,7 +12,7 @@ import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { Radio } from "~/components/ui/radio";
 import { Textarea } from "~/components/ui/textarea";
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import type { FormField } from "~/lib/enrollment-form-schema-api";
 
 type FieldInputTranslator = (key: string) => string;
@@ -90,6 +90,11 @@ export interface CustomFieldInputProps {
   readonly tr: FieldInputTranslator;
   /** The id of a date control; unique per child where a form repeats it. */
   readonly controlId?: string;
+  /** A surrounding card already names the boolean question. */
+  readonly labelHidden?: boolean;
+  readonly fieldsetRef?: Ref<HTMLFieldSetElement>;
+  /** Additional explanation for a boolean answer. */
+  readonly children?: ReactNode;
   /**
    * Renders a date or a structured type (phone list, weekdays, contacts,
    * file) the shared renderer does not know. Without it such a field
@@ -114,6 +119,9 @@ export function CustomFieldInput({
   error,
   tr,
   controlId: suppliedControlId,
+  labelHidden = false,
+  fieldsetRef,
+  children,
   renderStructured,
 }: CustomFieldInputProps) {
   if (!SIMPLE_TYPES.has(field.type)) return renderStructured?.() ?? null;
@@ -124,10 +132,19 @@ export function CustomFieldInput({
     const selectedValue = value === true ? "yes" : value === false ? "no" : "";
     return (
       <fieldset
+        ref={fieldsetRef}
+        tabIndex={-1}
+        className="min-w-0 outline-none"
         aria-invalid={error ? "true" : undefined}
         aria-describedby={error ? errorId : undefined}
       >
-        <legend className="mb-2 block text-sm font-medium text-gray-700">
+        <legend
+          className={
+            labelHidden
+              ? "sr-only"
+              : "mb-2 block text-sm font-medium text-gray-700"
+          }
+        >
           {field.label}
           {field.required && <RequiredMark />}
         </legend>
@@ -145,6 +162,7 @@ export function CustomFieldInput({
               <Radio
                 name={inputName}
                 value={option.value}
+                required={field.required}
                 checked={selectedValue === option.value}
                 onChange={() => onChange(option.raw)}
               />
@@ -153,6 +171,7 @@ export function CustomFieldInput({
           ))}
         </div>
         <FieldErrorHint id={errorId} message={error} />
+        {children}
       </fieldset>
     );
   }

@@ -10,6 +10,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/workflows/traegercatalog"
 	"github.com/moto-nrw/project-phoenix/workflows/traegercatalog/ports"
 )
@@ -42,6 +43,7 @@ func New(deps ports.Dependencies) (*Catalog, error) {
 // snapshot is a Träger phase with its offerings as one Träger transaction
 // read them, and the schools of the Träger.
 type snapshot struct {
+	month     calendar.Date
 	phase     enrollment.TraegerPhase
 	offerings []careplan.TraegerOffering
 	schools   []int64
@@ -56,6 +58,7 @@ type target struct {
 // release is the version a school gets: the phase and offering fields and
 // their versions.
 type release struct {
+	month        calendar.Date
 	phaseVersion int
 	phase        enrollment.TraegerPhaseFields
 	offerings    map[int64]offeringRelease
@@ -71,7 +74,7 @@ func (c *Catalog) read(ctx context.Context, actor traegercatalog.Actor, id int64
 	if err != nil {
 		return snapshot{}, err
 	}
-	snap := snapshot{schools: schools}
+	snap := snapshot{schools: schools, month: monthStart(c.deps.Today())}
 	err = c.deps.Runtime.WithinTraeger(ctx, actor.OrganizationID, func(ctx context.Context) error {
 		var err error
 		if lock {
@@ -105,7 +108,7 @@ func (s snapshot) targets() []target {
 		}
 	}
 	for _, school := range s.phase.Schools {
-		copied := school.AppliedVersion != nil && school.Outcome != enrollment.TraegerOutcomeWithdrawn
+		copied := (school.AppliedVersion != nil || school.Outcome != "") && school.Outcome != enrollment.TraegerOutcomeWithdrawn
 		if copied && own[school.SchoolID] && !selected[school.SchoolID] {
 			targets = append(targets, target{schoolID: school.SchoolID, action: traegercatalog.ActionWithdraw})
 		}
@@ -135,7 +138,7 @@ func (s snapshot) selected(own map[int64]bool) map[int64]bool {
 // prospective is the release the draft would become: the released version
 // where the draft did not change, else the next one.
 func (s snapshot) prospective() release {
-	next := release{phase: s.phase.Draft, phaseVersion: nextVersion(s.phase.ReleasedVersion, s.phase.Released != nil && sameJSON(*s.phase.Released, s.phase.Draft)), offerings: map[int64]offeringRelease{}}
+	next := release{month: s.month, phase: s.phase.Draft, phaseVersion: nextVersion(s.phase.ReleasedVersion, s.phase.Released != nil && sameJSON(*s.phase.Released, s.phase.Draft)), offerings: map[int64]offeringRelease{}}
 	for _, offering := range s.offerings {
 		unchanged := offering.Released != nil && sameJSON(*offering.Released, offering.Draft)
 		next.offerings[offering.ID] = offeringRelease{version: nextVersion(offering.ReleasedVersion, unchanged), draft: offering.Draft}

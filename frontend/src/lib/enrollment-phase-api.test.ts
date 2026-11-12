@@ -352,6 +352,41 @@ describe("updatePhase", () => {
     expect(seenURL).toContain("/1234");
   });
 
+  // #6598: the children a shortened end left in care, camelCased, with
+  // string ids; the phase itself keeps its wire shape.
+  it("maps the children whose care runs past the shortened end", async () => {
+    mockFetch(async () =>
+      jsonResponse({
+        data: {
+          ...mkPhase("1234", "Updated"),
+          care_beyond_end: [
+            {
+              student_id: "77",
+              first_name: "Mia",
+              last_name: "Lang",
+              school_class: "2b",
+              care_end: "2027-07-31",
+              phase_end: "2027-06-30",
+            },
+          ],
+        },
+      }),
+    );
+    const out = await updatePhase("1234", validInput);
+    expect(out.careBeyondEnd).toEqual([
+      {
+        studentId: "77",
+        firstName: "Mia",
+        lastName: "Lang",
+        schoolClass: "2b",
+        careEnd: "2027-07-31",
+        phaseEnd: "2027-06-30",
+      },
+    ]);
+    expect(out).not.toHaveProperty("care_beyond_end");
+    expect(out.name).toBe("Updated");
+  });
+
   it("URL-encodes the id", async () => {
     let seenURL = "";
     mockFetch(async (input) => {

@@ -96,6 +96,7 @@ type PhaseList interface {
 
 // PhaseOfferings reads the Care Plan offerings linked to a phase.
 type PhaseOfferings interface {
+	HasTraegerCopiesForPhase(context.Context, int64) (bool, error)
 	OfferingIDsForPhase(ctx context.Context, phaseID int64) ([]int64, error)
 	CountOfferingsForPhase(ctx context.Context, phaseID int64) (int, error)
 	// CareOfferingBookingsForPhase lists the bookings of the phase's

@@ -33,6 +33,7 @@ type TraegerCopyLink struct {
 // JSON names are the column names of enrollment.care_offerings: they are the
 // keys of the copy's traeger_values.
 type TraegerOfferingFields struct {
+	IsActive            *bool             `json:"is_active,omitempty"`
 	Name                string            `json:"name"`
 	Description         *string           `json:"description"`
 	DaysOfWeekMode      string            `json:"days_of_week_mode"`
@@ -84,6 +85,11 @@ type TraegerOfferingDraft struct {
 
 // TraegerOfferingSchool is one school with the last outcome of the copy.
 type TraegerOfferingSchool struct {
+	// Applied is the immutable draft of AppliedVersion, used to compare billing
+	// terms even when this school missed several releases.
+	Applied *TraegerOfferingDraft `json:"-"`
+	// AppliedCopyID ties the financial baseline to the school copy it priced.
+	AppliedCopyID  *int64     `json:"-"`
 	SchoolID       int64      `json:"school_id"`
 	AppliedVersion *int       `json:"applied_version,omitempty"`
 	Outcome        string     `json:"outcome,omitempty"`
@@ -107,6 +113,7 @@ type TraegerOffering struct {
 
 // TraegerOfferingOutcome records the outcome of one school's copy.
 type TraegerOfferingOutcome struct {
+	AppliedCopyID  *int64
 	SchoolID       int64
 	AppliedVersion *int
 	Outcome        string
@@ -128,7 +135,7 @@ type TraegerOfferings interface {
 	// phase whose draft differs from its last one. The caller holds the lock
 	// of the Träger phase.
 	ReleaseTraegerOfferings(ctx context.Context, organizationID, traegerPhaseID, accountID int64) ([]TraegerOffering, error)
-	RecordTraegerOfferingOutcomes(ctx context.Context, organizationID, id int64, outcomes []TraegerOfferingOutcome) error
+	RecordTraegerOfferingOutcomes(ctx context.Context, organizationID int64, outcomes map[int64][]TraegerOfferingOutcome) error
 }
 
 // TraegerOfferingCopy is the released version of a Träger offering for one
@@ -176,6 +183,7 @@ type TraegerOfferingWithdrawal struct {
 // TraegerOfferingCopies applies Träger offerings in one school. Every method
 // runs in the tenant transaction of that school, which the caller opens.
 type TraegerOfferingCopies interface {
+	TraegerOfferingBatch
 	// TraegerOfferingCopyStates reads the copies of sourceIDs; lock takes
 	// their row locks in ID order.
 	TraegerOfferingCopyStates(ctx context.Context, sourceIDs []int64, lock bool) ([]TraegerOfferingCopyState, error)
@@ -186,3 +194,27 @@ type TraegerOfferingCopies interface {
 	// selections; otherwise it deactivates it and drops its link.
 	WithdrawTraegerOffering(ctx context.Context, sourceID int64) (TraegerOfferingWithdrawal, error)
 }
+
+// TraegerOfferingBatchApplied is the complete school catalog change.
+type TraegerOfferingBatchApplied struct {
+	Applied   []TraegerOfferingApplied
+	Withdrawn map[int64]TraegerOfferingWithdrawal
+}
+
+// TraegerOfferingWrite is an owner-validated copy and its immutable baseline.
+type TraegerOfferingWrite struct {
+	Offering CareOffering
+	SourceID int64
+	Version  int
+	Baseline TraegerOfferingFields
+	Unlink   bool
+}
+
+// TraegerOfferingBatch validates and writes a school's complete merged catalog.
+type TraegerOfferingBatch interface {
+	ApplyTraegerOfferings(ctx context.Context, copies []TraegerOfferingCopy, withdrawSourceIDs []int64) (TraegerOfferingBatchApplied, error)
+}
+
+// Active preserves the default of drafts and immutable versions written before
+// the active flag was available. An explicit false temporarily deactivates it.
+func (f TraegerOfferingFields) Active() bool { return f.IsActive == nil || *f.IsActive }

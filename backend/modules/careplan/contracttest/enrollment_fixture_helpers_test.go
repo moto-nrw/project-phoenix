@@ -113,6 +113,11 @@ type recordingSourcedTemplateResyncer struct {
 	err                 error
 }
 
+func (r *recordingSourcedTemplateResyncer) ResyncTemplatesSourcedFromOfferings(_ context.Context, offeringIDs []int64, _ calendar.Date) error {
+	r.offeringIDs = append(r.offeringIDs, offeringIDs...)
+	return r.err
+}
+
 func (r *recordingSourcedTemplateResyncer) ResyncTemplatesSourcedFromOffering(_ context.Context, offeringID int64, _ calendar.Date) error {
 	r.offeringIDs = append(r.offeringIDs, offeringID)
 	return r.err
@@ -169,4 +174,17 @@ func fixtureEnrollmentQuery[T any](ctx context.Context, call func(context.Contex
 		return err
 	})
 	return value, err
+}
+
+func (o phaseOfferings) HasTraegerCopiesForPhase(ctx context.Context, id int64) (bool, error) {
+	rows, err := o.carePlan.ListCareOfferings(ctx, careplan.CareOfferingFilter{PhaseIDs: []int64{id}})
+	if err != nil {
+		return false, err
+	}
+	for _, row := range rows {
+		if row.Traeger != nil {
+			return true, nil
+		}
+	}
+	return false, nil
 }

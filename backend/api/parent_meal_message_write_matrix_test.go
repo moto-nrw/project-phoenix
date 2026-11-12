@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
@@ -379,10 +380,17 @@ func (run *scenarioRun) cells() []stmtCell {
 	return out
 }
 
+// One kind per class the code tells apart (#6784): a failure the client saw
+// (plain), a cancelled statement whose connection pgdriver closes (57014), a
+// retryable SQLSTATE (40P01; IsRetryableTransactionError treats 40001 the
+// same) and any other SQLSTATE (23514). A failed ROLLBACK is never
+// classified (rollbackDiagnostic unwraps to the statement's error), so one
+// SQLSTATE stands for all of them there, beside 57014 and a broken
+// connection.
 var (
-	mainKinds    = []string{"plain", "23514", "57014", "40P01", "40001"}
+	mainKinds    = []string{"plain", "23514", "57014", "40P01"}
 	minimumKinds = []string{"40P01", "57014", "plain"}
-	cleanupKinds = []string{"", "plain", "23514", "57014", "40P01", "40001", "bad_conn"}
+	cleanupKinds = []string{"", "plain", "57014", "40P01", "bad_conn"}
 )
 
 // receiptAt reports whether statement at belongs to the read-receipt lookup
@@ -481,19 +489,23 @@ func (r mealWriteRig) assertCell(t *testing.T, run *scenarioRun, name string, wa
 }
 
 // runMatrix walks the cells of one group of scenarios, each scenario in a
-// school of its own.
+// school of its own with a rig of its own, so the scenarios run in parallel:
+// the faults are armed per rig, and every scenario reads and writes only its
+// own school (#6784; one shared rig ran them one after the other).
 func runMatrix(t *testing.T, group string) {
-	rig := newMealWriteRig(t)
-	cells := 0
-	for _, sc := range mealWriteScenarios()[group] {
-		t.Run(sc.route+" "+sc.name, func(t *testing.T) {
-			// The school of the scenario lives in the rig's own database.
-			testpkg.EnsureTestTenant(t, rig.super, testpkg.OwnTenant(t))
-			cells += rig.runScenario(t, group, sc)
-		})
-	}
-	t.Logf("%s: %d cells", group, cells)
-	rig.writeSuccessStates(t, group)
+	var cells atomic.Int64
+	t.Run("scenarios", func(t *testing.T) {
+		for _, sc := range mealWriteScenarios()[group] {
+			t.Run(sc.route+" "+sc.name, func(t *testing.T) {
+				t.Parallel()
+				testpkg.EnsureTestTenant(t, testpkg.SetupTestDB(t), testpkg.OwnTenant(t))
+				rig := newMealWriteRig(t)
+				cells.Add(int64(rig.runScenario(t, group, sc)))
+			})
+		}
+	})
+	t.Logf("%s: %d cells", group, cells.Load())
+	mealWriteRig{}.writeSuccessStates(t, group)
 }
 
 // runScenario walks the cells of one scenario and counts them.

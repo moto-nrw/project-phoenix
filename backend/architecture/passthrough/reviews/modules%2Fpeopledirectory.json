@@ -446,6 +446,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0210",
+      "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListEnrolledIDsByIdentities",
+      "reason": "Owner adapter maps query statistics and errors while preserving index-aligned batch matches; no independent query or write."
+    },
+    {
       "decision": "0090",
       "id": "modules/peopledirectory/internal/adapters/postgres/StudentStore.ListEnrolledIDsByNameAndBirthday",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -1121,9 +1126,9 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
+      "decision": "0213",
       "id": "modules/peopledirectory/internal/application/Service.ScheduleStudentPhotoUnlink",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "reason": "Public photo capability translates the owner-private unlink queue error. The single-file path still queues durably before the unchanged after-commit hint; the bulk retention path queues once and reuses that hint (ADR 0213)."
     },
     {
       "decision": "0090",

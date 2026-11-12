@@ -35,6 +35,10 @@ type PhaseDependencies struct {
 	// with a service-window edit (#6597). Optional like Students; the root
 	// always binds it.
 	Bookings enrollment.PhaseBookings
+	// CareStudents reads the care end of the phase's confirmed children, so
+	// an edit that shortens the phase can name those whose care now runs
+	// past it (#6598). Optional like Students; the root always binds it.
+	CareStudents enrollment.PhaseCareStudents
 	// Settings resolves the concrete-class collection toggles used to
 	// reject unsatisfiable eligibility configs. Optional: nil skips the
 	// guard (focused tests; the CHECK/model rules still apply).
@@ -237,39 +241,55 @@ func (s *Phases) create(ctx context.Context, phase *enrollment.Phase) (*enrollme
 
 // UpdatePhase validates and writes a phase and resyncs the templates sourcing its
 // offerings when the service window changed.
-func (s *Phases) UpdatePhase(ctx context.Context, phase *enrollment.Phase) error {
-	return s.runInTx(ctx, func(txCtx context.Context) error {
-		return s.update(txCtx, phase)
+//
+// It reports the confirmed children whose care runs past a shortened end
+// (#6598) and changes none of them.
+func (s *Phases) UpdatePhase(ctx context.Context, phase *enrollment.Phase) (enrollment.PhaseUpdateReport, error) {
+	var report enrollment.PhaseUpdateReport
+	err := s.runInTx(ctx, func(txCtx context.Context) error {
+		var err error
+		report, err = s.update(txCtx, phase)
+		return err
 	})
+	if err != nil {
+		return enrollment.PhaseUpdateReport{}, err
+	}
+	return report, nil
 }
 
-func (s *Phases) update(ctx context.Context, phase *enrollment.Phase) error {
+func (s *Phases) update(ctx context.Context, phase *enrollment.Phase) (enrollment.PhaseUpdateReport, error) {
+	var report enrollment.PhaseUpdateReport
 	if phase == nil || phase.ID <= 0 {
-		return fmt.Errorf("%w: phase with valid id is required", enrollment.ErrInvalidPhase)
+		return report, fmt.Errorf("%w: phase with valid id is required", enrollment.ErrInvalidPhase)
 	}
 	if err := s.validatePhaseWrite(ctx, phase); err != nil {
-		return err
+		return report, err
 	}
 	existing, serviceWindowChanged, err := s.validateCareOfferingPhaseUpdate(ctx, phase)
 	if err != nil {
-		return err
+		return report, err
 	}
 	if err := s.deps.Records.UpdatePhase(ctx, phase); err != nil {
-		return s.translatePhaseWriteError(err)
+		return report, s.translatePhaseWriteError(err)
 	}
 	if serviceWindowChanged {
 		if err := s.followBookingBounds(ctx, existing, phase); err != nil {
-			return err
+			return report, err
 		}
 		if err := s.followPendingActivations(ctx, existing, phase); err != nil {
-			return err
+			return report, err
 		}
 		if err := s.resyncPhaseSourcedTemplates(ctx, phase.ID); err != nil {
-			return err
+			return report, err
+		}
+		if report.CareBeyondEnd, err = s.careBeyondShortenedEnd(ctx, existing, phase); err != nil {
+			return report, err
 		}
 	}
-	s.logger.Info("phase updated", slog.Int64("phase_id", phase.ID))
-	return nil
+	s.logger.Info("phase updated",
+		slog.Int64("phase_id", phase.ID),
+		slog.Int("care_beyond_end", len(report.CareBeyondEnd)))
+	return report, nil
 }
 
 // validateCareOfferingPhaseUpdate guards a service-window change against the
@@ -320,20 +340,26 @@ func (s *Phases) resyncPhaseSourcedTemplates(ctx context.Context, phaseID int64)
 	if err != nil {
 		return fmt.Errorf("phase update: list care offerings for sourced-template resync: %w", err)
 	}
-	today := s.todayDate()
-	for _, offeringID := range offeringIDs {
-		if err := s.deps.Resyncer.ResyncTemplatesSourcedFromOffering(ctx, offeringID, today); err != nil {
-			if errors.Is(err, timetable.ErrOfferingSourceInvalid) {
-				// The tenant transaction commits ordinary 4xx responses.
-				// Mark the ambient transaction so the already-written phase
-				// update is discarded together with the rejection.
-				if s.deps.Runtime.MarkRollback != nil {
-					s.deps.Runtime.MarkRollback(ctx)
-				}
-				return fmt.Errorf("%w: %w", enrollment.ErrPhaseCareOfferingConflict, err)
+	if len(offeringIDs) == 0 {
+		return nil
+	}
+	resyncer, ok := s.deps.Resyncer.(interface {
+		ResyncTemplatesSourcedFromOfferings(context.Context, []int64, calendar.Date) error
+	})
+	if !ok {
+		return errors.New("phase update: batch sourced-template resync is required")
+	}
+	if err := resyncer.ResyncTemplatesSourcedFromOfferings(ctx, offeringIDs, s.todayDate()); err != nil {
+		if errors.Is(err, timetable.ErrOfferingSourceInvalid) {
+			// The tenant transaction commits ordinary 4xx responses.
+			// Mark the ambient transaction so the already-written phase
+			// update is discarded together with the rejection.
+			if s.deps.Runtime.MarkRollback != nil {
+				s.deps.Runtime.MarkRollback(ctx)
 			}
-			return fmt.Errorf("phase update: resync templates sourcing offering %d: %w", offeringID, err)
+			return fmt.Errorf("%w: %w", enrollment.ErrPhaseCareOfferingConflict, err)
 		}
+		return fmt.Errorf("phase update: resync templates sourcing offerings %v: %w", offeringIDs, err)
 	}
 	return nil
 }
@@ -436,6 +462,9 @@ func (s *Phases) DeletePhase(ctx context.Context, id int64) error {
 		if err := s.deps.LockTemplateRecurrence(txCtx); err != nil {
 			return fmt.Errorf("lock template recurrence for phase delete: %w", err)
 		}
+		if err := s.refuseTraegerOfferings(txCtx, id); err != nil {
+			return err
+		}
 		if err := s.refuseEffectiveBookings(txCtx, id); err != nil {
 			return err
 		}
@@ -458,5 +487,26 @@ func (s *Phases) DeletePhase(ctx context.Context, id int64) error {
 	s.logger.Info("phase deleted",
 		slog.Int64("phase_id", id),
 		slog.Int("deleted_requests", deletedRequests))
+	return nil
+}
+
+func (s *Phases) refuseTraegerOfferings(ctx context.Context, id int64) error {
+	phase, err := s.deps.Records.Phase(ctx, id)
+	if err != nil {
+		return err
+	}
+	if phase.Traeger != nil {
+		return enrollment.ErrTraegerCopyDelete
+	}
+	if s.deps.Offerings == nil {
+		return errors.New("phase delete requires the offering guard")
+	}
+	copies, err := s.deps.Offerings.HasTraegerCopiesForPhase(ctx, id)
+	if err != nil {
+		return err
+	}
+	if copies {
+		return enrollment.ErrTraegerCopyDelete
+	}
 	return nil
 }
