@@ -23,6 +23,7 @@ import {
 import {
   asksForAddress,
   bookedWeeks,
+  childHealthValues,
   type ContactDraft,
   criterionQuestions,
   hasAddress,
@@ -30,6 +31,7 @@ import {
   isAnswered,
   OTHER_SCHOOL,
   type RegistrationDraft,
+  requiresHealth,
   visibleChildQuestions,
   visibleFamilyQuestions,
 } from "./holiday-registration-model";
@@ -127,6 +129,12 @@ export function HolidayRegistrationSummary({
   });
   const labels = useWeekLabels();
   const none = t("none");
+  // A required health field answered with „Keine“ reads in the parent's
+  // language; the Träger gets the German value (#6686).
+  const healthValue = (value: string, choice: string | undefined) =>
+    requiresHealth(offer.form) && choice === "none"
+      ? t("healthNoneValue")
+      : value || none;
   const schoolName = (school: string, guestSchoolName: string) =>
     school === OTHER_SCHOOL
       ? `${t("guest")}${guestSchoolName.trim() ? ` · ${guestSchoolName.trim()}` : ""}`
@@ -173,10 +181,16 @@ export function HolidayRegistrationSummary({
               );
             })}
             <DataField label={t("allergies")}>
-              {child.allergies.trim() || none}
+              {healthValue(
+                childHealthValues(child, offer.form).allergies,
+                child.allergiesChoice,
+              )}
             </DataField>
             <DataField label={t("medication")}>
-              {child.medication.trim() || none}
+              {healthValue(
+                childHealthValues(child, offer.form).medication,
+                child.medicationChoice,
+              )}
             </DataField>
             <DataField label={t("healthNotes")}>
               {child.healthNotes.trim() || none}

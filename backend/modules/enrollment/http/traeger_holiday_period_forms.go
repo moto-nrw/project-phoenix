@@ -18,12 +18,14 @@ import (
 
 // HolidayPeriodFormRequest is the body of PUT
 // /traeger/holiday-periods/{id}/form: every question of the new version in
-// its order, its legal blocks and the building block "Anschrift" (#5625);
-// a missing address_requirement asks for no address.
+// its order, its legal blocks and the building blocks "Anschrift" (#5625)
+// and "Gesundheit" (#6686); a missing address_requirement asks for no
+// address, a missing health_requirement keeps the health fields optional.
 type HolidayPeriodFormRequest struct {
 	Fields             []capability.HolidayFormField        `json:"fields"`
 	LegalBlocks        []capability.FormLegalBlock          `json:"legal_blocks"`
 	AddressRequirement capability.HolidayAddressRequirement `json:"address_requirement"`
+	HealthRequirement  capability.HolidayHealthRequirement  `json:"health_requirement"`
 }
 
 // Bind accepts the body; the Owner validates the form as a whole.
@@ -62,7 +64,7 @@ func (rs *HolidayPeriodResource) saveForm(w http.ResponseWriter, r *http.Request
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	form, err := rs.periods.SaveHolidayPeriodForm(r.Context(), reviewer.OrganizationID, periodID, reviewer.AccountID, req.Fields, req.LegalBlocks, req.AddressRequirement)
+	form, err := rs.periods.SaveHolidayPeriodForm(r.Context(), reviewer.OrganizationID, periodID, reviewer.AccountID, req.Fields, req.LegalBlocks, req.AddressRequirement, req.HealthRequirement)
 	if err != nil {
 		renderHolidayFormError(w, r, err)
 		return

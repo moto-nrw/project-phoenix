@@ -133,13 +133,15 @@ type HolidayRegistrationOfferResponse struct {
 }
 
 // HolidayRegistrationForm is the current version of the period's form for
-// parents (#5198): its questions and whether it asks for the postal address
-// (#5625), without who saved it when.
+// parents (#5198): its questions, whether it asks for the postal address
+// (#5625) and whether allergies and medication are required (#6686),
+// without who saved it when.
 type HolidayRegistrationForm struct {
 	Version            int                                  `json:"version"`
 	Fields             []capability.HolidayFormField        `json:"fields"`
 	LegalBlocks        []capability.FormLegalBlock          `json:"legal_blocks"`
 	AddressRequirement capability.HolidayAddressRequirement `json:"address_requirement"`
+	HealthRequirement  capability.HolidayHealthRequirement  `json:"health_requirement"`
 }
 
 type holidayGuardianRequest struct {
@@ -383,6 +385,7 @@ func holidayOfferResponse(link capability.HolidayRegistrationLink, offer capabil
 		Form: HolidayRegistrationForm{
 			Version: offer.Form.Version, Fields: holidayFormFields(offer.Form.Fields),
 			LegalBlocks: publicHolidayLegalBlocks(offer.Form.LegalBlocks), AddressRequirement: offer.Form.AddressRequirement,
+			HealthRequirement: offer.Form.HealthRequirement,
 		},
 		ConsentTexts: offer.ConsentTexts, HolidayWishMode: offer.HolidayWishMode,
 	}

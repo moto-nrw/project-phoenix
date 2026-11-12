@@ -5,7 +5,8 @@
 // und Bedingungen auf andere Fragen. Jede Frage gilt je Familie oder je Kind
 // und kann eine Gesundheitsangabe sein. Eine Frage ohne Gesundheitsangabe kann
 // die ausrichtende OGS sehen (#5202). Der feste Baustein „Anschrift“ fragt
-// die Anschrift ab (#5625). Speichern legt eine neue Version an.
+// die Anschrift ab (#5625), der feste Baustein „Gesundheit“ macht Allergien
+// und Medikamente zur Pflicht (#6686). Speichern legt eine neue Version an.
 
 import { FileText, Plus, TextCursorInput } from "lucide-react";
 import { useCallback, useMemo, useRef, useState } from "react";
@@ -61,6 +62,10 @@ import {
   holidayAddressPreviewFields,
 } from "./holiday-form-address";
 import {
+  HOLIDAY_HEALTH_CHOICES,
+  holidayHealthPreviewFields,
+} from "./holiday-form-health";
+import {
   holidayFieldsSignature,
   insertTemplateFields,
   prepareHolidayFieldsForSave,
@@ -111,6 +116,7 @@ export function HolidayFormEditor({
     ...(form.legalBlocks ?? []),
   ]);
   const [address, setAddress] = useState(form.addressRequirement);
+  const [health, setHealth] = useState(form.healthRequirement);
   const adapter = useMemo(
     () => ({
       upload: (file: File) => uploadHolidayDocument(periodId, file),
@@ -130,7 +136,8 @@ export function HolidayFormEditor({
   const dirty =
     holidayFieldsSignature(fields) !== holidayFieldsSignature(form.fields) ||
     JSON.stringify(legalBlocks) !== JSON.stringify(form.legalBlocks ?? []) ||
-    address !== form.addressRequirement;
+    address !== form.addressRequirement ||
+    health !== form.healthRequirement;
   const missingTemplateFields = templateFieldsMissing(fields, form.template);
 
   const update = (index: number, patch: Partial<HolidayFormField>) =>
@@ -171,11 +178,13 @@ export function HolidayFormEditor({
         prepareHolidayFieldsForSave(fields),
         legalBlocks,
         address,
+        health,
       );
       draftSave.commit();
       setFields([...saved.fields]);
       setLegalBlocks([...(saved.legalBlocks ?? [])]);
       setAddress(saved.addressRequirement);
+      setHealth(saved.healthRequirement);
       success(
         `Das Anmeldeformular ist als Version ${saved.version} gespeichert.`,
       );
@@ -211,6 +220,7 @@ export function HolidayFormEditor({
                   void draftDocuments.cleanup();
                   setLegalBlocks([...(form.legalBlocks ?? [])]);
                   setAddress(form.addressRequirement);
+                  setHealth(form.healthRequirement);
                   // New row identities also discard row-local input drafts.
                   setFields(form.fields.map((field) => ({ ...field })));
                 }}
@@ -327,6 +337,26 @@ export function HolidayFormEditor({
                 </Button>
               </div>
               <SectionCard
+                title="Gesundheit"
+                headingLevel={3}
+                namedRegion
+                description={
+                  health === "required"
+                    ? "Eltern beantworten für jedes Kind Allergien und Medikamente. Hat das Kind keine, wählen sie „Nein, keine“. Weitere Hinweise bleiben freiwillig."
+                    : "Eltern können Allergien, Medikamente und weitere Hinweise angeben. Sie dürfen die Felder leer lassen."
+                }
+              >
+                <SegmentedControl
+                  ariaLabel="Allergien und Medikamente abfragen"
+                  items={HOLIDAY_HEALTH_CHOICES.map((item) => ({
+                    ...item,
+                    disabled: saving || uploading,
+                  }))}
+                  value={health}
+                  onChange={setHealth}
+                />
+              </SectionCard>
+              <SectionCard
                 title="Anschrift"
                 headingLevel={3}
                 namedRegion
@@ -378,9 +408,7 @@ export function HolidayFormEditor({
                   "Geburtsdatum *",
                   "Schule *",
                   "Wochen und Zeitmodell *",
-                  "Allergien",
-                  "Medikamente",
-                  "Weitere Hinweise zur Gesundheit",
+                  ...holidayHealthPreviewFields(health),
                 ]}
               />
               <PreviewFieldsSection
@@ -425,7 +453,9 @@ export function HolidayFormEditor({
                 title="Zustimmungen"
                 fields={[
                   "Datenschutz *",
-                  "Gesundheitsangaben (wenn angegeben) *",
+                  health === "required"
+                    ? "Gesundheitsangaben *"
+                    : "Gesundheitsangaben (wenn angegeben) *",
                   "Verbindliche Anmeldung (wenn verbindlich) *",
                 ]}
               />

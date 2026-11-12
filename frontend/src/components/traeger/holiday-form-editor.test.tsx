@@ -14,11 +14,13 @@ import type {
   HolidayAddressRequirement,
   HolidayForm,
   HolidayFormField,
+  HolidayHealthRequirement,
 } from "~/lib/traeger-holiday-form-api";
 
-const { mockSave, mockSavedAddress } = vi.hoisted(() => ({
+const { mockSave, mockSavedAddress, mockSavedHealth } = vi.hoisted(() => ({
   mockSave: vi.fn(),
   mockSavedAddress: vi.fn(),
+  mockSavedHealth: vi.fn(),
 }));
 
 vi.mock("~/lib/traeger-holiday-form-api", async (importOriginal) => ({
@@ -28,8 +30,10 @@ vi.mock("~/lib/traeger-holiday-form-api", async (importOriginal) => ({
     fields: HolidayFormField[],
     _blocks: unknown,
     address: HolidayAddressRequirement,
+    health: HolidayHealthRequirement,
   ) => {
     mockSavedAddress(address);
+    mockSavedHealth(health);
     return mockSave(periodId, fields);
   },
 }));
@@ -59,6 +63,7 @@ function form(fields: HolidayFormField[] = []): HolidayForm {
     version: 1,
     fields,
     addressRequirement: "off",
+    healthRequirement: "optional",
     createdAt: "2026-10-01T08:00:00Z",
     template: TEMPLATE,
   };
@@ -101,6 +106,7 @@ describe("HolidayFormEditor (#5198)", () => {
   beforeEach(() => {
     mockSave.mockReset();
     mockSavedAddress.mockReset();
+    mockSavedHealth.mockReset();
   });
 
   it("switches the address block and saves it with the next version (#5625)", async () => {
@@ -116,7 +122,8 @@ describe("HolidayFormEditor (#5198)", () => {
     const save = screen.getByRole("button", {
       name: "Als neue Version speichern",
     });
-    const off = screen.getByRole("button", { name: "Nicht abfragen" });
+    const block = within(screen.getByRole("region", { name: "Anschrift" }));
+    const off = block.getByRole("button", { name: "Nicht abfragen" });
     expect(off).toHaveAttribute("aria-pressed", "true");
     expect(save).toBeDisabled();
     expect(
@@ -124,12 +131,12 @@ describe("HolidayFormEditor (#5198)", () => {
     ).not.toBeInTheDocument();
     expect(screen.getByText("Allgemeine Fragen und Infos")).toBeInTheDocument();
 
-    fireEvent.click(screen.getByRole("button", { name: "Freiwillig" }));
+    fireEvent.click(block.getByRole("button", { name: "Freiwillig" }));
     expect(
       screen.getByText(germanMessages.addressTitleOptional),
     ).toBeInTheDocument();
     expect(screen.getByText("Straße und Hausnummer")).toBeInTheDocument();
-    fireEvent.click(screen.getByRole("button", { name: "Pflicht" }));
+    fireEvent.click(block.getByRole("button", { name: "Pflicht" }));
     expect(screen.getByText("Straße und Hausnummer *")).toBeInTheDocument();
     expect(save).toBeEnabled();
 
@@ -138,6 +145,48 @@ describe("HolidayFormEditor (#5198)", () => {
     expect(mockSavedAddress).toHaveBeenCalledWith("required");
     expect(onSaved).toHaveBeenCalledWith(
       expect.objectContaining({ version: 2, addressRequirement: "required" }),
+    );
+  });
+
+  it("requires allergies and medication with the next version (#6686)", async () => {
+    mockSave.mockImplementation((_id: string, fields: HolidayFormField[]) =>
+      Promise.resolve({
+        ...form(),
+        version: 2,
+        fields,
+        healthRequirement: "required",
+      }),
+    );
+    const onSaved = renderEditor();
+    const save = screen.getByRole("button", {
+      name: "Als neue Version speichern",
+    });
+    const block = within(screen.getByRole("region", { name: "Gesundheit" }));
+    expect(block.getByRole("button", { name: "Freiwillig" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByText("Allergien")).toBeInTheDocument();
+    expect(
+      screen.getByText("Gesundheitsangaben (wenn angegeben) *"),
+    ).toBeInTheDocument();
+
+    fireEvent.click(block.getByRole("button", { name: "Pflicht" }));
+    expect(
+      screen.getByText("Allergien: Nein, keine / Ja *"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Medikamente: Nein, keine / Ja *"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("Gesundheitsangaben *")).toBeInTheDocument();
+    expect(save).toBeEnabled();
+
+    fireEvent.click(save);
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(1));
+    expect(mockSavedHealth).toHaveBeenCalledWith("required");
+    expect(mockSavedAddress).toHaveBeenCalledWith("off");
+    expect(onSaved).toHaveBeenCalledWith(
+      expect.objectContaining({ version: 2, healthRequirement: "required" }),
     );
   });
 
