@@ -8,17 +8,17 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const studentNoteTeamNoticesVersion = "1.15.952"
+const studentNoteTeamNoticesVersion = "1.15.953"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     studentNoteTeamNoticesVersion,
 		Description: "Kindernotizen: Speichern und das Team informieren, mit Lesestand je Person (#6854)",
 		DependsOn: []string{
-			demoVisitorErasureFamilyDebtorNumbersVersion, // the newest migration on development (1.15.951)
-			studentNotesVersion,                          // the notes a notice points at
-			createAccountTenantsVersion,                  // the school membership of a recipient
-			holidayClosureEventsVersion,                  // the school erasure functions this one extends
+			traegerMemberDisplayNameVersion, // the newest migration on development (1.15.952)
+			studentNotesVersion,             // the notes a notice points at
+			createAccountTenantsVersion,     // the school membership of a recipient
+			holidayClosureEventsVersion,     // the school erasure functions this one extends
 		},
 	})
 	Migrations.MustRegister(studentNoteTeamNoticesUp, studentNoteTeamNoticesDown)
