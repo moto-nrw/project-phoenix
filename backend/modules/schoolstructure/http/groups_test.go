@@ -48,6 +48,12 @@ func newReq(t *testing.T, method, target string, body interface{}, claims testut
 	return testutil.NewAuthenticatedRequest(t, method, target, body, testutil.WithJWTBearer(token))
 }
 
+// inClassAllDay keeps "Im Unterricht" for the whole day, as a school without a
+// configured care day end does.
+type inClassAllDay struct{}
+
+func (inClassAllDay) InClassStillHolds(context.Context) (bool, error) { return true, nil }
+
 // testContext holds shared test resources
 type testContext struct {
 	db       *bun.DB
@@ -65,7 +71,7 @@ func setupGroupsRoute(t *testing.T, publishers ...*testpkg.RecordingBroadcaster)
 		svc.Education,
 		presence.Active,
 		people.People,
-		caller, transactionFailures.IsConstraintViolation)
+		caller, inClassAllDay{}, transactionFailures.IsConstraintViolation)
 
 	return &testContext{
 		db:       db,

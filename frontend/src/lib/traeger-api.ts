@@ -670,6 +670,11 @@ function holidayPeriodToBackend(input: HolidayPeriodInput) {
 export interface TraegerMember {
   readonly accountId: string;
   readonly email: string;
+  /**
+   * The name the export protocol and the history of an invoice show
+   * (#4693); empty while the person has none.
+   */
+  readonly name: string;
   readonly roles: readonly TraegerRole[];
 }
 
@@ -700,6 +705,7 @@ export interface TraegerInvitationPreview {
 interface BackendMember {
   account_id: number;
   email: string;
+  name?: string | null;
   roles?: string[] | null;
 }
 
@@ -753,6 +759,15 @@ function mapInvitation(invitation: BackendInvitation): TraegerInvitation {
   };
 }
 
+function mapMember(member: BackendMember): TraegerMember {
+  return {
+    accountId: String(member.account_id),
+    email: member.email,
+    name: member.name ?? "",
+    roles: traegerRoles(member.roles ?? []),
+  };
+}
+
 /** The people and the open invitations of the Träger-Büro. */
 export async function fetchTraegerBuero(): Promise<TraegerBuero> {
   const data = await traegerRequest<{
@@ -760,11 +775,7 @@ export async function fetchTraegerBuero(): Promise<TraegerBuero> {
     invitations?: BackendInvitation[];
   } | null>("/api/traeger/accounts");
   return {
-    members: (data?.members ?? []).map((member) => ({
-      accountId: String(member.account_id),
-      email: member.email,
-      roles: traegerRoles(member.roles ?? []),
-    })),
+    members: (data?.members ?? []).map(mapMember),
     invitations: (data?.invitations ?? []).map(mapInvitation),
   };
 }
@@ -775,7 +786,8 @@ export type TraegerAccountChangeAction =
   | "invitation_revoked"
   | "invitation_accepted"
   | "roles_changed"
-  | "member_removed";
+  | "member_removed"
+  | "name_changed";
 
 /** One change of the Träger-Büro: who did what, when, to whom. */
 export interface TraegerAccountHistoryEntry {
@@ -787,6 +799,8 @@ export interface TraegerAccountHistoryEntry {
   /** Empty for an account erased since; the page says „Gelöschtes Konto“. */
   readonly actorEmail: string;
   readonly targetEmail: string;
+  /** The new name of a `name_changed` entry, else empty. */
+  readonly targetName: string;
   readonly rolesBefore: readonly TraegerRole[];
   readonly rolesAfter: readonly TraegerRole[];
 }
@@ -802,6 +816,7 @@ interface BackendHistoryEntry {
   action: TraegerAccountChangeAction;
   actor_email: string;
   target_email: string;
+  target_name?: string | null;
   roles_before?: string[] | null;
   roles_after?: string[] | null;
 }
@@ -825,6 +840,7 @@ export async function fetchTraegerAccountHistory(
       action: entry.action,
       actorEmail: entry.actor_email,
       targetEmail: entry.target_email,
+      targetName: entry.target_name ?? "",
       rolesBefore: traegerRoles(entry.roles_before ?? []),
       rolesAfter: traegerRoles(entry.roles_after ?? []),
     })),
@@ -860,6 +876,22 @@ export async function changeTraegerRoles(
   );
 }
 
+/**
+ * Enters or changes the name of a person of the Träger-Büro (#4693) and
+ * returns the person as saved (trimmed).
+ */
+export async function changeTraegerMemberName(
+  accountId: string,
+  name: string,
+): Promise<TraegerMember> {
+  return mapMember(
+    await traegerRequest<BackendMember>(
+      `/api/traeger/accounts/${encodeURIComponent(accountId)}/name`,
+      { method: "PUT", body: { name } },
+    ),
+  );
+}
+
 export async function removeTraegerMember(accountId: string): Promise<void> {
   await traegerRequest(
     `/api/traeger/accounts/${encodeURIComponent(accountId)}`,
@@ -888,19 +920,66 @@ export async function fetchTraegerInvitation(
 /** Accepts the invitation and returns the address to sign in with. */
 export async function acceptTraegerInvitation(
   token: string,
-  input: { readonly password: string; readonly confirmPassword?: string },
+  input: {
+    /** The person's name in this Träger-Büro (#4693). */
+    readonly name: string;
+    readonly password: string;
+    readonly confirmPassword?: string;
+  },
 ): Promise<string> {
   const data = await traegerRequest<{ email: string }>(
     `/api/traeger/invitations/${encodeURIComponent(token)}/accept`,
     {
       method: "POST",
       body: {
+        name: input.name,
         password: input.password,
         confirm_password: input.confirmPassword ?? "",
       },
     },
   );
   return data.email;
+}
+
+/** The signed-in person in this Träger-Büro: sign-in address and name. */
+export interface TraegerProfile {
+  readonly accountId: string;
+  readonly email: string;
+  /** Empty while the person has none. */
+  readonly name: string;
+}
+
+interface BackendProfile {
+  account_id: number;
+  email: string;
+  name?: string | null;
+}
+
+function mapProfile(profile: BackendProfile): TraegerProfile {
+  return {
+    accountId: String(profile.account_id),
+    email: profile.email,
+    name: profile.name ?? "",
+  };
+}
+
+/** The own account of the signed-in person (#4693); needs no extra right. */
+export async function fetchTraegerProfile(): Promise<TraegerProfile> {
+  return mapProfile(
+    await traegerRequest<BackendProfile>("/api/traeger/profile"),
+  );
+}
+
+/** Changes the own name and returns the profile as saved (trimmed). */
+export async function changeTraegerProfileName(
+  name: string,
+): Promise<TraegerProfile> {
+  return mapProfile(
+    await traegerRequest<BackendProfile>("/api/traeger/profile/name", {
+      method: "PUT",
+      body: { name },
+    }),
+  );
 }
 
 const holidayPeriodsPath = "/api/traeger/holiday-periods";

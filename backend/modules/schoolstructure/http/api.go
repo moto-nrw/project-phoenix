@@ -50,14 +50,19 @@ type Resource struct {
 	ActiveService       studentpresence.Presence
 	People              GroupPeople
 	UserContextService  CallerGroups
+	InClass             InClassDay
 }
 
 // NewResource creates a new groups resource
-func NewResource(educationService GroupService, activeService studentpresence.Presence, people GroupPeople, userContextService CallerGroups, constraintViolation func(error) bool) *Resource {
+func NewResource(educationService GroupService, activeService studentpresence.Presence, people GroupPeople, userContextService CallerGroups, inClass InClassDay, constraintViolation func(error) bool) *Resource {
 	if constraintViolation == nil {
 		panic("group resource: database failure classifier is required")
 	}
+	if inClass == nil {
+		panic("group resource: care day rule for children in class is required")
+	}
 	return &Resource{
+		InClass:             inClass,
 		ConstraintViolation: constraintViolation,
 		EducationService:    educationService,
 		ActiveService:       activeService,

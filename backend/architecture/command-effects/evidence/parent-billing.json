@@ -457,6 +457,14 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/api.parentBillingActorNames.TraegerActorNames",
+      "binding_digest": "1c973725851a50914a982402e367e78d",
+      "port": "github.com/moto-ogs/project-phoenix/modules/parentbilling.ExportActorNames.TraegerActorNames",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-ogs/project-phoenix/modules/organizationtenancy.TraegerMemberNames.ListTraegerMemberNames",
+      "target_owner": "organization-tenancy"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/modules/carecontract.ContractBilling.FamiliesWithContracts",
       "binding_digest": "efcec53658de2481b3346422d3fc96d4",
       "port": "github.com/moto-ogs/project-phoenix/modules/parentbilling.FamilyContracts.FamiliesWithContracts",

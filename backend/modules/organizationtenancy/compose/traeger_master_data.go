@@ -6,14 +6,12 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/application"
 )
 
-// NewTraegerMasterData builds the master data of a Träger (#4653, ADR 0112).
-// It runs in the Träger transaction the Träger-Portal route opens (ADR 0105).
+// NewTraegerMasterData builds the master data of a Träger (#4653, ADR 0112) in the Träger transaction (ADR 0105).
 func NewTraegerMasterData() organizationtenancy.TraegerMasterData {
 	return application.NewTraegerMasterData(postgres.NewTraegerMasterDataStore())
 }
 
-// NewTraegerDocumentTemplates builds the document templates of a Träger
-// (#4677, ADR 0152) in the Träger transaction the route opens.
+// NewTraegerDocumentTemplates builds the document templates of a Träger (#4677, ADR 0152) in the Träger transaction.
 func NewTraegerDocumentTemplates() organizationtenancy.TraegerDocumentTemplates {
 	return application.NewTraegerDocumentTemplates(postgres.NewTraegerMasterDataStore())
 }

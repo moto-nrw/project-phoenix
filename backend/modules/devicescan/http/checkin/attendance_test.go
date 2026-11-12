@@ -212,8 +212,10 @@ func TestToggleAttendance_ConfirmDeviceWithoutSupervisorIsRejected(t *testing.T)
 	k := setupAttendanceRoute(t)
 	tag, _, _ := k.studentCard(t, "Sessionless", "Confirmation", "3a")
 	rr := k.call(t, "POST", "/toggle", toggle(tag, "confirm"), k.device(t, "sessionless-confirm"), testutil.WithIoTDeviceRequest())
-	assert.Equal(t, 500, rr.Code, "preserve the legacy generic-confirm authorization response")
-	assert.Contains(t, rr.Body.String(), "device must have an active group with supervisors")
+	// A kiosk without a session gets the session routes' 404 code, not a 500
+	// (#5710); PyrePortal already maps iot.no_active_session.
+	assert.Equal(t, 404, rr.Code, rr.Body.String())
+	assert.Contains(t, rr.Body.String(), `"code":"iot.no_active_session"`)
 }
 
 func TestToggleAttendance_AlumnusRejected(t *testing.T) {

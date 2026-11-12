@@ -20,6 +20,8 @@ on:
       - 'scripts/backend-architecture/**'
       - 'scripts/backend-test-matrix.sh'
       - '.github/workflows/backend-build-cache.yml'
+      # Part of the lint cache key below.
+      - '.github/workflows/lint.yml'
 
 permissions: {}
 
@@ -89,3 +91,78 @@ jobs:
         with:
           path: ~/.cache/go-build
           key: ${{ steps.build-cache-key.outputs.key }}
+
+  # The lint cache pull requests restore in "Backend lint" (lint.yml). The
+  # nightly run alone did not keep it: its entry was pushed out of the cache
+  # within hours, and every first run of a pull request then linted cold,
+  # 200-310 s against 35 s (#6784). A lint from the previous entry takes one
+  # to three minutes on a development push.
+  #
+  # The key, the cached paths and the golangci-lint version must match
+  # "Backend lint" in lint.yml, and so must the environment: that job sets no
+  # GOFLAGS, and -trimpath would change every compile action behind the
+  # export data.
+  warm-lint:
+    name: Warm backend lint cache
+    # Same image and size as the lint job.
+    runs-on: blacksmith-8vcpu-ubuntu-2404
+    timeout-minutes: 15
+    permissions:
+      contents: read
+    env:
+      GOFLAGS: ""
+      GOLANGCI_LINT_CACHE: /home/runner/.cache/golangci-lint
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Go
+        id: go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Compute backend lint cache key
+        id: lint-cache-key
+        env:
+          LINT_CACHE_PREFIX: backend-lint-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-${{ hashFiles('backend/go.sum', '.github/workflows/lint.yml') }}-
+          LINT_SOURCE_HASH: ${{ hashFiles('backend/**/*.go', 'backend/.golangci.yml') }}
+        run: |
+          echo "prefix=$LINT_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
+          echo "key=$LINT_CACHE_PREFIX$LINT_SOURCE_HASH" >> "$GITHUB_OUTPUT"
+
+      - name: Restore backend lint cache
+        id: lint-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/.cache/golangci-lint
+          key: ${{ steps.lint-cache-key.outputs.key }}
+          restore-keys: ${{ steps.lint-cache-key.outputs.prefix }}
+
+      # The findings are the pull request's business; this run only fills the
+      # cache. A finding on development must not keep the entry from saving.
+      - name: Lint every backend package
+        if: steps.lint-cache.outputs.cache-hit != 'true'
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
+        continue-on-error: true
+        with:
+          version: v2.14.0
+          args: --timeout 10m ./...
+          working-directory: backend
+          skip-cache: true
+
+      - name: Save backend lint cache
+        if: steps.lint-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/.cache/golangci-lint
+          key: ${{ steps.lint-cache-key.outputs.key }}

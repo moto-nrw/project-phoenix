@@ -11473,6 +11473,30 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.TraegerAccounts.ChangeOwnTraegerName",
+      "binding_digest": "be718b7f6d36def0b8312960b137d672",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.TraegerMemberProfiles.ChangeOwnTraegerName",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.TraegerAccounts.ChangeTraegerMemberName",
+      "binding_digest": "be718b7f6d36def0b8312960b137d672",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.TraegerMemberProfiles.ChangeTraegerMemberName",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.TraegerAccounts.OwnTraegerProfile",
+      "binding_digest": "be718b7f6d36def0b8312960b137d672",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.TraegerMemberProfiles.OwnTraegerProfile",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/api.TraegerPortalIdentity.StartTraegerSchoolSession",
       "binding_digest": "31cba1dda7cc11385ff9cbeaade9b6a6",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.TraegerSchoolSessions.StartTraegerSchoolSession",
@@ -21642,7 +21666,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.TraegerAccountLedger.ListTraegerAccountChanges",
-      "binding_digest": "7407da667cfbf928406679533a53dfa8",
+      "binding_digest": "ef358262caddd1bcda25642754e64192",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.TraegerAccountAudit.ListTraegerAccountChanges",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/auditlog.TraegerAccountChangeQuery.ListTraegerAccountChanges",
@@ -21650,7 +21674,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.TraegerAccountLedger.RecordTraegerAccountChange",
-      "binding_digest": "c8b1f8478509447f1d927126af6d2f16",
+      "binding_digest": "4fd5649bfb86acfce2e6804d0aa870b5",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.TraegerAccountAudit.RecordTraegerAccountChange",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/auditlog/compose.Command.Append",
@@ -21658,7 +21682,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.TraegerAccountLedger.RecordTraegerAccountChange",
-      "binding_digest": "7efe955724a33250675ec7766a2734a9",
+      "binding_digest": "39a3fbdb91db9860edfafca91264b91a",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.TraegerAccountAudit.RecordTraegerAccountChange",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/auditlog/records.AppendStore.Append",
@@ -21666,7 +21690,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.TraegerAccountLedger.RecordTraegerAccountChange",
-      "binding_digest": "b31af3cfbff52a5e147919b11b4f5fc9",
+      "binding_digest": "da9b6c658ddf5652a1e1ca2eb8fd7e3a",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.TraegerAccountAudit.RecordTraegerAccountChange",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/auditlog/records.Command.Append",
@@ -21706,10 +21730,18 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.TraegerBueroDirectory.ListActiveTraegerMemberships",
-      "binding_digest": "00d664c3f68ea2a565eeaa60e7352208",
+      "binding_digest": "5e262f0174f27ac2d3a05599bb9c0df7",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.TraegerBueroMemberships.ListActiveTraegerMemberships",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/organizationtenancy.Capability.ListTraegerMemberships",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.TraegerBueroDirectory.NameTraegerMember",
+      "binding_digest": "5371a391f3a2b4bb99c1ff59bd0f1816",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.TraegerBueroMemberships.NameTraegerMember",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/organizationtenancy.TraegerMemberNames.SetTraegerMemberName",
       "target_owner": "organization-tenancy"
     },
     {

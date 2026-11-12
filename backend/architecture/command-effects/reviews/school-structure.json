@@ -587,6 +587,36 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/api.groupStudentsInClassDay.InClassStillHolds",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/schoolstructure/http.InClassDay.InClassStillHolds",
+      "reason": "Pure day-planning rule over the care day end and the clock; reads and writes nothing (#5656, #5710).",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-ogs/project-phoenix/modules/careplan.InClassUntilCareDayEnd",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/api.groupStudentsInClassDay.InClassStillHolds",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/schoolstructure/http.InClassDay.InClassStillHolds",
+      "reason": "Resolves operations.session_end_time of the school in its tenant transaction, school value over registry default, so the group student list ends „Im Unterricht“ with the care day like the staff views (#5710).",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-ogs/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/api.groupStudentsInClassDay.InClassStillHolds",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/schoolstructure/http.InClassDay.InClassStillHolds",
+      "reason": "Resolves operations.session_end_time of the school in its tenant transaction, school value over registry default, so the group student list ends „Im Unterricht“ with the care day like the staff views (#5710).",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-ogs/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.educationRoomDirectory.ListRoomsByID",
       "classification": "query",
       "effect": "query",

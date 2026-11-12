@@ -58,6 +58,15 @@ func (s *fixtureIntentStore) Claim(ctx context.Context, transport domain.Transpo
 	if err != nil {
 		return nil, err
 	}
+	// Draining runs every attempt to the mail's terminal state. A retry the
+	// worker scheduled for later is claimed at its own due time; waiting it
+	// out cost six seconds for each interactive mail without a transport.
+	if !acquired && row.Status == string(domain.StatePending) && row.NextRetryAt.After(now) {
+		row, acquired, err = s.exact.ClaimEmail(ctx, s.tenantID, s.id, row.NextRetryAt, expires)
+		if err != nil {
+			return nil, err
+		}
+	}
 	if acquired {
 		return []domain.Intent{row}, nil
 	}

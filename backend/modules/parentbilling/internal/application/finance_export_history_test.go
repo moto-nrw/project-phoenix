@@ -169,3 +169,75 @@ func TestInvoiceHistoryRecordsTheReadInTheTrailOfItsRun(t *testing.T) {
 		})
 	}
 }
+
+// actorNamesDouble answers the names of the Träger-Büro and records each
+// call.
+type actorNamesDouble struct {
+	names map[int64]string
+	calls []actorNamesCall
+}
+
+type actorNamesCall struct {
+	organization int64
+	accounts     []int64
+}
+
+func (d *actorNamesDouble) TraegerActorNames(_ context.Context, organization int64, accounts []int64) (map[int64]string, error) {
+	d.calls = append(d.calls, actorNamesCall{organization, accounts})
+	return d.names, nil
+}
+
+// The history names a colleague's steps and exported files with the
+// colleague's name in one call for the reviewer's Träger; the reviewer's own
+// steps stay "by you" and need no name (#4693).
+func TestInvoiceHistoryNamesColleaguesInOneCall(t *testing.T) {
+	t.Parallel()
+	own, colleague, unnamed := sjrReviewer.AccountID, sjrReviewer.AccountID+1, sjrReviewer.AccountID+2
+	at := time.Date(2026, 11, 9, 10, 0, 0, 0, time.UTC)
+	store := historyFilesStore{historyStore: historyStore{steps: []parentbilling.InvoiceHistoryEntry{
+		issuedIn(7),
+		{Kind: parentbilling.HistoryMailRequested, At: at, AccountID: &colleague, RunID: 7, DeliveryID: 1},
+		{Kind: parentbilling.HistoryMailRequested, At: at, AccountID: &own, RunID: 7, DeliveryID: 2},
+		{Kind: parentbilling.HistoryMailRequested, At: at, AccountID: &unnamed, RunID: 7, DeliveryID: 3},
+	}}, files: []parentbilling.ExportProtocolEntry{{ID: 5, ExportedBy: &colleague, ExportedAt: at.Add(time.Hour)}}}
+	names := &actorNamesDouble{names: map[int64]string{colleague: "Jana Krause"}}
+	exports := newFinanceExportsWith(store, &historyPost{}, names, &datevSettingsDouble{})
+	history, err := exports.InvoiceHistory(context.Background(), sjrReviewer, parentbilling.HistoryCareInvoice, 1)
+	require.NoError(t, err)
+	require.Len(t, names.calls, 1, "one call for the whole history")
+	assert.Equal(t, sjrReviewer.OrganizationID, names.calls[0].organization, "the names of the reviewer's Träger")
+	assert.ElementsMatch(t, []int64{colleague, unnamed}, names.calls[0].accounts, "the colleagues, not the reviewer")
+	byDelivery := map[int64]parentbilling.InvoiceHistoryEntry{}
+	for _, entry := range history.Entries {
+		if entry.Kind == parentbilling.HistoryMailRequested {
+			byDelivery[entry.DeliveryID] = entry
+		}
+		if entry.Kind == parentbilling.HistoryExported {
+			require.NotNil(t, entry.File)
+			assert.Equal(t, "Jana Krause", entry.AccountName)
+			assert.Equal(t, "Jana Krause", entry.File.ExportedByName)
+			assert.False(t, entry.File.ExportedByYou)
+		}
+	}
+	assert.Equal(t, "Jana Krause", byDelivery[1].AccountName)
+	assert.True(t, byDelivery[2].ByYou)
+	assert.Empty(t, byDelivery[2].AccountName, "the reviewer's own step stays by you")
+	assert.Empty(t, byDelivery[3].AccountName, "a colleague without a name stays unnamed")
+
+	names.calls = nil
+	alone := historyStore{steps: []parentbilling.InvoiceHistoryEntry{issuedIn(7),
+		{Kind: parentbilling.HistoryMailRequested, At: at, AccountID: &own, RunID: 7, DeliveryID: 2}}}
+	_, err = newFinanceExportsWith(alone, &historyPost{}, names, &datevSettingsDouble{}).InvoiceHistory(context.Background(), sjrReviewer, parentbilling.HistoryCareInvoice, 1)
+	require.NoError(t, err)
+	assert.Empty(t, names.calls, "a history without a colleague reads no name")
+}
+
+// historyFilesStore answers the history with export files.
+type historyFilesStore struct {
+	historyStore
+	files []parentbilling.ExportProtocolEntry
+}
+
+func (s historyFilesStore) InvoiceHistory(context.Context, int64, string, int64) (string, []parentbilling.InvoiceHistoryEntry, []parentbilling.ExportProtocolEntry, error) {
+	return "RE-1", s.steps, s.files, nil
+}

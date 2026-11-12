@@ -119,8 +119,9 @@ type Service interface {
 	ProcessSchoolCheckinBatch(ctx context.Context, studentIDs []int64, staffID int64, action, reason string) (*SchoolCheckinBatchResult, error)
 	// ConfirmDailyCheckout processes a deferred daily-checkout confirmation for
 	// an IoT device: it validates the student has today's attendance record and,
-	// when destination is "zuhause" and the student is still checked in, checks
-	// them out and broadcasts the SSE update. Returns
+	// when destination is "zuhause" or "unterricht" and the student is still
+	// checked in, checks them out ("unterricht" with the class reason, #5656)
+	// and broadcasts the SSE update. Returns
 	// ErrNoAttendanceRecordForCheckout when no attendance record exists today.
 	ConfirmDailyCheckout(ctx context.Context, studentID, deviceID int64, destination string) (*DailyCheckoutResult, error)
 

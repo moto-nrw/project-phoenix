@@ -457,6 +457,30 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/api.groupStudentsInClassDay.InClassStillHolds",
+      "binding_digest": "8d7b69825b7dad4a7d6e67f72c85ea90",
+      "port": "github.com/moto-ogs/project-phoenix/modules/schoolstructure/http.InClassDay.InClassStillHolds",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-ogs/project-phoenix/modules/careplan.InClassUntilCareDayEnd",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/api.groupStudentsInClassDay.InClassStillHolds",
+      "binding_digest": "ed59e7ee97ff539c766941ae3c0f064a",
+      "port": "github.com/moto-ogs/project-phoenix/modules/schoolstructure/http.InClassDay.InClassStillHolds",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-ogs/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/api.groupStudentsInClassDay.InClassStillHolds",
+      "binding_digest": "7353abb61f1d025a4ba42b89e6fcf9ec",
+      "port": "github.com/moto-ogs/project-phoenix/modules/schoolstructure/http.InClassDay.InClassStillHolds",
+      "source_owner": "school-structure",
+      "target": "github.com/moto-ogs/project-phoenix/modules/settings/records.SettingsService.ResolveString",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.educationRoomDirectory.ListRoomsByID",
       "binding_digest": "c9a059dbd374e47b63bf03403e907194",
       "port": "github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/adapters/postgres/groups.RoomDirectory.ListRoomsByID",

@@ -70,6 +70,9 @@ func historyEntry(change identityPorts.TraegerAccountLedgerEntry, actorEmail str
 	if change.TargetEmail != nil {
 		entry.TargetEmail = *change.TargetEmail
 	}
+	if change.TargetName != nil {
+		entry.TargetName = *change.TargetName
+	}
 	return entry
 }
 

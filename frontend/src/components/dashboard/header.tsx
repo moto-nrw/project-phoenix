@@ -155,6 +155,9 @@ const TRAEGER_PAGE_TITLES: ReadonlyArray<
   ["/stichtagszahlen", "Stichtagszahlen"],
   ["/belegung", "Belegung"],
   ["/ferien", "Ferienbetreuung"],
+  ["/anmeldephasen", "Anmeldephasen"],
+  ["/schliesstage", "Schließtage"],
+  ["/zeitvergleich", "Länger als gebucht"],
   ["/dokumente", "Dokumente"],
   ["/abrechnung", "Abrechnung"],
   ["/vertraege", "Verträge"],
@@ -164,6 +167,7 @@ const TRAEGER_PAGE_TITLES: ReadonlyArray<
   ["/einstellungen/dokumentarten", "Dokumentarten"],
   ["/einstellungen/zugriffsprotokoll", "Zugriffsprotokoll"],
   ["/einstellungen", "Allgemein"],
+  ["/konto", "Konto"],
 ];
 
 function traegerTitleForPath(pathname: string): string | null {
@@ -560,7 +564,7 @@ export function Header() {
                         ? tParentNav("settings")
                         : mode === "school"
                           ? "Einstellungen"
-                          : mode === "caterer"
+                          : mode === "caterer" || mode === "traeger"
                             ? "Konto"
                             : undefined
                   }

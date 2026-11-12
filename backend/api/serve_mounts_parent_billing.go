@@ -72,6 +72,7 @@ func mountParentBillingRoutes(root, publicLink chi.Router, organizations Holiday
 	root.Mount("/traeger/number-ranges", runs.NumberRangeRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/billing-document-kinds", documentKinds.Router(ProtectedTraegerRoutes))
 	billingFamilies, financeExports, bookingAccounts := parentBillingCompose.NewBillingFamilies(parentBillingLetterPost{delivery: delivery},
+		parentBillingActorNames{names: owners.NewTraegerMemberNames()},
 		parentBillingSettings{settings: settings}, parentBillingCareSchools{organizations: organizations}, parentBillingSettings{settings: settings}, careContractCompose.NewContractVersions())
 	families := parentBillingHTTP.NewBillingFamilyResource(billingFamilies, common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 	root.Mount("/traeger/billing-families", families.Router(ProtectedTraegerRoutes))
@@ -169,6 +170,25 @@ func NewCareNoticeHTTP(organizations HolidayOrganizations, settings TraegerBrand
 
 // parentBillingCareSchools lists the schools of the Träger at Organisation
 // & Tenancy that are not deleted, by name, for the price list (#4684).
+// parentBillingActorNames names the people of the Träger-Büro in the export
+// protocol and the history of an invoice (#4693) through the names of the
+// Träger memberships of Organisation & Tenancy.
+type parentBillingActorNames struct {
+	names organizationtenancy.TraegerMemberNames
+}
+
+func (n parentBillingActorNames) TraegerActorNames(ctx context.Context, organizationID int64, accountIDs []int64) (map[int64]string, error) {
+	names, err := n.names.ListTraegerMemberNames(ctx, organizationID, accountIDs)
+	if err != nil {
+		return nil, err
+	}
+	result := make(map[int64]string, len(names))
+	for _, name := range names {
+		result[name.AccountID] = name.Name
+	}
+	return result, nil
+}
+
 type parentBillingCareSchools struct {
 	organizations HolidayOrganizations
 }

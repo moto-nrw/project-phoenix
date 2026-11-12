@@ -15550,6 +15550,39 @@
     },
     {
       "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.TraegerAccounts.ChangeOwnTraegerName",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.TraegerMemberProfiles.ChangeOwnTraegerName",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.TraegerAccounts.ChangeOwnTraegerName, the administrative unit of the Träger-Büro names (#4693) that re-checks the acting person and joins the name command of Organisation \u0026 Tenancy and the ledger entry. Transaction and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.TraegerAccounts.ChangeTraegerMemberName",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.TraegerMemberProfiles.ChangeTraegerMemberName",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.TraegerAccounts.ChangeTraegerMemberName, the administrative unit of the Träger-Büro names (#4693) that re-checks the acting person and joins the name command of Organisation \u0026 Tenancy and the ledger entry. Transaction and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.TraegerAccounts.OwnTraegerProfile",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.TraegerMemberProfiles.OwnTraegerProfile",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.TraegerAccounts.OwnTraegerProfile, the administrative unit of the Träger-Büro names (#4693) that re-checks the acting person and joins the name command of Organisation \u0026 Tenancy and the ledger entry. Transaction and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
       "binding": "github.com/moto-ogs/project-phoenix/api.TraegerPortalIdentity.StartTraegerSchoolSession",
       "classification": "platform",
       "effect": "scope",
@@ -29138,7 +29171,7 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.TraegerAccountAudit.ListTraegerAccountChanges",
-      "reason": "Read-only target: identity-access reaches modules/auditlog.TraegerAccountChangeQuery.ListTraegerAccountChanges (audit-platform) through roots/owners.TraegerAccountLedger.ListTraegerAccountChanges. It reads the Träger-Büro account ledger of one Träger inside the caller's administrative unit for the history (#5474); no persistent, lock or scope effect (ADR 0098).",
+      "reason": "Read-only target: identity-access reaches modules/auditlog.TraegerAccountChangeQuery.ListTraegerAccountChanges (audit-platform) through roots/owners.TraegerAccountLedger.ListTraegerAccountChanges. It reads the Träger-Büro account ledger of one Träger inside the caller's administrative unit for the history (#5474); no persistent, lock or scope effect (ADR 0098). #4693: the mapping carries the name a name change or an acceptance set (target_name).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/auditlog.TraegerAccountChangeQuery.ListTraegerAccountChanges",
       "target_owner": "audit-platform"
@@ -29149,7 +29182,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.TraegerAccountAudit.RecordTraegerAccountChange",
-      "reason": "Platform protocol participation (mutation): identity-access reaches modules/auditlog/compose.Command.Append (audit-platform) through roots/owners.TraegerAccountLedger.RecordTraegerAccountChange. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): identity-access reaches modules/auditlog/compose.Command.Append (audit-platform) through roots/owners.TraegerAccountLedger.RecordTraegerAccountChange. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). #4693: the mapping carries the name a name change or an acceptance set (target_name).",
       "source_owner": "identity-access",
       "target": "*github.com/moto-ogs/project-phoenix/modules/auditlog/compose.Command.Append",
       "target_owner": "audit-platform"
@@ -29160,7 +29193,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.TraegerAccountAudit.RecordTraegerAccountChange",
-      "reason": "Platform protocol participation (mutation): identity-access reaches modules/auditlog/records.AppendStore.Append (audit-platform) through roots/owners.TraegerAccountLedger.RecordTraegerAccountChange. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): identity-access reaches modules/auditlog/records.AppendStore.Append (audit-platform) through roots/owners.TraegerAccountLedger.RecordTraegerAccountChange. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). #4693: the mapping carries the name a name change or an acceptance set (target_name).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/auditlog/records.AppendStore.Append",
       "target_owner": "audit-platform"
@@ -29171,7 +29204,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.TraegerAccountAudit.RecordTraegerAccountChange",
-      "reason": "Platform protocol participation (mutation): identity-access reaches modules/auditlog/records.Command.Append (audit-platform) through roots/owners.TraegerAccountLedger.RecordTraegerAccountChange. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): identity-access reaches modules/auditlog/records.Command.Append (audit-platform) through roots/owners.TraegerAccountLedger.RecordTraegerAccountChange. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). #4693: the mapping carries the name a name change or an acceptance set (target_name).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/auditlog/records.Command.Append",
       "target_owner": "audit-platform"
@@ -29223,9 +29256,20 @@
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.TraegerBueroMemberships.ListActiveTraegerMemberships",
-      "reason": "Read on the root-bound Organisation \u0026 Tenancy capability: modules/organizationtenancy.Capability.ListTraegerMemberships for the Träger-Büro account management (ADR 0084, #4650). Joins the caller's administrative unit; no mutation or locking read at this terminal.",
+      "reason": "Read on the root-bound Organisation \u0026 Tenancy capability: modules/organizationtenancy.Capability.ListTraegerMemberships for the Träger-Büro account management (ADR 0084, #4650). Joins the caller's administrative unit; no mutation or locking read at this terminal. #4693: the mapping carries the name of the membership (display_name).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/modules/organizationtenancy.Capability.ListTraegerMemberships",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.TraegerBueroDirectory.NameTraegerMember",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.TraegerBueroMemberships.NameTraegerMember",
+      "reason": "Participating leaf command (ADR 0067 #4538 command participation): Organisation \u0026 Tenancy sets the name of an active Träger membership in platform.organization_accounts (#4693) on the administrative unit of the Träger-Büro account management of Identity \u0026 Access, which writes the ledger entry with it. RunAdmin joins that ambient transaction; the command opens no unit, commit or scope switch of its own there.",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/organizationtenancy.TraegerMemberNames.SetTraegerMemberName",
       "target_owner": "organization-tenancy"
     },
     {

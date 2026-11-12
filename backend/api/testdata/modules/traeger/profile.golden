@@ -1,0 +1,2 @@
+GET /traeger/profile/ -> basis
+PUT /traeger/profile/name -> basis

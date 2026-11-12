@@ -74,24 +74,6 @@ func (seedTraegerBueroStep) Run(_ context.Context, rt *Runtime) error {
 	return seedTraegerInvitation(rt)
 }
 
-// seedTraegerInvitation signs the admin in to the Träger-Portal and invites
-// the seeded colleagues through the Träger route.
-func seedTraegerInvitation(rt *Runtime) error {
-	traeger, err := seedTraegerSession(rt)
-	if err != nil {
-		return err
-	}
-	for _, invitee := range seedTraegerInvitees {
-		if _, err := rt.Client.PostWithAuth(traeger, "/traeger/accounts/invitations", map[string]any{
-			"email": invitee.email, "roles": []string{invitee.role},
-		}); err != nil {
-			return fmt.Errorf("invite into the Träger-Büro: %w", err)
-		}
-	}
-	fmt.Printf("  Träger-Büro: %d colleagues invited\n", len(seedTraegerInvitees))
-	return nil
-}
-
 // seedTraegerHolidayPeriodStep plans a published holiday period for the
 // Träger-Büro (#4659) through the Träger-Portal, signed in as the bootstrap
 // school admin the previous step assigned: the two Herbstferien weeks the

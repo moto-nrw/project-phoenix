@@ -20,11 +20,15 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/traeger/accounts/invitations"}:                  notCaptured,
 	{http.MethodDelete, "/traeger/accounts/invitations/{invitationId}"}: notCaptured,
 	{http.MethodPut, "/traeger/accounts/{accountId}/roles"}:             notCaptured,
-	{http.MethodDelete, "/traeger/accounts/{accountId}"}:                notCaptured,
-	{http.MethodPost, "/traeger/invitations/{token}/accept"}:            notCaptured,
-	{http.MethodPost, "/traeger/holiday-periods/"}:                      notCaptured,
-	{http.MethodPut, "/traeger/holiday-periods/{id}"}:                   notCaptured,
-	{http.MethodPost, "/traeger/holiday-periods/{id}/publish"}:          notCaptured,
+	// The name of a person of the Träger-Büro (#4693) belongs to the Träger,
+	// not to a school: no school to count it for.
+	{http.MethodPut, "/traeger/accounts/{accountId}/name"}:     notCaptured,
+	{http.MethodPut, "/traeger/profile/name"}:                  notCaptured,
+	{http.MethodDelete, "/traeger/accounts/{accountId}"}:       notCaptured,
+	{http.MethodPost, "/traeger/invitations/{token}/accept"}:   notCaptured,
+	{http.MethodPost, "/traeger/holiday-periods/"}:             notCaptured,
+	{http.MethodPut, "/traeger/holiday-periods/{id}"}:          notCaptured,
+	{http.MethodPost, "/traeger/holiday-periods/{id}/publish"}: notCaptured,
 	// The form of a holiday period (#5198) belongs to the Träger, not to a
 	// school: no school to count it for.
 	{http.MethodPut, "/traeger/holiday-periods/{id}/form"}: notCaptured,
