@@ -129,9 +129,12 @@ func (s parentRequestsSeedStep) Run(ctx context.Context, rt *Runtime) error {
 
 func (s parentEnrollmentSeedStep) seedSettings(rt *Runtime, auth AuthRef) (map[string]any, error) {
 	settings := map[string]any{
-		"enrollment.enabled":                            true,
-		"operations.parent_sick_note_enabled":           true,
-		"operations.parent_notes_enabled":               true,
+		"enrollment.enabled":                  true,
+		"operations.parent_sick_note_enabled": true,
+		"operations.parent_notes_enabled":     true,
+		// Neue Elternnachrichten auf der Kinderkachel (#6486), damit jede
+		// Entwicklungsumgebung die Zahl auf den Karten zeigt.
+		"operations.parent_message_card_badge_enabled":  true,
 		"operations.parent_pickup_change_enabled":       true,
 		"operations.parent_guardian_management_enabled": true,
 		"guardians.parent_invite_mode":                  "direct",

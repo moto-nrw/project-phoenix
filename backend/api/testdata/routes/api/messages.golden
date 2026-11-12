@@ -17,5 +17,6 @@ POST /api/messages/mark-all-read
 POST /api/messages/threads
 POST /api/messages/threads/open
 POST /api/messages/threads/{threadId}
+POST /api/messages/threads/{threadId}/handled
 POST /api/messages/threads/{threadId}/unread
 PUT /api/messages/count-scope

@@ -238,8 +238,10 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPost, "/api/messages/threads/open"}:                                                        notCaptured,
 	{http.MethodPost, "/api/messages/threads/{threadId}"}:                                                  notCaptured,
 	// Ein Anhang ist noch keine Nachricht; gezählt wird das Senden (#6685).
-	{http.MethodPost, "/api/messages/attachments"}:                                           notCaptured,
-	{http.MethodPost, "/api/messages/threads/{threadId}/unread"}:                             event("parent_message_marked_unread"),
+	{http.MethodPost, "/api/messages/attachments"}:               notCaptured,
+	{http.MethodPost, "/api/messages/threads/{threadId}/unread"}: event("parent_message_marked_unread"),
+	// "Als gelesen bestätigen" auf der Kinderkachel (#6486).
+	{http.MethodPost, "/api/messages/threads/{threadId}/handled"}:                            event("parent_message_confirmed_for_team"),
 	{http.MethodPut, "/api/notifications/email-subscriptions/{type}"}:                        notCaptured,
 	{http.MethodDelete, "/api/notifications/preferences/"}:                                   notCaptured,
 	{http.MethodPut, "/api/notifications/preferences/{type}"}:                                notCaptured,

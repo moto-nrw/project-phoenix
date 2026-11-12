@@ -68,3 +68,42 @@ func (s *Service) broadcastStaffUnreadAfterCommit(ctx context.Context, thread *P
 		}
 	})
 }
+
+// MarkHandled confirms for the whole team that the guardian activity up to
+// handledUpToMessageID is taken care of, without a reply (#6486). It is the
+// child card's "Als gelesen bestätigen": the staff member read the message in
+// the card's dialog (that read already moved their own cursor), and nobody
+// else needs to look at it.
+//
+// It moves the same team boundary a reply moves, through the same rule: only
+// up to the last timeline row the client displayed, so a guardian message that
+// arrives meanwhile stays unread. A boundary outside the thread is refused. It
+// also ends a team-wide unread mark and wakes the other staff tabs, so their
+// cards and badges drop at once. Parents see no change.
+func (s *Service) MarkHandled(ctx context.Context, threadID, handledUpToMessageID int64) error {
+	if handledUpToMessageID <= 0 {
+		return ErrHandledBoundaryRequired
+	}
+	thread, err := s.loadAuthorizedThread(ctx, threadID)
+	if err != nil {
+		return err
+	}
+	messages, err := s.MessageRepo.ListByThread(ctx, thread.ID, 0)
+	if err != nil {
+		return fmt.Errorf("messaging: list messages: %w", err)
+	}
+	if err := requireHandledBoundary(messages, handledUpToMessageID, 0, ""); err != nil {
+		return err
+	}
+	if err := MarkStaffHandledToVisible(ctx, s.ReadRepo, thread.TenantID, thread.ID, handledUpToMessageID, messages); err != nil {
+		return fmt.Errorf("messaging: mark handled: %w", err)
+	}
+	if thread.StaffMarkedUnreadAt != nil {
+		// Only the mark this request loaded ends; a colleague's newer mark stays.
+		if _, err := s.ReadRepo.ClearStaffUnreadMark(ctx, thread.TenantID, thread.ID, *thread.StaffMarkedUnreadAt); err != nil {
+			return fmt.Errorf("messaging: clear unread mark: %w", err)
+		}
+	}
+	s.broadcastStaffUnreadAfterCommit(ctx, thread)
+	return nil
+}

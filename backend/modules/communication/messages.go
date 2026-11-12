@@ -217,6 +217,17 @@ type ParentMessagingCommand interface {
 	SetParentMessageCountScope(context.Context, string) error
 }
 
+// ParentMessageTeamHandling confirms guardian activity for the whole team
+// without a reply (#6486): the child card's "Als gelesen bestätigen". It is a
+// capability of its own (ADR 0178), so the composite ParentMessagingCapability
+// does not grow.
+type ParentMessageTeamHandling interface {
+	// MarkParentMessageThreadHandled moves the team boundary up to the last
+	// timeline row the caller displayed. A boundary outside the thread is
+	// ErrParentMessageHandledBoundaryRequired.
+	MarkParentMessageThreadHandled(ctx context.Context, threadID, handledUpToMessageID int64) error
+}
+
 type ParentMessagingCapability interface {
 	ParentMessagingQuery
 	ParentMessagingCommand

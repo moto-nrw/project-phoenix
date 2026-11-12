@@ -175,6 +175,30 @@ func (m *parentMessaging[I, T, M, G]) MarkParentMessageThreadUnread(ctx context.
 	})
 	return err
 }
+
+// ParentMessageHandler is the service behind ParentMessageTeamHandling.
+type ParentMessageHandler interface {
+	MarkHandled(ctx context.Context, threadID, handledUpToMessageID int64) error
+}
+
+// NewParentMessageTeamHandling builds the team confirmation (#6486) with the
+// facade's error mapping and observation.
+func NewParentMessageTeamHandling(service ParentMessageHandler, kinds ParentMessageErrors, observe messageObservation) communication.ParentMessageTeamHandling {
+	return parentMessageTeamHandling{service: service, errors: kinds, observe: observe}
+}
+
+type parentMessageTeamHandling struct {
+	service ParentMessageHandler
+	errors  ParentMessageErrors
+	observe messageObservation
+}
+
+func (h parentMessageTeamHandling) MarkParentMessageThreadHandled(ctx context.Context, threadID, handledUpToMessageID int64) error {
+	_, err := observeMessageResult(ctx, h.observe, "parent_messages.mark_handled", func(runCtx context.Context) (struct{}, error) {
+		return struct{}{}, MapParentMessagingError(h.service.MarkHandled(runCtx, threadID, handledUpToMessageID), h.errors)
+	})
+	return err
+}
 func (m *parentMessaging[I, T, M, G]) MarkAllParentMessagesRead(ctx context.Context) (int, error) {
 	return observeMessageResult(ctx, m.observe, "parent_messages.mark_all_read", func(runCtx context.Context) (int, error) {
 		count, err := m.service.MarkAllRead(runCtx)

@@ -38,11 +38,11 @@ func TestParentMessagePositiveGrowthQueryBudget(t *testing.T) {
 	require.NoError(t, settings.Settings.SetValue(testpkg.Ctx(t), "operations.parent_notes_enabled", true, nil, nil))
 	identity := owners.NewPeopleIdentityAccess(database, nil)
 	persons := owners.ParentMessagePeopleWithLeaders{ParentMessagePeople: owners.BindParentMessagePeople(directory), ParentMessageLeadership: owners.BindParentMessageLeadership(people.Staff, identity)}
-	svc, groups, _ := compose.NewParentMessaging(compose.ParentMessagingConfig{ThreadRepo: repos.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(db), ReadRepo: repos.ParentMessageRead, Persons: persons, UserContext: owners.StaffStudentReads{}, Session: api.CommunicationSession{}, Settings: settingsValues.NewParentMessagingValues(settings.Settings), Broadcaster: realtime.NewHub(slog.Default()), DB: db, Logger: slog.Default(), Observe: func(compose.Observation) {}, GroupAudience: owners.NewParentGroupAudience(database)}, owners.CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
+	svc, groups, _, handling := compose.NewParentMessaging(compose.ParentMessagingConfig{ThreadRepo: repos.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(db), ReadRepo: repos.ParentMessageRead, Persons: persons, UserContext: owners.StaffStudentReads{}, Session: api.CommunicationSession{}, Settings: settingsValues.NewParentMessagingValues(settings.Settings), Broadcaster: realtime.NewHub(slog.Default()), DB: db, Logger: slog.Default(), Observe: func(compose.Observation) {}, GroupAudience: owners.NewParentGroupAudience(database)}, owners.CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
 	_, staff := testpkg.CreateTestStaffWithAccount(t, db, "Budget", "Staff")
 	testpkg.EnsureAccountTenant(t, db, staff.ID, testpkg.Tenant(t))
 	token := testutil.MintTestJWT(t, sessiontoken.AppClaims{ID: int(staff.ID), Sub: staff.Email, Roles: []string{"admin"}, Permissions: []string{"admin:*"}, TenantID: testpkg.Tenant(t)})
-	router := messaging.NewResource(svc, groups).Router(api.ProtectedTenantRoutes)
+	router := messaging.NewResource(svc, groups, handling).Router(api.ProtectedTenantRoutes)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	counter := testpkg.CaptureQueriesForContext(t, db)
 	counter.Stop()
