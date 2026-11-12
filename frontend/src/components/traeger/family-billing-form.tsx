@@ -5,7 +5,9 @@
 // Anschrift), ein eigener Zahlungsweg und ein eigener Zahltag. Die Familie
 // ist die E-Mail-Adresse der Person im Vertrag; die Abweichung gilt für alle
 // ihre Rechnungen ab dem nächsten Lauf. Weicht nichts mehr ab, ist sie
-// entfernt.
+// entfernt. Die Debitorennummer gehört der Familie, nicht dem Vertrag:
+// „Wieder wie im Vertrag“ lässt sie stehen (#6692), und sie hat das Format
+// des Trägers (#6675).
 
 import { useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
@@ -16,6 +18,13 @@ import { FieldLabel } from "~/components/ui/field-label";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import {
+  DEBTOR_NUMBER_MAX_LENGTH,
+  type DebtorNumberFormat,
+  NO_DEBTOR_NUMBER_FORMAT,
+  debtorNumberFormatError,
+  debtorNumberFormatHint,
+} from "~/lib/debtor-number-format";
 import { createLogger } from "~/lib/logger";
 import {
   type FamilyBilling,
@@ -97,8 +106,15 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  */
 export function familyBillingErrors(
   draft: FamilyBillingDraft,
+  format: DebtorNumberFormat = NO_DEBTOR_NUMBER_FORMAT,
+  storedNumber = "",
 ): Record<string, string> {
   const errors: Record<string, string> = {};
+  const debtorNumberError =
+    draft.debtorNumber.trim() === storedNumber
+      ? null
+      : debtorNumberFormatError(draft.debtorNumber, format);
+  if (debtorNumberError) errors.debtor_number = debtorNumberError;
   const need = (field: string, value: string, hint: string) => {
     if (!value.trim()) errors[field] = hint;
   };
@@ -188,11 +204,14 @@ const DUE_DAY_OPTIONS = [
 export function FamilyBillingForm({
   target,
   existing,
+  format = NO_DEBTOR_NUMBER_FORMAT,
   onCancel,
   onSaved,
 }: Readonly<{
   /** The contract whose family is set. */
   target: FamilyBillingTarget;
+  /** The format of the Träger's debtor numbers (#6675). */
+  format?: DebtorNumberFormat;
   /** The family's deviation as stored, null without one. */
   existing: FamilyBilling | null;
   onCancel: () => void;
@@ -212,7 +231,7 @@ export function FamilyBillingForm({
 
   const submit = async () => {
     formErrors.clear();
-    const errors = familyBillingErrors(draft);
+    const errors = familyBillingErrors(draft, format, existing?.debtorNumber);
     if (Object.keys(errors).length > 0) {
       formErrors.invalid("Bitte prüfen Sie die markierten Felder.", errors);
       return;
@@ -239,11 +258,11 @@ export function FamilyBillingForm({
   };
 
   const id = (field: string) => `family-billing-${field}`;
+  // The number is the family's, not a deviation from the contract.
   const deviates =
     draft.recipientKind !== "applicant" ||
     draft.paymentMethod !== "" ||
-    draft.dueDay !== "" ||
-    draft.debtorNumber.trim() !== "";
+    draft.dueDay !== "";
 
   return (
     <form
@@ -426,14 +445,15 @@ export function FamilyBillingForm({
         onChange={(dueDay) => set({ dueDay })}
       />
       <Input
-        controlSize="compact"
         id={id("debtor-number")}
         name="debtor_number"
         label="Debitorennummer"
-        value={draft.debtorNumber}
-        maxLength={35}
         autoComplete="off"
-        hint="Die Nummer der Familie in Ihrer Buchhaltung. Sie steht auf jeder neuen Rechnung und in der Sollstellung."
+        controlSize="compact"
+        inputMode={format.digitsOnly ? "numeric" : undefined}
+        maxLength={DEBTOR_NUMBER_MAX_LENGTH}
+        value={draft.debtorNumber}
+        hint={`${debtorNumberFormatHint(format)} Die Nummer der Familie in Ihrer Buchhaltung. Sie steht auf jeder neuen Monats- und Ferienrechnung und in der Sollstellung. Hat eine Ferienanmeldung eine eigene Nummer, gilt diese.`.trim()}
         error={fieldError("debtor_number")}
         onChange={(event) => set({ debtorNumber: event.target.value })}
       />
@@ -441,7 +461,12 @@ export function FamilyBillingForm({
         <Button
           type="button"
           variant="link"
-          onClick={() => setDraft(EMPTY_FAMILY_BILLING)}
+          onClick={() =>
+            setDraft((current) => ({
+              ...EMPTY_FAMILY_BILLING,
+              debtorNumber: current.debtorNumber,
+            }))
+          }
         >
           Wieder wie im Vertrag
         </Button>

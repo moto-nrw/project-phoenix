@@ -27,18 +27,18 @@ func (m *BookingMaterialization) tenantSourcedTemplates(ctx context.Context) ([]
 	return templates, nil
 }
 
-// templatesSourcing lists the live templates sourcing one offering; the
+// templatesSourcing lists the live templates sourcing the offerings; the
 // operation names the flow in the error.
-func (m *BookingMaterialization) templatesSourcing(ctx context.Context, offeringID int64, operation string) ([]ports.SourcedTemplate, error) {
-	templates, err := m.deps.Templates.TemplatesSourcedFrom(ctx, []int64{offeringID})
+func (m *BookingMaterialization) templatesSourcing(ctx context.Context, offeringIDs []int64, operation string) ([]ports.SourcedTemplate, error) {
+	templates, err := m.deps.Templates.TemplatesSourcedFrom(ctx, offeringIDs)
 	if err != nil {
-		return nil, fmt.Errorf("%s: list templates sourcing offering %d: %w", operation, offeringID, err)
+		return nil, fmt.Errorf("%s: list templates sourcing offerings %v: %w", operation, offeringIDs, err)
 	}
 	return templates, nil
 }
 
 func (m *BookingMaterialization) ResyncTemplatesSourcedFromOffering(ctx context.Context, offeringID int64, effectiveFrom calendar.Date) error {
-	templates, err := m.templatesSourcing(ctx, offeringID, "offering roster resync")
+	templates, err := m.templatesSourcing(ctx, []int64{offeringID}, "offering roster resync")
 	if err != nil {
 		return err
 	}
@@ -46,7 +46,7 @@ func (m *BookingMaterialization) ResyncTemplatesSourcedFromOffering(ctx context.
 }
 
 func (m *BookingMaterialization) DetachTemplatesSourcedFromOffering(ctx context.Context, offeringID int64, effectiveFrom calendar.Date) error {
-	templates, err := m.templatesSourcing(ctx, offeringID, "offering roster detach")
+	templates, err := m.templatesSourcing(ctx, []int64{offeringID}, "offering roster detach")
 	if err != nil {
 		return err
 	}

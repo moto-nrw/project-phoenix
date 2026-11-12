@@ -81,3 +81,18 @@ func toStudent(row studentRow) peopledirectory.Student {
 	}
 	return student
 }
+
+func (s *StudentStore) LockRows(ctx context.Context, ids []int64) (int, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
+	if err != nil {
+		return 0, domain.OperationStats{}, err
+	}
+	if err := requireStudentWriteTenant(scope.TenantID); err != nil {
+		return 0, domain.OperationStats{}, err
+	}
+	rows := []int64{}
+	started := time.Now()
+	err = db.NewSelect().Table("users.student_profiles").Column("id").Where("tenant_id = ?", scope.TenantID).Where("id IN (?)", bun.List(ids)).Order("id").For("UPDATE").Scan(ctx, &rows)
+	stats := domain.OperationStats{Queries: 1, Rows: int64(len(rows)), StatementDuration: time.Since(started)}
+	return len(rows), stats, err
+}

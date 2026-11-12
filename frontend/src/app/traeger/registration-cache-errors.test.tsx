@@ -39,6 +39,8 @@ vi.mock("~/lib/traeger-sibling-groups-api", () => ({
 }));
 vi.mock("~/lib/traeger-contributions-api", () => ({
   fetchHolidayContribution: () => Promise.resolve(HOLIDAY_CONTRIBUTION),
+  // The page also reads the number the family has (#6692).
+  fetchHolidayFamilyDebtorNumber: () => Promise.resolve(""),
 }));
 vi.mock("next-auth/react", () => ({
   useSession: () => ({

@@ -26,7 +26,7 @@ func NewTenantRuntime(db *bun.DB) (tenant.UnitOfWork, error) {
 	if err != nil {
 		return tenant.UnitOfWork{}, err
 	}
-	runtime = runtime.WithTraegerTransaction(unitOfWork.WithinTraeger)
+	runtime = runtime.WithTraegerTransaction(unitOfWork.WithinTraeger).WithExclusiveRunner(unitOfWork.WithinExclusive)
 	return runtime.WithAdminThenTenantTransaction(unitOfWork.WithinAdminThenTenant), nil
 }
 
@@ -51,7 +51,7 @@ func bindTenantRuntime(unitOfWork *postgres.PostgresUnitOfWork, err error, retry
 	if err != nil {
 		return tenant.UnitOfWork{}, err
 	}
-	runtime = runtime.WithTransactionDetacher(unitOfWork.ContextWithoutTransaction).WithStatementBound(unitOfWork.BoundStatements)
+	runtime = runtime.WithTransactionDetacher(unitOfWork.ContextWithoutTransaction).WithStatementBound(unitOfWork.BoundStatements).WithLockBound(unitOfWork.BoundLocks)
 	return runtime.WithContextAdapters(auditlog.ContextWithTenant, auditlog.ContextWithTransaction), nil
 }
 

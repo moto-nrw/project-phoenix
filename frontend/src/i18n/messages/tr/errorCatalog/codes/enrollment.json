@@ -165,5 +165,13 @@
   "holiday_allocation_mode_locked": "Kayıtlar zaten var, dağıtım şekli değişmez.",
   "holiday_allocation_pending": "Önce „Vergabe“ sekmesinde yerleri dağıtın.",
   "holiday_allocation_full": "Bu haftada boş yer kalmadı. Lütfen listeyi yeniden yükleyin.",
-  "holiday_allocation_changed": "Liste değişti. Lütfen kararınızı yeniden kontrol edin."
+  "holiday_allocation_changed": "Liste değişti. Lütfen kararınızı yeniden kontrol edin.",
+  "traeger_copy_delete": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "traeger_phase_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "traeger_offering_not_found": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "traeger_withdrawn": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "traeger_school_outside": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "traeger_catalog_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "traeger_preview_stale": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "traeger_copy_rejected": "{object} değiştirilemedi. Güncel durumu kontrol edin."
 }

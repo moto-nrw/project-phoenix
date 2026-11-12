@@ -6,6 +6,7 @@ import (
 	"log/slog"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
 	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -72,7 +73,7 @@ func NewCareOfferingCatalogWithBookings(catalog CareOfferingCatalogDependencies,
 
 func catalogDependencies(deps CareOfferingCatalogDependencies) application.CareOfferingCatalogDependencies {
 	return application.CareOfferingCatalogDependencies{
-		Records: deps.Records, Phases: deps.Phases, Timetable: deps.Timetable, Calendar: deps.Calendar,
+		CopyReferences: postgres.New(postgres.CarePlanDatabase(nil)), Records: deps.Records, Phases: deps.Phases, Timetable: deps.Timetable, Calendar: deps.Calendar,
 		Bookings: deps.Bookings, Settings: deps.Settings, Translations: deps.Translations, SourceRules: deps.SourceRules,
 		SourcedTemplates: deps.SourcedTemplates, Pickup: deps.Pickup,
 		LockTemplateRecurrence: deps.LockTemplateRecurrence,

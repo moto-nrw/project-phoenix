@@ -27,6 +27,8 @@ var crossOwnerTriggerWrites = map[string]string{
 	"auth.guardian_student_access:invalidate_meal_participation_permission_grant:meta.meal_participation_permission_grants":         "Invalidate migration rollback provenance at the exact permission change; otherwise Down could restore a withdrawn meal permission.",
 	"auth.guardian_student_access:invalidate_parent_student_consent_permission_grant:meta.parent_student_consent_permission_grants": "Invalidate migration rollback provenance at the exact permission change; otherwise Down could restore a withdrawn consent permission.",
 	"users.guardian_profiles:guardian_profiles_bind_student_access:auth.guardian_student_access":                                    "Keep the portal account binding consistent with profile linkage/unlinkage for every SQL writer, atomically with the profile update.",
+	"platform.schools:release_traeger_copies:enrollment.phases":                                                                     "A school that changes its Träger keeps its Träger phase copies as ordinary phases in the same commit as the change, for every writer of organization_id (ADR 0195 section 8, ADR 0215).",
+	"platform.schools:release_traeger_copies:enrollment.care_offerings":                                                             "A school that changes its Träger keeps its Träger offering copies as ordinary offerings in the same commit as the change, for every writer of organization_id (ADR 0195 section 8, ADR 0215).",
 }
 
 // Evaluate the installed schema, not historical Up/Down text or a hand-written

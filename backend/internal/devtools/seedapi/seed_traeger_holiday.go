@@ -22,6 +22,9 @@ func seedTraegerHolidaySchools(rt *Runtime, auth AuthRef) ([]int64, error) {
 	if err := seedParallelHolidayDraft(rt.Client, auth, calendar.TodayDate(), schools); err != nil {
 		return nil, err
 	}
+	if err := seedTraegerCatalog(rt.Client, auth, calendar.TodayDate(), schools); err != nil {
+		return nil, err
+	}
 	return schools, nil
 }
 
@@ -59,6 +62,6 @@ func seedParallelHolidayDraft(client *Client, auth AuthRef, today calendar.Date,
 // registry default of holiday_registration.retention_days, which the seed
 // never changes.
 const (
-	seedHolidayConsentVersion = 4
+	seedHolidayConsentVersion = 5
 	seedHolidayRetentionDays  = 365
 )

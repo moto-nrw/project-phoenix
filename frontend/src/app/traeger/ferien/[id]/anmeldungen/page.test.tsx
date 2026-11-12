@@ -93,6 +93,10 @@ vi.mock("~/lib/file-download", () => ({
 }));
 
 import TraegerHolidayRegistrationsPage from "./page";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 function renderPage() {
   return render(
@@ -737,7 +741,7 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
   // #6652: after a confirmed merge a failed reload is a load error above the
   // list, not a failed merge or a page error that replaces the rows.
   describe("reload after a write (#6652)", () => {
-    it("discards registrations and sibling groups after a refused merge reload", async () => {
+    it("loads the page anew after a refused merge reload", async () => {
       mockMerge.mockResolvedValue({ id: "3", registrationIds: ["7", "8"] });
       renderPage();
       const table = within(await screen.findByRole("table"));
@@ -751,6 +755,7 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
           name: "Anmeldung Nr. 8 von Tom Muster auswählen",
         }),
       );
+      resetPageReloads();
       mockFetchList.mockRejectedValueOnce(new ApiError("refused", 403));
       mockFetchGroups.mockResolvedValue([
         { id: "3", registrationIds: ["7", "8"] },
@@ -758,24 +763,9 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
       fireEvent.click(
         screen.getByRole("button", { name: "Als Geschwister zusammenführen" }),
       );
-      expect(
-        await screen.findByText(
-          `${catalogText("general.permission", "die Anzeige der Ferienanmeldungen")} ${SAVED_BUT_STALE_SUFFIX}`,
-        ),
-      ).toBeVisible();
-      expect(
-        screen.queryByText("Es ist noch keine Anmeldung eingegangen."),
-      ).not.toBeInTheDocument();
-      expect(screen.queryByRole("table")).not.toBeInTheDocument();
-      expect(screen.queryByText("Eva Muster")).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole("checkbox", { name: /Anmeldung Nr/ }),
-      ).not.toBeInTheDocument();
-      expect(
-        screen.queryByRole("button", {
-          name: "Als Geschwister zusammenführen",
-        }),
-      ).not.toBeInTheDocument();
+      // #6801: the page loads anew; its first load shows the refusal.
+      await expectPageReloadedAfterRefusal();
+      expect(mockMerge).toHaveBeenCalledTimes(1);
     });
 
     it("keeps merged siblings merged when the reload fails", async () => {

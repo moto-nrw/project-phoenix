@@ -8,6 +8,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/enrollment/rowstest",
+      "owner": "enrollment",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/enrollment/integration",
       "owner": "enrollment",
       "role": "test-support",
@@ -65,6 +72,18 @@
     }
   ],
   "data_objects": [
+    {
+      "name": "enrollment.traeger_phase_schools",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.traeger_phase_versions",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.traeger_phases",
+      "write_owner": "enrollment"
+    },
     {
       "name": "enrollment.holiday_closure_sends",
       "write_owner": "enrollment"

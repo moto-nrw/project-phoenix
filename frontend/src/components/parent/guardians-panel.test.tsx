@@ -16,6 +16,11 @@ import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { deferred } from "~/test/helpers/form-modal-pending";
 import { catalogText } from "~/test/error-catalog-text";
 import { type ChildGuardian, type RelatedAccount } from "~/lib/parent-api";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
+import { reloadDocument } from "~/lib/reload-document";
 
 // The shared error path reports row actions through the toast provider
 // (#2518).
@@ -1071,8 +1076,9 @@ describe("GuardiansPanel", () => {
     );
 
     it.each(["guardians", "accounts"])(
-      "hides retained contacts and accounts when %s refuses access",
+      "loads the page anew when %s refuses access",
       async (failed) => {
+        resetPageReloads();
         mocks.listRelatedAccounts.mockResolvedValue([petra]);
         render(<GuardiansPanel studentId="42" canInvite canRemove />);
         expect(await screen.findByText("petra@example.test")).toBeVisible();
@@ -1087,21 +1093,8 @@ describe("GuardiansPanel", () => {
         fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
         // Anker: der Nachladefehler bestätigt das erfolgreiche Schreiben.
-        expect(
-          await screen.findByText(
-            `${catalogText("general.permission", "die Anzeige der Kontakte")} ${SAVED_BUT_STALE_SUFFIX}`,
-          ),
-        ).toBeVisible();
-        expect(screen.queryByText("Helga Schneider")).not.toBeInTheDocument();
-        expect(
-          screen.queryByText("petra@example.test"),
-        ).not.toBeInTheDocument();
-        expect(
-          screen.queryByRole("button", { name: "Zugang entziehen" }),
-        ).not.toBeInTheDocument();
-        expect(
-          screen.queryByRole("button", { name: "Einladen" }),
-        ).not.toBeInTheDocument();
+        // #6801: the page loads anew; its first load shows the refusal.
+        await expectPageReloadedAfterRefusal();
         expect(mocks.updateGuardianContact).toHaveBeenCalledTimes(1);
       },
     );
@@ -1129,20 +1122,20 @@ describe("GuardiansPanel", () => {
             { ...editableGuardian, first_name: "Helene" },
           ]);
         }
+        resetPageReloads();
         fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
-        const anchor =
-          outcome === "access refusal"
-            ? `${catalogText("general.permission", "die Anzeige der Kontakte")} ${SAVED_BUT_STALE_SUFFIX}`
-            : "Helene Schneider";
-        expect(await screen.findByText(anchor)).toBeVisible();
-        await act(async () => older.resolve([editableGuardian]));
-        expect(screen.getByText(anchor)).toBeVisible();
-        expect(screen.queryByText("Helga Schneider")).not.toBeInTheDocument();
         if (outcome === "access refusal") {
-          expect(
-            screen.queryByRole("button", { name: "Einladen" }),
-          ).not.toBeInTheDocument();
+          // #6801: the newer reload's refusal loads the page anew; the older
+          // reload adds nothing.
+          await expectPageReloadedAfterRefusal();
+          await act(async () => older.resolve([editableGuardian]));
+          expect(reloadDocument).toHaveBeenCalledTimes(1);
+          return;
         }
+        expect(await screen.findByText("Helene Schneider")).toBeVisible();
+        await act(async () => older.resolve([editableGuardian]));
+        expect(screen.getByText("Helene Schneider")).toBeVisible();
+        expect(screen.queryByText("Helga Schneider")).not.toBeInTheDocument();
       },
     );
 

@@ -71,7 +71,12 @@ vi.mock("~/lib/file-download", async (importOriginal) => ({
   downloadBlob: (blob: Blob, name: string) => mockDownloadBlob(blob, name),
 }));
 const { mockContribution } = vi.hoisted(() => ({ mockContribution: vi.fn() }));
+const { mockFamilyDebtorNumber } = vi.hoisted(() => ({
+  mockFamilyDebtorNumber: vi.fn(),
+}));
 vi.mock("~/lib/traeger-contributions-api", () => ({
+  // The number the family already has (#6692).
+  fetchHolidayFamilyDebtorNumber: () => mockFamilyDebtorNumber(),
   confirmHolidayRegistration: (...args: unknown[]) => mockConfirm(...args),
   // A test sets the contribution through the override (#5629) or the
   // mock (#5628).
@@ -88,6 +93,10 @@ vi.mock("~/lib/traeger-sibling-groups-api", () => ({
 }));
 
 import TraegerHolidayRegistrationPage from "./page";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 describe("TraegerHolidayRegistrationPage", () => {
   beforeEach(() => {
@@ -97,6 +106,7 @@ describe("TraegerHolidayRegistrationPage", () => {
     mockConfirm.mockReset().mockResolvedValue(HOLIDAY_CONTRIBUTION);
     mockContribution.mockResolvedValue(HOLIDAY_CONTRIBUTION);
     mockConfirmationSettings.mockResolvedValue({ debtorNumberRequired: false });
+    mockFamilyDebtorNumber.mockResolvedValue("");
     mockHealth.mockReset();
     mockHealth.mockResolvedValue(HOLIDAY_REGISTRATION_HEALTH);
     mockEdit.mockReset();
@@ -240,7 +250,7 @@ describe("TraegerHolidayRegistrationPage", () => {
         ["registration", "confirmation"],
         ["health", "confirmation"],
       ])(
-        "hides registration data when the %s reload refuses access after %s",
+        "loads the page anew when the %s reload refuses access after %s",
         async (refused, action) => {
           sessionPermissions.current = [
             "traeger_enrollment:manage",
@@ -256,6 +266,7 @@ describe("TraegerHolidayRegistrationPage", () => {
           expect(screen.getByText("eva@example.org")).toBeVisible();
           expect(screen.getByText("Oma Muster")).toBeVisible();
           const read = refused === "health" ? mockHealth : mockRegistration;
+          resetPageReloads();
           read.mockRejectedValueOnce(
             new ApiError("refused", 403, { code: "general.permission" }),
           );
@@ -263,18 +274,8 @@ describe("TraegerHolidayRegistrationPage", () => {
           else
             fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
 
-          // Anker: der Nachladefehler bestätigt die gespeicherte Änderung.
-          expect(
-            await screen.findByText(
-              `${catalogText("general.permission", "die Anzeige der Anmeldung")} ${SAVED_BUT_STALE_SUFFIX}`,
-            ),
-          ).toBeVisible();
-          expect(screen.queryByText("Erdnüsse")).not.toBeInTheDocument();
-          expect(screen.queryByText("eva@example.org")).not.toBeInTheDocument();
-          expect(screen.queryByText("Oma Muster")).not.toBeInTheDocument();
-          expect(
-            screen.queryByRole("button", { name: "Angaben der Eltern ändern" }),
-          ).not.toBeInTheDocument();
+          // #6801: the page loads anew; its first load shows the refusal.
+          await expectPageReloadedAfterRefusal();
           expect(
             action === "split" ? mockSplit : mockConfirm,
           ).toHaveBeenCalledTimes(1);
@@ -415,6 +416,24 @@ describe("TraegerHolidayRegistrationPage", () => {
     expect(
       await screen.findByRole("textbox", { name: /Debitorennummer/ }),
     ).toBeRequired();
+  });
+
+  it("proposes the number the family already has at the confirmation (#6692)", async () => {
+    mockFamilyDebtorNumber.mockResolvedValue("20 815");
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    const field = await screen.findByRole("textbox", {
+      name: /^Debitorennummer/,
+    });
+    expect(field).not.toBeRequired();
+    expect(field).toHaveValue("");
+    expect(
+      screen.getByRole("button", { name: "Debitorennummer 20 815 übernehmen" }),
+    ).toBeInTheDocument();
   });
 
   it("shows and changes the debtor number of a confirmed registration with its history (#5621)", async () => {

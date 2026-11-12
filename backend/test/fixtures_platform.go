@@ -225,6 +225,12 @@ func OwnTraegerHolidayPeriods(tb testing.TB, db *bun.DB, organizationID int64) {
 		require.NoError(tb, err, "Failed to clean up test holiday registration counters")
 		_, err = db.ExecContext(context.Background(), `DELETE FROM platform.email_outbox WHERE organization_id = ?`, organizationID)
 		require.NoError(tb, err, "Failed to clean up test Träger mails")
+		// A confirmation remembers the family and its number at the Träger
+		// (#6692); a family without a contract does not go with one.
+		for _, table := range []string{"parent_billing.family_billing_events", "parent_billing.family_billing"} {
+			_, err = db.ExecContext(context.Background(), `DELETE FROM `+table+` WHERE organization_id = ?`, organizationID)
+			require.NoError(tb, err, "Failed to clean up the test families of the holiday care")
+		}
 	})
 }
 
@@ -313,6 +319,20 @@ func SoftDeleteTestSchool(tb testing.TB, db *bun.DB, schoolID int64) {
 	tb.Helper()
 	_, err := db.ExecContext(context.Background(), `UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolID)
 	require.NoError(tb, err, "Failed to soft-delete test school")
+}
+
+// OwnTraegerCatalog removes the Träger phases and care offerings a test
+// creates for the Träger (#4704, ADR 0195), with their versions and school
+// selections, when the test ends. Like the holiday periods they carry no
+// tenant, so they need their own exact-key teardown.
+func OwnTraegerCatalog(tb testing.TB, db *bun.DB, organizationID int64) {
+	tb.Helper()
+	tb.Cleanup(func() {
+		_, err := db.ExecContext(context.Background(), `DELETE FROM enrollment.traeger_care_offerings WHERE organization_id = ?`, organizationID)
+		require.NoError(tb, err, "Failed to clean up test Träger care offerings")
+		_, err = db.ExecContext(context.Background(), `DELETE FROM enrollment.traeger_phases WHERE organization_id = ?`, organizationID)
+		require.NoError(tb, err, "Failed to clean up test Träger phases")
+	})
 }
 
 // HolidayRegistrationFixture is a holiday registration a test wrote: its

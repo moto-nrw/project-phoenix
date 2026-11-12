@@ -289,7 +289,10 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0196: the holiday closure notices (-1).
 // ADR 0216: the holiday account adds 10 LOC to enrollment/compose and
 // 2 to parentportal/compose.
-const moduleComposeBudgetTotal = 13338
+// ADR 0215: workflows/traegercatalog (+38) and modules/enrollment/compose
+// (+2: NewTraegerPhases and NewOfferingSelectionReferences, less shortened
+// comments); modules/careplan/compose stays.
+const moduleComposeBudgetTotal = 13378
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -313,6 +316,8 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0151: the school figure constructor (+13).
 	// ADR 0153: the contract offerings constructor (+9).
 	// ADR 0154: the booked care offering constructor (+13).
+	// #4704 (ADR 0215): the Träger offering constructors fit in shortened
+	// comments (±0).
 	"modules/careplan/compose":             1675,
 	"modules/careplan/requestfeed/compose": 53,
 	// Raised by ADR 0102: the class-trip status-day seam (#4799).
@@ -346,7 +351,9 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0207: the constructor of the announced holiday periods (+5).
 	// ADR 0214: the registered children and known child trail (+10).
 	// ADR 0216: account proofs and the account's holiday registrations (+10).
-	"modules/enrollment/compose":                   633,
+	// ADR 0215: NewTraegerPhases (+4) and NewOfferingSelectionReferences (+4),
+	// less shortened comments and a merged file (-6).
+	"modules/enrollment/compose":                   635,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
@@ -471,7 +478,9 @@ var moduleComposeBudgets = map[string]int{
 	"modules/traegerview/compose": 20,
 	// Added by ADR 0076: construction and the ambient transaction guard.
 	"workflows/staffpersonmerge/compose": 31,
-	"workflows/studentdeletion/compose":  74,
+	// Added by ADR 0215: the Träger catalog rollout and its runtime (ADR 0195).
+	"workflows/traegercatalog/compose":  38,
+	"workflows/studentdeletion/compose": 74,
 }
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.

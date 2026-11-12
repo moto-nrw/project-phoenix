@@ -1,6 +1,7 @@
 package postgres
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
@@ -36,6 +37,12 @@ type phaseRow struct {
 	EligibleSchoolClasses     []string                `bun:"eligible_school_classes,type:jsonb,notnull"`
 	EligibleGradeLevels       []int                   `bun:"eligible_grade_levels,type:jsonb,notnull"`
 	Translations              enrollment.Translations `bun:"translations,type:jsonb,notnull"`
+	// The Träger link of a copy (ADR 0195). Only the copy commands write it;
+	// an insert leaves it empty and the trigger keeps the deviations.
+	TraegerSourceID      *int64          `bun:"traeger_source_id"`
+	TraegerSourceVersion *int            `bun:"traeger_source_version"`
+	TraegerValues        json.RawMessage `bun:"traeger_values,type:jsonb,nullzero"`
+	TraegerDeviations    []string        `bun:"traeger_deviations,array,nullzero,notnull,default:'{}'"`
 }
 
 // storedTranslations binds '{}' instead of NULL: the column is NOT NULL.
@@ -85,7 +92,18 @@ func (r *phaseRow) value() *enrollment.Phase {
 		EligibleSchoolClasses:     r.EligibleSchoolClasses,
 		EligibleGradeLevels:       r.EligibleGradeLevels,
 		Translations:              loadedTranslations(r.Translations),
+		Traeger:                   traegerCopyLink(r.TraegerSourceID, r.TraegerSourceVersion, r.TraegerDeviations),
 	}
+}
+
+func traegerCopyLink(sourceID *int64, version *int, deviations []string) *enrollment.TraegerCopyLink {
+	if sourceID == nil || version == nil {
+		return nil
+	}
+	if deviations == nil {
+		deviations = []string{}
+	}
+	return &enrollment.TraegerCopyLink{SourceID: *sourceID, Version: *version, Deviations: deviations}
 }
 func phaseRecord(p *enrollment.Phase) *phaseRow {
 	return &phaseRow{

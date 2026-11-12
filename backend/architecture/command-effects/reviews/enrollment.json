@@ -3952,6 +3952,124 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.ApplyTraegerPhase",
+      "reason": "Read-only target: enrollment reaches modules/careplan.CareOfferingCapability.ValidatePhaseChange (care-plan) through modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase. The Träger phase copy runs the school's own phase update, which checks the linked care offerings (ADR 0195 section 5); no persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ValidatePhaseChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.ApplyTraegerPhase",
+      "reason": "Read-only target: enrollment reaches modules/careplan.CareOfferingCatalogCapability.ValidatePhaseChange (care-plan) through modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase. The Träger phase copy runs the school's own phase update, which checks the linked care offerings (ADR 0195 section 5); no persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCatalogCapability.ValidatePhaseChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.ApplyTraegerPhase",
+      "reason": "Read-only target: enrollment reaches modules/careplan.CareOfferingGuards.ValidatePhaseChange (care-plan) through modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase. The Träger phase copy runs the school's own phase update, which checks the linked care offerings (ADR 0195 section 5); no persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingGuards.ValidatePhaseChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0195",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.ApplyTraegerPhase",
+      "reason": "Cross-owner lock of the school's own phase commands: enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase. The Träger phase copy creates, updates and deletes the copy through the phase administration, which takes the recurrence gate exactly as a school edit does (ADR 0195 sections 5 and 7); no new protocol. Approved for this binding by ADR 0195.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.ApplyTraegerPhase",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.MarkRollback (tenant-runtime) through modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.MarkRollback",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0215",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.TraegerPhaseCopyState",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.TraegerPhaseCopyState",
+      "reason": "Cross-owner lock of the school's own phase and catalog commands, reached through the Träger copy commands (ADR 0195 sections 5 and 7): the copy takes the recurrence gate first, then its rows, exactly as a school edit does; no new protocol. Approved for this binding by ADR 0215.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/careplan.CareOfferingCapability.ValidatePhaseChange (care-plan) through modules/enrollment/compose.Phases.UpdatePhase. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ValidatePhaseChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/careplan.CareOfferingCatalogCapability.ValidatePhaseChange (care-plan) through modules/enrollment/compose.Phases.UpdatePhase. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCatalogCapability.ValidatePhaseChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/careplan.CareOfferingGuards.ValidatePhaseChange (care-plan) through modules/enrollment/compose.Phases.UpdatePhase. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingGuards.ValidatePhaseChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0195",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "reason": "Cross-owner lock of the school's own phase commands: enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase. The Träger phase copy creates, updates and deletes the copy through the phase administration, which takes the recurrence gate exactly as a school edit does (ADR 0195 sections 5 and 7); no new protocol. Approved for this binding by ADR 0195.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.MarkRollback (tenant-runtime) through modules/enrollment/compose.Phases.UpdatePhase. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.MarkRollback",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentUploadAccessLog.RecordUploadAccess",
       "classification": "platform",
@@ -7507,6 +7625,26 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.Owner.CountCareOfferingsByPhase; modules/careplan.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CountCareOfferingsByPhase",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.HasTraegerCopiesForPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.HasTraegerCopiesForPhase",
+      "reason": "Enrollment phase deletion reads the tenant-scoped Care Plan offering list once, under the recurrence lock, and refuses any copied offering before cascade deletion. This terminal only reads origins; it neither mutates nor acquires locks.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.ListCareOfferings",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.HasTraegerCopiesForPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.HasTraegerCopiesForPhase",
+      "reason": "Enrollment phase deletion reads the tenant-scoped Care Plan offering list once, under the recurrence lock, and refuses any copied offering before cascade deletion. This terminal only reads origins; it neither mutates nor acquires locks.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListCareOfferings",
       "target_owner": "care-plan"
     },
     {

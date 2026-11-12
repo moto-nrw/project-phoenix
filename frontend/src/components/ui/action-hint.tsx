@@ -29,6 +29,25 @@ const LEAVE_GRACE_MS = 120;
 let keyboardModality = false;
 let modalityTracking = false;
 const pendingHoverCancels = new Set<() => void>();
+const blockedHintHandlers = new Map<
+  string,
+  (anchor: HTMLElement, pointerType: string) => void
+>();
+const BLOCKED_ACTIVATION_EVENTS = [
+  "click",
+  "dblclick",
+  "auxclick",
+  "mousedown",
+  "mouseup",
+  "pointerdown",
+  "pointerup",
+  "touchstart",
+  "touchend",
+  "keydown",
+  "keyup",
+  "keypress",
+] as const;
+let blockedActivationTracking = false;
 
 function cancelPendingHoverHints() {
   for (const cancel of [...pendingHoverCancels]) cancel();
@@ -56,10 +75,57 @@ function trackModality() {
   document.addEventListener("focusin", cancelPendingHoverHints, true);
 }
 
+function isBlockedActivation(event: Readonly<{ type: string; key?: string }>) {
+  if (!event.type.startsWith("key")) return true;
+  return event.key === "Enter" || event.key === " " || event.key === "Spacebar";
+}
+
+function blockDisabledHintActivation(event: Event) {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const anchor = target.closest<HTMLElement>("[data-action-hint-anchor]");
+  const id = anchor?.getAttribute("data-action-hint-anchor");
+  if (!anchor || !id) return;
+  const showHint = blockedHintHandlers.get(id);
+  if (!showHint) return;
+  if (!isBlockedActivation(event)) return;
+
+  // Dieser Listener läuft auf `window` vor Capture-Handlern eines klickbaren
+  // Vorfahren. `aria-disabled` muss diese Sperre selbst nachbilden.
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.type === "pointerdown") {
+    keyboardModality = false;
+    showHint(anchor, (event as PointerEvent).pointerType);
+  }
+}
+
+function registerBlockedHint(
+  id: string,
+  showHint: (anchor: HTMLElement, pointerType: string) => void,
+) {
+  blockedHintHandlers.set(id, showHint);
+  if (!blockedActivationTracking) {
+    blockedActivationTracking = true;
+    for (const event of BLOCKED_ACTIVATION_EVENTS) {
+      window.addEventListener(event, blockDisabledHintActivation, true);
+    }
+  }
+  return () => {
+    blockedHintHandlers.delete(id);
+    if (blockedHintHandlers.size !== 0 || !blockedActivationTracking) return;
+    blockedActivationTracking = false;
+    for (const event of BLOCKED_ACTIVATION_EVENTS) {
+      window.removeEventListener(event, blockDisabledHintActivation, true);
+    }
+  };
+}
+
 interface HintTargetProps {
   readonly children?: React.ReactNode;
   readonly "aria-describedby"?: string;
   readonly "aria-label"?: string;
+  readonly "data-action-hint-anchor"?: string;
   readonly onPointerEnter?: React.PointerEventHandler<HTMLElement>;
   readonly onPointerLeave?: React.PointerEventHandler<HTMLElement>;
   readonly onPointerDown?: React.PointerEventHandler<HTMLElement>;
@@ -72,6 +138,13 @@ interface ActionHintProps {
   readonly text: string;
   /** Exactly one interactive element: button, link or a label styled as one. */
   readonly children: React.ReactElement;
+  /**
+   * Also open at once on a click or a touch or pen tap; a second tap or a
+   * tap elsewhere closes it. Only for a blocked control (`disabledReason`),
+   * where pressing runs no action and the reason would otherwise stay
+   * unreachable on touch.
+   */
+  readonly showOnTap?: boolean;
 }
 
 /**
@@ -83,7 +156,8 @@ interface ActionHintProps {
  * this one belongs to controls:
  *
  * - It appears on mouse hover (after a short delay) and on keyboard focus,
- *   never on touch, where a tap runs the action at once.
+ *   never on touch, where a tap runs the action at once. A blocked control
+ *   (`showOnTap`, set by `disabledReason`) also opens on a tap.
  * - It adds no wrapper element, so layout classes on the control keep working.
  * - The bubble is portaled and fixed to the viewport, so cards, tables and
  *   dialogs with `overflow` do not clip it. It flips above the control near
@@ -92,7 +166,11 @@ interface ActionHintProps {
  *   only visual. Escape closes it without closing a dialog behind it, and the
  *   pointer may move onto the bubble without closing it (WCAG 1.4.13).
  */
-export function ActionHint({ text, children }: ActionHintProps) {
+export function ActionHint({
+  text,
+  children,
+  showOnTap = false,
+}: ActionHintProps) {
   const id = useId();
   const [anchor, setAnchor] = useState<HTMLElement | null>(null);
   const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -115,11 +193,26 @@ export function ActionHint({ text, children }: ActionHintProps) {
       setAnchor(null);
     }, LEAVE_GRACE_MS);
   }, [cancel]);
+  const showBlockedHint = useCallback(
+    (target: HTMLElement, pointerType: string) => {
+      // Ein Klick auf einen gesperrten Knopf löst nichts aus: er zeigt den
+      // Grund sofort. Ein zweiter Tipp schließt ihn wieder.
+      const tap = pointerType !== "mouse";
+      cancel();
+      setAnchor((open) => (tap && open ? null : target));
+    },
+    [cancel],
+  );
 
   useEffect(() => {
     trackModality();
     return cancel;
   }, [cancel]);
+
+  useLayoutEffect(() => {
+    if (!showOnTap) return;
+    return registerBlockedHint(id, showBlockedHint);
+  }, [id, showBlockedHint, showOnTap]);
 
   useEffect(() => {
     if (!anchor) return;
@@ -130,11 +223,26 @@ export function ActionHint({ text, children }: ActionHintProps) {
       event.stopPropagation();
       hide();
     };
+    // Ein Tipp neben Knopf und Blase schließt eine angetippte Blase.
+    const closeOnOutsidePointer = (event: PointerEvent) => {
+      const target = event.target;
+      if (!(target instanceof Node)) return;
+      if (anchor.contains(target)) return;
+      if (
+        target instanceof Element &&
+        target.closest("[data-action-hint]") !== null
+      ) {
+        return;
+      }
+      hide();
+    };
     window.addEventListener("keydown", closeOnEscape, true);
+    window.addEventListener("pointerdown", closeOnOutsidePointer, true);
     window.addEventListener("scroll", hide, true);
     window.addEventListener("resize", hide);
     return () => {
       window.removeEventListener("keydown", closeOnEscape, true);
+      window.removeEventListener("pointerdown", closeOnOutsidePointer, true);
       window.removeEventListener("scroll", hide, true);
       window.removeEventListener("resize", hide);
     };
@@ -158,6 +266,7 @@ export function ActionHint({ text, children }: ActionHintProps) {
     <>
       {cloneElement(child, {
         "aria-describedby": describedBy,
+        "data-action-hint-anchor": showOnTap ? id : undefined,
         onPointerEnter: (event) => {
           props.onPointerEnter?.(event);
           if (event.pointerType !== "mouse") return;
@@ -172,11 +281,18 @@ export function ActionHint({ text, children }: ActionHintProps) {
         },
         onPointerLeave: (event) => {
           props.onPointerLeave?.(event);
+          // Ein Finger „verlässt“ den Knopf beim Abheben; eine angetippte
+          // Blase bleibt dann stehen.
+          if (showOnTap && event.pointerType !== "mouse") return;
           if (anchor) hideSoon();
           else hide();
         },
         onPointerDown: (event) => {
           props.onPointerDown?.(event);
+          if (showOnTap) {
+            showBlockedHint(event.currentTarget, event.pointerType);
+            return;
+          }
           hide();
         },
         onFocus: (event) => {
@@ -248,7 +364,10 @@ function HintBubble({
       data-action-hint=""
       aria-hidden="true"
       onPointerEnter={onPointerEnter}
-      onPointerLeave={onPointerLeave}
+      onPointerLeave={(event) => {
+        // Ein Finger auf der Blase „verlässt“ sie beim Abheben.
+        if (event.pointerType === "mouse") onPointerLeave();
+      }}
       className="fixed w-max max-w-xs rounded-md bg-gray-900 px-2 py-1 text-xs font-medium text-pretty text-white shadow-lg"
       style={{
         top: position?.top ?? 0,

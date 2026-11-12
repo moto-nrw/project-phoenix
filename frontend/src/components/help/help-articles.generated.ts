@@ -344,6 +344,8 @@ import type { traegerCareReductionsTopic as authored_traegerCareReductionsTopic 
 
 import type { traegerCareTimeOverrunsTopic as authored_traegerCareTimeOverrunsTopic } from "./articles/traeger-care-time-overruns";
 
+import type { traegerCatalogPhasesTopic as authored_traegerCatalogPhasesTopic } from "./articles/traeger-catalog-phases";
+
 import type { traegerClosingDaysTopic as authored_traegerClosingDaysTopic } from "./articles/traeger-closing-days";
 
 import type { traegerDashboardTopic as authored_traegerDashboardTopic } from "./articles/traeger-dashboard";
@@ -2823,6 +2825,7 @@ export const enrollmentSetupTopic = function enrollmentSetupTopic(): HelpTopic {
       "Sie haben Varianten wie „bis 13 Uhr“ und „bis 17 Uhr“? Geben Sie ihnen bei `Pflichtauswahl` dieselbe `Gruppe (optional)` und die `Regel` `Höchstens eines pro Tag`. Dann mischen Eltern die Varianten über die Woche, aber wählen pro Tag nur eine.",
       "Tragen Sie bei jeder Variante unter `Gehzeit je Betreuungstag` ihre Uhrzeit ein. Nach der Zusage steht sie beim Kind. Bucht ein Kind an einem Tag zwei Angebote, gilt die spätere Gehzeit.",
       "Ein Angebot nur für eine Klassenstufe, zum Beispiel Klasse 1: Setzen Sie den Haken bei `Nur für bestimmte Klassenstufen anbieten` und wählen Sie `Klasse 1`. Ohne Haken können alle Kinder das Angebot wählen.",
+      "Manche Phasen und Angebote legt Ihr Träger für mehrere Schulen an. Sie dürfen alles daran ändern oder sie ausschalten. Ihre Änderungen bleiben, auch wenn der Träger später etwas ändert.",
     ],
     differences: [
       "Auf dem Handy erscheint nur ein Hinweis. Die Anmeldungen laufen am Computer.",
@@ -2836,6 +2839,7 @@ export const enrollmentSetupTopic = function enrollmentSetupTopic(): HelpTopic {
       "Oben steht `Anschlussphase fehlt`? Dann laufen die Buchungen aus. Wählen Sie `Anschlussphase erstellen`.",
       "Beim Speichern steht `Der neue Zeitraum passt nicht zur geänderten Buchung von …`? Das genannte Kind wechselt sein Angebot ab einem Tag im alten Zeitraum. Der neue Zeitraum würde diese Buchung leeren. Passen Sie zuerst die Angebote dieses Kindes an.",
       "Fehlt `Anmeldungen` in der Seitenleiste? Der Bereich ist der Leitung vorbehalten.",
+      "Eine Phase oder ein Angebot lässt sich nicht löschen, weil es vom Träger kommt? Schalten Sie es stattdessen aus. Entfernen kann es nur Ihr Träger.",
     ],
     related: [
       HELP_TOPICS.leadEnrollmentForm,
@@ -10394,13 +10398,15 @@ export const traegerBillingRunTopic =
         {
           title: "Rechnungen und Beträge einer Familie ansehen",
           description:
-            "Hier sehen Sie alle Rechnungen, Stornos und Gutschriften einer Familie über alle Läufe. Eine Familie sind alle Schreiben an dieselbe E-Mail-Adresse.",
+            "Hier sehen Sie alle Rechnungen, Stornos und Gutschriften einer Familie über alle Läufe und ihre Debitorennummer. Eine Familie ist eine E-Mail-Adresse. Familien aus der Ferienbetreuung stehen hier schon, wenn ihre Anmeldung mit Debitorennummer bestätigt ist.",
           steps: [
             "Wählen Sie in der Navigation `Abrechnung`.",
             "Wählen Sie oben den Reiter `Familien`.",
             "Die Kacheln zeigen die Summen `Ausgestellt`, `Storniert`, `Gutgeschrieben` und `Offene Forderung`. Sie rechnen mit den Familien, die die Liste gerade zeigt.",
-            "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit offener Forderung` sehen Sie nur Familien, deren Rechnungen noch Geld verlangen.",
-            "Wählen Sie die Familie. Sie sehen ihre Summen, wer zahlt, den Zahlungsweg und jedes Dokument mit Ferienzeitraum, Kindern, Betrag und Stand.",
+            "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit offener Forderung` sehen Sie nur Familien, deren Rechnungen noch Geld verlangen. Mit `Ohne Debitorennummer` sehen Sie Familien ohne Nummer. Denselben Filter setzt ein Klick auf `ohne Debitorennummer` oben in der Zeile mit den Zahlen.",
+            "Unter `Debitorennummer` steht die Nummer der Familie. Steht auf älteren Rechnungen eine andere, sehen Sie sie darunter. `Nur Ferien` heißt: Die Familie hat keinen Betreuungsvertrag.",
+            "Öffnen Sie das Drei-Punkte-Menü neben der Nummer. Wählen Sie `Debitorennummer ändern` oder `Debitorennummer eintragen`. Tragen Sie die Nummer ein und wählen Sie `Speichern`. Ausgestellte Rechnungen behalten ihre Nummer.",
+            "Wählen Sie die Familie. Sie sehen ihre Summen, wer zahlt, den Zahlungsweg und jedes Dokument mit Ferienzeitraum, Kindern, Betrag und Stand. Eine Familie ohne Rechnung öffnet sich nicht.",
             "Wählen Sie ein Dokument, um seinen Abrechnungslauf zu öffnen. Dort stornieren Sie oder schreiben gut.",
           ],
         },
@@ -10412,8 +10418,8 @@ export const traegerBillingRunTopic =
         "Ferien werden im Voraus abgerechnet. Grundlage ist der Beitrag, den moto beim Bestätigen der Anmeldung festgehalten hat.",
         "Jede Korrektur steht als eigene Position auf der Rechnung. Unter der Rechnung sehen Sie alle Korrekturen mit Datum und Begründung.",
         "Wird nach dem Start noch eine Anmeldung bestätigt, kommt sie bis zur Freigabe in den Lauf. Nach der Freigabe starten Sie für sie einen neuen Lauf.",
-        "Logo, Farbe, Absender und Fußzeile im Schreiben kommen aus `Briefkopf und Vorlagen`. Die Ansprechperson kommt aus `Allgemein`, die Bankverbindung aus `Abrechnungsvorgaben`. Als Verwendungszweck steht im Schreiben die Debitorennummer der Familie. Hat die Anmeldung keine, steht dort die Rechnungsnummer. Einen eigenen Zahlungstext schreiben Sie in den Einstellungen unter `Allgemein` im Bereich `Ferienbetreuung`.",
-        "Die Rechnung übernimmt die Debitorennummer der Anmeldung. Sie steht im Schreiben unter der Rechnungsnummer und in der Übersicht für die Kämmerei in der Spalte `Debitorennummer`.",
+        "Logo, Farbe, Absender und Fußzeile im Schreiben kommen aus `Briefkopf und Vorlagen`. Die Ansprechperson kommt aus `Allgemein`, die Bankverbindung aus `Abrechnungsvorgaben`. Als Verwendungszweck steht im Schreiben die Debitorennummer der Rechnung. Hat die Rechnung keine, steht dort die Rechnungsnummer. Einen eigenen Zahlungstext schreiben Sie in den Einstellungen unter `Allgemein` im Bereich `Ferienbetreuung`.",
+        "Die Rechnung übernimmt die Debitorennummer der Anmeldung. Hat die Anmeldung keine, nimmt sie die Nummer der Familie aus dem Reiter `Familien`. Die Nummer steht im Schreiben unter der Rechnungsnummer und in der Übersicht für die Kämmerei in der Spalte `Debitorennummer`.",
         "Storno und Gutschrift bekommen ihre Nummer aus demselben Nummernkreis wie die Rechnungen. In der Aufschlüsselung einer Rechnung steht unter `Verlauf` ihr Storno, ihre Gutschriften und die neue Rechnung.",
         "Sind die Schreiben des Laufs schon erstellt, bekommen Storno und Gutschrift ihr Schreiben sofort. Sie senden es wie die anderen Schreiben unter `Versand per Mail`.",
         "Nach einem Storno lässt sich die Debitorennummer der Anmeldung wieder ändern. Die neue Rechnung übernimmt sie.",
@@ -10422,7 +10428,7 @@ export const traegerBillingRunTopic =
         "Hat die Familie bei der Anmeldung ihre Anschrift angegeben, steht sie im Schreiben und in der Übersicht für die Kämmerei. Die Rechnung behält sie, auch wenn die Anmeldung später gelöscht wird.",
         "Den Text des Schreibens legen Sie in den Einstellungen unter `Briefkopf und Vorlagen` fest. Erstellte Schreiben behalten den Text, mit dem sie entstanden sind.",
         "`Offene Forderung` und `Forderung offen` heißen: Die Rechnung ist ausgestellt, nicht storniert und nicht gutgeschrieben. Das ist der Stand vor Zahlungseingang. Zahlungen sieht moto nicht. Eine offene Forderung heißt also nicht, dass die Familie im Rückstand ist. Ob sie gezahlt hat, prüfen Sie in Ihrer Buchhaltung.",
-        "Bei `Wer zahlt` steht `Familie zahlt selbst`, `Kostenübernahme` mit dem Namen des Kostenträgers oder `Beitragsfrei`. Eine stornierte Rechnung zählt dabei nicht mit.",
+        "In der Spalte `Zahlung` steht `Familie zahlt selbst`, `Kostenübernahme` mit dem Namen des Kostenträgers oder `Beitragsfrei`, darunter der Zahlungsweg. Eine stornierte Rechnung zählt dabei nicht mit.",
       ],
       differences: [
         "Sie sehen in der Navigation kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
@@ -10435,7 +10441,7 @@ export const traegerBillingRunTopic =
         "Auf dem Handy oder einem schmalen Bildschirm steht das Schreiben an der Stelle der Liste. Mit `Zurück zu den Rechnungen` kommen Sie zur Liste.",
         "Statt des Schreibens steht, dass sich die Datei auf diesem Gerät hier nicht zeigen lässt? Wählen Sie `In neuem Tab öffnen` oder `Herunterladen`.",
         "Im Menü einer Rechnung fehlt `Rechnung stornieren`? Die Rechnung hat schon eine Gutschrift oder ist schon storniert. Schreiben Sie dann den Rest gut.",
-        "Vor der Freigabe steht, dass Anmeldungen noch keine Debitorennummer haben? Ihr Träger fragt die Nummer ab, und diese Anmeldungen wurden ohne Nummer bestätigt. Tragen Sie die Nummer in der Anmeldung ein. Freigeben können Sie trotzdem. Nennt Ihr eigener Zahlungstext die Debitorennummer, lassen sich die Schreiben ohne Nummer aber nicht erstellen.",
+        "Vor der Freigabe steht, dass Anmeldungen noch keine Debitorennummer haben? Ihr Träger fragt die Nummer ab. Diese Anmeldungen wurden ohne Nummer bestätigt, und auch die Familie hat keine. Tragen Sie die Nummer in der Anmeldung ein. Freigeben können Sie trotzdem. Nennt Ihr eigener Zahlungstext die Debitorennummer, lassen sich die Schreiben ohne Nummer aber nicht erstellen.",
         "Vor der Freigabe steht `Schreiben brauchen die Debitorennummer`? Ihr eigener Zahlungstext nennt die Debitorennummer, und Rechnungen mit Betrag haben keine. Tragen Sie die Nummern vor dem Freigeben in den Anmeldungen ein. Das Feld dafür erscheint, wenn in den Einstellungen unter `Allgemein` im Bereich `Ferienbetreuung` `Debitorennummer beim Bestätigen abfragen` an ist. Freigeben geht trotzdem, der Knopf heißt dann `Trotzdem freigeben`. Die Schreiben lassen sich danach nur ohne den Platzhalter erstellen.",
       ],
       troubleshootingDetails: [
@@ -11380,6 +11386,83 @@ export const traegerCareTimeOverrunsTopic =
     };
   } satisfies typeof authored_traegerCareTimeOverrunsTopic;
 
+/** `/traeger/anmeldephasen` (#4704): Anmeldephase mit Angeboten für mehrere Schulen. */
+export const traegerCatalogPhasesTopic =
+  function traegerCatalogPhasesTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerCatalogPhases,
+      title: "Anmeldephasen für mehrere Schulen",
+      question: "Wie lege ich eine Anmeldephase für mehrere Schulen an?",
+      summary:
+        "Sie legen eine Anmeldephase mit Betreuungsangeboten einmal an. Jede Schule bekommt davon eine eigene Kopie. Erst wenn Sie übertragen, ändert sich etwas in den Schulen.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "CalendarPlus",
+      requirements: [
+        "Ihre Rolle im Träger-Büro darf Anmeldungen verwalten. Das gilt für die Rolle Verwaltung.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Anmeldephase anlegen",
+          steps: [
+            "Wählen Sie in der Navigation `Anmeldephasen`.",
+            "Wählen Sie `Anmeldephase anlegen`.",
+            "Tragen Sie `Name`, `Art` und den `Leistungszeitraum` ein.",
+            "Soll die Anmeldung nur in einer bestimmten Zeit möglich sein? Tragen Sie `Anmeldung ab` und `Anmeldung bis` ein. Sonst lassen Sie die Felder leer.",
+            "Wählen Sie `Zielgruppe`, `Betreuungsauswahl` und `Verhalten bei voller Betreuung`.",
+            "Wählen Sie bei `Schulen` `Alle Schulen (auch neue)` oder `Ausgewählte Schulen`. Bei ausgewählten Schulen setzen Sie bei jeder Schule einen Haken.",
+            "Wählen Sie `Anmeldephase anlegen`.",
+          ],
+        },
+        {
+          title: "Betreuungsangebote anlegen",
+          steps: [
+            "Öffnen Sie die Anmeldephase.",
+            "Wählen Sie bei `Betreuungsangebote` `Angebot anlegen`.",
+            "Tragen Sie `Name` und die `Wochentage` ein. Zählt das Angebot als Betreuungstag, tragen Sie für jeden Tag eine Gehzeit ein.",
+            "Tragen Sie die Preise ein. Wählen Sie `Je Wochentag` oder `Nach Tagen je Woche`. In der Spalte `Jedes weitere Kind` steht der Preis für Geschwister. Leer heißt: derselbe Preis wie beim 1. Kind.",
+            "Soll die Schule auch die Vertragsbedingungen bekommen? Schalten Sie `Vertragsvorlage mitgeben` ein und füllen Sie die Felder aus.",
+            "Wählen Sie `Angebot anlegen`.",
+          ],
+        },
+        {
+          title: "Vorschau ansehen und übertragen",
+          steps: [
+            "Öffnen Sie die Anmeldephase.",
+            "Wählen Sie oben `Vorschau ansehen`.",
+            "Prüfen Sie je Schule, was passiert: `Wird neu angelegt`, `Wird geändert`, `Wird zurückgezogen` oder `Lehnt ab` mit dem Grund.",
+            "Wählen Sie `Freigeben und übertragen`.",
+            "Unter `Ergebnis` sehen Sie, welche Schule übernommen hat.",
+          ],
+        },
+      ],
+      result:
+        "Jede Schule hat eine eigene Anmeldephase mit den Angeboten. Auf der Seite der Anmeldephase steht bei `Schulen` das letzte Ergebnis jeder Schule.",
+      notes: [
+        "Die Schule darf ihre Kopie ändern oder ausschalten. Diese Änderungen bleiben. In der Vorschau steht dann `Die Schule hat geändert – bleibt so`, mit dem Wert der Schule und Ihrem Wert.",
+        "Neue Preise gelten in der Schule ab dem nächsten Monatsbeginn. Ausgestellte Verträge und Rechnungen bleiben, wie sie sind.",
+        "Eine Schule darf eine Kopie nicht löschen. Entfernen geht nur hier mit `Zurückziehen`. Danach übertragen Sie noch einmal.",
+        "Hat ein Kind ein zurückgezogenes Angebot schon gebucht, schaltet moto es in der Schule nur aus.",
+        "Sie ziehen das Ende einer Anmeldephase vor? Dann nennt die Vorschau je Schule, wie viele Kinder länger betreut werden. moto beendet keine Betreuung. Sagen Sie der Schule Bescheid.",
+      ],
+      differences: [
+        "Sie sehen in der Navigation kein `Anmeldephasen`? Ihre Rolle darf keine Anmeldungen verwalten. Fragen Sie im Träger-Büro nach der Rolle Verwaltung.",
+        "Eine zurückgezogene Anmeldephase lässt sich nicht mehr ändern. Das Formular fehlt dann.",
+      ],
+      troubleshootingDetails: [
+        "Eine Schule `Lehnt ab`? Der Grund steht daneben. Passen Sie Ihre Angaben an oder bitten Sie die Schule um eine Änderung. Danach sehen Sie die Vorschau noch einmal an.",
+        "Beim Übertragen steht, dass sich seit der Vorschau etwas geändert hat? moto lädt die Vorschau neu. Prüfen Sie sie und wählen Sie noch einmal `Freigeben und übertragen`.",
+        "Bei einer Schule steht `Nicht übertragen`? Die Schule hat während der Vorschau etwas geändert. Übertragen Sie noch einmal.",
+      ],
+      related: [
+        HELP_TOPICS.traegerLogin,
+        HELP_TOPICS.traegerCareContracts,
+        HELP_TOPICS.traegerCareMonths,
+      ],
+    };
+  } satisfies typeof authored_traegerCatalogPhasesTopic;
+
 /** `/traeger/schliesstage` (#4702): Schließtage des Trägers und Feiertage je Bundesland. */
 export const traegerClosingDaysTopic =
   function traegerClosingDaysTopic(): HelpTopic {
@@ -11529,7 +11612,7 @@ export const traegerDatevExportTopic =
       requirements: [
         "Ihre Rolle im Träger-Büro hat das Recht Finanz-Export.",
         "Ihr Steuerbüro hat Ihnen die DATEV-Werte genannt.",
-        "Bei Monatsbeiträgen hat jede Familie eine Debitorennummer. Bei Ferienbeiträgen steht sie in der Ferienanmeldung.",
+        "Bei Monatsbeiträgen hat jede Familie eine Debitorennummer. Bei Ferienbeiträgen steht sie in der Ferienanmeldung. Fehlt sie dort, gilt die Nummer der Familie.",
         "Der Monatslauf oder Ferienlauf ist ausgestellt.",
       ],
       steps: [],
@@ -11584,7 +11667,7 @@ export const traegerDatevExportTopic =
       result:
         "In der Datei steht jede Rechnung im Soll, jedes Storno und jede Gutschrift im Haben. Die Datei steht im `Exportprotokoll` mit ihrer Nummer. Eine Datei mit allen Buchungen steht dort als `Alle erneut: Wiederholung`. In jeder Rechnung zeigt `Verlauf`, in welcher Datei sie war.",
       notes: [
-        "Bei Monatsbeiträgen tragen Sie die Debitorennummer bei `Empfänger und Zahlung` der Familie ein. Bei Ferienbeiträgen tragen Sie sie in der Ferienanmeldung ein. DATEV nimmt nur Ziffern an, eine mehr als bei den Sachkonten. Bei 4 Stellen ist das zum Beispiel `10001`.",
+        "Bei Monatsbeiträgen tragen Sie die Debitorennummer bei `Empfänger und Zahlung` der Familie ein. Bei Ferienbeiträgen gilt die Nummer der Ferienanmeldung. Hat die Anmeldung keine, gilt die Nummer der Familie. DATEV nimmt nur Ziffern an, eine mehr als bei den Sachkonten. Bei 4 Stellen ist das zum Beispiel `10001`.",
         "Jede Buchung kommt nur einmal in eine DATEV-Datei. Stornieren Sie später eine Rechnung, steht das Storno in der nächsten Datei des Laufs. Die Rechnung selbst steht dort nicht noch einmal.",
         "Eine DATEV-Datei gilt für ein Wirtschaftsjahr. Liegt ein Storno im neuen Jahr, kommt es in eine eigene Datei. Laden Sie dafür noch einmal `DATEV` herunter.",
         "Hat ein Lauf keine neuen Buchungen, lässt sich `DATEV` nicht wählen. Dann entsteht keine Datei und keine Nummer.",
@@ -11805,7 +11888,7 @@ export const traegerFinanceExportsTopic =
         "Jeder Download ist eine neue Datei mit neuer Nummer. Steht im Protokoll `Gleicher Inhalt wie Nr. …`, enthält die Datei nichts Neues.",
         "Auch jede Lastschriftdatei und jede DATEV-Datei bekommt eine Nummer aus derselben Reihe. So nennt jede Nummer genau eine Datei.",
         "Für Ihr Steuerbüro gibt es beim Lauf auch `DATEV`. Wie das geht, steht unter „DATEV-Werte eintragen“.",
-        "Die Debitorennummer der Familie tragen Sie bei `Empfänger und Zahlung` der Familie ein. Eine neue Monatsrechnung übernimmt sie. Beim Import der Mandate übernimmt moto die Spalte `Debitorennummer`.",
+        "Die Debitorennummer der Familie tragen Sie bei `Empfänger und Zahlung` der Familie ein. Neue Monats- und Ferienrechnungen übernehmen sie. Hat eine Ferienanmeldung eine eigene Nummer, gilt bei der Ferienrechnung diese. Beim Import der Mandate übernimmt moto die Spalte `Debitorennummer`.",
         "Eine neue Feldzuordnung gilt für jede neue Datei. Frühere Dateien bleiben, wie sie waren.",
         "Wählen Sie als Inhalt `Erlöskonto`, `Kostenstelle (KOST1)` oder `Zweite Kostenstelle (KOST2)`, hat die Datei eine Zeile je Konto einer Rechnung. Der `Betrag` ist dann der Teil der Rechnung auf diesem Konto. Die Konten legen Sie unter `Konten und Kostenstellen` fest.",
       ],
@@ -12348,8 +12431,10 @@ export const traegerHolidayRegistrationReviewTopic =
             "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Haben die Eltern ihn hochgeladen, wählen Sie unter `Nachweis für den Leistungsbezug` den Dateinamen. Die Datei öffnet sich in einem neuen Tab.",
             "Bringt die Familie den Nachweis auf Papier, scannen Sie ihn. Wählen Sie unter `Nachweis für den Leistungsbezug` den Knopf `Nachweis hochladen` und dann die Datei. Erlaubt sind PDF, JPEG und PNG bis 10 MB.",
             "Wählen Sie unter `Wer bezahlt den Beitrag?`: `Die Familie bezahlt`, `Von der Zahlung befreien (Leistungsbezug)` oder `Kosten übernimmt ein Kostenträger`. Beim Kostenträger wählen Sie darunter, welcher bezahlt. Der `Ferienbeitrag` zeigt sofort, was festgehalten wird.",
-            "Fragt Ihr Träger die Debitorennummer ab, steht über `Bestätigen` das Feld `Debitorennummer`. Tragen Sie dort die Nummer der Familie bei der Kasse der Gemeinde ein. Ohne Nummer geht `Bestätigen` nicht.",
-            "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten.",
+            "Fragt Ihr Träger die Debitorennummer ab, steht über `Bestätigen` das Feld `Debitorennummer`. Tragen Sie dort die Nummer der Familie bei der Kasse der Gemeinde ein. Ohne Nummer geht `Bestätigen` nicht. Hat Ihr Träger ein Format festgelegt, steht es unter dem Feld, zum Beispiel `Die Nummer hat 5 Ziffern`.",
+            "Kennt moto die Nummer der Familie schon, steht unter dem Feld `Bekannte Nummer dieser Familie`. Prüfen Sie die Nummer und wählen Sie `Übernehmen`. Das Feld füllt sich, bestätigt ist aber noch nichts.",
+            "Wählen Sie `Bestätigen`. Damit ist der Beitrag festgehalten. moto merkt sich die Debitorennummer bei der Familie.",
+            "Weicht die Nummer von der gemerkten ab, fragt moto `Welche Debitorennummer gilt?`. Wählen Sie `Neue Nummer für die Familie merken` oder `Gemerkte Nummer behalten`. Mit Ihrer Auswahl bestätigen Sie die Anmeldung. Bei mehreren Familien nennt moto jede Familie und ihre bisherige Nummer. Ihre Auswahl gilt für alle genannten Familien.",
             "Oder wählen Sie `Stornieren` und bestätigen Sie mit `Stornieren`.",
           ],
         },
@@ -12375,6 +12460,8 @@ export const traegerHolidayRegistrationReviewTopic =
             "Öffnen Sie die bestätigte Anmeldung.",
             "Wählen Sie unter `Status` den Knopf `Debitorennummer eintragen` oder `Debitorennummer ändern`.",
             "Das Feld `Debitorennummer` öffnet sich in der Karte. Tragen Sie die Nummer ein und wählen Sie `Speichern`.",
+            "Weicht die Nummer von der gemerkten Nummer der Familie ab, wählen Sie im Dialog, welche gilt, und dann `Speichern`.",
+            "Hat die Familie die Nummer von genau dieser Anmeldung, ändert moto beide ohne Nachfrage. So berichtigen Sie einen Tippfehler. Hat die Anmeldung die gemerkte Nummer nur übernommen, fragt moto nach.",
           ],
         },
         {
@@ -12473,6 +12560,9 @@ export const traegerHolidayRegistrationReviewTopic =
         "Gibt es für ein Geschwister-Kind schon eine Rechnung, bleibt die Rechnung, wie sie ist. moto rechnet den Beitrag trotzdem neu. Unter `Ferienbeitrag` steht dann `Rechnung prüfen`. Stornieren Sie die Rechnung. Der nächste Abrechnungslauf stellt dann den neuen Betrag aus.",
         "Jede Anmeldung bekommt weiter ihre eigene Rechnung und ihr eigenes Schreiben. Ein Schreiben nennt nie die Kinder oder Eltern der anderen Anmeldung.",
         "Alle bestätigten Anmeldungen der Geschwister bekommen dieselbe Debitorennummer. Beim Bestätigen steht die Nummer der Geschwister schon im Feld.",
+        "Eine Familie ist die E-Mail-Adresse der Eltern, die anmelden. Groß- und Kleinschreibung zählt nicht. Die gemerkte Nummer bleibt, auch wenn die Anmeldung gelöscht ist. Sie sehen und ändern sie unter `Abrechnung` im Reiter `Familien`. Ein anderer Träger und die Schulen sehen sie nicht.",
+        "moto merkt sich nur eine Nummer. Bestätigen Sie ohne Nummer, merkt sich moto nichts zur Familie.",
+        "moto löscht die gemerkte Nummer einer Familie ohne Betreuungsvertrag drei Jahre nach dem Ende des Jahres, in dem sie zuletzt gebraucht wurde. Das gilt auch, wenn ein alter Betreuungsvertrag der Familie gelöscht wird. Solange es noch Rechnungen der Familie gibt, bleibt sie. Gibt es einen Löschstopp für Ferienrechnungen, bleibt sie auch.",
       ],
       differences: [
         "In der Liste steht beim Kind `Bekannt an` mit einer Schule? Diese Schule Ihres Trägers führt ein Kind mit gleichem Namen und Geburtsdatum. Die Eltern haben es aber als Feriengast oder an einer anderen Schule angemeldet. In der Anmeldung steht dazu ein Hinweis beim Kind. Prüfen Sie die Schule und wählen Sie dort `Schule ändern`. moto verknüpft nichts von selbst und zeigt keine Daten der Schule.",
@@ -13103,6 +13193,8 @@ export const traegerSettingsTopic = function traegerSettingsTopic(): HelpTopic {
       "Darunter steht `Kontakt für Widerrufe`. Diese Telefonnummer und E-Mail-Adresse nennt die Widerrufsbelehrung jedes Betreuungsvertrags. Ein leeres Feld nimmt die Angabe des Ansprechpartners. Die Vorschau zeigt den Satz so, wie Eltern ihn lesen. Nach einer Änderung kopiert die Schule die Widerrufsbelehrung neu ins Anmeldeformular.",
       "Mit `Zurück zur App` oben in der Navigation kommen Sie zur zuletzt geöffneten Seite zurück.",
       "Im Bereich `Ferienbetreuung` legen Sie fest, ob Sie beim Bestätigen einer Ferienanmeldung die Debitorennummer der Familie abfragen. Diese Einstellung gilt nur im Träger-Büro.",
+      "Hat Ihre Kasse ein festes Format, schalten Sie dort `Debitorennummer: nur Ziffern` ein. Darunter tragen Sie bei `Länge` ein, von wie vielen bis wie vielen Ziffern eine Nummer hat. Für genau 5 Ziffern tragen Sie zweimal 5 ein. Das `Beispiel` zeigt eine passende Nummer.",
+      "Das Format gilt für jede Nummer, die Sie danach eintragen: beim Bestätigen, beim Ändern einer Anmeldung und bei den Familien. Gespeicherte Nummern bleiben, wie sie sind.",
       "Ebenfalls unter `Ferienbetreuung` schreiben Sie bei `Zahlungstext im Schreiben` einen eigenen Satz, der um die Zahlung bittet. Erlaubte Platzhalter sind {Betrag}, {Zahlungsfrist}, {Rechnungsnummer} und {Debitorennummer}. Darunter zeigt die `Vorschau des Zahlungstexts` den Satz mit Beispielwerten. Ist das Feld leer, steht im Schreiben der eingebaute Satz.",
       "Der eigene Zahlungstext gilt für die Schreiben, die Sie danach erstellen. Fertige Schreiben bleiben, wie sie sind.",
       "Unter `Ferienbetreuung` legen Sie bei `Ferienanmeldungen löschen nach (Tagen)` fest, wie lange moto Ferienanmeldungen aufbewahrt. Möglich sind 92 bis 1095 Tage, der Standard ist 365 Tage. Die Frist steht im Einwilligungstext für die Eltern. Eine Änderung gilt nur für Anmeldungen, die danach eingehen.",

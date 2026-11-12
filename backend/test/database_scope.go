@@ -25,13 +25,16 @@ func PerTestDatabases() { perTestDatabases = true }
 
 // Explicit isolated clones are substantially heavier than tenant-isolated
 // tests on the package database: each clone has its own pool and CREATE
-// DATABASE copies the complete template. With -p 4 and -parallel 8, allowing
-// every package test to clone at once creates an I/O spike of up to 32
-// databases and makes otherwise unrelated queries time out. One explicit
-// clone per package bounds that spike to four databases while ordinary tests
-// and packages intentionally running wholly on per-test databases remain
-// parallel.
-const maxConcurrentIsolatedTestDatabases = 1
+// DATABASE copies the complete template. With -parallel 8, allowing every
+// package test to clone at once creates an I/O spike of up to eight databases
+// per package and makes otherwise unrelated queries time out. One clone per
+// package made the wall time of a package the sum of its clone holders
+// (#6784: importtest 45 of 53 s, organizationtenancy/compose 48 of 48 s);
+// two halve that queue and bound the spike to twelve databases at -p 6.
+// Measured on 8 cores, full suite: 124 s with one, 104 s with two, 99 s with
+// four, at the same CPU time. Ordinary tests and packages running wholly on
+// per-test databases remain parallel.
+const maxConcurrentIsolatedTestDatabases = 2
 
 var isolatedTestDatabaseSlots = newIsolatedTestDatabaseLimiter(maxConcurrentIsolatedTestDatabases)
 

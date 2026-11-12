@@ -405,3 +405,16 @@ func (b enrollmentPhaseBookings) FollowPhaseBookingBounds(ctx context.Context, m
 	}
 	return err
 }
+
+func (o enrollmentPhaseOfferings) HasTraegerCopiesForPhase(ctx context.Context, id int64) (bool, error) {
+	rows, err := o.carePlan.ListCareOfferings(ctx, careplan.CareOfferingFilter{PhaseIDs: []int64{id}})
+	if err != nil {
+		return false, err
+	}
+	for _, row := range rows {
+		if row.Traeger != nil {
+			return true, nil
+		}
+	}
+	return false, nil
+}

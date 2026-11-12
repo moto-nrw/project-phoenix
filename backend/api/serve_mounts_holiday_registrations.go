@@ -49,7 +49,7 @@ func mountTraegerRoutes(root, tenant chi.Router, limiters authRateLimiters, iden
 	persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerSettings, schoolSettings TraegerSchoolSettings, attendanceMarks owners.MealAttendanceMarks,
 	delivery deliveryRuntime.Capability, closureMail owners.HolidayClosureMail, outcomes deliveryRuntime.EmailOutcomes, keys TurnstileKeys,
 	healthData enrollmentOwner.HolidayHealthCipher, bankData parentbilling.BankDataCipher, statistics studentpresence.StatisticsReports, changes careplan.OfferingChangeCapability, contractHolidays carecontract.SchoolHolidays,
-	holidayCalendar enrollmentOwner.HolidaySchoolCalendar, closureHolidays owners.HolidayClosureHolidays, calendarSchools traegercalendar.Schools,
+	holidayCalendar enrollmentOwner.HolidaySchoolCalendar, closureHolidays owners.HolidayClosureHolidays, calendarSchools traegercalendar.Schools, schoolPhases *enrollmentCompose.Phases, schoolCatalog careplan.CareOfferingCatalogCapability, lockRecurrence func(context.Context) error,
 	parentsURL string, logger *slog.Logger) error {
 	if err := mountTraegerPortalRoutes(root, limiters, identity, organizations, persons, staff, audit, settings, healthData, holidayCalendar, holidayTraegerMail{delivery: delivery}, newHolidayOfficeTraeger(organizations)); err != nil {
 		return err
@@ -73,7 +73,9 @@ func mountTraegerRoutes(root, tenant chi.Router, limiters authRateLimiters, iden
 	// The office decides the parents' changes through Care Plan's review of
 	// the school (#5979).
 	mountCareContractChangeRoutes(root, organizations, changes, schoolSettings, audit.Log)
-	return nil
+	// The office rolls its phases and offerings out into its schools (#4704).
+	billing, intake := newTraegerCatalogBilling(organizations, settings, schoolSettings, attendanceMarks, delivery, outcomes, audit.Log, contractHolidays, parentsURL)
+	return mountTraegerCatalogRoutes(root, schoolPhases, schoolCatalog, lockRecurrence, organizations, billing, intake)
 }
 
 // TraegerSettings is the Träger level of the settings system: the

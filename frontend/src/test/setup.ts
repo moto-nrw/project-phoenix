@@ -221,6 +221,10 @@ vi.mock("~/components/ui/page-path", async (importOriginal) => {
   return { ...actual, usePagePath: useTenantAwarePath };
 });
 
+// The DOM environment cannot load a page anew; tests assert the call instead
+// (useRefreshAfterWrite after a refused reload, #6801).
+vi.mock("~/lib/reload-document", () => ({ reloadDocument: vi.fn() }));
+
 // Mock SWR globally - individual tests can override with vi.mocked()
 vi.mock("swr", () => ({
   default: vi.fn(() => ({

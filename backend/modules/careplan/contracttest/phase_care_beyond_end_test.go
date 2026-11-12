@@ -225,3 +225,39 @@ func editWhileHolding(t *testing.T, env *decisionTestEnv, ctx context.Context, e
 		return enrollmentTest.PhaseUpdateReport{}
 	}
 }
+
+// A Träger rollout that shortens the school's copy of a phase counts the
+// children in care past the new end, as a school's own edit names them, and
+// changes none of them (#6813, ADR 0211): the Träger office learns it in the
+// preview and the result, the school ends each care on purpose.
+func TestTraegerCopyShortening_CountsTheChildrenInCare(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	c := approveSourcedChild(t, env, "Traeger")
+	activate(t, env, c)
+	const sourceID = 9_000_001
+	_, err := env.db.NewRaw(`UPDATE enrollment.phases SET traeger_source_id = ?, traeger_source_version = 1,
+		traeger_values = jsonb_build_object('service_end_date', service_end_date::text) WHERE id = ?`,
+		sourceID, env.sourcePhase.ID).Exec(testpkg.Ctx(t))
+	require.NoError(t, err)
+
+	shortened := movedSourcePhase(env, 0, -31)
+	active := true
+	applied, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), env.db,
+		boundsPhases(t, env, recurrenceGate(t, env)).TraegerCopies().ApplyTraegerPhase, enrollmentTest.TraegerPhaseCopy{
+			SourceID: sourceID, Version: 2, Fields: enrollmentTest.TraegerPhaseFields{
+				IsActive: &active, Name: shortened.Name, Kind: shortened.Kind,
+				ServiceStartDate: shortened.ServiceStartDate, ServiceEndDate: shortened.ServiceEndDate,
+				EnrollmentOpenAt: shortened.EnrollmentOpenAt, EnrollmentCloseAt: shortened.EnrollmentCloseAt,
+				Audience: shortened.Audience, CareOverflowMode: shortened.CareOverflowMode,
+				CareOfferingSelectionMode: shortened.CareOfferingSelectionMode,
+			},
+		})
+	require.NoError(t, err)
+	assert.Equal(t, env.sourcePhase.ID, applied.CopyID, "the rollout updates the existing copy")
+	assert.Equal(t, 1, applied.CareBeyondEnd, "the child in care past the new end is counted")
+	status, careEnd := careState(t, env, c.studentID)
+	assert.Equal(t, peopledirectory.StudentStatusActive, status, "no silent status change")
+	assert.Equal(t, c.end.String(), careEnd, "the care end stays until the school ends the care")
+}

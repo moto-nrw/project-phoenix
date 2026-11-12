@@ -34,8 +34,6 @@ import {
   bookingLeftoverKey,
 } from "~/lib/booking-leftover";
 import { parseISODate, formatDate, toISODate } from "~/lib/date-helpers";
-import { ApiError } from "~/lib/api-error";
-import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { useAccessControlledData } from "~/lib/hooks/use-access-controlled-data";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -76,7 +74,6 @@ export function BookingLeftoverHints({
   const { show: showActionError } = useApiErrorDisplay();
   const removalErrors = useApiFormError();
   const tenantMutate = useTenantMutate();
-  const discardRefused = useDiscardRefusedEntity();
   const [busyKey, setBusyKey] = useState<string | null>(null);
   const [expanded, setExpanded] = useState(false);
   const [removing, setRemoving] = useState<BookingLeftover | null>(null);
@@ -110,26 +107,13 @@ export function BookingLeftoverHints({
   );
   const readAfterWrite = useCallback(async () => {
     if (!key || !periodId) return;
-    try {
-      await tenantMutate(
-        key,
-        () => timetableService.getBookingLeftovers(periodId),
-        { revalidate: false },
-      );
-    } catch (failure) {
-      if (
-        failure instanceof ApiError &&
-        (failure.status === 401 || failure.status === 403)
-      ) {
-        discardRefused(failure, {
-          codes: failure.code ? [failure.code] : [],
-          matches: (candidate) => candidate === key,
-          refusedKey: key,
-        });
-      }
-      throw failure;
-    }
-  }, [key, periodId, tenantMutate, discardRefused]);
+    // A refusal rejects; useRefreshAfterWrite then loads the page anew (#6801).
+    await tenantMutate(
+      key,
+      () => timetableService.getBookingLeftovers(periodId),
+      { revalidate: false },
+    );
+  }, [key, periodId, tenantMutate]);
   // Nachladen nach Behalten oder Entfernen: ein Fehler dabei ist ein
   // Ladefehler über den Hinweisen, kein Fehler der Aktion (#6652).
   const afterWrite = useRefreshAfterWrite(

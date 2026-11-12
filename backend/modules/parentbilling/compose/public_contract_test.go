@@ -80,6 +80,11 @@ func (s settingsDouble) DatevSettings(context.Context, int64) (parentbilling.Dat
 	return parentbilling.DatevSettings{}, nil
 }
 
+// DebtorNumberFormat is a Träger without a format (#6675).
+func (s settingsDouble) DebtorNumberFormat(context.Context, int64) (parentbilling.DebtorNumberFormat, error) {
+	return parentbilling.DebtorNumberFormat{}, nil
+}
+
 func (s settingsDouble) HolidayChain(context.Context, int64) (parentbilling.HolidayChainSettings, error) {
 	return parentbilling.HolidayChainSettings{
 		SiblingRank: parentbilling.SiblingRankHighestContribution, CostTakeoverOrder: parentbilling.CostTakeoverAfterDiscount,
@@ -129,7 +134,7 @@ func TestPublicParentBillingContractFreezesTheHolidayContribution(t *testing.T) 
 		if err != nil {
 			return err
 		}
-		if confirmation, err = contributions.ConfirmHolidayRegistration(txCtx, reviewer, period, registration, true, 0, ""); err != nil {
+		if confirmation, err = contributions.ConfirmHolidayRegistration(txCtx, reviewer, period, registration, true, 0, "", ""); err != nil {
 			return err
 		}
 		if err = rules.DeleteContributionRule(txCtx, organization, exemption.ID); err != nil {

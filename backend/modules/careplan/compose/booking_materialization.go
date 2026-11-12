@@ -14,6 +14,9 @@ import (
 type RosterEnrollment = ports.RosterEnrollment
 type SourcedTemplate = ports.SourcedTemplate
 type BookingRosters = ports.BookingRosters
+type RosterChanges = ports.RosterChanges
+type RosterReconcile = ports.RosterReconcile
+type TemplateSourceChange = ports.TemplateSourceChange
 type BookingTemplates = ports.BookingTemplates
 type BookingPeriods = ports.BookingPeriods
 type BookingPhase = ports.BookingPhase
@@ -30,9 +33,7 @@ type AdjustmentAudit = ports.AdjustmentAudit
 type PickupWeekdayRow = ports.PickupWeekdayRow
 type BookingPickup = ports.BookingPickup
 
-// BookingRowNotFound marks an owner's not-found error for the booking
-// materialization: a request, request child, phase or student that does not
-// exist in the tenant. The error keeps its text.
+// BookingRowNotFound marks a missing booking row while preserving its cause.
 func BookingRowNotFound(err error) error { return ports.BookingRowNotFound(err) }
 
 func bookingDependencies(deps BookingMaterializationDependencies, catalog *application.CareOfferingCatalog) application.BookingMaterializationDependencies {
@@ -49,9 +50,8 @@ func bookingDependencies(deps BookingMaterializationDependencies, catalog *appli
 	}
 }
 
-// BookingMaterializationDependencies bind the booking materialization (#3560)
-// to its owners. Catalog comes from NewCareOfferingCatalog, unset for
-// NewCareOfferingCatalogWithBookings; the hooks are nil-safe.
+// BookingMaterializationDependencies bind bookings to their owners.
+// Catalog stays unset for NewCareOfferingCatalogWithBookings.
 type BookingMaterializationDependencies struct {
 	Catalog     careplan.CareOfferingCatalogCapability
 	Rosters     BookingRosters
@@ -69,8 +69,7 @@ type BookingMaterializationDependencies struct {
 	LockTemplateRecurrence      func(context.Context) error
 	ResyncPickupAutoExcusals    func(ctx context.Context, studentIDs []int64) error
 	ClearPickupWeekdayExtension func(ctx context.Context, studentID int64, weekday int) error
-	// PickupStaff, PickupGuardians and PlanningStaffing (#5498) hear about a
-	// committed booking or pickup projection change; each may be nil.
+	// These optional ports announce committed booking and pickup changes (#5498).
 	PickupStaff      ports.PickupScheduleStaff
 	PickupGuardians  ports.PickupScheduleGuardians
 	PlanningStaffing ports.BookingPlanningStaffing

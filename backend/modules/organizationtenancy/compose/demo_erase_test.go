@@ -1124,6 +1124,107 @@ func TestDemoSchoolQueueErasesTheFamilyBillingOfTheRetiredSchool(t *testing.T) {
 	assert.Zero(t, remainingRows(t, db, "parent_billing.family_billing_events", events), "no trail stays")
 }
 
+// leaveFamilyDebtorNumbers remembers debtor numbers of the Träger of the
+// school the way a holiday registration does (#6692): one at the visitor's
+// family without a contract, one at the contract row of the visitor that a
+// registration used, one of a family whose second registration names no
+// retired school, and one of a family that never registered. It answers
+// the rows and the trail of the visitor's two, then those of the others.
+func leaveFamilyDebtorNumbers(t *testing.T, db *bun.DB, schoolID int64) (visitorFamilies, visitorEvents, keptFamilies, keptEvents []int64) {
+	t.Helper()
+	ctx := t.Context()
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	_, err = tx.NewRaw(`CREATE TEMP TABLE closed_school ON COMMIT DROP AS
+		SELECT deleted_at FROM platform.schools WHERE id = ?`, schoolID).Exec(ctx)
+	require.NoError(t, err)
+	for _, statement := range []string{
+		`UPDATE platform.schools SET deleted_at = NULL WHERE id = ?0`,
+		// The family of the siblings registered one child of the retired
+		// school and once more without one: that registration stays.
+		`WITH period AS (
+			SELECT registration.organization_id, registration.holiday_period_id AS id
+			FROM enrollment.holiday_registrations AS registration
+			JOIN enrollment.holiday_registration_children AS child
+				ON child.organization_id = registration.organization_id AND child.holiday_registration_id = registration.id
+			WHERE child.home_school_id = ?0),
+		registration AS (
+			INSERT INTO enrollment.holiday_registrations (organization_id, holiday_period_id, guardian_first_name, guardian_last_name,
+				guardian_email, guardian_phone, privacy_consent_at)
+			SELECT organization_id, id, 'Gabi', 'Geschwister', ' Geschwister@Example.org', '0151 0000008', NOW()
+			FROM period, generate_series(1, 2)
+			RETURNING organization_id, holiday_period_id, id)
+		INSERT INTO enrollment.holiday_registration_children (organization_id, holiday_period_id, holiday_registration_id,
+			position, first_name, last_name, birth_date, home_school_id)
+		SELECT organization_id, holiday_period_id, min(id), 1, 'Ben', 'Geschwister', DATE '2019-02-03', ?0
+		FROM registration GROUP BY organization_id, holiday_period_id`,
+		`UPDATE platform.schools SET deleted_at = (SELECT deleted_at FROM closed_school) WHERE id = ?0`,
+		// A holiday registration used the deviation of the visitor's
+		// contract: the deletion of the contract alone would keep its row.
+		`UPDATE parent_billing.family_billing SET last_used_on = DATE '2026-07-31'
+		WHERE care_contract_id IN (SELECT id FROM care_contract.contracts WHERE school_id = ?0)`,
+		`WITH family AS (
+			INSERT INTO parent_billing.family_billing (organization_id, family_email, care_contract_id, recipient_kind,
+				debtor_number, holder_first_name, holder_last_name, last_used_on)
+			SELECT organization_id, family.email, NULL, 'applicant', family.number, family.first_name, family.last_name, DATE '2026-07-31'
+			FROM platform.schools,
+				(VALUES ('besuch@example.org', 'D-' || ?0, '` + visitorFirst + `', '` + visitorLast + `'),
+					('geschwister@example.org', 'G-' || ?0, 'Gabi', 'Geschwister'),
+					('andere-' || ?0 || '@example.org', 'A-' || ?0, 'Olaf', 'Ohne')) AS family(email, number, first_name, last_name)
+			WHERE id = ?0
+			RETURNING id, organization_id)
+		INSERT INTO parent_billing.family_billing_events (organization_id, family_billing_id, care_contract_id, action)
+		SELECT organization_id, id, NULL, 'save' FROM family`,
+	} {
+		_, err := tx.NewRaw(statement, schoolID).Exec(ctx)
+		require.NoError(t, err, statement)
+	}
+	require.NoError(t, tx.Commit())
+
+	families := func(visitor bool) (rows, events []int64) {
+		filter := `family.family_email = 'besuch@example.org'
+			OR family.care_contract_id IN (SELECT id FROM care_contract.contracts WHERE school_id = ?0)`
+		if !visitor {
+			filter = `family.family_email IN ('geschwister@example.org', 'andere-' || ?0 || '@example.org')`
+		}
+		organization := `family.organization_id = (SELECT organization_id FROM platform.schools WHERE id = ?0) AND (` + filter + `)`
+		require.NoError(t, db.NewRaw(`SELECT family.id FROM parent_billing.family_billing AS family
+			WHERE `+organization+` ORDER BY family.id`, schoolID).Scan(ctx, &rows))
+		require.NoError(t, db.NewRaw(`SELECT event.id FROM parent_billing.family_billing_events AS event
+			JOIN parent_billing.family_billing AS family ON family.organization_id = event.organization_id AND family.id = event.family_billing_id
+			WHERE `+organization+` ORDER BY event.id`, schoolID).Scan(ctx, &events))
+		return rows, events
+	}
+	visitorFamilies, visitorEvents = families(true)
+	keptFamilies, keptEvents = families(false)
+	return visitorFamilies, visitorEvents, keptFamilies, keptEvents
+}
+
+// The debtor numbers the holiday care remembers at the visitor's family go
+// with the visitor (#6812): the row without a contract, named after the
+// visitor, and the contract row a registration used, which the deletion of
+// the contract would only detach (trg_family_billing_detach), each with its
+// trail. A family that keeps a registration keeps its number, and so does
+// a family the retired school never knew.
+func TestDemoSchoolQueueErasesTheFamilyDebtorNumbersOfTheVisitor(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	visitorFamilies, visitorEvents, keptFamilies, keptEvents := leaveFamilyDebtorNumbers(t, db, schoolID)
+	require.Len(t, visitorFamilies, 2, "the fixture leaves the visitor's row without a contract and the used contract row")
+	require.Len(t, visitorEvents, 2, "the fixture leaves the trail of both")
+	require.Len(t, keptFamilies, 2, "the fixture leaves the siblings and a family without a registration")
+	require.Len(t, keptEvents, 2)
+
+	retireVisitorOrder(t, db, schoolID, accounts)
+	assert.Zero(t, remainingRows(t, db, "parent_billing.family_billing", visitorFamilies), "no debtor number of the visitor stays")
+	assert.Zero(t, remainingRows(t, db, "parent_billing.family_billing_events", visitorEvents), "no trail of the visitor stays")
+	assert.Equal(t, 2, remainingRows(t, db, "parent_billing.family_billing", keptFamilies), "the other families keep their numbers")
+	assert.Equal(t, 2, remainingRows(t, db, "parent_billing.family_billing_events", keptEvents), "and their trail")
+}
+
 // sepaMandateRows are the SEPA mandates of the school's contracts and their
 // trail (#4695); the trail and a mandate of another holder name no one of
 // the visitor.

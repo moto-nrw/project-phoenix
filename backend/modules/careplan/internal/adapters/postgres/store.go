@@ -46,33 +46,39 @@ type calendarDate string
 
 type careOfferingRow struct {
 	bun.BaseModel       `bun:"table:care_offerings,alias:care_offering"`
-	ID                  int64             `bun:"id,pk,autoincrement"`
-	TenantID            int64             `bun:"tenant_id,notnull"`
-	CreatedAt           time.Time         `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt           time.Time         `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
-	PhaseID             int64             `bun:"phase_id,notnull"`
-	ActivityGroupID     *int64            `bun:"activity_group_id"`
-	Name                string            `bun:"name,notnull"`
-	Description         *string           `bun:"description"`
-	DaysOfWeekMode      string            `bun:"days_of_week_mode,notnull"`
-	AvailableDays       []string          `bun:"available_days,type:jsonb,notnull"`
-	IncludesHolidayCare bool              `bun:"includes_holiday_care,notnull"`
-	IncludesLunch       bool              `bun:"includes_lunch,notnull"`
-	Capacity            *int              `bun:"capacity"`
-	PriceCents          *int              `bun:"price_cents"`
-	IsActive            bool              `bun:"is_active,notnull"`
-	IsRequired          bool              `bun:"is_required,notnull"`
-	CountsAsCare        bool              `bun:"counts_as_care,notnull"`
-	AutoAddGradeLevels  []int             `bun:"auto_add_grade_levels,type:jsonb,notnull"`
-	AvailabilityRule    json.RawMessage   `bun:"availability_rule,type:jsonb"`
-	SortOrder           int               `bun:"sort_order,notnull"`
-	SelectionGroup      string            `bun:"selection_group"`
-	SelectionRule       string            `bun:"selection_rule,notnull"`
-	PickupTimes         map[string]string `bun:"pickup_times,type:jsonb"`
-	Translations        json.RawMessage   `bun:"translations,type:jsonb,notnull"`
+	ID                  int64             `bun:"id,pk,autoincrement" json:"id"`
+	TenantID            int64             `bun:"tenant_id,notnull" json:"tenant_id"`
+	CreatedAt           time.Time         `bun:"created_at,nullzero,notnull,default:current_timestamp" json:"created_at"`
+	UpdatedAt           time.Time         `bun:"updated_at,nullzero,notnull,default:current_timestamp" json:"updated_at"`
+	PhaseID             int64             `bun:"phase_id,notnull" json:"phase_id"`
+	ActivityGroupID     *int64            `bun:"activity_group_id" json:"activity_group_id"`
+	Name                string            `bun:"name,notnull" json:"name"`
+	Description         *string           `bun:"description" json:"description"`
+	DaysOfWeekMode      string            `bun:"days_of_week_mode,notnull" json:"days_of_week_mode"`
+	AvailableDays       []string          `bun:"available_days,type:jsonb,notnull" json:"available_days"`
+	IncludesHolidayCare bool              `bun:"includes_holiday_care,notnull" json:"includes_holiday_care"`
+	IncludesLunch       bool              `bun:"includes_lunch,notnull" json:"includes_lunch"`
+	Capacity            *int              `bun:"capacity" json:"capacity"`
+	PriceCents          *int              `bun:"price_cents" json:"price_cents"`
+	IsActive            bool              `bun:"is_active,notnull" json:"is_active"`
+	IsRequired          bool              `bun:"is_required,notnull" json:"is_required"`
+	CountsAsCare        bool              `bun:"counts_as_care,notnull" json:"counts_as_care"`
+	AutoAddGradeLevels  []int             `bun:"auto_add_grade_levels,type:jsonb,notnull" json:"auto_add_grade_levels"`
+	AvailabilityRule    json.RawMessage   `bun:"availability_rule,type:jsonb" json:"availability_rule"`
+	SortOrder           int               `bun:"sort_order,notnull" json:"sort_order"`
+	SelectionGroup      string            `bun:"selection_group" json:"selection_group"`
+	SelectionRule       string            `bun:"selection_rule,notnull" json:"selection_rule"`
+	PickupTimes         map[string]string `bun:"pickup_times,type:jsonb" json:"pickup_times"`
+	Translations        json.RawMessage   `bun:"translations,type:jsonb,notnull" json:"translations"`
 	// TemplateGapAcks is written only by SetCareOfferingTemplateGapAck
 	// (#5140): planning period id -> classes; NULL means no decision.
-	TemplateGapAcks map[string][]string `bun:"template_gap_acks,type:jsonb,nullzero"`
+	TemplateGapAcks map[string][]string `bun:"template_gap_acks,type:jsonb,nullzero" json:"template_gap_acks"`
+	// The Träger link of a copy (ADR 0195). Only the copy commands write it;
+	// an insert leaves it empty and the trigger keeps the deviations.
+	TraegerSourceID      *int64          `bun:"traeger_source_id" json:"traeger_source_id"`
+	TraegerSourceVersion *int            `bun:"traeger_source_version" json:"traeger_source_version"`
+	TraegerValues        json.RawMessage `bun:"traeger_values,type:jsonb,nullzero" json:"traeger_values"`
+	TraegerDeviations    []string        `bun:"traeger_deviations,array,nullzero,notnull,default:'{}'" json:"traeger_deviations"`
 }
 
 type autoTriggerRow struct {
@@ -621,7 +627,18 @@ func careOfferingToDomain(row careOfferingRow) careplan.CareOffering {
 		CountsAsCare: row.CountsAsCare, AutoAddGradeLevels: row.AutoAddGradeLevels, AvailabilityRule: row.AvailabilityRule,
 		SortOrder: row.SortOrder, SelectionGroup: row.SelectionGroup, SelectionRule: row.SelectionRule, PickupTimes: row.PickupTimes,
 		Translations: row.Translations, TemplateGapAcks: templateGapAcksToDomain(row.TemplateGapAcks),
+		Traeger: traegerCopyLink(row.TraegerSourceID, row.TraegerSourceVersion, row.TraegerDeviations),
 	}
+}
+
+func traegerCopyLink(sourceID *int64, version *int, deviations []string) *careplan.TraegerCopyLink {
+	if sourceID == nil || version == nil {
+		return nil
+	}
+	if deviations == nil {
+		deviations = []string{}
+	}
+	return &careplan.TraegerCopyLink{SourceID: *sourceID, Version: *version, Deviations: deviations}
 }
 
 func offeringChangeFromDomain(value careplan.OfferingChangeRequest) offeringChangeRow {

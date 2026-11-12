@@ -173,7 +173,12 @@ func (h *HolidayContributions) MergeHolidaySiblings(ctx context.Context, reviewe
 	if err := h.refreezeSiblings(ctx, reviewer, periodID, members, issued); err != nil {
 		return parentbilling.HolidaySiblingGroup{}, err
 	}
-	if err := h.shareDebtorNumber(ctx, reviewer, periodID, members, groupDebtorNumber(members, 0), issued); err != nil {
+	number := groupDebtorNumber(members, 0)
+	if err := h.shareDebtorNumber(ctx, reviewer, periodID, members, number, issued); err != nil {
+		return parentbilling.HolidaySiblingGroup{}, err
+	}
+	// A merge adopts missing family numbers without replacing remembered ones.
+	if err := h.rememberFamilies(ctx, reviewer, confirmedSharers(members, issued), &number, parentbilling.FamilyDebtorNumberKeep, 0); err != nil {
 		return parentbilling.HolidaySiblingGroup{}, err
 	}
 	if err := h.recordSiblings(ctx, reviewer, periodID, members, parentbilling.HolidaySiblingsMerged); err != nil {

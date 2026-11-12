@@ -206,6 +206,10 @@ type Phase struct {
 	// enrollment.collect_school_class. Validate keeps a combined pair
 	// satisfiable (every eligible class's grade must be an eligible grade).
 	EligibleGradeLevels []int `json:"eligible_grade_levels"`
+
+	// Traeger names the Träger phase this phase is a copy of (ADR 0195),
+	// nil for a phase of the school. Only the copy commands set it.
+	Traeger *TraegerCopyLink `json:"traeger,omitempty"`
 }
 
 // Validate runs the column-level checks in app code so the service can

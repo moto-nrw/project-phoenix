@@ -7,6 +7,10 @@ import RolesPage from "./page";
 import { ApiError } from "~/lib/api-error";
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { catalogText } from "~/test/error-catalog-text";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 /** Text of a FormErrorInput, as the shared kit components render it. */
 function errorText(error: unknown): string | null {
@@ -855,25 +859,17 @@ describe("RolesPage", () => {
       expect(screen.getByTestId("role-row-1")).toBeInTheDocument();
     });
 
-    it("discards protected roles and management actions after a refused reload", async () => {
+    it("loads the page anew after a refused reload (#6801)", async () => {
       setSelectedRole("1");
       render(<RolesPage />);
       await screen.findByTestId("role-detail-panel");
+      resetPageReloads();
       mockCreate.mockResolvedValueOnce({ id: "3", name: "Neue Rolle" });
       mockGetList.mockRejectedValueOnce(new ApiError("refused", 403));
       fireEvent.click(screen.getAllByLabelText("Rolle erstellen")[0]!);
       fireEvent.click(await screen.findByTestId("submit-create"));
-      expect(
-        await screen.findByText(
-          `${catalogText("general.permission", "die Anzeige der Rollen")} ${SAVED_BUT_STALE_SUFFIX}`,
-        ),
-      ).toBeVisible();
-      expect(screen.queryByTestId("role-row-1")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("role-detail-panel")).not.toBeInTheDocument();
-      expect(screen.queryByTestId("role-create-modal")).not.toBeInTheDocument();
-      expect(
-        screen.queryByLabelText("Rolle erstellen"),
-      ).not.toBeInTheDocument();
+      await expectPageReloadedAfterRefusal();
+      expect(mockCreate).toHaveBeenCalledTimes(1);
     });
 
     it("keeps a deleted role deleted when the reload fails", async () => {

@@ -286,3 +286,8 @@ func (r requestFixtureRoot) CreateLateInvite(ctx context.Context, input enrollme
 	})
 	return value, err
 }
+
+// This transport fixture represents only school-authored catalog records.
+func (o phaseOfferings) HasTraegerCopiesForPhase(context.Context, int64) (bool, error) {
+	return false, nil
+}
