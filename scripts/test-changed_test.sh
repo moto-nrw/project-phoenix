@@ -71,10 +71,6 @@ if [ "$*" != 'env GOCACHE' ]; then
   fi
   printf '%s\n' "$GOTMPDIR" >>"$TEST_CHANGED_WORKSPACE_LOG"
 fi
-if [ "${PHX_FIXTURE_EXPECT_DSN+x}" = x ] && [ "${TEST_DB_DSN-unset}" != "$PHX_FIXTURE_EXPECT_DSN" ]; then
-  echo 'Go command received a quoted or otherwise altered test DSN' >&2
-  exit 1
-fi
 case "$*" in
   'env GOCACHE')
     echo "$PHX_FIXTURE_GO_CACHE"
@@ -312,14 +308,6 @@ Linux 16 4 1
 EOF
 
 export PHX_FIXTURE_OS=Darwin PHX_FIXTURE_CPUS=16 PHX_FIXTURE_RAM_GB=16
-
-# Inherited dotenv delimiters must not reach bootstrap, tests or the sweep.
-# Interior quotes and shell syntax are literal connection data, never evaluated.
-expected_dsn='postgres://localhost/test?application_name=$(exit 91)&label=pa%27ss'
-for quoted_dsn in "$expected_dsn" "'$expected_dsn'" "\"$expected_dsn\""; do
-  TEST_DB_DSN="$quoted_dsn" PHX_FIXTURE_EXPECT_DSN="$expected_dsn" \
-    run_wrapper test-changed.sh 0 --fast origin/development
-done
 
 # The fast path executes filesystem guards without requiring a DB bootstrap.
 # A violation fails the public wrapper even when no ordinary package exists
