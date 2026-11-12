@@ -16,6 +16,11 @@ vi.mock("~/lib/traeger-sepa-debits-api", async (importOriginal) => ({
   ...api,
 }));
 vi.mock("~/lib/file-download", () => ({ downloadBlob: vi.fn() }));
+// The recipient of the handover (ADR 0217) is tested on its own.
+vi.mock("~/lib/traeger-export-handovers-api", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  fetchExportRecipient: () => new Promise(() => undefined),
+}));
 vi.mock("~/lib/traeger-url", () => ({ traegerPath: (path: string) => path }));
 
 const RUN: SepaDebitRun = {

@@ -343,7 +343,7 @@ export default function TraegerFinanceExportsPage() {
             variant="outline"
             size="md"
           >
-            Empfänger
+            Empfänger der Exporte
           </ButtonLink>
           <ButtonLink
             href={traegerPath(DATEV_SETTINGS_PATH)}
