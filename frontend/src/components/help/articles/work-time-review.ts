@@ -26,6 +26,7 @@ export function workTimeReviewTopic(): HelpTopic {
           "Lesen Sie in der `Einrichtungs-Übersicht` die Zahlen für `Woche` oder `Monat`.",
           "Filtern Sie die Liste bei Bedarf nach `Minusstunden`, `Plusstunden` oder `über +20 Std.`.",
           "Die Spalte `Hinweise` zählt die Tage mit zu kurzer Pause oder mehr als 10 Std. Arbeit. Mit `Mit Hinweisen` sehen Sie nur diese Personen.",
+          "Steht in der Spalte `Soll` der Hinweis `Kein Soll`, fehlt das Arbeitszeitmodell. Wählen Sie die Zeile. Sie landen direkt im `Arbeitszeitmodell` der Person.",
         ],
       },
       {
@@ -54,15 +55,17 @@ export function workTimeReviewTopic(): HelpTopic {
       "Bei Einträgen ohne einzelne Pausen ändern Sie `Pause (Minuten)`.",
       "Laufende Pausen muss die Person zuerst beenden.",
       "Nachträge sind der Leitung vorbehalten. Ihr Team kann Zeiten nicht selbst nachtragen.",
-      "Wochensaldo und Stundenkonto rechnen gegen das hinterlegte Arbeitszeitmodell.",
+      "Wochensaldo und Stundenkonto rechnen gegen das hinterlegte Arbeitszeitmodell. Ohne Soll zählen Krankheit, Urlaub und Fortbildung 0 Stunden.",
       "`Team` → `Zeiterfassung` zeigt nur Ihre eigene Stempeluhr, nicht die des Teams.",
       "Mit `Monat abschließen` frieren Sie den Stand ein. Das geht ab dem 1. des Folgemonats.",
       "Ist unter `Abrechnung` der `Versand an das Lohnbüro` eingeschaltet, geht die Monatsdatei danach von selbst an das Lohnbüro.",
     ],
     differences: [
       "Fehlt der Reiter `Mitarbeitende`? Dann dürfen Sie keine Anträge entscheiden.",
+      "Weicht das `Ist` von den gestempelten Zeiten ab? Dann gelten Wegpackzeit oder Rundung aus den Einstellungen. Die Zeile zeigt das als Hinweis. Korrigieren Sie nur die Uhrzeiten, moto rechnet die Zugabe neu.",
     ],
     troubleshootingDetails: [
+      "Ein Krankheitstag zählt 0 Stunden? Dann fehlt das Soll. Tragen Sie es im `Arbeitszeitmodell` der Person ein. Gilt es ab dem Krankheitstag, rechnet moto die Stunden nach.",
       "Der Saldo einer Person stimmt nicht? Prüfen Sie ihr `Arbeitszeitmodell` in der Personalakte.",
     ],
     related: [

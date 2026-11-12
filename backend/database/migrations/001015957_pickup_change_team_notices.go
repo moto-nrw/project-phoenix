@@ -8,14 +8,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const pickupChangeTeamNoticesVersion = "1.15.956"
+const pickupChangeTeamNoticesVersion = "1.15.957"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     pickupChangeTeamNoticesVersion,
 		Description: "Geänderte Abholzeit für einen Tag: Hinweis an das Team des Kindes mit Lesestand je Person (#6855)",
 		DependsOn: []string{
-			studentNoteTeamNoticesVersion,     // the school erasure functions this one extends (1.15.954)
+			studentNoteTeamNoticesVersion,     // the school erasure functions this one extends (1.15.956)
 			careScheduleChangeRequestsVersion, // the requests a notice points at
 			createAccountTenantsVersion,       // the school membership of a recipient
 		},
@@ -36,7 +36,7 @@ func init() {
 //     membership of the school (auth.account_tenants): a person who leaves
 //     the school leaves their markers behind, and the demo erasure, which
 //     deletes the visitor's memberships, takes them along.
-//   - The school erasure learns the table (school_erasure_* of 1.15.954 with
+//   - The school erasure learns the table (school_erasure_* of 1.15.956 with
 //     this table added, built below).
 const pickupChangeTeamNoticesUpSQL = `
 CREATE TABLE schedule.pickup_change_team_notices (
@@ -69,7 +69,7 @@ const pickupChangeTeamNoticesFingerprint = "ecc1fe36a69bf1565114644cd9d27d63869f
 const pickupChangeTeamNoticesTable = "schedule.pickup_change_team_notices"
 
 // pickupChangeTeamNoticeErasureSQL returns the five school erasure functions
-// of 1.15.954 with the markers added: planned, locked, scope-checked against
+// of 1.15.956 with the markers added: planned, locked, scope-checked against
 // their request, deleted first and checked empty afterwards.
 func pickupChangeTeamNoticeErasureSQL() ([]string, error) {
 	base, err := studentNoteTeamNoticeErasureSQL()
@@ -147,7 +147,7 @@ func pickupChangeTeamNoticesUp(ctx context.Context, db *bun.DB) error {
 func pickupChangeTeamNoticesDown(ctx context.Context, db *bun.DB) error {
 	functions, err := studentNoteTeamNoticeErasureSQL()
 	if err != nil {
-		return fmt.Errorf("rebuild the school erasure of 1.15.954: %w", err)
+		return fmt.Errorf("rebuild the school erasure of 1.15.956: %w", err)
 	}
 	return db.RunInTx(ctx, nil, func(ctx context.Context, tx bun.Tx) error {
 		if err := installDerivedSchoolErasureFunctions(ctx, tx, functions); err != nil {

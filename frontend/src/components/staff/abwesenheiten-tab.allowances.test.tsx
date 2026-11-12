@@ -56,6 +56,8 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
 const actionErrors = vi.hoisted(() => ({ show: vi.fn() }));
 vi.mock("~/lib/swr", () => ({
   useTenantMutateMatching: () => stable.mutateMatching,
+  // Soll-Hinweis des Buchungsdialogs (#6887): unbekannt, also kein Hinweis.
+  useSWRAuth: () => ({ data: undefined }),
 }));
 
 const mocks = vi.hoisted(() => ({

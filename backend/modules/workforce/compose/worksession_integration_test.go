@@ -103,10 +103,10 @@ func TestWorkSessionRowRulesMatchTheLegacyRepository(t *testing.T) {
 
 	// Closing stamps the check-out once; a second close is a no-op.
 	checkOut := time.Now()
-	closed, err := capability.CloseWorkSession(ctx, created.ID, checkOut, true)
+	closed, err := capability.CloseWorkSession(ctx, created.ID, checkOut, true, workforce.WorkSessionCreditRule{})
 	require.NoError(t, err)
 	assert.True(t, closed)
-	closed, err = capability.CloseWorkSession(ctx, created.ID, checkOut.Add(time.Hour), false)
+	closed, err = capability.CloseWorkSession(ctx, created.ID, checkOut.Add(time.Hour), false, workforce.WorkSessionCreditRule{})
 	require.NoError(t, err)
 	assert.False(t, closed, "an already closed block is not closed again")
 	stored, err := capability.FindWorkSession(ctx, created.ID)
@@ -635,7 +635,7 @@ func TestWorkSessionsAreTenantIsolated(t *testing.T) {
 	assert.Contains(t, presence, local.ID)
 	assert.NotContains(t, presence, foreign.ID)
 
-	closed, err := capability.CloseWorkSession(ctx, foreignSession.ID, time.Now(), false)
+	closed, err := capability.CloseWorkSession(ctx, foreignSession.ID, time.Now(), false, workforce.WorkSessionCreditRule{})
 	require.NoError(t, err)
 	assert.False(t, closed, "a foreign block cannot be closed")
 	affected, err := capability.EndWorkSessionBreak(ctx, foreignBreak.ID, time.Now(), 5)

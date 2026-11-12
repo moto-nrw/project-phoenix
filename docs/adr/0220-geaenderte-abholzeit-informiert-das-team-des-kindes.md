@@ -59,6 +59,28 @@ ihn.
   erfahren hat. Schule ohne Mitteilungen oder außerhalb des Fensters: kein
   Push, die Markierung reicht.
 
+## Verworfene Alternative: eine gemeinsame Hinweistabelle
+
+Bevorzugt wäre eine allgemeine Tabelle für Hinweise an das Personal mit Typ,
+in die auch die Notiz-Markierungen aus ADR 0219 umziehen. Sie ist hier
+unverhältnismäßig:
+
+- Beide Markierungen leben von ihrem Gegenstand. Die Notiz-Markierung
+  verschwindet, wenn die Notiz gelöscht oder enger gestellt wird; die
+  Abholzeit-Markierung zeigt den aktuellen Stand der Anfrage und
+  verschwindet mit ihr. Eine gemeinsame Tabelle bräuchte einen eigenen
+  Owner und müsste Notizen (People Directory) und Anfragen (Care Plan)
+  fremd lesen oder bei jeder Änderung von beiden benachrichtigt werden: neue
+  Cross-Owner-Wege und eine zweite Wahrheit über Sichtbarkeit und Stand.
+- Der Umzug der gerade eingeführten Notiz-Markierungen bräuchte eine
+  Datenmigration, neue Schul-Löschfunktionen und neue Routen.
+
+Gewählt ist das kleinste Design mit **einer** Liste und **einem** Zähler:
+jeder Owner hält die Markierung zu seinem Gegenstand, die Oberfläche führt
+beide in „Neu für Sie“ zusammen, und das Lesen folgt demselben Muster
+(bestätigt werden nur die geladenen Revisionen). Eine dritte Hinweisart
+sollte die gemeinsame Tabelle neu prüfen.
+
 ## Grenzen
 
 Care Plan besitzt Anfrage und Markierung und entscheidet, wann ein Hinweis

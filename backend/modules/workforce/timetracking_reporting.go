@@ -38,6 +38,7 @@ type TimeTrackingOverviewRow struct {
 	Name                  string  `json:"name"`
 	EmploymentType        string  `json:"employment_type"`
 	SollMinutes           int     `json:"soll_minutes"`
+	HasTarget             bool    `json:"has_target"`
 	IstMinutes            int     `json:"ist_minutes"`
 	BalanceMinutes        int     `json:"balance_minutes"`
 	RemainingVacationDays float64 `json:"remaining_vacation_days"`

@@ -102,7 +102,8 @@ func (m *wsMockWorkSessionRepository) ListOverlappingWorkSessions(ctx context.Co
 func (m *wsMockWorkSessionRepository) WorkPresenceMap(ctx context.Context) (map[int64]string, error) {
 	return m.GetTodayPresenceMap(ctx)
 }
-func (m *wsMockWorkSessionRepository) CloseWorkSession(ctx context.Context, id int64, at time.Time, auto bool) (bool, error) {
+func (m *wsMockWorkSessionRepository) CloseWorkSession(ctx context.Context, id int64, at time.Time, auto bool, credit workforce.WorkSessionCreditRule) (bool, error) {
+	m.closedCredits = append(m.closedCredits, credit)
 	return m.CloseSession(ctx, id, at, auto)
 }
 func (m *wsMockWorkSessionRepository) SetWorkSessionBreakMinutes(ctx context.Context, id int64, minutes int) (int64, error) {
@@ -193,7 +194,7 @@ func (m *absWorkSessionRepoMock) ListOverlappingWorkSessions(ctx context.Context
 func (m *absWorkSessionRepoMock) WorkPresenceMap(ctx context.Context) (map[int64]string, error) {
 	return m.GetTodayPresenceMap(ctx)
 }
-func (m *absWorkSessionRepoMock) CloseWorkSession(ctx context.Context, id int64, at time.Time, auto bool) (bool, error) {
+func (m *absWorkSessionRepoMock) CloseWorkSession(ctx context.Context, id int64, at time.Time, auto bool, _ workforce.WorkSessionCreditRule) (bool, error) {
 	return m.CloseSession(ctx, id, at, auto)
 }
 func (m *absWorkSessionRepoMock) SetWorkSessionBreakMinutes(ctx context.Context, id int64, minutes int) (int64, error) {

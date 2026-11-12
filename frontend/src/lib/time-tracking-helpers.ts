@@ -52,6 +52,8 @@ export interface BackendWorkSessionHistory extends BackendWorkSession {
   breaks: BackendWorkSessionBreak[] | null;
   edit_count: number;
   audit_count?: number;
+  pack_up_minutes?: number;
+  rounding_minutes?: number;
 }
 
 export interface BackendWeeklySummary {
@@ -258,6 +260,10 @@ export interface WorkSessionHistory extends WorkSession {
   breaks: WorkSessionBreak[];
   editCount: number;
   auditCount?: number;
+  /** Pack-up minutes credited for a regular checkout (#6852). */
+  packUpMinutes?: number;
+  /** Signed change the rounding made to the block's duration (#6851). */
+  roundingMinutes?: number;
 }
 
 export interface WorkSessionDayMinutes {
@@ -403,14 +409,25 @@ export function indexWorkSessionMinutesByBerlinDate(
     // The server's live net_minutes already deducts a currently running
     // break. Recomputing it from the ended-break cache would make the chart
     // continue to count work during that break.
-    const netTotal = session.netMinutes;
+    const credit =
+      checkOut !== null && end.getTime() === checkOut.getTime()
+        ? (session.packUpMinutes ?? 0) + (session.roundingMinutes ?? 0)
+        : 0;
+    // Split stamped net minutes first. Credit is a checkout booking, not a
+    // proportional increase or decrease of every day in a night block.
+    const netTotal = Math.max(0, session.netMinutes - credit);
     const grossTotal = [...grossByDate.values()].reduce(
       (sum, value) => sum + value,
       0,
     );
     let allocated = 0;
     const portions = [...grossByDate.entries()]
-      .filter(([, gross]) => gross > 0)
+      .filter(
+        ([date, gross]) =>
+          gross > 0 ||
+          (credit !== 0 &&
+            date === berlinTodayISO(new Date(end.getTime() - 1))),
+      )
       .map(([date, gross]) => {
         const net = Math.floor(
           (netTotal * Math.max(0, gross - (breakByDate.get(date) ?? 0))) /
@@ -429,6 +446,17 @@ export function indexWorkSessionMinutesByBerlinDate(
     // Keep integer totals exact; the final minute belongs to the latest segment.
     if (portions.length > 0)
       portions[portions.length - 1]!.net += netTotal - allocated;
+
+    // The final floor may have consumed some credit through excess breaks.
+    // Reconcile to the authoritative total only after all deductions, carrying
+    // rounding deductions backwards rather than discarding them at midnight.
+    let adjustment = session.netMinutes - netTotal;
+    for (let i = portions.length - 1; i >= 0 && adjustment !== 0; i--) {
+      const portion = portions[i]!;
+      const applied = Math.max(-portion.net, adjustment);
+      portion.net += applied;
+      adjustment -= applied;
+    }
 
     for (const { date, net } of portions) {
       const existing = result.get(date) ?? { netMinutes: 0, breakMinutes: 0 };
@@ -538,6 +566,8 @@ export function mapWorkSessionHistoryResponse(
     breaks: (data.breaks ?? []).map(mapWorkSessionBreakResponse),
     editCount: data.edit_count ?? 0,
     auditCount: data.audit_count ?? 0,
+    packUpMinutes: data.pack_up_minutes ?? 0,
+    roundingMinutes: data.rounding_minutes ?? 0,
   };
 }
 
@@ -908,6 +938,8 @@ export interface BackendMonthSummary {
   carry_in_minutes: number;
   target_minutes: number;
   target_minutes_to_date: number;
+  /** False when no Soll is maintained for the month (#6887). */
+  has_target: boolean;
   actual_minutes: number;
   credited_sick_minutes: number;
   credited_vacation_minutes: number;
@@ -999,6 +1031,10 @@ export interface MonthSummary {
   carryInMinutes: number;
   targetMinutes: number;
   targetMinutesToDate: number;
+  /** False when no Soll is maintained for any day of the month: no work
+   *  schedule, no work-time model, no Sonderarbeitszeit (#6887). Sick and
+   *  vacation days then count 0 hours. */
+  hasTarget: boolean;
   actualMinutes: number;
   creditedSickMinutes: number;
   creditedVacationMinutes: number;
@@ -1114,6 +1150,7 @@ export function mapMonthSummaryResponse(
     carryInMinutes: data.carry_in_minutes,
     targetMinutes: data.target_minutes,
     targetMinutesToDate: data.target_minutes_to_date,
+    hasTarget: data.has_target,
     actualMinutes: data.actual_minutes,
     creditedSickMinutes: data.credited_sick_minutes,
     creditedVacationMinutes: data.credited_vacation_minutes,

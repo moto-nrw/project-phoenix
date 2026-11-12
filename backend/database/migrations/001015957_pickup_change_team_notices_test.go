@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The five school erasure functions of 1.15.956 are those of 1.15.954 with
+// The five school erasure functions of 1.15.956 are those of 1.15.956 with
 // the pickup change notices added and nothing else changed: taking the added
 // lines out again (and the fingerprint back) yields the base byte for byte.
-func TestPickupChangeTeamNoticeErasureExtendsTheErasureOf954(t *testing.T) {
+func TestPickupChangeTeamNoticeErasureExtendsTheErasureOf956(t *testing.T) {
 	t.Parallel()
 
 	functions, err := pickupChangeTeamNoticeErasureSQL()
@@ -55,7 +55,7 @@ func TestPickupChangeTeamNoticeErasureDeletesNoticesFirst(t *testing.T) {
 	}
 }
 
-// The migration rolls back to the erasure of 1.15.954 without the table and
+// The migration rolls back to the erasure of 1.15.956 without the table and
 // applies again.
 func TestPickupChangeTeamNoticesMigrationRoundTrip(t *testing.T) {
 	t.Parallel()

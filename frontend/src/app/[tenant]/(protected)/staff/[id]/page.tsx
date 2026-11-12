@@ -869,6 +869,11 @@ export default function StaffDetailContent() {
               initialDate={initialTimeTrackingDate}
               staff={staff}
               canBookAbsences={canManageTimeTracking}
+              onSetTarget={
+                showWorkTimeModel
+                  ? () => setSelectedTab("arbeitszeitmodell")
+                  : undefined
+              }
             />
           )}
 

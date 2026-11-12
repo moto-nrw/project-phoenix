@@ -92,19 +92,17 @@ func mountParentBillingRoutes(root, publicLink chi.Router, organizations Holiday
 	mandates := NewSEPAMandateHTTP(settings, bankData)
 	root.Mount("/traeger/sepa-creditor", mandates.CreditorRouter(ProtectedTraegerRoutes))
 	root.Mount("/traeger/sepa-mandates", mandates.MandateRouter(ProtectedTraegerRoutes))
-	root.Mount("/traeger/sepa-debits", NewSEPADebitHTTP(settings, bankData).Router(ProtectedTraegerRoutes))
+	debits := parentBillingCompose.NewSEPADebits(newParentBillingLetterheads(settings), bankData, securityruntime.Fingerprint)
+	root.Mount("/traeger/sepa-debits", newSEPADebitResource(debits).Router(ProtectedTraegerRoutes))
 	root.Mount("/traeger/datev-export", datev.Router(ProtectedTraegerRoutes))
 	root.Mount("/traeger/finance-exports", NewFinanceExportHTTP(financeExports, bookingAccounts).Router(ProtectedTraegerRoutes))
+	transfers := NewTraegerExportTransfers(bankData, logger)
+	root.Mount("/traeger/finance-handovers", NewExportHandoverHTTP(financeExports, debits, transfers).Router(ProtectedTraegerRoutes))
+	root.Mount("/traeger/export-recipient", NewExportRecipientHTTP(transfers).Router(ProtectedTraegerRoutes))
 }
 
-// NewSEPADebitHTTP binds the SEPA direct debit file of the issued runs
-// (#4697, ADR 0181) to the right "Abrechnung", to the letterhead with the
-// default bank account of the Träger, whose read the master data of
-// Organisation & Tenancy logs, and to the field cipher that sealed the
-// account of each mandate.
-func NewSEPADebitHTTP(settings TraegerBrandingSettings, cipher parentbilling.BankDataCipher) *parentBillingHTTP.SEPADebitResource {
-	return parentBillingHTTP.NewSEPADebitResource(parentBillingCompose.NewSEPADebits(newParentBillingLetterheads(settings), cipher, securityruntime.Fingerprint),
-		common.RequiresPermission(identityaccess.TraegerRightBillingManage))
+func newSEPADebitResource(debits parentbilling.SEPADebits) *parentBillingHTTP.SEPADebitResource {
+	return parentBillingHTTP.NewSEPADebitResource(debits, common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 }
 
 // NewSEPAMandateHTTP binds the SEPA mandates and the creditor of the Träger

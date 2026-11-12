@@ -356,6 +356,8 @@ import type { traegerDocumentKindsTopic as authored_traegerDocumentKindsTopic } 
 
 import type { traegerDocumentTemplatesTopic as authored_traegerDocumentTemplatesTopic } from "./articles/traeger-document-templates";
 
+import type { traegerExportHandoverTopic as authored_traegerExportHandoverTopic } from "./articles/traeger-export-handover";
+
 import type { traegerFinanceExportsTopic as authored_traegerFinanceExportsTopic } from "./articles/traeger-finance-exports";
 
 import type { traegerHolidayAllocationTopic as authored_traegerHolidayAllocationTopic } from "./articles/traeger-holiday-allocation";
@@ -985,7 +987,7 @@ export const appOverviewTopic = function appOverviewTopic(): HelpTopic {
       "Das Anpassen der Startseite lädt nicht? Ihre Karten bleiben lesbar. Wählen Sie bei der Fehlermeldung `Wiederholen`.",
     ],
     notes: [
-      "Die Karte `Kinder` zählt die Kinder nach `Anwesend`, `Schule`, `Im Unterricht`, `Zuhause`, `Krank` und `Entschuldigt`. Ein Klick auf eine Zahl öffnet `Alle Kinder` mit diesem Filter. `Entschuldigt` zeigt auch Kinder auf Klassenfahrt. `Zuhause` zeigt auch Kinder, die heute nicht kommen. Ein Kind, das da ist, zählt immer bei `Anwesend`, auch mit Krankmeldung.",
+      "Die Karte `Kinder` zählt die Kinder nach `Anwesend`, `Schule`, `Im Unterricht`, `Zuhause`, `Krank` und `Entschuldigt`. Ein Klick auf eine Zahl öffnet `Alle Kinder` mit diesem Filter. `Entschuldigt` zeigt auch Kinder auf Klassenfahrt. `Zuhause` zeigt auch Kinder, die heute nicht kommen. Ein Kind, das da ist, zählt immer bei `Anwesend`, auch mit Krankmeldung. Ein Kind, das zum Unterricht abgemeldet ist, zählt bei `Im Unterricht`, auch mit Krankmeldung.",
       "Zu viel verändert? Wählen Sie in `Anpassen` den Knopf `Standardansicht wiederherstellen`.",
     ],
     related: [
@@ -7099,6 +7101,7 @@ export const parentPickupChangeTopic =
       troubleshootingDetails: [
         "moto sagt, das Ändern der Abholzeit sei für diese OGS nicht aktiviert? Dann schreiben Sie der OGS eine Nachricht.",
         "`Wer holt ab?` fehlt? Dann haben Sie noch keine weitere Person bei den Kontakten eingetragen.",
+        "moto sagt, die Betreuung ist für heute schon zu Ende? Dann ändern Sie die Abholzeit für heute nicht mehr, auch wenn Ihr Kind noch im Unterricht ist. Andere Tage können Sie weiter ändern.",
       ],
       related: [
         HELP_TOPICS.parentCareChange,
@@ -7815,6 +7818,9 @@ export const settingsGuideTopic = function settingsGuideTopic(): HelpTopic {
           "`Team-Chat für Mitarbeitende`: Das Team schreibt sich Nachrichten. Eltern sehen davon nichts.",
           "`Kinderfotos`: Fotos bei den Kindern. Nur mit Einwilligung der Eltern. Beim Ausschalten löscht moto alle Fotos sofort. Sie können sie nicht wiederherstellen.",
           "`Automatisch ausstempeln`: moto wartet nach Dienstende die eingestellte Zeit. Dann stempelt es aus. Das gilt nur bei einem geplanten Dienst.",
+          "`Wegpackzeit beim Ausstempeln (Minuten)`: Diese Minuten zählt moto bei jedem Ausstempeln dazu, etwa für das Aufräumen. Nicht beim Pausenbeginn und nicht beim automatischen Ausstempeln.",
+          "`Arbeitszeit runden` und `Wie gerundet wird`: moto rundet die Dauer jedes Arbeitsblocks. Die Reihenfolge: gestempelte Dauer, plus Wegpackzeit, dann runden, dann Pause abziehen. Die gestempelten Uhrzeiten bleiben sichtbar.",
+          "Wegpackzeit und Rundung gelten für Arbeitsblöcke, die nach der Änderung enden. Frühere Tage bleiben, wie sie sind.",
         ],
       },
       {
@@ -8248,7 +8254,7 @@ export const staffRecordTopic = function staffRecordTopic(): HelpTopic {
       {
         title: "Das Arbeitszeitmodell eintragen",
         description:
-          "Ohne Modell hat die Person kein Wochensoll. Stundenkonto und Saldo haben dann nichts, womit sie vergleichen könnten.",
+          "Ohne Modell und ohne Sonderarbeitszeit hat die Person kein Soll. Dann zählen Krankheit, Urlaub und Fortbildung 0 Stunden. Gearbeitete Zeit zählt ganz als Plus.",
         steps: [
           "Wählen Sie oben `Arbeitszeitmodell`.",
           "Wählen Sie rechts `Bearbeiten`.",
@@ -8278,6 +8284,7 @@ export const staffRecordTopic = function staffRecordTopic(): HelpTopic {
       "Qualifikationen sind Nachweise wie Erste Hilfe am Kind, Rettungsfähigkeit oder erweitertes Führungszeugnis, jeweils mit Ablaufdatum. Wie moto daran erinnert, steht unter `Nachweise`.",
       "Die Personalnummer braucht die spätere Abrechnung. Ohne sie fehlt die Person dort.",
       "In der `Übersicht` buchen Sie unter `Stundenkonto-Verwaltung` Auszahlung, Freizeitausgleich oder einen Eröffnungssaldo.",
+      "Ein Soll gilt ab seinem Startdatum. Beginnt es rückwirkend, rechnet moto auch frühere Tage gegen das Soll. Das Stundenkonto kann dann ins Minus rutschen. Legen Sie das Startdatum deshalb bewusst fest.",
     ],
     differences: [
       "Ändern Sie eine Vorlage, wirkt das künftig auf alle Personen mit dieser Zuordnung.",
@@ -8285,6 +8292,7 @@ export const staffRecordTopic = function staffRecordTopic(): HelpTopic {
       "Bankverbindung und Steuernummer sind verborgen. Jeder Abruf wird festgehalten.",
     ],
     troubleshootingDetails: [
+      "Ein Krankheitstag zählt 0 Stunden? Dann fehlt das Soll. Tragen Sie es unter `Arbeitszeitmodell` ein.",
       "Ein Saldo stimmt nicht? Prüfen Sie zuerst das `Arbeitszeitmodell`.",
       "Ein Bereich fehlt Ihnen? Dann fehlt Ihrer Rolle das Recht dafür.",
     ],
@@ -10121,6 +10129,8 @@ export const trackWorkTimeTopic = function trackWorkTimeTopic(): HelpTopic {
       "Bei einer deutlichen Abweichung von Ihrer geplanten Schicht kann moto nach einem Grund fragen.",
       "Ihre Schule kann das Einstempeln erst kurz vor Ihrer Schicht erlauben. Dann zeigt moto, ab wann es geht.",
       "Nach der gewählten Pausenlänge läuft die Arbeitszeit automatisch weiter.",
+      "Ihr `Ist` ist etwas länger oder kürzer als die gestempelten Zeiten? Dann zählt Ihre OGS eine Wegpackzeit dazu oder rundet. Der Hinweis steht in der Zeile, zum Beispiel `+5 Min. Wegpackzeit`.",
+      "Steht unten `Kein Soll hinterlegt`? Dann zählen Krankheit und Urlaub 0 Stunden. Das Soll trägt die Leitung ein.",
     ],
     related: [HELP_TOPICS.correctWorkTime, HELP_TOPICS.nfcWorkTime],
   };
@@ -11895,6 +11905,71 @@ export const traegerDocumentTemplatesTopic =
     };
   } satisfies typeof authored_traegerDocumentTemplatesTopic;
 
+export const traegerExportHandoverTopic =
+  function traegerExportHandoverTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerExportHandover,
+      title: "Exporte an einen Empfänger übergeben",
+      question: "Wie schickt moto die Dateien direkt an die Kämmerei?",
+      summary:
+        "moto kann die Sollstellung, die DATEV-Datei und die Lastschriftdatei selbst bei einem Empfänger ablegen, zum Beispiel bei Ihrer Kämmerei. Sie tragen den Empfänger einmal ein. Herunterladen können Sie die Dateien weiterhin.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "FolderOpen",
+      requirements: [
+        "Ihre Rolle im Träger-Büro ist Abrechnung.",
+        "Der Empfänger hat Ihnen Adresse, Benutzername, Passwort, Zielordner und Fingerabdruck genannt.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Empfänger eintragen",
+          description: "Das machen Sie nur einmal.",
+          steps: [
+            "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
+            "Wählen Sie oben rechts `Empfänger der Exporte`.",
+            "Schalten Sie `Übergabe einschalten` ein.",
+            "Tragen Sie `Adresse`, `Port`, `Benutzername`, `Passwort`, `Zielordner` und `Fingerabdruck` ein.",
+            "Wählen Sie `Speichern`. Oben steht dann `Der Empfänger ist bereit`.",
+          ],
+        },
+        {
+          title: "Datei übergeben",
+          steps: [
+            "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
+            "Wählen Sie beim Lauf `Übergeben`, dann `Sollstellung übergeben` oder `DATEV-Datei übergeben`.",
+            "Kommt die Datei an, zeigt moto eine kurze Meldung mit dem Dateinamen.",
+            "Die Lastschriftdatei übergeben Sie bei der Lastschrift des Laufs mit `Übergeben`.",
+          ],
+        },
+      ],
+      result:
+        "Die Datei steht im `Exportprotokoll` mit dem Vermerk `An Empfänger übergeben`. Unter `Letzte Übergaben` auf der Seite des Empfängers steht jeder Versuch mit seinem Ergebnis.",
+      notes: [
+        "Jede Übergabe ist eine neue Datei mit neuer Nummer, wie ein Download.",
+        "Ist dieselbe Datei schon beim Empfänger, fragt moto vorher nach. So bucht die Kämmerei nichts doppelt.",
+        "Hat der Empfänger eine DATEV-Datei verloren, wählen Sie beim Lauf `Übergeben`, dann `Alle DATEV-Buchungen erneut übergeben`. Kam eine DATEV-Datei nicht an, enthält die nächste ihre Buchungen wieder.",
+        "Das Passwort speichert moto verschlüsselt. Es wird nie wieder angezeigt. Ändern Sie Adresse, Port, Benutzername oder Fingerabdruck, geben Sie es noch einmal ein.",
+        "Mit `Empfänger entfernen` löschen Sie Adresse und Passwort. Der Verlauf der Übergaben bleibt.",
+      ],
+      differences: [
+        "Beim Lauf fehlt `Übergeben`? Ihnen fehlt das Recht `Finanz-Export`, oder moto konnte den Empfänger nicht lesen. Laden Sie die Seite neu. Die Lastschriftdatei übergeben Sie auch ohne dieses Recht.",
+        "Im Menü steht nur `Empfänger eintragen`? Es fehlen noch Angaben, oder die Übergabe ist ausgeschaltet.",
+      ],
+      troubleshootingDetails: [
+        "`Nicht angekommen` mit dem Hinweis auf den Fingerabdruck? Fragen Sie beim Empfänger nach dem Fingerabdruck für den RSA-Schlüssel.",
+        "`Die Anmeldung wurde abgelehnt`? Prüfen Sie Benutzername und Passwort.",
+        "`Ergebnis unklar`? Fragen Sie beim Empfänger nach, ob die Datei da ist. Erst dann übergeben Sie sie noch einmal.",
+        "`Diese Adresse ist nicht erlaubt`? moto übergibt nur an Adressen im Internet, nicht ins eigene Netz.",
+      ],
+      related: [
+        HELP_TOPICS.traegerFinanceExports,
+        HELP_TOPICS.traegerDatevExport,
+        HELP_TOPICS.traegerSepaDebitFile,
+      ],
+    };
+  } satisfies typeof authored_traegerExportHandoverTopic;
+
 export const traegerFinanceExportsTopic =
   function traegerFinanceExportsTopic(): HelpTopic {
     return {
@@ -11939,7 +12014,7 @@ export const traegerFinanceExportsTopic =
           steps: [
             "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
             "Wählen Sie beim Lauf `Sollstellung`. Die Datei wird heruntergeladen.",
-            "Geben Sie die Datei an Ihre Kämmerei.",
+            "Geben Sie die Datei an Ihre Kämmerei. Oder lassen Sie moto sie übergeben, siehe „Exporte an einen Empfänger übergeben“.",
           ],
         },
       ],
@@ -11964,6 +12039,7 @@ export const traegerFinanceExportsTopic =
         "Beim Import einer Datei zeigt eine Zeile `Geschwister haben verschiedene Nummern`? moto führt eine Nummer je Familie. Tragen Sie die richtige Nummer bei der Familie ein.",
       ],
       related: [
+        HELP_TOPICS.traegerExportHandover,
         HELP_TOPICS.traegerDatevExport,
         HELP_TOPICS.traegerCareMonths,
         HELP_TOPICS.traegerSepaDebitFile,
@@ -13779,6 +13855,7 @@ export const workTimeReviewTopic = function workTimeReviewTopic(): HelpTopic {
           "Lesen Sie in der `Einrichtungs-Übersicht` die Zahlen für `Woche` oder `Monat`.",
           "Filtern Sie die Liste bei Bedarf nach `Minusstunden`, `Plusstunden` oder `über +20 Std.`.",
           "Die Spalte `Hinweise` zählt die Tage mit zu kurzer Pause oder mehr als 10 Std. Arbeit. Mit `Mit Hinweisen` sehen Sie nur diese Personen.",
+          "Steht in der Spalte `Soll` der Hinweis `Kein Soll`, fehlt das Arbeitszeitmodell. Wählen Sie die Zeile. Sie landen direkt im `Arbeitszeitmodell` der Person.",
         ],
       },
       {
@@ -13807,15 +13884,17 @@ export const workTimeReviewTopic = function workTimeReviewTopic(): HelpTopic {
       "Bei Einträgen ohne einzelne Pausen ändern Sie `Pause (Minuten)`.",
       "Laufende Pausen muss die Person zuerst beenden.",
       "Nachträge sind der Leitung vorbehalten. Ihr Team kann Zeiten nicht selbst nachtragen.",
-      "Wochensaldo und Stundenkonto rechnen gegen das hinterlegte Arbeitszeitmodell.",
+      "Wochensaldo und Stundenkonto rechnen gegen das hinterlegte Arbeitszeitmodell. Ohne Soll zählen Krankheit, Urlaub und Fortbildung 0 Stunden.",
       "`Team` → `Zeiterfassung` zeigt nur Ihre eigene Stempeluhr, nicht die des Teams.",
       "Mit `Monat abschließen` frieren Sie den Stand ein. Das geht ab dem 1. des Folgemonats.",
       "Ist unter `Abrechnung` der `Versand an das Lohnbüro` eingeschaltet, geht die Monatsdatei danach von selbst an das Lohnbüro.",
     ],
     differences: [
       "Fehlt der Reiter `Mitarbeitende`? Dann dürfen Sie keine Anträge entscheiden.",
+      "Weicht das `Ist` von den gestempelten Zeiten ab? Dann gelten Wegpackzeit oder Rundung aus den Einstellungen. Die Zeile zeigt das als Hinweis. Korrigieren Sie nur die Uhrzeiten, moto rechnet die Zugabe neu.",
     ],
     troubleshootingDetails: [
+      "Ein Krankheitstag zählt 0 Stunden? Dann fehlt das Soll. Tragen Sie es im `Arbeitszeitmodell` der Person ein. Gilt es ab dem Krankheitstag, rechnet moto die Stunden nach.",
       "Der Saldo einer Person stimmt nicht? Prüfen Sie ihr `Arbeitszeitmodell` in der Personalakte.",
     ],
     related: [
