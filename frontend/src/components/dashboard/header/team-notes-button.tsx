@@ -16,7 +16,8 @@ import { useStudentNoteTeamNotices } from "~/lib/hooks/use-student-note-team-not
 import type { StudentNoteTeamNotice } from "~/lib/student-notes-api";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 
-const TITLE = "Neue Notizen vom Team";
+export const TEAM_NOTES_TITLE = "Neue Notizen vom Team";
+const TITLE = TEAM_NOTES_TITLE;
 
 /** The child's notes; opening them clears the marker. */
 function teamNoteHref(notice: StudentNoteTeamNotice): string {
@@ -28,9 +29,38 @@ function noticeSubtitle(notice: StudentNoteTeamNotice): string {
   return notice.authorName ? `Von ${notice.authorName}, ${when}` : when;
 }
 
+/**
+ * Die geteilten, ungelesenen Notizen als Zeilen: im Popover der Kopfzeile und
+ * unter 1024 px im Menü „Mehr“, wo es keine Kopfzeile gibt. Jede Zeile öffnet
+ * die Notizen des Kindes; dort wird sie gelesen.
+ */
+export function TeamNotesList({
+  notices,
+  onNavigate,
+}: {
+  readonly notices: readonly StudentNoteTeamNotice[];
+  readonly onNavigate?: () => void;
+}) {
+  const tenantPath = useTenantAwarePath();
+  return (
+    // Schließt das Menü, wenn eine Zeile den Seitenwechsel startet.
+    <ul className="divide-y divide-gray-100" onClickCapture={onNavigate}>
+      {notices.map((notice) => (
+        <li key={notice.noteId}>
+          <ListRowLink
+            href={tenantPath(teamNoteHref(notice))}
+            title={`${notice.studentFirstName} ${notice.studentLastName}`}
+            subtitle={noticeSubtitle(notice)}
+            unread
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
 export function TeamNotesButton() {
   const { notices } = useStudentNoteTeamNotices();
-  const tenantPath = useTenantAwarePath();
   const [isOpen, setIsOpen] = useState(false);
   const count = notices.length;
   // Öffnet die Person eine Notiz, liest der Reiter sie als gelesen; die Liste
@@ -77,20 +107,7 @@ export function TeamNotesButton() {
         </Button>
       )}
     >
-      {() => (
-        <ul className="divide-y divide-gray-100">
-          {notices.map((notice) => (
-            <li key={notice.noteId}>
-              <ListRowLink
-                href={tenantPath(teamNoteHref(notice))}
-                title={`${notice.studentFirstName} ${notice.studentLastName}`}
-                subtitle={noticeSubtitle(notice)}
-                unread
-              />
-            </li>
-          ))}
-        </ul>
-      )}
+      {() => <TeamNotesList notices={notices} />}
     </AnchoredPopover>
   );
 }
