@@ -4651,6 +4651,10 @@ describe.concurrent("ui-kit/button-needs-tooltip", () => {
       `<Button {...{ tooltip: "" }} tooltip="Öffnet die Akte.">Akte</Button>`,
     ],
     [
+      "a tooltip after a computed key in a spread object literal",
+      `<Button {...{ [props.key as string]: "" }} tooltip="Öffnet die Akte.">Akte</Button>`,
+    ],
+    [
       "noTooltip with a reason",
       `<Button noTooltip="Abbrechen schließt nur den Dialog.">Abbrechen</Button>`,
     ],
@@ -4752,6 +4756,11 @@ describe.concurrent("ui-kit/button-needs-tooltip", () => {
     [
       "an unknown spread after the tooltip",
       `<Button tooltip="Öffnet die Akte." {...props}>Akte</Button>`,
+      "Spread vor die Erklärung",
+    ],
+    [
+      "a computed key after the tooltip in a spread object literal",
+      `<Button tooltip="Öffnet die Akte." {...{ [props.key as string]: "" }}>Akte</Button>`,
       "Spread vor die Erklärung",
     ],
     [

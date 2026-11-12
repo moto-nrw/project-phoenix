@@ -5906,9 +5906,10 @@ const noHandRolledCopyField = {
 // Gespreizte Props (`{...props}`) gelten als erfüllt: ob der Typ hinter
 // `props` einen `tooltip` durchreicht, ist ohne Typinformation nicht
 // entscheidbar, und eine Meldung wäre dann geraten. Nur ein gespreiztes
-// Objektliteral wird geprüft, weil seine Schlüssel im Code stehen. Steht ein
-// unbekannter Spread hinter `tooltip`/`noTooltip`, wird gemeldet: Er kann die
-// Erklärung überschreiben, und der Spread davor kostet nichts.
+// Objektliteral mit statischen Schlüsseln wird geprüft, weil seine Belegung im
+// Code steht; ein berechneter Schlüssel ist wie ein unbekannter Spread. Steht
+// ein unbekannter Spread hinter `tooltip`/`noTooltip`, wird gemeldet: Er kann
+// die Erklärung überschreiben, und der Spread davor kostet nichts.
 //
 // Die Regel gilt nur in TOOLTIP_SCOPE. Die Liste wächst nur: Jedes
 // Bereichs-Ticket des Epics trägt seine Ordner oder Dateien ein. Ordner enden
@@ -5961,7 +5962,7 @@ function tooltipPropsFromAttributes(openingElement) {
       continue;
     }
     for (const property of argument.properties) {
-      if (property.type === "SpreadElement") {
+      if (property.type === "SpreadElement" || property.computed) {
         unknownSpread = true;
         if (props.tooltip || props.noTooltip) spreadAfterExplanation = true;
         continue;
