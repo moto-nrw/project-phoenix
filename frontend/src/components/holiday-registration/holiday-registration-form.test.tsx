@@ -16,10 +16,18 @@ import type {
 } from "~/lib/holiday-registration-api";
 import { HOLIDAY_CONSENT_TEXTS } from "~/test/fixtures/holiday-consent-texts";
 
-const { mockSubmit, mockQuote, mockUpload } = vi.hoisted(() => ({
-  mockSubmit: vi.fn(),
-  mockQuote: vi.fn(),
-  mockUpload: vi.fn(),
+const { mockSubmit, mockQuote, mockUpload, mockInvalidate } = vi.hoisted(
+  () => ({
+    mockSubmit: vi.fn(),
+    mockQuote: vi.fn(),
+    mockUpload: vi.fn(),
+    mockInvalidate: vi.fn().mockResolvedValue([]),
+  }),
+);
+
+vi.mock("~/lib/swr", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/lib/swr")>()),
+  useInvalidateMatching: () => mockInvalidate,
 }));
 
 vi.mock("~/lib/holiday-registration-api", () => ({
@@ -136,6 +144,7 @@ const family: HolidayKnownFamily = {
       holidayWishProof: "",
     },
   ],
+  accountProof: "",
 };
 
 function renderForm(
@@ -1708,5 +1717,178 @@ describe("HolidayRegistrationForm questions of the Träger (#5198)", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("Nicht bestätigt")).not.toBeInTheDocument();
     expect(screen.queryByText("Bestätigt")).not.toBeInTheDocument();
+  });
+});
+
+describe("HolidayRegistrationForm parent account (#6673)", () => {
+  beforeEach(() => {
+    mockInvalidate.mockReset().mockResolvedValue([]);
+    mockSubmit.mockReset();
+    mockQuote.mockReset();
+    mockQuote.mockResolvedValue(quoted(false));
+    window.scrollTo = vi.fn();
+  });
+
+  function renderWithAccount(
+    parentAccount: "ask" | "signed-in",
+    known: HolidayKnownFamily | null = null,
+  ) {
+    return render(
+      <NextIntlClientProvider locale="de" messages={deMessages}>
+        <ToastProvider>
+          <HolidayRegistrationForm
+            token="link-key"
+            offer={offer}
+            family={known}
+            parentAccount={parentAccount}
+          />
+        </ToastProvider>
+      </NextIntlClientProvider>,
+    );
+  }
+
+  async function toSummary() {
+    fillRegistration();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+  }
+
+  const question = () =>
+    screen.getByRole("group", { name: /Möchten Sie ein Elternkonto anlegen/ });
+
+  it("asks without a preselection and holds the send until the parent answers", async () => {
+    mockSubmit.mockResolvedValue([]);
+    renderWithAccount("ask");
+    await toSummary();
+
+    const group = question();
+    const yes = within(group).getByRole("radio", { name: "Ja" });
+    const no = within(group).getByRole("radio", { name: "Nein" });
+    expect(yes).not.toBeChecked();
+    expect(no).not.toBeChecked();
+    expect(
+      // The card names the benefit beside its title, above the group.
+      screen.getByText(/den Stand der Anmeldung, die Bestätigung/),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+
+    expect(
+      await within(group).findByText("Bitte wählen Sie Ja oder Nein."),
+    ).toBeInTheDocument();
+    expect(group).toHaveAttribute("aria-invalid", "true");
+    expect(yes).toHaveFocus();
+    expect(mockSubmit).not.toHaveBeenCalled();
+
+    fireEvent.click(no);
+    // Anker: the answer is taken and the hint of the group is gone.
+    expect(no).toBeChecked();
+    expect(
+      within(group).queryByText("Bitte wählen Sie Ja oder Nein."),
+    ).not.toBeInTheDocument();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalledTimes(1));
+    expect(mockSubmit).toHaveBeenCalledWith(
+      "link-key",
+      expect.objectContaining({ parent_account_requested: false }),
+    );
+    expect(mockSubmit.mock.calls[0]![1]).not.toHaveProperty(
+      "parent_account_proof",
+    );
+    // Anker: the receipt shows; without „Ja“ it names no second mail.
+    expect(
+      await screen.findByText("Ihre Anmeldung ist eingegangen"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Nächster Schritt: Ihr Elternkonto"),
+    ).not.toBeInTheDocument();
+    expect(mockInvalidate).not.toHaveBeenCalled();
+  });
+
+  it("keeps the answer over Zurück, names the address and announces the second mail", async () => {
+    mockSubmit.mockResolvedValue([]);
+    renderWithAccount("ask");
+    await toSummary();
+
+    fireEvent.click(within(question()).getByRole("radio", { name: "Ja" }));
+    expect(
+      screen.getByText(
+        "Sie bekommen dazu eine E-Mail an eva@example.org. Mit dem Link darin legen Sie Ihr Passwort fest.",
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Zurück und ändern" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+    expect(within(question()).getByRole("radio", { name: "Ja" })).toBeChecked();
+
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() =>
+      expect(mockSubmit).toHaveBeenCalledWith(
+        "link-key",
+        expect.objectContaining({ parent_account_requested: true }),
+      ),
+    );
+    expect(
+      await screen.findByText("Nächster Schritt: Ihr Elternkonto"),
+    ).toBeInTheDocument();
+    const next = screen.getByText(/Wir haben Ihnen eine zweite E-Mail/);
+    expect(next).toHaveTextContent(
+      "Wir haben Ihnen eine zweite E-Mail an eva@example.org geschickt. Öffnen Sie den Link darin. Dort legen Sie Ihr Passwort fest oder melden sich an.",
+    );
+    // The receipt never says whether an account exists (ADR 0216).
+    expect(next).not.toHaveTextContent(/schon ein Konto|neues Konto/);
+  });
+
+  it("asks a signed-in parent nothing, sends the account's proof and leads back to the app", async () => {
+    mockSubmit.mockResolvedValue([]);
+    renderWithAccount("signed-in", { ...family, accountProof: "sealed-proof" });
+    await toSummary();
+
+    // Anker: the summary with its send button is rendered.
+    expect(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("group", { name: /Möchten Sie ein Elternkonto/ }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() =>
+      expect(mockSubmit).toHaveBeenCalledWith(
+        "link-key",
+        expect.objectContaining({
+          parent_account_requested: false,
+          parent_account_proof: "sealed-proof",
+        }),
+      ),
+    );
+    expect(
+      await screen.findByRole("link", { name: "Zu Ihren Ferienanmeldungen" }),
+    ).toHaveAttribute("href", "/ferienanmeldungen");
+    expect(mockInvalidate).toHaveBeenCalledTimes(1);
+    expect(mockInvalidate).toHaveBeenCalledWith(expect.any(Function), {
+      clear: true,
+    });
+    const matches = mockInvalidate.mock.calls[0]![0] as (
+      key: string,
+    ) => boolean;
+    expect(matches("parent-holiday-registration-entries")).toBe(true);
+    expect(matches("parent-profile")).toBe(false);
   });
 });

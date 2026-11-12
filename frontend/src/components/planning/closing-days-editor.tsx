@@ -27,6 +27,7 @@ import {
   type ClosingDayDraft,
   ClosingDayModal,
 } from "~/components/planning/closing-day-modal";
+import { HolidayClosureNotices } from "~/components/planning/holiday-closure-notices";
 import { BulkCancelAppointmentsModal } from "~/components/timetable/bulk-cancel-appointments-modal";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -96,6 +97,9 @@ export function ClosingDaysEditor({
   const canManageSchedules = hasPermission(session, "schedules:manage");
   const { success: toastSuccess } = useToast();
   const invalidateClosingDays = useInvalidateClosingDays();
+  // Nach dem Speichern oder Löschen kann moto einen Elternhinweis
+  // vorschlagen (ADR 0196); die Liste lädt dann neu.
+  const [noticesVersion, setNoticesVersion] = useState(0);
 
   const load = useCallback(
     async (opts?: { silent?: boolean }) => {
@@ -138,6 +142,7 @@ export function ClosingDaysEditor({
       });
     });
     void load({ silent: true });
+    setNoticesVersion((value) => value + 1);
   }, [invalidateClosingDays, load]);
 
   const beginCreate = () => {
@@ -320,6 +325,7 @@ export function ClosingDaysEditor({
 
   return (
     <div className="space-y-4">
+      <HolidayClosureNotices version={noticesVersion} />
       {/* Erklärtext und „Schließtag anlegen“ sitzen im Kartenkopf, statt als
           freier Absatz und eigene Buttonzeile über der Tabelle zu stehen. */}
       <SectionCard
@@ -356,7 +362,7 @@ export function ClosingDaysEditor({
             <Alert
               type="warning"
               title="In dieser Zeit sind Ferienwochen bei Ihnen gebucht"
-              message="Der Träger sieht den Schließtag und informiert die Eltern. Die Buchungen bleiben bestehen."
+              message="Die Buchungen bleiben bestehen. Nach dem Speichern können Sie die Eltern auf dieser Seite informieren."
               details={
                 <ul className="mt-2 space-y-1 text-sm">
                   {affectedHostedWeeks.map((week) => (

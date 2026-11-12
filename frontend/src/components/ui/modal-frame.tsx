@@ -16,10 +16,14 @@ export const ModalFrameContext = React.createContext({
   stackedSheetFooter: false,
 });
 
-type ModalCancelButtonProps = Omit<
-  React.ComponentProps<typeof Button>,
-  "variant" | "size" | "type"
->;
+// Distributive: `Button` props are a union (`tooltip` or `noTooltip`, #6643),
+// and a plain `Omit` would merge it into one shape that fits neither branch.
+type ModalCancelButtonProps =
+  React.ComponentProps<typeof Button> extends infer P
+    ? P extends unknown
+      ? Omit<P, "variant" | "size" | "type">
+      : never
+    : never;
 
 /**
  * The Abbrechen of a `Modal` footer. It is a dismissal path, so the dialog's

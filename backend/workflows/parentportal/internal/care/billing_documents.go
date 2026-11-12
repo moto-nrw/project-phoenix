@@ -131,9 +131,12 @@ type TraegerRuntime interface {
 }
 
 // ParentAccounts reads the address of an account and the account of an
-// address, in the caller's administrative transaction. found is false for an
+// address, and persists the account's portal language without a school.
+// Reads join the caller's administrative transaction. found is false for an
 // address without an account.
 type ParentAccounts interface {
+	FindAccountPortalLocale(context.Context, int64) (*string, error)
+	SetAccountPortalLocale(context.Context, int64, string) error
 	AccountEmail(ctx context.Context, accountID int64) (string, error)
 	AccountIDByEmail(ctx context.Context, email string) (accountID int64, found bool, err error)
 }
@@ -257,8 +260,9 @@ func (s *Service) ContractDocumentFile(ctx context.Context, accountID, organizat
 	return file, nil
 }
 
-// billingInboxAccess resolves the Träger the account's relationships open
-// and the account's current address, in one administrative transaction.
+// billingInboxAccess resolves the Träger the account's relationships open,
+// with those of its holiday registrations (ADR 0216), and the account's
+// current address, in one administrative transaction.
 func (s *Service) billingInboxAccess(ctx context.Context, accountID int64) ([]Traeger, BillingDocumentReader, error) {
 	if s.BillingDocuments == nil || s.ContractDocuments == nil || s.TraegerRuntime == nil || s.SchoolTraeger == nil || s.ParentAccounts == nil {
 		return nil, BillingDocumentReader{}, errors.New("parent: document inbox is not configured")
@@ -267,7 +271,10 @@ func (s *Service) billingInboxAccess(ctx context.Context, accountID int64) ([]Tr
 	var email string
 	err := s.accountDocumentAccess(ctx, accountID, func(adminCtx context.Context, children []*ChildSummary) error {
 		var err error
-		if access, err = s.documentAccess(adminCtx, children); err != nil || len(access.traeger) == 0 {
+		if access, err = s.documentAccess(adminCtx, children); err != nil {
+			return err
+		}
+		if access.traeger, err = s.withHolidayRegistrationTraeger(adminCtx, accountID, access.traeger); err != nil || len(access.traeger) == 0 {
 			return err
 		}
 		email, err = s.ParentAccounts.AccountEmail(adminCtx, accountID)

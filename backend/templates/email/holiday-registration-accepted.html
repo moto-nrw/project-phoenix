@@ -60,6 +60,14 @@
     </div>
     {{end}}
 
+    {{if .SetupURL}}
+    <p>Mit einem Elternkonto sehen Sie den Stand Ihrer Anmeldung in der Eltern-App. Dort finden Sie auch Ihre Dokumente.</p>
+    <div class="button-wrapper" style="text-align: center;">
+        <a class="button" href="{{.SetupURL}}">Elternkonto einrichten</a>
+    </div>
+    <p style="font-size: 14px; color: #6b7280;">Der Link gilt 30 Tage.</p>
+    {{end}}
+
     <p class="security-note">Bitte antworten Sie nicht auf diese E-Mail. Bei Fragen wenden Sie sich an den Träger{{if .SchoolName}} ({{.SchoolName}}){{end}}.</p>
 </div>
 

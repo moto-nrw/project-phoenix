@@ -286,7 +286,10 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0214: the registered children and the trail of the known child hint of
 // modules/enrollment/compose (+10) and the namesakes constructor of
 // modules/peopledirectory/compose (+13) add exactly 23 LOC.
-const moduleComposeBudgetTotal = 13327
+// ADR 0196: the holiday closure notices (-1).
+// ADR 0216: the holiday account adds 10 LOC to enrollment/compose and
+// 2 to parentportal/compose.
+const moduleComposeBudgetTotal = 13338
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -341,8 +344,9 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0202: the Students field of the phase administration (+2).
 	// ADR 0205: the Bookings field of the phase administration (+2).
 	// ADR 0207: the constructor of the announced holiday periods (+5).
-	// ADR 0214: the registered children and the known child trail (+10).
-	"modules/enrollment/compose":                   623,
+	// ADR 0214: the registered children and known child trail (+10).
+	// ADR 0216: account proofs and the account's holiday registrations (+10).
+	"modules/enrollment/compose":                   633,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
@@ -405,7 +409,7 @@ var moduleComposeBudgets = map[string]int{
 	"modules/schedulerruntime/compose":   45,
 	// Raised by ADR 0142: the Elternsprechtag constructor (+7) and by
 	// ADR 0144: the school vacation constructor (+11).
-	"modules/schoolcalendar/compose":        159,
+	"modules/schoolcalendar/compose":        158,
 	"modules/schoolcalendar/portal/compose": 112,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	// ADR 0151: the school figure constructor (+6).
@@ -455,7 +459,9 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0159: the notice port (+1).
 	// ADR 0207: the port of the announced holiday periods (+1).
 	// ADR 0212: the port of the message attachments (+1).
-	"workflows/parentportal/compose":     334,
+	// ADR 0216: the ports of the account's holiday registrations and of its
+	// proof (+2).
+	"workflows/parentportal/compose":     336,
 	"workflows/reminderdelivery/compose": 30,
 	"workflows/sessionend/compose":       59,
 	"workflows/shiftplansync/compose":    124,

@@ -66,12 +66,13 @@ Regel: Vorschlag und ausdrücklicher Versandklick. Auch ein gelöschter
 Schließtag behält seinen offenen Hinweis mit altem Bereich.
 
 Der Vorschlag wird beim Anzeigen und beim Klick gegen den aktuellen Stand
-geprüft. Eine mögliche Betroffenheit liest die Schule nur über bereits erlaubte
-eigene Ferienwochen; sie bekommt keine Träger-Familienvorschau. Enrollment
-entscheidet in der Träger-Verarbeitung, ob tatsächlich mitteilungspflichtige
-Buchungen vorliegen. Ohne solche Buchungen entsteht keine Mail.
-Die Freigabe einer Familienzahl für die Schule ist offen (unten); der
-Grundablauf funktioniert ohne diese Zahl.
+geprüft. Die Schule sieht beim Vorschlag die **Zahl der Familien**, die bei
+einem Klick eine E-Mail bekämen („1 Familie hat …“ / „12 Familien haben …“),
+und keine Namen, Kontakte oder Kinderdaten des Trägers (Abschnitt
+„Familienzahl für die Schule“). Enrollment entscheidet in der
+Träger-Verarbeitung, ob tatsächlich mitteilungspflichtige Buchungen vorliegen.
+Ohne solche Buchungen entsteht keine Mail, und die Schule sieht keinen
+Vorschlag.
 
 ### 2. Owner, Vorschlag und dauerhafter Auftrag
 
@@ -362,8 +363,9 @@ Familie. Die [Regel zum Informationsfluss](../../.claude/rules/information-flow.
 verlangt die nötige Information am Handlungsort, keine zusätzliche
 Kontaktliste für die Schule. Die Grenzen von
 [ADR 0116](0116-ausrichtende-ogs-liest-ihre-teilnehmer-in-der-schul-transaktion.md)
-bleiben bestehen. Der Vorschlag ist keine neue Freigabe von Familienzahlen,
-Namen, Kontakten oder anderen Schuldaten.
+bleiben bestehen. Der Vorschlag gibt der Schule nur die freigegebene
+Familienzahl (Abschnitt „Familienzahl für die Schule“), keine Namen, Kontakte
+oder anderen Daten der Familien.
 
 Nur der Träger-Mailweg verarbeitet Adresse, Anrede sowie die nötigen Namen,
 Wochen, Tage, Schule und Wartelistenhinweise. Keine Gesundheits-, Bank- oder
@@ -424,7 +426,8 @@ Verhaltenstests schützen insbesondere:
   Warteliste, mehrere Kinder/Wochen je Familie und erneutes Schließen.
 - Schul-Admin-/Büro-Rechte, eigene Schule, fremder Träger, Schulwechsel,
   Löschung und manipulierte Quellzuordnung; keine Schulantwort enthält Kontakte
-  oder Familiennamen. Filtertests mit und ohne RLS sowie Alarmierung nur für
+  oder Familiennamen; die Familienzahl der Schule entspricht den Mails des
+  Klicks. Filtertests mit und ohne RLS sowie Alarmierung nur für
   beauftragte Arbeit. Keine geteilte Test-DB auf Port 5433.
 
 Seed, Hilfe, neue Schreibroute/Analyse und reale UI-/Verständlichkeitsnachweise
@@ -457,11 +460,25 @@ nicht irrtümlich wie ein freigegebener Mailauftrag behandelt werden.
 beauftragten Versand beim Absturz. Der Auftrag wird mit dem Klick committed;
 ein Signal darf ihn nur aufwecken. Workflows bleiben ohne eigene Tabellen.
 
-## Offene fachliche Frage an Yannick
+## Familienzahl für die Schule
 
-Darf die Schule die Anzahl betroffener Familien sehen? Die Annahme des
-Schul-Buttons entscheidet diese zusätzliche aggregierte Leseberechtigung
-nicht. **Empfehlung:** Vorerst nur den Vorschlag, die bereits erlaubten eigenen
-Kalender-/Wochenangaben und den redigierten Auftragsstatus anzeigen, keine
-Familienzahl. Erst eine ausdrückliche Freigabe ergänzt sie über eine begrenzte
-Aggregat-Capability. Das blockiert weder den Ein-Klick-Weg noch diese Annahme.
+**Entschieden. Freigegeben von Yannick Wenger am 10.11.2026** („mit zahl
+gerne“, gegen 21:20 UTC). Die Schule sieht beim Vorschlag „Eltern
+informieren“ die Zahl der betroffenen Familien. Zweck: Die Schule soll die
+Tragweite ihres Klicks kennen. Weiterhin keine Namen, keine Kontakte und
+keine Kinderdaten des Trägers, nur die Anzahl.
+
+- **Grenze:** Die Zahl kommt über einen engen, lesenden Vertrag vom Besitzer
+  der Buchungen: `enrollment.HolidayClosures.PlanHolidayClosureOperation` in
+  einer eigenen Träger-Einheit, die der Workflow nach der Schul-Einheit
+  öffnet. An die Schul-Antwort geht ausschließlich `families`; Wochen,
+  Kinder und Empfänger bleiben in der Träger-Einheit. Die Schule erhält
+  dadurch keinen allgemeinen Zugriff auf Trägerdaten.
+- **Gezählt werden Familien** (normalisierte Empfängeradresse), nicht Kinder
+  oder Buchungen, und zwar genau die, die bei einem Klick eine Mail bekämen:
+  dieselbe Ermittlung wie der Versand (`NotifyHolidayClosureOperation`), damit
+  Zahl und Versand nicht auseinanderlaufen. Bei 0 Familien gibt es keinen
+  Vorschlag.
+- Die Zahl gilt auch für Löschen und Verkürzen (#6457).
+
+Diese Freigabe ersetzt die frühere Empfehlung „vorerst ohne Zahl“.

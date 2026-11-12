@@ -1,5 +1,10 @@
 import type { ParentConferenceOffer } from "~/lib/parent-conferences";
 import type { MessageAttachment } from "~/lib/message-attachments";
+import {
+  type BackendHolidayRegistrationEntries,
+  type HolidayRegistrationEntry,
+  holidayRegistrationEntriesFromBackend,
+} from "~/lib/parent-holiday-registration-entries";
 import type { CareContractStatus } from "./traeger-care-contracts-api";
 import {
   ApiError,
@@ -1356,6 +1361,19 @@ export async function listHolidayOffers(): Promise<HolidayOffer[]> {
     "/api/parent/me/holiday-registrations",
   );
   return Array.isArray(offers) ? offers : [];
+}
+
+/**
+ * The holiday registrations linked to the account (#6673, ADR 0216), newest
+ * first. Empty for an account without one.
+ */
+export async function listHolidayRegistrationEntries(): Promise<
+  HolidayRegistrationEntry[]
+> {
+  const body = await getJson<BackendHolidayRegistrationEntries | null>(
+    "/api/parent/me/holiday-registration-entries",
+  );
+  return holidayRegistrationEntriesFromBackend(body);
 }
 
 /**

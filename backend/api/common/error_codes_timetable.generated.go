@@ -19,6 +19,8 @@ const CodeTimetableCalendarPeriodWeekCycleAnchorMissing = "timetable.calendar_pe
 const CodeTimetableClosingDayEndBeforeStart = "timetable.closing_day_end_before_start"
 const CodeTimetableClosingDayInvalid = "timetable.closing_day_invalid"
 const CodeTimetableClosingDayNotFound = "timetable.closing_day_not_found"
+const CodeTimetableClosingDayNoticeChanged = "timetable.closing_day_notice_changed"
+const CodeTimetableClosingDayNoticeNotFound = "timetable.closing_day_notice_not_found"
 const CodeTimetableCompleteTooEarly = "timetable.complete_too_early"
 const CodeTimetableCompletionConfirmationStale = "timetable.completion_confirmation_stale"
 const CodeTimetableCorrectionCancelled = "timetable.correction_cancelled"
@@ -165,6 +167,8 @@ var errorCodeClassesTimetable = []errorCodeClass{
 	{CodeTimetableClosingDayEndBeforeStart, "input"},
 	{CodeTimetableClosingDayInvalid, "input"},
 	{CodeTimetableClosingDayNotFound, "business_rejection"},
+	{CodeTimetableClosingDayNoticeChanged, "business_rejection"},
+	{CodeTimetableClosingDayNoticeNotFound, "input"},
 	{CodeTimetableCompleteTooEarly, "business_rejection"},
 	{CodeTimetableCompletionConfirmationStale, "business_rejection"},
 	{CodeTimetableCorrectionCancelled, "business_rejection"},

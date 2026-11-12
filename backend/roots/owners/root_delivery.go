@@ -142,7 +142,7 @@ func buildDeliveryWorker(
 		carecontract.MailKindNotice: careContractNoticeMailRenderer(careContractCompose.NewNoticeMailRenderer(), defaultFrom),
 	}
 	enrollmentKinds := []string{}
-	for kind, renderer := range enrollmentMailRenderers(enrollmentCompose.NewMailRenderers(holidayAcceptanceAccounts{accounts: accounts}, env.Links.ParentsURL), defaultFrom) {
+	for kind, renderer := range enrollmentMailRenderers(enrollmentCompose.NewMailRenderers(newHolidayAcceptanceAccounts(accounts, env.Links.ParentsURL), env.Links.ParentsURL), defaultFrom) {
 		renderers[kind] = renderer
 		enrollmentKinds = append(enrollmentKinds, kind)
 	}

@@ -45,5 +45,7 @@
   "errorObjectList": "die Liste der Benachrichtigungen",
   "errorObjectType": "die Benachrichtigung „{name}“",
   "errorObjectEnableAll": "das Einschalten aller Benachrichtigungen",
-  "errorObjectDisableAll": "das Ausschalten aller Benachrichtigungen"
+  "errorObjectDisableAll": "das Ausschalten aller Benachrichtigungen",
+  "enableAllTooltip": "Schaltet alle Benachrichtigungen auf einmal ein.",
+  "disableAllTooltip": "Schaltet sofort alle Benachrichtigungen von moto für Sie aus."
 }

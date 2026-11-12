@@ -7,6 +7,7 @@ import type {
   HolidayRegistrationList,
 } from "~/lib/traeger-holiday-registrations-api";
 import type { HolidayContribution } from "~/lib/traeger-contributions-api";
+import type { BackendHolidayRegistrationEntries } from "~/lib/parent-holiday-registration-entries";
 import { HOLIDAY_CONSENT_TEXTS } from "./holiday-consent-texts";
 
 export const HOLIDAY_SCHOOLS: TraegerSchool[] = [
@@ -240,3 +241,91 @@ export const HOLIDAY_REGISTRATION_HEALTH: HolidayRegistrationHealthDetail = {
     },
   ],
 };
+
+/**
+ * The holiday registrations of a parent account as the backend sends them
+ * (#6673), newest first: one still waiting with a full week, one confirmed,
+ * one cancelled.
+ */
+export const PARENT_HOLIDAY_REGISTRATION_ENTRIES: BackendHolidayRegistrationEntries =
+  {
+    registrations: [
+      {
+        id: 12,
+        traeger_name: "Träger Bissendorf",
+        period_name: "Weihnachtsferien 2026/27",
+        first_day: "2027-01-04",
+        last_day: "2027-01-08",
+        submitted_at: "2026-09-08T09:30:00Z",
+        status: "received",
+        children: [
+          {
+            first_name: "Mia",
+            weeks: [
+              {
+                first_day: "2027-01-04",
+                last_day: "2027-01-08",
+                time_model_name: "bis 16 Uhr",
+                placement: "waitlisted",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: 9,
+        traeger_name: "Träger Bissendorf",
+        period_name: "Herbstferien 2026",
+        first_day: "2026-10-12",
+        last_day: "2026-10-23",
+        submitted_at: "2026-08-20T07:00:00Z",
+        status: "confirmed",
+        children: [
+          {
+            first_name: "Mia",
+            weeks: [
+              {
+                first_day: "2026-10-12",
+                last_day: "2026-10-16",
+                time_model_name: "bis 13 Uhr",
+                placement: "placed",
+              },
+            ],
+          },
+          {
+            first_name: "Ben",
+            weeks: [
+              {
+                first_day: "2026-10-19",
+                last_day: "2026-10-23",
+                time_model_name: "bis 16 Uhr",
+                placement: "placed",
+              },
+            ],
+          },
+        ],
+      },
+      {
+        id: 4,
+        traeger_name: "Träger Melle",
+        period_name: "Sommerferien 2026",
+        first_day: "2026-07-20",
+        last_day: "2026-07-24",
+        submitted_at: "2026-05-02T10:00:00Z",
+        status: "cancelled",
+        children: [
+          {
+            first_name: "Mia",
+            weeks: [
+              {
+                first_day: "2026-07-20",
+                last_day: "2026-07-24",
+                time_model_name: "bis 16 Uhr",
+                placement: "waitlisted",
+              },
+            ],
+          },
+        ],
+      },
+    ],
+  };

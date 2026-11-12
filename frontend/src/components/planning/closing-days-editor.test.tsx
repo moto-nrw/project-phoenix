@@ -71,6 +71,14 @@ vi.mock("~/lib/hooks/use-closing-days", () => ({
   useInvalidateClosingDays: () => mockInvalidate,
 }));
 
+// Die Elternhinweise testet ihre eigene Datei; hier zählt, dass der Editor
+// sie nach jedem Speichern und Löschen neu laden lässt (ADR 0196).
+vi.mock("~/components/planning/holiday-closure-notices", () => ({
+  HolidayClosureNotices: ({ version }: { version: number }) => (
+    <div data-testid="holiday-closure-notices" data-version={version} />
+  ),
+}));
+
 vi.mock("~/components/planning/closing-day-modal", () => ({
   ClosingDayModal: ({
     isOpen,
@@ -146,7 +154,7 @@ describe("ClosingDaysEditor", () => {
     });
   });
 
-  it("shows the booked weeks in the dialog and says who informs the parents", async () => {
+  it("shows the booked weeks in the dialog and says where the parents are informed", async () => {
     mockList.mockResolvedValue([]);
     mockHostedWeeks.mockResolvedValue([
       {
@@ -192,7 +200,7 @@ describe("ClosingDaysEditor", () => {
     expect(screen.getByText(/4 Kinder/)).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Der Träger sieht den Schließtag und informiert die Eltern. Die Buchungen bleiben bestehen.",
+        "Die Buchungen bleiben bestehen. Nach dem Speichern können Sie die Eltern auf dieser Seite informieren.",
       ),
     ).toBeInTheDocument();
   });
@@ -503,6 +511,27 @@ describe("ClosingDaysEditor", () => {
 
     await waitFor(() => expect(mockInvalidate).toHaveBeenCalledOnce());
     await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2));
+  });
+
+  it("lädt die Elternhinweise nach dem Speichern neu (ADR 0196)", async () => {
+    mockList.mockResolvedValue([]);
+
+    render(<ClosingDaysEditor />);
+    const notices = await screen.findByTestId("holiday-closure-notices");
+    expect(notices).toHaveAttribute("data-version", "0");
+    fireEvent.click(
+      (
+        await screen.findAllByRole("button", { name: /Schließtag anlegen/ })
+      )[0]!,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Mock speichern" }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("holiday-closure-notices")).toHaveAttribute(
+        "data-version",
+        "1",
+      ),
+    );
   });
 
   it("löscht nach Bestätigung und lädt die Liste neu", async () => {

@@ -181,5 +181,8 @@
   ],
   "api/parent/me/holiday-registrations": [
     "GET parent /parent/me/holiday-registrations"
+  ],
+  "api/parent/me/holiday-registration-entries": [
+    "GET parent /parent/me/holiday-registration-entries"
   ]
 }

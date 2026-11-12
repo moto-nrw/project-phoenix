@@ -26,6 +26,8 @@ import (
 // fakeParentService implements PortalService. Only the profile methods
 // carry behaviour; the rest satisfy the interface for the handler tests.
 type fakeParentService struct {
+	claimedEmails []string
+
 	sepaView     parentService.SEPAMandateView
 	sepaText     parentService.SEPAMandateText
 	sepaErr      error
@@ -201,6 +203,12 @@ func (f *fakeParentService) HolidayRegistrationFamily(_ context.Context, account
 }
 func (f *fakeParentService) HolidayRegistrationOffers(context.Context, int64) ([]parentService.HolidayRegistrationOffer, error) {
 	return nil, nil
+}
+func (f *fakeParentService) HolidayRegistrationEntries(context.Context, int64) ([]parentService.HolidayRegistrationEntry, error) {
+	return nil, nil
+}
+func (f *fakeParentService) ClaimHolidayRegistrationsAfterSignIn(_ context.Context, email string) {
+	f.claimedEmails = append(f.claimedEmails, email)
 }
 func (f *fakeParentService) ListEnrollmentsForAccount(context.Context, int64) ([]*parentService.EnrollmentRequestSummary, error) {
 	return nil, nil

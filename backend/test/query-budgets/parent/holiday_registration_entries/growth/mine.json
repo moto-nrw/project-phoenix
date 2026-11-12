@@ -1,0 +1,7 @@
+{
+  "scenario": "parent.holiday_registration_entries.growth.mine",
+  "max": 6,
+  "exact": true,
+  "description": "Positive parent-scope HTTP list (ADR 0216 point 9), N2/N6 holiday registrations linked to the account at two Träger with one to three children each; a registration of another account excluded. The administrative transaction, the registrations, their children and weeks, the names of their Träger.",
+  "route": "GET /parent/me/holiday-registration-entries"
+}

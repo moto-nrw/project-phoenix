@@ -606,7 +606,10 @@
    untereinander statt nebeneinander. Auch eine Karte IN einer Tabelle zählt
    nicht (die Änderungshistorie in einer aufgeklappten Zeile): als Flex-Spalte
    hätte die äußere Tabelle keine gemeinsamen Spalten mehr, jede Zeile rechnete
-   ihre Breiten für sich (#5600). */
+   ihre Breiten für sich (#5600). Was IN einer Karte liegt, ist nie Hülle auf
+   dem Weg zur letzten Fläche: Eine innere Fläche (die Wochenliste einer
+   Hinweiszeile) machte sonst Zeile und Liste zur Flex-Spalte, und die Zeile
+   verlor ihr Gitter mit der gemeinsamen Aktionsspalte (ADR 0196). */
 .moto-tenant-body
   > :last-child:not(.grid, .moto-content-surface, .hidden, .md\:hidden):has(
     .moto-content-surface:last-child:is(section, div):not(
@@ -622,7 +625,8 @@
     .moto-content-surface,
     .hidden,
     .md\:hidden,
-    .moto-scroll-surface *
+    .moto-scroll-surface *,
+    .moto-content-surface *
   ):has(
     .moto-content-surface:last-child:is(section, div):not(
         .moto-scroll-surface,

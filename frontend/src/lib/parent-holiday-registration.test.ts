@@ -3,6 +3,7 @@ import {
   holidayRegistrationLoginPath,
   holidayRegistrationPath,
   holidayRegistrationReturnPath,
+  holidayRegistrationsLoginPath,
 } from "./parent-holiday-registration";
 
 describe("holiday registration paths", () => {
@@ -19,7 +20,19 @@ describe("holiday registration paths", () => {
     );
   });
 
+  it("returns to the own holiday registrations after setting up the account (#6673)", () => {
+    expect(holidayRegistrationsLoginPath()).toBe(
+      "/login?next=%2Fferienanmeldungen",
+    );
+    expect(holidayRegistrationReturnPath("/ferienanmeldungen")).toBe(
+      "/ferienanmeldungen",
+    );
+  });
+
   it.each([
+    "/ferienanmeldungen/",
+    "/ferienanmeldungen?x=1",
+    "/parents/ferienanmeldungen",
     null,
     "",
     "/",

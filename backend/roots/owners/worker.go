@@ -17,7 +17,6 @@ import (
 	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
 	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
 	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
 	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
@@ -68,6 +67,7 @@ func NewWorker(
 	plannedExits PlannedStaffExitsBuilder, dayLog WeekProtocolDayLogBuilder, healthData enrollmentOwner.HolidayHealthCipher,
 	careContractReminders schedulerPorts.CareContractReminders,
 	careContracts schedulerPorts.CareContractConclusion,
+	holidayClosures schedulerPorts.HolidayClosureNotifications,
 ) (schedulerPorts.Worker, error) {
 	billing, err := NewOperatorBilling(logger)
 	if err != nil {
@@ -121,7 +121,7 @@ func NewWorker(
 		OperatorInvitationCleanup:    identity,
 		OperatorRetention:            schedulerPorts.OperatorRetention{Ledger: audit, Accounts: identity},
 		AccountRetention:             identity,
-		HolidayRegistrationRetention: enrollmentCompose.NewHolidayRegistrationRetention(nil),
+		HolidayRegistrationRetention: NewHolidayRegistrationRetention(nil),
 		WorkSessionCleanup:           workforce.TimeTracking.Jobs,
 		BreakAutoEnder:               workforce.TimeTracking.Jobs,
 		AutoCheckouter:               workforce.TimeTracking.Jobs,
@@ -152,7 +152,7 @@ func NewWorker(
 		OverdueBroadcaster:     newSchedulerOverdueBroadcaster(hub),
 		StudentLifecycleRepo:   schedulerStudentLifecycle(NewStudentRootReads(people.Students)), WeekProtocols: NewWeekProtocolEvenings(db, logger, settings, persons, services, reports, schedules, carePlan, timetableRepos, dayLog),
 		PayrollDispatch:       workforce.PayrollDispatch.RunDue,
-		ReminderNotifications: reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, people.Students, organizations, carePlan, accessLog, healthData), PlannedStaffExits: plannedExits(identity, notifications, people.Staff), CareContractConclusion: careContracts, CareContractReminders: careContractReminders, StaffQualificationReminders: qualificationRemindersJob(workforce.QualificationReminders), SchoolVacations: schoolVacationSync(), TraegerDocumentReadRetention: organizationCompose.NewSharedTraegerDocuments(), BelegRetention: NewBelegRetention(nil), SEPADebitDownloadRetention: parentBillingCompose.NewSEPADebitDownloadRetention(),
+		ReminderNotifications: reminderNotifications, HolidayGuests: schedulerHolidayGuests(persons, people.Students, organizations, carePlan, accessLog, healthData), PlannedStaffExits: plannedExits(identity, notifications, people.Staff), CareContractConclusion: careContracts, CareContractReminders: careContractReminders, HolidayClosureNotifications: holidayClosures, StaffQualificationReminders: qualificationRemindersJob(workforce.QualificationReminders), SchoolVacations: schoolVacationSync(), TraegerDocumentReadRetention: organizationCompose.NewSharedTraegerDocuments(), BelegRetention: NewBelegRetention(nil), SEPADebitDownloadRetention: parentBillingCompose.NewSEPADebitDownloadRetention(),
 	})
 }
 

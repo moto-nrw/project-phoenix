@@ -45,5 +45,10 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 		portalauth.Render(w, r, err, portalauth.ParentLoginRules, portalauth.LoginRules)
 		return
 	}
+	// The sign-in proved the address: its holiday registrations join the
+	// account (ADR 0216). The workflow logs a failure; the sign-in stands.
+	if rs.ParentService != nil {
+		rs.ParentService.ClaimHolidayRegistrationsAfterSignIn(r.Context(), req.Email)
+	}
 	common.Respond(w, r, http.StatusOK, portalauth.TokenResponse{AccessToken: accessToken, RefreshToken: refreshToken}, "Login successful")
 }

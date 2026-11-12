@@ -1,0 +1,26 @@
+{
+  "title": "Zgłoszenia na ferie",
+  "description": "Państwa zgłoszenia na opiekę w ferie i ich stan.",
+  "status": {
+    "received": "Otrzymane",
+    "confirmed": "Potwierdzone",
+    "cancelled": "Anulowane"
+  },
+  "statusNote": {
+    "received": "Organizator sprawdza zgłoszenie i napisze do Państwa.",
+    "confirmed": "Organizator potwierdził Państwa zgłoszenie.",
+    "cancelled": "To zgłoszenie już nie obowiązuje. W razie pytań prosimy o kontakt z organizatorem."
+  },
+  "documentsHint": "Potwierdzenie i rachunek znajdą Państwo w Dokumentach.",
+  "toDocuments": "Do dokumentów",
+  "submittedOn": "Otrzymane dnia {date}",
+  "emptyTitle": "Brak zgłoszeń na ferie",
+  "emptyDescription": "Proszę zgłosić dziecko z adresem e-mail tego konta. Wtedy zgłoszenie pojawi się tutaj.",
+  "errorObject": "Państwa zgłoszenia na ferie",
+  "card": {
+    "title": "Państwa zgłoszenia na ferie",
+    "showAll": "Pokaż wszystkie",
+    "showAllLabel": "Pokaż wszystkie zgłoszenia na ferie",
+    "more": "{count, plural, one {# kolejne zgłoszenie} few {# kolejne zgłoszenia} many {# kolejnych zgłoszeń} other {# kolejnego zgłoszenia}}"
+  }
+}

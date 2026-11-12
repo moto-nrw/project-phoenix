@@ -82,6 +82,7 @@ func staffRetention(owner string) tableRetention {
 // tableRetentions classifies every table of the schema.
 var tableRetentions = map[string]tableRetention{
 	"auth.organization_account_roles":                       parent("auth.accounts"),
+	"auth.traeger_parent_access":                            own("the parents-portal access at a Träger (ADR 0216 point 10) goes with platform.organizations when the Träger is erased (#4657) and with auth.accounts by cascade; auth.account_is_unused counts it only at an active, undeleted Träger and only for the 30 days of the setup link (1.15.944) or while a holiday registration at that Träger names the account or its unclaimed address (1.15.945), so the account follows the rules of parent accounts"),
 	"auth.traeger_invitations":                              own("hourly token-cleanup, DeleteExpiredSchoolInvitations also deletes expired Träger invitations (expires_at < now, #4650)"),
 	"audit.traeger_account_changes":                         own("hourly token-cleanup, operator audit log retention, DeleteExpiredOperatorAuditLog also deletes Träger account ledger entries (before 1 January of last year, #4650)"),
 	"audit.traeger_document_downloads":                      own("hourly token-cleanup, operator audit log retention, DeleteExpiredOperatorAuditLog also deletes Träger document download ledger entries (before 1 January of last year, #4692, ADR 0157); rows go with their document and with platform.organizations; actor_account_id CASCADE on account delete"),
@@ -198,6 +199,10 @@ var tableRetentions = map[string]tableRetention{
 	"calendar.appointment_reminder_push_deliveries":         parent("users.guardian_profiles"),
 	"calendar.appointment_targets":                          notPersonal("appointment target configuration"),
 	"calendar.appointments":                                 own("nightly retention steps appointment_retention, AppointmentRetention.DeleteExpiredAppointments (school window gdpr.timetable_retention_days after the last day; endless series stay, #4045), and appointment_tombstone_retention, DeleteFeedTombstonesBefore (90 days after cancellation or deletion)"),
+	"calendar.holiday_closure_authorizations":               parent("calendar.holiday_closure_events"),
+	"calendar.holiday_closure_events":                       parent("calendar.holiday_closure_proposals"),
+	"calendar.holiday_closure_proposals":                    own("minute holiday-closure-notifications job, RetireHolidayClosureEvents: 30 days after a resolved command or the last day of an unconfirmed proposal; unresolved commands stay"),
+	"calendar.holiday_closure_revisions":                    notPersonal("revision counter of a school's closing days (ADR 0196)"),
 	"calendar.parent_conference_bookings":                   parent("calendar.parent_conferences"),
 	"calendar.parent_conferences":                           own("nightly retention step parent_conference_retention, ParentConferences.DeleteParentConferencesBefore (days before the start of the running school year on 1 August, with their bookings; the booked appointments go through AppointmentRetention.DeleteParentConferenceAppointmentsBefore, #4801)"),
 	"calendar.recurrence_rules":                             notPersonal("recurrence configuration"),
@@ -256,7 +261,9 @@ var tableRetentions = map[string]tableRetention{
 	"enrollment.holiday_registration_audit":                 own("hourly token-cleanup, Holiday registration retention -> HolidayRegistrationStore.DeleteExpiredHolidayRegistrations (the days the registration keeps after the last week of the period, a year by default and 92 under the earlier consent texts, #6691, #4663); entries of a registration also go with it; actor_account_id SET NULL on account delete"),
 	"enrollment.holiday_registration_deletions":             own("hourly token-cleanup, Holiday registration retention -> HolidayRegistrationStore.DeleteExpiredHolidayRegistrationDeletions (3 years after deleted_at, #4667, ADR 0118); counts per period without names; rows go with platform.organizations"),
 	"enrollment.holiday_registration_bookings":              parent("enrollment.holiday_registration_children"),
+	"enrollment.holiday_closure_family_keys":                notPersonal("key of a Träger for the family fingerprint of a closing day mail (ADR 0196)"),
 	"enrollment.holiday_closure_notices":                    parent("enrollment.holiday_registrations"),
+	"enrollment.holiday_closure_sends":                      parent("enrollment.holiday_registrations"),
 	"enrollment.holiday_registration_criteria":              parent("enrollment.holiday_registrations"),
 	"enrollment.holiday_registration_children":              parent("enrollment.holiday_registrations"),
 	"enrollment.holiday_registration_contacts":              parent("enrollment.holiday_registrations"),

@@ -24,28 +24,46 @@ export function buttonClassName({
   return cn(buttonStyles({ variant, size, className, touchTarget }));
 }
 
-interface ButtonProps extends React.ButtonHTMLAttributes<HTMLButtonElement> {
-  ref?: React.Ref<HTMLButtonElement>;
-  isLoading?: boolean;
-  loadingText?: string;
-  variant?: ButtonVariant;
-  size?: ButtonSize;
-  touchTarget?: boolean;
-  /**
-   * One sentence on what a click does, shown on mouse hover and keyboard
-   * focus (`ActionHint`, #6643). Replaces a `title` attribute.
-   */
-  tooltip?: string;
-}
+/**
+ * What a click does (#6643). Either `tooltip` or `noTooltip`, never both;
+ * `ui-kit/button-needs-tooltip` requires one of them in its paths.
+ */
+type ButtonExplanation =
+  | {
+      /**
+       * One sentence on what a click does, shown on mouse hover and keyboard
+       * focus (`ActionHint`). Replaces a `title` attribute.
+       */
+      readonly tooltip?: string;
+      readonly noTooltip?: never;
+    }
+  | {
+      readonly tooltip?: never;
+      /**
+       * Why the word on the button already says everything („Abbrechen“ in a
+       * dialog). Renders nothing; it makes the decision visible in code.
+       * The lint rule rejects an empty reason.
+       */
+      readonly noTooltip: string;
+    };
 
-interface ButtonLinkProps extends Omit<NavigationLinkProps, "className"> {
-  readonly ref?: React.Ref<HTMLAnchorElement>;
-  readonly variant?: ButtonVariant;
-  readonly size?: ButtonSize;
-  readonly className?: string;
-  /** See `ButtonProps.tooltip`. */
-  readonly tooltip?: string;
-}
+type ButtonProps = React.ButtonHTMLAttributes<HTMLButtonElement> &
+  ButtonExplanation & {
+    ref?: React.Ref<HTMLButtonElement>;
+    isLoading?: boolean;
+    loadingText?: string;
+    variant?: ButtonVariant;
+    size?: ButtonSize;
+    touchTarget?: boolean;
+  };
+
+type ButtonLinkProps = Omit<NavigationLinkProps, "className"> &
+  ButtonExplanation & {
+    readonly ref?: React.Ref<HTMLAnchorElement>;
+    readonly variant?: ButtonVariant;
+    readonly size?: ButtonSize;
+    readonly className?: string;
+  };
 
 export function Button({
   children,
@@ -57,6 +75,7 @@ export function Button({
   touchTarget = false,
   disabled,
   tooltip,
+  noTooltip: _noTooltip,
   ...props
 }: Readonly<ButtonProps>) {
   const button = (
@@ -84,6 +103,7 @@ export function ButtonLink({
   size = "base",
   className = "",
   tooltip,
+  noTooltip: _noTooltip,
   ...linkProps
 }: Readonly<ButtonLinkProps>) {
   const link = (

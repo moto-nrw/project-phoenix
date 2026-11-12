@@ -1,0 +1,26 @@
+{
+  "title": "Ferienanmeldungen",
+  "description": "Ihre Anmeldungen zur Ferienbetreuung und ihr Stand.",
+  "status": {
+    "received": "Eingegangen",
+    "confirmed": "Bestätigt",
+    "cancelled": "Storniert"
+  },
+  "statusNote": {
+    "received": "Der Träger prüft Ihre Anmeldung und schreibt Ihnen.",
+    "confirmed": "Der Träger hat Ihre Anmeldung bestätigt.",
+    "cancelled": "Diese Anmeldung gilt nicht mehr. Bei Fragen wenden Sie sich an den Träger."
+  },
+  "documentsHint": "Bestätigung und Rechnung finden Sie unter Dokumente.",
+  "toDocuments": "Zu den Dokumenten",
+  "submittedOn": "Eingegangen am {date}",
+  "emptyTitle": "Noch keine Ferienanmeldungen",
+  "emptyDescription": "Melden Sie Ihr Kind mit der E-Mail-Adresse dieses Kontos an. Dann steht die Anmeldung hier.",
+  "errorObject": "Ihre Ferienanmeldungen",
+  "card": {
+    "title": "Ihre Ferienanmeldungen",
+    "showAll": "Alle ansehen",
+    "showAllLabel": "Alle Ferienanmeldungen ansehen",
+    "more": "{count, plural, one {# weitere Anmeldung} other {# weitere Anmeldungen}}"
+  }
+}
