@@ -1167,6 +1167,11 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"id":51,"participants":2}]}`)
 			return
 		}
+		if r.URL.Path == "/api/holiday-weeks/home-school-children" {
+			// The demo school's child at the second school's week (#6679).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"week_id":61,"student_id":71}]}`)
+			return
+		}
 		if r.URL.Path == "/api/holiday-weeks/51/participants" {
 			_, _ = fmt.Fprint(w, `{"status":"success","data":{"participants":[]}}`)
 			return
