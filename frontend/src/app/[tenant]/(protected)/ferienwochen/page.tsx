@@ -16,6 +16,7 @@ import { holidayDayList } from "~/lib/holiday-days";
 import { formatDate } from "~/lib/date-helpers";
 import {
   downloadHolidayParticipants,
+  fetchHolidayHomeSchoolBookings,
   fetchHolidayOwnChildAssignments,
   fetchHolidayParticipants,
   fetchHostedHolidayWeeks,
@@ -34,6 +35,7 @@ import { createLogger } from "~/lib/logger";
 import { useSWRAuth } from "~/lib/swr";
 import { holidayKeys } from "~/lib/swr/portal-keys";
 import { HolidayGuestGroupCard } from "./holiday-guest-group-card";
+import { HolidayHomeSchoolBookings } from "./holiday-home-school-bookings";
 import { HolidayOwnChildrenCard } from "./holiday-own-children-card";
 
 const logger = createLogger({ component: "FerienwochenPage" });
@@ -43,6 +45,9 @@ const logger = createLogger({ component: "FerienwochenPage" });
 // after its last day without a reload.
 const REFRESH = { revalidateOnFocus: true, refreshInterval: 60_000 };
 const NO_ASSIGNMENTS: readonly HolidayOwnChildAssignment[] = [];
+// Reiter der eigenen Kinder in Ferienwochen anderer OGS (#6679). Wochen-IDs
+// sind Zahlen, der Wert kann mit keiner Woche zusammenfallen.
+const ELSEWHERE_TAB = "andere-ogs";
 
 // Ferienwochen (#4665): die ausrichtende OGS sieht vor und während ihrer
 // Woche die Kinder, deren Anmeldung der Träger bestätigt hat, mit Zahlen je
@@ -61,6 +66,11 @@ const NO_ASSIGNMENTS: readonly HolidayOwnChildAssignment[] = [];
 // Kinder der eigenen OGS bleiben in ihrer Gruppe (#6678). Die Seite zeigt,
 // welche Anmeldung welchem Kind in moto zugeordnet ist, verlinkt die
 // Kinderakte und nennt Anmeldungen, die zu keinem Kind passen.
+//
+// Kinder der eigenen OGS, die der Träger für die Woche einer anderen OGS
+// bestätigt hat, stehen im Reiter „Kinder bei anderen OGS“ (#6679): Die
+// Heimatschule plant damit und informiert die Familien. Richtet die OGS
+// selbst keine Woche aus, zeigt die Seite nur diese Kinder.
 //
 // Bauart 3 (Werkzeug): eine Liste zum Vorbereiten und Ausdrucken, kein
 // Objekt, das hier bearbeitet wird.
@@ -253,9 +263,18 @@ export default function FerienwochenPage() {
     fetchHostedHolidayWeeks,
     REFRESH,
   );
+  const elsewhere = useSWRAuth(
+    isReady ? holidayKeys.homeSchoolBookings() : null,
+    fetchHolidayHomeSchoolBookings,
+    REFRESH,
+  );
   const [chosenWeek, setChosenWeek] = useState<string | null>(null);
-  const selectedWeek =
-    weeks.data?.find((week) => week.id === chosenWeek) ?? weeks.data?.[0];
+  const showElsewhere =
+    chosenWeek === ELSEWHERE_TAB ||
+    (weeks.data !== undefined && weeks.data.length === 0);
+  const selectedWeek = showElsewhere
+    ? undefined
+    : (weeks.data?.find((week) => week.id === chosenWeek) ?? weeks.data?.[0]);
   const participants = useSWRAuth(
     selectedWeek ? `holiday-participants:${selectedWeek.id}` : null,
     () => fetchHolidayParticipants(selectedWeek?.id ?? ""),
@@ -276,6 +295,11 @@ export default function FerienwochenPage() {
 
   const weeksError = useSwrLoadError(weeks.error, "die Ferienwochen", () =>
     weeks.mutate(),
+  );
+  const elsewhereError = useSwrLoadError(
+    showElsewhere ? elsewhere.error : undefined,
+    "die Kinder bei anderen OGS",
+    () => elsewhere.mutate(),
   );
   const participantsError = useSwrLoadError(
     participants.error,
@@ -314,23 +338,34 @@ export default function FerienwochenPage() {
   const loading =
     loadingWeeks ||
     (Boolean(selectedWeek) && !list && !participants.error) ||
+    (showElsewhere && !elsewhere.data && !elsewhere.error) ||
     (Boolean(weeks.error) && !weeksError);
+  const hostsWeeks = (weeks.data?.length ?? 0) > 0;
+  const elsewhereCount = elsewhere.data?.length ?? 0;
 
   const stats = useMemo(() => {
+    if (showElsewhere) {
+      if (!elsewhere.data || elsewhere.data.length === 0) return null;
+      const weekCount = new Set(elsewhere.data.map((child) => child.weekId))
+        .size;
+      return `${childCount(elsewhere.data.length)} bei anderen OGS · ${
+        weekCount === 1 ? "1 Ferienwoche" : `${weekCount} Ferienwochen`
+      }`;
+    }
     if (!selectedWeek) return null;
     return `${selectedWeek.periodName} · ${weekLabel(selectedWeek)} · ${childCount(
       list?.participants.length ?? selectedWeek.participants,
     )}`;
-  }, [selectedWeek, list]);
+  }, [showElsewhere, elsewhere.data, selectedWeek, list]);
 
   return (
     <TenantPage
       title="Ferienwochen"
-      info="Hier stehen die Ferienwochen, die Ihre OGS für den Träger ausrichtet. Sie sehen nur Kinder, deren Anmeldung der Träger bestätigt hat. Nach dem letzten Tag der Woche ist die Liste nicht mehr da. Gesundheitsangaben stehen nur hier, nicht in der Excel- oder CSV-Datei."
+      info="Hier stehen die Ferienwochen, die Ihre OGS für den Träger ausrichtet. Unter „Kinder bei anderen OGS“ sehen Sie Kinder Ihrer OGS, die in den Ferien eine andere OGS des Trägers betreut. Sie sehen nur Kinder, deren Anmeldung der Träger bestätigt hat. Nach dem letzten Tag der Woche sind sie nicht mehr da. Gesundheitsangaben stehen nur in der Teilnehmerliste, nicht in der Excel- oder CSV-Datei."
       stats={stats}
       statsLoading={loadingWeeks}
       loading={loading}
-      error={weeksError ?? participantsError}
+      error={weeksError ?? participantsError ?? elsewhereError}
       actions={
         selectedWeek ? (
           <OverflowMenu
@@ -349,27 +384,38 @@ export default function FerienwochenPage() {
         ) : undefined
       }
       tabs={
-        weeks.data && weeks.data.length > 1
+        weeks.data && hostsWeeks
           ? {
-              value: selectedWeek?.id ?? "",
+              value: showElsewhere ? ELSEWHERE_TAB : (selectedWeek?.id ?? ""),
               onChange: setChosenWeek,
               label: "Ferienwoche",
-              items: weeks.data.map((week) => ({
-                value: week.id,
-                label: weekLabel(week),
-              })),
+              items: [
+                ...weeks.data.map((week) => ({
+                  value: week.id,
+                  label: weekLabel(week),
+                })),
+                {
+                  value: ELSEWHERE_TAB,
+                  label: "Kinder bei anderen OGS",
+                  ...(elsewhereCount > 0 ? { badge: elsewhereCount } : {}),
+                },
+              ],
             }
           : undefined
       }
       empty={
-        weeks.data && weeks.data.length === 0
+        weeks.data && !hostsWeeks && elsewhere.data?.length === 0
           ? {
               title: "Ihre OGS richtet gerade keine Ferienwoche aus",
-              description: "Die Ferienwochen plant der Träger.",
+              description:
+                "Die Ferienwochen plant der Träger. Kein Kind Ihrer OGS ist gerade für die Ferienwoche einer anderen OGS bestätigt. Sobald der Träger eine solche Anmeldung bestätigt, steht das Kind hier.",
             }
           : null
       }
     >
+      {showElsewhere && elsewhere.data && (
+        <HolidayHomeSchoolBookings bookings={elsewhere.data} />
+      )}
       {list && selectedWeek && (
         <div className="flex flex-col gap-6">
           <HolidayGuestGroupCard

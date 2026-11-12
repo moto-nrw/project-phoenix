@@ -86,6 +86,8 @@ import type { holidayGuestGroupTopic as authored_holidayGuestGroupTopic } from "
 
 import type { holidayGuestsTopic as authored_holidayGuestsTopic } from "./articles/holiday-guests";
 
+import type { holidayHomeSchoolChildrenTopic as authored_holidayHomeSchoolChildrenTopic } from "./articles/holiday-home-school-children";
+
 import type { holidayWeeksTopic as authored_holidayWeeksTopic } from "./articles/holiday-weeks";
 
 import type { homeworkFeedbackTopic as authored_homeworkFeedbackTopic } from "./articles/homework-feedback";
@@ -3370,6 +3372,53 @@ export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
 } satisfies typeof authored_holidayGuestsTopic;
 
 /**
+ * `/ferienwochen`, Reiter `Kinder bei anderen OGS` (#6679): Die Heimatschule
+ * sieht die bestätigten Ferienbuchungen ihrer Kinder in Wochen, die eine
+ * andere OGS des Trägers ausrichtet, bis zum letzten Tag der Woche. Ohne
+ * Gesundheitsangaben und Kontakte.
+ */
+export const holidayHomeSchoolChildrenTopic =
+  function holidayHomeSchoolChildrenTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.leadHolidayHomeSchoolChildren,
+      title: "Kinder Ihrer OGS in Ferienwochen anderer OGS",
+      question: "Welche unserer Kinder betreut in den Ferien eine andere OGS?",
+      summary:
+        "Sie sehen, welche Kinder Ihrer OGS in den Ferien eine andere OGS des Trägers betreut.",
+      group: "auswertung",
+      audience: "lead",
+      icon: "MapPin",
+      requirements: [
+        "Der Träger hat die Ferienanmeldung des Kindes für die Woche einer anderen OGS bestätigt.",
+        "In der Anmeldung steht Ihre OGS als Schule des Kindes.",
+      ],
+      steps: [
+        "Klappen Sie in der Seitenleiste `Verwaltung` auf.",
+        "Öffnen Sie `Ferienwochen`.",
+        "Richtet Ihre OGS selbst eine Ferienwoche aus, wählen Sie oben `Kinder bei anderen OGS`.",
+        "Unter `Ihre Kinder in Ferienwochen anderer OGS` steht jedes Kind mit Woche, `Betreut von`, Zeitmodell und Status.",
+        "Mit `Akte öffnen` öffnen Sie die Kinderakte des Kindes.",
+      ],
+      result:
+        "Sie wissen, welche Kinder in den Ferien woanders betreut werden, wann und in welcher Zeit. So können Sie planen und die Familien informieren.",
+      notes: [
+        "`Läuft gerade` heißt: Die Woche hat begonnen. `Bestätigt` heißt: Die Woche kommt noch.",
+        "Gesundheitsangaben und Kontakte sehen Sie hier nicht. Die hat die OGS, die das Kind betreut.",
+        "Jeder Abruf mit Kindern steht im Zugriffsprotokoll Ihrer OGS.",
+      ],
+      differences: [
+        "Richtet Ihre OGS keine Ferienwoche aus, gibt es keine Reiter. Die Seite zeigt dann nur diese Kinder.",
+        "Nach dem letzten Tag der Woche steht das Kind nicht mehr hier.",
+      ],
+      troubleshootingDetails: [
+        "Fehlt ein Kind? Offene und abgesagte Anmeldungen und Plätze auf der Warteliste stehen hier nicht. Fragen Sie beim Träger nach.",
+        "Steht bei einem Kind `Nicht zugeordnet`? Dann passen Vorname, Nachname oder Geburtsdatum zu keinem Kind in moto oder zu mehreren. Prüfen Sie die Kinderakte oder bitten Sie den Träger, die Anmeldung zu ändern.",
+      ],
+      related: [HELP_TOPICS.leadHolidayWeeks],
+    };
+  } satisfies typeof authored_holidayHomeSchoolChildrenTopic;
+
+/**
  * `/ferienwochen` (#4665): die bestätigten Kinder der Ferienwochen, die die
  * OGS für ihren Träger ausrichtet, nur bis zum letzten Tag der Woche. Dazu
  * die freigegebenen Antworten und die zweite sorgeberechtigte Person (#5202)
@@ -3419,6 +3468,7 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
       "In der Kinderakte steht unter `Angaben aus der Ferienanmeldung`, was die Eltern angegeben haben: Betreuung, Notfall, Abholung und Gesundheit. Die Stammdaten des Kindes ändern sich nicht.",
       "Ändern Sie an einem eingeplanten Tag die Abholzeit, bleibt Ihre Zeit stehen.",
       "E-Mail-Adressen sehen Sie nicht. Sie bleiben beim Träger.",
+      "Kinder Ihrer OGS, die in den Ferien eine andere OGS betreut, stehen im Reiter `Kinder bei anderen OGS`.",
       "Jeder Abruf und jede Datei wird im Zugriffsprotokoll Ihrer OGS vermerkt.",
     ],
     differences: [
@@ -3433,6 +3483,7 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
     ],
     related: [
       HELP_TOPICS.leadHolidayGuestGroup,
+      HELP_TOPICS.leadHolidayHomeSchoolChildren,
       HELP_TOPICS.leadStatistics,
       HELP_TOPICS.leadExports,
     ],

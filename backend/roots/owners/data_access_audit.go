@@ -161,6 +161,9 @@ func (a holidayGuestAccessLog) RecordHolidayGuestAccess(ctx context.Context, acc
 		studentID := access.StudentID
 		entry.ResourceType, entry.StudentID = auditModels.ResourceTypeHolidayStudentRegistration, &studentID
 		entry.Metadata = map[string]any{"week_ids": access.WeekIDs}
+	case enrollmentOwner.HolidayGuestAccessHomeSchool:
+		entry.ResourceType = auditModels.ResourceTypeHolidayHomeSchoolBookings
+		entry.Metadata = map[string]any{"week_ids": access.WeekIDs, "children": access.Guests}
 	default:
 		entry.ResourceType = auditModels.ResourceTypeHolidayGuestTransfer
 		entry.Metadata["guests"] = access.Guests

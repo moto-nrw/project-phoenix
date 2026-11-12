@@ -650,6 +650,88 @@ export async function fetchHolidayOwnChildAssignments(
   }));
 }
 
+// ─── Eigene Kinder in Ferienwochen anderer OGS (#6679) ──────────────────────
+
+/**
+ * Die bestätigte Ferienbuchung eines Kindes dieser OGS in einer Woche, die
+ * eine andere OGS desselben Trägers ausrichtet. Ohne Gesundheitsangaben und
+ * Kontakte: Die Heimatschule plant damit und informiert die Familie.
+ */
+export interface HolidayHomeSchoolBooking {
+  /** Das Kind der Anmeldung beim Träger. */
+  readonly childId: string;
+  readonly firstName: string;
+  readonly lastName: string;
+  /** Geburtsdatum als „YYYY-MM-DD“. */
+  readonly birthDate: string;
+  readonly weekId: string;
+  readonly periodName: string;
+  /** Kalendertage der Ferienwoche als „YYYY-MM-DD“. */
+  readonly startsOn: string;
+  readonly endsOn: string;
+  readonly hostSchoolId: string;
+  readonly hostSchoolName: string;
+  readonly timeModelName: string;
+  readonly timeModelStartsAt: string;
+  readonly timeModelEndsAt: string;
+  /** Gebuchte Tage einer tageweise gebuchten Woche; leer: ganze Woche. */
+  readonly days: readonly string[];
+  readonly assignment: HolidayOwnChildAssignmentState;
+  /** Die Kinderakte, wenn genau ein Kind der OGS passt. */
+  readonly studentId: string | null;
+}
+
+/**
+ * Die eigenen Kinder in Ferienwochen anderer OGS, bis zum letzten Tag der
+ * Woche. Jeder Abruf mit Kindern steht im Zugriffsprotokoll.
+ */
+export async function fetchHolidayHomeSchoolBookings(): Promise<
+  HolidayHomeSchoolBooking[]
+> {
+  const entries = await readData<
+    | {
+        child_id: number | string;
+        first_name: string;
+        last_name: string;
+        birth_date: string;
+        week_id: number | string;
+        period_name: string;
+        starts_on: string;
+        ends_on: string;
+        host_school_id: number | string;
+        host_school_name: string;
+        time_model_name: string;
+        time_model_starts_at: string;
+        time_model_ends_at: string;
+        days?: string[] | null;
+        assignment: HolidayOwnChildAssignmentState;
+        student_id?: number | string | null;
+      }[]
+    | null
+  >(
+    `${BASE}/home-school-children`,
+    "Die Kinder in Ferienwochen anderer OGS konnten nicht geladen werden",
+  );
+  return (entries ?? []).map((entry) => ({
+    childId: String(entry.child_id),
+    firstName: entry.first_name,
+    lastName: entry.last_name,
+    birthDate: entry.birth_date,
+    weekId: String(entry.week_id),
+    periodName: entry.period_name,
+    startsOn: entry.starts_on,
+    endsOn: entry.ends_on,
+    hostSchoolId: String(entry.host_school_id),
+    hostSchoolName: entry.host_school_name,
+    timeModelName: entry.time_model_name,
+    timeModelStartsAt: entry.time_model_starts_at,
+    timeModelEndsAt: entry.time_model_ends_at,
+    days: entry.days ?? [],
+    assignment: entry.assignment,
+    studentId: optionalId(entry.student_id ?? null),
+  }));
+}
+
 /**
  * Was eine bestätigte Ferienanmeldung zu Betreuung, Notfall und Abholung
  * eines eigenen Kindes angibt, für eine Woche, die die Schule ausrichtet.
