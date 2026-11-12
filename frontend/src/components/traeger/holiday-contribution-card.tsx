@@ -48,12 +48,7 @@ export function HolidayContributionCard({
   };
   return (
     <SectionCard
-      leading={
-        <ConceptIconTile
-          concept={contributionsConcept}
-          className="max-sm:hidden"
-        />
-      }
+      leading={<ConceptIconTile concept={contributionsConcept} />}
       title="Ferienbeitrag"
       description={description(contribution, registration)}
     >

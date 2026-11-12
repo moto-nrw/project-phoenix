@@ -481,12 +481,7 @@ export default function TraegerVertragPage() {
                 </DataGrid>
               </SectionCard>
               <SectionCard
-                leading={
-                  <ConceptIconTile
-                    concept={careTimesConcept}
-                    className="max-sm:hidden"
-                  />
-                }
+                leading={<ConceptIconTile concept={careTimesConcept} />}
                 title="Gebuchte Betreuung"
                 description={
                   contract.versions.length > 1

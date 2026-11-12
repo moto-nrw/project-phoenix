@@ -69,9 +69,7 @@ export function HolidayRegistrationProofCard({
 
   return (
     <SectionCard
-      leading={
-        <ConceptIconTile concept={documentsConcept} className="max-sm:hidden" />
-      }
+      leading={<ConceptIconTile concept={documentsConcept} />}
       title="Nachweis für den Leistungsbezug"
       actions={
         canUpload ? (

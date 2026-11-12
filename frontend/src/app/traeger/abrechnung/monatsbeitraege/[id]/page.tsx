@@ -470,12 +470,7 @@ export default function TraegerCareRunPage() {
             </>
           ) : null}
           <SectionCard
-            leading={
-              <ConceptIconTile
-                concept={billingConcept}
-                className="max-sm:hidden"
-              />
-            }
+            leading={<ConceptIconTile concept={billingConcept} />}
             title="Monatslauf"
             description={
               preview

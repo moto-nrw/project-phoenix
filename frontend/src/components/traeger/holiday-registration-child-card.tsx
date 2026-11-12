@@ -147,9 +147,7 @@ export function HolidayRegistrationChildCard({
 
   return (
     <SectionCard
-      leading={
-        <ConceptIconTile concept={childrenConcept} className="max-sm:hidden" />
-      }
+      leading={<ConceptIconTile concept={childrenConcept} />}
       title={`${child.firstName} ${child.lastName}`}
       description={`Geboren am ${formatDate(child.birthDate)}, ${childSchoolLabel(child, names)}`}
       footer={

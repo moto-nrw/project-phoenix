@@ -105,12 +105,7 @@ export function HolidayRegistrationHistory({
 }>) {
   return (
     <SectionCard
-      leading={
-        <ConceptIconTile
-          concept={changeHistoryConcept}
-          className="max-sm:hidden"
-        />
-      }
+      leading={<ConceptIconTile concept={changeHistoryConcept} />}
       title="Verlauf"
     >
       {registration.history.length === 0 ? (

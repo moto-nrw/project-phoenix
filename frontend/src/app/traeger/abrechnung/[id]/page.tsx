@@ -397,12 +397,7 @@ export default function TraegerBillingRunPage() {
       {run ? (
         <>
           <SectionCard
-            leading={
-              <ConceptIconTile
-                concept={billingConcept}
-                className="max-sm:hidden"
-              />
-            }
+            leading={<ConceptIconTile concept={billingConcept} />}
             title="Abrechnungslauf"
             description={runDescription(run)}
             actions={

@@ -254,12 +254,7 @@ export default function TraegerBillingFamilyPage() {
         <>
           <BillingAmountCards amounts={family} />
           <SectionCard
-            leading={
-              <ConceptIconTile
-                concept={billingConcept}
-                className="max-sm:hidden"
-              />
-            }
+            leading={<ConceptIconTile concept={billingConcept} />}
             title="Empfänger und Zahlung"
             description="An diese Adresse gehen die Schreiben. Wer zahlt und der Zahlungsweg stehen auf jeder Rechnung."
           >
@@ -307,12 +302,7 @@ export default function TraegerBillingFamilyPage() {
             </DataGrid>
           </SectionCard>
           <SectionCard
-            leading={
-              <ConceptIconTile
-                concept={documentsConcept}
-                className="max-sm:hidden"
-              />
-            }
+            leading={<ConceptIconTile concept={documentsConcept} />}
             title="Dokumente"
             description="Neueste Dokumente zuerst. Jede Zeile öffnet den Abrechnungslauf."
           >

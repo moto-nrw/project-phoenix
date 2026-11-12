@@ -420,12 +420,7 @@ export default function TraegerHolidayRegistrationPage() {
           />
           {contribution?.siblings?.length ? (
             <SectionCard
-              leading={
-                <ConceptIconTile
-                  concept={childrenConcept}
-                  className="max-sm:hidden"
-                />
-              }
+              leading={<ConceptIconTile concept={childrenConcept} />}
               title="Geschwister"
               description="Die Kinder dieser Anmeldungen zählen beim Ferienbeitrag zusammen. Welches Kind das 1. Kind ist, steht in den Einstellungen unter Allgemein im Bereich Ferienbetreuung."
               action={
@@ -506,12 +501,7 @@ export default function TraegerHolidayRegistrationPage() {
             />
           ) : (
             <SectionCard
-              leading={
-                <ConceptIconTile
-                  concept={parentsConcept}
-                  className="max-sm:hidden"
-                />
-              }
+              leading={<ConceptIconTile concept={parentsConcept} />}
               title="Eltern"
               description={cancelled ? CANCELLED_EDIT_TEXT : undefined}
               action={editAction("guardians", "Angaben der Eltern ändern")}
@@ -550,12 +540,7 @@ export default function TraegerHolidayRegistrationPage() {
           <HolidayDeclarationTextsCard registration={registration} />
           {registration.secondGuardian && editing !== "guardians" ? (
             <SectionCard
-              leading={
-                <ConceptIconTile
-                  concept={parentsConcept}
-                  className="max-sm:hidden"
-                />
-              }
+              leading={<ConceptIconTile concept={parentsConcept} />}
               title="Zweite sorgeberechtigte Person"
               action={editAction(
                 "guardians",
@@ -641,12 +626,7 @@ export default function TraegerHolidayRegistrationPage() {
           ) : null}
           {registration.form.legalBlocks?.some((block) => block.enabled) ? (
             <SectionCard
-              leading={
-                <ConceptIconTile
-                  concept={confirmationsConcept}
-                  className="max-sm:hidden"
-                />
-              }
+              leading={<ConceptIconTile concept={confirmationsConcept} />}
               title="Hinweise und Einwilligungen"
             >
               <div className="space-y-4">
@@ -689,12 +669,7 @@ export default function TraegerHolidayRegistrationPage() {
             <ContactsEditor {...editorProps} />
           ) : (
             <SectionCard
-              leading={
-                <ConceptIconTile
-                  concept={pickupConcept}
-                  className="max-sm:hidden"
-                />
-              }
+              leading={<ConceptIconTile concept={pickupConcept} />}
               title="Notfallkontakte und Abholung"
               action={editAction(
                 "contacts",

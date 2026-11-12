@@ -575,12 +575,7 @@ export function HolidayRegistrationStatusCard({
   ) : undefined;
   return (
     <SectionCard
-      leading={
-        <ConceptIconTile
-          concept={enrollmentsConcept}
-          className="max-sm:hidden"
-        />
-      }
+      leading={<ConceptIconTile concept={enrollmentsConcept} />}
       title="Status"
       footer={actions}
     >

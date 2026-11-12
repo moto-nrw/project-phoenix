@@ -120,9 +120,7 @@ function MasterDataTab({
   return (
     <>
       <SectionCard
-        leading={
-          <ConceptIconTile concept={schoolsConcept} className="max-sm:hidden" />
-        }
+        leading={<ConceptIconTile concept={schoolsConcept} />}
         title="Anschrift und Kontakt"
         description="Nur zum Lesen. Änderungen übernimmt das moto-Team."
         loading={school === null}

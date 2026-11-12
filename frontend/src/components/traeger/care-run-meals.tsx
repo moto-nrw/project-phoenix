@@ -170,9 +170,7 @@ export function CareRunMealsCard({
   }
   return (
     <SectionCard
-      leading={
-        <ConceptIconTile concept={mealPlanConcept} className="max-sm:hidden" />
-      }
+      leading={<ConceptIconTile concept={mealPlanConcept} />}
       title="Mensa"
       titleBadge={
         <span className="text-moto-orange-strong text-sm font-medium">
