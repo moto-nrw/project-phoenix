@@ -9,7 +9,7 @@
 import { Alert } from "~/components/ui/alert";
 import { useStaffHasTarget } from "~/lib/hooks/use-staff-has-target";
 
-/** Reiter des Personaldatensatzes, in dem das Soll gepflegt wird. */
+/** Reiter der Personalakte, in dem das Soll gepflegt wird. */
 export function workTimeModelPath(staffId: string): string {
   return `/staff/${staffId}?tab=arbeitszeitmodell`;
 }
@@ -55,7 +55,7 @@ export function MissingTargetDialogNotice({
       announce="polite"
       message={`Für ${staffName} ist kein Soll hinterlegt. ${entryLabel} zählt deshalb 0 Stunden. Gilt später ein Soll ab diesem Tag, rechnet moto die Stunden nach. ${
         canSetTarget
-          ? "Das Soll legen Sie im Personaldatensatz unter „Arbeitszeitmodell“ fest."
+          ? "Das Soll legen Sie in der Personalakte unter „Arbeitszeitmodell“ fest."
           : MISSING_TARGET_OWNER
       }`}
     />

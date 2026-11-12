@@ -41,7 +41,7 @@ describe("MissingTargetDialogNotice", () => {
     expect(
       screen.getByText(/Für Ben Brandt ist kein Soll hinterlegt\./),
     ).toHaveTextContent(
-      "Die Krankmeldung zählt deshalb 0 Stunden. Gilt später ein Soll ab diesem Tag, rechnet moto die Stunden nach. Das Soll legen Sie im Personaldatensatz unter „Arbeitszeitmodell“ fest.",
+      "Die Krankmeldung zählt deshalb 0 Stunden. Gilt später ein Soll ab diesem Tag, rechnet moto die Stunden nach. Das Soll legen Sie in der Personalakte unter „Arbeitszeitmodell“ fest.",
     );
     expect(mocks.args).toEqual(["7", "2026-09-09", true]);
   });
