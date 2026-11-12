@@ -200,6 +200,7 @@ describe("Träger catalog requests (#4704)", () => {
           school_id: 11,
           action: "update",
           outcome: "ready",
+          care_beyond_end: 2,
           phase: [
             { field: "name", state: "keeps", traeger: "Neu", school: "Eigen" },
           ],
@@ -220,6 +221,7 @@ describe("Träger catalog requests (#4704)", () => {
     expect(preview.schools[0]).toMatchObject({
       schoolId: "11",
       errorCode: null,
+      careBeyondEnd: 2,
       phase: [
         { field: "name", state: "keeps", traeger: "Neu", school: "Eigen" },
       ],
@@ -242,7 +244,7 @@ describe("Träger catalog requests (#4704)", () => {
       },
     );
     expect(rollout.schools).toEqual([
-      { schoolId: "11", outcome: "stale", errorCode: null },
+      { schoolId: "11", outcome: "stale", errorCode: null, careBeyondEnd: 0 },
     ]);
   });
 });

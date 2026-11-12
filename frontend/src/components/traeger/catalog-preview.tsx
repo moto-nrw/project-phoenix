@@ -48,6 +48,15 @@ function schoolUnchanged(plan: TraegerSchoolPlan): boolean {
 
 const KEEPS_TEXT = "Die Schule hat geändert – bleibt so";
 
+/**
+ * Die Kürzung beendet keine Betreuung (#6813, ADR 0211): das Büro erfährt,
+ * wie viele Kinder länger betreut werden, und sagt der Schule Bescheid.
+ */
+export function careBeyondEndText(count: number): string {
+  const children = count === 1 ? "1 Kind wird" : `${count} Kinder werden`;
+  return `${children} länger betreut, als die Anmeldephase dauert. moto beendet keine Betreuung. Sagen Sie der Schule Bescheid.`;
+}
+
 function schoolName(
   schools: readonly TraegerSchool[],
   schoolId: string,
@@ -181,6 +190,12 @@ export function SchoolPlanCard({
             message={`${refusalText(plan.errorCode) ?? "Die Schule kann die Angaben so nicht übernehmen."} Diese Schule behält ihren bisherigen Stand.`}
           />
         ) : null}
+        {!rejected && plan.careBeyondEnd > 0 ? (
+          <Alert
+            type="warning"
+            message={careBeyondEndText(plan.careBeyondEnd)}
+          />
+        ) : null}
         <div className="space-y-2">
           <SectionLabel as="h4">Anmeldephase</SectionLabel>
           <Changes changes={plan.phase} action={plan.action} label="phase" />
@@ -227,6 +242,7 @@ export function RolloutResultCard({
         if (row.outcome === "stale") {
           return "Die Schule hat seit der Vorschau etwas geändert. Sehen Sie sich die Vorschau noch einmal an.";
         }
+        if (row.careBeyondEnd > 0) return careBeyondEndText(row.careBeyondEnd);
         return "–";
       },
       stacked: "field",
