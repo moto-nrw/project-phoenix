@@ -216,8 +216,14 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"POST /traeger/holiday-registrations/link-key ",
 		"GET /traeger/holiday-periods/5/registrations Bearer traeger-token",
 		"PUT /traeger/settings/values/parent_billing.debtor_number_on_confirm Bearer traeger-token",
+		// A second seed run finds the five-digit format still on (#6675).
+		"PUT /traeger/settings/values/parent_billing.debtor_number_digits_only Bearer traeger-token",
 		"PUT /traeger/settings/values/parent_billing.payment_text Bearer traeger-token",
 		"POST /traeger/holiday-contributions/5/registrations/9/confirm Bearer traeger-token",
+		// From now on debtor numbers have five digits (#6675).
+		"PUT /traeger/settings/values/parent_billing.debtor_number_digits_only Bearer traeger-token",
+		"PUT /traeger/settings/values/parent_billing.debtor_number_min_digits Bearer traeger-token",
+		"PUT /traeger/settings/values/parent_billing.debtor_number_max_digits Bearer traeger-token",
 		// The Träger-Büro corrects the confirmed registration (#5629).
 		"PUT /traeger/holiday-periods/5/registrations/9/details Bearer traeger-token",
 		"POST /traeger/cost-bearers/ Bearer traeger-token",
@@ -239,6 +245,15 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"POST /traeger/holiday-registrations/link-key ",
 		"GET /traeger/holiday-periods/5/registrations Bearer traeger-token",
 		"PUT /traeger/holiday-periods/5/registrations/13/children/131/holiday-wish Bearer traeger-token",
+		// A holiday family is remembered with its debtor number and registers
+		// again; the Abrechnung sets the number of another family (#6692).
+		"POST /traeger/holiday-registrations/link-key ",
+		"POST /traeger/holiday-contributions/5/registrations/15/confirm Bearer traeger-token",
+		"POST /traeger/holiday-registrations/link-key ",
+		"POST /traeger/holiday-registrations/link-key ",
+		"POST /traeger/holiday-contributions/5/registrations/17/confirm Bearer traeger-token",
+		"POST /traeger/holiday-registrations/link-key ",
+		"PUT /traeger/billing-families/debtor-number Bearer traeger-token",
 		"PUT /traeger/number-ranges/holiday Bearer traeger-token",
 		// The Abrechnung chooses the kind of document (#4688).
 		"PUT /traeger/billing-document-kinds/holiday Bearer traeger-token",
@@ -256,11 +271,11 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"reason": "Am ersten Ferientag krank, Tag wird erstattet."}, correction, "the Abrechnung lowers one child with a reason")
 	assert.Equal(t, map[string]any{"document_count": float64(1), "total_cents": float64(11250), "fingerprint": "geprueft"}, release,
 		"the release names the preview it checked")
-	assert.Equal(t, map[string]any{"benefits_exemption": false, "debtor_number": "10 4711"}, confirmation,
-		"the Träger-Büro asks for the debtor number and confirms the siblings with theirs (#5621)")
+	assert.Equal(t, map[string]any{"benefits_exemption": false, "debtor_number": "10 4711", "family_debtor_number": "keep"}, confirmation,
+		"the Träger-Büro asks for the debtor number and confirms the siblings with theirs (#5621); the family keeps its own (#6692)")
 	assert.Equal(t, "Fachdienst Jugend des Landkreises Musterstadt", costBearer["name"], "the Abrechnung keeps an invented cost bearer (#5627)")
 	assert.Equal(t, true, costBearer["active"])
-	assert.Equal(t, map[string]any{"benefits_exemption": false, "cost_bearer_id": float64(7), "debtor_number": "10 4712"}, takeover,
+	assert.Equal(t, map[string]any{"benefits_exemption": false, "cost_bearer_id": float64(7), "debtor_number": "10472"}, takeover,
 		"the Träger-Büro confirms the second registration with the cost takeover by that cost bearer (#5627)")
 	weeks, ok := period["weeks"].([]any)
 	require.True(t, ok)
@@ -268,7 +283,10 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 	assert.Equal(t, float64(31), weeks[0].(map[string]any)["host_school_id"])
 	assert.Equal(t, float64(31), weeks[1].(map[string]any)["host_school_id"], "the profile's school hosts both weeks, never the manual test school")
 	assert.Equal(t, map[string]any{"capacity": float64(3)}, capacity, "the week holds as many places as it has children with a place")
-	require.Len(t, registrations, 6)
+	require.Len(t, registrations, 10)
+	holidayFamily := []any{registrations[6]["guardian"].(map[string]any)["email"], registrations[7]["guardian"].(map[string]any)["email"]}
+	assert.Equal(t, []any{"petra.sommer@example.org", "Petra.Sommer@example.org"}, holidayFamily,
+		"the holiday family registers twice under one address in another case (#6692)")
 	registration := registrations[0]
 	children, ok := registration["children"].([]any)
 	require.True(t, ok)

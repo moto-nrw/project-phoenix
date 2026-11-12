@@ -50,6 +50,8 @@ type TermsStore interface {
 	// DeleteFamilyBilling removes a deviation by its ID or, with id zero, by
 	// its family; it answers the deviation it removed, nil for none.
 	DeleteFamilyBilling(ctx context.Context, organizationID, id int64, familyEmail string) (*parentbilling.FamilyBilling, error)
+	// FamilyBillingOf reads the row of a family, nil without one.
+	FamilyBillingOf(ctx context.Context, organizationID int64, familyEmail string) (*parentbilling.FamilyBilling, error)
 	// ReplaceRunDueDates replaces the due dates of a run; the database
 	// refuses it for a released run.
 	ReplaceRunDueDates(ctx context.Context, organizationID, accountID, careRunID, holidayRunID int64, dates parentbilling.RunDueDates) error
@@ -62,16 +64,18 @@ type TermsStore interface {
 type BillingTerms struct {
 	store     TermsStore
 	contracts parentbilling.CareContracts
+	formats   parentbilling.DebtorNumberFormats
 }
 
 var _ parentbilling.BillingTerms = (*BillingTerms)(nil)
 
-// NewBillingTerms builds the terms.
-func NewBillingTerms(store TermsStore, contracts parentbilling.CareContracts) *BillingTerms {
-	if store == nil || contracts == nil {
-		panic("parent billing: the store and the care contracts are required")
+// NewBillingTerms builds the terms; a family's debtor number has the
+// format of the Träger (#6675).
+func NewBillingTerms(store TermsStore, contracts parentbilling.CareContracts, formats parentbilling.DebtorNumberFormats) *BillingTerms {
+	if store == nil || contracts == nil || formats == nil {
+		panic("parent billing: the store, the care contracts and the debtor number format are required")
 	}
-	return &BillingTerms{store: store, contracts: contracts}
+	return &BillingTerms{store: store, contracts: contracts, formats: formats}
 }
 
 // ServiceTerms answers the terms of every service, the defaults where the
@@ -166,13 +170,11 @@ func (t *BillingTerms) ListFamilyBilling(ctx context.Context, reviewer parentbil
 
 // SaveFamilyBilling validates the deviation and stores it for the family of
 // the contract. A deviation that deviates in nothing removes the stored one,
-// so the family falls back to the registration and the terms.
+// so the family falls back to the registration and the terms; a family the
+// holiday care knows keeps its row without the deviation (#6692), so its
+// parent and its period stay.
 func (t *BillingTerms) SaveFamilyBilling(ctx context.Context, reviewer parentbilling.HolidayReviewer, input parentbilling.FamilyBillingInput) (*parentbilling.FamilyBilling, error) {
 	if err := validReviewer(reviewer); err != nil {
-		return nil, err
-	}
-	family, err := normalizeFamilyBilling(input)
-	if err != nil {
 		return nil, err
 	}
 	if input.ContractID <= 0 {
@@ -186,19 +188,25 @@ func (t *BillingTerms) SaveFamilyBilling(ctx context.Context, reviewer parentbil
 	if key == "" {
 		return nil, parentbilling.ErrFamilyUnknown
 	}
+	stored, err := t.store.FamilyBillingOf(ctx, reviewer.OrganizationID, key)
+	if err != nil {
+		return nil, err
+	}
+	format, err := debtorNumberFormatOf(ctx, t.formats, reviewer.OrganizationID)
+	if err != nil {
+		return nil, err
+	}
+	// Existing numbers keep their format when only recipient or payment changes.
+	if stored != nil && strings.TrimSpace(input.DebtorNumber) == stored.DebtorNumber {
+		format = parentbilling.DebtorNumberFormat{}
+	}
+	family, err := normalizeFamilyBilling(input, format)
+	if err != nil {
+		return nil, err
+	}
 	family.FamilyEmail, family.ContractID = key, input.ContractID
-	if !deviates(family) {
-		removed, err := t.store.DeleteFamilyBilling(ctx, reviewer.OrganizationID, 0, key)
-		if err != nil {
-			return nil, err
-		}
-		if removed != nil {
-			if err := t.store.InsertFamilyBillingEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingDelete,
-				[]parentbilling.FamilyBilling{*removed}); err != nil {
-				return nil, fmt.Errorf("parent billing: record the family billing: %w", err)
-			}
-		}
-		return nil, nil
+	if !deviates(family) && (stored == nil || stored.LastUsedOn == nil) {
+		return nil, t.removeFamilyBilling(ctx, reviewer, key)
 	}
 	saved, err := t.store.SaveFamilyBilling(ctx, reviewer.OrganizationID, reviewer.AccountID, family)
 	if err != nil {
@@ -211,22 +219,24 @@ func (t *BillingTerms) SaveFamilyBilling(ctx context.Context, reviewer parentbil
 	return &saved, nil
 }
 
+// removeFamilyBilling removes the row of a family that deviates in nothing
+// and records the removal in its trail.
+func (t *BillingTerms) removeFamilyBilling(ctx context.Context, reviewer parentbilling.HolidayReviewer, key string) error {
+	removed, err := t.store.DeleteFamilyBilling(ctx, reviewer.OrganizationID, 0, key)
+	if err != nil || removed == nil {
+		return err
+	}
+	if err := t.store.InsertFamilyBillingEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingDelete,
+		[]parentbilling.FamilyBilling{*removed}); err != nil {
+		return fmt.Errorf("parent billing: record the family billing: %w", err)
+	}
+	return nil
+}
+
 // deviates tells whether a deviation changes anything.
 func deviates(family parentbilling.FamilyBilling) bool {
 	return family.RecipientKind != parentbilling.RecipientApplicant || family.PaymentMethod != "" || family.DueDay != nil ||
 		family.DebtorNumber != ""
-}
-
-// MaxDebtorNumberLength bounds a debtor number like the holiday one (#5621).
-const MaxDebtorNumberLength = 35
-
-// checkDebtorNumber refuses a debtor number that is too long or has a line
-// break; the format the finance system wants is checked by its export.
-func checkDebtorNumber(number string) error {
-	if len([]rune(number)) > MaxDebtorNumberLength || strings.ContainsAny(number, "\r\n") {
-		return fmt.Errorf("must be at most %d characters without a line break", MaxDebtorNumberLength)
-	}
-	return nil
 }
 
 // DeleteFamilyBilling removes a deviation; a missing one is
@@ -257,13 +267,14 @@ var postalCodePattern = regexp.MustCompile(`^[0-9]{5}$`)
 // normalizeFamilyBilling trims the input and checks that a kind brings the
 // names it needs: both parents a second name, another payer a name, a mail
 // address and a postal address.
-func normalizeFamilyBilling(input parentbilling.FamilyBillingInput) (parentbilling.FamilyBilling, error) {
-	family := parentbilling.FamilyBilling{RecipientKind: input.RecipientKind, PaymentMethod: input.PaymentMethod, DueDay: input.DueDay,
-		DebtorNumber: strings.TrimSpace(input.DebtorNumber)}
+func normalizeFamilyBilling(input parentbilling.FamilyBillingInput, format parentbilling.DebtorNumberFormat) (parentbilling.FamilyBilling, error) {
+	family := parentbilling.FamilyBilling{RecipientKind: input.RecipientKind, PaymentMethod: input.PaymentMethod, DueDay: input.DueDay}
 	errs := validation.Errors{}
-	if err := checkDebtorNumber(family.DebtorNumber); err != nil {
+	number, err := parentbilling.NormalizeDebtorNumber(input.DebtorNumber, format)
+	if err != nil {
 		errs["debtor_number"] = err
 	}
+	family.DebtorNumber = number
 	switch input.RecipientKind {
 	case parentbilling.RecipientApplicant:
 	case parentbilling.RecipientBoth:
@@ -522,11 +533,18 @@ func (p invoicePayments) careInvoice(invoice *parentbilling.CareInvoice, issuedO
 	invoice.Payment = &payment
 }
 
-// holidayDocument sets the recipient and the payment of a holiday invoice;
-// the registration's address stays for both parents.
+// holidayDocument sets the recipient, the debtor number and the payment of
+// a holiday invoice; the registration's address stays for both parents.
+// The registration's debtor number wins; without one the invoice takes the
+// family's, as the monthly invoice does (#6677). Every later reader (letter,
+// overview for the Kämmerei, Sollstellung, DATEV) reads the copy the release
+// stores, so this is the one place that falls back.
 func (p invoicePayments) holidayDocument(document *parentbilling.BillingDocument, issuedOn calendar.Date) {
 	document.FamilyEmail = parentbilling.FamilyKey(document.RecipientEmail)
 	family := p.family(document.FamilyEmail)
+	if document.DebtorNumber == "" && family != nil {
+		document.DebtorNumber = family.DebtorNumber
+	}
 	recipient := parentbilling.ResolveRecipient(parentbilling.BillingRecipient{FirstName: document.RecipientFirstName,
 		LastName: document.RecipientLastName, Email: document.RecipientEmail, Address: document.RecipientAddress}, family)
 	document.RecipientFirstName, document.RecipientLastName, document.RecipientEmail = recipient.FirstName, recipient.LastName, recipient.Email
