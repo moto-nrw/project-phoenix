@@ -748,17 +748,31 @@ describe("FerienwochenPage", () => {
       expect(participantsMock).not.toHaveBeenCalled();
     });
 
-    it("counts a child booked for two weeks once", async () => {
+    it("counts each child once and dates the status by its booked days", async () => {
       weeksMock.mockResolvedValue([]);
       homeSchoolMock.mockResolvedValue([
-        running,
-        { ...upcoming, childId: running.childId },
+        // Tom nur am Donnerstag dieser Woche und dazu eine zweite Woche.
+        { ...running, days: ["2026-09-10"] },
+        {
+          ...running,
+          weekId: "72",
+          startsOn: "2026-10-12",
+          endsOn: "2026-10-16",
+        },
+        // Ida nur am Montag dieser Woche: Der Tag ist vorbei.
+        { ...running, childId: "903", firstName: "Ida", days: ["2026-09-07"] },
       ]);
 
       renderPage();
 
+      await screen.findByText("Ihre Kinder in Ferienwochen anderer OGS");
+      const table = tableWith("Betreut von");
+      expect(within(table).getByText("Ab 10.09.")).toBeInTheDocument();
+      expect(within(table).getByText("Ab 12.10.")).toBeInTheDocument();
+      expect(within(table).getByText("Vorbei")).toBeInTheDocument();
+      expect(within(table).queryByText("Läuft gerade")).not.toBeInTheDocument();
       expect(
-        await screen.findByText("1 Kind bei anderen OGS · 2 Ferienwochen"),
+        screen.getByText("2 Kinder bei anderen OGS · 2 Ferienwochen"),
       ).toBeInTheDocument();
     });
 
@@ -795,7 +809,7 @@ describe("FerienwochenPage", () => {
 
       expect(
         await screen.findByText(
-          "Kein Kind Ihrer OGS ist bei einer anderen OGS angemeldet",
+          "Kein Kind Ihrer OGS ist für eine andere OGS bestätigt",
         ),
       ).toBeInTheDocument();
       expect(

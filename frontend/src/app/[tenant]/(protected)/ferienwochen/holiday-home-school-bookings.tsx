@@ -17,16 +17,23 @@ function weekRange(booking: HolidayHomeSchoolBooking): string {
   return `${formatDate(booking.startsOn).slice(0, 6)} bis ${formatDate(booking.endsOn)}`;
 }
 
-/** Ob die Woche heute läuft oder noch kommt; vorbei ist sie hier nie. */
+/**
+ * Ob die Betreuung heute läuft, noch kommt oder schon vorbei ist. Bei
+ * einzelnen Tagen zählen der erste und der letzte gebuchte Tag, nicht die
+ * Woche: Wer nur Donnerstag gebucht hat, ist am Montag noch in der eigenen
+ * OGS.
+ */
 function statusBadge(booking: HolidayHomeSchoolBooking, today: string) {
-  return booking.startsOn <= today ? (
-    <StatusBadge tone="green" label="Läuft gerade" />
-  ) : (
-    <StatusBadge
-      tone="blue"
-      label={`Ab ${formatDate(booking.startsOn).slice(0, 6)}`}
-    />
-  );
+  const days = [...booking.days].sort();
+  const first = days[0] ?? booking.startsOn;
+  const last = days.at(-1) ?? booking.endsOn;
+  if (today < first) {
+    return (
+      <StatusBadge tone="blue" label={`Ab ${formatDate(first).slice(0, 6)}`} />
+    );
+  }
+  if (today > last) return <StatusBadge tone="gray" label="Vorbei" />;
+  return <StatusBadge tone="green" label="Läuft gerade" />;
 }
 
 function columns(
@@ -153,7 +160,7 @@ export function HolidayHomeSchoolBookings({
           stackedOnMobile
           emptyState={
             <EmptyState
-              title="Kein Kind Ihrer OGS ist bei einer anderen OGS angemeldet"
+              title="Kein Kind Ihrer OGS ist für eine andere OGS bestätigt"
               description="Hier stehen Kinder Ihrer OGS, deren Anmeldung der Träger für eine andere OGS bestätigt hat. Offene oder abgesagte Anmeldungen und Plätze auf der Warteliste stehen hier nicht. Nach dem letzten Tag der Woche steht das Kind nicht mehr hier."
             />
           }

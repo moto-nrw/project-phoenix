@@ -347,10 +347,10 @@ export default function FerienwochenPage() {
   const stats = useMemo(() => {
     if (showHomeSchool) {
       if (!homeSchool.data || homeSchool.data.length === 0) return null;
-      const weekCount = new Set(homeSchool.data.map((child) => child.weekId))
-        .size;
-      // Ein Kind in mehreren Wochen ist ein Kind.
+      // Ein Kind in zwei Wochen ist ein Kind, nicht zwei.
       const children = new Set(homeSchool.data.map((child) => child.childId))
+        .size;
+      const weekCount = new Set(homeSchool.data.map((child) => child.weekId))
         .size;
       return `${childCount(children)} bei anderen OGS · ${
         weekCount === 1 ? "1 Ferienwoche" : `${weekCount} Ferienwochen`
@@ -394,7 +394,7 @@ export default function FerienwochenPage() {
                 ? HOME_SCHOOL_TAB
                 : (selectedWeek?.id ?? ""),
               onChange: setChosenWeek,
-              label: "Ferienwoche",
+              label: "Ansicht",
               items: [
                 ...weeks.data.map((week) => ({
                   value: week.id,

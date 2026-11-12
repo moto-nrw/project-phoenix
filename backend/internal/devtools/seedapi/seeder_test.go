@@ -1168,8 +1168,9 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			return
 		}
 		if r.URL.Path == "/api/holiday-weeks/home-school-children" {
-			// The demo school's child at the second school's week (#6679).
-			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"week_id":61,"student_id":71}]}`)
+			// The demo school's child at another school's week, assigned to
+			// its file (#6679).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"child_id":61,"week_id":52,"student_id":71}]}`)
 			return
 		}
 		if r.URL.Path == "/api/holiday-weeks/51/participants" {

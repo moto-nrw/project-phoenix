@@ -31,7 +31,7 @@ export function holidayHomeSchoolChildrenTopic(): HelpTopic {
     result:
       "Sie wissen, welche Kinder in den Ferien woanders betreut werden, wann und in welcher Zeit. So können Sie planen und die Familien informieren.",
     notes: [
-      "Unter Status steht `Läuft gerade`, wenn die Woche begonnen hat. Sonst steht dort, ab wann das Kind woanders betreut wird, zum Beispiel `Ab 04.01.`.",
+      "Unter Status steht, ab wann das Kind woanders betreut wird, zum Beispiel `Ab 04.01.`. Ab diesem Tag steht dort `Läuft gerade`. Hat die Familie nur einzelne Tage gebucht, zählen diese Tage. Nach dem letzten gebuchten Tag steht dort `Vorbei`, bis die Woche endet.",
       "Gesundheitsangaben und Kontakte sehen Sie hier nicht. Die hat die OGS, die das Kind betreut.",
       "Jeder Abruf mit Kindern steht im Zugriffsprotokoll Ihrer OGS.",
     ],
