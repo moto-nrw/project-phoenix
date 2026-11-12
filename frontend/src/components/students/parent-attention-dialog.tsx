@@ -120,7 +120,6 @@ function ConversationCard({
               size="compact"
               isLoading={confirming}
               loadingText="Wird bestätigt …"
-              disabled={conversation.lastShownId === null}
               onClick={onConfirm}
               tooltip="Das ganze Team sieht die Nachricht danach nicht mehr als neu."
             >

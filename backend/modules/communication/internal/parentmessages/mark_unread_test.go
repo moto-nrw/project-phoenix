@@ -351,6 +351,10 @@ func TestMarkUnread_DisabledSchoolShowsNoUnread(t *testing.T) {
 	onlyUnread, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), disabled.ListInbox, true)
 	require.NoError(t, err)
 	assert.Empty(t, onlyUnread)
+
+	// A stale card cannot confirm for the team either (#6486).
+	err = testpkg.TenantCommand2(t, ctx, f.db, disabled.MarkParentMessageThreadHandled, threadID, int64(1))
+	require.ErrorIs(t, err, messaging.ErrMessagingDisabled)
 }
 
 // "Als gelesen bestätigen" on the child card (#6486): one staff member confirms

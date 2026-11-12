@@ -96,6 +96,12 @@ func (s *Service) markHandled(ctx context.Context, threadID, handledUpToMessageI
 	if err != nil {
 		return err
 	}
+	// The card that offers the confirmation only exists while the school has
+	// parent messaging on; a stale tab of a school that switched it off gets
+	// the same refusal as a reply would.
+	if err := s.requireEnabled(ctx); err != nil {
+		return err
+	}
 	messages, err := s.MessageRepo.ListByThread(ctx, thread.ID, 0)
 	if err != nil {
 		return fmt.Errorf("messaging: list messages: %w", err)

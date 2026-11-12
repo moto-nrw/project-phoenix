@@ -74,15 +74,19 @@ function useParentAttentionMap(): ReadonlyMap<string, ParentAttention> | null {
     isAdmin(session) || hasPermission(session, "users:read");
   const { canReviewParentRequests, isLoading: accessLoading } =
     useChangeRequestAccess();
+  // Nachrichten und Anfragen hängen an getrennten Rechten: wer nur Anfragen
+  // entscheidet, sieht trotzdem deren Zahl.
   const key =
-    enabled && readsMessages && !accessLoading
-      ? messageKeys.parentAttention(canReviewParentRequests)
+    enabled && !accessLoading && (readsMessages || canReviewParentRequests)
+      ? messageKeys.parentAttention(readsMessages, canReviewParentRequests)
       : null;
   const { data, mutate } = useSWRAuth(
     key,
     async () => {
       const [threads, requests] = await Promise.all([
-        fetchInboxWithFilters({ onlyUnread: true }),
+        readsMessages
+          ? fetchInboxWithFilters({ onlyUnread: true })
+          : Promise.resolve([]),
         canReviewParentRequests ? fetchAllOpenRequests() : Promise.resolve([]),
       ]);
       return countParentAttention(threads, requests);

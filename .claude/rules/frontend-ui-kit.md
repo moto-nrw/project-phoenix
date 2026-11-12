@@ -190,7 +190,7 @@ Decided in #5529, enforced since #5531. Not up for renegotiation: if code cannot
 | `fab` | Floating create button, round, 56 px, green |
 | `dashed` | Dashed add surface |
 | `link_tone` | `ghost_tone` underlined |
-| `filter`, `segment`, `disclosure`, `day_chip(_stacked)` | Kit parts only (#6182) |
+| `filter`, `segment`, `disclosure`, `day_chip(_stacked)`, `count_badge` | Kit parts only (#6182, #6486) |
 
 **No grey buttons (#5574)**, no light-grey fill at rest. Value choice: `SegmentedControl`; on/off: `ToggleChip`; removal: `outline_danger`.
 
