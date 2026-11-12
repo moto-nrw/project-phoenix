@@ -326,6 +326,7 @@ function NotificationPreferencesSectionContent({
             <Button
               type="button"
               size="md"
+              tooltip={t("enableAllTooltip")}
               disabled={busy}
               isLoading={bulkEnabling}
               loadingText={t("enablingAll")}
@@ -339,6 +340,11 @@ function NotificationPreferencesSectionContent({
             type="button"
             variant="outline"
             size="md"
+            tooltip={
+              isParentPortal
+                ? t("disableAllTooltip")
+                : "Schaltet sofort alle Benachrichtigungen von moto für Sie aus."
+            }
             disabled={busy}
             onClick={() => void disableAll()}
           >

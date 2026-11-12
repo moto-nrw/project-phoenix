@@ -335,6 +335,7 @@ export function PushNotificationSection({
         type="button"
         size="md"
         aria-label={t("enable")}
+        tooltip={t("enableTooltip")}
         isLoading={busy}
         loadingText={t("enabling")}
         onClick={() => void enable()}
@@ -347,6 +348,7 @@ export function PushNotificationSection({
         variant="surface"
         size="md"
         aria-label={t("disable")}
+        tooltip={t("disableTooltip")}
         disabled={busy}
         onClick={() => void disable()}
       >
@@ -356,6 +358,7 @@ export function PushNotificationSection({
       <Button
         type="button"
         size="md"
+        tooltip={t("installTooltip")}
         isLoading={busy}
         loadingText={setupT("installing")}
         onClick={() => void install()}
@@ -498,6 +501,7 @@ export function PushNotificationSection({
                     type="button"
                     variant="surface"
                     size="md"
+                    tooltip={t("installTooltip")}
                     isLoading={busy}
                     loadingText={setupT("installing")}
                     onClick={() => void install()}
@@ -533,6 +537,7 @@ export function PushNotificationSection({
                     type="button"
                     variant="surface"
                     size="md"
+                    tooltip={t("checkAgainTooltip")}
                     disabled={busy}
                     onClick={() => void refresh()}
                   >
