@@ -8,6 +8,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	"github.com/moto-nrw/project-phoenix/modules/settings"
@@ -17,7 +18,8 @@ import (
 
 // TestOGSGroupLive_PlannedActivities pins the offerings on the child card
 // (#6487): with the school setting on, every child carries today's planned,
-// not cancelled blocks ordered by start; with it off (the default) none.
+// not cancelled offerings (AG and Extern, no Betreuung) ordered by start;
+// with it off (the default) none.
 func TestOGSGroupLive_PlannedActivities(t *testing.T) {
 	t.Parallel()
 
@@ -32,16 +34,22 @@ func TestOGSGroupLive_PlannedActivities(t *testing.T) {
 
 	room := testpkg.CreateTestRoom(t, tc.db, "OGSActRoom")
 	today := calendar.NewDate(2026, 8, 24)
-	block := func(date calendar.Date, title, start, end, status string) {
+	offering := testpkg.CreateTestActivityGroup(t, tc.db, "OGSActOffering")
+	external := testpkg.CreateTestActivityGroup(t, tc.db, "OGSActExternal")
+	setActivityGroupType(t, tc.db, external.ID, "external")
+	meal := testpkg.CreateTestActivityGroup(t, tc.db, "OGSActMeal")
+	setActivityGroupType(t, tc.db, meal.ID, "care")
+	block := func(templateID int64, date calendar.Date, title, start, end, status string) {
 		instance := testpkg.CreateTestActivityInstance(t, tc.db, date, room.ID, testpkg.ActivityInstanceOpts{
-			Title: title, StartHHMM: start, EndHHMM: end, Status: status,
+			ActivityGroupID: &templateID, Title: title, StartHHMM: start, EndHHMM: end, Status: status,
 		})
 		testpkg.CreateTestInstanceStudent(t, tc.db, instance.ID, booked.ID, "")
 	}
-	block(today, "Handball", "15:15", "16:00", "")
-	block(today, "Töpfer-AG", "14:00", "15:00", "")
-	block(today, "Chor", "13:00", "14:00", testpkg.ScheduleInstanceStatusCancelled)
-	block(today.AddDays(1), "Schach", "14:00", "15:00", "")
+	block(external.ID, today, "Handball", "15:15", "16:00", "")
+	block(offering.ID, today, "Töpfer-AG", "14:00", "15:00", "")
+	block(meal.ID, today, "Mittagessen", "12:00", "13:00", "")
+	block(offering.ID, today, "Chor", "13:00", "14:00", testpkg.ScheduleInstanceStatusCancelled)
+	block(offering.ID, today.AddDays(1), "Schach", "14:00", "15:00", "")
 
 	// activities returns each child's offerings and the request's statements.
 	activities := func() (map[string]any, int) {
@@ -68,11 +76,18 @@ func TestOGSGroupLive_PlannedActivities(t *testing.T) {
 
 	on, onStatements := activities()
 	// The budget scenario runs with the setting off; switched on, the whole
-	// group costs two set reads (participants, then their blocks).
-	assert.Equal(t, offStatements+2, onStatements, "the offerings are read set-based for the group")
+	// group costs three set reads (participants, their blocks, block types).
+	assert.Equal(t, offStatements+3, onStatements, "the offerings are read set-based for the group")
 	assert.Equal(t, []any{
 		map[string]any{"title": "Töpfer-AG", "start_time": "14:00", "end_time": "15:00"},
 		map[string]any{"title": "Handball", "start_time": "15:15", "end_time": "16:00"},
-	}, on[bookedID], "today's blocks by start; the cancelled one and tomorrow's are left out")
+	}, on[bookedID], "today's offerings by start, AG and Extern; the meal (Betreuung), the cancelled one and tomorrow's are left out")
 	assert.Nil(t, on[freeID], "a child without a booking carries no offerings")
+}
+
+// setActivityGroupType sets a template's block type; the fixture creates "activity".
+func setActivityGroupType(t *testing.T, db *bun.DB, groupID int64, groupType string) {
+	t.Helper()
+	_, err := db.NewUpdate().Table("activities.groups").Set("type = ?", groupType).Where("id = ?", groupID).Exec(testpkg.Ctx(t))
+	require.NoError(t, err, "failed to set activity group type")
 }

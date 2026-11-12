@@ -121,6 +121,7 @@ type groupLiveSources struct {
 	Arrivals          groupLiveArrivals
 	PlannedStudentIDs func(context.Context, []int64, calendar.Date) ([]int64, error)
 	Timetable         groupLiveTimetable
+	BlockTypes        groupLiveBlockTypes
 	CareDays          groupLiveCareDays
 	CareParticipation groupLiveCareParticipation
 	ExcusedRequests   grouplive.PendingExcusedReader
@@ -142,7 +143,7 @@ func newGroupLive(sources groupLiveSources, hints peopledirectory.SchoolDayHintQ
 	if sources.Presence == nil || sources.People == nil || sources.Education == nil ||
 		sources.Substitutions == nil || sources.UserContext == nil || sources.Active == nil ||
 		sources.Settings == nil || sources.Pickups == nil || sources.Arrivals == nil ||
-		sources.PlannedStudentIDs == nil || sources.Timetable == nil || sources.CareDays == nil || sources.CareParticipation == nil ||
+		sources.PlannedStudentIDs == nil || sources.Timetable == nil || sources.BlockTypes == nil || sources.CareDays == nil || sources.CareParticipation == nil ||
 		sources.StatusDays == nil || sources.HolidayGroups == nil {
 		return nil, errGroupLiveSources
 	}
@@ -156,7 +157,7 @@ func newGroupLive(sources groupLiveSources, hints peopledirectory.SchoolDayHintQ
 		Presence: groupLivePresence{presence: sources.Presence, active: sources.Active, statusDays: sources.StatusDays},
 		Planning: groupLivePlanning{
 			arrivals: sources.Arrivals, pickups: sources.Pickups, planned: sources.PlannedStudentIDs,
-			careDays: sources.CareDays, timetable: sources.Timetable,
+			careDays: sources.CareDays, timetable: sources.Timetable, blockTypes: sources.BlockTypes,
 		},
 		Transfers:       groupLiveTransfers{substitutions: sources.Substitutions},
 		Settings:        groupLiveSettings{settings: sources.Settings},
@@ -472,6 +473,8 @@ type groupLivePlanning struct {
 	planned   func(context.Context, []int64, calendar.Date) ([]int64, error)
 	careDays  groupLiveCareDays
 	timetable groupLiveTimetable
+	// blockTypes tells offerings from care and duty blocks (#6487).
+	blockTypes groupLiveBlockTypes
 }
 
 func (p groupLivePlanning) Arrivals(ctx context.Context, studentIDs []int64, date grouplive.Date) (map[int64]grouplive.Arrival, error) {

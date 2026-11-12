@@ -227,8 +227,9 @@ type Planning interface {
 	// TimetablePlannedStudentIDs are the students with a planned timetable
 	// instance on the date whose care day still expects them.
 	TimetablePlannedStudentIDs(ctx context.Context, studentIDs []int64, date Date) (map[int64]bool, error)
-	// PlannedActivities are the timetable blocks each student is planned
-	// for on the date (#6487), without cancelled ones, by start time.
+	// PlannedActivities are the offerings (AG, Extern) each student is
+	// planned for on the date (#6487): no cancelled, care or duty blocks,
+	// by start time.
 	PlannedActivities(ctx context.Context, studentIDs []int64, date Date) (map[int64][]PlannedActivity, error)
 	// DecideDay applies the shared day-planning precedence.
 	DecideDay(inputs DayInputs) DayDecision

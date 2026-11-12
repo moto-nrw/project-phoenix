@@ -5,8 +5,8 @@ import (
 	"fmt"
 )
 
-// PlannedActivity is one timetable block a child is planned for today
-// (#6487): an offering such as "Töpfer-AG" with its wall-clock times (HH:MM).
+// PlannedActivity is one offering a child is planned for today (#6487),
+// such as "Töpfer-AG", with its wall-clock times (HH:MM).
 type PlannedActivity struct {
 	Title     string `json:"title"`
 	StartTime string `json:"start_time"`

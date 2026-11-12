@@ -1,9 +1,9 @@
 package api
 
-// The root binds the live group's planned offerings (#6487) to two
-// Timetable reads: the planned participants of the day's blocks, then the
-// blocks themselves. Both are set reads, so the statement count does not grow
-// with the group.
+// The root binds the live group's planned offerings (#6487) to three
+// Timetable reads: the planned participants of the day's blocks, the blocks
+// themselves and their block types. All are set reads, so the statement count
+// does not grow with the group.
 
 import (
 	"context"
@@ -20,8 +20,22 @@ type groupLiveTimetable interface {
 	ListActivityInstances(ctx context.Context, filter timetable.ActivityInstanceFilter) ([]timetable.ActivityInstance, error)
 }
 
-// PlannedActivities lists, per child, the day's blocks it is planned for,
-// without cancelled ones, ordered by start time.
+// groupLiveBlockTypes is the Timetable read of each block's display data;
+// the card reads only the block type from it.
+type groupLiveBlockTypes interface {
+	ListBlockDisplayMetadata(ctx context.Context, instanceIDs []int64) (map[int64]timetable.BlockDisplayMetadata, error)
+}
+
+// Offerings are the block types a child books (AG, Extern). Betreuung (care,
+// e.g. Mittagessen, Frühbetreuung) and Dienst (duty) are no offerings and
+// stay off the card (#6487).
+var groupLiveOfferingTypes = map[string]bool{
+	timetable.GroupTypeActivity: true,
+	timetable.GroupTypeExternal: true,
+}
+
+// PlannedActivities lists, per child, the day's offerings it is planned for,
+// without cancelled ones and without care or duty blocks, by start time.
 func (p groupLivePlanning) PlannedActivities(ctx context.Context, studentIDs []int64, date grouplive.Date) (map[int64][]grouplive.PlannedActivity, error) {
 	result := map[int64][]grouplive.PlannedActivity{}
 	if len(studentIDs) == 0 {
@@ -42,6 +56,10 @@ func (p groupLivePlanning) PlannedActivities(ctx context.Context, studentIDs []i
 	instances, err := p.timetable.ListActivityInstances(ctx, timetable.ActivityInstanceFilter{
 		IDs: slices.Compact(instanceIDs), Status: timetable.InstanceStatusPlanned, OrderByDateAndTime: true,
 	})
+	if err != nil || len(instances) == 0 {
+		return result, err
+	}
+	instances, err = p.offeringsOnly(ctx, instances)
 	if err != nil {
 		return nil, err
 	}
@@ -58,6 +76,21 @@ func (p groupLivePlanning) PlannedActivities(ctx context.Context, studentIDs []i
 		}
 	}
 	return result, nil
+}
+
+// offeringsOnly keeps the blocks whose type is an offering, in their order.
+func (p groupLivePlanning) offeringsOnly(ctx context.Context, instances []timetable.ActivityInstance) ([]timetable.ActivityInstance, error) {
+	ids := make([]int64, 0, len(instances))
+	for _, instance := range instances {
+		ids = append(ids, instance.ID)
+	}
+	metadata, err := p.blockTypes.ListBlockDisplayMetadata(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	return slices.DeleteFunc(instances, func(instance timetable.ActivityInstance) bool {
+		return !groupLiveOfferingTypes[metadata[instance.ID].ActivityType]
+	}), nil
 }
 
 // wallClockMinutes cuts a TIME text ("14:00:00") to the card's "14:00".
