@@ -7,6 +7,7 @@ import { StatusColorBadge } from "./status-color-badge";
 import {
   LOCATION_COLORS,
   LOCATION_STATUSES,
+  dayStatusPresentation,
   isAtSchoolLocation,
   isInClassLocation,
   isNotCheckedInLocation,
@@ -84,7 +85,9 @@ function resolveBadgeStyle(
   state: "anwesend" | "schulhof" | "abwesend",
   student: StudentLocationContext,
 ): { label: string; color: string } {
-  const atHome = state === "abwesend";
+  // A recorded checkout to class beats the day status (#5710): only
+  // "Im Unterricht", see dayStatusPresentation.
+  const atHome = dayStatusPresentation(student.current_location) === "replace";
   if (student.sick && atHome) {
     return { label: LOCATION_STATUSES.SICK, color: LOCATION_COLORS.SICK };
   }
@@ -148,6 +151,8 @@ export function PresenceBadge({
 }: PresenceBadgeProps) {
   const state = derivePresenceState(student.current_location);
   const { label, color } = resolveBadgeStyle(state, student);
+  const statusReplacesLocation =
+    dayStatusPresentation(student.current_location) === "replace";
 
   const sizeKey = size ?? DEFAULT_SIZE;
 
@@ -173,11 +178,11 @@ export function PresenceBadge({
   // triggered, else fall back to generic location_since. Mirrors LocationBadge
   // semantics for cross-mode visual consistency.
   const replaceTimeSource =
-    student.sick && state === "abwesend"
+    student.sick && statusReplacesLocation
       ? (student.sick_since ?? student.location_since)
-      : student.class_trip && state === "abwesend"
+      : student.class_trip && statusReplacesLocation
         ? (student.class_trip_since ?? student.location_since)
-        : student.excused && state === "abwesend"
+        : student.excused && statusReplacesLocation
           ? (student.excused_since ?? student.location_since)
           : null;
   const timeSource = replaceTimeSource ?? student.location_since;

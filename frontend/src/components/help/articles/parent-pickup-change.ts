@@ -43,6 +43,7 @@ export function parentPickupChangeTopic(): HelpTopic {
     troubleshootingDetails: [
       "moto sagt, das Ändern der Abholzeit sei für diese OGS nicht aktiviert? Dann schreiben Sie der OGS eine Nachricht.",
       "`Wer holt ab?` fehlt? Dann haben Sie noch keine weitere Person bei den Kontakten eingetragen.",
+      "moto sagt, die Betreuung ist für heute schon zu Ende? Dann ändern Sie die Abholzeit für heute nicht mehr, auch wenn Ihr Kind noch im Unterricht ist. Andere Tage können Sie weiter ändern.",
     ],
     related: [
       HELP_TOPICS.parentCareChange,

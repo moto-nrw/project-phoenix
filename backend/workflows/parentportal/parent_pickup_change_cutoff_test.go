@@ -250,6 +250,104 @@ func TestEditPickupChangeRequestHonoursSameDayCutoff(t *testing.T) {
 	require.ErrorIs(t, err, parentService.ErrPickupChangeCutoffPassed, "moving today's request away is closed too")
 }
 
+// #5710: from the school's care day end (operations.session_end_time) a
+// guardian can neither ask for nor edit today's pickup, even without a
+// same-day cutoff. Later days stay open.
+func TestPickupChangeRequestClosesTodayAtCareDayEnd(t *testing.T) {
+	t.Parallel()
+
+	d := newCutoffServiceDeps(t)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	chain := testpkg.CreateTestParentGuardianChain(t, d.db)
+	settings := cutoffStub(true, "")
+	settings.stringValues[parentService.KeySessionEndTime] = "16:00"
+
+	created, err := d.service(t, settings, berlinClock(15, 59)).
+		SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, cutoffToday, cutoffPickupTime(), "", "Arzttermin", nil)
+	require.NoError(t, err, "before the care day end today stays open")
+
+	later := d.service(t, settings, berlinClock(16, 0))
+	_, err = later.EditPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, created.ID,
+		cutoffToday, cutoffPickupTime().Add(time.Hour), "", "Termin verschoben", "")
+	require.ErrorIs(t, err, parentService.ErrPickupChangeCareDayEnded)
+
+	_, err = later.EditPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, created.ID,
+		cutoffToday.AddDays(1), cutoffPickupTime(), "", "Termin verschoben", "")
+	require.NoError(t, err, "moving a pending request to a later day stays open without a cutoff")
+
+	other := testpkg.CreateTestParentGuardianChain(t, d.db)
+	_, err = later.SubmitPickupChangeRequest(ctx, other.AccountID, other.StudentID, cutoffToday, cutoffPickupTime(), "", "Arzttermin", nil)
+	require.ErrorIs(t, err, parentService.ErrPickupChangeCareDayEnded)
+	_, err = later.SubmitPickupChangeRequest(ctx, other.AccountID, other.StudentID, cutoffToday.AddDays(1), cutoffPickupTime(), "", "Arzttermin", nil)
+	require.NoError(t, err, "a later day stays open")
+}
+
+// An exclusive settings writer can keep a guardian waiting on the pickup
+// policy lock across care-day end. Every pickup write must check the clock
+// again once the shared lock is acquired, even without a separate cutoff.
+func TestPickupWritesRecheckCareDayEndAfterPolicyLock(t *testing.T) {
+	t.Parallel()
+
+	d := newCutoffServiceDeps(t)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	for _, operation := range []string{"submit exception", "delete exception", "submit request", "edit request"} {
+		t.Run(operation, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			chain := testpkg.CreateTestParentGuardianChain(t, d.db)
+			settings := cutoffStub(true, "")
+			settings.stringValues[parentService.KeySessionEndTime] = "16:00"
+			now := berlinClock(15, 59)
+			var requestID int64
+			var originalPayload []byte
+			if operation == "delete exception" {
+				seedGuardianPickupException(t, d, chain, cutoffToday)
+			}
+			if operation == "edit request" {
+				created, err := d.service(t, settings, now).SubmitPickupChangeRequest(
+					ctx, chain.AccountID, chain.StudentID, cutoffToday, cutoffPickupTime(), "", "Arzttermin", nil)
+				require.NoError(t, err)
+				requestID = created.ID
+				originalPayload = created.Payload
+			}
+			lockTaken := false
+			settings.lockPickupChangePolicyFn = func(txCtx context.Context, tenantID int64) error {
+				_, inTx := tenant.TransactionFromContext(txCtx)
+				require.True(t, inTx)
+				require.Equal(t, chain.TenantID, tenantID)
+				// The exclusive holder releases the policy lock at care-day end.
+				now = berlinClock(16, 0)
+				lockTaken = true
+				return nil
+			}
+			svc := d.service(t, settings, func() time.Time { return now() })
+			var err error
+			switch operation {
+			case "submit exception":
+				pickup := cutoffPickupTime()
+				_, err = svc.SubmitCareExceptionWithReason(ctx, chain.AccountID, chain.StudentID, cutoffToday, &pickup, "Arzttermin")
+			case "delete exception":
+				err = svc.DeleteCareException(ctx, chain.AccountID, chain.StudentID, cutoffToday)
+			case "submit request":
+				_, err = svc.SubmitPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, cutoffToday, cutoffPickupTime(), "", "Arzttermin", nil)
+			case "edit request":
+				_, err = svc.EditPickupChangeRequest(ctx, chain.AccountID, chain.StudentID, requestID,
+					cutoffToday, cutoffPickupTime().Add(time.Hour), "", "Termin verschoben", "")
+			}
+			require.True(t, lockTaken)
+			require.ErrorIs(t, err, parentService.ErrPickupChangeCareDayEnded)
+			assert.Equal(t, operation == "delete exception", guardianPickupExists(t, d, chain, cutoffToday))
+			requests, listErr := svc.ListPickupChangeRequests(ctx, chain.AccountID, chain.StudentID)
+			require.NoError(t, listErr)
+			if operation == "edit request" {
+				require.Len(t, requests, 1)
+				assert.JSONEq(t, string(originalPayload), string(requests[0].Payload))
+			} else {
+				assert.Empty(t, requests)
+			}
+		})
+	}
+}
+
 // Removing an effective exception needs no staff decision, so it is the path
 // that must not slip past the cutoff.
 func TestDeleteCareExceptionHonoursSameDayCutoff(t *testing.T) {
