@@ -134,7 +134,7 @@ func TestCommandEffectsDomainOwnedFieldClosureChangeNeedsReview(t *testing.T) {
 	if err := GenerateCommandEffects(project, policy); err != nil {
 		t.Fatal(err)
 	}
-	if err := CompareCommandEffects(project, base); err != nil {
+	if err := CompareCommandEffects(project, base, nil); err != nil {
 		t.Fatalf("comment-only edit needs no review: %v", err)
 	}
 	writeFile(t, filename, strings.Replace(source, "foreign.Ledger{}.Record() }", "foreign.Ledger{}.Record(); foreign.Ledger{}.Record() }", 1))
@@ -262,7 +262,7 @@ func TestCommandEffectsNewPlatformEntryNeedsReviewNotFreshApproval(t *testing.T)
 		t.Fatal(err)
 	}
 	reviewGapFixture(t, project, policy, "durable", "platform", "0098")
-	if err := CompareCommandEffects(project, base); err != nil {
+	if err := CompareCommandEffects(project, base, nil); err != nil {
 		t.Fatalf("reviewed platform entry rejected: %v", err)
 	}
 	manifest, err := loadCommandEffects(project)
@@ -484,7 +484,7 @@ func Build(external func()) {
 	if err := GenerateCommandEffects(project, policy); err != nil {
 		t.Fatal(err)
 	}
-	err := CompareCommandEffects(project, base)
+	err := CompareCommandEffects(project, base, nil)
 	if err == nil || !strings.Contains(err.Error(), "exception binding changed without a new approval_adr: enrollment|example.test/effects/enrollment.Writer.Record|example.test/effects/roots.binding.Record|unresolved:function:") {
 		t.Fatalf("changed evidence of an unresolved diagnostic = %v", err)
 	}

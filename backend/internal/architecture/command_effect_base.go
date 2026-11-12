@@ -17,15 +17,12 @@ type effectBase struct {
 
 // CompareCommandEffects checks reviewed effects against the immutable PR base.
 // New leaves need exact evidence; expanded exceptions need a newly added ADR.
-func CompareCommandEffects(project, ref string) error {
-	return compareCommandEffects(project, ref, nil)
-}
-
-// compareCommandEffects reads the base register through rewrite. A non-nil
+//
+// It reads the base register through rewrite. A non-nil
 // rewrite is an approved module rename whose Go diff is proven to be the pure
 // rename (ADR 0217): base digests of the same identity then hash the same
 // sources under the old path, so the candidate digest replaces them.
-func compareCommandEffects(project, ref string, rewrite *baseRewrite) error {
+func CompareCommandEffects(project, ref string, rewrite *baseRewrite) error {
 	candidate, err := loadCommandEffects(project)
 	if err != nil {
 		return err
@@ -34,7 +31,7 @@ func compareCommandEffects(project, ref string, rewrite *baseRewrite) error {
 	if err != nil {
 		return err
 	}
-	base, bootstrap, err := loadRewrittenBaseCommandEffects(project, context, rewrite)
+	base, bootstrap, err := loadBaseCommandEffects(project, context, rewrite)
 	if err != nil {
 		return err
 	}
@@ -151,11 +148,7 @@ func adrStatus(source string) string {
 const commandEffectDecision = "docs/adr/0083-ratchets-protect-invariants-and-expose-command-effects.md"
 const commandEffectAddendum = "\n## Implementation addendum 2026-10-23 (#4739)\n"
 
-func loadBaseCommandEffects(project string, base effectBase) (*commandEffectManifest, bool, error) {
-	return loadRewrittenBaseCommandEffects(project, base, nil)
-}
-
-func loadRewrittenBaseCommandEffects(project string, base effectBase, rewrite *baseRewrite) (*commandEffectManifest, bool, error) {
+func loadBaseCommandEffects(project string, base effectBase, rewrite *baseRewrite) (*commandEffectManifest, bool, error) {
 	relative, err := repositoryRelativePath(base.root, project, commandEffectInventory)
 	if err != nil {
 		return nil, false, err
@@ -332,7 +325,7 @@ func compareCommandEffectsIfEnabled(project, ref string, policy *Policy, rewrite
 	if _, err := os.Stat(filepath.Join(project, commandEffectInventory)); os.IsNotExist(err) {
 		return nil
 	}
-	return compareCommandEffects(project, ref, rewrite)
+	return CompareCommandEffects(project, ref, rewrite)
 }
 
 func (manifest *commandEffectManifest) unresolvedCount() int {
