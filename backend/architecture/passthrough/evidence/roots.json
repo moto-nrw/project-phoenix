@@ -940,9 +940,16 @@
     },
     {
       "build": "production",
-      "evidence": "func (s groupLiveSettings) Prepare(ctx context.Context) (context.Context, error) {\n\treturn s.settings.Prefetch(ctx, []string{settingsplatform.KeyOperationalOverviewScope, settingsplatform.KeyEnrollmentBookingsAuthoritative, settingsplatform.KeyPresenceMode, settingsplatform.KeySessionEndTime, settingsplatform.KeyStudentPhotosEnabled, settingsplatform.KeyTrackingIndicatorsEnabled, settingsplatform.KeyTrackingIndicator1, settingsplatform.KeyTrackingIndicator2, settingsplatform.KeyTrackingIndicator3})\n}",
+      "evidence": "func (s groupLiveSettings) Prepare(ctx context.Context) (context.Context, error) {\n\treturn s.settings.Prefetch(ctx, []string{settingsplatform.KeyOperationalOverviewScope, settingsplatform.KeyEnrollmentBookingsAuthoritative, settingsplatform.KeyPresenceMode, settingsplatform.KeySessionEndTime, settingsplatform.KeyStudentPhotosEnabled, settingsplatform.KeyStudentCardActivitiesEnabled, settingsplatform.KeyTrackingIndicatorsEnabled, settingsplatform.KeyTrackingIndicator1, settingsplatform.KeyTrackingIndicator2, settingsplatform.KeyTrackingIndicator3})\n}",
       "form": "unclassified-evidence",
       "id": "api/groupLiveSettings.Prepare",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s groupLiveSettings) StudentCardActivitiesEnabled(ctx context.Context) (bool, error) {\n\treturn s.settings.ResolveBool(ctx, settingsplatform.KeyStudentCardActivitiesEnabled)\n}",
+      "form": "unclassified-evidence",
+      "id": "api/groupLiveSettings.StudentCardActivitiesEnabled",
       "owner": "roots"
     },
     {

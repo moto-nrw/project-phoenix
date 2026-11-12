@@ -67,6 +67,7 @@ import { EmptyStudentResults } from "~/components/ui/empty-student-results";
 import {
   StudentCard,
   PickupTimeRow,
+  PlannedActivityRows,
   ArrivalTimeRow,
   StudentAbsenceRow,
   StudentInfoRow,
@@ -288,6 +289,7 @@ function mapStudentForOgsPage(student: OgsLiveWireStudent): Student {
     day_planning_label: student.day_planning_label,
     pending_excused_note: student.pending_excused_note,
     teacher_hints: student.teacher_hints,
+    planned_activities: student.planned_activities,
     class_handover: student.class_handover,
     actual_arrival_time: student.actual_arrival_time,
     actual_pickup_time: student.actual_pickup_time,
@@ -1313,6 +1315,11 @@ function OGSGroupPageContent() {
                                 notes={student.arrival_notes}
                                 now={now}
                                 day={day}
+                                prominent
+                              />
+                              {/* Tagesablauf (#6487): Kommen, Angebote, Gehen. */}
+                              <PlannedActivityRows
+                                activities={student.planned_activities}
                               />
                               <PickupTimeRow
                                 pickupTime={studentPickup?.pickupTime}
@@ -1330,6 +1337,7 @@ function OGSGroupPageContent() {
                                 }
                                 now={now}
                                 day={day}
+                                prominent
                               />
                             </>
                           );

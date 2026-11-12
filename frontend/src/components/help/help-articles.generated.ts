@@ -5391,6 +5391,10 @@ export const ownGroupsTopic = function ownGroupsTopic(
       // Einstellung „Kinder nur über ‚Alle Kinder‘ finden“ (#1321).
       "Fehlt `Gruppen` in der Navigation? Öffnen Sie `Alle Kinder` und wählen Sie oben `Meine Gruppe`. Die Gruppenseite öffnen Sie im Menü mit den drei Punkten unter `Zur Gruppenseite`.",
     ],
+    // Einstellung „Angebote auf der Kinderkarte“ (#6487), standardmäßig aus.
+    notes: [
+      "Die Karten können auch die Angebote des Tages zeigen, zum Beispiel „14:00–15:00 Töpfer-AG“. Ihre Leitung schaltet das in den Einstellungen bei `Angebote auf der Kinderkarte` ein.",
+    ],
     troubleshooting: HELP_TOPICS.missingChildOrGroup,
     related: [
       HELP_TOPICS.transferGroup,
@@ -7805,6 +7809,7 @@ export const settingsGuideTopic = function settingsGuideTopic(): HelpTopic {
           "`Benachrichtigungen senden`: Hinweise in moto und auf dem Handy. Was ankommt, wählt jede Person selbst.",
           "`Team-Chat für Mitarbeitende`: Das Team schreibt sich Nachrichten. Eltern sehen davon nichts.",
           "`Kinderfotos`: Fotos bei den Kindern. Nur mit Einwilligung der Eltern. Beim Ausschalten löscht moto alle Fotos sofort. Sie können sie nicht wiederherstellen.",
+          "`Angebote auf der Kinderkarte`: Die Kinderkarten unter `Gruppen` zeigen die Angebote des Tages mit Uhrzeit.",
           "`Automatisch ausstempeln`: moto wartet nach Dienstende die eingestellte Zeit. Dann stempelt es aus. Das gilt nur bei einem geplanten Dienst.",
         ],
       },

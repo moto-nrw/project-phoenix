@@ -32,6 +32,7 @@ const (
 	profileSettingBookingsAuthoritative = "enrollment.bookings_authoritative"
 	profileSettingDevicePIN             = "security.ogs_device_pin"
 	profileSettingStudentPhotos         = "operations.student_photos_enabled"
+	profileSettingCardActivities        = "operations.student_card_activities_enabled"
 	profileSettingWeekendFollowsFriday  = "operations.weekend_follows_friday"
 	profileSettingBirthdayIncludeStaff  = "operations.birthday_display_include_staff"
 	profileSettingAttendanceLog         = "gdpr.attendance_log_enabled"
@@ -229,6 +230,9 @@ func fullOperationFeatureSettings() map[string]SeedSetting {
 		// The birthday card shows a colleague next to the children (#3922);
 		// the seed gives one a birthday on the seed day.
 		profileSettingBirthdayIncludeStaff: {Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant},
+		// The child cards under "Gruppen" show the day's offerings between
+		// arrival and pickup (#6487); off by default, on in the demo.
+		profileSettingCardActivities: {Value: json.RawMessage(`true`), ManagedBy: SettingManagedByTenant},
 	}
 }
 

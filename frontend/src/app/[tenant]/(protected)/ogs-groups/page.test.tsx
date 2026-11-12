@@ -406,6 +406,15 @@ vi.mock("~/components/students/student-card", () => ({
       Kommt heute nicht ({label}){note && <span>Notiz: {note}</span>}
     </div>
   ),
+  PlannedActivityRows: ({
+    activities,
+  }: {
+    activities?: readonly { title: string }[];
+  }) => (
+    <div data-testid="planned-activity-rows">
+      {(activities ?? []).map((activity) => activity.title).join(", ")}
+    </div>
+  ),
 }));
 
 // Mock lucide-react icons
@@ -978,6 +987,51 @@ describe("OGSGroupPage", () => {
       // Pickup time should be rendered (15:30 Uhr format)
       expect(screen.getByText(/15:30 Uhr/)).toBeInTheDocument();
     });
+  });
+
+  it("puts today's offerings between arrival and pickup (#6487)", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({
+        students: [
+          wireStudent({
+            id: 1,
+            first_name: "Max",
+            last_name: "Mustermann",
+            current_location: "Raum 101",
+            arrival_time: "11:45",
+            planned_activities: [
+              { title: "Töpfer-AG", start_time: "14:00", end_time: "15:00" },
+              { title: "Handball", start_time: "15:15", end_time: "16:00" },
+            ],
+          }),
+        ],
+        roomStatus: { "1": { in_group_room: true } },
+        pickupTimes: new Map([
+          ["1", { pickupTime: "16:30", isException: false, dayNotes: [] }],
+        ]),
+      }),
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    const activities = await screen.findByTestId("planned-activity-rows");
+    expect(activities).toHaveTextContent("Töpfer-AG, Handball");
+    const order = Array.from(
+      screen
+        .getByTestId("extra-content")
+        .querySelectorAll(
+          "[data-testid='arrival-time-row'], [data-testid='planned-activity-rows'], [data-testid='pickup-time-row']",
+        ),
+    ).map((row) => row.getAttribute("data-testid"));
+    expect(order).toEqual([
+      "arrival-time-row",
+      "planned-activity-rows",
+      "pickup-time-row",
+    ]);
   });
 
   it("handles pickup times with day notes correctly", async () => {

@@ -464,7 +464,7 @@ func composeServeRoot(
 		},
 		func() (err error) {
 			groupLive, err = buildGroupLive(env, presence, services.Users, structureViews, caller, active, settings.Service, schedules,
-				lifecycle, requests, persons)
+				lifecycle, requests, persons, timetableOwner)
 			return
 		},
 		func() (err error) {

@@ -43,6 +43,7 @@ import {
   type DepartureMode,
 } from "~/lib/departure-plan";
 import { SpinnerIcon } from "~/components/ui/icons";
+import type { PlannedActivity } from "~/lib/student-helpers";
 
 /**
  * What changed for today only (#3946): the Gehzeit, the Abholart (#3945) or
@@ -434,12 +435,22 @@ export function StudentInfoRow({
   children,
   wrap = false,
   variant = "card",
+  prominent = false,
 }: Readonly<{
   icon: ReactNode;
   children: ReactNode;
   wrap?: boolean;
   variant?: StudentRowVariant;
+  /**
+   * Auf der Kinderkarte groß und fett (#6487): Ankunft und Gehzeit müssen
+   * beim ersten Blick sitzen. Nur für die Kartenzeile.
+   */
+  prominent?: boolean;
 }>) {
+  const emphasized = prominent && variant === "card";
+  const textClass = emphasized
+    ? "text-sm font-semibold text-gray-900"
+    : `${variant === "card" ? "text-xs text-gray-500" : "text-sm text-gray-700"} font-medium`;
   return (
     <div
       className={`flex gap-1.5 ${variant === "card" ? "mt-1" : ""} ${wrap ? "items-start" : "items-center"}`}
@@ -447,10 +458,15 @@ export function StudentInfoRow({
       {/* The one-line phone list (#3834) has no room for the icon; the
           coloured text still carries the state. */}
       {variant === "compact" ? null : (
-        <span className="flex-shrink-0">{icon}</span>
+        <span
+          className={`flex-shrink-0 ${emphasized ? `[&_svg]:size-4 ${wrap ? "mt-0.5" : ""}` : ""}`}
+        >
+          {icon}
+        </span>
       )}
       <span
-        className={`${variant === "card" ? "text-xs text-gray-500" : "text-sm text-gray-700"} font-medium ${
+        data-prominent={emphasized || undefined}
+        className={`${textClass} ${
           // A table cell wraps a long value ("Kommt heute nicht (kein Plan
           // für heute)") instead of widening the whole table (#3834).
           wrap || variant === "cell"
@@ -551,6 +567,7 @@ function TimeStatusRow({
   kind,
   day,
   variant = "card",
+  prominent = false,
 }: Readonly<{
   label: string;
   plannedTime?: string;
@@ -561,6 +578,7 @@ function TimeStatusRow({
   kind: "arrival" | "pickup";
   day?: StudentDayTimes;
   variant?: StudentRowVariant;
+  prominent?: boolean;
 }>) {
   const status = getStudentTimeStatus({
     plannedTime,
@@ -574,7 +592,11 @@ function TimeStatusRow({
     const fallbackIcon =
       kind === "arrival" ? <ArrivalTimeIcon /> : <PickupTimeIcon />;
     return (
-      <StudentInfoRow icon={fallbackIcon} variant={variant}>
+      <StudentInfoRow
+        icon={fallbackIcon}
+        variant={variant}
+        prominent={prominent}
+      >
         {variant === "card" ? `${label}: –` : "–"}
       </StudentInfoRow>
     );
@@ -607,14 +629,19 @@ function TimeStatusRow({
   // Ortsetikett oder eine Notiz ließ sonst nur „Ankunftszeit: 08:…" übrig
   // (#3893).
   return (
-    <StudentInfoRow icon={icon} variant={variant} wrap={variant === "card"}>
+    <StudentInfoRow
+      icon={icon}
+      variant={variant}
+      wrap={variant === "card"}
+      prominent={prominent}
+    >
       {status.textColor ? (
         <span style={{ color: status.textColor }}>{fullText}</span>
       ) : (
         fullText
       )}
       {notes && variant !== "compact" && (
-        <span className="ml-1 text-gray-500">({notes})</span>
+        <span className="ml-1 font-normal text-gray-500">({notes})</span>
       )}
     </StudentInfoRow>
   );
@@ -628,6 +655,7 @@ export function PickupTimeRow({
   now,
   day,
   variant = "card",
+  prominent = false,
 }: Readonly<{
   pickupTime?: string;
   actualTime?: string;
@@ -638,12 +666,18 @@ export function PickupTimeRow({
   /** The whole day; without a check-in the pickup cannot be late (#3373). */
   day?: StudentDayTimes;
   variant?: StudentRowVariant;
+  /** Groß und fett auf der Kinderkarte (#6487). */
+  prominent?: boolean;
 }>) {
   const rowNow = useRowClock(now);
 
   if (isException && !pickupTime && !actualTime) {
     return (
-      <StudentInfoRow icon={<AbsenceIcon />} variant={variant}>
+      <StudentInfoRow
+        icon={<AbsenceIcon />}
+        variant={variant}
+        prominent={prominent}
+      >
         {notes || "Abwesend"}
       </StudentInfoRow>
     );
@@ -660,6 +694,7 @@ export function PickupTimeRow({
       kind="pickup"
       day={day}
       variant={variant}
+      prominent={prominent}
     />
   );
 }
@@ -751,6 +786,7 @@ export function ArrivalTimeRow({
   absentWording = "Kommt heute nicht",
   day,
   variant = "card",
+  prominent = false,
 }: Readonly<{
   arrivalTime?: string;
   actualTime?: string;
@@ -764,12 +800,18 @@ export function ArrivalTimeRow({
   /** The whole day; arrival not before pickup means no care time (#3373). */
   day?: StudentDayTimes;
   variant?: StudentRowVariant;
+  /** Groß und fett auf der Kinderkarte (#6487). */
+  prominent?: boolean;
 }>) {
   const rowNow = useRowClock(now);
 
   if (isAbsent) {
     return (
-      <StudentInfoRow icon={<AbsenceIcon />} variant={variant}>
+      <StudentInfoRow
+        icon={<AbsenceIcon />}
+        variant={variant}
+        prominent={prominent}
+      >
         {notes ? `${absentWording} (${notes})` : absentWording}
       </StudentInfoRow>
     );
@@ -777,7 +819,11 @@ export function ArrivalTimeRow({
 
   if (isException && !arrivalTime && !actualTime) {
     return (
-      <StudentInfoRow icon={<AbsenceIcon />} variant={variant}>
+      <StudentInfoRow
+        icon={<AbsenceIcon />}
+        variant={variant}
+        prominent={prominent}
+      >
         {notes ? `${absentWording} (${notes})` : absentWording}
       </StudentInfoRow>
     );
@@ -794,6 +840,32 @@ export function ArrivalTimeRow({
       kind="arrival"
       day={day}
       variant={variant}
+      prominent={prominent}
     />
+  );
+}
+
+/**
+ * Heutige Angebote eines Kindes auf der Kinderkarte (#6487), zwischen Ankunft
+ * und Gehzeit: „14:00–15:00 Töpfer-AG“. Leise neben den fetten Zeiten, damit
+ * Kommen und Gehen zuerst ins Auge fallen. Ohne Angebote rendert sie nichts.
+ */
+export function PlannedActivityRows({
+  activities,
+}: Readonly<{ activities?: readonly PlannedActivity[] }>) {
+  if (!activities?.length) return null;
+  return (
+    <ul aria-label="Angebote heute">
+      {activities.map((activity) => (
+        <li key={`${activity.start_time}-${activity.title}`}>
+          <StudentInfoRow icon={<ActivityIcon />}>
+            <span className="tabular-nums">
+              {activity.start_time}–{activity.end_time}
+            </span>{" "}
+            {activity.title}
+          </StudentInfoRow>
+        </li>
+      ))}
+    </ul>
   );
 }

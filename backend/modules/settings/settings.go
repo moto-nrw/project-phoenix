@@ -89,6 +89,7 @@ const (
 	KeyStaffMessagingEnabled                 = configModel.KeyStaffMessagingEnabled
 	KeyStudentAbsenceEditScope               = configModel.KeyStudentAbsenceEditScope
 	KeyStudentPhotosEnabled                  = configModel.KeyStudentPhotosEnabled
+	KeyStudentCardActivitiesEnabled          = configModel.KeyStudentCardActivitiesEnabled
 	KeyTimetableChildrenPerStaffRatio        = configModel.KeyTimetableChildrenPerStaffRatio
 	KeyTimetableDayEndTime                   = configModel.KeyTimetableDayEndTime
 	KeyTimetableDayStartTime                 = configModel.KeyTimetableDayStartTime

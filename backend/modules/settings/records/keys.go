@@ -203,14 +203,17 @@ const (
 	// KeyMealCatererNamesEnabled lets the caterer see the children's names
 	// (#3873). Off by default; a school switches it on only with a data
 	// processing agreement in place.
-	KeyMealCatererNamesEnabled         = "gdpr.meal_caterer_names_enabled"
-	KeySickClearMode                   = "operations.sick_clear_mode"
-	KeyExcusedClearMode                = "operations.excused_clear_mode"
-	KeyPresenceMode                    = "operations.presence_mode"
-	KeyAttendanceWebEnabled            = "attendance.web_enabled"
-	KeyWebSpontaneousActivities        = "attendance.web_spontaneous_activities_enabled"
-	KeyWebExceedParticipantLimit       = "attendance.web_exceed_participant_limit_enabled"
-	KeyStudentPhotosEnabled            = "operations.student_photos_enabled"
+	KeyMealCatererNamesEnabled   = "gdpr.meal_caterer_names_enabled"
+	KeySickClearMode             = "operations.sick_clear_mode"
+	KeyExcusedClearMode          = "operations.excused_clear_mode"
+	KeyPresenceMode              = "operations.presence_mode"
+	KeyAttendanceWebEnabled      = "attendance.web_enabled"
+	KeyWebSpontaneousActivities  = "attendance.web_spontaneous_activities_enabled"
+	KeyWebExceedParticipantLimit = "attendance.web_exceed_participant_limit_enabled"
+	KeyStudentPhotosEnabled      = "operations.student_photos_enabled"
+	// KeyStudentCardActivitiesEnabled shows today's planned offerings on the
+	// child cards of "Meine Gruppe" (#6487).
+	KeyStudentCardActivitiesEnabled    = "operations.student_card_activities_enabled"
 	KeyGroupMode                       = "operations.group_mode"
 	KeyBirthdayDisplayEnabled          = "operations.birthday_display_enabled"
 	KeyBirthdayDisplayIncludeStaff     = "operations.birthday_display_include_staff"

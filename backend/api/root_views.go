@@ -224,12 +224,13 @@ func buildGroupLive(
 	env owners.RootEnvironment, presence owners.PresenceOwner, users peoplePorts.PersonDirectory, structure StructureServices,
 	caller *owners.CallerRows, active studentpresence.Presence, settings settingsCompose.BatchSettingsService, schedules owners.CarePlanSchedules,
 	lifecycle owners.TimetableLifecycle, requests owners.CarePlanRequests, hints peopledirectory.SchoolDayHintQuery,
+	timetableOwner timetable.Capability,
 ) (grouplive.Query, error) {
 	live, err := newGroupLive(groupLiveSources{
 		Presence: presence.Presence, People: GroupRosterPeople(users), Education: structure.Education,
 		Substitutions: structure.Substitution, UserContext: GroupLiveCaller{caller}, Active: active,
 		Settings: settings, Pickups: schedules.Pickups, Arrivals: schedules.Arrivals,
-		PlannedStudentIDs: lifecycle.Instances.GetPlannedStudentIDsByDate, CareDays: schedules.CareDay,
+		PlannedStudentIDs: lifecycle.Instances.GetPlannedStudentIDsByDate, Timetable: timetableOwner, CareDays: schedules.CareDay,
 		CareParticipation: schedules.Lifecycle, ExcusedRequests: requests.Excused, StatusDays: presence.StatusDays,
 		Handovers:     groupLiveHandovers{reads: classHandoverReads{handovers: presence.Presence, staff: NewTimetablePeople(users)}},
 		HolidayGroups: enrollmentCompose.NewHolidayGuestBadgeList(calendar.CalendarDateClock(env.Now)),

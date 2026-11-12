@@ -79,6 +79,10 @@ export function ownGroupsTopic(
       // Einstellung „Kinder nur über ‚Alle Kinder‘ finden“ (#1321).
       "Fehlt `Gruppen` in der Navigation? Öffnen Sie `Alle Kinder` und wählen Sie oben `Meine Gruppe`. Die Gruppenseite öffnen Sie im Menü mit den drei Punkten unter `Zur Gruppenseite`.",
     ],
+    // Einstellung „Angebote auf der Kinderkarte“ (#6487), standardmäßig aus.
+    notes: [
+      "Die Karten können auch die Angebote des Tages zeigen, zum Beispiel „14:00–15:00 Töpfer-AG“. Ihre Leitung schaltet das in den Einstellungen bei `Angebote auf der Kinderkarte` ein.",
+    ],
     troubleshooting: HELP_TOPICS.missingChildOrGroup,
     related: [
       HELP_TOPICS.transferGroup,
