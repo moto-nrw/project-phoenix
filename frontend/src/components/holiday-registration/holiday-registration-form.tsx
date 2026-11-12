@@ -52,8 +52,10 @@ import {
 } from "./holiday-registration-sections";
 import {
   addressFromAccount,
+  isNamedRelationshipType,
   isPrefilledContact,
   isPrefilledSecondGuardian,
+  sameGuardian,
   withKnownContacts,
 } from "./holiday-registration-prefill";
 import { HolidayQuestions } from "./holiday-registration-questions";
@@ -342,15 +344,9 @@ export function HolidayRegistrationForm({
     setDraft({ ...draft, guardian: { ...draft.guardian, ...patch } });
   // The badge stays while the values are the ones of the account (#6682).
   const guardianFromAccount =
-    !!family &&
-    draft.guardian.firstName === family.guardian.firstName &&
-    draft.guardian.lastName === family.guardian.lastName &&
-    draft.guardian.email === family.guardian.email &&
-    draft.guardian.phone === family.guardian.phone;
+    !!family && sameGuardian(draft.guardian, family.guardian);
   const relationshipLabel = (type: string) =>
-    type === "parent" || type === "guardian" || type === "relative"
-      ? t(`relationshipTypes.${type}`)
-      : "";
+    isNamedRelationshipType(type) ? t(`relationshipTypes.${type}`) : "";
 
   return (
     <form

@@ -13,12 +13,10 @@ import {
   type ContactDraft,
   emptyContact,
   MAX_CONTACTS,
+  MAX_EMERGENCY_CONTACTS,
+  MAX_PICKUP_PERSONS,
   type RegistrationDraft,
 } from "./holiday-registration-model";
-
-// Mirrors MAX_EMERGENCY_CONTACTS / MAX_PICKUP_PERSONS of the model.
-const MAX_EMERGENCY = 3;
-const MAX_PICKUP = 5;
 
 /** The values of a contact the prefill wrote, to tell an edit apart. */
 type ContactValues = Pick<
@@ -28,6 +26,33 @@ type ContactValues = Pick<
 
 /** Translates a stored relationship type for the contact's free text. */
 export type RelationshipLabel = (relationshipType: string) => string;
+
+/** The relationship types the form names; "other" stays without a label. */
+export const NAMED_RELATIONSHIP_TYPES = [
+  "parent",
+  "guardian",
+  "relative",
+] as const;
+export type NamedRelationshipType = (typeof NAMED_RELATIONSHIP_TYPES)[number];
+
+export function isNamedRelationshipType(
+  type: string,
+): type is NamedRelationshipType {
+  return (NAMED_RELATIONSHIP_TYPES as readonly string[]).includes(type);
+}
+
+/** Whether two sets of person fields are the same. */
+export function sameGuardian(
+  a: RegistrationDraft["guardian"],
+  b: RegistrationDraft["guardian"],
+): boolean {
+  return (
+    a.firstName === b.firstName &&
+    a.lastName === b.lastName &&
+    a.email === b.email &&
+    a.phone === b.phone
+  );
+}
 
 /** Whether the address is still the one the prefill wrote. */
 export function addressFromAccount(
@@ -59,14 +84,7 @@ export function isPrefilledContact(contact: ContactDraft): boolean {
 /** Whether the second custodian is still the one the prefill wrote. */
 export function isPrefilledSecondGuardian(draft: RegistrationDraft): boolean {
   const known = draft.secondGuardianPrefill;
-  if (!known) return false;
-  const current = draft.secondGuardian;
-  return (
-    current.firstName === known.values.firstName &&
-    current.lastName === known.values.lastName &&
-    current.email === known.values.email &&
-    current.phone === known.values.phone
-  );
+  return !!known && sameGuardian(draft.secondGuardian, known.values);
 }
 
 function isBlankContact(contact: ContactDraft): boolean {
@@ -79,6 +97,14 @@ function isBlankContact(contact: ContactDraft): boolean {
 }
 
 /**
+ * One key per person. Siblings at two schools of the Träger have the same
+ * person under two school records, so the name joins them as well.
+ */
+function personKey(contact: HolidayKnownContact): string {
+  return `${contact.firstName} ${contact.lastName}`.trim().toLowerCase();
+}
+
+/**
  * The other guardians of the picked children, one entry per person: the
  * first child names the order, the roles of all picked children add up.
  */
@@ -86,15 +112,16 @@ function pickedContacts(
   draft: RegistrationDraft,
   family: HolidayKnownFamily,
 ): HolidayKnownContact[] {
-  const byId = new Map<string, HolidayKnownContact>();
+  const byPerson = new Map<string, HolidayKnownContact>();
   for (const child of draft.children) {
     const known = family.children.find(
       (candidate) => candidate.studentId === child.knownStudentId,
     );
     for (const contact of known?.contacts ?? []) {
-      const seen = byId.get(contact.guardianProfileId);
-      byId.set(
-        contact.guardianProfileId,
+      const key = personKey(contact);
+      const seen = byPerson.get(key);
+      byPerson.set(
+        key,
         seen
           ? {
               ...seen,
@@ -108,7 +135,7 @@ function pickedContacts(
       );
     }
   }
-  return [...byId.values()];
+  return [...byPerson.values()];
 }
 
 function contactValues(
@@ -130,8 +157,8 @@ function fits(contacts: readonly ContactDraft[], values: ContactValues) {
     contacts.filter((contact) => contact[role]).length;
   return (
     contacts.length < MAX_CONTACTS &&
-    (!values.emergency || count("emergency") < MAX_EMERGENCY) &&
-    (!values.pickup || count("pickup") < MAX_PICKUP)
+    (!values.emergency || count("emergency") < MAX_EMERGENCY_CONTACTS) &&
+    (!values.pickup || count("pickup") < MAX_PICKUP_PERSONS)
   );
 }
 

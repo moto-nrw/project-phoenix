@@ -3,13 +3,16 @@ package care
 import (
 	"context"
 	"fmt"
+	"log/slog"
 )
 
 // Contacts of the holiday registration prefill (#6682): the other guardians
 // of a child the parent may register, as the school knows them. The form
 // offers a full guardian as the second custodian and every emergency or
 // pickup contact as a contact. The parent reads here what the child's
-// guardian list in the parent portal already shows (ListChildGuardians):
+// guardian list in the parent portal already shows (ListChildGuardians; the
+// offered children come from the account's child list, which requires
+// parent_portal.access):
 // the same predicate redacts the contact data of a guardian with an own
 // account, of a social worker and of a contact shared with another family,
 // so those come with their name only. Social workers stay out entirely:
@@ -74,6 +77,12 @@ func (s *Service) attachHolidayRegistrationContacts(ctx context.Context, account
 		}
 		profile, ok := sources.profiles[link.GuardianProfileID]
 		if !ok {
+			// A data-integrity fault, as in the child's guardian list.
+			s.Logger.Error("parent holiday registration contact points to missing profile",
+				slog.Int64("student_id", link.StudentID),
+				slog.Int64("student_guardian_id", link.ID),
+				slog.Int64("guardian_profile_id", link.GuardianProfileID),
+			)
 			return fmt.Errorf("parent: student_guardian %d references missing guardian profile %d", link.ID, link.GuardianProfileID)
 		}
 		if contact, ok := s.holidayRegistrationContact(profile, link, sources.phones[profile.ID], accountID, sources.shared[profile.ID]); ok {

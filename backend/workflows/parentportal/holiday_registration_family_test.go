@@ -267,4 +267,15 @@ func TestHolidayRegistrationFamilyOffersAddressAndContacts(t *testing.T) {
 	assert.Equal(t, "Lena", step.FirstName, "the name stays, as in the guardian list")
 	assert.Empty(t, step.Email, "a guardian with an own account keeps the contact data")
 	assert.Empty(t, step.Phone)
+
+	// Without parent_portal.access the guardian list stays closed. The
+	// account's child list already drops such a child, so the prefill offers
+	// neither the child nor its contacts, even with the registration right.
+	_, err = db.ExecContext(ctx, `UPDATE auth.guardian_student_access a SET permissions = '{"parent_portal.enrollment.submit": true}'::jsonb
+		FROM users.student_guardian_relationships r
+		WHERE a.tenant_id = r.tenant_id AND a.relationship_id = r.id AND r.student_id = ? AND r.guardian_profile_id = ?`, chain.StudentID, chain.GuardianProfileID)
+	require.NoError(t, err)
+	closed, err := svc.HolidayRegistrationFamily(ctx, chain.AccountID, parentService.HolidayRegistrationScope{OrganizationID: 42, SchoolIDs: []int64{chain.TenantID}})
+	require.NoError(t, err)
+	assert.Empty(t, closed.Children, "no contacts beyond what the guardian list shows")
 }

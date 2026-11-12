@@ -188,6 +188,34 @@ describe("prefill from the parent account (#6682)", () => {
     );
   });
 
+  it("joins one person of siblings at two schools", () => {
+    const twoSchools: HolidayKnownFamily = {
+      ...family,
+      children: [
+        child("10", [grandma]),
+        {
+          ...child("13", [{ ...grandma, guardianProfileId: "91" }]),
+          schoolId: "2",
+        },
+      ],
+    };
+    let draft = withKnownContacts(
+      toggleKnownChild(
+        registrationFromFamily(twoSchools),
+        twoSchools.children[0]!,
+        offer,
+      ),
+      twoSchools,
+      label,
+    );
+    draft = withKnownContacts(
+      toggleKnownChild(draft, twoSchools.children[1]!, offer),
+      twoSchools,
+      label,
+    );
+    expect(draft.contacts.map((c) => c.name)).toEqual(["Erika Muster"]);
+  });
+
   it("keeps the limits of the form", () => {
     const many = Array.from({ length: 5 }, (_, i) => contact(`3${i}`));
     const crowded = { ...family, children: [child("12", many)] };
