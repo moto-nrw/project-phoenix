@@ -152,6 +152,8 @@ function splitSessionByBerlinDate(
     createdAt: "",
     updatedAt: "",
     netMinutes: session.net_minutes,
+    packUpMinutes: session.pack_up_minutes,
+    roundingMinutes: session.rounding_minutes,
     isOvertime: false,
     isBreakCompliant: true,
     restPeriodWarning: null,
@@ -188,9 +190,10 @@ function splitSessionByBerlinDate(
     now,
   );
 
-  return [...valuesByDate.entries()].map(([date, values], index) => {
+  const dayEntries = [...valuesByDate.entries()];
+  return dayEntries.map(([date, values], index) => {
     const isFirstDay = date === berlinTodayISO(start);
-    const isLastDay = date === berlinTodayISO(end);
+    const isLastDay = index === dayEntries.length - 1;
     const previousDay = parseISODate(date);
     previousDay.setDate(previousDay.getDate() - 1);
     const segmentStart = isFirstDay

@@ -402,6 +402,8 @@ function staffSessionToHistorySession(
     createdAt: "",
     updatedAt: "",
     netMinutes: session.net_minutes,
+    packUpMinutes: session.pack_up_minutes,
+    roundingMinutes: session.rounding_minutes,
     isOvertime: false,
     isBreakCompliant: true,
     restPeriodWarning: null,

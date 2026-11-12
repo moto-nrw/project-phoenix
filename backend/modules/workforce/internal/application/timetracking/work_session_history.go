@@ -162,11 +162,17 @@ func sessionHistoryResponses(sessions []*WorkSession, breaksBySession map[int64]
 func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, targetsByWeek map[summaryWeekKey]int, from, to calendar.Date) []WeeklySummary {
 	weeks := weeklySummaryAccumulator{weekMap: make(map[summaryWeekKey]*WeeklySummary), targetsByWeek: targetsByWeek}
 	now := time.Now()
+	stampedMinutesByWeek := make(map[summaryWeekKey]int)
 
 	for _, session := range sessions {
 		end := BalanceSessionEnd(session.WorkSession, now)
 		countedWeeks := make(map[summaryWeekKey]struct{})
 		firstDay, lastDay := summarySessionDays(session.CheckInTime, end, from, to)
+		for day, minutes := range netMinutesByDate(session.WorkSession, session.Breaks, end, firstDay, lastDay) {
+			year, week := day.UTCMidnight().ISOWeek()
+			key := summaryWeekKey{Year: year, Week: week}
+			stampedMinutesByWeek[key] += minutes
+		}
 		for day, minutes := range creditedNetMinutesByDate(session.WorkSession, session.Breaks, end, firstDay, lastDay) {
 			year, week := day.UTCMidnight().ISOWeek()
 			key := summaryWeekKey{Year: year, Week: week}
@@ -180,7 +186,7 @@ func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, t
 		}
 	}
 
-	return weeklySummaryValues(weeks.weekMap, weeks.weekOrder)
+	return weeklySummaryValues(weeks.weekMap, weeks.weekOrder, stampedMinutesByWeek)
 }
 
 // summarySessionDays returns the days a block contributes to, clamped to the
@@ -230,13 +236,13 @@ func (w *weeklySummaryAccumulator) week(key summaryWeekKey) *WeeklySummary {
 }
 
 // weeklySummaryValues keeps the encountered week order and derives the limit and target deltas.
-func weeklySummaryValues(weekMap map[summaryWeekKey]*WeeklySummary, weekOrder []summaryWeekKey) []WeeklySummary {
+func weeklySummaryValues(weekMap map[summaryWeekKey]*WeeklySummary, weekOrder []summaryWeekKey, stampedMinutesByWeek map[summaryWeekKey]int) []WeeklySummary {
 	// Convert to sorted slice and compute derived fields
 	const maxWeeklyMinutes = 48 * 60 // §3 ArbZG
 	summaries := make([]WeeklySummary, 0, len(weekOrder))
 	for _, key := range weekOrder {
 		ws := weekMap[key]
-		ws.IsOverWeeklyMax = ws.TotalNetMinutes > maxWeeklyMinutes
+		ws.IsOverWeeklyMax = stampedMinutesByWeek[key] > maxWeeklyMinutes
 
 		if ws.TargetMinutes != nil {
 			delta := ws.TotalNetMinutes - *ws.TargetMinutes

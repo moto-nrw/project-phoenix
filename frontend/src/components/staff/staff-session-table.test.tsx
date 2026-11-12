@@ -1701,6 +1701,32 @@ describe("staff-session-table.credit", () => {
     expect(screen.getByText("14:03")).toBeInTheDocument();
   });
 
+  it("behält die Hinweise bei einem Checkout genau um Mitternacht", () => {
+    renderCredit({
+      ...stamped,
+      check_in_time: "2026-01-05T22:03:00Z",
+      check_out_time: "2026-01-05T23:00:00Z",
+      net_minutes: 60,
+      rounding_minutes: -2,
+    });
+    expect(screen.getByText("+5 Min. Wegpackzeit")).toBeInTheDocument();
+    expect(screen.getByText("Gerundet -2 Min.")).toBeInTheDocument();
+    expect(screen.getByText("00:00")).toBeInTheDocument();
+  });
+
+  it("bucht Wegpackzeit nur auf den letzten Tag des Nachtblocks", () => {
+    renderCredit({
+      ...stamped,
+      check_in_time: "2026-01-05T21:00:00Z",
+      check_out_time: "2026-01-06T00:00:00Z",
+      net_minutes: 185,
+      rounding_minutes: 0,
+    });
+    expect(screen.getByText("2h")).toBeInTheDocument();
+    expect(screen.getByText("1h 5min")).toBeInTheDocument();
+    expect(screen.getAllByText("+5 Min. Wegpackzeit")).toHaveLength(1);
+  });
+
   it("zeigt abgerundete Minuten mit Minuszeichen", () => {
     renderCredit({ ...stamped, pack_up_minutes: 0, rounding_minutes: -3 });
 

@@ -315,3 +315,64 @@ func TestUpdateSession_ClosingAnOpenBlockRoundsWithoutPackUp(t *testing.T) {
 	updated := creditAdminUpdate(t, open, &wsMockSettingsResolver{credit: mausRule}, creditAt(12, 0))
 	assert.Equal(t, roundOnly15, updated.creditRule())
 }
+
+func TestCreditedNetMinutesByDate_CarriesRoundingDeductionBeforeFiltering(t *testing.T) {
+	t.Parallel()
+	nextDay := creditDay.AddDays(1)
+	end := nextDay.BerlinMidnight().Add(2 * time.Minute)
+	session := creditBlock(23, 8, 23, 9, workforce.WorkSessionCreditRule{
+		RoundingIntervalMinutes: 15, RoundingMode: workforce.WorkTimeRoundingDown,
+	})
+	session.CheckOutTime = &end
+	assert.Equal(t, 45, creditedNetMinutes(session, nil, end))
+	assert.Equal(t, map[Date]int{creditDay: 45}, creditedNetMinutesByDate(session, nil, end, creditDay, nextDay))
+	assert.Equal(t, map[Date]int{creditDay: 45}, creditedNetMinutesByDate(session, nil, end, creditDay, creditDay))
+	assert.Empty(t, creditedNetMinutesByDate(session, nil, end, nextDay, nextDay))
+}
+
+func TestCreditedNetMinutes_ExcessBreakDeductsCreditBeforeFloor(t *testing.T) {
+	t.Parallel()
+	for _, breakMinutes := range []int{62, 90} {
+		session := creditBlock(23, 0, 23, 1, workforce.WorkSessionCreditRule{PackUpMinutes: 5})
+		end := creditDay.AddDays(1).BerlinMidnight()
+		session.CheckOutTime = &end
+		session.BreakMinutes = breakMinutes
+		want := max(0, 65-breakMinutes)
+		assert.Equal(t, want, creditedNetMinutes(session, nil, end))
+		byDate := creditedNetMinutesByDate(session, nil, end, creditDay, creditDay.AddDays(1))
+		assert.Equal(t, want, byDate[creditDay])
+		assert.Zero(t, byDate[creditDay.AddDays(1)])
+	}
+}
+
+func TestBuildWeeklySummaries_StatutoryLimitUsesStampedMinutes(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name            string
+		minutes, packUp int
+		over            bool
+	}{
+		{name: "rounding down cannot hide excess", minutes: 484, over: true},
+		{name: "credit cannot create statutory excess", minutes: 480, packUp: 15, over: false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			monday := creditDay.AddDays(-7)
+			var sessions []*SessionResponse
+			for offset := range 6 {
+				day := monday.AddDays(offset)
+				end := day.BerlinMidnight().Add(time.Duration(8*60+tc.minutes) * time.Minute)
+				block := creditBlock(8, 0, 16, 0, workforce.WorkSessionCreditRule{
+					PackUpMinutes: tc.packUp, RoundingIntervalMinutes: 15, RoundingMode: workforce.WorkTimeRoundingDown,
+				})
+				block.CheckInTime = day.BerlinMidnight().Add(8 * time.Hour)
+				block.CheckOutTime = &end
+				sessions = append(sessions, &SessionResponse{WorkSession: block})
+			}
+			svc := &workSessionService{}
+			summaries := svc.buildWeeklySummaries(sessions, nil, monday, monday.AddDays(6))
+			require.Len(t, summaries, 1)
+			assert.Equal(t, 48*60+6*tc.packUp, summaries[0].TotalNetMinutes)
+			assert.Equal(t, tc.over, summaries[0].IsOverWeeklyMax)
+		})
+	}
+}

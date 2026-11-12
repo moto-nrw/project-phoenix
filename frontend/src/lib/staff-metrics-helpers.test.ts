@@ -261,6 +261,30 @@ describe("computePeriodTotalsFromTargets", () => {
     expect(totals.delta).toBe(-360);
   });
 
+  it("books checkout credit on Monday rather than spreading it into Sunday", () => {
+    const monday = new Date(2026, 7, 3);
+    const totals = computePeriodTotalsFromTargets(
+      new Map([["2026-08-03", 480]]),
+      [
+        session({
+          date: "2026-08-02",
+          check_in_time: "2026-08-02T20:00:00Z",
+          check_out_time: "2026-08-02T23:00:00Z",
+          net_minutes: 185,
+          break_minutes: 0,
+          pack_up_minutes: 5,
+          rounding_minutes: 0,
+        }),
+      ],
+      [],
+      monday,
+      monday,
+      monday,
+    );
+    expect(totals.ist).toBe(65);
+    expect(totals.delta).toBe(-415);
+  });
+
   it("prices the delta against the Soll up to today, but Soll for the full week", () => {
     // Tuesday: Wed-Fri have not happened yet and must not read as Minusstunden.
     const tuesday = new Date(2026, 7, 4);

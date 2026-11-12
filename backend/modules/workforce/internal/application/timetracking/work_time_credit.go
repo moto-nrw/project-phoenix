@@ -89,9 +89,9 @@ func roundWorkMinutes(minutes, interval int, mode string) int {
 }
 
 // creditedNetMinutes is the net work time a reader sees for one block: the
-// stamped net time plus the block's credit, floored at 0.
+// stamped gross time plus credit minus all breaks, floored once at 0.
 func creditedNetMinutes(ws *WorkSession, breaks []*WorkSessionBreak, now time.Time) int {
-	return max(0, netMinutesWithBreaks(ws, breaks, now)+sessionCredit(ws).total())
+	return max(0, grossMinutes(ws, now)+sessionCredit(ws).total()-totalBreakMinutes(ws, breaks, now))
 }
 
 // creditedNetMinutesByDate is netMinutesByDate with the block's credit booked
@@ -99,24 +99,43 @@ func creditedNetMinutes(ws *WorkSession, breaks []*WorkSessionBreak, now time.Ti
 // when end is the block's own check-out: a block measured against a live
 // limit is still open.
 func creditedNetMinutesByDate(session *WorkSession, breaks []*WorkSessionBreak, end time.Time, from, to calendar.Date) map[calendar.Date]int {
-	minutesByDate := netMinutesByDate(session, breaks, end, from, to)
 	if session.CheckOutTime == nil || !end.Equal(*session.CheckOutTime) {
-		return minutesByDate
+		return netMinutesByDate(session, breaks, end, from, to)
 	}
-	credit := sessionCredit(session).total()
+	// Keep the full break deduction until after credit, even when breaks
+	// exceed the stamped duration. Only the effective difference is booked.
+	credit := creditedNetMinutes(session, breaks, end) - netMinutesWithBreaks(session, breaks, end)
 	if credit == 0 {
-		return minutesByDate
+		return netMinutesByDate(session, breaks, end, from, to)
 	}
-	day := calendar.DateFromTime(end.Add(-time.Nanosecond))
-	if day.Before(from) || day.After(to) {
-		return minutesByDate
-	}
-	if minutes := minutesByDate[day] + credit; minutes > 0 {
-		minutesByDate[day] = minutes
-	} else {
-		delete(minutesByDate, day)
+	firstDay := calendar.DateFromTime(session.CheckInTime)
+	lastDay := calendar.DateFromTime(end.Add(-time.Nanosecond))
+	minutesByDate := netMinutesByDate(session, breaks, end, firstDay, lastDay)
+	applyCreditByDate(minutesByDate, credit, firstDay, lastDay)
+	// Filter only after deductions have reached any earlier occupied days.
+	for day := range minutesByDate {
+		if day.Before(from) || day.After(to) {
+			delete(minutesByDate, day)
+		}
 	}
 	return minutesByDate
+}
+
+// applyCreditByDate books additions on the last occupied day and carries a
+// rounding deduction backwards until it is fully consumed, without negatives.
+func applyCreditByDate(minutesByDate map[calendar.Date]int, credit int, firstDay, lastDay calendar.Date) {
+	if credit > 0 {
+		minutesByDate[lastDay] += credit
+		return
+	}
+	for day := lastDay; credit < 0 && !day.Before(firstDay); day = day.AddDays(-1) {
+		deducted := min(minutesByDate[day], -credit)
+		minutesByDate[day] -= deducted
+		credit += deducted
+		if minutesByDate[day] == 0 {
+			delete(minutesByDate, day)
+		}
+	}
 }
 
 // closeRegularCheckout closes a block by a regular checkout. It earns the
