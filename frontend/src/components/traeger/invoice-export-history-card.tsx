@@ -77,7 +77,7 @@ function stepTitle(step: InvoiceStep): string {
 
 function stepDetail(step: InvoiceStep): string | null {
   if (step.kind === "mail_requested")
-    return "E-Mail-Versand beauftragt. Den Stand sehen Sie beim Rechnungslauf.";
+    return "E-Mail-Versand beauftragt. Den Stand sehen Sie beim Abrechnungslauf.";
   if (step.kind === "sent") return "Vom E-Mail-Dienst angenommen.";
   if (step.kind === "exported" && step.file) return step.file.fileName;
   return null;

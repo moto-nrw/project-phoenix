@@ -78,7 +78,7 @@ function NameCard({
       <form
         ref={formRef}
         noValidate
-        className="space-y-4"
+        className="max-w-xl space-y-4"
         onSubmit={(event) => {
           event.preventDefault();
           void submit();
