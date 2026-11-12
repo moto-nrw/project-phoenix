@@ -250,11 +250,11 @@ func (d *SEPADebits) SEPADebitFile(ctx context.Context, reviewer parentbilling.H
 	if err := d.storeFile(ctx, reviewer, runKind, runID, plan, data); err != nil {
 		return parentbilling.SEPADebitFile{}, err
 	}
-	name, err := d.recordDebitFile(ctx, reviewer, runKind, runID, plan, data)
+	entry, err := d.recordDebitFile(ctx, reviewer, runKind, runID, plan, data)
 	if err != nil {
 		return parentbilling.SEPADebitFile{}, err
 	}
-	return parentbilling.SEPADebitFile{Filename: name, ContentType: "application/xml", Data: data}, nil
+	return parentbilling.SEPADebitFile{Filename: entry.FileName, ContentType: "application/xml", Data: data, ExportFileID: entry.ID}, nil
 }
 
 // storeFile keeps the exact bytes the office downloads, sealed with the

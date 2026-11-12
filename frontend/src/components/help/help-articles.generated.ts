@@ -356,6 +356,8 @@ import type { traegerDocumentKindsTopic as authored_traegerDocumentKindsTopic } 
 
 import type { traegerDocumentTemplatesTopic as authored_traegerDocumentTemplatesTopic } from "./articles/traeger-document-templates";
 
+import type { traegerExportHandoverTopic as authored_traegerExportHandoverTopic } from "./articles/traeger-export-handover";
+
 import type { traegerFinanceExportsTopic as authored_traegerFinanceExportsTopic } from "./articles/traeger-finance-exports";
 
 import type { traegerHolidayAllocationTopic as authored_traegerHolidayAllocationTopic } from "./articles/traeger-holiday-allocation";
@@ -11866,6 +11868,71 @@ export const traegerDocumentTemplatesTopic =
     };
   } satisfies typeof authored_traegerDocumentTemplatesTopic;
 
+export const traegerExportHandoverTopic =
+  function traegerExportHandoverTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.traegerExportHandover,
+      title: "Exporte an einen Empfänger übergeben",
+      question: "Wie schickt moto die Dateien direkt an die Kämmerei?",
+      summary:
+        "moto kann die Sollstellung, die DATEV-Datei und die Lastschriftdatei selbst bei einem Empfänger ablegen, zum Beispiel bei Ihrer Kämmerei. Sie tragen den Empfänger einmal ein. Herunterladen können Sie die Dateien weiterhin.",
+      group: "anmeldeverwaltung",
+      audience: "traeger",
+      icon: "FolderOpen",
+      requirements: [
+        "Ihre Rolle im Träger-Büro ist Abrechnung.",
+        "Der Empfänger hat Ihnen Adresse, Benutzername, Passwort, Zielordner und Fingerabdruck genannt.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Empfänger eintragen",
+          description: "Das machen Sie nur einmal.",
+          steps: [
+            "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
+            "Wählen Sie oben rechts `Empfänger der Exporte`.",
+            "Schalten Sie `Übergabe einschalten` ein.",
+            "Tragen Sie `Adresse`, `Port`, `Benutzername`, `Passwort`, `Zielordner` und `Fingerabdruck` ein.",
+            "Wählen Sie `Speichern`. Oben steht dann `Der Empfänger ist bereit`.",
+          ],
+        },
+        {
+          title: "Datei übergeben",
+          steps: [
+            "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
+            "Wählen Sie beim Lauf `Übergeben`, dann `Sollstellung übergeben` oder `DATEV-Datei übergeben`.",
+            "Kommt die Datei an, zeigt moto eine kurze Meldung mit dem Dateinamen.",
+            "Die Lastschriftdatei übergeben Sie bei der Lastschrift des Laufs mit `Übergeben`.",
+          ],
+        },
+      ],
+      result:
+        "Die Datei steht im `Exportprotokoll` mit dem Vermerk `An Empfänger übergeben`. Unter `Letzte Übergaben` auf der Seite des Empfängers steht jeder Versuch mit seinem Ergebnis.",
+      notes: [
+        "Jede Übergabe ist eine neue Datei mit neuer Nummer, wie ein Download.",
+        "Ist dieselbe Datei schon beim Empfänger, fragt moto vorher nach. So bucht die Kämmerei nichts doppelt.",
+        "Hat der Empfänger eine DATEV-Datei verloren, wählen Sie beim Lauf `Übergeben`, dann `Alle DATEV-Buchungen erneut übergeben`. Kam eine DATEV-Datei nicht an, enthält die nächste ihre Buchungen wieder.",
+        "Das Passwort speichert moto verschlüsselt. Es wird nie wieder angezeigt. Ändern Sie Adresse, Port, Benutzername oder Fingerabdruck, geben Sie es noch einmal ein.",
+        "Mit `Empfänger entfernen` löschen Sie Adresse und Passwort. Der Verlauf der Übergaben bleibt.",
+      ],
+      differences: [
+        "Beim Lauf fehlt `Übergeben`? Ihnen fehlt das Recht `Finanz-Export`, oder moto konnte den Empfänger nicht lesen. Laden Sie die Seite neu. Die Lastschriftdatei übergeben Sie auch ohne dieses Recht.",
+        "Im Menü steht nur `Empfänger eintragen`? Es fehlen noch Angaben, oder die Übergabe ist ausgeschaltet.",
+      ],
+      troubleshootingDetails: [
+        "`Nicht angekommen` mit dem Hinweis auf den Fingerabdruck? Fragen Sie beim Empfänger nach dem Fingerabdruck für den RSA-Schlüssel.",
+        "`Die Anmeldung wurde abgelehnt`? Prüfen Sie Benutzername und Passwort.",
+        "`Ergebnis unklar`? Fragen Sie beim Empfänger nach, ob die Datei da ist. Erst dann übergeben Sie sie noch einmal.",
+        "`Diese Adresse ist nicht erlaubt`? moto übergibt nur an Adressen im Internet, nicht ins eigene Netz.",
+      ],
+      related: [
+        HELP_TOPICS.traegerFinanceExports,
+        HELP_TOPICS.traegerDatevExport,
+        HELP_TOPICS.traegerSepaDebitFile,
+      ],
+    };
+  } satisfies typeof authored_traegerExportHandoverTopic;
+
 export const traegerFinanceExportsTopic =
   function traegerFinanceExportsTopic(): HelpTopic {
     return {
@@ -11910,7 +11977,7 @@ export const traegerFinanceExportsTopic =
           steps: [
             "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
             "Wählen Sie beim Lauf `Sollstellung`. Die Datei wird heruntergeladen.",
-            "Geben Sie die Datei an Ihre Kämmerei.",
+            "Geben Sie die Datei an Ihre Kämmerei. Oder lassen Sie moto sie übergeben, siehe „Exporte an einen Empfänger übergeben“.",
           ],
         },
       ],
@@ -11935,6 +12002,7 @@ export const traegerFinanceExportsTopic =
         "Beim Import einer Datei zeigt eine Zeile `Geschwister haben verschiedene Nummern`? moto führt eine Nummer je Familie. Tragen Sie die richtige Nummer bei der Familie ein.",
       ],
       related: [
+        HELP_TOPICS.traegerExportHandover,
         HELP_TOPICS.traegerDatevExport,
         HELP_TOPICS.traegerCareMonths,
         HELP_TOPICS.traegerSepaDebitFile,

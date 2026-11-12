@@ -55,11 +55,26 @@
       "role": "port",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/exporttransfer/http",
+      "owner": "export-transfer",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "workflow-integration-test"
     }
   ],
   "data_objects": [
     {
       "name": "audit.export_transfers",
+      "write_owner": "export-transfer"
+    },
+    {
+      "name": "audit.traeger_export_transfers",
+      "write_owner": "export-transfer"
+    },
+    {
+      "name": "config.traeger_export_recipients",
       "write_owner": "export-transfer"
     }
   ],
@@ -148,6 +163,32 @@
       "target_owner": "export-transfer",
       "target_role": "contract",
       "target_package": "modules/exporttransfer"
+    },
+    {
+      "id": "export-transfer.http.contract",
+      "description": "The recipient routes of the Träger scope drive the capability through its own contract (ADR 0218).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "http",
+      "source_package": "modules/exporttransfer/http",
+      "target_owner": "export-transfer",
+      "target_role": "contract",
+      "target_package": "modules/exporttransfer"
+    },
+    {
+      "id": "export-transfer.http.tenant-runtime.common",
+      "description": "The recipient routes of the Träger scope reuse the shared HTTP runtime of api/common: the Träger route group, the permission gate, request parsing, response rendering and the shared error codes (ADR 0218).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "export-transfer",
+      "source_role": "http",
+      "source_package": "modules/exporttransfer/http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
     }
   ]
 }

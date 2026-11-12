@@ -243,6 +243,7 @@ export const HELP_TOPICS = {
   traegerSepaMandates: "lastschrift-und-sepa-mandate",
   traegerSepaDebitFile: "lastschriftdatei-bei-der-bank-einreichen",
   traegerFinanceExports: "sollstellung-fuer-die-kaemmerei",
+  traegerExportHandover: "exporte-an-einen-empfaenger-uebergeben",
   traegerDatevExport: "datev-werte-eintragen",
   traegerAccessLog: "zugriffsprotokoll-des-traegers-lesen",
   traegerSettings: "traeger-einstellungen",
