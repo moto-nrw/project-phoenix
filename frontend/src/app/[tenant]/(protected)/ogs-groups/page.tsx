@@ -41,6 +41,7 @@ import type { Student } from "~/lib/student-helpers";
 import { teacherHintKey, teacherHintText } from "~/lib/student-helpers";
 import {
   countedDayStatus,
+  isInClassLocation,
   isNotCheckedInLocation,
 } from "~/lib/location-helper";
 import {
@@ -1033,6 +1034,8 @@ function OGSGroupPageContent() {
               isGroupRoom={isStudentInGroupRoom(student, currentGroup)}
               variant="modern"
               size="md"
+              // „seit“ nennt, wann das Kind zum Unterricht ging (#5710).
+              showLocationSince={isInClassLocation(student.current_location)}
             />
           );
         }),
@@ -1232,6 +1235,9 @@ function OGSGroupPageContent() {
                       isGroupRoom={inGroupRoom}
                       variant="modern"
                       size="md"
+                      showLocationSince={isInClassLocation(
+                        student.current_location,
+                      )}
                     />
                   }
                   extraContent={

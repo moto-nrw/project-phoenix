@@ -1131,6 +1131,8 @@ export const ERROR_CATALOG = {
         "Der Raum {room_name}: {current_occupancy} von {max_capacity} Plätzen sind belegt. Freie Plätze: {free_slots}. Es sollen {incoming_students} Kinder dazukommen.",
       "presence.statistics_range_invalid":
         "Der Zeitraum passt nicht. Er darf höchstens ein Jahr lang sein und nicht in der Zukunft enden.",
+      "presence.visit_overlap":
+        "Das Kind war ab {conflicting_from} Uhr in einem anderen Raum. Die Zeiten dürfen sich nicht überschneiden.",
       "provisioning.caregiver_capability_blocked":
         "Die Betreuungsrolle kann noch nicht entfernt werden, weil die Person noch eingeplant ist. Bitte lösen Sie diese Zuordnungen zuerst.",
       "provisioning.device_active_session":

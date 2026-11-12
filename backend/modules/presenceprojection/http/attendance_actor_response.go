@@ -31,7 +31,11 @@ func applyAttendanceActorsToDetail(response *StudentDetailResponse, status *stud
 		return
 	}
 	response.ActualArrivalBy = newAttendanceActorResponse(status.CheckedInActor)
-	response.ActualPickupBy = newAttendanceActorResponse(status.CheckedOutActor)
+	// A checkout to class is no pickup (#5656): like actual_pickup_time, the
+	// field stays empty until the child leaves for the day (#5710).
+	if status.PickupTime() != nil {
+		response.ActualPickupBy = newAttendanceActorResponse(status.CheckedOutActor)
+	}
 }
 
 // attachAttendanceActors names who recorded each day's arrival and pickup.
