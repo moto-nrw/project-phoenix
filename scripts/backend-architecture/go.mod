@@ -1,6 +1,6 @@
 module github.com/moto-ogs/project-phoenix/tools/architecturecmd
 
-go 1.27.3
+go 1.27.4
 
 require github.com/moto-ogs/project-phoenix v0.0.0
 
