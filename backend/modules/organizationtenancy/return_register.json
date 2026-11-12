@@ -2,7 +2,7 @@
   "registerVersion": 1,
   "formatVersion": 1,
   "catalogVersion": 1,
-  "catalogSHA256": "147df4346b59a50e7b1e1df42cbf3fbad2ecc32428385e1f49eef59ccf5590c6",
+  "catalogSHA256": "9b792587c39d086d133425a15c814d52e627ed6cff909d1208869d88604fdb26",
   "about": "Dieses Register beschreibt das Rückgabepaket von moto: welche Tabellen und Felder es enthält, welche Typen sie haben, ob sie leer sein dürfen und wie die Tabellen verbunden sind. Es enthält keine Kundendaten. Jedes Paket enthält dieselbe Beschreibung für seine Tabellen als model.json. formatVersion und catalogSHA256 stehen auch in der manifest.json des Pakets.",
   "standards": [
     {
@@ -17263,6 +17263,279 @@
         "school",
         "organization"
       ]
+    },
+    {
+      "name": "parent_billing.export_file_transfers",
+      "columns": [
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "export_file_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "target_host",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "target_directory",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "state",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "failure_reason",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "started_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "settled_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
+        }
+      ],
+      "relationships": [
+        {
+          "column": "export_file_id",
+          "targetTable": "parent_billing.export_files",
+          "targetColumn": "id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "parent_billing.export_files",
+          "targetColumn": "organization_id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ]
+    },
+    {
+      "name": "audit.traeger_export_transfers",
+      "columns": [
+        {
+          "name": "id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "actor_account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "export_kind",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "export_format",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "filename",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "byte_size",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "target_host",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "target_port",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": false
+        },
+        {
+          "name": "target_directory",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "status",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "failure_reason",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "dispatch_state",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
+        },
+        {
+          "name": "dispatch_expires_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "relationships": [
+        {
+          "column": "actor_account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "platform.organizations",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ],
+      "excludedColumns": {
+        "dispatch_token": "Authentication or operational secret/credential material; not customer export content."
+      }
+    },
+    {
+      "name": "config.traeger_export_recipients",
+      "columns": [
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "enabled",
+          "type": "boolean",
+          "udt": "bool",
+          "nullable": false
+        },
+        {
+          "name": "host",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "port",
+          "type": "integer",
+          "udt": "int4",
+          "nullable": false
+        },
+        {
+          "name": "username",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "remote_directory",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "host_key_fingerprint",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "updated_by_account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "relationships": [
+        {
+          "column": "organization_id",
+          "targetTable": "platform.organizations",
+          "targetColumn": "id"
+        },
+        {
+          "column": "updated_by_account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ],
+      "excludedColumns": {
+        "password_sealed": "Recipient password sealed with the bank key of the deployment; a credential, never opened and never part of any export (ADR 0217 section 3)."
+      }
     },
     {
       "name": "parent_billing.datev_booked_documents",

@@ -3,7 +3,6 @@ package compose
 import (
 	"bytes"
 	"context"
-	"crypto/sha256"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -35,8 +34,7 @@ type contextCipher struct{}
 func (contextCipher) BankDataRing() {}
 
 func (contextCipher) Seal(plaintext, context []byte) ([]byte, error) {
-	tag := sha256.Sum256(context)
-	sealed := append([]byte{}, tag[:8]...)
+	sealed := append([]byte{byte(len(context))}, context...)
 	for _, b := range plaintext {
 		sealed = append(sealed, b^0x5a)
 	}
@@ -44,12 +42,11 @@ func (contextCipher) Seal(plaintext, context []byte) ([]byte, error) {
 }
 
 func (contextCipher) Open(sealed, context []byte) ([]byte, error) {
-	tag := sha256.Sum256(context)
-	if len(sealed) < 8 || !bytes.Equal(sealed[:8], tag[:8]) {
+	if len(sealed) < 1+len(context) || int(sealed[0]) != len(context) || !bytes.Equal(sealed[1:1+len(context)], context) {
 		return nil, errors.New("value does not open in this context")
 	}
-	plain := make([]byte, 0, len(sealed)-8)
-	for _, b := range sealed[8:] {
+	plain := make([]byte, 0, len(sealed)-1-len(context))
+	for _, b := range sealed[1+len(context):] {
 		plain = append(plain, b^0x5a)
 	}
 	return plain, nil

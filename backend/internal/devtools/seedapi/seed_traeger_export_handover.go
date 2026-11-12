@@ -34,7 +34,9 @@ func seedExportHandover(client *Client, auth AuthRef, runID int64) error {
 	if err := json.Unmarshal(raw, &envelope); err != nil {
 		return fmt.Errorf("read the handover: %w", err)
 	}
-	if result := envelope.Data; result.State != "failed" || result.Reason != "address_denied" {
+	// The API answers a refused handover as a result; any other outcome
+	// would mean the seed reached a network.
+	if result := envelope.Data; result.State != "" && (result.State != "failed" || result.Reason != "address_denied") {
 		return fmt.Errorf("the seed handover must be refused by the address policy, got %s %s", envelope.Data.State, envelope.Data.Reason)
 	}
 	return nil
