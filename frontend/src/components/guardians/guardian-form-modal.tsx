@@ -844,11 +844,7 @@ export default function GuardianFormModal({
                             onClick={() => setPhonePrimary(entry.id, phone.id)}
                             disabled={save.pending}
                             aria-pressed={phone.isPrimary}
-                            tooltip={
-                              phone.isPrimary
-                                ? "Diese Nummer ist die primäre Nummer der Person."
-                                : "Macht diese Nummer zur primären Nummer der Person."
-                            }
+                            tooltip="Markiert diese Nummer als primäre Nummer der Person."
                             aria-label={
                               phone.isPrimary
                                 ? "Primäre Nummer"
@@ -1072,7 +1068,7 @@ export default function GuardianFormModal({
                 size="md"
                 onClick={onDelete}
                 disabled={save.pending}
-                tooltip="Entfernt die Person und ihren Elternzugang zu diesem Kind, moto fragt vorher nach."
+                tooltip="Entfernt die Person und ihren App-Zugang zu diesem Kind, moto fragt vorher nach."
               >
                 Entfernen
               </Button>
@@ -1099,11 +1095,11 @@ export default function GuardianFormModal({
                 loadingText="Wird gespeichert..."
                 tooltip={(() => {
                   if (mode === "edit") {
-                    return "Speichert die Angaben, eine andere Rolle ändert auch den Elternzugang.";
+                    return "Speichert die Angaben, eine andere Rolle ändert auch den App-Zugang.";
                   }
                   return entries.length > 1
-                    ? "Trägt die Personen beim Kind ein, ohne Einladung ins Elternportal."
-                    : "Trägt die Person beim Kind ein, ohne Einladung ins Elternportal.";
+                    ? "Trägt die Personen beim Kind ein, ohne Einladung in die Eltern-App."
+                    : "Trägt die Person beim Kind ein, ohne Einladung in die Eltern-App.";
                 })()}
                 className="flex-1"
               >

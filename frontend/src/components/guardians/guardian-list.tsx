@@ -78,17 +78,17 @@ const INVITE_ACTION_LABEL: Record<
   none: "Einladen",
 };
 
-// Was der Einladen-Eintrag je Kontostand tut (#6764). „Zugriff gewähren“
-// fragt vorher nach, alle anderen senden sofort eine Mail.
+// Was der Einladen-Eintrag je Kontostand tut (#6764). Kein „sofort“: Hat die
+// Person bei diesem Kind eine eingeschränkte Rolle, fragt moto vor der
+// Hochstufung nach; das entscheidet die Rolle, nicht der Kontostand.
 const INVITE_ACTION_DESCRIPTION: Record<
   Exclude<GuardianAccountStatus, "active">,
   string
 > = {
-  active_no_access:
-    "Gibt Zugriff auf dieses Kind im Elternportal, moto fragt vorher nach.",
-  pending: "Sendet die Einladung ins Elternportal sofort noch einmal.",
-  link_invalid: "Sendet sofort einen neuen Einladungslink ins Elternportal.",
-  none: "Sendet sofort eine Mail mit dem Zugang zum Elternportal.",
+  active_no_access: "Gibt dem Elternkonto App-Zugang zu diesem Kind.",
+  pending: "Sendet die Einladung zur Eltern-App noch einmal.",
+  link_invalid: "Sendet einen neuen Einladungslink zur Eltern-App.",
+  none: "Sendet eine Mail mit dem Zugang zur Eltern-App für dieses Kind.",
 };
 
 function inviteStatusKey(
@@ -218,7 +218,7 @@ export default function GuardianList({
       items.push({
         label: "Mails wieder senden",
         description:
-          "Die Person bekommt wieder Mails der Schule, moto fragt vorher nach.",
+          "Sendet der Person wieder Mails der Schule, moto fragt vorher nach.",
         icon: <MailCheck className="h-4 w-4" aria-hidden />,
         onClick: () => onResumeEmails(guardian),
       });

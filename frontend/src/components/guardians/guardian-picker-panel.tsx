@@ -259,7 +259,7 @@ export default function GuardianPickerPanel({
             variant="primary"
             size="md"
             onClick={handleConfirm}
-            tooltip="Verknüpft die Person mit diesem Kind, ein Elternkonto erhält Zugriff nach Rolle."
+            tooltip="Verknüpft die Person mit diesem Kind, ein Elternkonto erhält App-Zugang nach Rolle."
             className="w-full gap-2"
           >
             <Check className="h-4 w-4" />
