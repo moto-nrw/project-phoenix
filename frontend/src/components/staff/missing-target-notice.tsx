@@ -7,6 +7,7 @@
 // rechnet (`has_target` der Monatskarte); hier steht nur, was die Person sieht.
 
 import { Alert } from "~/components/ui/alert";
+import { parseISODate } from "~/lib/date-helpers";
 import { useStaffHasTarget } from "~/lib/hooks/use-staff-has-target";
 
 /** Reiter der Personalakte, in dem das Soll gepflegt wird. */
@@ -26,7 +27,9 @@ export const MISSING_TARGET_OWNER = "Das Soll trägt die Leitung ein.";
 
 /**
  * Hinweis in „Krank melden" und „Abwesenheit eintragen": die Person hat im
- * Monat des gewählten Tages kein Soll. Ohne Link, weil ein Seitenwechsel den
+ * Startmonat kein Soll. Die Aussage gilt nur für diesen Monat, nicht für
+ * den gesamten, möglicherweise monatsübergreifenden Zeitraum.
+ * Ohne Link, weil ein Seitenwechsel den
  * Dialog samt Eingaben verwerfen würde; der Eintrag bleibt richtig und zählt
  * nach, sobald ein Soll ab diesem Tag gilt (die Gutschrift wird live
  * berechnet, nicht gespeichert).
@@ -48,12 +51,16 @@ export function MissingTargetDialogNotice({
 }) {
   const hasTarget = useStaffHasTarget(staffId, date, true);
   if (hasTarget !== false) return null;
+  const monthLabel = parseISODate(date).toLocaleDateString("de-DE", {
+    month: "long",
+    year: "numeric",
+  });
   return (
     <Alert
       type="warning"
       size="compact"
       announce="polite"
-      message={`Für ${staffName} ist kein Soll hinterlegt. ${entryLabel} zählt deshalb 0 Stunden. Gilt später ein Soll ab diesem Tag, rechnet moto die Stunden nach. ${
+      message={`Für ${staffName} ist im ${monthLabel} kein Soll hinterlegt. ${entryLabel} zählt in diesem Monat deshalb 0 Stunden. Gilt später ein Soll für diese Tage, rechnet moto die Stunden nach. ${
         canSetTarget
           ? "Das Soll legen Sie in der Personalakte unter „Arbeitszeitmodell“ fest."
           : MISSING_TARGET_OWNER

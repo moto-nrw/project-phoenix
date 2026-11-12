@@ -8,7 +8,7 @@ import { ArbeitszeitmodellTab } from "./arbeitszeitmodell-tab";
 // folgt, statt „Eigenes Modell · Schnitt 0min / Woche“.
 const mocks = vi.hoisted(() => ({
   schedule: undefined as StaffSchedule | undefined,
-  hasTarget: true,
+  hasTarget: true as boolean | null,
   monthKey: "",
 }));
 
@@ -20,7 +20,11 @@ vi.mock("~/lib/swr", () => ({
     }
     if (key?.startsWith("staff-month-summary-42-")) {
       mocks.monthKey = key;
-      return { data: { hasTarget: mocks.hasTarget }, isLoading: false };
+      return {
+        data:
+          mocks.hasTarget === null ? undefined : { hasTarget: mocks.hasTarget },
+        isLoading: mocks.hasTarget === null,
+      };
     }
     return { data: undefined, isLoading: false, mutate: vi.fn() };
   },
@@ -88,6 +92,23 @@ describe("ArbeitszeitmodellTab ohne Soll", () => {
     expect(screen.getByText(/In diesem Monat gilt kein Soll\./)).toBeVisible();
     expect(screen.getByText("Eigenes Modell")).toBeInTheDocument();
   });
+
+  it.each([true, null])(
+    "unterscheidet einen leeren regulären Plan vom Sollstatus %s",
+    (hasTarget) => {
+      mocks.schedule = emptySchedule;
+      mocks.hasTarget = hasTarget;
+      render(<ArbeitszeitmodellTab staffId="42" canEdit />);
+
+      expect(
+        screen.getByText("Kein reguläres Arbeitszeitmodell"),
+      ).toBeVisible();
+      expect(
+        screen.queryByText("Kein Soll hinterlegt"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText(/0 Stunden/)).not.toBeInTheDocument();
+    },
+  );
 
   it("zeigt keinen Hinweis, wenn ein Soll gilt", () => {
     mocks.schedule = filledSchedule;

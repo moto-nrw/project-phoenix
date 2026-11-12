@@ -193,8 +193,8 @@ export function ArbeitszeitmodellTab({
     );
   }
 
-  // Ohne Vorlage und ohne eigene Tage ist nichts gepflegt: statt
-  // „Eigenes Modell · Schnitt 0min“ sagt der Reiter, was fehlt (#6887).
+  // Ein leerer regulärer Plan schließt Sonderarbeitszeiten nicht aus.
+  // Nur der aufgelöste Sollstatus begründet die Warnung (#6887).
   const scheduleEmpty = !schedule.model && schedule.entries.length === 0;
   const missingTargetText = `Ohne Soll zählen Krankheit, Urlaub und Fortbildung 0 Stunden. Gearbeitete Zeit zählt ganz als Plus. ${
     canEdit
@@ -243,8 +243,18 @@ export function ArbeitszeitmodellTab({
         {scheduleEmpty ? (
           <EmptyState
             variant="compact"
-            title="Kein Soll hinterlegt"
-            description={missingTargetText}
+            title={
+              hasTarget === false
+                ? "Kein Soll hinterlegt"
+                : "Kein reguläres Arbeitszeitmodell"
+            }
+            description={
+              hasTarget === false
+                ? missingTargetText
+                : canEdit
+                  ? "Tragen Sie mit „Bearbeiten“ die Wochenstunden aus dem Arbeitsvertrag ein."
+                  : "Das Arbeitszeitmodell trägt die Leitung ein."
+            }
           />
         ) : (
           <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">

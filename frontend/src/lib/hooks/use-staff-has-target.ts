@@ -28,6 +28,7 @@ export function useStaffHasTarget(
   const { data } = useSWRAuth(
     valid ? staffMonthSummaryKeys.month(staffId, year, month) : null,
     () => staffMonthSummaryService.getMonthSummary(staffId, year, month),
+    { keepPreviousData: false },
   );
   return valid && data ? data.hasTarget : null;
 }
