@@ -54,7 +54,9 @@ var retentionControlTables = map[string]string{
 
 // belegErasureFunctions are the only database functions allowed to delete
 // rows of a Beleg table by name:
-//   - the erasure of a retired demo school, whose Träger keeps no books;
+//   - the erasure of a retired demo school, whose Träger keeps no books,
+//     with the debtor numbers of the visitor's families it performs
+//     (platform.erase_demo_visitor_families, #6812);
 //   - the Beleg retention (#4720 slice 2, ADR 0184), which deletes a Beleg
 //     only after the period its Träger instructed, under the current
 //     Weisung, without an active suspension, after locking the Träger and
@@ -76,6 +78,7 @@ var belegErasureFunctions = []string{
 	"parent_billing.drop_sepa_debit_files_with_their_members",
 	"parent_billing.drop_superseded_sepa_debit_files",
 	"platform.erase_closed_demo_visitors",
+	"platform.erase_demo_visitor_families",
 }
 
 type belegForeignKey struct {
