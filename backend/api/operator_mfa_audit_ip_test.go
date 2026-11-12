@@ -24,6 +24,7 @@ func TestOperatorMFAAuditsPersistRequestIP(t *testing.T) {
 	ctx := provisioningContext(t, db)
 	operatorID := testpkg.CreateTestOperator(t, db).ID
 	account := testpkg.CreateTestAccount(t, db, "audit-request-ip")
+	testpkg.OwnAccountSecurityNotices(t, db, account.ID)
 	schoolID := testpkg.Tenant(t)
 	testpkg.EnsureAccountTenant(t, db, account.ID, schoolID)
 	require.NoError(t, enrollMFA(ctx, t, db, identity, account.ID))

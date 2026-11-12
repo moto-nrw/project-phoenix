@@ -696,6 +696,8 @@ export const ERROR_CATALOG = {
         "Dieses Konto gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "identity.account_not_in_school":
         "Dieses Konto gehört nicht zu dieser Schule. Bitte laden Sie die Seite neu.",
+      "identity.account_shared_across_schools":
+        "Dieses Konto gehört auch zu einer anderen Schule oder einem Träger. Deshalb können Sie das hier nicht ändern. Bitte wenden Sie sich an das moto-Team.",
       "identity.caterer_address_taken":
         "Diese E-Mail-Adresse gehört schon zu einem anderen moto-Konto. Bitte nehmen Sie eine andere Adresse.",
       "identity.caterer_without_school":

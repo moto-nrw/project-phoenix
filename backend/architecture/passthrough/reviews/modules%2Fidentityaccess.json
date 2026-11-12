@@ -157,6 +157,11 @@
     },
     {
       "decision": "0090",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.ListActiveTenantIDs",
+      "reason": "Exact evidence for #6862: the account's active schools through the narrow database capability, read in the MFA reset's administrative transaction; not a forward."
+    },
+    {
+      "decision": "0090",
       "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.ListActiveTrustedDevices",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },

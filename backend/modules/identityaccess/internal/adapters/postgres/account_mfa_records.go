@@ -43,6 +43,21 @@ func (r *AccountMFARecords) FindAccountIdentity(ctx context.Context, accountID i
 	return row, err == nil, err
 }
 
+// ListActiveTenantIDs reads the account's active schools through the narrow
+// database capability offboarding uses, so a school caller learns them only
+// for an account active at its own school.
+func (r *AccountMFARecords) ListActiveTenantIDs(ctx context.Context, accountID int64) ([]int64, domain.OperationStats, error) {
+	db, err := r.store.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	var ids []int64
+	if err := db.NewRaw(`SELECT tenant_id FROM auth.active_school_ids_for_account(?)`, accountID).Scan(ctx, &ids); err != nil {
+		return nil, domain.OperationStats{Queries: 1}, fmt.Errorf("identity access postgres: list active schools of account: %w", err)
+	}
+	return ids, domain.OperationStats{Queries: 1, Rows: int64(len(ids))}, nil
+}
+
 func (r *AccountMFARecords) AccountBelongsToTenant(ctx context.Context, accountID, tenantID int64) (bool, error) {
 	db, err := r.store.database(ctx)
 	if err != nil {

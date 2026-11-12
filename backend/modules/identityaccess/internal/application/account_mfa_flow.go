@@ -11,6 +11,7 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
 // AccountMFAFlows is the account's second factor (#3331): the gate that
@@ -30,11 +31,16 @@ type AccountMFAFlows struct {
 	mail              ports.MFAMail
 	// resetNotice mails the caterer the operator's reset (#4497).
 	resetNotice ports.CatererMFAResetNotice
-	audit       ports.MFAAuditTrail
-	runtime     ports.Runtime
-	secret      []byte
-	logger      *slog.Logger
-	now         func() time.Time
+	// ownership keeps a school administrator's reset to accounts their
+	// school alone holds, and securityNotice mails the holder an
+	// administrator's reset (#6862); nil sends none.
+	ownership      *AccountOwnership
+	securityNotice identityPorts.AccountSecurityNotice
+	audit          ports.MFAAuditTrail
+	runtime        ports.Runtime
+	secret         []byte
+	logger         *slog.Logger
+	now            func() time.Time
 }
 
 // AccountMFAFlowDependencies are the ports the account MFA flows consume.
@@ -48,8 +54,15 @@ type AccountMFAFlowDependencies struct {
 	// ResetNotice mails the caterer the operator's reset (#4497); nil
 	// leaves that reset unavailable.
 	ResetNotice ports.CatererMFAResetNotice
-	Audit       ports.MFAAuditTrail
-	Runtime     ports.Runtime
+	// Traeger reads the Träger memberships: with the account's schools they
+	// decide whether a school alone holds an account, which the school
+	// administrator's account-wide reset requires (#6862).
+	Traeger identityPorts.TraegerMemberships
+	// SecurityNotice mails the holder an administrator's reset; nil sends
+	// none.
+	SecurityNotice identityPorts.AccountSecurityNotice
+	Audit          ports.MFAAuditTrail
+	Runtime        ports.Runtime
 	// Secret is the trusted-device HMAC key derived from the JWT secret.
 	Secret []byte
 	Logger *slog.Logger
@@ -68,7 +81,7 @@ func NewAccountMFAFlows(deps AccountMFAFlowDependencies) (*AccountMFAFlows, erro
 	}
 	return &AccountMFAFlows{
 		permissionGranted: deps.PermissionGranted, records: deps.Records, settings: deps.Settings, codec: deps.Codec, codes: deps.Codes,
-		mail: deps.Mail, resetNotice: deps.ResetNotice, audit: deps.Audit, runtime: deps.Runtime, secret: deps.Secret,
+		mail: deps.Mail, resetNotice: deps.ResetNotice, ownership: NewAccountOwnership(deps.Records, deps.Traeger), securityNotice: deps.SecurityNotice, audit: deps.Audit, runtime: deps.Runtime, secret: deps.Secret,
 		logger: logger.With("component", "account-mfa"), now: time.Now,
 	}, nil
 }
@@ -242,7 +255,7 @@ func (f *AccountMFAFlows) Enroll(ctx context.Context, proof domain.VerifiedMFACh
 // partial failure cannot leave the account half-disabled — a credential gone
 // while devices still verify, say. An operator audit participates through record.
 func (f *AccountMFAFlows) Disable(ctx context.Context, accountID int64, record ...func(context.Context) error) error {
-	err := f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+	err := f.runtime.WithAdminTx(f.adminUnit(ctx), func(txCtx context.Context) error {
 		if err := f.disableCascade(txCtx, accountID); err != nil {
 			return err
 		}
@@ -261,6 +274,18 @@ func (f *AccountMFAFlows) Disable(ctx context.Context, accountID int64, record .
 		IPAddress: domain.MFAAuditFallbackIP,
 	})
 	return nil
+}
+
+// adminUnit is the context an account-wide write opens its administrative
+// transaction from. A school administrator's request arrives inside its
+// school transaction, which an administrative one cannot join: the write
+// leaves it, as the trusted-device writes do. An administrative ambient
+// transaction is joined, and a caller without one opens its own.
+func (f *AccountMFAFlows) adminUnit(ctx context.Context) context.Context {
+	if f.runtime.HasTransaction(ctx) && !f.runtime.IsAdminTx(ctx) {
+		return f.runtime.Detach(ctx)
+	}
+	return ctx
 }
 
 // disableCascade runs the writes of Disable on the caller's transaction,

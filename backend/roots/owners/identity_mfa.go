@@ -36,6 +36,7 @@ func NewMFADependencies(codec identityPorts.MFAChallengeCodec, settings settings
 		Codes:             shortCodeHasher{},
 		Mail:              mail,
 		ResetNotice:       mail,
+		SecurityNotice:    mail,
 		OperatorAudit:     operatorActionLog{ledger: operatorAuditLog, logger: logger},
 		JWTSecret:         jwtSecret,
 		Passkeys:          passkeys,
@@ -230,6 +231,40 @@ func (m MFAMailer) NotifyCatererMFAReset(ctx context.Context, message identityac
 		IdempotencyKey: fmt.Sprintf("%s:%s", deliveryType, resetKey),
 		Message:        *identityMessage(m.From, email.NewEmail("", message.Recipient), identityaccess.CatererMFAResetMailContent(message, m.FrontendURL)),
 		Type:           deliveryType, ReferenceID: message.ReferenceID, Backoff: m.Backoff,
+	})
+	return err
+}
+
+// NotifyMFAResetByAdmin queues the holder's notice of an administrator's
+// reset of their second factor (#6862) in the reset's administrative
+// transaction, as a global identity mail without a school: the reset holds
+// at every school the account signs in to.
+func (m MFAMailer) NotifyMFAResetByAdmin(ctx context.Context, message identityaccess.MFAResetByAdminMail, resetKey string) error {
+	if m.Enqueue == nil {
+		return email.ErrDeliveryUnavailable
+	}
+	const deliveryType = "account_mfa_reset"
+	_, err := m.Enqueue(ctx, DurableMail{
+		IdempotencyKey: fmt.Sprintf("%s:%s", deliveryType, resetKey),
+		Message:        *identityMessage(m.From, email.NewEmail("", message.Recipient), identityaccess.MFAResetByAdminMailContent(message, m.FrontendURL)),
+		Type:           deliveryType, ReferenceID: message.ReferenceID, Backoff: m.Backoff,
+	})
+	return err
+}
+
+// NotifyLoginAddressChanged queues the notice to the address an
+// administrator moved a login away from (#6862), in the transaction of the
+// change: the school's when its administrator changed it, otherwise a
+// global identity mail.
+func (m MFAMailer) NotifyLoginAddressChanged(ctx context.Context, message identityaccess.LoginAddressChangedMail, changeKey string) error {
+	if m.Enqueue == nil {
+		return email.ErrDeliveryUnavailable
+	}
+	const deliveryType = "account_login_address_changed"
+	_, err := m.Enqueue(ctx, DurableMail{
+		IdempotencyKey: fmt.Sprintf("%s:%s", deliveryType, changeKey), TenantID: message.TenantID,
+		Message: *identityMessage(m.From, email.NewEmail("", message.Recipient), identityaccess.LoginAddressChangedMailContent(message, m.FrontendURL)),
+		Type:    deliveryType, ReferenceID: message.ReferenceID, Backoff: m.Backoff,
 	})
 	return err
 }

@@ -4,10 +4,13 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"strings"
+	"time"
 
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
 // Operation names the administration flows report. They are the envelope
@@ -41,8 +44,14 @@ type AccountAdministration struct {
 	store     ports.AccountAdministrationStore
 	verifier  ports.PasswordVerifier
 	passwords ports.PasswordPolicy
-	runtime   ports.Runtime
-	logger    *slog.Logger
+	// ownership keeps a school administrator from rewriting the login of an
+	// account another school or a Träger also holds (#6862).
+	ownership *AccountOwnership
+	// notice mails the previous address a changed login; nil sends none.
+	notice  identityPorts.AccountSecurityNotice
+	runtime ports.Runtime
+	logger  *slog.Logger
+	now     func() time.Time
 }
 
 // AccountAdministrationDependencies are the ports the flows consume.
@@ -50,8 +59,11 @@ type AccountAdministrationDependencies struct {
 	Store     ports.AccountAdministrationStore
 	Verifier  ports.PasswordVerifier
 	Passwords ports.PasswordPolicy
-	Runtime   ports.Runtime
-	Logger    *slog.Logger
+	// Notice mails the previous address a changed login (#6862); nil
+	// sends none.
+	Notice  identityPorts.AccountSecurityNotice
+	Runtime ports.Runtime
+	Logger  *slog.Logger
 }
 
 // NewAccountAdministration composes the flows over the account
@@ -73,6 +85,7 @@ func NewAccountAdministration(auth *AccountAuthentication, deps AccountAdministr
 	return &AccountAdministration{
 		auth: auth, store: deps.Store, verifier: deps.Verifier,
 		passwords: deps.Passwords, runtime: deps.Runtime, logger: logger,
+		ownership: NewAccountOwnership(auth.store, auth.traeger), notice: deps.Notice, now: time.Now,
 	}, nil
 }
 
@@ -164,6 +177,11 @@ func (a *AccountAdministration) ListManageableAccountsByRole(ctx context.Context
 // one, the name. Only those columns: the retained write replaced every
 // mapped column of the row it had read, which could undo a PIN or MFA
 // counter another request changed in between.
+//
+// The address and the name are the account's, not one school's (#6862): a
+// school administrator changes them only while their school alone holds the
+// account, and the previous address learns of a changed login in the same
+// transaction.
 func (a *AccountAdministration) updateManageableAccount(ctx context.Context, update domain.AccountIdentityUpdate) error {
 	email, err := domain.NormalizeAccountEmail(update.Email)
 	if err != nil {
@@ -174,14 +192,62 @@ func (a *AccountAdministration) updateManageableAccount(ctx context.Context, upd
 	if err != nil {
 		return failed(opUpdateAccount, err)
 	}
-	found, _, err := a.store.UpdateManageableAccountIdentity(ctx, update, visibility)
+	previous, found, _, err := a.store.FindManageableAccountRecord(ctx, update.AccountID, visibility)
 	if err != nil {
 		return failed(opUpdateAccount, err)
 	}
 	if !found {
 		return failed(opUpdateAccount, domain.ErrAccountNotFound)
 	}
+	if err := a.requireSchoolHoldsAccount(ctx, update.AccountID, visibility); err != nil {
+		return failed(opUpdateAccount, err)
+	}
+	found, _, err = a.store.UpdateManageableAccountIdentity(ctx, update, visibility)
+	if err != nil {
+		return failed(opUpdateAccount, err)
+	}
+	if !found {
+		return failed(opUpdateAccount, domain.ErrAccountNotFound)
+	}
+	if err := a.notifyLoginAddressChanged(ctx, previous, email, visibility); err != nil {
+		return failed(opUpdateAccount, err)
+	}
 	return nil
+}
+
+// requireSchoolHoldsAccount refuses a school administrator's change to an
+// account another school or a Träger also holds. A platform caller and an
+// administrative transaction are not bound to one school.
+func (a *AccountAdministration) requireSchoolHoldsAccount(ctx context.Context, accountID int64, visibility domain.AccountVisibility) error {
+	if visibility.Kind != domain.AccountVisibilityTenant {
+		return nil
+	}
+	alone, err := a.ownership.HeldBySchoolAlone(ctx, accountID, visibility.TenantID)
+	if err != nil {
+		return err
+	}
+	if !alone {
+		return identityaccess.ErrAccountSharedAcrossSchools
+	}
+	return nil
+}
+
+// notifyLoginAddressChanged queues the notice to the address the login
+// left, in the transaction of the change: without the notice the address
+// stays as it was. An unchanged address, a name-only edit, sends none.
+func (a *AccountAdministration) notifyLoginAddressChanged(ctx context.Context, previous domain.ManagedAccountRecord, email string, visibility domain.AccountVisibility) error {
+	if a.notice == nil || previous.Email == "" || strings.EqualFold(previous.Email, email) {
+		return nil
+	}
+	changedAt := a.now()
+	message := identityaccess.LoginAddressChangedMail{
+		Recipient: previous.Email, ReferenceID: previous.ID,
+		ChangedAt: changedAt.Format("02.01.2006 15:04"), ByOperator: true,
+	}
+	if visibility.Kind == domain.AccountVisibilityTenant {
+		message.TenantID, message.ByOperator = visibility.TenantID, false
+	}
+	return a.notice.NotifyLoginAddressChanged(ctx, message, fmt.Sprintf("%d:%d", previous.ID, changedAt.UnixNano()))
 }
 
 // ActivateAccount re-enables the account and clears the account-wide

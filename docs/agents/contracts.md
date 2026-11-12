@@ -909,6 +909,23 @@ Backend paths in this section are relative to `backend/`:
   the token wire schema in `modules/identityaccess/tokenprimitives/session_wire.go`, and trusted-device settings
   `security.mfa_*`. Include the school frontend's MFA chain when changing its login.
 
+#### Account-wide changes by a school administrator (#6862)
+
+The login address, the name and the second factor belong to the account, not
+to one school. A school administrator (`users:manage`) changes the address
+(`PUT /auth/accounts/{id}`) and resets the second factor
+(`DELETE /auth/accounts/{id}/mfa`) only while their school alone holds the
+account: it is the account's only active school and the account has no
+retained Träger-Büro membership, the rule staff offboarding applies before it
+disables an account (`AccountOwnership` in
+`modules/identityaccess/internal/application/account_ownership.go`). Otherwise
+both answer 403 `identity.account_shared_across_schools`; the school-scoped
+override (`PUT …/mfa/override`) stays open, and the operator changes the rest.
+A changed address mails the previous address and a reset mails the holder
+(`account-login-address-changed.html`, `account-mfa-reset.html`), queued in the
+transaction of the change. The school administrator's account-wide MFA writes
+leave the request's school transaction for an administrative one.
+
 #### Privileged MFA floor (#3841, slice 3841-f)
 
 Effective school permissions, not role names, impose the MFA minimum in

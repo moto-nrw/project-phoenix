@@ -219,6 +219,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (r *AccountMFARecords) ListActiveTenantIDs(ctx context.Context, accountID int64) ([]int64, domain.OperationStats, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn nil, domain.OperationStats{}, err\n\t}\n\tvar ids []int64\n\tif err := db.NewRaw(`SELECT tenant_id FROM auth.active_school_ids_for_account(?)`, accountID).Scan(ctx, \u0026ids); err != nil {\n\t\treturn nil, domain.OperationStats{Queries: 1}, fmt.Errorf(\"identity access postgres: list active schools of account: %w\", err)\n\t}\n\treturn ids, domain.OperationStats{Queries: 1, Rows: int64(len(ids))}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.ListActiveTenantIDs",
+      "owner": "modules/identityaccess"
+    },
+    {
+      "build": "production",
       "evidence": "func (r *AccountMFARecords) ListActiveTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]domain.AccountTrustedDevice, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trows := make([]domain.AccountTrustedDevice, 0)\n\terr = db.NewRaw(\"SELECT \"+accountTrustedDeviceColumns+` FROM auth.mfa_trusted_devices\n WHERE account_id = ? AND COALESCE(tenant_id, 0) = ? AND revoked_at IS NULL AND expires_at \u003e ?\n AND `+trustedDeviceCurrentCredential+`\n ORDER BY last_used_at DESC NULLS LAST, created_at DESC`, accountID, tenantID, time.Now()).Scan(ctx, \u0026rows)\n\treturn rows, err\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.ListActiveTrustedDevices",
