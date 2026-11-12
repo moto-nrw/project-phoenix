@@ -42,9 +42,11 @@ import {
   type HandoverResult,
   handOverRunFile,
 } from "~/lib/traeger-export-handovers-api";
-import type {
-  ExportRunPathKind,
-  ProtocolHandover,
+import {
+  type DatevBookingProblem,
+  datevBookingProblems,
+  type ExportRunPathKind,
+  type ProtocolHandover,
 } from "~/lib/traeger-finance-exports-api";
 import { traegerPath } from "~/lib/traeger-url";
 
@@ -92,9 +94,20 @@ function fileLabel(attempt: HandoverAttempt): string {
  * menu still offers the PAIN.008 handover, which needs only „Lastschriften
  * verwalten“, and the server names a missing recipient.
  */
+/** What the export page shows itself for a DATEV handover, as for the download. */
+export interface DatevHandoverNotices {
+  /** No new bookings, or another file took them first. */
+  readonly onNothingNew: (run: HandoverRun, taken: boolean) => void;
+  /** Invoices whose bookings DATEV would refuse, each with its problems. */
+  readonly onRefused: (
+    run: HandoverRun,
+    problems: readonly DatevBookingProblem[],
+  ) => void;
+}
+
 export function useFinanceHandover(
   onHandedOver: (arrived: HandoverResult | null) => void,
-  onNothingNew?: (run: HandoverRun, taken: boolean) => void,
+  datev?: DatevHandoverNotices,
 ) {
   const [recipient, setRecipient] = useState<ExportRecipient | null>(null);
   const [recipientHidden, setRecipientHidden] = useState(false);
@@ -150,17 +163,26 @@ export function useFinanceHandover(
         }
       } catch (err) {
         const code = err instanceof ApiError ? err.code : undefined;
+        const problems =
+          attempt.format === "datev" && err instanceof ApiError
+            ? datevBookingProblems(err.details)
+            : [];
         if (
-          onNothingNew &&
+          datev &&
           (code === "parent_billing.datev_no_new_bookings" ||
             code === "parent_billing.datev_bookings_taken")
         ) {
           // Nothing new to book, as for the download: the page says so.
           setRepeat(null);
-          onNothingNew(
+          datev.onNothingNew(
             attempt.run,
             code === "parent_billing.datev_bookings_taken",
           );
+        } else if (datev && problems.length > 0) {
+          // A refusal of the content: the page names every invoice and what
+          // to do, as for the download; a toast would name none.
+          setRepeat(null);
+          datev.onRefused(attempt.run, problems);
         } else if (code === "parent_billing.export_already_handed_over") {
           // A content that arrived or may have arrived: ask first.
           setRepeat(attempt);
@@ -180,7 +202,7 @@ export function useFinanceHandover(
         onHandedOver(arrived);
       }
     },
-    [errors, onHandedOver, onNothingNew, success],
+    [datev, errors, onHandedOver, success],
   );
 
   const handOver = useCallback(

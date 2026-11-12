@@ -309,3 +309,38 @@ it("hands every DATEV booking over again for a lost file, in the chosen fiscal y
     ),
   );
 });
+
+it("names the invoices DATEV would refuse when a DATEV handover makes no file", async () => {
+  exportsApi.fetchExportSettings.mockResolvedValue({
+    nextFileNumber: 110,
+    datev: { ready: true, missingSettings: [], invalidSettings: [] },
+  });
+  handoverApi.handOverRunFile.mockRejectedValue(
+    new ApiError("unprocessable", 422, {
+      code: "parent_billing.datev_bookings_invalid",
+      details: {
+        documents: [
+          {
+            document_number: "MB-2026-0001",
+            field: "debtor_number",
+            reason: "invalid",
+          },
+        ],
+      },
+    }),
+  );
+  renderPage();
+  fireEvent.click(
+    (
+      await screen.findAllByRole("button", {
+        name: "Dateien von Monatsbeiträge Oktober 2026 an den Empfänger übergeben",
+      })
+    )[0]!,
+  );
+  fireEvent.click(
+    screen.getByRole("menuitem", { name: /DATEV-Datei übergeben/ }),
+  );
+  expect(
+    await screen.findByText("Debitorennummer passt nicht: MB-2026-0001"),
+  ).toBeInTheDocument();
+});

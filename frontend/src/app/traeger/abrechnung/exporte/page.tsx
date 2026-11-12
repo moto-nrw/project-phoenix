@@ -7,7 +7,7 @@
 // bekommt die nächste Dateinummer des Trägers. Nur das Recht
 // „Finanz-Export“ sieht die Seite.
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { billingTabs } from "~/components/traeger/billing-family-format";
 import { EXPORT_RECIPIENT_PATH } from "~/components/traeger/export-handover-format";
 import {
@@ -19,6 +19,7 @@ import {
   DatevRepeatDialog,
 } from "~/components/traeger/finance-export-datev";
 import {
+  type DatevHandoverNotices,
   HandoverMenu,
   useFinanceHandover,
 } from "~/components/traeger/finance-export-handover";
@@ -228,11 +229,31 @@ export default function TraegerFinanceExportsPage() {
     void load();
   }, [load]);
 
+  // A DATEV handover that makes no file shows the notices of the download.
+  const runs = data?.runs.items;
+  const datevNotices = useMemo<DatevHandoverNotices>(
+    () => ({
+      onNothingNew: (run, taken) =>
+        setNothingNew({ runLabel: run.label, taken }),
+      onRefused: (run, problems) =>
+        setRefusal({
+          runKind:
+            runs?.find(
+              (item) =>
+                item.pathKind === run.pathKind && item.runId === run.runId,
+            )?.runKind ?? "care",
+          runLabel: run.label,
+          problems,
+        }),
+    }),
+    [runs],
+  );
+
   // Handover to the recipient of the Träger (ADR 0218); a handover reloads
   // the runs and the protocol like a download.
   const handover = useFinanceHandover(
     () => void load(data?.runs.items.length, data?.protocol.items.length),
-    (run, taken) => setNothingNew({ runLabel: run.label, taken }),
+    datevNotices,
   );
   const openRepeat = (run: ExportRun, toRecipient: boolean) => {
     setRepeatHandover(toRecipient);
