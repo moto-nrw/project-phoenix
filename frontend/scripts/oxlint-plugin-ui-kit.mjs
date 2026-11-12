@@ -5922,6 +5922,15 @@ const TOOLTIP_SCOPE = [
   "src/app/[tenant]/(protected)/settings/",
   "src/app/traeger/einstellungen/",
   "src/components/settings/",
+  // Kinder: Sorgeberechtigte und Anwesenheit (#6764).
+  "src/components/guardians/guardian-contact-actions.tsx",
+  "src/components/guardians/guardian-form-modal.tsx",
+  "src/components/guardians/guardian-list.tsx",
+  "src/components/guardians/guardian-picker-panel.tsx",
+  "src/components/guardians/student-guardian-manager.tsx",
+  "src/components/guardians/student-payment-card.tsx",
+  "src/components/students/aggregated-request-list.tsx",
+  "src/components/students/attendance-correction-modal.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {

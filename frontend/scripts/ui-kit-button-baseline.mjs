@@ -64,7 +64,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/guardians/guardian-picker-panel.tsx",
-    lines: [323],
+    lines: [326],
     reason: "Trefferzeile der Erziehungsberechtigten-Suche: Auswahlzeile",
   },
   {

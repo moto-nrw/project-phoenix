@@ -194,6 +194,7 @@ export default function GuardianPickerPanel({
             size="icon"
             onClick={onCancel}
             aria-label="Suche schließen"
+            tooltip="Schließt die Suche, ohne jemanden zu verknüpfen."
           >
             <X className="h-4 w-4" />
           </Button>
@@ -226,6 +227,7 @@ export default function GuardianPickerPanel({
                 variant="ghost"
                 size="compact"
                 onClick={() => setSelected(null)}
+                tooltip="Geht zurück zur Suche, um eine andere Person zu wählen."
                 className="flex-shrink-0"
               >
                 <ArrowLeft className="h-3.5 w-3.5" />
@@ -257,6 +259,7 @@ export default function GuardianPickerPanel({
             variant="primary"
             size="md"
             onClick={handleConfirm}
+            tooltip="Verknüpft die Person mit diesem Kind, ein Elternkonto erhält Zugriff nach Rolle."
             className="w-full gap-2"
           >
             <Check className="h-4 w-4" />

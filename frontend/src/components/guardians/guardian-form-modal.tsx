@@ -599,6 +599,7 @@ export default function GuardianFormModal({
                       size="compact"
                       onClick={() => removeEntry(entry.id)}
                       disabled={save.pending}
+                      tooltip="Nimmt diese Person wieder aus dem Formular."
                       className="gap-1"
                     >
                       <X className="h-3 w-3" />
@@ -843,10 +844,10 @@ export default function GuardianFormModal({
                             onClick={() => setPhonePrimary(entry.id, phone.id)}
                             disabled={save.pending}
                             aria-pressed={phone.isPrimary}
-                            title={
+                            tooltip={
                               phone.isPrimary
-                                ? "Primär"
-                                : "Als primär markieren"
+                                ? "Diese Nummer ist die primäre Nummer der Person."
+                                : "Macht diese Nummer zur primären Nummer der Person."
                             }
                             aria-label={
                               phone.isPrimary
@@ -868,7 +869,7 @@ export default function GuardianFormModal({
                               size="icon"
                               onClick={() => removePhone(entry.id, phone.id)}
                               disabled={save.pending}
-                              title="Entfernen"
+                              tooltip="Entfernt die Nummer, gelöscht wird sie erst beim Speichern."
                               aria-label={`Telefonnummer ${phoneIndex + 1} entfernen`}
                             >
                               <Trash2 className="h-4 w-4" />
@@ -885,6 +886,7 @@ export default function GuardianFormModal({
                       size="compact"
                       onClick={() => addPhone(entry.id)}
                       disabled={save.pending}
+                      tooltip="Fügt ein Feld für eine weitere Telefonnummer hinzu."
                       className="w-full gap-1.5"
                     >
                       <Plus className="h-3.5 w-3.5" />
@@ -1041,6 +1043,7 @@ export default function GuardianFormModal({
                 size="md"
                 onClick={addEntry}
                 disabled={save.pending}
+                tooltip="Fügt das Formular für eine weitere Person hinzu."
                 className="w-full gap-2"
               >
                 <svg
@@ -1069,6 +1072,7 @@ export default function GuardianFormModal({
                 size="md"
                 onClick={onDelete}
                 disabled={save.pending}
+                tooltip="Entfernt die Person und ihren Elternzugang zu diesem Kind, moto fragt vorher nach."
               >
                 Entfernen
               </Button>
@@ -1082,6 +1086,7 @@ export default function GuardianFormModal({
                 size="md"
                 onClick={onClose}
                 disabled={save.pending}
+                noTooltip="Abbrechen schließt das Formular, ohne etwas zu ändern."
               >
                 Abbrechen
               </Button>
@@ -1092,6 +1097,14 @@ export default function GuardianFormModal({
                 data-setup-tour="guardian-submit"
                 isLoading={save.pending}
                 loadingText="Wird gespeichert..."
+                tooltip={(() => {
+                  if (mode === "edit") {
+                    return "Speichert die Angaben, eine andere Rolle ändert auch den Elternzugang.";
+                  }
+                  return entries.length > 1
+                    ? "Trägt die Personen beim Kind ein, ohne Einladung ins Elternportal."
+                    : "Trägt die Person beim Kind ein, ohne Einladung ins Elternportal.";
+                })()}
                 className="flex-1"
               >
                 {(() => {
