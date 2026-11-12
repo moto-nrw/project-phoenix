@@ -99,11 +99,7 @@ describe("MealCaterer", () => {
     fireEvent.click(screen.getByRole("menuitem", { name: "Widerrufen" }));
     expect(mocks.revokeMealCatererInvitation).not.toHaveBeenCalled();
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(
-      Array.from(dialog.querySelectorAll("button")).find(
-        (button) => button.textContent === "Widerrufen",
-      )!,
-    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Widerrufen" }));
     await waitFor(() =>
       expect(mocks.revokeMealCatererInvitation).toHaveBeenCalledWith("5"),
     );
@@ -403,11 +399,7 @@ describe("reload after a write (#6652)", () => {
     );
     fireEvent.click(screen.getByRole("menuitem", { name: "Widerrufen" }));
     const dialog = await screen.findByRole("dialog");
-    fireEvent.click(
-      Array.from(dialog.querySelectorAll("button")).find(
-        (button) => button.textContent === "Widerrufen",
-      )!,
-    );
+    fireEvent.click(within(dialog).getByRole("button", { name: "Widerrufen" }));
 
     await expectReloadOnly(
       mocks.revokeMealCatererInvitation,
