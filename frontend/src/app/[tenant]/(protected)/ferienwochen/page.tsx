@@ -349,7 +349,10 @@ export default function FerienwochenPage() {
       if (!homeSchool.data || homeSchool.data.length === 0) return null;
       const weekCount = new Set(homeSchool.data.map((child) => child.weekId))
         .size;
-      return `${childCount(homeSchool.data.length)} bei anderen OGS · ${
+      // Ein Kind in mehreren Wochen ist ein Kind.
+      const children = new Set(homeSchool.data.map((child) => child.childId))
+        .size;
+      return `${childCount(children)} bei anderen OGS · ${
         weekCount === 1 ? "1 Ferienwoche" : `${weekCount} Ferienwochen`
       }`;
     }

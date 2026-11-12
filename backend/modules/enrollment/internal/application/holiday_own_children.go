@@ -310,11 +310,13 @@ func (h *HolidayGuests) HolidayHomeSchoolBookings(ctx context.Context, host enro
 // those weeks and the number of children. bookings is not empty.
 func homeSchoolAccess(host enrollment.HolidayHost, bookings []enrollment.HolidayHomeSchoolBooking) enrollment.HolidayGuestAccess {
 	access := enrollment.HolidayGuestAccess{
-		Kind: enrollment.HolidayGuestAccessHomeSchool, ActorAccountID: host.AccountID, ActorRole: host.Role, Guests: len(bookings),
+		Kind: enrollment.HolidayGuestAccessHomeSchool, ActorAccountID: host.AccountID, ActorRole: host.Role,
 		StartsOn: bookings[0].StartsOn, EndsOn: bookings[0].EndsOn,
 	}
-	seen := map[int64]bool{}
+	seen, children := map[int64]bool{}, map[int64]bool{}
 	for _, booking := range bookings {
+		// A child booked for several weeks is one child.
+		children[booking.ChildID] = true
 		if !seen[booking.WeekID] {
 			seen[booking.WeekID] = true
 			access.WeekIDs = append(access.WeekIDs, booking.WeekID)
@@ -326,6 +328,7 @@ func homeSchoolAccess(host enrollment.HolidayHost, bookings []enrollment.Holiday
 			access.EndsOn = booking.EndsOn
 		}
 	}
+	access.Guests = len(children)
 	access.WeekID = access.WeekIDs[0]
 	return access
 }

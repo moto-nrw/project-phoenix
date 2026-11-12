@@ -748,6 +748,20 @@ describe("FerienwochenPage", () => {
       expect(participantsMock).not.toHaveBeenCalled();
     });
 
+    it("counts a child booked for two weeks once", async () => {
+      weeksMock.mockResolvedValue([]);
+      homeSchoolMock.mockResolvedValue([
+        running,
+        { ...upcoming, childId: running.childId },
+      ]);
+
+      renderPage();
+
+      expect(
+        await screen.findByText("1 Kind bei anderen OGS · 2 Ferienwochen"),
+      ).toBeInTheDocument();
+    });
+
     it("puts them in their own tab beside the hosted weeks", async () => {
       weeksMock.mockResolvedValue([firstWeek]);
       participantsMock.mockResolvedValue(listOf(firstWeek));

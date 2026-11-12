@@ -197,3 +197,19 @@ func TestOwnHolidayBookingFindsTheChildThatBelongedToTheSchoolThatDay(t *testing
 	assert.Equal(t, "16:00", days[1][mon].EndsAt.Time().Format("15:04"))
 	assert.NotContains(t, days, int64(2), "the namesake had left before the holidays")
 }
+
+// A child booked for two weeks at other schools is one child in the access
+// log of its home school, and both weeks are named (#6679).
+func TestHomeSchoolAccessCountsAChildInSeveralWeeksOnce(t *testing.T) {
+	t.Parallel()
+	first := enrollment.HolidayHomeSchoolBooking{ChildID: 9, WeekID: 71, StartsOn: calendar.NewDate(2099, 7, 6), EndsOn: calendar.NewDate(2099, 7, 10)}
+	second := first
+	second.WeekID, second.StartsOn, second.EndsOn = 72, calendar.NewDate(2099, 7, 13), calendar.NewDate(2099, 7, 17)
+
+	access := homeSchoolAccess(enrollment.HolidayHost{SchoolID: 1, AccountID: 2}, []enrollment.HolidayHomeSchoolBooking{first, second})
+
+	assert.Equal(t, 1, access.Guests)
+	assert.Equal(t, []int64{71, 72}, access.WeekIDs)
+	assert.Equal(t, calendar.NewDate(2099, 7, 6), access.StartsOn)
+	assert.Equal(t, calendar.NewDate(2099, 7, 17), access.EndsOn)
+}
