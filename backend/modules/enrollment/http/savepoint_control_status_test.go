@@ -205,7 +205,7 @@ func TestSavepointControlStatusAtTheEdges(t *testing.T) {
 		}, want: all(499), target: context.Canceled},
 		{name: "B4_request_deadline_in_savepoint", script: func(context.CancelFunc) txStep {
 			return inSavepoint(func(ctx context.Context, tx bun.Tx) error {
-				_, err := tx.ExecContext(ctx, `SELECT pg_sleep(5)`)
+				_, err := tx.ExecContext(ctx, `SELECT pg_sleep(1.5)`)
 				return err
 			})
 		}, ctx: func() (context.Context, context.CancelFunc) {
@@ -224,7 +224,7 @@ func TestSavepointControlStatusAtTheEdges(t *testing.T) {
 			want: all(http.StatusInternalServerError), target: tenant.ErrSavepointRollback},
 		{name: "B6_unit_deadline_in_savepoint_request_alive", script: func(context.CancelFunc) txStep {
 			return inSavepoint(func(ctx context.Context, tx bun.Tx) error {
-				_, err := tx.ExecContext(ctx, `SELECT pg_sleep(5)`)
+				_, err := tx.ExecContext(ctx, `SELECT pg_sleep(1.5)`)
 				return err
 			})
 		}, unit: func(ctx context.Context) (context.Context, context.CancelFunc) {

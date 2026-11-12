@@ -44,7 +44,7 @@ Copy their tenant/parallel setup, not literal IDs or legacy factory composition.
   one worker per 8 GiB RAM, at most two on macOS or four on Linux, minimum one.
   Both keep `-parallel 8` (local postgres-test has `max_connections=300`);
   post-merge CI runs `-p 6 -parallel 8`, changed-only PRs `-p 4 -parallel 8`
-  (CI's service container keeps the stock 100 connections). `-parallel` stays
+  (CI's service container allows 300 connections too). `-parallel` stays
   at 8 everywhere on purpose: `-test.parallel` is part of the Go test cache
   key and sizes the per-binary pool.
   The pool per binary is derived from `-test.parallel` plus

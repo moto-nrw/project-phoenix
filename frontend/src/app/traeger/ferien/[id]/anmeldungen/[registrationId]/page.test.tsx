@@ -93,6 +93,10 @@ vi.mock("~/lib/traeger-sibling-groups-api", () => ({
 }));
 
 import TraegerHolidayRegistrationPage from "./page";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 describe("TraegerHolidayRegistrationPage", () => {
   beforeEach(() => {
@@ -246,7 +250,7 @@ describe("TraegerHolidayRegistrationPage", () => {
         ["registration", "confirmation"],
         ["health", "confirmation"],
       ])(
-        "hides registration data when the %s reload refuses access after %s",
+        "loads the page anew when the %s reload refuses access after %s",
         async (refused, action) => {
           sessionPermissions.current = [
             "traeger_enrollment:manage",
@@ -262,6 +266,7 @@ describe("TraegerHolidayRegistrationPage", () => {
           expect(screen.getByText("eva@example.org")).toBeVisible();
           expect(screen.getByText("Oma Muster")).toBeVisible();
           const read = refused === "health" ? mockHealth : mockRegistration;
+          resetPageReloads();
           read.mockRejectedValueOnce(
             new ApiError("refused", 403, { code: "general.permission" }),
           );
@@ -269,18 +274,8 @@ describe("TraegerHolidayRegistrationPage", () => {
           else
             fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
 
-          // Anker: der Nachladefehler bestätigt die gespeicherte Änderung.
-          expect(
-            await screen.findByText(
-              `${catalogText("general.permission", "die Anzeige der Anmeldung")} ${SAVED_BUT_STALE_SUFFIX}`,
-            ),
-          ).toBeVisible();
-          expect(screen.queryByText("Erdnüsse")).not.toBeInTheDocument();
-          expect(screen.queryByText("eva@example.org")).not.toBeInTheDocument();
-          expect(screen.queryByText("Oma Muster")).not.toBeInTheDocument();
-          expect(
-            screen.queryByRole("button", { name: "Angaben der Eltern ändern" }),
-          ).not.toBeInTheDocument();
+          // #6801: the page loads anew; its first load shows the refusal.
+          await expectPageReloadedAfterRefusal();
           expect(
             action === "split" ? mockSplit : mockConfirm,
           ).toHaveBeenCalledTimes(1);

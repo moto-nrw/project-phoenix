@@ -107,10 +107,25 @@ func TestPlannedExitRunAndImmediateOffboardingDoNotDeadlock(t *testing.T) {
 		Now:         time.Now,
 	})
 	require.NoError(t, err)
+	unitPID := make(chan int64, 1)
 	due, err := staffoffboarding.NewDueExits(planner, staffoffboarding.DueExitDependencies{
 		Notify: func(context.Context, staffoffboarding.ExitNotice) (bool, error) { return true, nil },
-		Isolate: func(ctx context.Context, fn func(context.Context) error) (failed, err error) {
-			failed = tenant.WithSavepoint(ctx, fn)
+		// The exit runs in a transaction of its own (#6703); its backend is
+		// the one that waits.
+		Within: func(ctx context.Context, fn func(context.Context) error) (error, error) {
+			return api.PlannedExitTransaction(ctx, func(txCtx context.Context) error {
+				tx, _ := tenant.TransactionFromContext(txCtx)
+				var backend int64
+				if err := tx.(bun.Tx).NewRaw("SELECT pg_backend_pid()").Scan(txCtx, &backend); err != nil {
+					return err
+				}
+				unitPID <- backend
+				return fn(txCtx)
+			})
+		},
+		BoundLockWaits: api.BoundPlannedExitLockWaits(30 * time.Second),
+		Isolate: func(ctx context.Context, fn func(context.Context) error) (error, error) {
+			failed := tenant.WithSavepoint(ctx, fn)
 			if errors.Is(failed, tenant.ErrSavepointControl) {
 				return nil, failed
 			}
@@ -140,17 +155,26 @@ func TestPlannedExitRunAndImmediateOffboardingDoNotDeadlock(t *testing.T) {
 		run, err = due.RunDue(ctx)
 		return err
 	})
-	awaitBlockedBy(t, db, scheduled, barrier.pid, "the planned exit run")
+	var exit raceTx
+	select {
+	case pid := <-unitPID:
+		exit = raceTx{pid: pid, done: scheduled.done}
+	case err := <-scheduled.done:
+		require.FailNow(t, "the planned exit run finished before its exit started", "%v", err)
+	}
+	awaitBlockedBy(t, db, exit, barrier.pid, "the planned exit run")
 	immediate := startRaceTx(t, db, func(ctx context.Context, _ bun.Tx) error {
 		actorCtx := context.WithValue(ctx, offboardingTestActorKey{}, staffoffboarding.Actor{StaffID: actor.ID, Username: "test-admin"})
 		_, err := offboarding.Offboard(actorCtx, subject.ID)
 		return err
 	})
-	awaitBlockedBy(t, db, immediate, scheduled.pid, "the immediate offboarding")
+	awaitBlockedBy(t, db, immediate, exit.pid, "the immediate offboarding")
 	close(release)
 	requireFinishedWithoutDeadlock(t, barrier, "the barrier")
 	requireFinishedWithoutDeadlock(t, scheduled, "the planned exit run")
-	assert.Empty(t, run.Failed, "the due exit ran")
+	for _, exit := range run.Exits {
+		assert.NotEqual(t, staffoffboarding.ExitFailed, exit.Outcome, "the due exit ran")
+	}
 	select {
 	case err := <-immediate.done:
 		var state interface{ Field(byte) string }

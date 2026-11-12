@@ -104,6 +104,10 @@ import { ApiError } from "~/lib/api-error";
 import { deferred } from "~/test/helpers/form-modal-pending";
 import { catalogText } from "~/test/error-catalog-text";
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 const phase = {
   id: "1",
@@ -686,21 +690,13 @@ describe("AdminEnrollmentPhaseDetail", () => {
 
   // #6652: the decision holds once the write is through; a failed reload
   // keeps the table and says the change is saved, and only reloads.
-  it("discards protected phase data and actions after a refused decision reload", async () => {
+  it("loads the page anew after a refused decision reload", async () => {
+    resetPageReloads();
     await renderPhase();
     mocks.listAdminRequests.mockRejectedValueOnce(new ApiError("refused", 403));
     fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
-    expect(
-      await screen.findByText(
-        `${catalogText("general.permission", "die Anzeige der Anmeldephase")} ${SAVED_BUT_STALE_SUFFIX}`,
-      ),
-    ).toBeVisible();
-    expect(screen.queryAllByText("eva@example.test")).toHaveLength(0);
-    expect(
-      screen.queryByRole("button", { name: "Bestätigen" }),
-    ).not.toBeInTheDocument();
-    expect(screen.queryByRole("table")).not.toBeInTheDocument();
-    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    // #6801: the page loads anew; its first load shows the refusal.
+    await expectPageReloadedAfterRefusal();
     expect(mocks.decideAdminChild).toHaveBeenCalledTimes(1);
   });
 
@@ -708,29 +704,25 @@ describe("AdminEnrollmentPhaseDetail", () => {
     "handles a %s report reload after a successful decision and data reload",
     async (status) => {
       await renderPhase();
+      resetPageReloads();
       mocks.getCareUsageReport.mockRejectedValueOnce(
         new ApiError("failed", status),
       );
       fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+      expect(mocks.decideAdminChild).toHaveBeenCalledTimes(1);
+      if (status === 403) {
+        // #6801: the page loads anew; its first load shows the refusal.
+        await expectPageReloadedAfterRefusal();
+        return;
+      }
       expect(
         await screen.findByText(
-          `${catalogText(status === 403 ? "general.permission" : "general.unavailable", "die Anzeige der Anmeldephase")} ${SAVED_BUT_STALE_SUFFIX}`,
+          `${catalogText("general.unavailable", "die Anzeige der Anmeldephase")} ${SAVED_BUT_STALE_SUFFIX}`,
         ),
       ).toBeVisible();
-      if (status === 403) {
-        expect(screen.queryAllByText("eva@example.test")).toHaveLength(0);
-        expect(screen.queryByRole("table")).not.toBeInTheDocument();
-        expect(
-          screen.queryByRole("button", { name: "Bestätigen" }),
-        ).not.toBeInTheDocument();
-        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-      } else {
-        expect(screen.getByRole("table")).toBeVisible();
-      }
-      if (status === 503) {
-        fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
-        expect(await screen.findByRole("table")).toBeVisible();
-      }
+      expect(screen.getByRole("table")).toBeVisible();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(await screen.findByRole("table")).toBeVisible();
       expect(mocks.decideAdminChild).toHaveBeenCalledTimes(1);
     },
   );

@@ -11,7 +11,7 @@ import (
 	"time"
 
 	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecordstest"
-	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment/rowstest"
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 	"github.com/moto-ogs/project-phoenix/modules/securityruntime/userpasstest"

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment/rowstest"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"

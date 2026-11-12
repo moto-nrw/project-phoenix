@@ -51,7 +51,7 @@ func bindTenantRuntime(unitOfWork *postgres.PostgresUnitOfWork, err error, retry
 	if err != nil {
 		return tenant.UnitOfWork{}, err
 	}
-	runtime = runtime.WithTransactionDetacher(unitOfWork.ContextWithoutTransaction).WithStatementBound(unitOfWork.BoundStatements)
+	runtime = runtime.WithTransactionDetacher(unitOfWork.ContextWithoutTransaction).WithStatementBound(unitOfWork.BoundStatements).WithLockBound(unitOfWork.BoundLocks)
 	return runtime.WithContextAdapters(auditlog.ContextWithTenant, auditlog.ContextWithTransaction), nil
 }
 

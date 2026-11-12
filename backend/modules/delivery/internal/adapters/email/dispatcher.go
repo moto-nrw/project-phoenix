@@ -123,7 +123,11 @@ func (d *Dispatcher) deliverSynchronously(ctx context.Context, cfg dispatchConfi
 			sendErr = ctxErr
 		}
 
-		final := attempt == cfg.maxAttempts || ctx.Err() != nil || errors.Is(sendErr, mailcontract.ErrPermanentRejection)
+		// A missing transport does not appear between two attempts: retrying
+		// only made the caller wait out the backoff, six seconds for an
+		// interactive mail.
+		final := attempt == cfg.maxAttempts || ctx.Err() != nil ||
+			errors.Is(sendErr, mailcontract.ErrPermanentRejection) || errors.Is(sendErr, mailcontract.ErrDeliveryUnavailable)
 		d.invokeCallback(ctx, cfg, attempt, mailcontract.DeliveryStatusFailed, sendErr, final)
 		if final {
 			return fmt.Errorf("email delivery failed after %d attempt(s): %w", attempt, sendErr)
