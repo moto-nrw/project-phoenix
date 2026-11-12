@@ -110,6 +110,8 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 			_, _ = w.Write([]byte(`{"status":"authenticated","access_token":"traeger-token","refresh_token":"r"}`))
 		case "/traeger/schools/":
 			_, _ = w.Write([]byte(`{"status":"success","data":[{"id":31},{"id":32}]}`))
+		case "/traeger/catalog/phases/9/preview":
+			_, _ = w.Write([]byte(`{"status":"success","data":{"traeger_phase_id":9,"fingerprint":"preview-key","schools":[]}}`))
 		case "/traeger/holiday-periods/":
 			raw, err := io.ReadAll(r.Body)
 			assert.NoError(t, err)
@@ -198,6 +200,10 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"POST /traeger/auth/login ",
 		"GET /traeger/schools/ Bearer traeger-token",
 		"POST /traeger/holiday-periods/ Bearer traeger-token",
+		"POST /traeger/catalog/phases Bearer traeger-token",
+		"POST /traeger/catalog/phases/9/offerings Bearer traeger-token",
+		"POST /traeger/catalog/phases/9/preview Bearer traeger-token",
+		"POST /traeger/catalog/phases/9/rollout Bearer traeger-token",
 		"POST /traeger/holiday-periods/ Bearer traeger-token",
 		"POST /traeger/holiday-periods/5/publish Bearer traeger-token",
 		"POST /traeger/contribution-rules/ Bearer traeger-token",

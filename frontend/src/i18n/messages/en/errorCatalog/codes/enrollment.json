@@ -165,5 +165,13 @@
   "holiday_allocation_mode_locked": "There are registrations already, so the allocation stays as it is.",
   "holiday_allocation_pending": "Please give out the places in the “Vergabe” tab first.",
   "holiday_allocation_full": "There are no free places left in this week. Please reload the list.",
-  "holiday_allocation_changed": "The list has changed. Please check your decision again."
+  "holiday_allocation_changed": "The list has changed. Please check your decision again.",
+  "traeger_copy_delete": "{object} could not be changed. Please check its current status.",
+  "traeger_phase_not_found": "{object} could not be saved. Please check your entries.",
+  "traeger_offering_not_found": "{object} could not be saved. Please check your entries.",
+  "traeger_withdrawn": "{object} could not be changed. Please check its current status.",
+  "traeger_school_outside": "{object} could not be saved. Please check your entries.",
+  "traeger_catalog_invalid": "{object} could not be saved. Please check your entries.",
+  "traeger_preview_stale": "{object} could not be changed. Please check its current status.",
+  "traeger_copy_rejected": "{object} could not be changed. Please check its current status."
 }

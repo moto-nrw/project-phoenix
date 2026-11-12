@@ -4223,6 +4223,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (r bookingRosters) ReconcileTemplateRosterBatch(ctx context.Context, changes []careplanCompose.RosterReconcile) error {\n\tinputs := make([]timetable.SourcedTemplateRosterReconcile, 0, len(changes))\n\tfor _, change := range changes {\n\t\tvar rows []timetable.RosterEnrollment\n\t\tif change.Prior != nil {\n\t\t\trows = make([]timetable.RosterEnrollment, 0, len(change.Prior))\n\t\t}\n\t\tfor _, row := range change.Prior {\n\t\t\trows = append(rows, timetable.RosterEnrollment{StudentID: row.StudentID, ValidFrom: row.ValidFrom, ValidUntil: row.ValidUntil, CalendarPeriodID: row.CalendarPeriodID, Weekday: row.Weekday, SelectedWeekdays: row.SelectedWeekdays, StudentAlumnus: row.StudentAlumnus})\n\t\t}\n\t\tinputs = append(inputs, timetable.SourcedTemplateRosterReconcile{TemplateID: change.TemplateID, StudentIDs: change.StudentIDs, From: change.From, Prior: rows})\n\t}\n\treturn r.rosters.ReconcileSourcedTemplateRosterBatch(ctx, inputs)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/bookingRosters.ReconcileTemplateRosterBatch",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (r bookingRosters) SetEnrollmentValidUntil(ctx context.Context, id int64, validUntil calendar.Date) error {\n\treturn r.timetable.SetStudentEnrollmentValidUntil(ctx, id, validUntil.String())\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/bookingRosters.SetEnrollmentValidUntil",
@@ -5623,6 +5630,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (o enrollmentPhaseOfferings) HasTraegerCopiesForPhase(ctx context.Context, id int64) (bool, error) {\n\trows, err := o.carePlan.ListCareOfferings(ctx, careplan.CareOfferingFilter{PhaseIDs: []int64{id}})\n\tif err != nil {\n\t\treturn false, err\n\t}\n\tfor _, row := range rows {\n\t\tif row.Traeger != nil {\n\t\t\treturn true, nil\n\t\t}\n\t}\n\treturn false, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentPhaseOfferings.HasTraegerCopiesForPhase",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (o enrollmentPhaseOfferings) OfferingIDsForPhase(ctx context.Context, phaseID int64) ([]int64, error) {\n\tofferings, err := o.carePlan.ListCareOfferings(ctx, careplan.CareOfferingFilter{PhaseIDs: []int64{phaseID}, Order: careplan.OfferingOrderCatalog})\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"failed to list care offerings by phase: %w\", err)\n\t}\n\tids := make([]int64, 0, len(offerings))\n\tfor _, offering := range offerings {\n\t\tids = append(ids, offering.ID)\n\t}\n\treturn ids, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentPhaseOfferings.OfferingIDsForPhase",
@@ -6918,7 +6932,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (d pickupExceptionDirectory) ListStudentStatusDays(ctx context.Context, filter timetablePorts.StudentStatusDayFilter) ([]timetablePorts.StudentStatusDayProjection, error) {\n\tvalues, err := d.query.ListStudentStatusDays(ctx, careplan.StudentStatusDayFilter{IDs: filter.IDs, StudentIDs: filter.StudentIDs, Date: careplan.Date(filter.Date), From: careplan.Date(filter.From), ActiveOnly: filter.ActiveOnly, LatestOnly: filter.LatestOnly})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]timetablePorts.StudentStatusDayProjection, 0, len(values))\n\tfor _, value := range values {\n\t\tresult = append(result, timetablePorts.StudentStatusDayProjection{ID: value.ID, StudentID: value.StudentID, Date: value.Date.String(), Status: value.Status})\n\t}\n\treturn result, nil\n}",
+      "evidence": "func (d pickupExceptionDirectory) ListStudentStatusDays(ctx context.Context, filter timetablePorts.StudentStatusDayFilter) ([]timetablePorts.StudentStatusDayProjection, error) {\n\tvalues, err := d.query.ListStudentStatusDays(ctx, careplan.StudentStatusDayFilter{IDs: filter.IDs, StudentIDs: filter.StudentIDs, Date: careplan.Date(filter.Date), From: careplan.Date(filter.From), To: careplan.Date(filter.To), ActiveOnly: filter.ActiveOnly, LatestOnly: filter.LatestOnly})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]timetablePorts.StudentStatusDayProjection, 0, len(values))\n\tfor _, value := range values {\n\t\tresult = append(result, timetablePorts.StudentStatusDayProjection{ID: value.ID, StudentID: value.StudentID, Date: value.Date.String(), Status: value.Status})\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/pickupExceptionDirectory.ListStudentStatusDays",
       "owner": "roots"

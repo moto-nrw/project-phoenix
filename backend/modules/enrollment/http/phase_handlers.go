@@ -605,6 +605,10 @@ func (rs *Resource) deletePhase(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorConflictWithCode(enrollmentOwner.ErrPhaseHasEffectiveBookings, common.CodeEnrollmentPhaseHasEffectiveBookings))
 			return
 		}
+		if errors.Is(err, enrollmentOwner.ErrTraegerCopyDelete) {
+			common.RenderError(w, r, common.ErrorConflictWithCode(enrollmentOwner.ErrTraegerCopyDelete, common.CodeEnrollmentTraegerCopyDelete))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}

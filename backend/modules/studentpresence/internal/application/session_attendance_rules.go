@@ -10,6 +10,8 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
 )
 
+var _ studentpresence.SourcedRosterAttendance = (*Service)(nil)
+
 var (
 	ErrPlannedRosterUnbound     = errors.New("student presence: planned roster is not bound")
 	ErrCarePlanDirectoryUnbound = errors.New("student presence: care plan directory is not bound")
@@ -345,17 +347,21 @@ func (s *Service) applyPartialAbsence(ctx context.Context, exception ports.Picku
 	return applyStats.Rows, err
 }
 
-func (s *Service) ApplyActiveStatusDaysForInstance(ctx context.Context, instanceID int64, date string) (rows int, err error) {
+func (s *Service) ApplyActiveStatusDaysForInstance(ctx context.Context, instanceID int64, date string) (int, error) {
+	return s.ApplyActiveStatusDaysForInstances(ctx, []int64{instanceID}, date)
+}
+
+func (s *Service) ApplyActiveStatusDaysForInstances(ctx context.Context, instanceIDs []int64, date string) (rows int, err error) {
 	err = s.runWrite(ctx, "apply_active_status_days_for_instance", func(txCtx context.Context) (ports.Stats, error) {
 		var stats ports.Stats
-		if instanceID <= 0 || date == "" {
+		if len(instanceIDs) == 0 || slices.ContainsFunc(instanceIDs, func(id int64) bool { return id <= 0 }) || date == "" {
 			return stats, errors.New("student presence: invalid instance status day application")
 		}
 		roster, carePlan, locks, err := s.attendanceRulePorts()
 		if err != nil {
 			return stats, err
 		}
-		participants, err := roster.ListPlannedParticipants(txCtx, ports.PlannedRosterFilter{InstanceIDs: []int64{instanceID}})
+		participants, err := roster.ListPlannedParticipants(txCtx, ports.PlannedRosterFilter{InstanceIDs: instanceIDs})
 		if err != nil {
 			return stats, err
 		}
@@ -490,10 +496,14 @@ func (s *Service) releasePartialAbsenceRows(ctx context.Context, pickupException
 	return releaseStats.Rows, err
 }
 
-func (s *Service) ApplyActivePartialAbsencesForInstance(ctx context.Context, instanceID int64, date string) (rows int, err error) {
+func (s *Service) ApplyActivePartialAbsencesForInstance(ctx context.Context, instanceID int64, date string) (int, error) {
+	return s.ApplyActivePartialAbsencesForInstances(ctx, []int64{instanceID}, date)
+}
+
+func (s *Service) ApplyActivePartialAbsencesForInstances(ctx context.Context, instanceIDs []int64, date string) (rows int, err error) {
 	err = s.runWrite(ctx, "apply_active_partial_absences_for_instance", func(txCtx context.Context) (ports.Stats, error) {
 		var stats ports.Stats
-		if instanceID <= 0 || date == "" {
+		if len(instanceIDs) == 0 || slices.ContainsFunc(instanceIDs, func(id int64) bool { return id <= 0 }) || date == "" {
 			return stats, errors.New("student presence: invalid instance partial absence application")
 		}
 		roster, carePlan, locks, err := s.attendanceRulePorts()
@@ -508,7 +518,7 @@ func (s *Service) ApplyActivePartialAbsencesForInstance(ctx context.Context, ins
 		if len(cutoffs) == 0 {
 			return stats, nil
 		}
-		participants, err := lockedPlannedParticipants(txCtx, roster, locks, instanceID, date, sortedKeys(cutoffs))
+		participants, err := lockedPlannedParticipantsBatch(txCtx, roster, locks, instanceIDs, date, sortedKeys(cutoffs))
 		if err != nil {
 			return stats, err
 		}
@@ -534,13 +544,13 @@ func excusalCutoffs(exceptions []ports.PickupException) map[int64]ports.PickupEx
 
 // lockedPlannedParticipants locks the exception days of the children and
 // lists the planned participants of the block under those locks.
-func lockedPlannedParticipants(ctx context.Context, roster ports.PlannedRoster, locks ports.CareDayLocker, instanceID int64, date string, studentIDs []int64) ([]ports.PlannedParticipant, error) {
+func lockedPlannedParticipantsBatch(ctx context.Context, roster ports.PlannedRoster, locks ports.CareDayLocker, instanceIDs []int64, date string, studentIDs []int64) ([]ports.PlannedParticipant, error) {
 	for _, studentID := range studentIDs {
 		if err := locks.LockExceptionDay(ctx, studentID, date); err != nil {
 			return nil, err
 		}
 	}
-	return roster.ListPlannedParticipants(ctx, ports.PlannedRosterFilter{InstanceIDs: []int64{instanceID}, Date: date, ExcludeCancelled: true})
+	return roster.ListPlannedParticipants(ctx, ports.PlannedRosterFilter{InstanceIDs: instanceIDs, Date: date, ExcludeCancelled: true})
 }
 
 // partialAbsencesFor marks the participants whose block starts at or after

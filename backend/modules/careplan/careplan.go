@@ -102,6 +102,9 @@ type CareOffering struct {
 	// booked children need no Regeltermin of this offering in that period,
 	// as the school decided (#5140); "" stands for children without a class.
 	TemplateGapAcks map[int64][]string
+	// Traeger names the Träger offering this offering is a copy of (ADR
+	// 0195), nil for an offering of the school. Only the copy commands set it.
+	Traeger *TraegerCopyLink
 }
 
 // CareOfferingFields is the writable catalog state. Trigger IDs are part of

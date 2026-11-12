@@ -63,6 +63,7 @@ var (
 	ErrCompleteWithdrawalConfirmationRequired = enrollment.ErrCompleteWithdrawalConfirmationRequired
 	ErrOfferingAdjustmentInvalid              = enrollment.ErrOfferingAdjustmentInvalid
 	ErrPhaseBookingBoundsConflict             = enrollment.ErrPhaseBookingBoundsConflict
+	ErrTraegerCopyDelete                      = enrollment.ErrTraegerCopyDelete
 )
 
 // PhaseBookingBoundsConflictError names the application a refused phase

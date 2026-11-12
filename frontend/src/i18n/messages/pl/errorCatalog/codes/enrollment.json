@@ -165,5 +165,13 @@
   "holiday_allocation_mode_locked": "Są już zgłoszenia, więc sposób przydziału pozostaje.",
   "holiday_allocation_pending": "Najpierw przydziel miejsca w zakładce „Vergabe”.",
   "holiday_allocation_full": "W tym tygodniu nie ma już wolnych miejsc. Proszę ponownie wczytać listę.",
-  "holiday_allocation_changed": "Lista się zmieniła. Proszę ponownie sprawdzić decyzję."
+  "holiday_allocation_changed": "Lista się zmieniła. Proszę ponownie sprawdzić decyzję.",
+  "traeger_copy_delete": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "traeger_phase_not_found": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "traeger_offering_not_found": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "traeger_withdrawn": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "traeger_school_outside": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "traeger_catalog_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "traeger_preview_stale": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "traeger_copy_rejected": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
 }

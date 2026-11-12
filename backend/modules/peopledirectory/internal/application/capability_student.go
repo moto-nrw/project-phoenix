@@ -94,3 +94,23 @@ func (s *Service) ListStudentsWithStatusFlag(ctx context.Context, status string)
 }
 
 func invalidStudent(reason string) error { return &peopledirectory.InvalidStudentError{Reason: reason} }
+
+var _ peopledirectory.StudentRowLocks = (*Service)(nil)
+
+func (s *Service) LockStudentRows(ctx context.Context, ids []int64) (int, error) {
+	if len(ids) == 0 {
+		return 0, nil
+	}
+	normalized := peopledirectory.PositiveIDs(ids)
+	if len(normalized) != len(ids) {
+		return 0, invalidStudent("student row locks require unique positive IDs")
+	}
+	count, err := s.students.LockRows(ctx, normalized)
+	if err != nil {
+		return 0, MapError(err)
+	}
+	if count != len(normalized) {
+		return count, peopledirectory.ErrStudentNotFound
+	}
+	return count, nil
+}

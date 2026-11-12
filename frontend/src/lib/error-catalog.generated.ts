@@ -616,6 +616,21 @@ export const ERROR_CATALOG = {
         "Mit dieser E-Mail-Adresse wurden heute schon viele Anmeldungen gesendet. Bitte versuchen Sie es morgen noch einmal.",
       "enrollment.submission_rate_limited":
         "Es wurden zu viele Anmeldungen gesendet. Bitte versuchen Sie es in einer Stunde noch einmal.",
+      "enrollment.traeger_catalog_invalid": "Bitte prüfen Sie Ihre Angaben.",
+      "enrollment.traeger_copy_delete":
+        "Dieser Eintrag kommt vom Träger. Nur das Träger-Büro kann ihn entfernen. Sie können ihn stattdessen deaktivieren.",
+      "enrollment.traeger_copy_rejected":
+        "Die Schule kann diese Angaben so nicht übernehmen. Bitte prüfen Sie die Angaben oder die Einstellungen der Schule.",
+      "enrollment.traeger_offering_not_found":
+        "Dieses Angebot des Trägers gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "enrollment.traeger_phase_not_found":
+        "Diese Anmeldephase des Trägers gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "enrollment.traeger_preview_stale":
+        "Seit der Vorschau hat sich etwas geändert. Bitte sehen Sie sich die Vorschau noch einmal an.",
+      "enrollment.traeger_school_outside":
+        "Eine gewählte Schule gehört nicht zu Ihrem Träger. Bitte wählen Sie die Schulen neu.",
+      "enrollment.traeger_withdrawn":
+        "Dieser Eintrag ist zurückgezogen. Er lässt sich nicht mehr ändern.",
       "enrollment.upload_content_mismatch":
         "Der Inhalt von „{filename}“ passt nicht zur Dateiart. Bitte wählen Sie eine andere Datei. Umbenennen reicht nicht.",
       "enrollment.upload_expired":

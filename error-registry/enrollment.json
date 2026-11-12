@@ -1036,6 +1036,54 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "enrollment.holiday_allocation_changed"
+    },
+    {
+      "code": "enrollment.traeger_copy_delete",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.traeger_copy_delete"
+    },
+    {
+      "code": "enrollment.traeger_phase_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.traeger_phase_not_found"
+    },
+    {
+      "code": "enrollment.traeger_offering_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.traeger_offering_not_found"
+    },
+    {
+      "code": "enrollment.traeger_withdrawn",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.traeger_withdrawn"
+    },
+    {
+      "code": "enrollment.traeger_school_outside",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.traeger_school_outside"
+    },
+    {
+      "code": "enrollment.traeger_catalog_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.traeger_catalog_invalid"
+    },
+    {
+      "code": "enrollment.traeger_preview_stale",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.traeger_preview_stale"
+    },
+    {
+      "code": "enrollment.traeger_copy_rejected",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.traeger_copy_rejected"
     }
   ]
 }

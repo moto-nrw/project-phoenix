@@ -125,3 +125,14 @@ func NewStudentDocuments(deps StudentDocumentDependencies) (application.StudentD
 func ownTenantTransaction(db *bun.DB) ports.UnitOfWork {
 	return postgres.OwnTenantTransactionBinding(db, tenant.WithTenantTx)
 }
+
+// NewTraegerOfferings builds the Träger care offerings (ADR 0195) in the Träger transaction the caller opens.
+func NewTraegerOfferings() careplan.TraegerOfferings {
+	return application.NewTraegerOfferings(postgres.NewTraegerOfferingStore())
+}
+
+// NewTraegerOfferingCopies builds the copy commands of Träger offerings in a school's tenant transaction (ADR 0195) over the catalog and its recurrence gate.
+func NewTraegerOfferingCopies(catalog careplan.CareOfferingCatalogCapability, lockRecurrence func(context.Context) error) (careplan.TraegerOfferingCopies, error) {
+	runtime := application.TraegerCopyRuntime{LockRecurrence: lockRecurrence, Savepoint: tenant.WithSavepoint, ControlFailure: tenant.IsSavepointControlFailure, ReferenceRefusal: postgres.IsReferenceRefusal}
+	return application.NewTraegerOfferingCopies(catalog, postgres.New(postgres.CarePlanDatabase(nil)), runtime)
+}

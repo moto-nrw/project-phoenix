@@ -321,6 +321,20 @@ func SoftDeleteTestSchool(tb testing.TB, db *bun.DB, schoolID int64) {
 	require.NoError(tb, err, "Failed to soft-delete test school")
 }
 
+// OwnTraegerCatalog removes the Träger phases and care offerings a test
+// creates for the Träger (#4704, ADR 0195), with their versions and school
+// selections, when the test ends. Like the holiday periods they carry no
+// tenant, so they need their own exact-key teardown.
+func OwnTraegerCatalog(tb testing.TB, db *bun.DB, organizationID int64) {
+	tb.Helper()
+	tb.Cleanup(func() {
+		_, err := db.ExecContext(context.Background(), `DELETE FROM enrollment.traeger_care_offerings WHERE organization_id = ?`, organizationID)
+		require.NoError(tb, err, "Failed to clean up test Träger care offerings")
+		_, err = db.ExecContext(context.Background(), `DELETE FROM enrollment.traeger_phases WHERE organization_id = ?`, organizationID)
+		require.NoError(tb, err, "Failed to clean up test Träger phases")
+	})
+}
+
 // HolidayRegistrationFixture is a holiday registration a test wrote: its
 // period and the registration.
 type HolidayRegistrationFixture struct {

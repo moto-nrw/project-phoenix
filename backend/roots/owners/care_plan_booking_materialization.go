@@ -92,6 +92,7 @@ type bookingTimetableOwner interface {
 }
 
 type bookingRosterMaintenance interface {
+	ReconcileSourcedTemplateRosterBatch(context.Context, []timetable.SourcedTemplateRosterReconcile) error
 	ReconcileSourcedTemplateRosters(ctx context.Context, templateID int64, studentIDs []int64, from calendar.Date, prior []timetable.RosterEnrollment) (int, int, error)
 }
 
@@ -109,7 +110,14 @@ type bookingRosters struct {
 }
 
 func (r bookingRosters) GroupEnrollments(ctx context.Context, groupID int64) ([]careplanCompose.RosterEnrollment, error) {
-	rows, err := r.list(ctx, timetable.StudentEnrollmentFilter{ActivityGroupIDs: []int64{groupID}, OrderByValidFrom: true})
+	return r.GroupsEnrollments(ctx, []int64{groupID})
+}
+
+func (r bookingRosters) GroupsEnrollments(ctx context.Context, groupIDs []int64) ([]careplanCompose.RosterEnrollment, error) {
+	if len(groupIDs) == 0 {
+		return []careplanCompose.RosterEnrollment{}, nil
+	}
+	rows, err := r.list(ctx, timetable.StudentEnrollmentFilter{ActivityGroupIDs: groupIDs, OrderByValidFrom: true})
 	if err != nil || len(rows) == 0 {
 		return rows, err
 	}
@@ -216,7 +224,9 @@ func (r bookingRosters) ReconcileTemplateRosters(ctx context.Context, templateID
 
 // bookingTemplates reads the live offering-sourced templates in id order and
 // rewrites a template's source rule through the Timetable owner.
-type bookingTemplates struct{ timetable bookingTimetableOwner }
+type bookingTemplates struct {
+	timetable bookingTimetableOwner
+}
 
 func (t bookingTemplates) TemplatesWithOfferingSource(ctx context.Context) ([]careplanCompose.SourcedTemplate, error) {
 	return t.list(ctx, timetable.ActiveOfferingSourcedTemplates())
@@ -603,4 +613,51 @@ type PickupScheduleBroadcaster struct{ Broadcaster realtime.Broadcaster }
 func (b PickupScheduleBroadcaster) PickupScheduleChanged(tenantID int64) error {
 	source := "offering_pickup_projection"
 	return b.Broadcaster.BroadcastToTenant(tenantID, realtime.NewEvent(realtime.EventPickupScheduleChanged, "", realtime.EventData{Source: &source}))
+}
+
+func (r bookingRosters) SaveRosterChanges(ctx context.Context, changes careplanCompose.RosterChanges) error {
+	diff := timetable.SourcedRosterChanges{Delete: changes.Delete, Ends: map[int64]string{}}
+	for id, end := range changes.Ends {
+		diff.Ends[id] = end.String()
+	}
+	for _, row := range changes.Create {
+		var until *string
+		if row.ValidUntil != nil {
+			value := row.ValidUntil.String()
+			until = &value
+		}
+		diff.Create = append(diff.Create, timetable.StudentEnrollmentInput{StudentID: row.StudentID, ActivityGroupID: row.ActivityGroupID, ValidFrom: row.ValidFrom.String(), ValidUntil: until, CalendarPeriodID: row.CalendarPeriodID, EnrollmentRequestChildID: row.EnrollmentRequestChildID, SelectedWeekdays: row.SelectedWeekdays, Weekday: row.Weekday})
+	}
+	commands, ok := r.timetable.(timetable.SourcedRosterCommands)
+	if !ok {
+		return errors.New("booking rosters: batch commands are required")
+	}
+	return commands.SaveSourcedRosterChanges(ctx, diff)
+}
+
+func (t bookingTemplates) UpdateTemplateOfferingSources(ctx context.Context, changes []careplanCompose.TemplateSourceChange) error {
+	sources := make(map[int64]timetable.OfferingSourceInput, len(changes))
+	for _, change := range changes {
+		sources[change.TemplateID] = timetable.OfferingSourceInput{CareOfferingIDs: change.OfferingIDs, GradeLevels: change.GradeLevels, SchoolClasses: change.SchoolClasses}
+	}
+	commands, ok := t.timetable.(timetable.SourcedRosterCommands)
+	if !ok {
+		return errors.New("booking templates: batch commands are required")
+	}
+	return commands.UpdateGroupOfferingSources(ctx, sources)
+}
+
+func (r bookingRosters) ReconcileTemplateRosterBatch(ctx context.Context, changes []careplanCompose.RosterReconcile) error {
+	inputs := make([]timetable.SourcedTemplateRosterReconcile, 0, len(changes))
+	for _, change := range changes {
+		var rows []timetable.RosterEnrollment
+		if change.Prior != nil {
+			rows = make([]timetable.RosterEnrollment, 0, len(change.Prior))
+		}
+		for _, row := range change.Prior {
+			rows = append(rows, timetable.RosterEnrollment{StudentID: row.StudentID, ValidFrom: row.ValidFrom, ValidUntil: row.ValidUntil, CalendarPeriodID: row.CalendarPeriodID, Weekday: row.Weekday, SelectedWeekdays: row.SelectedWeekdays, StudentAlumnus: row.StudentAlumnus})
+		}
+		inputs = append(inputs, timetable.SourcedTemplateRosterReconcile{TemplateID: change.TemplateID, StudentIDs: change.StudentIDs, From: change.From, Prior: rows})
+	}
+	return r.rosters.ReconcileSourcedTemplateRosterBatch(ctx, inputs)
 }

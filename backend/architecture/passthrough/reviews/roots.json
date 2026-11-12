@@ -3016,6 +3016,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0215",
+      "id": "roots/owners/bookingRosters.ReconcileTemplateRosterBatch",
+      "reason": "ADR 0075 consumer-port adapter: maps Care Plan batch DTOs to Timetable commands in the root. ADR 0215 roster batching; no service construction or domain policy in this binding."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/bookingRosters.SetEnrollmentValidUntil",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -4014,6 +4019,11 @@
       "decision": "0090",
       "id": "roots/owners/enrollmentPhaseOfferings.CountOfferingsForPhase",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0215",
+      "id": "roots/owners/enrollmentPhaseOfferings.HasTraegerCopiesForPhase",
+      "reason": "ADR 0075 consumer-port adapter: projects the existing owner capability into the narrow root-bound contract without a new service graph. No new application pass-through floor."
     },
     {
       "decision": "0090",

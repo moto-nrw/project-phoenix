@@ -5563,11 +5563,12 @@
     },
     {
       "adr": "0067",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplyActivePartialAbsencesForInstance",
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ApplyActivePartialAbsencesForInstance",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application.Service.ApplyActivePartialAbsencesForInstance; modules/studentpresence/internal/application/session_attendance_rules.go:493.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application.Service.ApplyActivePartialAbsencesForInstance; modules/studentpresence/internal/application/session_attendance_rules.go:493.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
       "source_owner": "timetable-activities",
       "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplyActivePartialAbsencesForInstance",
       "target_owner": "student-presence"
@@ -5585,11 +5586,12 @@
     },
     {
       "adr": "0067",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplyActiveStatusDaysForInstance",
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ApplyActiveStatusDaysForInstance",
-      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application.Service.ApplyActiveStatusDaysForInstance; modules/studentpresence/internal/application/session_attendance_rules.go:348.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/studentpresence/internal/application.Service.ApplyActiveStatusDaysForInstance; modules/studentpresence/internal/application/session_attendance_rules.go:348.  Full native contract surface (including production-compiled fixture support); this label does not claim this exposed method is called by a production source flow. The target owner's own coordination is inventoried at that owner, not flattened here.",
       "source_owner": "timetable-activities",
       "target": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplyActiveStatusDaysForInstance",
       "target_owner": "student-presence"
@@ -26588,6 +26590,190 @@
       "target_owner": "school-structure"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Read-only already reviewed target: timetable-activities reaches modules/peopledirectory.Capability.ListStudentNamesByID (people-directory) through modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Read-only already reviewed target: timetable-activities reaches modules/peopledirectory.Capability.ListStudentsByID (people-directory) through modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Read-only already reviewed target: timetable-activities reaches modules/peopledirectory.Owner.ListStudentNamesByID (people-directory) through modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Read-only already reviewed target: timetable-activities reaches modules/peopledirectory.Owner.ListStudentsByID (people-directory) through modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Read-only already reviewed target: timetable-activities reaches modules/peopledirectory.Student.IsAlumnus (people-directory) through modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Student.IsAlumnus",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Read-only newly exposed target: timetable-activities reaches modules/peopledirectory.StudentQuery.ListStudentNamesByID (people-directory) through modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Read-only already reviewed target: timetable-activities reaches modules/peopledirectory.StudentQuery.ListStudentsByID (people-directory) through modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Existing tenant transaction protocol used by the narrow batch roster command; scope and retry behavior are unchanged.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Existing tenant transaction protocol used by the narrow batch roster command; scope and retry behavior are unchanged.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Read-only already reviewed target: timetable-activities reaches modules/peopledirectory.Capability.ListStudentNamesByID (people-directory) through modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Read-only already reviewed target: timetable-activities reaches modules/peopledirectory.Capability.ListStudentsByID (people-directory) through modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Read-only already reviewed target: timetable-activities reaches modules/peopledirectory.Owner.ListStudentNamesByID (people-directory) through modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Read-only already reviewed target: timetable-activities reaches modules/peopledirectory.Owner.ListStudentsByID (people-directory) through modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Read-only already reviewed target: timetable-activities reaches modules/peopledirectory.Student.IsAlumnus (people-directory) through modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Student.IsAlumnus",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Read-only newly exposed target: timetable-activities reaches modules/peopledirectory.StudentQuery.ListStudentNamesByID (people-directory) through modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Read-only already reviewed target: timetable-activities reaches modules/peopledirectory.StudentQuery.ListStudentsByID (people-directory) through modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Existing tenant transaction protocol used by the narrow batch roster command; scope and retry behavior are unchanged.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.RosterMaintenance.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Existing tenant transaction protocol used by the narrow batch roster command; scope and retry behavior are unchanged.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters",
       "classification": "query",
       "effect": "query",
@@ -27156,6 +27342,72 @@
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.SessionRecords.LockSessionInstanceStaff",
       "reason": "Platform protocol participation (scope): timetable-activities reaches tenant.WithinTenantRetry (tenant-runtime) through interface{modules/timetable.SessionRecords; modules/timetable.TemplateCatalog}.LockSessionInstanceStaff. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Newly visible through the #6702 staff pre-lock (InstanceStaffLocks.LockStaffAssignments).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.Service.SaveSourcedInstanceStudents",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.SourcedInstanceStudents.SaveSourcedInstanceStudents",
+      "reason": "Existing tenant transaction protocol used by the narrow batch roster command; scope and retry behavior are unchanged.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.Service.SaveSourcedInstanceStudents",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.SourcedInstanceStudents.SaveSourcedInstanceStudents",
+      "reason": "Existing tenant transaction protocol used by the narrow batch roster command; scope and retry behavior are unchanged.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.Service.SaveSourcedRosterChanges",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.SourcedRosterCommands.SaveSourcedRosterChanges",
+      "reason": "Existing tenant transaction protocol used by the narrow batch roster command; scope and retry behavior are unchanged.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.Service.SaveSourcedRosterChanges",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.SourcedRosterCommands.SaveSourcedRosterChanges",
+      "reason": "Existing tenant transaction protocol used by the narrow batch roster command; scope and retry behavior are unchanged.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.Service.UpdateGroupOfferingSources",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.SourcedRosterCommands.UpdateGroupOfferingSources",
+      "reason": "Existing tenant transaction protocol used by the narrow batch roster command; scope and retry behavior are unchanged.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.Service.UpdateGroupOfferingSources",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable.SourcedRosterCommands.UpdateGroupOfferingSources",
+      "reason": "Existing tenant transaction protocol used by the narrow batch roster command; scope and retry behavior are unchanged.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
       "target_owner": "tenant-runtime"
@@ -28779,7 +29031,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.EndTemplateFromDate",
-      "reason": "Guarded leaf lock for timetable assignments (#6702): Membership ListStaff with ForMutation locks the complete ID set in ascending order inside the caller transaction, omits employment and rejects missing memberships. Timetable skips rows already held by that transaction. Replaces the single-row FindStaffForMutation binding without a new gate or scope protocol (ADR 0067).",
+      "reason": "Guarded leaf lock for timetable assignments (#6702): Membership ListStaff with ForMutation locks the complete ID set in ascending order inside the caller transaction, omits employment and rejects missing memberships. Timetable skips rows already held by that transaction. Replaces the single-row FindStaffForMutation binding without a new gate or scope protocol (ADR 0067). Re-reviewed under ADR 0215: the template split and end reach the care-offering catalog through the batch roster binding of the Träger copy commands; the staff-assignment lock, its order and the target stay unchanged.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.LockStaffAssignments",
       "target_owner": "school-membership"
@@ -28805,31 +29057,34 @@
       "target_owner": "school-membership"
     },
     {
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.EndTemplateFromDate",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.EndTemplateFromDate",
-      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.Capability.ListGroups (school-structure) through *modules/timetable/internal/application.templateAdministration.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks). Re-reviewed for #6702: the supplied Timetable service graph now binds Membership batch staff assignment locks. This template terminal retains its existing query or scope effect; its own owner calls and transaction protocol are unchanged.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.Capability.ListGroups (school-structure) through *modules/timetable/internal/application.templateAdministration.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks).",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroups",
       "target_owner": "school-structure"
     },
     {
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.EndTemplateFromDate",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.EndTemplateFromDate",
-      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.GroupListing.ListGroups (school-structure) through *modules/timetable/internal/application.templateAdministration.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks). Re-reviewed for #6702: the supplied Timetable service graph now binds Membership batch staff assignment locks. This template terminal retains its existing query or scope effect; its own owner calls and transaction protocol are unchanged.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.GroupListing.ListGroups (school-structure) through *modules/timetable/internal/application.templateAdministration.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks).",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.GroupListing.ListGroups",
       "target_owner": "school-structure"
     },
     {
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.EndTemplateFromDate",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.EndTemplateFromDate",
-      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.Owner.ListGroups (school-structure) through *modules/timetable/internal/application.templateAdministration.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks). Re-reviewed for #6702: the supplied Timetable service graph now binds Membership batch staff assignment locks. This template terminal retains its existing query or scope effect; its own owner calls and transaction protocol are unchanged.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.Owner.ListGroups (school-structure) through *modules/timetable/internal/application.templateAdministration.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks).",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroups",
       "target_owner": "school-structure"
@@ -28845,33 +29100,36 @@
       "target_owner": "school-structure"
     },
     {
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.EndTemplateFromDate",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.EndTemplateFromDate",
-      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through *modules/timetable/internal/application.templateAdministration.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks). Re-reviewed for #6702: the supplied Timetable service graph now binds Membership batch staff assignment locks. This template terminal retains its existing query or scope effect; its own owner calls and transaction protocol are unchanged.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Read-only target already reviewed as query: timetable-activities reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through *modules/timetable/internal/application.templateAdministration.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks).",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
       "target_owner": "settings-platform"
     },
     {
       "adr": "0098",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.EndTemplateFromDate",
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.EndTemplateFromDate",
-      "reason": "Platform protocol participation (scope): timetable-activities reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/timetable/internal/application.templateAdministration.EndTemplateFromDate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly reached through the staff row locks a day writer takes before its first block row (#6583). Re-reviewed for #6702: the supplied Timetable service graph now binds Membership batch staff assignment locks. This template terminal retains its existing query or scope effect; its own owner calls and transaction protocol are unchanged.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Platform protocol participation (scope): timetable-activities reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/timetable/internal/application.templateAdministration.EndTemplateFromDate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly reached through the staff row locks a day writer takes before its first block row (#6583).",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.EndTemplateFromDate",
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.EndTemplateFromDate",
-      "reason": "Platform protocol participation (scope): timetable-activities reaches tenant.WithinTenantRetry (tenant-runtime) through *modules/timetable/internal/application.templateAdministration.EndTemplateFromDate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly reached through the staff row locks a day writer takes before its first block row (#6583). Re-reviewed for #6702: the supplied Timetable service graph now binds Membership batch staff assignment locks. This template terminal retains its existing query or scope effect; its own owner calls and transaction protocol are unchanged.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Platform protocol participation (scope): timetable-activities reaches tenant.WithinTenantRetry (tenant-runtime) through *modules/timetable/internal/application.templateAdministration.EndTemplateFromDate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly reached through the staff row locks a day writer takes before its first block row (#6583).",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
       "target_owner": "tenant-runtime"
@@ -29193,7 +29451,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.SplitTemplate",
-      "reason": "Guarded leaf lock for timetable assignments (#6702): Membership ListStaff with ForMutation locks the complete ID set in ascending order inside the caller transaction, omits employment and rejects missing memberships. Timetable skips rows already held by that transaction. Replaces the single-row FindStaffForMutation binding without a new gate or scope protocol (ADR 0067).",
+      "reason": "Guarded leaf lock for timetable assignments (#6702): Membership ListStaff with ForMutation locks the complete ID set in ascending order inside the caller transaction, omits employment and rejects missing memberships. Timetable skips rows already held by that transaction. Replaces the single-row FindStaffForMutation binding without a new gate or scope protocol (ADR 0067). Re-reviewed under ADR 0215: the template split and end reach the care-offering catalog through the batch roster binding of the Träger copy commands; the staff-assignment lock, its order and the target stay unchanged.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.LockStaffAssignments",
       "target_owner": "school-membership"
@@ -29219,21 +29477,23 @@
       "target_owner": "school-membership"
     },
     {
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.SplitTemplate",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.SplitTemplate",
-      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.Capability.ListGroups (school-structure) through *modules/timetable/internal/application.templateAdministration.SplitTemplate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks). Re-reviewed for #6702: the supplied Timetable service graph now binds Membership batch staff assignment locks. This template terminal retains its existing query or scope effect; its own owner calls and transaction protocol are unchanged.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.Capability.ListGroups (school-structure) through *modules/timetable/internal/application.templateAdministration.SplitTemplate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks).",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroups",
       "target_owner": "school-structure"
     },
     {
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.SplitTemplate",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.SplitTemplate",
-      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.GroupListing.ListGroups (school-structure) through *modules/timetable/internal/application.templateAdministration.SplitTemplate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks). Re-reviewed for #6702: the supplied Timetable service graph now binds Membership batch staff assignment locks. This template terminal retains its existing query or scope effect; its own owner calls and transaction protocol are unchanged.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.GroupListing.ListGroups (school-structure) through *modules/timetable/internal/application.templateAdministration.SplitTemplate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks).",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.GroupListing.ListGroups",
       "target_owner": "school-structure"
@@ -29249,11 +29509,12 @@
       "target_owner": "school-structure"
     },
     {
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.SplitTemplate",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.SplitTemplate",
-      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.Owner.ListGroups (school-structure) through *modules/timetable/internal/application.templateAdministration.SplitTemplate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks). Re-reviewed for #6702: the supplied Timetable service graph now binds Membership batch staff assignment locks. This template terminal retains its existing query or scope effect; its own owner calls and transaction protocol are unchanged.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.Owner.ListGroups (school-structure) through *modules/timetable/internal/application.templateAdministration.SplitTemplate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks).",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroups",
       "target_owner": "school-structure"
@@ -29269,33 +29530,36 @@
       "target_owner": "school-structure"
     },
     {
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.SplitTemplate",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.SplitTemplate",
-      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through *modules/timetable/internal/application.templateAdministration.SplitTemplate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks). Re-reviewed for #6702: the supplied Timetable service graph now binds Membership batch staff assignment locks. This template terminal retains its existing query or scope effect; its own owner calls and transaction protocol are unchanged.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Read-only target already reviewed as query: timetable-activities reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through *modules/timetable/internal/application.templateAdministration.SplitTemplate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks).",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
       "target_owner": "settings-platform"
     },
     {
       "adr": "0098",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.SplitTemplate",
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.SplitTemplate",
-      "reason": "Platform protocol participation (scope): timetable-activities reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/timetable/internal/application.templateAdministration.SplitTemplate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly reached through the staff row locks a day writer takes before its first block row (#6583). Re-reviewed for #6702: the supplied Timetable service graph now binds Membership batch staff assignment locks. This template terminal retains its existing query or scope effect; its own owner calls and transaction protocol are unchanged.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Platform protocol participation (scope): timetable-activities reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/timetable/internal/application.templateAdministration.SplitTemplate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly reached through the staff row locks a day writer takes before its first block row (#6583).",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateAdministration.SplitTemplate",
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable.TemplateAdministration.SplitTemplate",
-      "reason": "Platform protocol participation (scope): timetable-activities reaches tenant.WithinTenantRetry (tenant-runtime) through *modules/timetable/internal/application.templateAdministration.SplitTemplate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly reached through the staff row locks a day writer takes before its first block row (#6583). Re-reviewed for #6702: the supplied Timetable service graph now binds Membership batch staff assignment locks. This template terminal retains its existing query or scope effect; its own owner calls and transaction protocol are unchanged.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Platform protocol participation (scope): timetable-activities reaches tenant.WithinTenantRetry (tenant-runtime) through *modules/timetable/internal/application.templateAdministration.SplitTemplate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly reached through the staff row locks a day writer takes before its first block row (#6583).",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
       "target_owner": "tenant-runtime"
@@ -33225,21 +33489,23 @@
       "target_owner": "facilities"
     },
     {
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.pickupExceptionDirectory.ListPickupExceptions",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/compose.PickupExceptionLister.ListPickupExceptions",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/excusedrequests.Date.String; modules/careplan/excusedrequests/contract.go:20. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/excusedrequests.Date.String; modules/careplan/excusedrequests/contract.go:20. May-bind method surface, not a production-call/liveness claim. Final roster batch review: the exception/status consumer filter now carries the bounded To date as well as From. This adapter remains a tenant-scoped read of the existing Care Plan capability with the same date conversion; the full roster batch reads each date range once.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests.Date.String",
       "target_owner": "care-plan"
     },
     {
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.pickupExceptionDirectory.ListPickupExceptions",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/compose.PickupExceptionLister.ListPickupExceptions",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/ports.ExceptionQueries.ListPickupExceptions; modules/careplan/ports/student_names.go:26. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/ports.ExceptionQueries.ListPickupExceptions; modules/careplan/ports/student_names.go:26. May-bind method surface, not a production-call/liveness claim. Final roster batch review: the exception/status consumer filter now carries the bounded To date as well as From. This adapter remains a tenant-scoped read of the existing Care Plan capability with the same date conversion; the full roster batch reads each date range once.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/ports.ExceptionQueries.ListPickupExceptions",
       "target_owner": "care-plan"
@@ -35784,21 +36050,23 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/compose.PickupExceptionLister.ListPickupExceptions",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.pickupExceptionLister.ListPickupExceptions",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/excusedrequests.Date.String; modules/careplan/excusedrequests/contract.go:20. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/excusedrequests.Date.String; modules/careplan/excusedrequests/contract.go:20. May-bind method surface, not a production-call/liveness claim. Final roster batch review: the exception/status consumer filter now carries the bounded To date as well as From. This adapter remains a tenant-scoped read of the existing Care Plan capability with the same date conversion; the full roster batch reads each date range once.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests.Date.String",
       "target_owner": "care-plan"
     },
     {
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/modules/timetable/compose.PickupExceptionLister.ListPickupExceptions",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.pickupExceptionLister.ListPickupExceptions",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/ports.ExceptionQueries.ListPickupExceptions; modules/careplan/ports/student_names.go:26. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/ports.ExceptionQueries.ListPickupExceptions; modules/careplan/ports/student_names.go:26. May-bind method surface, not a production-call/liveness claim. Final roster batch review: the exception/status consumer filter now carries the bounded To date as well as From. This adapter remains a tenant-scoped read of the existing Care Plan capability with the same date conversion; the full roster batch reads each date range once.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/ports.ExceptionQueries.ListPickupExceptions",
       "target_owner": "care-plan"
@@ -36185,7 +36453,7 @@
       "classification": "leaf",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateEnder.EndTemplateFromDate",
-      "reason": "Guarded leaf lock for timetable assignments (#6702): Membership ListStaff with ForMutation locks the complete ID set in ascending order inside the caller transaction, omits employment and rejects missing memberships. Timetable skips rows already held by that transaction. Replaces the single-row FindStaffForMutation binding without a new gate or scope protocol (ADR 0067).",
+      "reason": "Guarded leaf lock for timetable assignments (#6702): Membership ListStaff with ForMutation locks the complete ID set in ascending order inside the caller transaction, omits employment and rejects missing memberships. Timetable skips rows already held by that transaction. Replaces the single-row FindStaffForMutation binding without a new gate or scope protocol (ADR 0067). Re-reviewed under ADR 0215: the template split and end reach the care-offering catalog through the batch roster binding of the Träger copy commands; the staff-assignment lock, its order and the target stay unchanged.",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.LockStaffAssignments",
       "target_owner": "school-membership"
@@ -36211,31 +36479,34 @@
       "target_owner": "school-membership"
     },
     {
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateEnder.EndTemplateFromDate",
-      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.Capability.ListGroups (school-structure) through *modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks). Re-reviewed for #6702: the supplied Timetable service graph now binds Membership batch staff assignment locks. This template terminal retains its existing query or scope effect; its own owner calls and transaction protocol are unchanged.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.Capability.ListGroups (school-structure) through *modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks).",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Capability.ListGroups",
       "target_owner": "school-structure"
     },
     {
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateEnder.EndTemplateFromDate",
-      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.GroupListing.ListGroups (school-structure) through *modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks). Re-reviewed for #6702: the supplied Timetable service graph now binds Membership batch staff assignment locks. This template terminal retains its existing query or scope effect; its own owner calls and transaction protocol are unchanged.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.GroupListing.ListGroups (school-structure) through *modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks).",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.GroupListing.ListGroups",
       "target_owner": "school-structure"
     },
     {
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateEnder.EndTemplateFromDate",
-      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.Owner.ListGroups (school-structure) through *modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks). Re-reviewed for #6702: the supplied Timetable service graph now binds Membership batch staff assignment locks. This template terminal retains its existing query or scope effect; its own owner calls and transaction protocol are unchanged.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Read-only target already reviewed as query: timetable-activities reaches modules/schoolstructure.Owner.ListGroups (school-structure) through *modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks).",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/schoolstructure.Owner.ListGroups",
       "target_owner": "school-structure"
@@ -36251,33 +36522,36 @@
       "target_owner": "school-structure"
     },
     {
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateEnder.EndTemplateFromDate",
-      "reason": "Read-only target already reviewed as query: timetable-activities reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through *modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks). Re-reviewed for #6702: the supplied Timetable service graph now binds Membership batch staff assignment locks. This template terminal retains its existing query or scope effect; its own owner calls and transaction protocol are unchanged.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Read-only target already reviewed as query: timetable-activities reaches modules/settings/records.BatchSettingsService.ResolveString (settings-platform) through *modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate. No persistent, lock or scope effect; newly attributed to this port by #6583 (the staff row locks of the day writers resolve through timetable.InstanceStaffLocks).",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveString",
       "target_owner": "settings-platform"
     },
     {
       "adr": "0098",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate",
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateEnder.EndTemplateFromDate",
-      "reason": "Platform protocol participation (scope): timetable-activities reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly reached through the staff row locks a day writer takes before its first block row (#6583). Re-reviewed for #6702: the supplied Timetable service graph now binds Membership batch staff assignment locks. This template terminal retains its existing query or scope effect; its own owner calls and transaction protocol are unchanged.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Platform protocol participation (scope): timetable-activities reaches tenant.WithinCurrentTenant (tenant-runtime) through *modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly reached through the staff row locks a day writer takes before its first block row (#6583).",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
       "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
+      "approval_adr": "0215",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate",
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.templateEnder.EndTemplateFromDate",
-      "reason": "Platform protocol participation (scope): timetable-activities reaches tenant.WithinTenantRetry (tenant-runtime) through *modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly reached through the staff row locks a day writer takes before its first block row (#6583). Re-reviewed for #6702: the supplied Timetable service graph now binds Membership batch staff assignment locks. This template terminal retains its existing query or scope effect; its own owner calls and transaction protocol are unchanged.",
+      "reason": "Reviewed batch roster binding under ADR 0215; target ownership and lock order are unchanged. Reviewed batch roster bindings under ADR 0215; target ownership and lock order remain unchanged. Platform protocol participation (scope): timetable-activities reaches tenant.WithinTenantRetry (tenant-runtime) through *modules/timetable/internal/application.TemplateSplitService.EndTemplateFromDate. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly reached through the staff row locks a day writer takes before its first block row (#6583).",
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
       "target_owner": "tenant-runtime"
@@ -42076,6 +42350,98 @@
       "source_owner": "timetable-activities",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose.SessionRecords.CheckRoomConflict",
       "target_owner": "student-presence"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Read-only already reviewed target: timetable-activities reaches modules/peopledirectory.Capability.ListStudentNamesByID (people-directory) through modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Read-only already reviewed target: timetable-activities reaches modules/peopledirectory.Capability.ListStudentsByID (people-directory) through modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Read-only already reviewed target: timetable-activities reaches modules/peopledirectory.Owner.ListStudentNamesByID (people-directory) through modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Read-only already reviewed target: timetable-activities reaches modules/peopledirectory.Owner.ListStudentsByID (people-directory) through modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Read-only already reviewed target: timetable-activities reaches modules/peopledirectory.Student.IsAlumnus (people-directory) through modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Student.IsAlumnus",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Read-only newly exposed target: timetable-activities reaches modules/peopledirectory.StudentQuery.ListStudentNamesByID (people-directory) through modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Batch form of the existing offering-roster command; same owner, tenant transaction and guards. Read-only already reviewed target: timetable-activities reaches modules/peopledirectory.StudentQuery.ListStudentsByID (people-directory) through modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Existing tenant transaction protocol used by the narrow batch roster command; scope and retry behavior are unchanged.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinCurrentTenant",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/timetable/ports.RosterReconciler.ReconcileSourcedTemplateRosterBatch",
+      "reason": "Existing tenant transaction protocol used by the narrow batch roster command; scope and retry behavior are unchanged.",
+      "source_owner": "timetable-activities",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenantRetry",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/timetable/internal/application.RosterReconciler.ReconcileSourcedTemplateRosters",
