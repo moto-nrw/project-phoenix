@@ -43,6 +43,13 @@ type ReasonedError interface {
 	TransferReason() string
 }
 
+// UncertainError marks a failure after which the file may still have
+// arrived: the counterpart did not answer the step that makes it visible.
+type UncertainError interface {
+	error
+	OutcomeUncertain() bool
+}
+
 // Journal holds one durable, one-shot transfer intent and its audit evidence.
 // File bytes and credentials never enter this store: recovery only settles unknowns.
 type Journal interface {

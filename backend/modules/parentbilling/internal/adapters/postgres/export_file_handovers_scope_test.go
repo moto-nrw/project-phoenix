@@ -101,8 +101,9 @@ func TestExportHandoversKeepTheTraegerBelowRLS(t *testing.T) {
 }
 
 // A DATEV file whose handover failed did not arrive: its bookings become new
-// again, so the next handover sends them (ADR 0218 section 6). A file that
-// arrived keeps its bookings, and so does another Träger's file.
+// again, so the next handover sends them (ADR 0218 section 6). A booking a
+// later DATEV file held too moves to that file; a file that arrived keeps its
+// bookings.
 func TestFailedHandoverReleasesItsDatevBookings(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -112,8 +113,13 @@ func TestFailedHandoverReleasesItsDatevBookings(t *testing.T) {
 	rollback := errors.New("roll the bookings back")
 	ctx := testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, db))
 	err := testpkg.WithinTraeger(ctx, own, func(ctx context.Context) error {
+		// Seeded as the table owner; the handover runs as the request role.
+		require.NoError(t, testpkg.WithoutRequestRole(ctx))
 		tx, err := traegerDB(ctx, own)
 		require.NoError(t, err)
+		_, released := seedHolidayExportRun(t, ctx, tx, own, "DATEV frei", 1000, false)
+		_, kept := seedHolidayExportRun(t, ctx, tx, own, "DATEV angekommen", 1000, false)
+		_, repeated := seedHolidayExportRun(t, ctx, tx, own, "DATEV wiederholt", 1000, false)
 		file := func(number int64) int64 {
 			var id int64
 			require.NoError(t, tx.NewRaw(`INSERT INTO parent_billing.export_files (organization_id, file_number, format, run_kind, run_id,
@@ -121,32 +127,32 @@ func TestFailedHandoverReleasesItsDatevBookings(t *testing.T) {
 				RETURNING id`, own, number, fmt.Sprintf("EXTF_Buchungsstapel_%d.csv", number)).Scan(ctx, &id))
 			return id
 		}
-		failed, arrived := file(5), file(6)
-		// Bookings of invoices this test does not create: written as the table
-		// owner with the keys off; the handover runs as the request role again.
-		require.NoError(t, testpkg.WithoutRequestRole(ctx))
-		_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = replica`)
+		failed, arrived, again, lost := file(5), file(6), file(7), file(8)
+		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.datev_booked_documents (organization_id, export_file_id, document_id)
+			VALUES (?, ?, ?), (?, ?, ?), (?, ?, ?)`, own, failed, released, own, arrived, kept, own, failed, repeated)
 		require.NoError(t, err)
-		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.datev_booked_documents (organization_id, export_file_id, care_invoice_id)
-			VALUES (?, ?, ?), (?, ?, ?)`, own, failed, unique, own, arrived, unique+1)
-		require.NoError(t, err)
-		_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = origin`)
+		// A later "all bookings" file held one booking of the failed file too;
+		// another later file held the other one, but its handover failed.
+		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.export_file_invoices (organization_id, export_file_id, document_id)
+			VALUES (?, ?, ?), (?, ?, ?)`, own, again, repeated, own, lost, released)
 		require.NoError(t, err)
 		_, err = tx.ExecContext(ctx, `SET LOCAL ROLE phoenix_tenant`)
 		require.NoError(t, err)
-		for _, id := range []int64{failed, arrived} {
+		for _, id := range []int64{failed, arrived, lost} {
 			require.NoError(t, store.InsertExportFileHandover(ctx, own, id, "kaemmerei.example.org", "/eingang"))
 		}
+		require.NoError(t, store.SettleExportFileHandover(ctx, own, lost, parentbilling.HandoverFailed, "connection_failed"))
 		require.NoError(t, store.SettleExportFileHandover(ctx, own, failed, parentbilling.HandoverFailed, "connection_failed"))
 		require.NoError(t, store.SettleExportFileHandover(ctx, own, arrived, parentbilling.HandoverTransferred, ""))
-		booked := func(id int64) int {
-			var n int
-			require.NoError(t, tx.NewRaw(`SELECT COUNT(*) FROM parent_billing.datev_booked_documents WHERE organization_id = ? AND export_file_id = ?`,
-				own, id).Scan(ctx, &n))
-			return n
+		bookedIn := func(document int64) []int64 {
+			var files []int64
+			require.NoError(t, tx.NewRaw(`SELECT export_file_id FROM parent_billing.datev_booked_documents WHERE organization_id = ? AND document_id = ?`,
+				own, document).Scan(ctx, &files))
+			return files
 		}
-		assert.Zero(t, booked(failed), "a failed handover releases the bookings of its file")
-		assert.Equal(t, 1, booked(arrived), "a file that arrived keeps its bookings")
+		assert.Empty(t, bookedIn(released), "a failed handover releases the bookings of its file, also one a failed later file held")
+		assert.Equal(t, []int64{again}, bookedIn(repeated), "a booking a later file held stays booked, on that file")
+		assert.Equal(t, []int64{arrived}, bookedIn(kept), "a file that arrived keeps its bookings")
 		return rollback
 	})
 	require.ErrorIs(t, err, rollback)

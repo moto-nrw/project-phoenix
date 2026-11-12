@@ -306,6 +306,7 @@ export function SepaDebitCard({
                   run={handoverRun}
                   size="md"
                   recipient={handover.recipient}
+                  recipientHidden={handover.recipientHidden}
                   formats={["pain008"]}
                   busy={downloading || handover.running !== null}
                   running={handover.running !== null}
@@ -358,7 +359,7 @@ export function SepaDebitCard({
           ) : null}
           {pending && !downloadedId ? (
             <p className="text-sm text-gray-600">
-              {handover.recipient?.ready
+              {handover.recipient?.ready || handover.recipientHidden
                 ? "Laden Sie zuerst die Datei herunter oder übergeben Sie sie. Danach können Sie das Einreichen bestätigen."
                 : "Laden Sie zuerst die Datei herunter. Danach können Sie das Einreichen bestätigen."}
             </p>

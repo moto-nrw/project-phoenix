@@ -206,3 +206,20 @@ func TestTraegerHandoverLogsNoPasswordAnEchoingCounterpartReturns(t *testing.T) 
 	assert.NotContains(t, logs.String(), f.server.Password, "the counterpart's text stays out of the log")
 	assert.NotContains(t, fmt.Sprint(journalRows(t, f.ctx, f.db, f.org)), f.server.Password)
 }
+
+// A counterpart that does not answer the rename leaves the handover open:
+// no completion, no settlement, the journal waits for recovery.
+func TestTraegerHandoverWithoutAnAnsweredRenameStaysOpen(t *testing.T) {
+	t.Parallel()
+	f := newTraegerFixture(t, nil)
+	f.server = sftptest.StartDroppingRename(t)
+	f.dir = "/"
+	f.save(t, f.org)
+	var settled []exporttransfer.Outcome
+	_, err := f.transfers.Transfer(f.ctx, financeRequest(f.org, "offen.csv", &settled))
+	require.ErrorIs(t, err, exporttransfer.ErrUnknownSettlement)
+	assert.Empty(t, settled, "an open outcome is never settled as failed")
+	rows := journalRows(t, f.ctx, f.db, f.org)
+	require.Len(t, rows, 1)
+	assert.Equal(t, "dispatching", rows[0].DispatchState)
+}

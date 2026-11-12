@@ -1,7 +1,7 @@
 "use client";
 
 // Handover of a finance export to the recipient of the Träger (#6824, ADR
-// 0217) on the export page and on the page of the debit file: the menu
+// 0218) on the export page and on the page of the debit file: the menu
 // „Übergeben“ of a run, the result of the last handover above the list, and
 // the question before a file goes to the recipient a second time. The file
 // is made like a download, with its own number and protocol entry.
@@ -10,6 +10,7 @@ import {
   ChevronDown,
   FileSpreadsheet,
   Landmark,
+  RotateCcw,
   Send,
   Settings2,
 } from "lucide-react";
@@ -86,14 +87,17 @@ function fileLabel(attempt: HandoverAttempt): string {
 }
 
 /**
- * The recipient of the Träger and the handover of a run's file. A recipient
- * that cannot be read (no right „Finanz-Export“) leaves the menu out; the
- * downloads stay.
+ * The recipient of the Träger and the handover of a run's file. Without the
+ * right „Finanz-Export“ the recipient stays hidden (recipientHidden): the
+ * menu still offers the PAIN.008 handover, which needs only „Lastschriften
+ * verwalten“, and the server names a missing recipient.
  */
 export function useFinanceHandover(
   onHandedOver: (arrived: HandoverResult | null) => void,
+  onNothingNew?: (run: HandoverRun, taken: boolean) => void,
 ) {
   const [recipient, setRecipient] = useState<ExportRecipient | null>(null);
+  const [recipientHidden, setRecipientHidden] = useState(false);
   const [running, setRunning] = useState<string | null>(null);
   const [notice, setNotice] = useState<HandoverNotice | null>(null);
   const [repeat, setRepeat] = useState<HandoverAttempt | null>(null);
@@ -107,7 +111,9 @@ export function useFinanceHandover(
         if (current) setRecipient(page.recipient);
       })
       .catch((err: unknown) => {
-        // Without the recipient the page keeps its downloads; the menu needs it.
+        if (current && err instanceof ApiError && err.status === 403)
+          setRecipientHidden(true);
+        // Without the recipient the page keeps its downloads.
         logger.warn("traeger_export_recipient_unavailable", {
           error: err instanceof Error ? err.message : String(err),
         });
@@ -144,7 +150,18 @@ export function useFinanceHandover(
         }
       } catch (err) {
         const code = err instanceof ApiError ? err.code : undefined;
-        if (code === "parent_billing.export_already_handed_over") {
+        if (
+          onNothingNew &&
+          (code === "parent_billing.datev_no_new_bookings" ||
+            code === "parent_billing.datev_bookings_taken")
+        ) {
+          // Nothing new to book, as for the download: the page says so.
+          setRepeat(null);
+          onNothingNew(
+            attempt.run,
+            code === "parent_billing.datev_bookings_taken",
+          );
+        } else if (code === "parent_billing.export_already_handed_over") {
           // A content that arrived or may have arrived: ask first.
           setRepeat(attempt);
         } else if (code === "parent_billing.export_recipient_not_ready") {
@@ -163,7 +180,7 @@ export function useFinanceHandover(
         onHandedOver(arrived);
       }
     },
-    [errors, onHandedOver, success],
+    [errors, onHandedOver, onNothingNew, success],
   );
 
   const handOver = useCallback(
@@ -174,6 +191,7 @@ export function useFinanceHandover(
 
   return {
     recipient,
+    recipientHidden,
     running,
     handOver,
     isRunning: (format: HandoverFormat, run: HandoverRun) =>
@@ -293,6 +311,8 @@ export function HandoverMenu({
   busy,
   running,
   onHandOver,
+  onHandOverAll,
+  recipientHidden = false,
   size = "compact",
 }: Readonly<{
   /** The size of the actions beside it: compact in a table row, md in a card head. */
@@ -303,33 +323,52 @@ export function HandoverMenu({
   busy: boolean;
   running: boolean;
   onHandOver: (format: HandoverFormat) => void;
+  /** DATEV: every booking again, for a file the recipient lost. */
+  onHandOverAll?: () => void;
+  /** The recipient exists for the Träger but this account may not read it. */
+  recipientHidden?: boolean;
 }>) {
-  if (!recipient || formats.length === 0) return null;
-  const target = destinationText(recipient.host, recipient.remoteDirectory);
+  if ((!recipient && !recipientHidden) || formats.length === 0) return null;
+  const target = recipient
+    ? destinationText(recipient.host, recipient.remoteDirectory)
+    : "dem Empfänger Ihres Trägers";
   const icons: Record<HandoverFormat, ReactNode> = {
     sollstellung: <FileSpreadsheet className="h-4 w-4" aria-hidden />,
     datev: <FileSpreadsheet className="h-4 w-4" aria-hidden />,
     pain008: <Landmark className="h-4 w-4" aria-hidden />,
   };
-  const items: OverflowMenuItem[] = recipient.ready
-    ? formats.map((format) => ({
-        label: `${HANDOVER_FORMAT_LABELS[format]} übergeben`,
-        description: `Erstellt die Datei und legt sie bei ${target} ab.`,
-        icon: icons[format],
-        onClick: () => onHandOver(format),
-      }))
-    : [
-        {
-          label: "Empfänger eintragen",
-          description:
-            recipient.configured && !recipient.enabled
-              ? "Die Übergabe ist ausgeschaltet."
-              : "Für die Übergabe fehlen noch Angaben.",
-          icon: <Settings2 className="h-4 w-4" aria-hidden />,
-          href: traegerPath(EXPORT_RECIPIENT_PATH),
-          onClick: () => undefined,
-        },
-      ];
+  const items: OverflowMenuItem[] =
+    !recipient || recipient.ready
+      ? [
+          ...formats.map((format) => ({
+            label: `${HANDOVER_FORMAT_LABELS[format]} übergeben`,
+            description: `Erstellt die Datei und legt sie bei ${target} ab.`,
+            icon: icons[format],
+            onClick: () => onHandOver(format),
+          })),
+          ...(onHandOverAll
+            ? [
+                {
+                  label: "Alle DATEV-Buchungen erneut übergeben",
+                  description: "Nur für eine verlorene Datei",
+                  icon: <RotateCcw className="h-4 w-4" aria-hidden />,
+                  onClick: onHandOverAll,
+                },
+              ]
+            : []),
+        ]
+      : [
+          {
+            label: "Empfänger eintragen",
+            description:
+              recipient.configured && !recipient.enabled
+                ? "Die Übergabe ist ausgeschaltet."
+                : "Für die Übergabe fehlen noch Angaben.",
+            icon: <Settings2 className="h-4 w-4" aria-hidden />,
+            href: traegerPath(EXPORT_RECIPIENT_PATH),
+            onClick: () => undefined,
+          },
+        ];
   return (
     <OverflowMenu
       ariaLabel={`Dateien von ${run.label} an den Empfänger übergeben`}

@@ -43,11 +43,12 @@ export function traegerExportHandoverTopic(): HelpTopic {
     notes: [
       "Jede Übergabe ist eine neue Datei mit neuer Nummer, wie ein Download.",
       "Ist dieselbe Datei schon beim Empfänger, fragt moto vorher nach. So bucht die Kämmerei nichts doppelt.",
+      "Hat der Empfänger eine DATEV-Datei verloren, wählen Sie beim Lauf `Übergeben`, dann `Alle DATEV-Buchungen erneut übergeben`. Kam eine DATEV-Datei nicht an, enthält die nächste ihre Buchungen wieder.",
       "Das Passwort speichert moto verschlüsselt. Es wird nie wieder angezeigt. Ändern Sie Adresse, Port, Benutzername oder Fingerabdruck, geben Sie es noch einmal ein.",
       "Mit `Empfänger entfernen` löschen Sie Adresse und Passwort. Der Verlauf der Übergaben bleibt.",
     ],
     differences: [
-      "Beim Lauf fehlt `Übergeben`? Ihnen fehlt das Recht `Finanz-Export`, oder moto konnte den Empfänger nicht lesen. Laden Sie die Seite neu.",
+      "Beim Lauf fehlt `Übergeben`? Ihnen fehlt das Recht `Finanz-Export`, oder moto konnte den Empfänger nicht lesen. Laden Sie die Seite neu. Die Lastschriftdatei übergeben Sie auch ohne dieses Recht.",
       "Im Menü steht nur `Empfänger eintragen`? Es fehlen noch Angaben, oder die Übergabe ist ausgeschaltet.",
     ],
     troubleshootingDetails: [

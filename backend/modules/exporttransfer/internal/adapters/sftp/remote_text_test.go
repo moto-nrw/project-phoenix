@@ -22,3 +22,15 @@ func TestUpload_KeepsTheCounterpartsTextOutOfTheError(t *testing.T) {
 	assert.NotContains(t, err.Error(), server.Password)
 	assert.Contains(t, err.Error(), "SFTP status")
 }
+
+// A counterpart that drops the connection on the rename leaves the outcome
+// open: the file may sit under its final name (ADR 0218 section 6).
+func TestUpload_AnUnansweredRenameLeavesTheOutcomeOpen(t *testing.T) {
+	t.Parallel()
+	server := testServer{Server: sftptest.StartDroppingRename(t)}
+	err := newTestClient(t).Upload(context.Background(), server.target("/"), "zeitkonten.csv", []byte("4711;100\r\n"))
+	require.ErrorIs(t, err, sftp.ErrUpload)
+	var uncertain interface{ OutcomeUncertain() bool }
+	require.ErrorAs(t, err, &uncertain)
+	assert.True(t, uncertain.OutcomeUncertain())
+}

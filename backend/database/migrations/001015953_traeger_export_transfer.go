@@ -168,14 +168,36 @@ CREATE TRIGGER refuse_parent_billing_export_file_transfer_rewrite
 
 -- A handover that failed did not arrive: the bookings its DATEV file took
 -- become new again, so the next handover of the run sends them (ADR 0218
--- section 6). Only a failure releases them; an unknown outcome stays pending
--- and keeps them, a transferred file keeps them for good. The function runs
--- as the table owner because the tenant role may not delete bookings itself,
--- and it deletes only the rows of this file of this Träger.
+-- section 6). A booking that a later DATEV file held too, one whose
+-- handover did not fail (an "all bookings" download, a repeated handover),
+-- moves to that file instead: it went out there, and the next standard file
+-- must leave it out. Only a failure releases bookings; an unknown outcome
+-- stays pending and keeps them, a transferred file keeps them for good. The
+-- function runs as the table owner because the tenant role may not change
+-- bookings itself, and it touches only the rows of this file of this Träger.
 CREATE FUNCTION parent_billing.release_failed_handover_bookings() RETURNS trigger
 LANGUAGE plpgsql SECURITY DEFINER SET search_path = pg_catalog, parent_billing AS $$
 BEGIN
 	IF NEW.state = 'failed' AND OLD.state = 'pending' THEN
+		WITH moved AS (
+			SELECT booked.id, (
+				SELECT min(later.id) FROM parent_billing.export_files AS later
+				JOIN parent_billing.export_file_invoices AS held
+					ON held.organization_id = later.organization_id AND held.export_file_id = later.id
+				WHERE later.organization_id = booked.organization_id AND later.format = 'datev' AND later.id > booked.export_file_id
+					AND NOT EXISTS (SELECT 1 FROM parent_billing.export_file_transfers AS handover
+						WHERE handover.organization_id = later.organization_id AND handover.export_file_id = later.id
+							AND handover.state = 'failed')
+					AND (held.care_invoice_id = COALESCE(booked.care_invoice_id, cancellation.invoice_id)
+						OR held.document_id = booked.document_id)
+			) AS file_id
+			FROM parent_billing.datev_booked_documents AS booked
+			LEFT JOIN parent_billing.care_invoice_cancellations AS cancellation
+				ON cancellation.organization_id = booked.organization_id AND cancellation.id = booked.care_cancellation_id
+			WHERE booked.organization_id = NEW.organization_id AND booked.export_file_id = NEW.export_file_id
+		)
+		UPDATE parent_billing.datev_booked_documents AS booked SET export_file_id = moved.file_id
+		FROM moved WHERE booked.id = moved.id AND moved.file_id IS NOT NULL;
 		DELETE FROM parent_billing.datev_booked_documents
 		WHERE organization_id = NEW.organization_id AND export_file_id = NEW.export_file_id;
 	END IF;

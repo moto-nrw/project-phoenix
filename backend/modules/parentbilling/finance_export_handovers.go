@@ -7,7 +7,7 @@ import (
 )
 
 // Handover of a finance export to the recipient of the Träger (#6824, ADR
-// 0217). The Elternabrechnung makes the file and keeps the protocol; Export
+// 0218). The Elternabrechnung makes the file and keeps the protocol; Export
 // Transfer, bound by the root to FinanceExportTransfer, keeps the recipient
 // and the journal and carries the file; the recipient has its own routes at
 // /traeger/export-recipient.

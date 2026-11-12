@@ -64,7 +64,7 @@ var errAuthRejected = errors.New("password rejected")
 // Start boots the server and stops it when the test ends.
 func Start(t *testing.T) Server {
 	t.Helper()
-	return start(t, false)
+	return start(t, modePlain)
 }
 
 // StartEchoing starts a counterpart that accepts the login and refuses every
@@ -72,10 +72,26 @@ func Start(t *testing.T) Server {
 // case of a hostile or broken counterpart that echoes credentials back.
 func StartEchoing(t *testing.T) Server {
 	t.Helper()
-	return start(t, true)
+	return start(t, modeEcho)
 }
 
-func start(t *testing.T, echo bool) Server {
+// StartDroppingRename starts a counterpart that takes the upload and drops
+// the connection when the client renames it into place: the client never
+// learns whether the file arrived.
+func StartDroppingRename(t *testing.T) Server {
+	t.Helper()
+	return start(t, modeDropRename)
+}
+
+type mode int
+
+const (
+	modePlain mode = iota
+	modeEcho
+	modeDropRename
+)
+
+func start(t *testing.T, serve mode) Server {
 	t.Helper()
 
 	password := rand.Text()
@@ -111,7 +127,7 @@ func start(t *testing.T, echo bool) Server {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 
-	go acceptLoop(listener, config, password, echo)
+	go acceptLoop(listener, config, password, serve)
 
 	addr, ok := listener.Addr().(*net.TCPAddr)
 	require.True(t, ok)
@@ -146,17 +162,17 @@ type AllowLoopbackPolicy struct{}
 
 func (AllowLoopbackPolicy) Allow(addr netip.Addr) bool { return addr.IsLoopback() }
 
-func acceptLoop(listener net.Listener, config *ssh.ServerConfig, password string, echo bool) {
+func acceptLoop(listener net.Listener, config *ssh.ServerConfig, password string, serve mode) {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
 			return // listener closed by cleanup
 		}
-		go serveConn(conn, config, password, echo)
+		go serveConn(conn, config, password, serve)
 	}
 }
 
-func serveConn(conn net.Conn, config *ssh.ServerConfig, password string, echo bool) {
+func serveConn(conn net.Conn, config *ssh.ServerConfig, password string, serve mode) {
 	defer func() { _ = conn.Close() }()
 
 	sshConn, chans, reqs, err := ssh.NewServerConn(conn, config)
@@ -177,11 +193,13 @@ func serveConn(conn net.Conn, config *ssh.ServerConfig, password string, echo bo
 		}
 		go answerSubsystemRequests(requests)
 
-		if echo {
-			echoing := echoingHandler{password: password}
-			server := pkgsftp.NewRequestServer(channel, pkgsftp.Handlers{
-				FileGet: echoing, FilePut: echoing, FileCmd: echoing, FileList: echoing,
-			})
+		if serve != modePlain {
+			handlers := droppingHandlers(conn)
+			if serve == modeEcho {
+				echoing := echoingHandler{password: password}
+				handlers = pkgsftp.Handlers{FileGet: echoing, FilePut: echoing, FileCmd: echoing, FileList: echoing}
+			}
+			server := pkgsftp.NewRequestServer(channel, handlers)
 			go func() {
 				_ = server.Serve()
 				_ = server.Close()
@@ -217,6 +235,27 @@ func (h echoingHandler) Filewrite(*pkgsftp.Request) (io.WriterAt, error) { retur
 func (h echoingHandler) Filecmd(*pkgsftp.Request) error                  { return h.refusal() }
 func (h echoingHandler) Filelist(*pkgsftp.Request) (pkgsftp.ListerAt, error) {
 	return nil, h.refusal()
+}
+
+// droppingHandlers keep files in memory and close the connection on a
+// rename, before any answer.
+func droppingHandlers(conn net.Conn) pkgsftp.Handlers {
+	memory := pkgsftp.InMemHandler()
+	memory.FileCmd = droppingCmd{next: memory.FileCmd, conn: conn}
+	return memory
+}
+
+type droppingCmd struct {
+	next pkgsftp.FileCmder
+	conn net.Conn
+}
+
+func (d droppingCmd) Filecmd(request *pkgsftp.Request) error {
+	if request.Method == "Rename" || request.Method == "PosixRename" {
+		_ = d.conn.Close()
+		return errors.New("connection dropped")
+	}
+	return d.next.Filecmd(request)
 }
 
 // answerSubsystemRequests accepts exactly the "sftp" subsystem. The payload is

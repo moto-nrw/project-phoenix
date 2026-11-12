@@ -185,6 +185,8 @@ export default function TraegerFinanceExportsPage() {
   const [refusal, setRefusal] = useState<DatevRefusal | null>(null);
   const [nothingNew, setNothingNew] = useState<DatevNothingNew | null>(null);
   const [repeat, setRepeat] = useState<ExportRun | null>(null);
+  // „Alle Buchungen erneut“ for the recipient instead of the browser.
+  const [repeatHandover, setRepeatHandover] = useState(false);
   const [loadingMore, setLoadingMore] = useState<"runs" | "protocol" | null>(
     null,
   );
@@ -230,7 +232,12 @@ export default function TraegerFinanceExportsPage() {
   // the runs and the protocol like a download.
   const handover = useFinanceHandover(
     () => void load(data?.runs.items.length, data?.protocol.items.length),
+    (run, taken) => setNothingNew({ runLabel: run.label, taken }),
   );
+  const openRepeat = (run: ExportRun, toRecipient: boolean) => {
+    setRepeatHandover(toRecipient);
+    setRepeat(run);
+  };
 
   const loadMore = async (list: "runs" | "protocol") => {
     if (!data) return;
@@ -429,7 +436,7 @@ export default function TraegerFinanceExportsPage() {
               downloading={downloading}
               datev={{ ...data.datevRuns, settingsReady: data.datev.ready }}
               onDownload={(format, run) => void download(format, run)}
-              onRepeat={setRepeat}
+              onRepeat={(run) => openRepeat(run, false)}
               renderRunActions={(run) => (
                 <HandoverMenu
                   run={run}
@@ -445,6 +452,14 @@ export default function TraegerFinanceExportsPage() {
                     handover.isRunning("datev", run)
                   }
                   onHandOver={(format) => handover.handOver(format, run)}
+                  onHandOverAll={
+                    data.datev.ready &&
+                    run.lastDatev &&
+                    (data.datevRuns.runs.get(datevRunKey(run))?.fiscalYears
+                      .length ?? 0) > 0
+                      ? () => openRepeat(run, true)
+                      : undefined
+                  }
                 />
               )}
             />
@@ -477,13 +492,21 @@ export default function TraegerFinanceExportsPage() {
                   [])
                 : []
             }
+            handover={repeatHandover}
             loading={
-              repeat !== null && downloading === runFileKey("datev", repeat)
+              repeat !== null &&
+              (repeatHandover
+                ? handover.isRunning("datev", repeat)
+                : downloading === runFileKey("datev", repeat))
             }
             onClose={() => setRepeat(null)}
             onConfirm={(fiscalYear) => {
-              if (repeat)
-                void download("datev", repeat, { all: true, fiscalYear });
+              if (!repeat) return;
+              if (repeatHandover) {
+                // The handover asks again itself when the recipient has it.
+                setRepeat(null);
+                handover.handOver("datev", repeat, { all: true, fiscalYear });
+              } else void download("datev", repeat, { all: true, fiscalYear });
             }}
           />
         </>

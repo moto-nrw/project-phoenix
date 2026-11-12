@@ -416,6 +416,29 @@ func withheld(err error) error {
 	return remoteMessage{err: err}
 }
 
+// uncertainRename is a rename the counterpart did not answer: the
+// connection broke or timed out after the request left. The file may sit
+// under its final name, so the outcome is unknown, not failed (ADR 0218
+// section 6). It still reads as ErrUpload for callers without the
+// distinction.
+type uncertainRename struct{ err error }
+
+func (u uncertainRename) Error() string        { return u.err.Error() }
+func (u uncertainRename) Unwrap() error        { return u.err }
+func (uncertainRename) OutcomeUncertain() bool { return true }
+
+// renameFailure classifies a failed rename: an SFTP status is the
+// counterpart's answer and a plain failure; anything else leaves the
+// outcome open.
+func renameFailure(step string, err error) error {
+	failure := fmt.Errorf("%w: %s: %w", ErrUpload, step, withheld(err))
+	var status *sftp.StatusError
+	if errors.As(err, &status) {
+		return failure
+	}
+	return uncertainRename{err: failure}
+}
+
 // isAuthFailure recognizes a rejected login. x/crypto/ssh reports it as a
 // plain error string, so this is a text match — kept narrow and used only to
 // choose which German sentence the school reads.
@@ -441,7 +464,7 @@ func (c *Client) writeAtomically(client remoteFileOperations, dir, filename stri
 	if errors.Is(statErr, os.ErrNotExist) {
 		if err := client.rename(tempPath, finalPath); err != nil {
 			_ = client.remove(tempPath)
-			return nil, fmt.Errorf("%w: rename: %w", ErrUpload, withheld(err))
+			return nil, renameFailure("rename", err)
 		}
 		return &pendingUpload{client: client, finalPath: finalPath}, nil
 	}
@@ -467,7 +490,7 @@ func (c *Client) writeAtomically(client remoteFileOperations, dir, filename stri
 	if err := client.posixRename(tempPath, finalPath); err != nil {
 		_ = client.remove(tempPath)
 		_ = client.remove(backupPath)
-		return nil, fmt.Errorf("%w: atomic rename: %w", ErrUpload, withheld(err))
+		return nil, renameFailure("atomic rename", err)
 	}
 	return &pendingUpload{client: client, finalPath: finalPath, backupPath: backupPath}, nil
 }

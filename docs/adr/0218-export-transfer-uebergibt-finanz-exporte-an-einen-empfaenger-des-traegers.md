@@ -166,8 +166,17 @@ Träger-Transaktionen, getrennt von der Anfrage:
   beim Wechsel von `pending` auf `failed` ihre Zeilen in
   `parent_billing.datev_booked_documents`. Die nächste Übergabe enthält sie
   wieder, statt mit „keine neuen Buchungen“ zu enden; das Steuerbüro bucht
-  nichts doppelt, weil die fehlgeschlagene Datei nie ankam.
-- **Ungeklärt:** Scheitert der Abschluss nach dem Senden, bleibt die
+  nichts doppelt, weil die fehlgeschlagene Datei nie ankam. Hielt eine
+  spätere DATEV-Datei, deren Übergabe nicht fehlschlug, dieselbe Buchung
+  (laut `export_file_invoices`, etwa ein Download „Alle Buchungen erneut“),
+  wandert die Zeile zu dieser Datei: Die Buchung ging dort hinaus.
+  „Alle Buchungen erneut“ gibt es auch als Übergabe, mit Wirtschaftsjahr,
+  für eine Datei, die der Empfänger verloren hat.
+- **Ungeklärt:** Antwortet das Gegenüber nicht auf das Umbenennen (die
+  Verbindung bricht ab, die Zeit läuft ab), kann die Datei angekommen
+  sein. Ein SFTP-Status ist eine Antwort und ein Fehlschlag; alles andere
+  bleibt offen: kein Abschluss, keine Freigabe von Buchungen. Ebenso,
+  wenn der Abschluss nach dem Senden scheitert. Dann bleibt die
   Übergabe `pending`. Nach Ablauf des Zauns zeigt das Protokoll „Ergebnis
   unklar“; die Wiederherstellung im Worker setzt das Journal wie im
   Schul-Scope auf `unknown`, ohne erneut zu senden. Eine neue Übergabe
@@ -181,7 +190,9 @@ Träger-Transaktionen, getrennt von der Anfrage:
   (`traeger_finance:export`), wie DATEV-Werte und Feldzuordnung.
 - Sollstellung und DATEV-Buchungsstapel übergeben: „Finanz-Export“, wie ihr
   Download. PAIN.008 übergeben: „Abrechnung“
-  (`traeger_billing:manage`), wie ihr Download.
+  (`traeger_billing:manage`), wie ihr Download. Wer den Empfänger nicht
+  lesen darf, sieht die Übergabe der Lastschriftdatei trotzdem; ein
+  fehlender Empfänger kommt dann als `export_recipient_not_ready` zurück.
 - Die Organisation kommt immer aus der Sitzung, nie aus der Anfrage.
 
 ### 8. Protokoll, Aufbewahrung und Löschung
@@ -224,6 +235,10 @@ Träger-Transaktionen, getrennt von der Anfrage:
 9. Der Zaun nimmt ein Vorhaben einmal an und schließt es einmal ab, nur mit
    seinem Token, nur im eigenen Träger und nur vor Ablauf.
 10. Ein Gegenüber, das das Passwort zurückgibt, bringt es nicht ins Log.
+11. Ein unbeantwortetes Umbenennen gilt als ungeklärt, nicht als
+    fehlgeschlagen.
+12. Eine Buchung, die eine spätere, nicht fehlgeschlagene DATEV-Datei hielt,
+    bleibt nach dem Fehlschlag gebucht, auf dieser Datei.
 
 Jede Invariante hat einen Test, der ohne den Schutz rot wird; die Belege
 stehen im PR.

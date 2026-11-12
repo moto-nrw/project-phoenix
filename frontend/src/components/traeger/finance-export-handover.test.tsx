@@ -7,7 +7,7 @@ import type { ExportRecipient } from "~/lib/traeger-export-handovers-api";
 import type { ExportRun } from "~/lib/traeger-finance-exports-api";
 
 // The handover of a run's file to the recipient of the Träger (#6824, ADR
-// 0217) on the export page: the menu „Übergeben“, the result of a handover,
+// 0218) on the export page: the menu „Übergeben“, the result of a handover,
 // the question before a second handover of the same content, and the way to
 // the recipient when none is ready.
 
@@ -223,4 +223,89 @@ it("leads to the recipient while none is ready and keeps the download", async ()
       name: "Sollstellung von Monatsbeiträge Oktober 2026 herunterladen",
     }).length,
   ).toBeGreaterThan(0);
+});
+
+it("says that nothing is new when a DATEV handover has no new bookings", async () => {
+  exportsApi.fetchExportSettings.mockResolvedValue({
+    nextFileNumber: 110,
+    datev: { ready: true, missingSettings: [], invalidSettings: [] },
+  });
+  handoverApi.handOverRunFile.mockRejectedValue(
+    new ApiError("conflict", 409, {
+      code: "parent_billing.datev_no_new_bookings",
+    }),
+  );
+  renderPage();
+  fireEvent.click(
+    (
+      await screen.findAllByRole("button", {
+        name: "Dateien von Monatsbeiträge Oktober 2026 an den Empfänger übergeben",
+      })
+    )[0]!,
+  );
+  fireEvent.click(
+    screen.getByRole("menuitem", { name: /DATEV-Datei übergeben/ }),
+  );
+  expect(
+    await screen.findByText(
+      "Keine neuen Buchungen für Monatsbeiträge Oktober 2026",
+    ),
+  ).toBeInTheDocument();
+  expect(handoverApi.handOverRunFile).toHaveBeenCalledWith(
+    "datev",
+    "care-runs",
+    "7",
+    {},
+  );
+});
+
+it("hands every DATEV booking over again for a lost file, in the chosen fiscal year", async () => {
+  exportsApi.fetchExportRuns.mockResolvedValue({
+    items: [{ ...RUN, lastDatev: "2026-11-01T08:00:00Z" }],
+    total: 1,
+    notExported: 0,
+    nextOffset: null,
+  });
+  exportsApi.fetchExportSettings.mockResolvedValue({
+    nextFileNumber: 110,
+    datev: { ready: true, missingSettings: [], invalidSettings: [] },
+  });
+  exportsApi.fetchDatevRunStates.mockResolvedValue({
+    ready: true,
+    runs: new Map([
+      ["care/7", { newBookings: 0, fiscalYears: ["2026-01-01"] }],
+    ]),
+  });
+  handoverApi.handOverRunFile.mockResolvedValue({
+    fileName: "EXTF_Buchungsstapel-110.csv",
+    state: "transferred",
+    reason: "",
+    targetHost: "dateien.kaemmerei-beispiel.de",
+    targetDirectory: "/eingang",
+  });
+  renderPage();
+  fireEvent.click(
+    (
+      await screen.findAllByRole("button", {
+        name: "Dateien von Monatsbeiträge Oktober 2026 an den Empfänger übergeben",
+      })
+    )[0]!,
+  );
+  fireEvent.click(
+    screen.getByRole("menuitem", {
+      name: /Alle DATEV-Buchungen erneut übergeben/,
+    }),
+  );
+  expect(
+    await screen.findByText("Alle Buchungen erneut übergeben?"),
+  ).toBeInTheDocument();
+  fireEvent.click(screen.getByRole("button", { name: "Erneut übergeben" }));
+  await waitFor(() =>
+    expect(handoverApi.handOverRunFile).toHaveBeenCalledWith(
+      "datev",
+      "care-runs",
+      "7",
+      { all: true, fiscalYear: "2026-01-01" },
+    ),
+  );
 });

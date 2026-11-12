@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/pkg/sftp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -73,4 +74,18 @@ func TestWriteAtomicallyPreservesExistingFileWhenRenameFails(t *testing.T) {
 	require.ErrorIs(t, err, renameErr)
 	assert.Equal(t, []byte("bisherige fassung"), files[finalPath])
 	assert.Len(t, files, 1, "the failed replacement must clean up only its temporary file")
+}
+
+// A rename the counterpart refused with an SFTP status failed for certain;
+// one it did not answer leaves the outcome open.
+func TestRenameFailureIsUncertainOnlyWithoutAnAnswer(t *testing.T) {
+	t.Parallel()
+	var uncertain interface{ OutcomeUncertain() bool }
+	refused := renameFailure("rename", &sftp.StatusError{Code: 4})
+	require.ErrorIs(t, refused, ErrUpload)
+	assert.False(t, errors.As(refused, &uncertain), "an SFTP status is an answer")
+	lost := renameFailure("rename", io.ErrUnexpectedEOF)
+	require.ErrorIs(t, lost, ErrUpload)
+	require.ErrorAs(t, lost, &uncertain)
+	assert.True(t, uncertain.OutcomeUncertain())
 }

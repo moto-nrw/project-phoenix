@@ -48,7 +48,13 @@ func (s *TraegerService) Transfer(ctx context.Context, request exporttransfer.Tr
 	}); err != nil {
 		return exporttransfer.Outcome{}, fmt.Errorf("%w: claim intent: %w", ErrUnavailable, err)
 	}
-	outcome := s.send(dispatchCtx, request, intent)
+	outcome, uncertain := s.send(dispatchCtx, request, intent)
+	if uncertain {
+		// The file may have arrived: the journal stays dispatching until
+		// recovery records it as unknown, and the producer keeps its handover
+		// pending, so no retry goes out without a person's repeat.
+		return exporttransfer.Outcome{}, fmt.Errorf("%w: the counterpart did not answer the rename", exporttransfer.ErrUnknownSettlement)
+	}
 	finalizeCtx, cancel := context.WithTimeout(context.WithoutCancel(detached), 5*time.Second)
 	defer cancel()
 	if err := s.within(finalizeCtx, request.OrganizationID, func(txCtx context.Context) error {
@@ -101,7 +107,8 @@ func (s *TraegerService) beginTraegerIntent(ctx context.Context, request exportt
 }
 
 // send uploads after both commits; a failure is an outcome, not an error.
-func (s *TraegerService) send(ctx context.Context, request exporttransfer.TraegerTransferRequest, intent traegerIntent) exporttransfer.Outcome {
+// uncertain reports a failure after which the file may still have arrived.
+func (s *TraegerService) send(ctx context.Context, request exporttransfer.TraegerTransferRequest, intent traegerIntent) (exporttransfer.Outcome, bool) {
 	commit, _, err := s.uploader.Prepare(ctx, intent.target, intent.filename, intent.data)
 	if err == nil {
 		// The file was replaced atomically; commit only drops the rollback copy.
@@ -124,7 +131,8 @@ func (s *TraegerService) send(ctx context.Context, request exporttransfer.Traege
 			"error", err.Error(),
 		)
 	}
-	return outcome
+	var uncertain ports.UncertainError
+	return outcome, errors.As(err, &uncertain) && uncertain.OutcomeUncertain()
 }
 
 // RecipientRekey re-seals the recipient password of one Träger on the
