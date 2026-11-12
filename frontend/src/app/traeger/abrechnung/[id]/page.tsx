@@ -320,7 +320,7 @@ export default function TraegerBillingRunPage() {
             size="md"
             disabled={!canRelease}
             disabledReason={releaseBlockReason(run)}
-            tooltip="moto fragt vorher nach, dann bekommen alle Rechnungen ihre feste Nummer."
+            tooltip="moto fragt vorher nach, dann sind alle Rechnungen mit Nummer festgeschrieben."
             onClick={() => setConfirmingRelease(true)}
           >
             Lauf freigeben

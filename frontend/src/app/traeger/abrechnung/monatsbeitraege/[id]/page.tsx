@@ -379,7 +379,7 @@ export default function TraegerCareRunPage() {
             tooltip={
               run.previewCount === 0
                 ? "moto fragt vorher nach, dann ist der Lauf ohne Rechnungen abgeschlossen."
-                : "moto fragt vorher nach, dann bekommen alle Rechnungen ihre feste Nummer."
+                : "moto fragt vorher nach, dann sind alle Rechnungen mit Nummer festgeschrieben."
             }
             onClick={() => setConfirming(true)}
           >

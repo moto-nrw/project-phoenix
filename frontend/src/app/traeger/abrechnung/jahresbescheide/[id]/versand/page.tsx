@@ -79,6 +79,22 @@ function noticesToSend(summary: CareNoticeLetterSummary): number {
   return lettersToSend(summary);
 }
 
+/** Why „An alle senden“ has nothing to send, in the order of the page's notes. */
+function sendAllBlockReason(
+  summary: CareNoticeLetterSummary,
+  missing: number,
+): string {
+  if (summary.queued > 0) return "Die Bescheide werden gerade gesendet.";
+  if (summary.failed > 0) {
+    return "Nicht angekommene Bescheide senden Sie über das Menü ihrer Zeile erneut.";
+  }
+  if (missing > 0) return "Speichern Sie zuerst die übrigen Originale.";
+  if (summary.notSent > 0) {
+    return "Den übrigen Familien fehlt eine E-Mail-Adresse. Drucken Sie deren Bescheid.";
+  }
+  return "Alle Bescheide mit E-Mail-Adresse sind schon gesendet.";
+}
+
 /** The success toast of „An alle senden“. */
 function seriesMessage(series: CareNoticeSeries): string {
   const parts = [
@@ -138,9 +154,9 @@ function rowMenuItems(
       description:
         notice.sends === 0
           ? notice.inInbox
-            ? "Per E-Mail und in die Eltern-App"
-            : "Nur per E-Mail, nicht in die Eltern-App"
-          : "Noch einmal an dieselbe Adresse",
+            ? "Sendet sofort an die Familie, per E-Mail und in die Eltern-App"
+            : "Sendet sofort per E-Mail an die Familie, nicht in die Eltern-App"
+          : "Sendet sofort noch einmal an dieselbe Adresse",
       onClick: () => actions.onSend(notice),
     });
   }
@@ -519,7 +535,7 @@ export default function TraegerCareNoticeDeliveryPage() {
                 isLoading={sendingAll}
                 loadingText="Wird gesendet …"
                 disabled={toSend === 0}
-                disabledReason="Alle Bescheide mit E-Mail-Adresse sind schon gesendet."
+                disabledReason={sendAllBlockReason(summary, missing)}
                 tooltip="moto fragt vorher nach, dann gehen die Bescheide per E-Mail an die Familien."
                 onClick={() => setConfirming(true)}
               >

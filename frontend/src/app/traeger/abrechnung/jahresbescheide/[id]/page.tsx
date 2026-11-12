@@ -119,7 +119,6 @@ const noticeColumns: DataTableColumn<CareNotice>[] = [
   },
 ];
 
-/** "1 Kind", "3 Kinder". */
 /** Why issuing is blocked, in the order the warnings show. */
 function releaseBlockReason(run: CareNoticeRunDetail): string | undefined {
   if (run.previewCount === 0) return undefined;
@@ -132,6 +131,7 @@ function releaseBlockReason(run: CareNoticeRunDetail): string | undefined {
   return undefined;
 }
 
+/** "1 Kind", "3 Kinder". */
 function childrenLabel(count: number): string {
   return count === 1 ? "1 Kind" : `${count} Kinder`;
 }
@@ -287,7 +287,7 @@ export default function TraegerCareNoticeRunPage() {
             tooltip={
               run.previewCount === 0
                 ? "moto fragt vorher nach, dann ist der Jahreslauf ohne Bescheid abgeschlossen."
-                : "moto fragt vorher nach, dann bekommen alle Bescheide ihre feste Nummer."
+                : "moto fragt vorher nach, dann sind alle Bescheide mit Nummer festgeschrieben."
             }
             onClick={() => setConfirming(true)}
           >
@@ -305,7 +305,7 @@ export default function TraegerCareNoticeRunPage() {
               )}
               variant="outline"
               size="md"
-              tooltip="Öffnet die SEPA-Lastschriftdatei der Raten für Ihre Bank."
+              tooltip="Öffnet die Lastschrift der Raten mit der Datei für Ihre Bank."
             >
               Lastschrift der Raten
             </ButtonLink>

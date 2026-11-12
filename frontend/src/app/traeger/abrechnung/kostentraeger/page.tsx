@@ -144,7 +144,7 @@ export default function TraegerKostentraegerPage() {
       success("Der Anteil ist gelöscht.");
       setDeleting(null);
     } catch (err) {
-      logger.error("care_cost_shareNamedelete_failed", {
+      logger.error("care_cost_share_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       void deleteErrors.show(err, { object: "den Anteil" });
