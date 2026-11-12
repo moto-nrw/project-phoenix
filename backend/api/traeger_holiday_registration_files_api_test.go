@@ -273,7 +273,7 @@ func TestHolidayRegistrationKeepsTheRetentionOfItsText(t *testing.T) {
 			PrivacyConsent string `json:"privacy_consent"`
 		} `json:"consent_texts"`
 	}](t, rec.Body.Bytes())
-	assert.Equal(t, 4, offer.ConsentTexts.Version)
+	assert.Equal(t, 5, offer.ConsentTexts.Version)
 	assert.Equal(t, 180, offer.ConsentTexts.RetentionDays)
 	assert.Contains(t, offer.ConsentTexts.PrivacyConsent, "Er löscht sie 180 Tage nach den Ferien.")
 	assert.Contains(t, offer.ConsentTexts.PrivacyConsent, "Gesundheitsangaben löscht er schon 92 Tage nach den Ferien.")

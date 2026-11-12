@@ -47,6 +47,21 @@ var parentBillingDefinitions = []config.Definition{
 		Category:        "ferien-bestaetigung",
 		SortOrder:       10,
 	}, {
+		Key:             config.KeyParentBillingDebtorNumberDigitsOnly,
+		Levels:          config.LevelTraeger,
+		Label:           "Debitorennummer: nur Ziffern",
+		Description:     "Ist das an, nimmt moto nur Debitorennummern aus Ziffern mit der Länge darunter an. Das gilt für jede Nummer, die Sie eintragen: bei Ferienanmeldungen und bei Familien. Nummern, die schon gespeichert sind, bleiben, wie sie sind.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "ferien",
+		Category:        "ferien-bestaetigung",
+		SortOrder:       11,
+	},
+	debtorNumberDigits(config.KeyParentBillingDebtorNumberMinDigits, 12, "Debitorennummer: Ziffern von", 1),
+	debtorNumberDigits(config.KeyParentBillingDebtorNumberMaxDigits, 13, "Debitorennummer: Ziffern bis", 35),
+	{
 		Key:             config.KeyParentBillingPaymentText,
 		Levels:          config.LevelTraeger,
 		Label:           "Zahlungstext im Schreiben",
@@ -135,6 +150,27 @@ var parentBillingDefinitions = []config.Definition{
 		"Ist das an, können Sie vor dem Ausstellen die Anschrift einer einzelnen Rechnung ändern. Das gilt nur für diese Rechnung, nicht für die Familie."),
 	careReviewSwitch(config.KeyParentBillingCareReviewPositions, 90, "Positionen einer Rechnung ändern",
 		"Ist das an, können Sie vor dem Ausstellen Positionen einer einzelnen Rechnung hinzufügen oder entfernen, jeweils mit Grund."),
+}
+
+// debtorNumberDigits is one end of the length of a debtor number (#6675):
+// 1 to 35 digits, shown while the Träger allows only digits. The two ends
+// are independent values; the Elternabrechnung reads them in either order.
+func debtorNumberDigits(key string, order int, label string, def int) config.Definition {
+	return config.Definition{
+		Key:             key,
+		Levels:          config.LevelTraeger,
+		Label:           label,
+		Description:     "Wie viele Ziffern eine Debitorennummer hat, von 1 bis 35.",
+		Type:            config.FieldNumber,
+		Default:         def,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "ferien",
+		Category:        "ferien-bestaetigung",
+		SortOrder:       order,
+		Validation:      config.Range(1, 35),
+		DependsOn:       config.DependsOnEq(config.KeyParentBillingDebtorNumberDigitsOnly, true),
+	}
 }
 
 // careReviewSwitch is one change of a single invoice the review of a

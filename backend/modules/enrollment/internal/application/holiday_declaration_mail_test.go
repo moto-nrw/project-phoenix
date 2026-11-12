@@ -34,7 +34,7 @@ func TestHolidayMailDeclarationRepeatsEveryDeclarationGiven(t *testing.T) {
 	declaration := holidayMailDeclaration(enrollment.HolidayPeriod{Binding: false}, form, input, givenAt)
 	require.NotNil(t, declaration)
 	assert.Equal(t, enrollment.HolidayRegistrationMailDeclaration{
-		Name: "Eva Muster", GivenAt: givenAt, ConsentVersion: 4,
+		Name: "Eva Muster", GivenAt: givenAt, ConsentVersion: enrollment.HolidayConsentVersionCurrent,
 		Statements: []enrollment.HolidayDeclarationStatement{
 			{Title: "Datenschutz", Text: texts.PrivacyConsent},
 			{Title: "Sorgerecht", Text: texts.CustodyConfirmed},

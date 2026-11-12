@@ -34,7 +34,7 @@ func TestSEPAMandateImportPayersStayWithTheirTraegerBelowRLS(t *testing.T) {
 	cipher, err := securityRuntimeCompose.NewBankDataCipher(testpkg.NewTestHealthDataKeys(), "")
 	require.NoError(t, err)
 	mandates := parentBillingCompose.NewSEPAMandates(
-		parentBillingCareContracts{contracts: careContractCompose.NewContractVersions()}, cipher)
+		parentBillingCareContracts{contracts: careContractCompose.NewContractVersions()}, cipher, noDebtorNumberFormat{})
 	csv := fmt.Sprintf("Mandatsreferenz;Mandatsdatum;IBAN;Kontoinhaber;Zahler\n"+
 		"OGS-R-1;01.09.2026;%[1]s;Eva Beispiel;%[2]d\nOGS-R-2;01.09.2026;%[1]s;Eva Beispiel;%[3]d\n", sepaIBAN, own, other)
 	mapping := &parentbilling.SEPAMandateImportMapping{Columns: parentbilling.SEPAMandateImportColumns{
@@ -60,4 +60,12 @@ func TestSEPAMandateImportPayersStayWithTheirTraegerBelowRLS(t *testing.T) {
 		return rollback
 	})
 	require.ErrorIs(t, err, rollback)
+}
+
+// noDebtorNumberFormat is a Träger without a format of its debtor numbers
+// (#6675); the import of this test maps no debtor number column.
+type noDebtorNumberFormat struct{}
+
+func (noDebtorNumberFormat) DebtorNumberFormat(context.Context, int64) (parentbilling.DebtorNumberFormat, error) {
+	return parentbilling.DebtorNumberFormat{}, nil
 }

@@ -100,7 +100,7 @@ func TestHolidayRegistrationFileNamesEverythingTheFamilyEnteredAndDeclared(t *te
 		"Kind: Lia Muster", "Geburtsdatum: 01.03.2018", "Schule: Grundschule Wissingen", "Darf Ihr Kind schwimmen?: Ja",
 		"04.01. bis 08.01.2027, Grundschule Wissingen: bis 16 Uhr (Warteliste)",
 		"Notfallkontakt: Oma Muster, Großmutter, 05402 1234", "Abholberechtigt: Opa Muster",
-		"Erklärung der Eltern", "Fassung der Texte: Fassung 4, Löschung 365 Tage nach den Ferien",
+		"Erklärung der Eltern", "Fassung der Texte: Fassung 5, Löschung 365 Tage nach den Ferien",
 		"Erklärt am: 16.11.2026 09:30 Uhr",
 		"Wortlaut: " + record.Detail.ConsentTexts.PrivacyConsent,
 		"Wortlaut: " + record.Detail.ConsentTexts.HealthConsent,

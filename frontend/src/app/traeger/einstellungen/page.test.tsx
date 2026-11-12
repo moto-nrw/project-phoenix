@@ -325,6 +325,119 @@ describe("TraegerSettingsPage", () => {
     expect(mockFetchSchema).toHaveBeenCalledTimes(2);
   });
 
+  describe("format of the debtor number (#6675)", () => {
+    function formatSchema(digitsOnly: boolean, min: number, max: number) {
+      return {
+        tabs: [
+          {
+            key: "ferien",
+            label: "ferien",
+            categories: [
+              {
+                key: "ferien-bestaetigung",
+                label: "ferien-bestaetigung",
+                items: [
+                  item({
+                    key: "parent_billing.debtor_number_digits_only",
+                    label: "Debitorennummer: nur Ziffern",
+                    value: digitsOnly,
+                    levels: "traeger",
+                    sort_order: 11,
+                  }),
+                  item({
+                    key: "parent_billing.debtor_number_min_digits",
+                    label: "Debitorennummer: Ziffern von",
+                    type: "number",
+                    default: 1,
+                    value: min,
+                    levels: "traeger",
+                    sort_order: 12,
+                  }),
+                  item({
+                    key: "parent_billing.debtor_number_max_digits",
+                    label: "Debitorennummer: Ziffern bis",
+                    type: "number",
+                    default: 35,
+                    value: max,
+                    levels: "traeger",
+                    sort_order: 13,
+                  }),
+                ],
+              },
+            ],
+          },
+        ],
+      } satisfies SettingsSchema;
+    }
+
+    it("shows the lengths only under the switch, with a live example", async () => {
+      mockFetchSchema.mockResolvedValue(formatSchema(true, 5, 5));
+      renderPage();
+
+      const from = await screen.findByRole("textbox", { name: "Ziffern von" });
+      expect(from).toHaveValue("5");
+      expect(from).toHaveAttribute("inputmode", "numeric");
+      expect(
+        screen.queryByText("Debitorennummer: Ziffern von"),
+      ).not.toBeInTheDocument();
+      expect(screen.getByText("20815")).toBeInTheDocument();
+      fireEvent.change(from, { target: { value: "3" } });
+      fireEvent.change(screen.getByRole("textbox", { name: "Ziffern bis" }), {
+        target: { value: "3" },
+      });
+      expect(screen.getByText("208")).toBeInTheDocument();
+    });
+
+    it("pulls the other end along so the range never turns round", async () => {
+      mockFetchSchema.mockResolvedValue(formatSchema(true, 5, 5));
+      renderPage();
+
+      const from = await screen.findByRole("textbox", { name: "Ziffern von" });
+      fireEvent.change(from, { target: { value: "7" } });
+      fireEvent.blur(from);
+
+      await waitFor(() =>
+        expect(mockSave).toHaveBeenCalledWith(
+          "parent_billing.debtor_number_max_digits",
+          7,
+        ),
+      );
+      expect(mockSave).toHaveBeenCalledWith(
+        "parent_billing.debtor_number_min_digits",
+        7,
+      );
+      expect(screen.getByRole("textbox", { name: "Ziffern bis" })).toHaveValue(
+        "7",
+      );
+    });
+
+    it("refuses a length outside 1 to 35 and saves nothing", async () => {
+      mockFetchSchema.mockResolvedValue(formatSchema(true, 5, 5));
+      renderPage();
+
+      const to = await screen.findByRole("textbox", { name: "Ziffern bis" });
+      fireEvent.change(to, { target: { value: "40" } });
+      fireEvent.blur(to);
+
+      expect(
+        await screen.findByText("Bitte geben Sie eine Zahl von 1 bis 35 ein."),
+      ).toBeInTheDocument();
+      expect(mockSave).not.toHaveBeenCalled();
+    });
+
+    it("hides the lengths while the switch is off", async () => {
+      mockFetchSchema.mockResolvedValue(formatSchema(false, 5, 5));
+      renderPage();
+
+      expect(
+        await screen.findByText("Debitorennummer: nur Ziffern"),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("textbox", { name: "Ziffern von" }),
+      ).not.toBeInTheDocument();
+    });
+  });
+
   describe("payment text of the letters (#5622)", () => {
     function holidaySchema(text: string, asksDebtorNumber: boolean) {
       return {
