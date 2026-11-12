@@ -293,6 +293,9 @@ type ExportProtocolEntry struct {
 	ExportedByYou bool       `json:"exported_by_you"`
 	ExportedAt    time.Time  `json:"exported_at"`
 	SubmittedAt   *time.Time `json:"submitted_at"`
+	// Handover is the handover to the recipient of the Träger (ADR 0217),
+	// nil for a download.
+	Handover *ExportFileHandover `json:"handover,omitempty"`
 }
 
 // ExportRun is a released run as the export page lists it: what it holds

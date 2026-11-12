@@ -169,18 +169,36 @@ func (s *Store) SettleExpired(ctx context.Context, limit int) (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	result, err := db.NewRaw(`WITH expired AS (
+	// The school journal and the Träger journal (ADR 0217) share the fence
+	// protocol, so one recovery tick settles both.
+	settled := 0
+	for _, statement := range []string{settleExpiredSchoolTransfers, settleExpiredTraegerTransfers} {
+		result, err := db.NewRaw(statement, limit).Exec(ctx)
+		if err != nil {
+			return settled, err
+		}
+		count, err := result.RowsAffected()
+		if err != nil {
+			return settled, err
+		}
+		settled += int(count)
+	}
+	return settled, nil
+}
+
+const settleExpiredSchoolTransfers = `WITH expired AS (
  SELECT id FROM audit.export_transfers WHERE dispatch_state IN ('pending','dispatching')
  AND dispatch_expires_at <= clock_timestamp() ORDER BY dispatch_expires_at,id LIMIT ? FOR UPDATE SKIP LOCKED)
  UPDATE audit.export_transfers AS attempt SET dispatch_state='unknown', dispatch_token=NULL,
  status='failed',failure_reason='internal_error',updated_at=clock_timestamp()
- FROM expired WHERE attempt.id=expired.id`, limit).Exec(ctx)
-	if err != nil {
-		return 0, err
-	}
-	count, err := result.RowsAffected()
-	return int(count), err
-}
+ FROM expired WHERE attempt.id=expired.id`
+
+const settleExpiredTraegerTransfers = `WITH expired AS (
+ SELECT id FROM audit.traeger_export_transfers WHERE dispatch_state IN ('pending','dispatching')
+ AND dispatch_expires_at <= clock_timestamp() ORDER BY dispatch_expires_at,id LIMIT ? FOR UPDATE SKIP LOCKED)
+ UPDATE audit.traeger_export_transfers AS attempt SET dispatch_state='unknown', dispatch_token=NULL,
+ status='failed',failure_reason='internal_error',updated_at=clock_timestamp()
+ FROM expired WHERE attempt.id=expired.id`
 
 // DeleteExpired removes the school's journal entries before the instant
 // through the database function of 1.15.454: the direct DELETE on

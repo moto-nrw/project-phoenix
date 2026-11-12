@@ -15,7 +15,7 @@ import (
 // message ID and a new file number.
 func (d *SEPADebits) recordDebitFile(ctx context.Context, reviewer parentbilling.HolidayReviewer, runKind string, runID int64,
 	plan debitPlan, data []byte,
-) (string, error) {
+) (parentbilling.ExportProtocolEntry, error) {
 	file := exportFile{format: parentbilling.ExportFormatPain008, runKind: runKind, runID: runID, data: data,
 		totalCents: plan.run.TotalCents, reference: plan.run.MessageID,
 		fileName: func(number int64) string { return debitFileName(number, plan.run.MessageID) }}
@@ -27,10 +27,7 @@ func (d *SEPADebits) recordDebitFile(ctx context.Context, reviewer parentbilling
 		file.debits = append(file.debits, entry.Debit.ID)
 	}
 	entry, _, err := recordExportFile(ctx, d.store, reviewer, file)
-	if err != nil {
-		return "", err
-	}
-	return entry.FileName, nil
+	return entry, err
 }
 
 // debitFileName names the file with its file number and its message ID.

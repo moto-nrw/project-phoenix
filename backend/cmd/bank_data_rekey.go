@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"io"
 
+	"github.com/moto-nrw/project-phoenix/modules/exporttransfer"
+	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
 	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
@@ -22,7 +24,7 @@ func init() { RootCmd.AddCommand(newBankDataRekeyCommand()) }
 
 func newBankDataRekeyCommand() *cobra.Command {
 	cmd := &cobra.Command{Use: "bank-data-rekey", Short: "Re-encrypt bank data in bounded, restartable batches", SilenceUsage: true, RunE: runBankDataRekey}
-	cmd.Flags().Int64("organization", 0, "Organization ID: SEPA mandates and debit copies of the Träger")
+	cmd.Flags().Int64("organization", 0, "Organization ID: SEPA mandates, debit copies and the export recipient password of the Träger")
 	cmd.Flags().Int64("school", 0, "School ID: bank data of guardians and bank and tax data of staff (#6332)")
 	cmd.Flags().Int("batch-size", 100, "Rows per transaction (1..1000)")
 	return cmd
@@ -48,14 +50,19 @@ func runBankDataRekey(cmd *cobra.Command, _ []string) error {
 	if schoolID > 0 {
 		return runSchoolBankDataRekeyJob(ctx, peopleCompose.NewGuardianBankDataRekey(cipher), workforceCompose.NewStaffBankDataRekey(cipher), schoolID, batchSize, cmd.OutOrStdout())
 	}
-	return runBankDataRekeyJob(ctx, parentBillingCompose.NewBankDataRekey(cipher), organizationID, batchSize, cmd.OutOrStdout())
+	return runBankDataRekeyJob(ctx, parentBillingCompose.NewBankDataRekey(cipher), exportTransferCompose.NewRecipientRekey(cipher),
+		organizationID, batchSize, cmd.OutOrStdout())
 }
 
 // bankDataBatch runs one bounded batch from cursor and reports its counters.
 type bankDataBatch func(ctx context.Context, cursor int64) (scanned, changed int, lastID int64, err error)
 
 // The production CLI and its integration test use the same complete source traversal.
-func runBankDataRekeyJob(ctx context.Context, job parentbilling.BankDataRekey, organizationID int64, batchSize int, output io.Writer) error {
+// The recipient password of Export Transfer's Träger scope (ADR 0217) is a
+// source of the same Träger, so the per-Träger run of ADR 0183 covers it.
+func runBankDataRekeyJob(ctx context.Context, job parentbilling.BankDataRekey, recipients exporttransfer.RecipientRekey,
+	organizationID int64, batchSize int, output io.Writer,
+) error {
 	for _, source := range []string{"mandates", "debits", "consents", "debit_files"} {
 		batch := func(ctx context.Context, cursor int64) (int, int, int64, error) {
 			result, err := bankDataRekeyBatch(ctx, job, organizationID, source, cursor, batchSize)
@@ -65,7 +72,14 @@ func runBankDataRekeyJob(ctx context.Context, job parentbilling.BankDataRekey, o
 			return err
 		}
 	}
-	return nil
+	return runBankDataSource(ctx, "export_recipients", func(ctx context.Context, cursor int64) (scanned, changed int, lastID int64, err error) {
+		err = tenant.WithinTraeger(ctx, organizationID, func(ctx context.Context) error {
+			result, err := recipients.Batch(ctx, organizationID, cursor, batchSize)
+			scanned, changed, lastID = result.Scanned, result.Changed, result.LastID
+			return err
+		})
+		return
+	}, output)
 }
 
 // runSchoolBankDataRekeyJob backfills and rekeys the bank data of one

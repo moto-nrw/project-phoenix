@@ -174,6 +174,8 @@ type SEPADebitFile struct {
 	Filename    string
 	ContentType string
 	Data        []byte
+	// ExportFileID is the protocol entry the download recorded.
+	ExportFileID int64
 }
 
 // SEPADebits lets the Abrechnung of a Träger download the PAIN.008 file of

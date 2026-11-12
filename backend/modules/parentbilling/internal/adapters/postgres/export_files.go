@@ -157,6 +157,8 @@ type exportFileListRow struct {
 	NoticeMonth *calendar.Date `bun:"notice_month,type:date,scanonly"`
 	PeriodName  *string        `bun:"period_name,scanonly"`
 	RepeatOf    *int64         `bun:"repeat_of,scanonly"`
+	// The handover of the file (ADR 0217), all nil for a download.
+	exportFileHandoverColumns
 }
 
 func (r exportFileRow) entry() parentbilling.ExportProtocolEntry {
@@ -176,6 +178,7 @@ func (r exportFileListRow) entry() parentbilling.ExportProtocolEntry {
 	if r.RepeatOf != nil {
 		entry.RepeatOf = *r.RepeatOf
 	}
+	entry.Handover = r.handover()
 	return entry
 }
 
@@ -326,8 +329,15 @@ const exportFileListQuery = `SELECT file.*,
 				THEN earlier.booking_sha256 = file.booking_sha256
 				ELSE earlier.content_sha256 = file.content_sha256 END
 			AND earlier.file_number < file.file_number) AS repeat_of,
+	CASE WHEN handover.state = 'pending' AND handover.started_at < CURRENT_TIMESTAMP - INTERVAL '` + handoverUnknownAfter + `'
+		THEN 'unknown' WHEN handover.state = 'pending' THEN 'in_progress' ELSE handover.state END AS handover_state,
+	NULLIF(handover.failure_reason, '') AS handover_reason, handover.target_host AS handover_host,
+	handover.target_directory AS handover_directory, handover.started_at AS handover_started_at,
+	handover.settled_at AS handover_settled_at,
 	COUNT(*) OVER () AS total_files
 FROM parent_billing.export_files AS file
+LEFT JOIN parent_billing.export_file_transfers AS handover
+	ON handover.organization_id = file.organization_id AND handover.export_file_id = file.id AND handover.organization_id = ?0
 WHERE file.organization_id = ?0 AND (?1 = '' OR (file.run_kind = ?1 AND file.run_id = ?2))
 ORDER BY file.exported_at DESC, file.id DESC
 OFFSET ?3 LIMIT ?4`

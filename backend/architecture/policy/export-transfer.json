@@ -61,6 +61,14 @@
     {
       "name": "audit.export_transfers",
       "write_owner": "export-transfer"
+    },
+    {
+      "name": "audit.traeger_export_transfers",
+      "write_owner": "export-transfer"
+    },
+    {
+      "name": "config.traeger_export_recipients",
+      "write_owner": "export-transfer"
     }
   ],
   "rules": [

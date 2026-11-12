@@ -122,3 +122,8 @@ func NewBelegRetention(contracts parentbilling.RetainedContracts, today func() c
 func NewParentSEPAMandates(contracts parentbilling.ContractParties, cipher parentbilling.BankDataCipher, terms parentbilling.OnlineMandateSettings, sums parentbilling.ContentFingerprints) parentbilling.ParentSEPAMandates {
 	return application.NewParentMandates(postgres.NewStore(), contracts, cipher, terms, sums, calendar.TodayDate)
 }
+
+// NewExportHandovers builds the handover of finance exports to the recipient of the Träger (ADR 0217) over the producers of the downloads and the transport the root binds.
+func NewExportHandovers(exports parentbilling.FinanceExports, debits parentbilling.SEPADebits, transfer parentbilling.FinanceExportTransfer) parentbilling.FinanceExportHandovers {
+	return application.NewExportHandovers(exports, debits, postgres.NewStore(), transfer)
+}
