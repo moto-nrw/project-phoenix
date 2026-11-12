@@ -14,6 +14,12 @@ cd "$repo_root"
 # shellcheck source=scripts/go-test-workspace.sh
 source "$repo_root/scripts/go-test-workspace.sh"
 
+# Local runners may retain dotenv delimiters in inherited values. Remove
+# one matching pair before any Go command, without evaluating the DSN.
+case "${TEST_DB_DSN-}" in
+  \'*\'|\"*\") export TEST_DB_DSN="${TEST_DB_DSN:1:${#TEST_DB_DSN}-2}" ;;
+esac
+
 FAST=false
 if [ "${1:-}" = --fast ]; then
   FAST=true
