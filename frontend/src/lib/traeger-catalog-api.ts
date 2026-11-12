@@ -161,6 +161,8 @@ export interface TraegerSchoolPlan {
   readonly errorCode: string | null;
   readonly phase: readonly TraegerFieldChange[];
   readonly offerings: readonly TraegerOfferingPlan[];
+  /** Kinder, deren Betreuung länger läuft als die gekürzte Phase (#6813). */
+  readonly careBeyondEnd: number;
 }
 
 export interface TraegerCatalogPreview {
@@ -174,6 +176,7 @@ interface TraegerRolloutSchool {
   readonly schoolId: string;
   readonly outcome: TraegerCatalogOutcome;
   readonly errorCode: string | null;
+  readonly careBeyondEnd: number;
 }
 
 export interface TraegerRollout {
@@ -286,6 +289,7 @@ interface BackendPreview {
         action: TraegerCatalogAction;
         outcome: "ready" | "rejected";
         error_code?: string;
+        care_beyond_end?: number;
         phase?: BackendFieldChange[] | null;
         offerings?:
           | {
@@ -309,6 +313,7 @@ interface BackendRollout {
         school_id: number;
         outcome: TraegerCatalogOutcome;
         error_code?: string;
+        care_beyond_end?: number;
       }[]
     | null;
 }
@@ -596,6 +601,7 @@ export async function previewTraegerPhase(
       action: school.action,
       outcome: school.outcome,
       errorCode: school.error_code || null,
+      careBeyondEnd: school.care_beyond_end ?? 0,
       phase: fieldChangesFromBackend(school.phase),
       offerings: (school.offerings ?? []).map((offering) => ({
         traegerOfferingId: String(offering.traeger_offering_id),
@@ -624,6 +630,7 @@ export async function rolloutTraegerPhase(
       schoolId: String(school.school_id),
       outcome: school.outcome,
       errorCode: school.error_code || null,
+      careBeyondEnd: school.care_beyond_end ?? 0,
     })),
   };
 }

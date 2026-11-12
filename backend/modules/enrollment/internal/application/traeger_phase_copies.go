@@ -69,13 +69,14 @@ func (s *TraegerPhaseCopies) ApplyTraegerPhase(ctx context.Context, copy enrollm
 	if err := applyTraegerPhaseValues(phase, merged); err != nil {
 		return enrollment.TraegerPhaseApplied{}, err
 	}
-	if _, err := s.phases.UpdatePhase(ctx, phase); err != nil {
+	report, err := s.phases.UpdatePhase(ctx, phase)
+	if err != nil {
 		return enrollment.TraegerPhaseApplied{}, err
 	}
 	if err := s.store.LinkTraegerPhaseCopy(ctx, phase.ID, copy.SourceID, copy.Version, traeger); err != nil {
 		return enrollment.TraegerPhaseApplied{}, err
 	}
-	return enrollment.TraegerPhaseApplied{CopyID: phase.ID, Fields: changes}, nil
+	return enrollment.TraegerPhaseApplied{CopyID: phase.ID, Fields: changes, CareBeyondEnd: len(report.CareBeyondEnd)}, nil
 }
 
 func (s *TraegerPhaseCopies) create(ctx context.Context, copy enrollment.TraegerPhaseCopy, traeger map[string]any) (enrollment.TraegerPhaseApplied, error) {
@@ -116,6 +117,7 @@ func (s *TraegerPhaseCopies) WithdrawTraegerPhase(ctx context.Context, sourceID 
 	if err != nil {
 		return enrollment.TraegerWithdrawal{}, err
 	}
+	// Only is_active changes: the window stays, so the report is empty.
 	phase.IsActive = false
 	_, err = s.phases.UpdatePhase(ctx, phase)
 	return enrollment.TraegerWithdrawal{Found: true}, err

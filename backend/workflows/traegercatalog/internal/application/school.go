@@ -55,6 +55,7 @@ func (c *Catalog) applySchool(ctx context.Context, snap snapshot, next release, 
 		plan.Action = traegercatalog.ActionCreate
 	}
 	plan.Phase = applied.Fields
+	plan.CareBeyondEnd = applied.CareBeyondEnd
 	copies := []careplan.TraegerOfferingCopy{}
 	withdrawn := []int64{}
 	for _, offering := range snap.offerings {
