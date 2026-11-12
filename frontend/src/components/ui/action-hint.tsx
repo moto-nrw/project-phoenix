@@ -75,6 +75,11 @@ function trackModality() {
   document.addEventListener("focusin", cancelPendingHoverHints, true);
 }
 
+function isBlockedActivation(event: Readonly<{ type: string; key?: string }>) {
+  if (!event.type.startsWith("key")) return true;
+  return event.key === "Enter" || event.key === " " || event.key === "Spacebar";
+}
+
 function blockDisabledHintActivation(event: Event) {
   const target = event.target;
   if (!(target instanceof Element)) return;
@@ -83,6 +88,7 @@ function blockDisabledHintActivation(event: Event) {
   if (!anchor || !id) return;
   const showHint = blockedHintHandlers.get(id);
   if (!showHint) return;
+  if (!isBlockedActivation(event)) return;
 
   // Dieser Listener läuft auf `window` vor Capture-Handlern eines klickbaren
   // Vorfahren. `aria-disabled` muss diese Sperre selbst nachbilden.

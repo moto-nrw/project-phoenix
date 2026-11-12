@@ -371,6 +371,45 @@ describe("disabledReason on kit buttons", () => {
     expect(bubble()).toHaveTextContent(REASON);
   });
 
+  it.each([
+    { name: "Button", link: false, role: "button" },
+    { name: "ButtonLink", link: true, role: "link" },
+  ])(
+    "keeps Tab navigation working through a blocked $name",
+    async ({ link, role }) => {
+      const user = userEvent.setup();
+      render(
+        <>
+          <Button type="button">Davor</Button>
+          {link ? (
+            <ButtonLink href="/help" disabled disabledReason={REASON}>
+              Gesperrt
+            </ButtonLink>
+          ) : (
+            <Button type="button" disabled disabledReason={REASON}>
+              Gesperrt
+            </Button>
+          )}
+          <Button type="button">Danach</Button>
+        </>,
+      );
+      const before = screen.getByRole("button", { name: "Davor" });
+      const blocked = screen.getByRole(role, { name: "Gesperrt" });
+      const after = screen.getByRole("button", { name: "Danach" });
+
+      await user.tab();
+      expect(before).toHaveFocus();
+      await user.tab();
+      expect(blocked).toHaveFocus();
+      await user.tab();
+      expect(after).toHaveFocus();
+      await user.tab({ shift: true });
+      expect(blocked).toHaveFocus();
+      await user.tab({ shift: true });
+      expect(before).toHaveFocus();
+    },
+  );
+
   it("runs neither onClick, key handlers nor submit on click or Enter", async () => {
     const user = userEvent.setup();
     const onClick = vi.fn();

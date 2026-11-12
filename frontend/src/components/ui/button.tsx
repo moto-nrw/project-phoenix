@@ -138,8 +138,14 @@ export function Button({
 }
 
 function blockActivation(event: React.SyntheticEvent) {
+  if (!isBlockedActivation(event)) return;
   event.preventDefault();
   event.stopPropagation();
+}
+
+function isBlockedActivation(event: Readonly<{ type: string; key?: string }>) {
+  if (!event.type.startsWith("key")) return true;
+  return event.key === "Enter" || event.key === " " || event.key === "Spacebar";
 }
 
 // Ein nativ gesperrter Knopf ruft keinen dieser Handler auf; ein gesperrter
