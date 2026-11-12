@@ -30,5 +30,13 @@
   "moreEvents": "+ ще {count}",
   "responseRequired": "Потрібна відповідь",
   "errorObjectList": "список зустрічей",
-  "errorObjectResponse": "відповідь"
+  "errorObjectResponse": "відповідь",
+  "openEventTooltip": "Відкриває подробиці цієї події.",
+  "acceptTooltip": "Одразу підтверджує участь. Потім відповідь тут не змінити.",
+  "declineTooltip": "Одразу відмовляється. Потім відповідь тут не змінити.",
+  "previousMonthTooltip": "Показує події попереднього місяця.",
+  "nextMonthTooltip": "Показує події наступного місяця.",
+  "previousMonthBlocked": "Календар не показує минулі місяці.",
+  "nextMonthBlocked": "Календар поки не показує пізніші місяці.",
+  "closeTooltip": "Закриває подробиці й знову показує календар."
 }

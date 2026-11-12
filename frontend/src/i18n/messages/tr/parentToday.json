@@ -33,6 +33,11 @@
     "messageHint": "{name} için {careTerm} ile iletişime geçin",
     "pickupWithMode": "{name} için teslim almayı değiştir",
     "pickupCompactWithMode": "Teslim almayı değiştir",
-    "pickupHintWithMode": "Bir gün için teslim alma saatini veya şeklini değiştirin"
+    "pickupHintWithMode": "Bir gün için teslim alma saatini veya şeklini değiştirin",
+    "profileTooltip": "Çocuğunuzun tüm bilgileriyle sayfasını açar.",
+    "sickTooltip": "Çocuğunuzun yokluğunu bildirmek için formu açar.",
+    "pickupTooltip": "Farklı alınış saati istemek için formu açar.",
+    "pickupWithModeTooltip": "Alınış değişikliği istemek için formu açar.",
+    "messageTooltip": "Çocuğunuzla ilgili {careTerm} mesajlarını açar."
   }
 }

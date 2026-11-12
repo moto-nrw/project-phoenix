@@ -182,5 +182,6 @@
   },
   "doneAccountTitle": "Hapi tjetër: llogaria juaj e prindit",
   "doneAccountText": "Ju dërguam një email të dytë në {email}. Hapni lidhjen në të. Atje vendosni fjalëkalimin ose hyni.",
-  "doneToRegistrations": "Te regjistrimet tuaja për pushimet"
+  "doneToRegistrations": "Te regjistrimet tuaja për pushimet",
+  "accountHintLoginTooltip": "Hap hyrjen, pastaj ktheheni këtu."
 }

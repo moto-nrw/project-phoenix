@@ -182,5 +182,6 @@
   },
   "doneAccountTitle": "Next step: your parent account",
   "doneAccountText": "We have sent you a second email to {email}. Open the link in it. There you set your password or sign in.",
-  "doneToRegistrations": "To your holiday registrations"
+  "doneToRegistrations": "To your holiday registrations",
+  "accountHintLoginTooltip": "Opens the sign-in, then brings you back here."
 }

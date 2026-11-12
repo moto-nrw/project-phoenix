@@ -189,6 +189,7 @@ export function ChildDayCard({
               variant="ghost"
               size="md"
               className="shrink-0"
+              tooltip={t("actions.profileTooltip")}
             >
               {t("actions.profile")}
               <ChevronRight
@@ -356,6 +357,9 @@ function ChildDayActions({
   // Darf die Anfrage auch die Abholart ändern, heißt die Aktion „Abholung“
   // statt „Abholzeit“ (#3945).
   const withMode = features.pickup_change_mode_enabled === true;
+  const pickupTooltip = t(
+    withMode ? "actions.pickupWithModeTooltip" : "actions.pickupTooltip",
+  );
   const pickupActionContent = (
     <>
       <MotoConceptIcon concept={pickupConcept} size={20} aria-hidden="true" />
@@ -416,6 +420,7 @@ function ChildDayActions({
             variant="surface"
             size="md"
             className={actionClassName}
+            tooltip={t("actions.sickTooltip")}
             onClick={onSick}
           >
             {absenceActionContent}
@@ -426,6 +431,7 @@ function ChildDayActions({
             variant="surface"
             size="md"
             className={actionClassName}
+            tooltip={t("actions.sickTooltip")}
           >
             {absenceActionContent}
           </ButtonLink>
@@ -438,6 +444,7 @@ function ChildDayActions({
             variant="surface"
             size="md"
             className={actionClassName}
+            tooltip={pickupTooltip}
             onClick={onPickup}
           >
             {pickupActionContent}
@@ -448,6 +455,7 @@ function ChildDayActions({
             variant="surface"
             size="md"
             className={actionClassName}
+            tooltip={pickupTooltip}
           >
             {pickupActionContent}
           </ButtonLink>
@@ -458,6 +466,7 @@ function ChildDayActions({
           href={parentPath(childConversationPath(studentId))}
           variant="surface"
           size="md"
+          tooltip={t("actions.messageTooltip")}
           className={`${actionClassName} ${
             actionCount !== 3
               ? ""

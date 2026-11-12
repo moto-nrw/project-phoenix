@@ -9,7 +9,8 @@
     "body": "A change could not be saved. If you leave this page, it will be lost.",
     "leave": "Leave anyway",
     "stay": "Stay here",
-    "retry": "Try again"
+    "retry": "Try again",
+    "retryTooltip": "Saves the last change again."
   },
   "healthDirectHint": "Changes are saved directly. The {careTerm} team sees the information immediately.",
   "healthPlaceholder": "For example allergies, intolerances or important medication.",
@@ -41,7 +42,8 @@
     "submitting": "Sending request…",
     "cancel": "Cancel",
     "noChange": "Please change at least one detail.",
-    "required": "A changed detail must not be empty."
+    "required": "A changed detail must not be empty.",
+    "submitTooltip": "Sends the request to the {careTerm} right away. It checks the details."
   },
   "sections": {
     "child": "Personal details",
@@ -131,7 +133,8 @@
     "decisionApplied": "This was changed:",
     "decisionConsidered": "Requested change:",
     "decisionOverridden": "The care team did not book {names}.",
-    "errorObject": "the booked care"
+    "errorObject": "the booked care",
+    "requestButtonTooltip": "Opens a form to request different care."
   },
   "careOfferingsModal": {
     "title": "Change booked care",
@@ -198,7 +201,10 @@
     "noCourses": "There are no courses at the moment.",
     "errorObjectList": "the list of courses",
     "errorObjectRequest": "the course request",
-    "errorObjectWithdraw": "the withdrawal of the course request"
+    "errorObjectWithdraw": "the withdrawal of the course request",
+    "requestTooltip": "Sends the course request to the {careTerm} right away.",
+    "withdrawTooltip": "Withdraws the course request right away.",
+    "requestBlocked": "Please write a reason first."
   },
   "careSchedule": {
     "arrival": "Arrival time",
@@ -242,10 +248,15 @@
     "pendingNotice": "The {careTerm} is reviewing the change. The current weekly plan remains valid until it is approved.",
     "requestedAt": "Requested on {date}",
     "errorObject": "the list of care times",
-    "requestErrorObject": "the weekly plan request"
+    "requestErrorObject": "the weekly plan request",
+    "requestButtonTooltip": "Opens a form to request changes to the weekly plan.",
+    "requestSubmitTooltip": "Sends the request to the {careTerm} right away. It checks the change."
   },
   "errorObject": "the overview of the details",
   "errorObjectChange": "the change",
   "errorObjectRequest": "the request",
-  "errorNoEnrollment": "Your child no longer has a valid enrollment. Please contact the school."
+  "errorNoEnrollment": "Your child no longer has a valid enrollment. Please contact the school.",
+  "identityRequestButtonTooltip": "Opens a form to request changed details.",
+  "requestEditTooltip": "Opens your open request for editing.",
+  "departureEditTooltip": "Opens the pickup for each weekday. The {careTerm} checks changes."
 }

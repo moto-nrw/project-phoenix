@@ -202,7 +202,7 @@ describe("PickupTimeModal — failed preload guard", () => {
     const saveButton = screen.getByRole("button", {
       name: "Anfrage senden",
     });
-    expect(saveButton).toBeDisabled();
+    expect(saveButton).toHaveAttribute("aria-disabled", "true");
 
     // Even if a click slips through, handleSubmit refuses to submit.
     fireEvent.click(saveButton);
@@ -838,7 +838,7 @@ describe("PickupTimeModal — Änderungsfrist für heute", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Anfrage senden" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   const todayGuardianChange: CareException = {
@@ -957,7 +957,7 @@ describe("PickupTimeModal — Änderungsfrist für heute", () => {
     expect(onCutoffPassed).toHaveBeenCalled();
     expect(
       screen.getByRole("button", { name: "Anfrage senden" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 });
 
@@ -1001,7 +1001,7 @@ describe("SickNoteModal — Abmeldegrund", () => {
     );
     expect(
       screen.getByRole("button", { name: /an die OGS senden/ }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("uses the compact shared modal button size", () => {

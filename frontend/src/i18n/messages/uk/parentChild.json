@@ -82,7 +82,9 @@
     "granting": "Зберігаємо",
     "grantSuccess": "Згоду на фото надано знову.",
     "errorObjectList": "список згод",
-    "errorObjectPhoto": "згода на фото"
+    "errorObjectPhoto": "згода на фото",
+    "withdrawTooltip": "Відкликає згоду на фото й видаляє фото. moto спершу перепитає.",
+    "grantTooltip": "Знову дозволяє {careTerm} зберігати фото. moto спершу перепитає."
   },
   "errorObject": "список ваших дітей",
   "errorObjectCare": "огляд догляду"

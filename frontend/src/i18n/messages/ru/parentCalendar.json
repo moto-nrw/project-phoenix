@@ -30,5 +30,13 @@
   "moreEvents": "+ ещё {count}",
   "responseRequired": "Требуется ответ",
   "errorObjectList": "список встреч",
-  "errorObjectResponse": "ответ"
+  "errorObjectResponse": "ответ",
+  "openEventTooltip": "Открывает подробности этой встречи.",
+  "acceptTooltip": "Сразу подтверждает участие. Потом ответ здесь не изменить.",
+  "declineTooltip": "Сразу отказывается. Потом ответ здесь не изменить.",
+  "previousMonthTooltip": "Показывает встречи предыдущего месяца.",
+  "nextMonthTooltip": "Показывает встречи следующего месяца.",
+  "previousMonthBlocked": "Календарь не показывает прошедшие месяцы.",
+  "nextMonthBlocked": "Календарь пока не показывает более поздние месяцы.",
+  "closeTooltip": "Закрывает подробности и снова показывает календарь."
 }

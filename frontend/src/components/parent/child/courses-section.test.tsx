@@ -209,7 +209,7 @@ describe("CoursesSection", () => {
     const request = screen.getByRole("button", { name: "Anfragen" });
 
     expect(reason).toBeRequired();
-    expect(request).toBeDisabled();
+    expect(request).toHaveAttribute("aria-disabled", "true");
     expect(mockedRequest).not.toHaveBeenCalled();
 
     const user = userEvent.setup();

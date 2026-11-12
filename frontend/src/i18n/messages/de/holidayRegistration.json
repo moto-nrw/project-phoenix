@@ -182,5 +182,6 @@
   },
   "doneAccountTitle": "Nächster Schritt: Ihr Elternkonto",
   "doneAccountText": "Wir haben Ihnen eine zweite E-Mail an {email} geschickt. Öffnen Sie den Link darin. Dort legen Sie Ihr Passwort fest oder melden sich an.",
-  "doneToRegistrations": "Zu Ihren Ferienanmeldungen"
+  "doneToRegistrations": "Zu Ihren Ferienanmeldungen",
+  "accountHintLoginTooltip": "Öffnet die Anmeldung, danach kommen Sie hierher zurück."
 }

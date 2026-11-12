@@ -107,7 +107,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-button-override",
     file: "src/components/parent/calendar/parent-calendar-page.tsx",
-    lines: [524, 776],
+    lines: [524, 783],
     reason:
       "Termin-Zeilen und Monats-Chips im Elternkalender, optisch Listeneinträge (#5529: nicht angleichen)",
   },

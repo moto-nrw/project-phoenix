@@ -182,5 +182,6 @@
   },
   "doneAccountTitle": "Sonraki adım: veli hesabınız",
   "doneAccountText": "{email} adresine ikinci bir e-posta gönderdik. İçindeki bağlantıyı açın. Orada şifrenizi belirler veya giriş yaparsınız.",
-  "doneToRegistrations": "Tatil kayıtlarınıza git"
+  "doneToRegistrations": "Tatil kayıtlarınıza git",
+  "accountHintLoginTooltip": "Girişi açar, ardından buraya geri dönersiniz."
 }

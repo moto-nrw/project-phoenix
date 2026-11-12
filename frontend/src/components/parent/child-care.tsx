@@ -957,6 +957,7 @@ export function SickNoteModal({
               variant="outline"
               size="md"
               className="hidden sm:inline-flex"
+              noTooltip="Schließt den Dialog, ohne etwas zu melden."
               onClick={onClose}
             >
               {t("cancel")}
@@ -967,6 +968,14 @@ export function SickNoteModal({
               className="w-full sm:w-auto"
               onClick={() => void handleSubmit()}
               disabled={submitting || (!sickEnabled && !excusedEnabled)}
+              tooltip={t(
+                requiresApproval === true
+                  ? "sick.submitRequestTooltip"
+                  : requiresApproval === false && schoolDays.length === 0
+                    ? "sick.submitDirectTooltip"
+                    : "sick.submitTooltip",
+              )}
+              disabledReason={t("sick.submitBlocked")}
               isLoading={submitting}
               loadingText={t("sick.submitting")}
             >
@@ -1304,6 +1313,21 @@ export function PickupTimeModal({
   // Nach der Frist ist heute für Eltern ganz zu: nicht anfragen, nicht
   // bearbeiten, nicht zurücknehmen. Spätere Tage bleiben offen (#3163).
   const todayLocked = date === today && (todayClosed || cutoffReported);
+  // Gründe für gesperrte Knöpfe, in der Reihenfolge der Sperren (#6756).
+  // Kurz und anders als die Hinweise im Dialog, die die Lage ausführen.
+  const alreadyHomeText = t("pickup.alreadyHomeBlocked");
+  const cutoffClosedText = t("pickup.cutoffBlocked");
+  const submitBlockedReason = alreadyHome
+    ? alreadyHomeText
+    : todayLocked
+      ? cutoffClosedText
+      : staffOwned
+        ? t("pickup.staffSetBlocked")
+        : !pickupChangeEnabled
+          ? t("pickup.disabledBlocked")
+          : !careExceptionsLoaded || !pickupChangeRequestsLoaded
+            ? t("pickup.loadBlocked")
+            : undefined;
   // Eine offene eigene Anfrage wird geändert, nicht zurückgezogen (#2267).
   const canEditRequest =
     pending && studentId !== undefined && request?.is_self !== false;
@@ -1594,6 +1618,8 @@ export function PickupTimeModal({
                   setConfirmingReset(true);
                 }}
                 disabled={submitting || alreadyHome}
+                tooltip={t("pickup.resetTooltip")}
+                disabledReason={alreadyHome ? alreadyHomeText : undefined}
               >
                 <Trash2 className="size-4" aria-hidden="true" />
                 {t("pickup.reset")}
@@ -1604,6 +1630,7 @@ export function PickupTimeModal({
             variant="outline"
             size="md"
             className="hidden whitespace-nowrap sm:inline-flex"
+            noTooltip="Schließt den Dialog, ohne etwas zu senden."
             onClick={onClose}
           >
             {t("cancel")}
@@ -1615,6 +1642,8 @@ export function PickupTimeModal({
               className="w-full whitespace-nowrap sm:w-auto"
               onClick={() => void handleSaveEdit()}
               disabled={submitting || todayLocked}
+              tooltip={t("pickup.saveEditTooltip")}
+              disabledReason={todayLocked ? cutoffClosedText : undefined}
               isLoading={submitting}
               loadingText={t("pickup.savingEdit")}
             >
@@ -1635,6 +1664,8 @@ export function PickupTimeModal({
                 !careExceptionsLoaded ||
                 !pickupChangeRequestsLoaded
               }
+              tooltip={t("pickup.submitTooltip")}
+              disabledReason={submitBlockedReason}
               isLoading={submitting}
               loadingText={t("pickup.submitting")}
             >
@@ -1733,6 +1764,7 @@ export function PickupTimeModal({
                 type="button"
                 variant="outline"
                 size="md"
+                tooltip={t("requestEditTooltip")}
                 onClick={() => request && setEditingRequestId(request.id)}
               >
                 {t("pickup.edit")}
@@ -1952,6 +1984,7 @@ function PickupProofButton({
       variant="outline"
       size="md"
       disabled={busy}
+      tooltip={tPermission("proofPdfTooltip")}
       onClick={() => {
         setBusy(true);
         downloadPickupRequestProofPdf(studentId, requestId)
@@ -2110,6 +2143,7 @@ export function SickStatusSummary({
                 type="button"
                 variant="outline"
                 size="md"
+                tooltip={t("requestEditTooltip")}
                 onClick={() => setEditing(r)}
               >
                 {t("summary.edit")}
