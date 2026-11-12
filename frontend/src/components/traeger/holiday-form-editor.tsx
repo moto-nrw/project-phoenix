@@ -26,6 +26,7 @@ import {
   useDraftDocuments,
   type DraftDocumentSave,
 } from "~/components/enrollment/draft-documents";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -64,6 +65,7 @@ import {
 import {
   HOLIDAY_HEALTH_CHOICES,
   holidayHealthPreviewFields,
+  questionsRepeatingHealthFields,
 } from "./holiday-form-health";
 import {
   holidayFieldsSignature,
@@ -139,6 +141,10 @@ export function HolidayFormEditor({
     address !== form.addressRequirement ||
     health !== form.healthRequirement;
   const missingTemplateFields = templateFieldsMissing(fields, form.template);
+  // With required health fields an own question about allergies or
+  // medication asks parents a second time (#6686).
+  const repeatedHealthQuestions =
+    health === "required" ? questionsRepeatingHealthFields(fields) : [];
 
   const update = (index: number, patch: Partial<HolidayFormField>) =>
     setFields((current) =>
@@ -355,6 +361,18 @@ export function HolidayFormEditor({
                   value={health}
                   onChange={setHealth}
                 />
+                {repeatedHealthQuestions.length > 0 ? (
+                  <Alert
+                    type="warning"
+                    size="compact"
+                    className="mt-3"
+                    message={`Diese eigenen Fragen fragen dasselbe noch einmal: ${repeatedHealthQuestions
+                      .map((field) => `„${field.label}“`)
+                      .join(
+                        ", ",
+                      )}. Entfernen Sie sie, sonst antworten Eltern doppelt.`}
+                  />
+                ) : null}
               </SectionCard>
               <SectionCard
                 title="Anschrift"

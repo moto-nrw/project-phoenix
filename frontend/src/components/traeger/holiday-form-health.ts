@@ -4,7 +4,10 @@
 // oder schreiben auf, was ihr Kind hat. Weitere Hinweise bleiben freiwillig.
 
 import type { SegmentedControlItem } from "~/components/ui/segmented-control";
-import type { HolidayHealthRequirement } from "~/lib/traeger-holiday-form-api";
+import type {
+  HolidayFormField,
+  HolidayHealthRequirement,
+} from "~/lib/traeger-holiday-form-api";
 
 export const HOLIDAY_HEALTH_CHOICES: readonly SegmentedControlItem<HolidayHealthRequirement>[] =
   [
@@ -23,4 +26,23 @@ export function holidayHealthPreviewFields(
         "Weitere Hinweise zur Gesundheit",
       ]
     : ["Allergien", "Medikamente", "Weitere Hinweise zur Gesundheit"];
+}
+
+/** Words of a question that asks what the fixed health fields ask. */
+const REPEATS_HEALTH_FIELD =
+  /allergi|unverträglich|intoleranz|medikament|arznei/i;
+
+/**
+ * Own questions that repeat the fixed fields allergies and medication
+ * (#6686). Before the building block a Träger made them required with an own
+ * question; with „Pflicht“ parents would answer twice. Information blocks ask
+ * nothing and stay out.
+ */
+export function questionsRepeatingHealthFields(
+  fields: readonly HolidayFormField[],
+): HolidayFormField[] {
+  return fields.filter(
+    (field) =>
+      field.type !== "information" && REPEATS_HEALTH_FIELD.test(field.label),
+  );
 }

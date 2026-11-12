@@ -190,6 +190,17 @@ describe("HolidayFormEditor (#5198)", () => {
     );
   });
 
+  it("names own questions that repeat required health fields (#6686)", () => {
+    renderEditor(form(TEMPLATE));
+    const block = within(screen.getByRole("region", { name: "Gesundheit" }));
+    expect(block.queryByRole("alert")).not.toBeInTheDocument();
+    expect(block.getByText(/Eltern können Allergien/)).toBeInTheDocument();
+    fireEvent.click(block.getByRole("button", { name: "Pflicht" }));
+    expect(block.getByRole("alert")).toHaveTextContent(
+      "Diese eigenen Fragen fragen dasselbe noch einmal: „Lebensmittelunverträglichkeiten“. Entfernen Sie sie, sonst antworten Eltern doppelt.",
+    );
+  });
+
   it("adds the class question with the standard template (#5625)", () => {
     const klasse: HolidayFormField = {
       key: "klasse",
