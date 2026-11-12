@@ -6216,7 +6216,8 @@ const buttonNeedsTooltip = {
 // überschreiben. Die Regel gilt in TOOLTIP_SCOPE.
 
 function staticObjectProperty(node, name) {
-  return node.properties.find(
+  // Bei doppelten Schlüsseln gilt zur Laufzeit der letzte.
+  return node.properties.findLast(
     (property) =>
       property.type === "Property" &&
       !property.computed &&

@@ -4878,11 +4878,19 @@ describe.concurrent("ui-kit/menu-item-needs-description", () => {
         "Leere `description`",
       ],
       [
+        `{ label: "Entfernen", description: "Löscht sofort.", description: undefined, onClick: go }`,
+        "Leere `description`",
+      ],
+      [
         `{ label: "Hilfe", noDescription: "", onClick: go }`,
         "braucht einen Grund",
       ],
       [
         `{ label: "Hilfe", noDescription: undefined, onClick: go }`,
+        "braucht einen Grund",
+      ],
+      [
+        `{ label: "Hilfe", noDescription: "Das Wort sagt schon alles.", noDescription: undefined, onClick: go }`,
         "braucht einen Grund",
       ],
       [
