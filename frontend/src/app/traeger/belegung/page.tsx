@@ -362,14 +362,14 @@ const SUM_COLUMNS: DataTableColumn<OccupancyCareFormSum>[] = [
  */
 function freePlacesHint(places: OccupancyPlaces): string {
   if (places.limited === 0) return "Keine Betreuungsform hat eine Platzgrenze.";
-  const offers =
-    places.limited === 1
-      ? "In einer Betreuungsform mit Platzgrenze."
-      : `In ${places.limited} Betreuungsformen mit Platzgrenze.`;
-  if (places.full === 0) return offers;
-  return places.full === 1
-    ? `${offers} Eine ist voll.`
-    : `${offers} ${places.full} sind voll.`;
+  // One sentence: how many of the capped forms are full.
+  if (places.limited === 1)
+    return places.full === 1
+      ? "Die Betreuungsform mit Platzgrenze ist voll."
+      : "1 Betreuungsform hat eine Platzgrenze.";
+  if (places.full === 0)
+    return `${places.limited} Betreuungsformen mit Platzgrenze, keine voll.`;
+  return `${places.full} von ${places.limited} Betreuungsformen mit Platzgrenze ${places.full === 1 ? "ist" : "sind"} voll.`;
 }
 
 function TotalFigures({
@@ -388,9 +388,7 @@ function TotalFigures({
           label="Kinder heute"
           value={totals.children}
           hint={
-            loading
-              ? undefined
-              : "Alle Kinder, die Ihre Schulen heute betreuen."
+            loading ? undefined : "Alle Kinder in Betreuung, auch abwesende."
           }
           icon={<MotoConceptIcon concept={childrenConcept} />}
           loading={loading}

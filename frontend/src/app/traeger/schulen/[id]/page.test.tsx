@@ -91,13 +91,13 @@ describe("TraegerSchoolPage", () => {
     expect(screen.getByRole("heading", { name: "OGS Am Bach" })).toBeVisible();
     expect(screen.getByText("Stand 12:00 Uhr")).toBeVisible();
     for (const [label, value, sentence] of [
-      ["Kinder gesamt", "120", "Alle Kinder, die die Schule gerade betreut."],
+      ["Kinder gesamt", "120", "Alle betreuten Kinder dieser Schule."],
       ["Jetzt anwesend", "51", "Kinder, die gerade in der Schule sind."],
-      ["Heute krank", "4", "Kinder mit einer Krankmeldung für heute."],
+      ["Heute krank", "4", "Kinder mit Krankmeldung für heute."],
       [
         "Betreuungskräfte anwesend",
         "6",
-        "Zählt, wer in der Zeiterfassung angemeldet ist. Homeoffice zählt nicht.",
+        "Angemeldet in der Zeiterfassung. Homeoffice zählt nicht.",
       ],
     ] as const) {
       expect(screen.getByText(label)).toBeInTheDocument();

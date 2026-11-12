@@ -132,10 +132,10 @@ function matchesSearch(school: TraegerSchoolToday, search: string): boolean {
  * die Kachel daneben für die anwesenden Kinder braucht.
  */
 function childrenTotalHint(schoolCount: number): string {
-  if (schoolCount === 1) return "Alle Kinder, die Ihre Schule betreut.";
+  if (schoolCount === 1) return "Alle betreuten Kinder Ihrer Schule.";
   if (schoolCount > 1)
-    return `Alle Kinder, die Ihre ${schoolCount} Schulen betreuen.`;
-  return "Alle Kinder, die Ihre Schulen betreuen.";
+    return `Alle betreuten Kinder in Ihren ${schoolCount} Schulen.`;
+  return "Alle betreuten Kinder in Ihren Schulen.";
 }
 
 function TotalFigures({
@@ -167,7 +167,7 @@ function TotalFigures({
           hint={
             loading
               ? undefined
-              : `${percentFormat.format(share)} aller Kinder sind gerade in der Schule.`
+              : `${percentFormat.format(share)} aller Kinder sind da.`
           }
           progressPct={loading ? undefined : share * 100}
           icon={<MotoConceptIcon concept={presentConcept} />}
@@ -179,7 +179,7 @@ function TotalFigures({
         <StatCard
           label="Heute krank"
           value={total?.childrenSick ?? 0}
-          hint="Kinder mit einer Krankmeldung für heute."
+          hint="Kinder mit Krankmeldung für heute."
           icon={<MotoConceptIcon concept={sickConcept} />}
           loading={loading}
           tone="neutral"
@@ -189,7 +189,7 @@ function TotalFigures({
         <StatCard
           label="Betreuungskräfte anwesend"
           value={total ? `${total.staffPresent} von ${total.staffTotal}` : 0}
-          hint="Zählt, wer in der Zeiterfassung angemeldet ist. Homeoffice zählt nicht."
+          hint="Angemeldet in der Zeiterfassung. Homeoffice zählt nicht."
           icon={<MotoConceptIcon concept={staffConcept} />}
           loading={loading}
           tone="neutral"
@@ -204,7 +204,7 @@ function TotalFigures({
               ? undefined
               : ratio === null
                 ? "Gerade ist an keiner Schule eine Betreuungskraft in der Zeiterfassung angemeldet."
-                : "Eine anwesende Betreuungskraft kommt im Schnitt auf so viele anwesende Kinder."
+                : "Anwesende Kinder je anwesender Betreuungskraft."
           }
           icon={<MotoConceptIcon concept={supervisionConcept} />}
           loading={loading}

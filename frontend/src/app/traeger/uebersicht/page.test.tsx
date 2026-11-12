@@ -172,16 +172,16 @@ describe("TraegerDashboardPage", () => {
     expect(await screen.findByText("1 : 13,3")).toBeInTheDocument();
     expect(screen.getByRole("heading", { name: "Dashboard" })).toBeVisible();
     for (const [label, sentence] of [
-      ["Kinder gesamt", "Alle Kinder, die Ihre 2 Schulen betreuen."],
-      ["Jetzt anwesend", /^40\s%\saller Kinder sind gerade in der Schule\.$/],
-      ["Heute krank", "Kinder mit einer Krankmeldung für heute."],
+      ["Kinder gesamt", "Alle betreuten Kinder in Ihren 2 Schulen."],
+      ["Jetzt anwesend", /^40\s%\saller Kinder sind da\.$/],
+      ["Heute krank", "Kinder mit Krankmeldung für heute."],
       [
         "Betreuungskräfte anwesend",
-        "Zählt, wer in der Zeiterfassung angemeldet ist. Homeoffice zählt nicht.",
+        "Angemeldet in der Zeiterfassung. Homeoffice zählt nicht.",
       ],
       [
         "Betreuungsschlüssel",
-        "Eine anwesende Betreuungskraft kommt im Schnitt auf so viele anwesende Kinder.",
+        "Anwesende Kinder je anwesender Betreuungskraft.",
       ],
     ] as const) {
       // Die Kachel trägt ihr Label als Absatz, die Tabelle als Spaltenkopf.

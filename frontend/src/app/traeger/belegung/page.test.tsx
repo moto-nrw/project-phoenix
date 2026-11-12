@@ -182,7 +182,7 @@ describe("TraegerOccupancyPage", () => {
 
     expect(screen.getByText("4 von 18")).toBeInTheDocument();
     expect(
-      screen.getByText("In 2 Betreuungsformen mit Platzgrenze. Eine ist voll."),
+      screen.getByText("1 von 2 Betreuungsformen mit Platzgrenze ist voll."),
     ).toBeInTheDocument();
 
     const table = screen.getByRole("table");

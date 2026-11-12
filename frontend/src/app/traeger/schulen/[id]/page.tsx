@@ -57,7 +57,7 @@ function OverviewTab({
         <StatCard
           label="Kinder gesamt"
           value={figures?.childrenTotal ?? 0}
-          hint="Alle Kinder, die die Schule gerade betreut."
+          hint="Alle betreuten Kinder dieser Schule."
           icon={<MotoConceptIcon concept={childrenConcept} />}
           loading={loading}
           tone="neutral"
@@ -77,7 +77,7 @@ function OverviewTab({
         <StatCard
           label="Heute krank"
           value={figures?.childrenSick ?? 0}
-          hint="Kinder mit einer Krankmeldung für heute."
+          hint="Kinder mit Krankmeldung für heute."
           icon={<MotoConceptIcon concept={sickConcept} />}
           loading={loading}
           tone="orange"
@@ -87,7 +87,7 @@ function OverviewTab({
         <StatCard
           label="Betreuungskräfte anwesend"
           value={figures?.staffPresent ?? 0}
-          hint="Zählt, wer in der Zeiterfassung angemeldet ist. Homeoffice zählt nicht."
+          hint="Angemeldet in der Zeiterfassung. Homeoffice zählt nicht."
           icon={<MotoConceptIcon concept={staffConcept} />}
           loading={loading}
           tone="neutral"
@@ -102,7 +102,7 @@ function OverviewTab({
           hint={
             ratio === null
               ? "Gerade ist keine Betreuungskraft in der Zeiterfassung angemeldet."
-              : "Eine anwesende Betreuungskraft kommt auf so viele anwesende Kinder."
+              : "Anwesende Kinder je anwesender Betreuungskraft."
           }
           icon={<MotoConceptIcon concept={supervisionConcept} />}
           loading={loading}
