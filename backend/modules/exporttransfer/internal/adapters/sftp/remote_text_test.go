@@ -2,6 +2,7 @@ package sftp_test
 
 import (
 	"context"
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -33,4 +34,14 @@ func TestUpload_AnUnansweredRenameLeavesTheOutcomeOpen(t *testing.T) {
 	var uncertain interface{ OutcomeUncertain() bool }
 	require.ErrorAs(t, err, &uncertain)
 	assert.True(t, uncertain.OutcomeUncertain())
+}
+
+// A rename the counterpart refused with an SFTP status failed for certain.
+func TestUpload_ARefusedRenameFailsForCertain(t *testing.T) {
+	t.Parallel()
+	server := testServer{Server: sftptest.StartRefusingRename(t)}
+	err := newTestClient(t).Upload(context.Background(), server.target("/"), "zeitkonten.csv", []byte("4711;100\r\n"))
+	require.ErrorIs(t, err, sftp.ErrUpload)
+	var uncertain interface{ OutcomeUncertain() bool }
+	assert.False(t, errors.As(err, &uncertain), "an SFTP status is an answer")
 }

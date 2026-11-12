@@ -421,10 +421,9 @@ func withheld(err error) error {
 // under its final name, so the outcome is unknown, not failed (ADR 0218
 // section 6). It still reads as ErrUpload for callers without the
 // distinction.
-type uncertainRename struct{ err error }
+type uncertainRename struct{ error }
 
-func (u uncertainRename) Error() string        { return u.err.Error() }
-func (u uncertainRename) Unwrap() error        { return u.err }
+func (u uncertainRename) Unwrap() error        { return u.error }
 func (uncertainRename) OutcomeUncertain() bool { return true }
 
 // renameFailure classifies a failed rename: an SFTP status is the
@@ -436,7 +435,7 @@ func renameFailure(step string, err error) error {
 	if errors.As(err, &status) {
 		return failure
 	}
-	return uncertainRename{err: failure}
+	return uncertainRename{failure}
 }
 
 // isAuthFailure recognizes a rejected login. x/crypto/ssh reports it as a

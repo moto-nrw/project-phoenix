@@ -83,12 +83,20 @@ func StartDroppingRename(t *testing.T) Server {
 	return start(t, modeDropRename)
 }
 
+// StartRefusingRename starts a counterpart that takes the upload and
+// answers the rename with an SFTP failure status.
+func StartRefusingRename(t *testing.T) Server {
+	t.Helper()
+	return start(t, modeRefuseRename)
+}
+
 type mode int
 
 const (
 	modePlain mode = iota
 	modeEcho
 	modeDropRename
+	modeRefuseRename
 )
 
 func start(t *testing.T, serve mode) Server {
@@ -194,7 +202,7 @@ func serveConn(conn net.Conn, config *ssh.ServerConfig, password string, serve m
 		go answerSubsystemRequests(requests)
 
 		if serve != modePlain {
-			handlers := droppingHandlers(conn)
+			handlers := droppingHandlers(conn, serve == modeDropRename)
 			if serve == modeEcho {
 				echoing := echoingHandler{password: password}
 				handlers = pkgsftp.Handlers{FileGet: echoing, FilePut: echoing, FileCmd: echoing, FileList: echoing}
@@ -237,23 +245,26 @@ func (h echoingHandler) Filelist(*pkgsftp.Request) (pkgsftp.ListerAt, error) {
 	return nil, h.refusal()
 }
 
-// droppingHandlers keep files in memory and close the connection on a
-// rename, before any answer.
-func droppingHandlers(conn net.Conn) pkgsftp.Handlers {
+// droppingHandlers keep files in memory and refuse a rename: with drop they
+// close the connection before any answer.
+func droppingHandlers(conn net.Conn, drop bool) pkgsftp.Handlers {
 	memory := pkgsftp.InMemHandler()
-	memory.FileCmd = droppingCmd{next: memory.FileCmd, conn: conn}
+	memory.FileCmd = droppingCmd{next: memory.FileCmd, conn: conn, drop: drop}
 	return memory
 }
 
 type droppingCmd struct {
 	next pkgsftp.FileCmder
 	conn net.Conn
+	drop bool
 }
 
 func (d droppingCmd) Filecmd(request *pkgsftp.Request) error {
 	if request.Method == "Rename" || request.Method == "PosixRename" {
-		_ = d.conn.Close()
-		return errors.New("connection dropped")
+		if d.drop {
+			_ = d.conn.Close()
+		}
+		return errors.New("rename refused")
 	}
 	return d.next.Filecmd(request)
 }
