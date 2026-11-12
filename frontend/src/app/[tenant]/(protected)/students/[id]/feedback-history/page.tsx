@@ -355,6 +355,11 @@ function StudentFeedbackHistoryPageContent() {
                   size="compact"
                   onClick={() => setShowDetails((prev) => !prev)}
                   aria-expanded={showDetails}
+                  tooltip={
+                    showDetails
+                      ? "Blendet die einzelnen Feedback-Einträge wieder aus."
+                      : "Zeigt jedes Feedback des Kindes einzeln mit Datum."
+                  }
                   className="w-full gap-2"
                 >
                   {showDetails ? (

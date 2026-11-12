@@ -66,6 +66,9 @@ const logger = createLogger({ component: "StudentRoomHistoryPage" });
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
+const CORRECT_TOOLTIP =
+  "Öffnet die Anwesenheit dieses Termins zum Ändern, mit Angabe eines Grundes.";
+
 const ROOM_HISTORY_DESCRIPTION =
   "Wo dieses Kind an einem Tag war und wer es ein- und ausgecheckt hat.";
 
@@ -283,6 +286,7 @@ function DayCard({
                           note: slot.note,
                         })
                       }
+                      tooltip={CORRECT_TOOLTIP}
                       className="mt-0.5 ml-1"
                     >
                       Korrigieren
@@ -503,6 +507,7 @@ function daySlotRows(
                     note: slot.note,
                   })
                 }
+                tooltip={CORRECT_TOOLTIP}
                 className="mt-1"
               >
                 Korrigieren
@@ -870,6 +875,8 @@ function StudentRoomHistoryPageContent() {
               items={[
                 {
                   label: "Exportieren",
+                  description:
+                    "Öffnet den Export der Anwesenheit, mit Wahl von Zeitraum und Format.",
                   icon: <Download className="h-4 w-4" aria-hidden />,
                   onClick: () => setExportOpen(true),
                 },

@@ -1560,6 +1560,7 @@ function StudentDetailPageContent() {
                   variant="outline"
                   size="md"
                   onClick={closeCheckoutDialog}
+                  noTooltip="Schließt nur den Dialog, das Kind bleibt angemeldet."
                 >
                   Abbrechen
                 </Button>
@@ -1571,6 +1572,7 @@ function StudentDetailPageContent() {
                   isLoading={checkingOut === "class"}
                   loadingText="Wird abgemeldet…"
                   onClick={() => void handleConfirmCheckout("class")}
+                  tooltip="Trägt sofort ein, dass das Kind jetzt im Unterricht ist."
                 >
                   Geht zum Unterricht
                 </Button>
@@ -1582,6 +1584,7 @@ function StudentDetailPageContent() {
                   isLoading={checkingOut === "home"}
                   loadingText="Wird abgemeldet…"
                   onClick={() => void handleConfirmCheckout()}
+                  tooltip="Meldet das Kind sofort ab, es gilt dann als zuhause."
                 >
                   Geht nach Hause
                 </Button>
@@ -1654,6 +1657,7 @@ function StudentDetailPageContent() {
               // Antwort sonst keine Fläche (#6594).
               disabled={sickLoading}
               onClick={() => openPlannedStatusFromLift("sick")}
+              tooltip="Wechselt zur Liste aller Kranktage, ohne etwas aufzuheben."
             >
               Alle Kranktage ansehen
             </Button>
@@ -1701,6 +1705,7 @@ function StudentDetailPageContent() {
                 className="mt-4"
                 disabled={excusedLoading}
                 onClick={() => openPlannedStatusFromLift("excused")}
+                tooltip="Wechselt zur Liste aller entschuldigten Tage, ohne etwas aufzuheben."
               >
                 Alle entschuldigten Tage ansehen
               </Button>
@@ -1788,6 +1793,7 @@ function StudentDetailPageContent() {
                 variant="outline"
                 size="compact"
                 onClick={() => setCareWithdrawalModalOpen(true)}
+                tooltip="Öffnet den Austritt in zwei Schritten, mit Vorschau vor dem Bestätigen."
               >
                 Betreuung beenden
               </Button>

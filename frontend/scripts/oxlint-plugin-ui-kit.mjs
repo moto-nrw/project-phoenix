@@ -5922,6 +5922,14 @@ const TOOLTIP_SCOPE = [
   "src/app/[tenant]/(protected)/settings/",
   "src/app/traeger/einstellungen/",
   "src/components/settings/",
+  // Kinder – Seiten Kinderliste und Eltern (#6748).
+  "src/app/[tenant]/(protected)/eltern/bankverbindungen/page.tsx",
+  "src/app/[tenant]/(protected)/students/[id]/feedback-history/page.tsx",
+  "src/app/[tenant]/(protected)/students/[id]/page.tsx",
+  "src/app/[tenant]/(protected)/students/[id]/room-history/page.tsx",
+  "src/app/[tenant]/(protected)/students/[id]/unfallanzeigen/[reportId]/page.tsx",
+  "src/app/[tenant]/(protected)/students/search/page.tsx",
+  "src/app/[tenant]/(protected)/students/search/use-child-scope-tabs.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {
