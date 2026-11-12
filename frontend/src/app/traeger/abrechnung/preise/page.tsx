@@ -36,7 +36,7 @@ import {
   type CareRule,
   fetchCareRules,
 } from "~/lib/traeger-care-reductions-api";
-import { berlinTodayISO } from "~/lib/date-helpers";
+import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { createLogger } from "~/lib/logger";
 import {
   type CareTariffs,
@@ -67,7 +67,7 @@ export default function TraegerPreislistePage() {
 function PriceListPage() {
   const searchParams = useSearchParams();
   const focusSchool = searchParams?.get(SCHOOL_PARAM) ?? "";
-  const currentMonth = monthOf(berlinTodayISO());
+  const currentMonth = monthOf(useBerlinToday());
   const [data, setData] = useState<CareTariffs | null>(null);
   const [shown, setShown] = useState<Record<string, string>>({});
   const [editing, setEditing] = useState<SchoolRef | null>(null);
@@ -243,39 +243,54 @@ function PriceListPage() {
         />
       ) : null}
       {data
-        ? schools.map((school) => (
-            <div
-              key={school.id}
-              id={`care-prices-${school.id}`}
-              className="scroll-mt-24"
-            >
-              <CarePriceListCard
-                data={data}
-                school={school}
-                shownMonth={shownMonth(school.id)}
-                currentMonth={currentMonth}
-                onShownMonthChange={(month) =>
-                  setShown((current) => ({ ...current, [school.id]: month }))
-                }
-                onEdit={() => setEditing(school)}
-                onDelete={(validFrom) => setDeleting({ ...school, validFrom })}
-                siblingPricesApply={
-                  siblingRules === null ||
-                  siblingRules.some(
-                    (rule) =>
-                      rule.tariffSiblingPrice === true &&
-                      (rule.schoolIds.length === 0 ||
-                        rule.schoolIds.includes(school.id)) &&
-                      rule.validFrom <=
-                        (shownMonth(school.id) || currentMonth) &&
-                      (rule.validUntil === null ||
-                        rule.validUntil >=
-                          (shownMonth(school.id) || currentMonth)),
-                  )
-                }
-              />
-            </div>
-          ))
+        ? schools.map((school) => {
+            const selectedMonth = shownMonth(school.id);
+            const currentStand = standAt(
+              priceStands(data, school.id),
+              currentMonth,
+            );
+            // A list that holds now uses today’s month, not its start month.
+            // Earlier and planned lists keep their selected month.
+            const ruleMonth =
+              selectedMonth <= currentMonth && selectedMonth === currentStand
+                ? currentMonth
+                : selectedMonth || currentMonth;
+            return (
+              <div
+                key={school.id}
+                id={`care-prices-${school.id}`}
+                className="scroll-mt-24"
+              >
+                <CarePriceListCard
+                  data={data}
+                  school={school}
+                  shownMonth={selectedMonth}
+                  currentMonth={currentMonth}
+                  onShownMonthChange={(month) =>
+                    setShown((current) => ({ ...current, [school.id]: month }))
+                  }
+                  onEdit={() => setEditing(school)}
+                  onDelete={(validFrom) =>
+                    setDeleting({ ...school, validFrom })
+                  }
+                  siblingPricesApply={(careOfferingId) =>
+                    siblingRules === null ||
+                    siblingRules.some(
+                      (rule) =>
+                        rule.tariffSiblingPrice === true &&
+                        (rule.schoolIds.length === 0 ||
+                          rule.schoolIds.includes(school.id)) &&
+                        (rule.careOfferingIds.length === 0 ||
+                          rule.careOfferingIds.includes(careOfferingId)) &&
+                        rule.validFrom <= ruleMonth &&
+                        (rule.validUntil === null ||
+                          rule.validUntil >= ruleMonth),
+                    )
+                  }
+                />
+              </div>
+            );
+          })
         : null}
     </TenantPage>
   );

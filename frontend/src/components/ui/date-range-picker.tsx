@@ -420,7 +420,7 @@ export function RangeCalendarInline({
   const today = useBerlinToday();
   const [month, setMonth] = useState(value?.from ?? parseISODate(today));
   const isSingleMonth = useIsSingleMonthCalendar();
-  // Manual draft state. We use `mode="single"` on the underlying DayPicker
+  // Manual draft state. We use `mode="multiple"` on the underlying DayPicker
   // and manage the two-click range logic ourselves, react-day-picker v10's
   // mode="range" calls onSelect with surprising payloads (sometimes a complete
   // {from, to} pair on first click), which would cause the picker to close
@@ -559,7 +559,9 @@ export function RangeCalendarInline({
               labelDayButton: rangeDayLabel,
               labelGridcell: rangeDayLabel,
             }}
-            onDayClick={handleDayClick}
+            // onSelect keeps `selected` controlled in react-day-picker.
+            // Ignore its toggle result and keep our two-click range logic.
+            onSelect={(_selected, day) => handleDayClick(day)}
             month={month}
             onMonthChange={setMonth}
             numberOfMonths={isSingleMonth ? 1 : 2}

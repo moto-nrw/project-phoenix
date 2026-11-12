@@ -37,12 +37,14 @@ import {
 import { formatEuro } from "./contribution-format";
 import { schoolsConcept } from "~/lib/concepts/schools";
 
-/** Whether any row of the list names a sibling price. */
-function hasSiblingPrices(rows: readonly PriceRow[]): boolean {
-  return rows.some(
-    (row) =>
-      Object.keys(row.siblingPrices).length > 0 ||
-      Object.keys(row.siblingSteps).length > 0,
+type SiblingPricesApply = (careOfferingId: string) => boolean;
+const defaultSiblingPricesApply: SiblingPricesApply = () => true;
+
+/** Whether a row of the list names a sibling price. */
+function hasSiblingPrices(row: PriceRow): boolean {
+  return (
+    Object.keys(row.siblingPrices).length > 0 ||
+    Object.keys(row.siblingSteps).length > 0
   );
 }
 
@@ -171,14 +173,14 @@ function moduleColumn(): DataTableColumn<PriceRow> {
 
 function weekdayColumns(
   weekdays: readonly CareWeekday[],
-  siblings: boolean,
+  siblings: SiblingPricesApply,
   labels: boolean,
 ): DataTableColumn<PriceRow>[] {
   const cell = (row: PriceRow, weekday: CareWeekday) => (
     <PriceCell
       cents={row.prices[weekday]}
       sibling={row.siblingPrices[weekday]}
-      siblingApplies={siblings}
+      siblingApplies={siblings(row.careOfferingId)}
       booked={row.bookedWeekdays.includes(weekday)}
     />
   );
@@ -203,14 +205,14 @@ function weekdayColumns(
 }
 
 function scaleColumns(
-  siblings: boolean,
+  siblings: SiblingPricesApply,
   labels: boolean,
 ): DataTableColumn<PriceRow>[] {
   const cell = (row: PriceRow, days: number) => (
     <PriceCell
       cents={row.steps[days]}
       sibling={row.siblingSteps[days]}
-      siblingApplies={siblings}
+      siblingApplies={siblings(row.careOfferingId)}
       booked={row.bookedDaysPerWeek.includes(days)}
     />
   );
@@ -243,16 +245,16 @@ export function CarePriceListCard({
   onShownMonthChange,
   onEdit,
   onDelete,
-  siblingPricesApply = true,
+  siblingPricesApply = defaultSiblingPricesApply,
 }: Readonly<{
   data: CareTariffs;
   school: { id: string; name: string };
   /**
-   * Whether a sibling rule bills the sibling prices of the list
+   * Whether a sibling rule bills the sibling prices of each module
    * („Preis laut Preisliste“). Without one they are never charged: the cells
    * show them muted and the line above each table says so once.
    */
-  siblingPricesApply?: boolean;
+  siblingPricesApply?: SiblingPricesApply;
   /** The price list the card shows, "YYYY-MM-01"; empty without one. */
   shownMonth: string;
   currentMonth: string;
@@ -300,8 +302,11 @@ export function CarePriceListCard({
     columns: DataTableColumn<PriceRow>[],
     label: string,
     basis: string,
-  ) =>
-    groupRows.length === 0 ? null : (
+  ) => {
+    const inactiveModules = groupRows.filter(
+      (row) => hasSiblingPrices(row) && !siblingPricesApply(row.careOfferingId),
+    );
+    return groupRows.length === 0 ? null : (
       <div className="space-y-2">
         {weekdayRows.length > 0 && scaleRows.length > 0 ? (
           <SectionLabel as="h3">{label}</SectionLabel>
@@ -311,8 +316,8 @@ export function CarePriceListCard({
             from the 2nd child on apply. */}
         <p className="text-sm text-gray-600">
           {basis}
-          {!siblingPricesApply && hasSiblingPrices(groupRows)
-            ? " Die Preise ab dem 2. Kind gelten zurzeit nicht: Für Geschwister gilt die Ermäßigung unter „Ermäßigungen“."
+          {inactiveModules.length > 0
+            ? ` Die Preise ab dem 2. Kind gelten hier zurzeit nicht: ${inactiveModules.map((row) => `„${row.moduleName}“`).join(", ")}. Prüfen Sie die Regel unter „Ermäßigungen“.`
             : null}
         </p>
         <DataTable
@@ -326,6 +331,7 @@ export function CarePriceListCard({
         />
       </div>
     );
+  };
 
   return (
     <SectionCard
