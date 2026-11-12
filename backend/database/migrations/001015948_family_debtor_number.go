@@ -142,10 +142,13 @@ COMMENT ON TABLE parent_billing.family_billing_events IS
 // names a number names the same one. A family with two numbers stays
 // without, so the Träger-Büro decides. A family whose row already names
 // another number keeps it. A matching existing number gets holiday retention
-// metadata but keeps its independent provenance. Each changed row gets a "save" in its
-// trail without an account. The number is kept from the last week the
-// registrations naming it booked (their submission without a booking), the
-// day the runtime keeps it from too, and came from the first of them.
+// metadata but keeps its independent provenance. Each saved number gets a
+// "save" in its trail without an account. Retention includes confirmed
+// registrations without their own number: their invoices use the family's.
+// The number is kept from the last booked week (submission if later), the
+// day the runtime keeps it from too, and came from the first numbered
+// registration. Inherited use only refreshes existing numbers, without an
+// event, like touchFamilies at runtime.
 const familyDebtorNumberBackfillSQL = `
 WITH registration AS (
 	SELECT registration.organization_id, LOWER(BTRIM(registration.guardian_email)) AS family_email, registration.debtor_number,
@@ -158,10 +161,11 @@ WITH registration AS (
 					ON week.organization_id = booking.organization_id AND week.id = booking.holiday_period_week_id
 				WHERE child.organization_id = registration.organization_id AND child.holiday_registration_id = registration.id)) AS used_on
 	FROM enrollment.holiday_registrations AS registration
-	WHERE registration.status = 'confirmed' AND registration.debtor_number IS NOT NULL AND BTRIM(registration.guardian_email) <> ''
+	WHERE registration.status = 'confirmed' AND BTRIM(registration.guardian_email) <> ''
 ),
 single AS (
-	SELECT organization_id, family_email, MIN(debtor_number) AS debtor_number, MAX(used_on) AS used_on, MIN(id) AS origin
+	SELECT organization_id, family_email, MIN(debtor_number) AS debtor_number, MAX(used_on) AS used_on,
+		MIN(id) FILTER (WHERE debtor_number IS NOT NULL) AS origin
 	FROM registration
 	GROUP BY organization_id, family_email
 	HAVING COUNT(DISTINCT debtor_number) = 1
@@ -188,6 +192,18 @@ saved AS (
 			updated_at = CURRENT_TIMESTAMP
 		WHERE family.debtor_number IS NULL OR family.debtor_number = EXCLUDED.debtor_number
 	RETURNING family.id, family.organization_id, family.care_contract_id
+),
+touched AS (
+	UPDATE parent_billing.family_billing AS family
+	SET last_used_on = GREATEST(family.last_used_on, inherited.used_on), updated_at = CURRENT_TIMESTAMP
+	FROM (
+		SELECT organization_id, family_email, MAX(used_on) AS used_on
+		FROM registration WHERE debtor_number IS NULL
+		GROUP BY organization_id, family_email
+	) AS inherited
+	WHERE family.organization_id = inherited.organization_id AND family.family_email = inherited.family_email
+		AND family.debtor_number IS NOT NULL
+		AND NOT EXISTS (SELECT 1 FROM saved WHERE saved.id = family.id)
 )
 INSERT INTO parent_billing.family_billing_events (organization_id, family_billing_id, care_contract_id, action)
 SELECT organization_id, id, care_contract_id, 'save' FROM saved`

@@ -59,7 +59,7 @@ func TestFamilyDebtorNumberBackfillTakesOnlyAnUnambiguousNumber(t *testing.T) {
 	}
 	first, firstModel := week("2026-07-06", "2026-07-10")
 	second, secondModel := week("2026-07-13", "2026-07-17")
-	third, thirdModel := week("2026-07-20", "2026-07-24")
+	third, thirdModel := week("2027-07-19", "2027-07-23")
 	register := func(first, email, status string, number any, submitted string) int64 {
 		t.Helper()
 		var id int64
@@ -70,13 +70,15 @@ func TestFamilyDebtorNumberBackfillTakesOnlyAnUnambiguousNumber(t *testing.T) {
 			organization, period, first, email, status, number, submitted).Scan(ctx, &id))
 		return id
 	}
+	register("Eva", "eva.muster@example.org", "confirmed", nil, "2026-05-01 10:00+02")
 	origin := register("Eva", "Eva.Muster@example.org ", "confirmed", "10 4711", "2026-06-01 10:00+02")
 	book(origin, [2]int64{first, firstModel})
 	book(register("Paul", "eva.muster@example.org", "confirmed", "10 4711", "2026-06-02 10:00+02"), [2]int64{second, secondModel})
-	book(register("Paul", "eva.muster@example.org", "confirmed", nil, "2026-06-03 10:00+02"), [2]int64{third, thirdModel})
+	book(register("Paula", "eva.muster@example.org", "confirmed", nil, "2027-06-03 10:00+02"), [2]int64{third, thirdModel})
 	register("Ina", "zwei@example.org", "confirmed", "1", "2026-06-01 10:00+02")
 	register("Ina", "zwei@example.org", "confirmed", "2", "2026-06-02 10:00+02")
 	register("Rita", "offen@example.org", "received", "77", "2026-06-01 10:00+02")
+	register("Nina", "ohne@example.org", "confirmed", nil, "2027-06-01 10:00+02")
 
 	require.NoError(t, familyDebtorNumberUp(ctx, db))
 
@@ -100,10 +102,10 @@ func TestFamilyDebtorNumberBackfillTakesOnlyAnUnambiguousNumber(t *testing.T) {
   FROM parent_billing.family_billing AS family WHERE family.organization_id = ? ORDER BY family.family_email`, organization).
 		Scan(ctx, &families))
 	number := "10 4711"
-	assert.Equal(t, []family{{Email: "eva.muster@example.org", Number: &number, First: "Paul", Last: "Muster", Kind: "applicant",
-		Retains: true, UsedOn: "2026-07-17", Origin: &origin, Events: 1}}, families,
+	assert.Equal(t, []family{{Email: "eva.muster@example.org", Number: &number, First: "Paula", Last: "Muster", Kind: "applicant",
+		Retains: true, UsedOn: "2027-07-23", Origin: &origin, Events: 1}}, families,
 		"one family with one number remembers it with the parent who registered last, until the last week a registration "+
-			"naming it booked, from its first registration; two numbers and a received registration stay out")
+			"booked even without its own number, from its first numbered registration; two numbers and families without a number stay out")
 
 	// Existing contract numbers that match holiday usage need retention too,
 	// but never become registration-owned merely because the values match.
@@ -113,8 +115,13 @@ func TestFamilyDebtorNumberBackfillTakesOnlyAnUnambiguousNumber(t *testing.T) {
   VALUES (?, ?, 21, 'entwurf') RETURNING id`, organization, school).Scan(ctx, &contract))
 	register("Mara", "matching@example.org", "confirmed", "30100", "2026-06-04 10:00+02")
 	register("Nora", "different@example.org", "confirmed", "40100", "2026-06-05 10:00+02")
+	book(register("Lara", "inherited@example.org", "confirmed", nil, "2027-06-06 10:00+02"), [2]int64{third, thirdModel})
+	register("Lara", "inherited@example.org", "confirmed", nil, "2028-01-01 00:30+01")
+	register("Lara", "inherited@example.org", "received", nil, "2029-06-06 10:00+02")
+	register("Nina", "empty@example.org", "confirmed", nil, "2027-06-06 10:00+02")
 	_, err := db.ExecContext(ctx, `INSERT INTO parent_billing.family_billing (organization_id, family_email, care_contract_id, recipient_kind, debtor_number)
-  VALUES (?0, 'matching@example.org', ?1, 'applicant', '30100'), (?0, 'different@example.org', ?1, 'applicant', '50100')`, organization, contract)
+  VALUES (?0, 'matching@example.org', ?1, 'applicant', '30100'), (?0, 'different@example.org', ?1, 'applicant', '50100'),
+   (?0, 'inherited@example.org', ?1, 'applicant', '60100'), (?0, 'empty@example.org', ?1, 'applicant', NULL)`, organization, contract)
 	require.NoError(t, err)
 	_, err = db.ExecContext(ctx, familyDebtorNumberBackfillSQL)
 	require.NoError(t, err)
@@ -128,6 +135,14 @@ func TestFamilyDebtorNumberBackfillTakesOnlyAnUnambiguousNumber(t *testing.T) {
 	assert.Equal(t, "Mara", matching.Holder)
 	assert.Equal(t, "2026-06-04", matching.UsedOn)
 	assert.Nil(t, matching.Origin, "an independently assigned matching number keeps its provenance")
+	var inherited struct {
+		UsedOn string `bun:"used_on"`
+		Origin *int64 `bun:"debtor_number_registration_id"`
+	}
+	require.NoError(t, db.NewRaw(`SELECT last_used_on::text AS used_on, debtor_number_registration_id
+  FROM parent_billing.family_billing WHERE organization_id = ? AND family_email = 'inherited@example.org'`, organization).Scan(ctx, &inherited))
+	assert.Equal(t, "2028-01-01", inherited.UsedOn, "numberless use keeps the later of the last booked day and Berlin submission date; received registrations stay out")
+	assert.Nil(t, inherited.Origin, "inherited use does not take ownership of the existing number")
 	var different string
 	require.NoError(t, db.NewRaw(`SELECT debtor_number FROM parent_billing.family_billing WHERE organization_id = ?
   AND family_email = 'different@example.org'`, organization).Scan(ctx, &different))
@@ -138,6 +153,12 @@ func TestFamilyDebtorNumberBackfillTakesOnlyAnUnambiguousNumber(t *testing.T) {
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM parent_billing.family_billing WHERE organization_id = ?
   AND family_email = 'matching@example.org' AND care_contract_id IS NULL AND debtor_number = '30100'`, organization).Scan(ctx, &retained))
 	assert.Equal(t, 1, retained, "holiday use keeps the matching number after contract deletion")
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM parent_billing.family_billing WHERE organization_id = ?
+  AND family_email = 'inherited@example.org' AND care_contract_id IS NULL AND debtor_number = '60100'`, organization).Scan(ctx, &retained))
+	assert.Equal(t, 1, retained, "numberless holiday use keeps the inherited number after contract deletion")
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM parent_billing.family_billing WHERE organization_id = ?
+  AND family_email = 'empty@example.org'`, organization).Scan(ctx, &retained))
+	assert.Zero(t, retained, "numberless use does not retain a family row without a number")
 
 	require.NoError(t, familyDebtorNumberDown(ctx, db))
 	var left int
