@@ -28,7 +28,7 @@ func (seedStudentNotesStep) Run(_ context.Context, rt *Runtime) error {
 	// each, so a reviewer sees both a rich and a sparse card.
 	notes := baseSeedStudentNotes(today)
 	if groupID != 0 {
-		notes = append(notes, seedStudentNoteEntry{0, map[string]any{
+		notes = append(notes, seedStudentNoteEntry{studentIndex: 0, note: map[string]any{
 			"kind":               "journal",
 			"visibility":         "group_leads",
 			"category":           "incident",
@@ -43,35 +43,72 @@ func (seedStudentNotesStep) Run(_ context.Context, rt *Runtime) error {
 		return err
 	}
 	if activityNote != nil {
-		notes = append(notes, seedStudentNoteEntry{0, activityNote})
+		notes = append(notes, seedStudentNoteEntry{studentIndex: 0, note: activityNote})
 	}
 
-	created := 0
+	created, informed := 0, 0
 	for _, entry := range notes {
 		studentID, ok := rt.FixedSeeder.studentIDByIndex[entry.studentIndex]
 		if !ok {
 			return fmt.Errorf("student note demo index %d not available", entry.studentIndex)
 		}
-		if _, err := rt.Client.Post(fmt.Sprintf("/api/students/%d/notes", studentID), entry.note); err != nil {
+		raw, err := rt.Client.Post(fmt.Sprintf("/api/students/%d/notes", studentID), entry.note)
+		if err != nil {
 			return fmt.Errorf("create student note for index %d: %w", entry.studentIndex, err)
 		}
 		created++
+		if entry.informTeam {
+			count, err := seedInformNoteTeam(rt, studentID, raw)
+			if err != nil {
+				return err
+			}
+			informed += count
+		}
 	}
 
-	fmt.Printf("  %d student notes created\n", created)
+	fmt.Printf("  %d student notes created, %d team members informed\n", created, informed)
 	return nil
+}
+
+// seedInformNoteTeam is "Speichern und Team informieren" (#6854) on a note
+// the seeder just wrote, so every demo colleague starts with an unread marker
+// in the header.
+func seedInformNoteTeam(rt *Runtime, studentID int64, created []byte) (int, error) {
+	var note struct {
+		Data struct {
+			ID string `json:"id"`
+		} `json:"data"`
+	}
+	if err := parseJSON(created, &note); err != nil {
+		return 0, fmt.Errorf("parse created student note: %w", err)
+	}
+	raw, err := rt.Client.Post(fmt.Sprintf("/api/students/%d/notes/%s/team-notices", studentID, note.Data.ID), map[string]any{})
+	if err != nil {
+		return 0, fmt.Errorf("inform the team about student note %s: %w", note.Data.ID, err)
+	}
+	var response struct {
+		Data struct {
+			Informed int `json:"informed"`
+		} `json:"data"`
+	}
+	if err := parseJSON(raw, &response); err != nil {
+		return 0, fmt.Errorf("parse team notice response: %w", err)
+	}
+	return response.Data.Informed, nil
 }
 
 // seedStudentNoteEntry is one note the seeder writes about a demo child.
 type seedStudentNoteEntry struct {
 	studentIndex int
 	note         map[string]any
+	// informTeam shares the note with the team after saving it (#6854).
+	informTeam bool
 }
 
 // baseSeedStudentNotes are the notes that need no group or activity.
 func baseSeedStudentNotes(today seedDate) []seedStudentNoteEntry {
 	return []seedStudentNoteEntry{
-		{0, map[string]any{
+		{studentIndex: 0, note: map[string]any{
 			"kind":       "permanent",
 			"visibility": "all_staff",
 			"category":   "general",
@@ -79,28 +116,28 @@ func baseSeedStudentNotes(today seedDate) []seedStudentNoteEntry {
 			// Released for the Lehrkraft of the class (#4797).
 			"shared_with_school": true,
 		}},
-		{0, map[string]any{
+		{studentIndex: 0, note: map[string]any{
 			"kind":               "journal",
 			"visibility":         "all_staff",
 			"category":           "positive",
 			"body":               "Hat heute in der Hausaufgabenzeit einem anderen Kind geholfen.",
 			"subject_date":       today.String(),
 			"shared_with_school": true,
-		}},
-		{0, map[string]any{
+		}, informTeam: true},
+		{studentIndex: 0, note: map[string]any{
 			"kind":         "journal",
 			"visibility":   "care_team",
 			"category":     "conversation",
 			"body":         "Kurzes Gespräch über den Streit von gestern. Es ist geklärt.",
 			"subject_date": today.AddDays(-1).String(),
 		}},
-		{1, map[string]any{
+		{studentIndex: 1, note: map[string]any{
 			"kind":       "permanent",
 			"visibility": "all_staff",
 			"category":   "general",
 			"body":       "Geht freitags mit der Nachbarin nach Hause.",
 		}},
-		{2, map[string]any{
+		{studentIndex: 2, note: map[string]any{
 			"kind":         "journal",
 			"visibility":   "care_team",
 			"category":     "parent_contact",

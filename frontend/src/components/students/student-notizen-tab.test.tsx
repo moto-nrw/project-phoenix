@@ -14,6 +14,33 @@ const createMock = vi.fn();
 const updateMock = vi.fn();
 const removeMock = vi.fn();
 const listActivitiesMock = vi.fn();
+const informTeamMock = vi.fn();
+const toastSuccessMock = vi.fn();
+const teamErrorShowMock = vi.fn(async () => undefined);
+const markReadMock = vi.fn(async () => undefined);
+const teamState: { notices: unknown[] } = { notices: [] };
+
+// The tab renders without the app's toast host and shell; both are the
+// subject of their own tests. The tests below observe what reaches them.
+vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
+  useToast: () => ({
+    success: toastSuccessMock,
+    error: vi.fn(),
+    info: vi.fn(),
+  }),
+  useApiErrorDisplay: () => ({ show: teamErrorShowMock, showMessage: vi.fn() }),
+}));
+
+vi.mock("~/lib/hooks/use-student-note-team-notices", () => ({
+  useStudentNoteTeamNotices: () => ({
+    enabled: true,
+    notices: teamState.notices,
+    error: undefined,
+    isLoading: false,
+    markRead: markReadMock,
+  }),
+}));
 const discardRefusedMock = vi.fn(() => false);
 
 vi.mock("~/lib/swr/hooks", () => ({
@@ -32,6 +59,7 @@ vi.mock("~/lib/student-notes-api", async (importOriginal) => {
       remove: (...args: unknown[]) => removeMock(...args) as unknown,
       listActivities: (...args: unknown[]) =>
         listActivitiesMock(...args) as unknown,
+      informTeam: (...args: unknown[]) => informTeamMock(...args) as unknown,
     },
   };
 });
@@ -133,6 +161,7 @@ describe("StudentNotizenTab", () => {
     activityState.error = undefined;
     swrState.mutate = vi.fn(async () => undefined);
     swrState.tenantMutate = vi.fn(async () => undefined);
+    teamState.notices = [];
   });
 
   it("loads inside its own card instead of covering the child's page", () => {
@@ -642,6 +671,130 @@ describe("StudentNotizenTab", () => {
       expect(
         screen.getByRole("option", { name: "Angebotsleitung" }),
       ).toBeInTheDocument();
+    });
+  });
+
+  describe("Speichern und Team informieren (#6854)", () => {
+    function writeNote(body = "Bitte heute auf das Mittagessen achten.") {
+      fireEvent.click(screen.getByRole("button", { name: "Neue Notiz" }));
+      fireEvent.change(screen.getByLabelText("Notiz"), {
+        target: { value: body },
+      });
+    }
+
+    it("keeps plain Speichern silent", async () => {
+      createMock.mockResolvedValue(note({ id: "11" }));
+      renderTab([]);
+      writeNote();
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      await waitFor(() => expect(createMock).toHaveBeenCalledTimes(1));
+      expect(informTeamMock).not.toHaveBeenCalled();
+      expect(toastSuccessMock).not.toHaveBeenCalled();
+    });
+
+    it("saves the note and then tells the team, naming how many were told", async () => {
+      createMock.mockResolvedValue(note({ id: "11" }));
+      informTeamMock.mockResolvedValue(4);
+      renderTab([]);
+      writeNote();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Speichern und Team informieren" }),
+      );
+
+      await waitFor(() =>
+        expect(informTeamMock).toHaveBeenCalledWith("7", "11"),
+      );
+      expect(createMock).toHaveBeenCalledTimes(1);
+      await waitFor(() =>
+        expect(toastSuccessMock).toHaveBeenCalledWith(
+          "Notiz gespeichert. 4 Personen im Team sehen sie jetzt als neu.",
+        ),
+      );
+    });
+
+    it("says the note is saved but the team not informed when sharing fails", async () => {
+      createMock.mockResolvedValue(note({ id: "11" }));
+      const failure = new ApiError("down", 500, { code: "general.server" });
+      informTeamMock.mockRejectedValue(failure);
+      renderTab([]);
+      writeNote();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Speichern und Team informieren" }),
+      );
+
+      await waitFor(() =>
+        expect(teamErrorShowMock).toHaveBeenCalledWith(
+          failure,
+          expect.objectContaining({
+            object: "Die Nachricht an das Team",
+            messageSuffix:
+              "Die Notiz ist gespeichert. Das Team ist noch nicht informiert.",
+          }),
+        ),
+      );
+      expect(toastSuccessMock).not.toHaveBeenCalled();
+      // The note was saved: the form closed, nothing asks to save it again.
+      expect(screen.queryByLabelText("Notiz")).not.toBeInTheDocument();
+    });
+
+    it("does not save when the note is narrower than the whole team", () => {
+      renderTab([]);
+      writeNote();
+      chooseOption("Wer sieht die Notiz?", "Betreuungsteam des Kindes");
+      const share = screen.getByRole("button", {
+        name: "Speichern und Team informieren",
+      });
+      expect(share).toHaveAttribute("aria-disabled", "true");
+      fireEvent.click(share);
+      expect(createMock).not.toHaveBeenCalled();
+    });
+
+    it("marks shared notes as new and reads them when the notes are open", async () => {
+      teamState.notices = [
+        {
+          noteId: "1",
+          studentId: "7",
+          studentFirstName: "Mia",
+          studentLastName: "M",
+          authorName: "Sara",
+          informedAt: "2026-09-09T10:00:00Z",
+        },
+        {
+          noteId: "99",
+          studentId: "8",
+          studentFirstName: "Noa",
+          studentLastName: "N",
+          authorName: "Sara",
+          informedAt: "2026-09-09T10:00:00Z",
+        },
+      ];
+      renderTab([
+        note({ id: "1" }),
+        note({ id: "2", body: "Anderer Eintrag." }),
+      ]);
+
+      await waitFor(() => expect(markReadMock).toHaveBeenCalledWith("7"));
+      expect(markReadMock).toHaveBeenCalledTimes(1);
+      expect(
+        screen.getAllByText("Neu: Diese Notiz wurde mit Ihnen geteilt."),
+      ).toHaveLength(1);
+    });
+
+    it("reads nothing when no note of this child was shared", () => {
+      teamState.notices = [
+        {
+          noteId: "99",
+          studentId: "8",
+          studentFirstName: "Noa",
+          studentLastName: "N",
+          authorName: "Sara",
+          informedAt: "2026-09-09T10:00:00Z",
+        },
+      ];
+      renderTab([note({ id: "1" })]);
+      expect(markReadMock).not.toHaveBeenCalled();
+      expect(screen.getByText("Hat heute vorgelesen.")).toBeInTheDocument();
     });
   });
 });

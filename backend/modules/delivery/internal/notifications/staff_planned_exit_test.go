@@ -20,3 +20,15 @@ func TestStaffPlannedExitNoticeFollowsTheRight(t *testing.T) {
 	assert.True(t, def.DefaultOn)
 	assert.Equal(t, notifications.PortalStaff, def.Portal)
 }
+
+// A shared child note reaches whoever may read the notes (#6854): offered and
+// default-on for holders of users:read only.
+func TestStaffStudentNoteSharedFollowsTheRight(t *testing.T) {
+	t.Parallel()
+	def, ok := notifications.GetType(notifications.TypeStaffStudentNoteShared)
+	require.True(t, ok)
+	assert.Equal(t, permissions.UsersRead, def.Permission)
+	assert.True(t, def.DefaultOn)
+	assert.Equal(t, notifications.PortalStaff, def.Portal)
+	assert.Equal(t, notifications.GroupChildren, def.Group)
+}

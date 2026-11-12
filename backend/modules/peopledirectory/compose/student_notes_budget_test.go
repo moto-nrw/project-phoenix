@@ -84,3 +84,68 @@ func TestStudentNotesListQueryBudget(t *testing.T) {
 	assert.Equal(t, small, large, "the statement count must not grow with the note card")
 	querybudgets.AssertQueryBudget(t, "modules.peopledirectory.student_notes.list", counter.Measurement(reads()))
 }
+
+// TestStudentNoteTeamNoticesListQueryBudget pins the header's read of the
+// unread markers (#6854): every marker names a child and an author, and each
+// is resolved in one bulk read, so the count stays flat as markers arrive.
+func TestStudentNoteTeamNoticesListQueryBudget(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	module, err := New(Dependencies{StudentDirectory: testpkg.StudentDirectory{}, DB: db, Observe: func(Observation) {}}, nil)
+	require.NoError(t, err)
+	ctx := testpkg.Ctx(t)
+
+	reader := testpkg.CreateTestAccount(t, db, "team-notices-budget-reader")
+	date := calendar.NewDate(2026, 9, 9)
+	// Each marker gets its own child and author, so a per-marker lookup
+	// would grow with the list.
+	share := func(count int) {
+		t.Helper()
+		for i := range count {
+			child := testpkg.CreateTestStudent(t, db, "Budget", string(rune('A'+i)), "3a")
+			account := testpkg.CreateTestAccount(t, db, "team-notices-budget")
+			person := testpkg.CreateTestPerson(t, db, "Autor", string(rune('A'+i)))
+			_, err := db.NewRaw(`UPDATE users.persons SET account_id = ? WHERE id = ?`, account.ID, person.ID).Exec(ctx)
+			require.NoError(t, err)
+			note, err := module.CreateStudentNote(ctx, peopledirectory.CreateStudentNote{
+				StudentID: child.ID, AuthorAccountID: account.ID,
+				Kind: peopledirectory.StudentNoteKindJournal, Visibility: peopledirectory.StudentNoteVisibilityAllStaff,
+				Body: "Eintrag.", Subject: peopledirectory.StudentNoteSubject{Date: &date},
+			})
+			require.NoError(t, err)
+			_, err = module.StudentNoteTeam.InformStudentNoteTeam(ctx, peopledirectory.InformStudentNoteTeam{
+				NoteID: note.ID, StudentID: child.ID, ActorAccountID: account.ID, RecipientAccountIDs: []int64{reader.ID},
+			})
+			require.NoError(t, err)
+		}
+	}
+
+	counter := testpkg.CaptureQueries(t, db)
+	reads := func() []string {
+		return counter.Matching(func(sqlLower string) bool {
+			return strings.Contains(sqlLower, "users.student_note_team_notices") ||
+				strings.Contains(sqlLower, "users.persons") ||
+				strings.Contains(sqlLower, "student")
+		})
+	}
+	list := func(expected int) int {
+		t.Helper()
+		counter.Reset()
+		notices, listErr := module.StudentNoteTeam.ListUnreadStudentNoteTeamNotices(ctx, reader.ID)
+		require.NoError(t, listErr)
+		require.Len(t, notices, expected)
+		for _, notice := range notices {
+			require.NotEmpty(t, notice.StudentFirstName, "the budget only counts if the names are resolved")
+			require.NotEmpty(t, notice.AuthorName, "the budget only counts if the names are resolved")
+		}
+		return len(reads())
+	}
+
+	share(2)
+	small := list(2)
+	share(4)
+	large := list(6)
+
+	assert.Equal(t, small, large, "the statement count must not grow with the markers")
+	querybudgets.AssertQueryBudget(t, "modules.peopledirectory.student_note_team_notices.list", counter.Measurement(reads()))
+}

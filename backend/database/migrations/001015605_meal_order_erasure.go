@@ -54,3 +54,15 @@ func installSchoolErasureSteps(ctx context.Context, db *bun.DB, action string, s
 		return nil
 	})
 }
+
+// installDerivedSchoolErasureFunctions reinstalls school erasure functions a later
+// migration derived from an earlier version by checked edits (1.15.952,
+// #6854), in the caller's transaction.
+func installDerivedSchoolErasureFunctions(ctx context.Context, tx bun.Tx, functions []string) error {
+	for _, function := range functions {
+		if _, err := tx.ExecContext(ctx, function); err != nil {
+			return err
+		}
+	}
+	return nil
+}

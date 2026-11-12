@@ -10073,6 +10073,54 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.InformStudentNoteTeam",
+      "binding_digest": "d5349101396c74a6f997482c10fd407a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.InformStudentNoteTeam",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.InformStudentNoteTeam",
+      "binding_digest": "e28d4b5c9a8b45120bd6b0bafe79933a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.InformStudentNoteTeam",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.ListUnreadStudentNoteTeamNotices",
+      "binding_digest": "cc8defacd9ecbc079b1a173bdb9f7904",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.ListUnreadStudentNoteTeamNotices",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.ListUnreadStudentNoteTeamNotices",
+      "binding_digest": "e28d4b5c9a8b45120bd6b0bafe79933a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.ListUnreadStudentNoteTeamNotices",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.MarkStudentNoteTeamNoticesRead",
+      "binding_digest": "d5349101396c74a6f997482c10fd407a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.MarkStudentNoteTeamNoticesRead",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.MarkStudentNoteTeamNoticesRead",
+      "binding_digest": "e28d4b5c9a8b45120bd6b0bafe79933a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.MarkStudentNoteTeamNoticesRead",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare",
       "binding_digest": "7c42484c8947b0a83e178c2ab5b13541",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
@@ -11023,6 +11071,38 @@
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentDocuments.CanSeeStudentDocumentCategory",
       "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.studentNoteTeamReach.NoteReaderAccountIDs",
+      "binding_digest": "9dc765447af57894a910d3dbe4f4cf02",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students.StudentNoteTeamReach.NoteReaderAccountIDs",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.studentNoteTeamReach.NoteReaderAccountIDs",
+      "binding_digest": "28f9eda3567f2069be8a59ef62a3e374",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students.StudentNoteTeamReach.NoteReaderAccountIDs",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.studentNoteTeamReach.NotifyStudentNoteShared",
+      "binding_digest": "d0176e881f08ecb940f59126a74d834a",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students.StudentNoteTeamReach.NotifyStudentNoteShared",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.Notifier.Notify",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.studentNoteTeamReach.NotifyStudentNoteShared",
+      "binding_digest": "77fd5596c4d652e25ce60c938597da74",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students.StudentNoteTeamReach.NotifyStudentNoteShared",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications.PreferenceService.FilterNotOptedOut",
+      "target_owner": "delivery-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.CreateStudentNote",

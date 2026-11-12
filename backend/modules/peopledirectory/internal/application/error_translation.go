@@ -36,6 +36,8 @@ func MapError(err error) error {
 		return peopledirectory.ErrStudentNoteDeleteForbidden
 	case errors.Is(err, domain.ErrStudentNoteInvalid):
 		return peopledirectory.ErrStudentNoteInvalid
+	case errors.Is(err, domain.ErrStudentNoteTeamAudience):
+		return peopledirectory.ErrStudentNoteTeamAudience
 	default:
 		return err
 	}

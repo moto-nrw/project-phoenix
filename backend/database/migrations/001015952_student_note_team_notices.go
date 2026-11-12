@@ -161,10 +161,8 @@ func studentNoteTeamNoticesUp(ctx context.Context, db *bun.DB) error {
 		if err := provisionTenantRLS(ctx, tx, studentNoteTeamNoticesTable); err != nil {
 			return err
 		}
-		for _, function := range functions {
-			if _, err := tx.ExecContext(ctx, function); err != nil {
-				return fmt.Errorf("add the note notices to the school erasure: %w", err)
-			}
+		if err := installDerivedSchoolErasureFunctions(ctx, tx, functions); err != nil {
+			return fmt.Errorf("add the note notices to the school erasure: %w", err)
 		}
 		return nil
 	})

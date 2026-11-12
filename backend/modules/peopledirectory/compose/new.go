@@ -87,6 +87,9 @@ type Directory struct {
 	students         *application.StudentService
 	PersonWrites     peoplePorts.PersonWriter
 	StudentDirectory peoplePorts.StudentDirectoryAccess
+	// StudentNoteTeam tells the team about a note and serves the unread
+	// markers (#6854). It stands beside the owner's facade.
+	StudentNoteTeam peopledirectory.StudentNoteTeamNotices
 }
 
 // New composes the public capability and native same-owner operations. The
@@ -141,6 +144,9 @@ func New(dependencies Dependencies, memberships GuardianMembershipQuery) (*Direc
 		Owner: service, students: students,
 		PersonWrites:     application.NewPersonRows(service),
 		StudentDirectory: application.NewStudentDirectoryRows(students, studentPhotos),
+		StudentNoteTeam: application.NewStudentNoteTeam(
+			noteStore, noteStore, postgres.NewStudentStore(database, dependencies.StudentDirectory, owners.LockClassWrites, dependencies.StudentClassWriteGateQuery),
+			postgres.New(database), transaction{}, observe),
 	}, nil
 }
 

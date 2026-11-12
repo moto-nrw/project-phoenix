@@ -24,9 +24,14 @@ type ResourceConfig struct {
 	StudentAuditService    StudentChangeHistory
 	StudentDocumentService StudentDocumentHistoryAccess
 	StudentNotes           StudentNotesCapability
-	StudentPhotos          StudentPhotoLifecycle
-	Uploads                common.UploadStorage
-	UserContextService     CallerContext
+	// StudentNoteTeam and NoteTeamReach serve "Speichern und Team
+	// informieren" and the unread markers (#6854). Without them those three
+	// routes answer that they are not configured.
+	StudentNoteTeam    peopleModule.StudentNoteTeamNotices
+	NoteTeamReach      StudentNoteTeamReach
+	StudentPhotos      StudentPhotoLifecycle
+	Uploads            common.UploadStorage
+	UserContextService CallerContext
 }
 
 type Resource struct{ ResourceConfig }
@@ -52,6 +57,9 @@ func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/{id}/notes", rs.createStudentNote)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Put("/{id}/notes/{noteId}", rs.updateStudentNote)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Delete("/{id}/notes/{noteId}", rs.deleteStudentNote)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/{id}/notes/{noteId}/team-notices", rs.informStudentNoteTeam)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/team-notices", rs.listStudentNoteTeamNotices)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/{id}/team-notices/read", rs.readStudentNoteTeamNotices)
 	r.With(common.RequiresPermission(permissions.ConfigManage), withTx).Get("/{id}/family-protection", rs.getFamilyProtection)
 	r.With(common.RequiresPermission(permissions.ConfigManage), withTx).Put("/{id}/family-protection", rs.setFamilyProtection)
 	r.With(common.RequiresPermission(permissions.UsersUpdate)).Post("/{id}/photo", rs.uploadStudentPhoto)
