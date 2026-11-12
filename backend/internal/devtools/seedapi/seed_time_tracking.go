@@ -435,6 +435,12 @@ func buildStaffOrder(fs *FixedSeeder) ([]StaffCredentials, map[string]int64) {
 	return ordered, emailToStaff
 }
 
+// seedStaffWithoutTarget keeps one member of staff without a Soll (#6887),
+// the case a school without maintained contracts runs into: the Zeitkonten
+// count her, her Krankheit and Urlaub credit nothing, and the Arbeitszeitmodell
+// tab shows its empty state.
+const seedStaffWithoutTarget = "Mai Pham"
+
 func seedSchedulesViaAPI(rt *Runtime, staff []StaffCredentials, staffIDByEmail map[string]int64, validFrom time.Time) (int, error) {
 	rt.Client.BindAuth(rt.TenantAuth)
 	entries := make([]map[string]any, 0, 4-0+1)
@@ -448,7 +454,7 @@ func seedSchedulesViaAPI(rt *Runtime, staff []StaffCredentials, staffIDByEmail m
 
 	count := 0
 	for _, cred := range staff {
-		if cred.Position == "Extern" {
+		if cred.Position == "Extern" || cred.Name == seedStaffWithoutTarget {
 			continue
 		}
 		staffID := staffIDByEmail[cred.Email]
