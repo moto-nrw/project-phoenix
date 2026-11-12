@@ -122,7 +122,7 @@ export function useChildScopeTabs({
   if (enabled && showGroupEntry && !openCareGroupMode) {
     menuItems.push({
       label: "Zur Gruppenseite",
-      description: "Öffnet die Seite Ihrer Gruppen.",
+      description: "Öffnet die Gruppenseite mit den Kindern je Gruppe.",
       icon: <MotoConceptIcon concept={groupsConcept} size={16} />,
       href: tenantPath("/ogs-groups"),
       onClick: noop,
@@ -131,7 +131,7 @@ export function useChildScopeTabs({
   if (enabled && showStaffEntries && !isBinaryMode) {
     menuItems.push({
       label: "Zur Aufsicht",
-      description: "Öffnet die Seite Ihrer Aufsicht.",
+      description: "Öffnet die Seite für die Aufsicht in den Räumen.",
       icon: <MotoConceptIcon concept={supervisionConcept} size={16} />,
       href: tenantPath("/active-supervisions"),
       onClick: noop,

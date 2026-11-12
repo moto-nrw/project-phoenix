@@ -358,7 +358,7 @@ function StudentFeedbackHistoryPageContent() {
                   tooltip={
                     showDetails
                       ? "Blendet die einzelnen Feedback-Einträge wieder aus."
-                      : "Zeigt jedes Feedback des Kindes einzeln mit Datum."
+                      : "Zeigt jedes Feedback im gewählten Zeitraum einzeln mit Datum."
                   }
                   className="w-full gap-2"
                 >

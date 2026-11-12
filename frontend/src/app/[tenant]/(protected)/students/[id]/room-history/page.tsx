@@ -66,9 +66,6 @@ const logger = createLogger({ component: "StudentRoomHistoryPage" });
 
 // ─── Types ───────────────────────────────────────────────────────────────────
 
-const CORRECT_TOOLTIP =
-  "Öffnet die Anwesenheit dieses Termins zum Ändern, mit Angabe eines Grundes.";
-
 const ROOM_HISTORY_DESCRIPTION =
   "Wo dieses Kind an einem Tag war und wer es ein- und ausgecheckt hat.";
 
@@ -87,6 +84,10 @@ const LazyHistoryCharts = dynamic(() => import("./history-charts"), {
 });
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
+
+/** Erklärung am „Korrigieren“-Knopf, in Karte und Tabelle gleich (#6643). */
+const CORRECTION_TOOLTIP =
+  "Öffnet die Anwesenheit dieses Termins zum Ändern, mit Angabe eines Grundes.";
 
 function formatDateShort(dateKey: string): string {
   const d = new Date(`${dateKey}T00:00:00`);
@@ -286,7 +287,7 @@ function DayCard({
                           note: slot.note,
                         })
                       }
-                      tooltip={CORRECT_TOOLTIP}
+                      tooltip={CORRECTION_TOOLTIP}
                       className="mt-0.5 ml-1"
                     >
                       Korrigieren
@@ -507,7 +508,7 @@ function daySlotRows(
                     note: slot.note,
                   })
                 }
-                tooltip={CORRECT_TOOLTIP}
+                tooltip={CORRECTION_TOOLTIP}
                 className="mt-1"
               >
                 Korrigieren

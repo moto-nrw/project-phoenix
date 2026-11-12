@@ -161,7 +161,10 @@ import {
   deriveCheckinState,
   useSchoolCheckinMode,
 } from "~/lib/hooks/use-school-checkin-mode";
-import { useEarlyCheckoutDialog } from "~/components/students/early-checkout-note";
+import {
+  CHECKOUT_HINTS,
+  useEarlyCheckoutDialog,
+} from "~/components/students/early-checkout-note";
 import { StudentSearchTransitCard } from "~/components/students/student-search-transit-card";
 import {
   useAttendanceWebEnabled,
@@ -3341,7 +3344,7 @@ function SearchPageContent() {
                     variant="outline"
                     size="md"
                     onClick={clearAllFilters}
-                    tooltip="Leert die Suche und alle Filter und zeigt alle Kinder."
+                    tooltip="Hebt Suche, Filter und Sortierung auf und zeigt wieder heute."
                   >
                     Filter zurücksetzen
                   </Button>
@@ -3367,7 +3370,7 @@ function SearchPageContent() {
                     variant="outline"
                     size="md"
                     onClick={() => setPendingRoomCheckout(null)}
-                    noTooltip="Schließt nur den Dialog, das Kind bleibt angemeldet."
+                    noTooltip={CHECKOUT_HINTS.cancel}
                   >
                     Abbrechen
                   </Button>
@@ -3385,7 +3388,7 @@ function SearchPageContent() {
                       );
                       setPendingRoomCheckout(null);
                     }}
-                    tooltip="Trägt sofort ein, dass das Kind jetzt im Unterricht ist."
+                    tooltip={CHECKOUT_HINTS.toClass}
                   >
                     Geht zum Unterricht
                   </Button>
@@ -3401,7 +3404,7 @@ function SearchPageContent() {
                       );
                       setPendingRoomCheckout(null);
                     }}
-                    tooltip="Meldet das Kind sofort ab, es gilt dann als zuhause."
+                    tooltip={CHECKOUT_HINTS.home}
                   >
                     Geht nach Hause
                   </Button>
@@ -3453,7 +3456,7 @@ function SearchPageContent() {
                     variant="outline"
                     size="compact"
                     onClick={() => updateSelectedDate(todayIso)}
-                    tooltip="Zeigt wieder, wo die Kinder heute gerade sind."
+                    tooltip="Zeigt, wo die Kinder heute gerade sind."
                   >
                     Zurück zu heute
                   </Button>

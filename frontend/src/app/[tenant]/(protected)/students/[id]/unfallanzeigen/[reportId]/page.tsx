@@ -406,7 +406,7 @@ function SignatureSection({
               variant="outline"
               size="md"
               onClick={onCorrect}
-              tooltip="Öffnet eine neue Fassung zum Ausfüllen, die bisherige bleibt erhalten."
+              tooltip="Öffnet eine Kopie zum Ändern, die bisherige Fassung bleibt erhalten."
             >
               Korrektur anlegen
             </Button>

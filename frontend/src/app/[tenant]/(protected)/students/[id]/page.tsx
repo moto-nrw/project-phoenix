@@ -127,6 +127,7 @@ import {
   saveStudentPartialAbsence,
 } from "~/lib/student-partial-absences-api";
 import {
+  CHECKOUT_HINTS,
   EarlyCheckoutNoteField,
   useEarlyCheckoutCheck,
 } from "~/components/students/early-checkout-note";
@@ -1560,7 +1561,7 @@ function StudentDetailPageContent() {
                   variant="outline"
                   size="md"
                   onClick={closeCheckoutDialog}
-                  noTooltip="Schließt nur den Dialog, das Kind bleibt angemeldet."
+                  noTooltip={CHECKOUT_HINTS.cancel}
                 >
                   Abbrechen
                 </Button>
@@ -1572,7 +1573,7 @@ function StudentDetailPageContent() {
                   isLoading={checkingOut === "class"}
                   loadingText="Wird abgemeldet…"
                   onClick={() => void handleConfirmCheckout("class")}
-                  tooltip="Trägt sofort ein, dass das Kind jetzt im Unterricht ist."
+                  tooltip={CHECKOUT_HINTS.toClass}
                 >
                   Geht zum Unterricht
                 </Button>
@@ -1584,7 +1585,7 @@ function StudentDetailPageContent() {
                   isLoading={checkingOut === "home"}
                   loadingText="Wird abgemeldet…"
                   onClick={() => void handleConfirmCheckout()}
-                  tooltip="Meldet das Kind sofort ab, es gilt dann als zuhause."
+                  tooltip={CHECKOUT_HINTS.home}
                 >
                   Geht nach Hause
                 </Button>
@@ -1793,7 +1794,7 @@ function StudentDetailPageContent() {
                 variant="outline"
                 size="compact"
                 onClick={() => setCareWithdrawalModalOpen(true)}
-                tooltip="Öffnet den Austritt in zwei Schritten, mit Vorschau vor dem Bestätigen."
+                tooltip="Öffnet den Austritt mit Vorschau, moto fragt vorher nach."
               >
                 Betreuung beenden
               </Button>
