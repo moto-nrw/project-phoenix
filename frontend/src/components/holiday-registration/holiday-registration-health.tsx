@@ -88,7 +88,15 @@ function RequiredHealthQuestion({
                 value={option.value}
                 aria-required="true"
                 checked={choice === option.value}
-                onChange={() => set({ [keys.choice]: option.value })}
+                // „Nein, keine“ drops a text typed after „Ja“, so it
+                // cannot come back on a later optional form version.
+                onChange={() =>
+                  set(
+                    option.value === "none"
+                      ? { [keys.choice]: "none", [field]: "" }
+                      : { [keys.choice]: option.value },
+                  )
+                }
               />
               {option.label}
             </ChoiceTile>

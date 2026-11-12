@@ -1919,6 +1919,20 @@ describe("required health fields (#6686)", () => {
     ).not.toBeInTheDocument();
   });
 
+  it("drops the text typed after Ja when the parent answers Nein, keine", () => {
+    renderForm(null, requiring);
+    const allergies = within(
+      screen.getByRole("group", {
+        name: /Hat Ihr Kind Allergien oder Unverträglichkeiten/,
+      }),
+    );
+    fireEvent.click(allergies.getByRole("radio", { name: "Ja" }));
+    type(screen.getByLabelText(/^Welche Allergien/), "Nüsse");
+    fireEvent.click(allergies.getByRole("radio", { name: "Nein, keine" }));
+    fireEvent.click(allergies.getByRole("radio", { name: "Ja" }));
+    expect(screen.getByLabelText(/^Welche Allergien/)).toHaveValue("");
+  });
+
   it("asks each question, takes Keine and sends it with the consent", async () => {
     mockSubmit.mockResolvedValue(undefined);
     renderForm(null, requiring);
