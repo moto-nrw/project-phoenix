@@ -25,6 +25,16 @@ func NewHolidayRegistrations(traeger enrollment.HolidayTraegerDirectory, mail en
 	})
 }
 
+// NewHolidayParentAccountProofs seals a signed-in account for the prefill (ADR 0216 point 2).
+func NewHolidayParentAccountProofs(health enrollment.HolidayHealthCipher) enrollment.HolidayParentAccountProofs {
+	return applicationNative.NewHolidayParentAccountProofs(health, nil)
+}
+
+// NewHolidayParentRegistrations claims and reads a parent account's registrations in the administrative transaction (ADR 0216 points 3 and 9).
+func NewHolidayParentRegistrations() enrollment.HolidayParentRegistrations {
+	return postgres.NewHolidayRegistrationStore()
+}
+
 // NewHolidayRegistrationAnnouncements builds the read of the published periods the parents app announces (#6671, ADR 0207), in the administrative transaction.
 func NewHolidayRegistrationAnnouncements() enrollment.HolidayRegistrationAnnouncements {
 	return postgres.NewHolidayRegistrationStore()

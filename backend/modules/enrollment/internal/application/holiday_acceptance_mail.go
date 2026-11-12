@@ -44,6 +44,7 @@ func (h *HolidayRegistrationReview) enqueueAcceptance(ctx context.Context, organ
 		Recipient: registration.GuardianEmail, GuardianName: registration.GuardianFirstName + " " + registration.GuardianLastName,
 		TraegerName: traeger.Name, PeriodName: period.Name, Binding: period.Binding,
 		Children: holidayAcceptanceChildren(registration, holidayWeekLines(traeger, period)), TraegerText: period.AcceptanceMailText,
+		OrganizationID: organizationID,
 	})
 	if err != nil {
 		return fmt.Errorf("enrollment: encode holiday acceptance mail: %w", err)

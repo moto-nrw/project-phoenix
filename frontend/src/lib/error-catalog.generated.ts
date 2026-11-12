@@ -705,6 +705,8 @@ export const ERROR_CATALOG = {
         "Dieser Link gilt nicht mehr. Bitte fragen Sie die Schule nach einer neuen Einladung.",
       "identity.guardian_invitation_email_not_queued":
         "Die Einladung konnte gerade nicht verschickt werden. Bitte versuchen Sie es noch einmal.",
+      "identity.holiday_parent_setup_invalid":
+        "Dieser Link zum Elternkonto gilt nicht mehr. Haben Sie schon ein Konto? Dann melden Sie sich an. Sonst bitten Sie den Träger um einen neuen Link.",
       "identity.invalid_credentials":
         "Die E-Mail-Adresse oder das Passwort stimmt nicht. Bitte prüfen Sie Ihre Eingabe.",
       "identity.invitation_account_login_required":
@@ -2355,6 +2357,8 @@ export const ERROR_CATALOG = {
         "This link is no longer valid. Please ask the school for a new invitation.",
       "identity.guardian_invitation_email_not_queued":
         "The invitation could not be sent right now. Please try again.",
+      "identity.holiday_parent_setup_invalid":
+        "This link to the parent account is no longer valid. Do you already have an account? Then sign in. Otherwise ask the provider for a new link.",
       "identity.invalid_credentials":
         "The email address or the password is not correct. Please check your entry.",
       "identity.invitation_account_login_required":
@@ -2992,6 +2996,8 @@ export const ERROR_CATALOG = {
         "Эта ссылка больше не действует. Попросите школу прислать новое приглашение.",
       "identity.guardian_invitation_email_not_queued":
         "Сейчас не удалось отправить приглашение. Повторите попытку.",
+      "identity.holiday_parent_setup_invalid":
+        "Эта ссылка на родительский аккаунт больше не действует. У вас уже есть аккаунт? Тогда войдите. Иначе попросите у организатора новую ссылку.",
       "identity.invalid_credentials":
         "Неверный адрес электронной почты или пароль. Проверьте введённые данные.",
       "identity.invitation_account_login_required":
@@ -3570,6 +3576,8 @@ export const ERROR_CATALOG = {
         "Kjo lidhje nuk është më e vlefshme. Kërkojini shkollës një ftesë të re.",
       "identity.guardian_invitation_email_not_queued":
         "Ftesa nuk mund të dërgohej tani. Provoni përsëri.",
+      "identity.holiday_parent_setup_invalid":
+        "Kjo lidhje për llogarinë e prindit nuk vlen më. Keni tashmë një llogari? Atëherë hyni. Përndryshe kërkoni nga organizatori një lidhje të re.",
       "identity.invalid_credentials":
         "Adresa e email-it ose fjalëkalimi nuk është i saktë. Kontrolloni të dhënat.",
       "identity.invitation_account_login_required":
@@ -4137,6 +4145,8 @@ export const ERROR_CATALOG = {
         "Ten link jest już nieważny. Poproś szkołę o nowe zaproszenie.",
       "identity.guardian_invitation_email_not_queued":
         "Nie udało się teraz wysłać zaproszenia. Spróbuj ponownie.",
+      "identity.holiday_parent_setup_invalid":
+        "Ten link do konta rodzica już nie działa. Mają już Państwo konto? Proszę się zalogować. W przeciwnym razie proszę poprosić organizatora o nowy link.",
       "identity.invalid_credentials":
         "Adres e-mail lub hasło są nieprawidłowe. Sprawdź wpisane dane.",
       "identity.invitation_account_login_required":
@@ -4710,6 +4720,8 @@ export const ERROR_CATALOG = {
         "Bu bağlantı artık geçerli değil. Lütfen okuldan yeni bir davet isteyin.",
       "identity.guardian_invitation_email_not_queued":
         "Davet şu anda gönderilemedi. Yeniden deneyin.",
+      "identity.holiday_parent_setup_invalid":
+        "Veli hesabı için bu bağlantı artık geçerli değil. Zaten bir hesabınız var mı? O zaman giriş yapın. Yoksa kurumdan yeni bir bağlantı isteyin.",
       "identity.invalid_credentials":
         "E-posta adresi veya şifre doğru değil. Lütfen girdiğiniz bilgileri kontrol edin.",
       "identity.invitation_account_login_required":
@@ -5275,6 +5287,8 @@ export const ERROR_CATALOG = {
         "Це посилання більше не дійсне. Попросіть школу надіслати нове запрошення.",
       "identity.guardian_invitation_email_not_queued":
         "Зараз не вдалося надіслати запрошення. Спробуйте ще раз.",
+      "identity.holiday_parent_setup_invalid":
+        "Це посилання на батьківський обліковий запис більше не дійсне. У вас уже є обліковий запис? Тоді увійдіть. Інакше попросіть в організатора нове посилання.",
       "identity.invalid_credentials":
         "Неправильна адреса електронної пошти або пароль. Перевірте введені дані.",
       "identity.invitation_account_login_required":

@@ -126,6 +126,16 @@ export interface RegistrationDraft {
   readonly answers: Readonly<Record<string, unknown>>;
   /** Yes/no to the criteria of the family, by criterion ID (#4700). */
   readonly criteria?: Readonly<Record<string, boolean>>;
+  /**
+   * The answer to „Möchten Sie ein Elternkonto anlegen?“ (#6673); absent
+   * until the parent chose. Only asked without a parent session.
+   */
+  readonly parentAccountRequested?: boolean;
+  /**
+   * The sealed proof of the signed-in parent's account from the prefill
+   * (#6673, ADR 0216). With it the question is not asked.
+   */
+  readonly parentAccountProof?: string;
 }
 
 /** Hint of a refused field, translated, or undefined. */
@@ -211,7 +221,12 @@ export function registrationFromFamily(
   family: HolidayKnownFamily | null,
 ): RegistrationDraft {
   const draft = emptyRegistration();
-  return family ? { ...draft, guardian: { ...family.guardian } } : draft;
+  if (!family) return draft;
+  return {
+    ...draft,
+    guardian: { ...family.guardian },
+    ...(family.accountProof ? { parentAccountProof: family.accountProof } : {}),
+  };
 }
 
 function childFromKnown(
@@ -863,6 +878,13 @@ export function payloadFromDraft(
             draft.criteria,
           ),
         }
+      : {}),
+    // The account of a signed-in parent travels as its proof; anyone else
+    // answered the question at the end of the form (#6673).
+    parent_account_requested:
+      !draft.parentAccountProof && draft.parentAccountRequested === true,
+    ...(draft.parentAccountProof
+      ? { parent_account_proof: draft.parentAccountProof }
       : {}),
   };
 }

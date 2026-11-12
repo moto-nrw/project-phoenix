@@ -260,8 +260,9 @@ func (h *HolidayRegistrations) countHolidayAttempt(ctx context.Context, organiza
 }
 
 // SubmitHolidayRegistration checks and stores a registration, gives its
-// bookings their places and enqueues its receipt mail in the same Träger
-// transaction. It holds the period before reading its weeks and validating
+// bookings their places and enqueues its receipt mail, and the offer of a
+// parent account when the parent asked for one (ADR 0216), in the same
+// Träger transaction. It holds the period before reading its weeks and validating
 // the input, so a concurrent change of the booking unit cannot invalidate
 // the checked booking. The registration is inserted before locking weeks,
 // preserving the period-before-week order (#4699). The answers are checked
@@ -297,6 +298,7 @@ func (h *HolidayRegistrations) SubmitHolidayRegistration(ctx context.Context, li
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
 	input = normalizeHolidayRegistration(input)
+	input = h.resolveHolidayParentAccount(link, input)
 	input.BenefitsProofTokens = normalizeHolidayProofTokens(input.BenefitsProofTokens)
 	answers := sanitizeHolidayAnswers(form, decodeHolidayAnswers(input))
 	if err := h.validateBookable(ctx, input, period, form, answers, link.Traeger.Schools, today); err != nil {
@@ -359,6 +361,9 @@ func (h *HolidayRegistrations) storeSubmitted(ctx context.Context, link enrollme
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
 	if err := h.enqueueReceipt(ctx, link, period, form, input, receipt); err != nil {
+		return enrollment.HolidayRegistrationReceipt{}, err
+	}
+	if receipt.ParentAccountOffered, err = h.offerHolidayParentAccount(ctx, link, period, input, receipt.ID); err != nil {
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
 	return receipt, nil

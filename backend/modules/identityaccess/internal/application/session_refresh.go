@@ -85,8 +85,15 @@ func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, ref
 		return nil, failed("generate tokens", err)
 	}
 	// Filed at the school the successor is kept at, which the refresh
-	// validated: the route carries no tenant.
-	s.auditSession(ctx, rotated.account.ID, mintAudit{event: domain.AuthEventTokenRefresh, ipAddress: ipAddress, userAgent: userAgent, schoolID: rotated.newSession.TenantID})
+	// validated: the route carries no tenant. A parent session at a Träger
+	// has none, and its account may have none either (ADR 0216).
+	audit := &mintAudit{event: domain.AuthEventTokenRefresh, ipAddress: ipAddress, userAgent: userAgent, schoolID: rotated.newSession.TenantID}
+	if rotated.newSession.SessionKind() == domain.SessionKindTraegerParent {
+		audit = s.schoollessAudit(ctx, rotated.account.ID, domain.AuthEventTokenRefresh, ipAddress, userAgent)
+	}
+	if audit != nil {
+		s.auditSession(ctx, rotated.account.ID, *audit)
+	}
 	return &refreshResult{accessToken: accessToken, refreshToken: refreshTokenString}, nil
 }
 

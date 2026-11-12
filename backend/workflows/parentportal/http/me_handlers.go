@@ -95,9 +95,8 @@ func (rs *Resource) updateMyProfile(w http.ResponseWriter, r *http.Request) {
 
 	profile, err := rs.ParentService.UpdatePortalLocale(r.Context(), int64(claims.ID), req.PortalLocale)
 	if err != nil {
-		// An authenticated parent always has a linked guardian_profiles row, so
-		// a missing one is a permanent state conflict (corruption), not a
-		// transient server fault — surface it as 409 rather than 500. The
+		// A composition without account-locale persistence still requires a
+		// guardian profile. Surface its absence as a state conflict; the
 		// service already logged the account_id.
 		if errors.Is(err, parentService.ErrGuardianProfileNotFound) {
 			common.RenderError(w, r, common.ErrorConflict(err))

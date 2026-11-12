@@ -2,7 +2,7 @@
   "registerVersion": 1,
   "formatVersion": 1,
   "catalogVersion": 1,
-  "catalogSHA256": "a1362317919d6ed6c54815954fce8f386cc15940ff67cada69016e60bd72a4d8",
+  "catalogSHA256": "a98848b8bdd3b916ad017afe633661ca5aed028f71483c0d4807255a4aada33d",
   "about": "Dieses Register beschreibt das Rückgabepaket von moto: welche Tabellen und Felder es enthält, welche Typen sie haben, ob sie leer sein dürfen und wie die Tabellen verbunden sind. Es enthält keine Kundendaten. Jedes Paket enthält dieselbe Beschreibung für seine Tabellen als model.json. formatVersion und catalogSHA256 stehen auch in der manifest.json des Pakets.",
   "standards": [
     {
@@ -6592,6 +6592,12 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": true
+        },
+        {
+          "name": "portal_locale",
+          "type": "text",
+          "udt": "text",
+          "nullable": true
         }
       ],
       "relationships": null,
@@ -8064,6 +8070,45 @@
       "excludedColumns": {
         "token": "Authentication or operational secret/credential material; not customer export content."
       }
+    },
+    {
+      "name": "auth.traeger_parent_access",
+      "columns": [
+        {
+          "name": "account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "relationships": [
+        {
+          "column": "account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "platform.organizations",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ]
     },
     {
       "name": "calendar.appointment_occurrence_overrides",
@@ -14986,6 +15031,18 @@
           "nullable": false
         },
         {
+          "name": "parent_account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "parent_account_requested",
+          "type": "boolean",
+          "udt": "bool",
+          "nullable": false
+        },
+        {
           "name": "health",
           "type": "text",
           "udt": "text",
@@ -15021,6 +15078,11 @@
         {
           "column": "organization_id",
           "targetTable": "platform.organizations",
+          "targetColumn": "id"
+        },
+        {
+          "column": "parent_account_id",
+          "targetTable": "auth.accounts",
           "targetColumn": "id"
         }
       ],

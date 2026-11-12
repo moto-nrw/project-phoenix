@@ -6099,6 +6099,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (a holidayAcceptanceAccounts) HolidayParentSetupURL(address string, organizationID int64) (string, error) {\n\tif a.links == nil {\n\t\treturn \"\", nil\n\t}\n\tlink, err := a.links.HolidayParentAccountLink(address, organizationID)\n\treturn link.SetupURL, err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/holidayAcceptanceAccounts.HolidayParentSetupURL",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (p holidayGuestPeople) SetHolidayGuestHealthInfo(ctx context.Context, studentID int64, healthInfo *string) error {\n\treturn p.directory.ApplyEnrollmentProfile(ctx, studentID, peopleEnrollment.ProfilePatch{HealthInfoSet: true, HealthInfo: healthInfo})\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/holidayGuestPeople.SetHolidayGuestHealthInfo",
@@ -6123,6 +6130,13 @@
       "evidence": "func (p holidayOwnChildPlans) HolidayOwnChildPickups(ctx context.Context, from calendar.Date) ([]enrollment.HolidayOwnChildException, error) {\n\trows, err := p.care.ListPickupExceptions(ctx, careplan.StudentScheduleFilter{From: careplan.Date(from)})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]enrollment.HolidayOwnChildException, 0, len(rows))\n\tfor _, row := range rows {\n\t\tresult = append(result, enrollment.HolidayOwnChildException{ID: row.ID, StudentID: row.StudentID, Day: calendar.Date(row.ExceptionDate), Reason: row.Reason, Excused: row.ExcusedFrom != nil})\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/holidayOwnChildPlans.HolidayOwnChildPickups",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (l holidayParentAccountLinks) HolidayParentAccountLink(email string, organizationID int64) (enrollmentOwner.HolidayParentAccountLink, error) {\n\tif l.setups == nil || l.parentsURL == \"\" {\n\t\treturn enrollmentOwner.HolidayParentAccountLink{}, errors.New(\"holiday registration: the setup link of a parent account is not configured\")\n\t}\n\ttoken, err := l.setups.IssueHolidayParentSetupToken(email, organizationID)\n\tif err != nil {\n\t\treturn enrollmentOwner.HolidayParentAccountLink{}, err\n\t}\n\treturn enrollmentOwner.HolidayParentAccountLink{SetupURL: l.parentsURL + \"/ferienkonto/\" + url.PathEscape(token), LoginURL: l.parentsURL + \"/login\"}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/holidayParentAccountLinks.HolidayParentAccountLink",
       "owner": "roots"
     },
     {

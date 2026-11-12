@@ -111,6 +111,11 @@ func TestDemoSchoolQueueErasesTheProfileAndAvatarFilesOfAnAnonymizedVisitor(t *t
 	accounts := leaveVisitorTraces(t, db, schoolID)
 	onlyInSchools(t, db, accounts.caregiver, schoolID)
 	onlyInSchools(t, db, accounts.parent, schoolID, realID)
+	organization := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{Name: "Retention", Slug: fmt.Sprintf("retention-%d", testpkg.UniqueTestTenantID(t))})
+	_, err := db.ExecContext(ctx, `INSERT INTO auth.traeger_parent_access (account_id, organization_id, created_at)
+		VALUES (?, ?, NOW() - INTERVAL '31 days'), (?, ?, NOW() - INTERVAL '31 days')`, accounts.caregiver, organization.ID, accounts.parent, organization.ID)
+	require.NoError(t, err)
+
 	avatar := func(kind string, accountID int64) string {
 		return fmt.Sprintf("/uploads/avatars/demo-%s-%d.png", kind, accountID)
 	}
@@ -142,6 +147,10 @@ func TestDemoSchoolQueueErasesTheProfileAndAvatarFilesOfAnAnonymizedVisitor(t *t
 		assert.Zero(t, caregiver, "%s of the anonymized account is deleted", table)
 		assert.Equal(t, 1, parent, "%s of the shared account stays", table)
 	}
+	var accessAccounts []int64
+	require.NoError(t, db.NewRaw(`SELECT account_id FROM auth.traeger_parent_access WHERE organization_id = ?`, organization.ID).Scan(ctx, &accessAccounts))
+	assert.Equal(t, []int64{accounts.parent}, accessAccounts, "only the anonymized visitor loses the Träger access")
+
 	var kept string
 	require.NoError(t, db.NewRaw(`SELECT avatar FROM auth.accounts WHERE id = ?`, accounts.parent).Scan(ctx, &kept))
 	assert.Equal(t, avatar("account", accounts.parent), kept)

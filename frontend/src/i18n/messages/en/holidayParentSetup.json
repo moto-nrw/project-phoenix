@@ -1,0 +1,17 @@
+{
+  "newTitle": "Create parent account",
+  "newSubtitle": "Set your password. Then you see your holiday registrations with {traeger}.",
+  "accountFor": "Account for",
+  "submit": "Create account",
+  "submitting": "Creating …",
+  "doneTitle": "Your parent account is ready",
+  "doneText": "Now sign in with {email} and your new password.",
+  "login": "Sign in",
+  "opening": "One moment …",
+  "existsTitle": "You already have a parent account",
+  "existsSubtitle": "Sign in. Then you also see your holiday registrations with {traeger}.",
+  "invalidTitle": "This link is no longer valid",
+  "invalidText": "The link has expired or is incomplete.",
+  "invalidNext": "Do you already have a parent account? Then sign in. Otherwise ask the provider for a new link.",
+  "errorObject": "your parent account"
+}

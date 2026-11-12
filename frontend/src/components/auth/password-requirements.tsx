@@ -7,14 +7,15 @@ import { InsetPanel } from "~/components/ui/inset-panel";
  */
 export function PasswordRequirements({
   requirements,
+  title = "Passwortanforderungen",
 }: Readonly<{
   requirements: readonly { readonly label: string; readonly met: boolean }[];
+  /** Translated heading; the staff portals keep the German default. */
+  title?: string;
 }>) {
   return (
     <InsetPanel framed>
-      <p className="mb-2 text-xs font-medium text-gray-700">
-        Passwortanforderungen
-      </p>
+      <p className="mb-2 text-xs font-medium text-gray-700">{title}</p>
       <div className="grid grid-cols-2 gap-x-3 gap-y-1.5">
         {requirements.map((requirement) => (
           <div

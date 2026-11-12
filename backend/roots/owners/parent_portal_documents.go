@@ -178,12 +178,17 @@ func (t parentSchoolTraeger) TraegerOfSchools(ctx context.Context, schoolIDs []i
 
 // parentAccounts binds the address of an account to Identity & Access.
 type parentAccounts struct {
+	identityaccess.AccountPortalLocales
 	accounts identityaccess.GuardianAccessQuery
 }
 
 // NewParentAccounts binds the accounts of the inbox.
 func NewParentAccounts(accounts identityaccess.GuardianAccessQuery) parentportal.ParentAccountsPort {
-	return parentAccounts{accounts: accounts}
+	locales, ok := accounts.(identityaccess.AccountPortalLocales)
+	if !ok {
+		panic("parent accounts: account portal locales are required")
+	}
+	return parentAccounts{accounts: accounts, AccountPortalLocales: locales}
 }
 
 func (a parentAccounts) AccountEmail(ctx context.Context, accountID int64) (string, error) {

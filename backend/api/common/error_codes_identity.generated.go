@@ -23,6 +23,7 @@ const CodeIdentityEmailChangeSameEmail = "identity.email_change_same_email"
 const CodeIdentityGuardianEmailAddressBlocked = "identity.guardian_email_address_blocked"
 const CodeIdentityGuardianInvitationAddressChanged = "identity.guardian_invitation_address_changed"
 const CodeIdentityGuardianInvitationEmailNotQueued = "identity.guardian_invitation_email_not_queued"
+const CodeIdentityHolidayParentSetupInvalid = "identity.holiday_parent_setup_invalid"
 const CodeIdentityInvalidCredentials = "identity.invalid_credentials"
 const CodeIdentityInvitationAccountLoginRequired = "identity.invitation_account_login_required"
 const CodeIdentityInvitationAccountMismatch = "identity.invitation_account_mismatch"
@@ -85,6 +86,7 @@ var errorCodeClassesIdentity = []errorCodeClass{
 	{CodeIdentityGuardianEmailAddressBlocked, "business_rejection"},
 	{CodeIdentityGuardianInvitationAddressChanged, "business_rejection"},
 	{CodeIdentityGuardianInvitationEmailNotQueued, "unavailable"},
+	{CodeIdentityHolidayParentSetupInvalid, "business_rejection"},
 	{CodeIdentityInvalidCredentials, "input"},
 	{CodeIdentityInvitationAccountLoginRequired, "permission"},
 	{CodeIdentityInvitationAccountMismatch, "permission"},
