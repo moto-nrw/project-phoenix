@@ -1,6 +1,5 @@
 #!/usr/bin/env bash
-# Keeps a restored Go build cache (or golangci-lint cache) to the entries one
-# run actually uses.
+# Keeps a restored Go build cache to the entries one run actually uses.
 #
 #   go-cache-sweep.sh mark  MARKER DIR...   before the run
 #   go-cache-sweep.sh sweep MARKER DIR...   after the run
@@ -11,11 +10,13 @@
 # 2.2 GB to 9.65 GB in twelve hours of development pushes, and restoring it
 # took 75 s instead of 15 s in every pull request (#6784).
 #
-# Go and golangci-lint refresh an entry's mtime when they use it, if the mtime
+# Go refreshes an entry's mtime when it uses it, if the mtime
 # is at least an hour old (markUsed in cmd/go/internal/cache). "mark" backdates
 # every entry and stamps MARKER; "sweep" deletes the entries the run did not
 # touch or write since. Only the entry directories 00..ff are touched, never
 # the README, trim.txt or the fuzz corpus.
+# Do not use this for golangci-lint's analyzer cache: cached issue results
+# skip dependency analysis, leaving reusable dependency facts unread.
 set -euo pipefail
 
 usage() {

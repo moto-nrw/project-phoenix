@@ -20,6 +20,7 @@ on:
       - 'scripts/backend-architecture/**'
       - 'scripts/backend-test-matrix.sh'
       - 'scripts/go-cache-sweep.sh'
+      - 'scripts/go-lint-cache-sweep_test.sh'
       - '.github/workflows/backend-build-cache.yml'
       # Part of the lint cache key below.
       - '.github/workflows/lint.yml'
@@ -159,10 +160,12 @@ jobs:
           key: ${{ steps.lint-cache-key.outputs.key }}
           restore-keys: ${{ steps.lint-cache-key.outputs.prefix }}
 
-      # Same growth as the build cache above.
-      - name: Mark restored lint cache entries
+      # Prune only the Go build cache. A warm lint can load cached issues
+      # without reading their dependency facts, so unread analyzer entries
+      # are not necessarily stale. Leave golangci-lint's own expiry intact.
+      - name: Mark restored lint build cache entries
         if: steps.lint-cache.outputs.cache-hit != 'true'
-        run: scripts/go-cache-sweep.sh mark "$RUNNER_TEMP/lint-cache-marker" ~/.cache/go-build ~/.cache/golangci-lint
+        run: scripts/go-cache-sweep.sh mark "$RUNNER_TEMP/lint-cache-marker" ~/.cache/go-build
 
       # The findings are the pull request's business; this run only fills the
       # cache. A finding on development must not keep the entry from saving.
@@ -177,11 +180,16 @@ jobs:
           working-directory: backend
           skip-cache: true
 
+      # The action above also puts the pinned golangci-lint on PATH.
+      - name: Test lint dependency fact reuse after sweeping
+        if: steps.lint-cache.outputs.cache-hit != 'true' && steps.lint.outcome == 'success'
+        run: scripts/go-lint-cache-sweep_test.sh
+
       # Only after a complete lint: a run that stopped early used too few
       # entries, and the next pull request would lint cold.
-      - name: Drop lint cache entries this lint did not use
+      - name: Drop lint build cache entries this lint did not use
         if: steps.lint-cache.outputs.cache-hit != 'true' && steps.lint.outcome == 'success'
-        run: scripts/go-cache-sweep.sh sweep "$RUNNER_TEMP/lint-cache-marker" ~/.cache/go-build ~/.cache/golangci-lint
+        run: scripts/go-cache-sweep.sh sweep "$RUNNER_TEMP/lint-cache-marker" ~/.cache/go-build
 
       - name: Save backend lint cache
         if: steps.lint-cache.outputs.cache-hit != 'true'
