@@ -502,6 +502,7 @@ var tableRetentions = map[string]tableRetention{
 	"users.student_family_protection_events":                parent("users.student_profiles"),
 	"users.student_guardian_pickup_permissions":             parent("users.student_guardian_relationships"),
 	"users.student_guardian_relationships":                  parent("users.student_profiles"),
+	"users.student_note_team_notices":                       parent("users.student_notes"),
 	"users.student_notes":                                   parent("users.student_profiles"),
 	"users.student_profiles":                                own("nightly retention step student_retention, Retention.DeleteExpiredStudents -> student deletion workflow (school window after the last care day, #3962)"),
 	"users.student_school_memberships":                      parent("users.student_profiles"),
