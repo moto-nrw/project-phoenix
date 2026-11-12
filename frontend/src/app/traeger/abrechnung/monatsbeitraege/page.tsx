@@ -239,7 +239,7 @@ export default function TraegerMonatsbeitraegePage() {
             initialMonth={data.list.suggestedMonth}
             onClose={() => setStarting(false)}
             onStart={startCareRun}
-            onStarted={(run) => {
+            onStarted={(run: CareRun) => {
               setStarting(false);
               openRun(run);
             }}

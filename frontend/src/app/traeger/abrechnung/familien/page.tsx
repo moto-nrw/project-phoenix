@@ -15,6 +15,7 @@
 import { Pencil, Plus } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useState } from "react";
+import type { MouseEvent } from "react";
 import {
   BillingAmountCards,
   sumAmounts,
@@ -180,7 +181,9 @@ function familyColumns(
                 <NavigationLink
                   href={familyHref(family)}
                   className="truncate font-medium text-gray-900 hover:underline"
-                  onClick={(event) => event.stopPropagation()}
+                  onClick={(event: MouseEvent<HTMLAnchorElement>) =>
+                    event.stopPropagation()
+                  }
                 >
                   {familyName(family) || family.familyEmail}
                 </NavigationLink>
