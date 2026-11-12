@@ -106,6 +106,8 @@
   "doneTitle": "Twoje zgłoszenie dotarło",
   "doneText": "Wyślemy potwierdzenie na adres {email}.",
   "doneNext": "To jeszcze nie jest potwierdzenie miejsca. Organizator sprawdzi zgłoszenie i napisze, czy dziecko dostanie miejsce.",
+  "doneToStatus": "Zobacz stan",
+  "doneStatusHint": "Link do stanu dostaniesz też e-mailem. Nie przekazuj go dalej.",
   "placementHeading": "Miejsca",
   "placementPlaced": "Miejsce zarezerwowane",
   "placementWaitlisted": "Lista oczekujących",

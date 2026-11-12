@@ -512,9 +512,10 @@ describe("HolidayRegistrationForm", () => {
   });
 
   it("asks the criteria as required yes/no questions and names the open place (#4700)", async () => {
-    mockSubmit.mockResolvedValue([
-      { childPosition: 1, weekId: "11", placement: "pending" },
-    ]);
+    mockSubmit.mockResolvedValue({
+      placements: [{ childPosition: 1, weekId: "11", placement: "pending" }],
+      statusToken: "",
+    });
     renderForm(null, {
       ...offer,
       allocationMode: "criteria",
@@ -613,7 +614,7 @@ describe("HolidayRegistrationForm", () => {
             errors: [{ field, reason: "answer yes or no" }],
           }),
         )
-        .mockResolvedValue([]);
+        .mockResolvedValue({ placements: [], statusToken: "" });
       const reload = vi.fn(async () => {
         view.rerender(
           <NextIntlClientProvider locale="de" messages={deMessages}>
@@ -1759,7 +1760,7 @@ describe("HolidayRegistrationForm parent account (#6673)", () => {
     screen.getByRole("group", { name: /Möchten Sie ein Elternkonto anlegen/ });
 
   it("asks without a preselection and holds the send until the parent answers", async () => {
-    mockSubmit.mockResolvedValue([]);
+    mockSubmit.mockResolvedValue({ placements: [], statusToken: "" });
     renderWithAccount("ask");
     await toSummary();
 
@@ -1812,8 +1813,28 @@ describe("HolidayRegistrationForm parent account (#6673)", () => {
     expect(mockInvalidate).not.toHaveBeenCalled();
   });
 
+  it("links the status page of the sent registration (#6676)", async () => {
+    mockSubmit.mockResolvedValue({ placements: [], statusToken: "st4tus" });
+    renderWithAccount("ask");
+    await toSummary();
+    fireEvent.click(within(question()).getByRole("radio", { name: "Nein" }));
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+
+    expect(
+      await screen.findByRole("link", { name: "Stand ansehen" }),
+    ).toHaveAttribute("href", "/ferienanmeldung/status/st4tus");
+    expect(
+      screen.getByText(
+        "Den Link zum Stand bekommen Sie auch per E-Mail. Geben Sie ihn nicht weiter.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("keeps the answer over Zurück, names the address and announces the second mail", async () => {
-    mockSubmit.mockResolvedValue([]);
+    mockSubmit.mockResolvedValue({ placements: [], statusToken: "" });
     renderWithAccount("ask");
     await toSummary();
 
@@ -1853,7 +1874,7 @@ describe("HolidayRegistrationForm parent account (#6673)", () => {
   });
 
   it("asks a signed-in parent nothing, sends the account's proof and leads back to the app", async () => {
-    mockSubmit.mockResolvedValue([]);
+    mockSubmit.mockResolvedValue({ placements: [], statusToken: "" });
     renderWithAccount("signed-in", { ...family, accountProof: "sealed-proof" });
     await toSummary();
 

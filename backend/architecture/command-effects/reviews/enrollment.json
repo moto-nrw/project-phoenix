@@ -2412,6 +2412,16 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.HolidayRegistrations.SubmitHolidayRegistration",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayRegistrations.SubmitHolidayRegistration",
+      "reason": "Read-only target: enrollment reaches modules/securityruntime.FillRandom (security-runtime) through modules/enrollment/internal/application.HolidayRegistrations.SubmitHolidayRegistration for the token of the registration's status link (#6676). No persistent, lock or scope effect, like the token of a proof of benefits (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.HolidayRegistrations.UploadHolidayProof",
       "classification": "query",
       "effect": "query",

@@ -106,6 +106,8 @@
   "doneTitle": "Ihre Anmeldung ist eingegangen",
   "doneText": "Wir schicken Ihnen eine Bestätigung an {email}.",
   "doneNext": "Das ist noch keine Zusage. Der Träger prüft die Anmeldung und schreibt Ihnen, ob Ihr Kind einen Platz bekommt.",
+  "doneToStatus": "Stand ansehen",
+  "doneStatusHint": "Den Link zum Stand bekommen Sie auch per E-Mail. Geben Sie ihn nicht weiter.",
   "placementHeading": "Plätze",
   "placementPlaced": "Platz reserviert",
   "placementWaitlisted": "Warteliste",

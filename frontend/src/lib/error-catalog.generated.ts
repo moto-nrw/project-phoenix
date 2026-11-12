@@ -519,6 +519,8 @@ export const ERROR_CATALOG = {
         "Diesen Anmeldelink gibt es nicht. Bitte nutzen Sie den Link, den Sie vom Träger bekommen haben.",
       "enrollment.holiday_registration_state_conflict":
         "Das geht bei dieser Anmeldung gerade nicht. Bitte laden Sie die Seite neu.",
+      "enrollment.holiday_registration_status_not_found":
+        "Diesen Link zu einer Ferienanmeldung gibt es nicht. Bitte nutzen Sie den Link aus Ihrer E-Mail.",
       "enrollment.holiday_week_booked":
         "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen. Ein gebuchtes Zeitmodell können Sie archivieren. Dann kann es niemand mehr neu buchen.",
       "enrollment.holiday_week_day_limit":
@@ -2308,6 +2310,8 @@ export const ERROR_CATALOG = {
         "This registration link does not exist. Please use the link you received from the provider.",
       "enrollment.holiday_registration_state_conflict":
         "This is not possible for this registration right now. Please reload the page.",
+      "enrollment.holiday_registration_status_not_found":
+        "This link to a holiday registration does not exist. Please use the link from your email.",
       "enrollment.holiday_week_booked":
         "This week already has registrations. That is why the week and its booked time models cannot be removed. You can archive a booked time model instead. Then nobody can book it any more.",
       "enrollment.holiday_week_day_limit":
@@ -2976,6 +2980,8 @@ export const ERROR_CATALOG = {
         "Пожалуйста, проверьте отмеченные поля.",
       "enrollment.holiday_registration_not_found":
         "Такой ссылки для записи нет. Пожалуйста, используйте ссылку, которую вы получили от организатора.",
+      "enrollment.holiday_registration_status_not_found":
+        "Такой ссылки на запись на каникулы нет. Пожалуйста, используйте ссылку из письма.",
       "enrollment.holiday_week_no_care_day":
         "{date} присмотра нет ({name}). Эту неделю нельзя забронировать.",
       "enrollment.holiday_wish_missing":
@@ -3572,6 +3578,8 @@ export const ERROR_CATALOG = {
         "Ju lutemi kontrolloni fushat e shënuara.",
       "enrollment.holiday_registration_not_found":
         "Kjo lidhje regjistrimi nuk ekziston. Ju lutemi përdorni lidhjen që morët nga organizatori.",
+      "enrollment.holiday_registration_status_not_found":
+        "Kjo lidhje për regjistrimin e pushimeve nuk ekziston. Ju lutemi përdorni lidhjen nga emaili juaj.",
       "enrollment.holiday_week_no_care_day":
         "Më {date} nuk ka kujdes ({name}). Kjo javë nuk mund të rezervohet.",
       "enrollment.holiday_wish_missing":
@@ -4161,6 +4169,8 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_registration_invalid": "Sprawdź zaznaczone pola.",
       "enrollment.holiday_registration_not_found":
         "Ten link do zgłoszenia nie istnieje. Użyj linku, który dostałeś od organizatora.",
+      "enrollment.holiday_registration_status_not_found":
+        "Ten link do zgłoszenia na ferie nie istnieje. Użyj linku z e-maila.",
       "enrollment.holiday_week_no_care_day":
         "W dniu {date} nie ma opieki ({name}). Tego tygodnia nie można zarezerwować.",
       "enrollment.holiday_wish_missing":
@@ -4754,6 +4764,8 @@ export const ERROR_CATALOG = {
         "Lütfen işaretli alanları kontrol edin.",
       "enrollment.holiday_registration_not_found":
         "Bu kayıt bağlantısı mevcut değil. Lütfen kurumdan aldığınız bağlantıyı kullanın.",
+      "enrollment.holiday_registration_status_not_found":
+        "Bu tatil kaydı bağlantısı mevcut değil. Lütfen e-postanızdaki bağlantıyı kullanın.",
       "enrollment.holiday_week_no_care_day":
         "{date} tarihinde bakım yok ({name}). Bu hafta rezerve edilemez.",
       "enrollment.holiday_wish_missing":
@@ -5339,6 +5351,8 @@ export const ERROR_CATALOG = {
         "Будь ласка, перевірте позначені поля.",
       "enrollment.holiday_registration_not_found":
         "Такого посилання для запису немає. Будь ласка, скористайтеся посиланням, яке ви отримали від організатора.",
+      "enrollment.holiday_registration_status_not_found":
+        "Такого посилання на запис на канікули немає. Будь ласка, скористайтеся посиланням з листа.",
       "enrollment.holiday_week_no_care_day":
         "{date} догляду немає ({name}). Цей тиждень не можна забронювати.",
       "enrollment.holiday_wish_missing":

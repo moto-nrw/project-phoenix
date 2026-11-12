@@ -5,7 +5,8 @@ import { HELP_TOPICS } from "~/lib/help-topics";
  * `/ferienanmeldung/<link>` (#4661): der Link eines Trägers, ohne Konto, oder
  * die Karte `Ferienbetreuung` auf der Startseite der Eltern-App (#6671).
  * Die Frage nach dem Elternkonto, die zweite E-Mail und der Stand unter
- * `Ferienanmeldungen` (#6673).
+ * `Ferienanmeldungen` (#6673). Der Stand über den Link der E-Mail, ohne
+ * Konto (#6676).
  */
 export function parentHolidayRegistrationTopic(): HelpTopic {
   return {
@@ -44,13 +45,14 @@ export function parentHolidayRegistrationTopic(): HelpTopic {
       "Wählen Sie dann `Anmeldung absenden`.",
     ],
     result:
-      "Sie bekommen eine E-Mail: Die Anmeldung ist eingegangen. Das ist noch keine Zusage. Der Träger schreibt Ihnen, ob Ihr Kind einen Platz bekommt. In der E-Mail steht auch `Ihre Erklärung` mit dem genauen Text. Heben Sie die E-Mail auf. In der Eltern-App sehen Sie den Stand unter `Ferienanmeldungen`.",
+      "Sie bekommen eine E-Mail: Die Anmeldung ist eingegangen. Das ist noch keine Zusage. Der Träger schreibt Ihnen, ob Ihr Kind einen Platz bekommt. In der E-Mail steht auch `Ihre Erklärung` mit dem genauen Text. Heben Sie die E-Mail auf. Mit `Stand ansehen` in der E-Mail sehen Sie jederzeit, wie weit Ihre Anmeldung ist. In der Eltern-App sehen Sie den Stand unter `Ferienanmeldungen`.",
     notes: [
       "Achtet der Träger auf den Ferienwunsch aus der OGS-Anmeldung, steht das über den Kindern. Mit Elternkonto sehen Sie beim Kind, was in der OGS-Anmeldung steht.",
       "Ein Elternkonto brauchen Sie nicht. Mit Konto sehen Sie in der Eltern-App den Stand der Anmeldung, die Bestätigung und die Rechnung.",
       "Haben Sie bei `Möchten Sie ein Elternkonto anlegen?` `Ja` gewählt? Dann bekommen Sie eine zweite E-Mail. Öffnen Sie den Link darin. Legen Sie zweimal Ihr Passwort fest und wählen Sie `Konto anlegen`. Danach wählen Sie `Anmelden`.",
       "Haben Sie schon ein Elternkonto? Dann steht nach dem Link `Sie haben schon ein Elternkonto`. Wählen Sie `Anmelden`. Ihr Passwort bleibt gleich.",
       "Unter `Ferienanmeldungen` steht jede Anmeldung mit ihrem Stand: `Eingegangen`, `Bestätigt` oder `Storniert`. Bei jedem Kind sehen Sie die Wochen mit `Platz reserviert`, `Warteliste` oder `Platz offen`. Auf der Startseite steht dazu die Karte `Ihre Ferienanmeldungen`.",
+      "Den Stand sehen Sie auch ohne Elternkonto. Wählen Sie nach dem Absenden oder in der E-Mail `Stand ansehen`. Die Seite zeigt `Eingegangen`, `Bestätigt` oder `Storniert` und bei jedem Kind die Wochen mit ihrem Platz. Ändern können Sie dort nichts. Geben Sie den Link nicht weiter.",
       "Ist die Anmeldung bestätigt, finden Sie die Bestätigung und die Rechnung unter `Dokumente`.",
       "Vergibt der Träger die Plätze nach festen Regeln? Dann steht im Formular `Fragen für die Platzvergabe`. Beantworten Sie jede Frage mit Ja oder Nein. Das Büro kann nach einem Nachweis fragen. Nach dem Absenden steht bei jeder Woche `Platz offen`. Das Büro vergibt die Plätze. Sie bekommen eine E-Mail.",
       "Nach dem Absenden sehen Sie bei jeder Woche `Platz` oder `Warteliste`. Ist eine Woche voll, steht Ihr Kind dort auf der Warteliste. Wird ein Platz frei, bekommt Ihr Kind ihn automatisch. Sie bekommen dann eine E-Mail. Bei einer verbindlichen Anmeldung ist auch dieser Platz verbindlich.",
@@ -79,6 +81,7 @@ export function parentHolidayRegistrationTopic(): HelpTopic {
       "moto meldet zu viele Tage je Kind? Die Grenze gilt für alle Anmeldungen des Kindes zusammen. Bitte wählen Sie weniger Tage oder fragen Sie das Träger-Büro. Der Hinweis zeigt keine Tage aus anderen Anmeldungen.",
       "moto sagt, die Anmeldung sei nicht offen? Oben auf der Seite stehen die Tage, an denen Sie anmelden können.",
       "moto sagt, den Anmeldelink gebe es nicht? Fragen Sie den Träger nach dem richtigen Link.",
+      "Steht nach `Stand ansehen` `Wir finden diese Anmeldung nicht`? Öffnen Sie den Link noch einmal aus der E-Mail. Nach den Ferien löscht der Träger die Anmeldung. Dann gilt auch der Link nicht mehr.",
       "Der Link zum Elternkonto gilt nicht mehr? Er gilt 30 Tage. Haben Sie schon ein Konto, melden Sie sich an. Sonst bitten Sie den Träger um einen neuen Link.",
       "Sie sehen eine Anmeldung nicht unter `Ferienanmeldungen`? Dort stehen Anmeldungen mit der E-Mail-Adresse Ihres Kontos. Haben Sie eine andere Adresse eingetragen, fragen Sie den Träger.",
     ],

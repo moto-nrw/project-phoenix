@@ -148,6 +148,7 @@
   "holiday_registration_invalid": "Ju lutemi kontrolloni fushat e shënuara.",
   "holiday_registration_not_found": "Kjo lidhje regjistrimi nuk ekziston. Ju lutemi përdorni lidhjen që morët nga organizatori.",
   "holiday_registration_state_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "holiday_registration_status_not_found": "Kjo lidhje për regjistrimin e pushimeve nuk ekziston. Ju lutemi përdorni lidhjen nga emaili juaj.",
   "holiday_week_booked": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "holiday_booking_unit_booked": "Për këtë javë ka tashmë regjistrime. Prandaj mënyra e rezervimit dhe, për ditët e veçanta, edhe datat e javës mbeten siç janë.",
   "holiday_child_day_limit": "Në këto pushime një fëmijë mund të vijë më së shumti {limit} ditë. Gjithsej do të ishin {days} ditë. Ditë në regjistrime të tjera: {elsewhere}. Ju lutemi zgjidhni më pak ditë.",

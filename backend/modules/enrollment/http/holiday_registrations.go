@@ -60,6 +60,7 @@ func NewHolidayRegistrationResource(registrations capability.HolidayRegistration
 func (rs *HolidayRegistrationResource) Router() chi.Router {
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
+	r.Get("/status/{statusToken}", rs.status)
 	r.Get("/{token}", rs.offer)
 	r.Get("/{token}/documents/{documentId}", rs.document)
 	r.Post("/{token}", rs.submit)
@@ -289,6 +290,9 @@ type HolidayRegistrationReceiptResponse struct {
 	// ParentAccountOffered never leaves in this answer: the answer is the
 	// same whether or not the parent asked for an account.
 	ParentAccountOffered bool `json:"-"`
+	// StatusToken opens the status page of the registration (#6676), which
+	// the confirmation links to.
+	StatusToken string `json:"status_token"`
 }
 
 // seedHolidayReceiptResponse is the answer the local seeder alone receives:
@@ -479,6 +483,8 @@ func renderHolidayRegistrationError(w http.ResponseWriter, r *http.Request, err 
 			common.CodeEnrollmentHolidayChildDayLimitPublic, map[string]any{"limit": dayLimit.Limit, "child": dayLimit.Child + 1}))
 	case errors.As(err, &fields):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentHolidayRegistrationInvalid))
+	case errors.Is(err, capability.ErrHolidayRegistrationStatusNotFound):
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentHolidayRegistrationStatusNotFound))
 	case errors.Is(err, capability.ErrHolidayRegistrationNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentHolidayRegistrationNotFound))
 	case errors.Is(err, capability.ErrHolidayRegistrationClosed):
