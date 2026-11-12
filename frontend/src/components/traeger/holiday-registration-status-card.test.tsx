@@ -1084,6 +1084,9 @@ describe("HolidayRegistrationStatusCard", () => {
       expect(keep).toHaveTextContent(
         "Nur diese Anmeldung bekommt 99. Die Familie behält 10 4711.",
       );
+      // The refused confirmation is over: the choice and the way back work.
+      expect(keep).toBeEnabled();
+      expect(screen.getByRole("button", { name: "Abbrechen" })).toBeEnabled();
       fireEvent.click(keep);
 
       await waitFor(() => expect(onReload).toHaveBeenCalled());
@@ -1157,11 +1160,11 @@ describe("HolidayRegistrationStatusCard", () => {
           name: "Welche Debitorennummer gilt?",
         }),
       ).toBeInTheDocument();
-      fireEvent.click(
-        screen.getByRole("button", {
-          name: /Neue Nummer für die Familie merken/,
-        }),
-      );
+      const replace = screen.getByRole("button", {
+        name: /Neue Nummer für die Familie merken/,
+      });
+      expect(replace).toBeEnabled();
+      fireEvent.click(replace);
 
       await waitFor(() =>
         expect(mockChangeDebtorNumber).toHaveBeenCalledTimes(2),

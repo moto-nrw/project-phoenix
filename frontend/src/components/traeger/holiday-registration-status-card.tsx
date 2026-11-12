@@ -215,6 +215,8 @@ function DebtorNumberField({
       // A number that differs from the family's needs a choice (#6692).
       const differs = familyDebtorNumberConflictOf(err);
       if (differs) {
+        // The request is over: the dialog's choices must work.
+        setSaving(false);
         setConflict(differs);
         return;
       }
@@ -562,6 +564,8 @@ export function HolidayRegistrationStatusCard({
       // A number that differs from the family's needs a choice (#6692).
       const differs = familyDebtorNumberConflictOf(err);
       if (differs) {
+        // The request is over: the dialog's choices must work.
+        setRunning(null);
         setConflict(differs);
         return;
       }

@@ -106,7 +106,7 @@ function DebtorCell({
   const name = familyName(family) || family.familyEmail;
   const number = family.familyDebtorNumber;
   return (
-    <span className="block w-full max-w-52 min-w-0">
+    <span className="block w-32 min-w-0">
       <span className="flex min-w-0 items-center justify-between gap-3">
         {number ? (
           <span
@@ -221,7 +221,7 @@ function familyColumns(
       header: "Wer zahlt",
       render: (family) =>
         family.payments.length > 0 ? (
-          <span className="flex max-w-52 min-w-0 flex-wrap gap-1.5">
+          <span className="flex max-w-48 min-w-0 flex-wrap gap-1.5">
             {family.payments.map((payment) => (
               <StatusBadge
                 key={`${payment.kind}-${payment.costBearerName}`}
