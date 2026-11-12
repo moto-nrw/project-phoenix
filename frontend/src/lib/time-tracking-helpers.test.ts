@@ -911,6 +911,69 @@ describe("indexWorkSessionMinutesByBerlinDate", () => {
 
   it.each([
     {
+      name: "pack-up",
+      start: "22:00",
+      end: "01:00",
+      net: 185,
+      packUp: 5,
+      rounding: 0,
+      breaks: 0,
+      first: 120,
+      second: 65,
+    },
+    {
+      name: "rounding deduction",
+      start: "23:08",
+      end: "00:02",
+      net: 45,
+      packUp: 0,
+      rounding: -9,
+      breaks: 0,
+      first: 45,
+      second: 0,
+    },
+    {
+      name: "excess break consumes credit",
+      start: "23:00",
+      end: "00:00",
+      net: 0,
+      packUp: 5,
+      rounding: 0,
+      breaks: 90,
+      first: 0,
+      second: 0,
+    },
+    {
+      name: "remaining credit after excess break",
+      start: "23:00",
+      end: "00:00",
+      net: 3,
+      packUp: 5,
+      rounding: 0,
+      breaks: 62,
+      first: 3,
+      second: 0,
+    },
+  ])("books $name at the last occupied day", (tc) => {
+    const session = openSession({
+      date: "2026-07-20",
+      checkInTime: `2026-07-20T${tc.start}:00+02:00`,
+      checkOutTime: `2026-07-21T${tc.end}:00+02:00`,
+      netMinutes: tc.net,
+      packUpMinutes: tc.packUp,
+      roundingMinutes: tc.rounding,
+      breakMinutes: tc.breaks,
+    });
+    const indexed = indexWorkSessionMinutesByBerlinDate([session]);
+    expect(indexed.get("2026-07-20")?.netMinutes ?? 0).toBe(tc.first);
+    expect(indexed.get("2026-07-21")?.netMinutes ?? 0).toBe(tc.second);
+    expect(
+      [...indexed.values()].reduce((sum, day) => sum + day.netMinutes, 0),
+    ).toBe(tc.net);
+  });
+
+  it.each([
+    {
       name: "ended pause",
       breaks: [
         {

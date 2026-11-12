@@ -157,6 +157,11 @@ type SessionResponse struct {
 	Breaks           []*WorkSessionBreak `json:"breaks"`
 	EditCount        int                 `json:"edit_count"`
 	AuditCount       int                 `json:"audit_count"`
+	// PackUpMinutes and RoundingMinutes explain the credit inside NetMinutes
+	// (#6851, #6852): the pack-up time of a regular checkout and the signed
+	// change the rounding made. Both are 0 for an open block.
+	PackUpMinutes   int `json:"pack_up_minutes"`
+	RoundingMinutes int `json:"rounding_minutes"`
 }
 
 // MarshalJSON preserves exact history IDs and the calculated break-minute field.

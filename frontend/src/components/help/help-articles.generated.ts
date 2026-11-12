@@ -7808,6 +7808,9 @@ export const settingsGuideTopic = function settingsGuideTopic(): HelpTopic {
           "`Team-Chat für Mitarbeitende`: Das Team schreibt sich Nachrichten. Eltern sehen davon nichts.",
           "`Kinderfotos`: Fotos bei den Kindern. Nur mit Einwilligung der Eltern. Beim Ausschalten löscht moto alle Fotos sofort. Sie können sie nicht wiederherstellen.",
           "`Automatisch ausstempeln`: moto wartet nach Dienstende die eingestellte Zeit. Dann stempelt es aus. Das gilt nur bei einem geplanten Dienst.",
+          "`Wegpackzeit beim Ausstempeln (Minuten)`: Diese Minuten zählt moto bei jedem Ausstempeln dazu, etwa für das Aufräumen. Nicht beim Pausenbeginn und nicht beim automatischen Ausstempeln.",
+          "`Arbeitszeit runden` und `Wie gerundet wird`: moto rundet die Dauer jedes Arbeitsblocks. Die Reihenfolge: gestempelte Dauer, plus Wegpackzeit, dann runden, dann Pause abziehen. Die gestempelten Uhrzeiten bleiben sichtbar.",
+          "Wegpackzeit und Rundung gelten für Arbeitsblöcke, die nach der Änderung enden. Frühere Tage bleiben, wie sie sind.",
         ],
       },
       {
@@ -10087,6 +10090,7 @@ export const trackWorkTimeTopic = function trackWorkTimeTopic(): HelpTopic {
       "Bei einer deutlichen Abweichung von Ihrer geplanten Schicht kann moto nach einem Grund fragen.",
       "Ihre Schule kann das Einstempeln erst kurz vor Ihrer Schicht erlauben. Dann zeigt moto, ab wann es geht.",
       "Nach der gewählten Pausenlänge läuft die Arbeitszeit automatisch weiter.",
+      "Ihr `Ist` ist etwas länger oder kürzer als die gestempelten Zeiten? Dann zählt Ihre OGS eine Wegpackzeit dazu oder rundet. Der Hinweis steht in der Zeile, zum Beispiel `+5 Min. Wegpackzeit`.",
     ],
     related: [HELP_TOPICS.correctWorkTime, HELP_TOPICS.nfcWorkTime],
   };
@@ -13780,6 +13784,7 @@ export const workTimeReviewTopic = function workTimeReviewTopic(): HelpTopic {
     ],
     differences: [
       "Fehlt der Reiter `Mitarbeitende`? Dann dürfen Sie keine Anträge entscheiden.",
+      "Weicht das `Ist` von den gestempelten Zeiten ab? Dann gelten Wegpackzeit oder Rundung aus den Einstellungen. Die Zeile zeigt das als Hinweis. Korrigieren Sie nur die Uhrzeiten, moto rechnet die Zugabe neu.",
     ],
     troubleshootingDetails: [
       "Der Saldo einer Person stimmt nicht? Prüfen Sie ihr `Arbeitszeitmodell` in der Personalakte.",

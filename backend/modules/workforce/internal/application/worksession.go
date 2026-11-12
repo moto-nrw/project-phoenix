@@ -294,7 +294,7 @@ func (s *Service) SetWorkSessionBreakMinutes(ctx context.Context, id int64, minu
 	return result, mapWorkSessionError(err)
 }
 
-func (s *Service) CloseWorkSession(ctx context.Context, id int64, checkOut time.Time, autoCheckedOut bool) (bool, error) {
+func (s *Service) CloseWorkSession(ctx context.Context, id int64, checkOut time.Time, autoCheckedOut bool, credit workforce.WorkSessionCreditRule) (bool, error) {
 	if id <= 0 {
 		return false, invalidWorkSession("work session ID is required")
 	}
@@ -303,10 +303,13 @@ func (s *Service) CloseWorkSession(ctx context.Context, id int64, checkOut time.
 	if checkOut.IsZero() {
 		return false, mapWorkSessionError(&workforce.InvalidWorkSessionError{Reason: "check-out time is required"})
 	}
+	if err := credit.Validate(); err != nil {
+		return false, mapWorkSessionError(err)
+	}
 	err = s.run(ctx, "close_work_session", func(ctx context.Context, stats *domain.OperationStats) error {
 		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
 			var writeStats domain.OperationStats
-			result, writeStats, err = s.store.CloseWorkSession(txCtx, id, checkOut, autoCheckedOut)
+			result, writeStats, err = s.store.CloseWorkSession(txCtx, id, checkOut, autoCheckedOut, credit)
 			stats.Add(writeStats)
 			return err
 		})

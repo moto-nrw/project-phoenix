@@ -2560,3 +2560,41 @@ func TestCareFacilityTermSetting(t *testing.T) {
 		assert.False(t, pattern.MatchString(bad), bad)
 	}
 }
+
+// #6851, #6852: both credits are off by default, so existing schools keep
+// their results; the rounding direction only shows while rounding is on.
+func TestTimeTrackingCreditSettings(t *testing.T) {
+	t.Parallel()
+
+	packUp := config.GetDefinition(config.KeyTrackingPackUpMinutes)
+	require.NotNil(t, packUp)
+	assert.Equal(t, config.FieldNumber, packUp.Type)
+	assert.Equal(t, 0, packUp.Default)
+	require.NotNil(t, packUp.Validation)
+	assert.Equal(t, 0.0, *packUp.Validation.Min)
+	assert.Equal(t, 60.0, *packUp.Validation.Max)
+
+	interval := config.GetDefinition(config.KeyTrackingRoundingIntervalMinutes)
+	require.NotNil(t, interval)
+	assert.Equal(t, config.FieldSelect, interval.Type)
+	assert.Equal(t, config.TrackingRoundingOff, interval.Default)
+	values := make([]any, 0, len(interval.Options.Static))
+	for _, option := range interval.Options.Static {
+		values = append(values, option.Value)
+	}
+	assert.Equal(t, []any{"0", "5", "10", "15", "30"}, values)
+
+	mode := config.GetDefinition(config.KeyTrackingRoundingMode)
+	require.NotNil(t, mode)
+	assert.Equal(t, config.TrackingRoundingNearest, mode.Default)
+	require.NotNil(t, mode.DependsOn)
+	assert.Equal(t, config.KeyTrackingRoundingIntervalMinutes, mode.DependsOn.Key)
+	assert.Equal(t, "neq", mode.DependsOn.Condition)
+
+	for _, def := range []*config.Definition{packUp, interval, mode} {
+		assert.Equal(t, "operations", def.Tab, def.Key)
+		assert.Equal(t, "zeiterfassung", def.Category, def.Key)
+		assert.Equal(t, "config:update", def.WritePermission, def.Key)
+		assert.Equal(t, config.AccessShared, def.AccessPolicy, def.Key)
+	}
+}

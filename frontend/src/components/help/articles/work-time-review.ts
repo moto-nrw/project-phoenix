@@ -61,6 +61,7 @@ export function workTimeReviewTopic(): HelpTopic {
     ],
     differences: [
       "Fehlt der Reiter `Mitarbeitende`? Dann dürfen Sie keine Anträge entscheiden.",
+      "Weicht das `Ist` von den gestempelten Zeiten ab? Dann gelten Wegpackzeit oder Rundung aus den Einstellungen. Die Zeile zeigt das als Hinweis. Korrigieren Sie nur die Uhrzeiten, moto rechnet die Zugabe neu.",
     ],
     troubleshootingDetails: [
       "Der Saldo einer Person stimmt nicht? Prüfen Sie ihr `Arbeitszeitmodell` in der Personalakte.",
