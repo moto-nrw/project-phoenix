@@ -218,6 +218,10 @@ function splitSessionByBerlinDate(
       // `edit_count`, damit auch dort erkennbar bleibt, dass die gezeigten
       // Minuten aus einem korrigierten Block stammen.
       audit_count: index === 0 ? session.audit_count : 0,
+      // Die Gutschrift (#6851, #6852) bucht der Server auf den Tag des
+      // Ausstempelns; nur dessen Segment zeigt ihre Hinweise.
+      pack_up_minutes: isLastDay ? session.pack_up_minutes : 0,
+      rounding_minutes: isLastDay ? session.rounding_minutes : 0,
     };
   });
 }

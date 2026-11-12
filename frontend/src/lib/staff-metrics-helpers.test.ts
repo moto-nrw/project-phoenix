@@ -577,6 +577,16 @@ describe("adaptHistorySessionForMetrics", () => {
         .source,
     ).toBe("unknown");
   });
+
+  // #6851, #6852: the own Zeiterfassung shows the same credit hints as the
+  // admin view, so the adapter must not drop them.
+  it("keeps the pack-up time and rounding of the block", () => {
+    const adapted = adaptHistorySessionForMetrics(
+      historySession({ packUpMinutes: 5, roundingMinutes: -3 }),
+    );
+    expect(adapted.pack_up_minutes).toBe(5);
+    expect(adapted.rounding_minutes).toBe(-3);
+  });
 });
 
 describe("adaptAbsenceForMetrics", () => {

@@ -119,6 +119,54 @@ func creditedNetMinutesByDate(session *WorkSession, breaks []*WorkSessionBreak, 
 	return minutesByDate
 }
 
+// closeRegularCheckout closes a block by a regular checkout. It earns the
+// pack-up minutes; the rule is stored on the block, so later settings changes
+// leave it alone.
+func (s *workSessionService) closeRegularCheckout(ctx context.Context, sessionID int64, now time.Time) error {
+	credit, err := s.closingCreditRule(ctx, true)
+	if err != nil {
+		return err
+	}
+	closed, err := s.repo.CloseWorkSession(ctx, sessionID, now, false, credit)
+	if err = workSessionWriteError("close session", err); err != nil {
+		return fmt.Errorf("failed to close session: %w", err)
+	}
+	if !closed {
+		return workforce.ErrNoActiveSession
+	}
+	return nil
+}
+
+// closeForgottenSession closes a block the nightly cleanup found still open,
+// with the rounding of the run and without pack-up minutes. It reports how
+// many blocks it closed: 0 when another writer closed it first.
+func (s *workSessionService) closeForgottenSession(ctx context.Context, sessionID int64, closeAt time.Time, credit workforce.WorkSessionCreditRule) (int, error) {
+	closed, err := s.repo.CloseWorkSession(ctx, sessionID, closeAt, true, credit)
+	if err = workSessionWriteError("close session", err); err != nil {
+		return 0, fmt.Errorf("failed to close session %d: %w", sessionID, err)
+	}
+	if !closed {
+		return 0, nil
+	}
+	return 1, nil
+}
+
+// creditEditThatCloses stores the credit rule on a block an edit closes. Such
+// an edit is no regular checkout: it gets the rounding of now and no pack-up
+// minutes. A block that was already closed keeps the rule it was closed with,
+// so a corrected stamp recomputes the same credit.
+func (s *workSessionService) creditEditThatCloses(ctx context.Context, session *WorkSession, wasOpen bool) error {
+	if !wasOpen || session.CheckOutTime == nil {
+		return nil
+	}
+	credit, err := s.closingCreditRule(ctx, false)
+	if err != nil {
+		return err
+	}
+	session.setCreditRule(credit)
+	return nil
+}
+
 // closingCreditRule reads the school's credit rule for a block that is being
 // closed now. Only a regular checkout earns the pack-up minutes; the rounding
 // applies to every completed block.

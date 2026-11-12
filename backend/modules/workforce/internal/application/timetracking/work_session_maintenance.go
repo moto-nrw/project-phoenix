@@ -68,14 +68,11 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 			// Continue cleanup even if break ending fails
 		}
 
-		closed, err := s.repo.CloseWorkSession(ctx, session.ID, closeAt, true, credit)
-		err = workSessionWriteError("close session", err)
+		closed, err := s.closeForgottenSession(ctx, session.ID, closeAt, credit)
 		if err != nil {
-			return count, fmt.Errorf("failed to close session %d: %w", session.ID, err)
+			return count, err
 		}
-		if closed {
-			count++
-		}
+		count += closed
 	}
 
 	if count > 0 {

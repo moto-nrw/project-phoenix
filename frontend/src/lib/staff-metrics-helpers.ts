@@ -668,6 +668,8 @@ export function adaptHistorySessionForMetrics(
     notes: session.notes || undefined,
     edit_count: session.editCount,
     audit_count: session.auditCount,
+    pack_up_minutes: session.packUpMinutes,
+    rounding_minutes: session.roundingMinutes,
   };
 }
 

@@ -163,15 +163,8 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 	wasOpen := session.CheckOutTime == nil
 	s.applyTimeFieldUpdates(uc, updates)
 	s.applySimpleFieldUpdates(uc, updates)
-	// An edit that closes a running block is no regular checkout: it gets the
-	// rounding of now, no pack-up minutes. A closed block keeps the rule it
-	// was closed with, so a corrected stamp recomputes the same credit.
-	if wasOpen && session.CheckOutTime != nil {
-		credit, err := s.closingCreditRule(ctx, false)
-		if err != nil {
-			return nil, err
-		}
-		session.setCreditRule(credit)
+	if err := s.creditEditThatCloses(ctx, session, wasOpen); err != nil {
+		return nil, err
 	}
 
 	session.UpdatedBy = &editorStaffID
