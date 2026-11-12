@@ -60,10 +60,13 @@ einen Träger-Scope; setzt auf
   Elternabrechnung importiert Export Transfer, Export Transfer importiert
   nichts aus der Elternabrechnung. Es entsteht keine Kante im Owner-Graph
   und keine neue Policy-Regel über Owner-Grenzen.
-- Die Routen des Empfängers liegen bei den Finanz-Exporten
-  (`/traeger/finance-exports/recipient`), weil die Elternabrechnung heute
-  der einzige Nutzer im Träger-Portal ist. Sie reichen an den Port weiter;
-  die Daten bleiben bei Export Transfer.
+- Die Routen des Empfängers (`/traeger/export-recipient`) gehören Export
+  Transfer selbst: ein neues Paket `modules/exporttransfer/http` mit der
+  Rolle `http`, das nur den eigenen Vertrag und `api/common` nutzt. Die
+  Übergabe-Routen (`/traeger/finance-handovers/runs/{kind}/{id}/{format}`)
+  gehören der Elternabrechnung, weil sie deren Datei erzeugen. Der Port
+  `FinanceExportTransfer` der Elternabrechnung hat nur `Handover`; die Root
+  bindet ihn an `TraegerTransfers.Transfer`.
 
 ### 2. Scope von Empfänger, Zugangsdaten und Journal
 
@@ -183,9 +186,10 @@ Träger-Transaktionen, getrennt von der Anfrage:
 
 ### 9. Architektur und Register
 
-- Keine neue Owner-Rolle über Owner-Grenzen, kein Workflow und kein neuer
-  Job: Die vorhandene Wiederherstellung (`NewDispatchRecovery`) erledigt
-  beide Journale in derselben Admin-Transaktion.
+- Kein neuer Owner, kein Workflow und kein neuer Job: Die vorhandene
+  Wiederherstellung (`NewDispatchRecovery`) erledigt beide Journale in
+  derselben Admin-Transaktion. Eine Budget-ADR nach Muster 0209/0215 ist
+  deshalb nicht nötig; die berührten Register stehen unten.
 - Export Transfer bekommt einen Port `BankDataCipher` (Marker
   `BankDataRing()`) und damit keine neue Importregel; die Root bindet
   `env.BankData`.
@@ -211,7 +215,20 @@ stehen im PR.
 
 ## Register
 
-Wird vor dem Merge mit den gemessenen Werten gefüllt.
+Gemessen auf dem Stand dieses Vorschlags; jede spätere Abweichung bekommt
+Wert alt → neu und Grund.
+
+| Register | alt → neu | Grund |
+|---|---|---|
+| `moduleComposeBudgets["modules/exporttransfer/compose"]` | 149 → 182 | Träger-Scope (`NewTraegerTransfers`) und Rekey des Empfänger-Passworts |
+| `moduleComposeBudgets["modules/parentbilling/compose"]` | 124 → 129 | `NewExportHandovers` |
+| `moduleComposeBudgetTotal` | 13378 → 13416 | Summe der beiden Zeilen |
+| `demoErasureExceptions` | 189 → 191 | Empfänger und Journal entstehen nur im Träger-Büro des Demo-Trägers, nie bei einem Besucher (`traegerBueroOnly`) |
+| Transaktionsgrenzen (`test/transaction_boundaries.json`) | +3 | Bindung des Träger-Scopes, die eine Grenze `TraegerService.within`, die Vorhaben-API `TraegerJournal.Begin`; geprüft in `test/traeger_export_transfer_transaction.go` |
+| Command-Effects `parent-billing` | +1 | `FinanceExportTransfer.Handover` → `TraegerTransfers.Transfer`, `platform`/`durable` nach ADR 0098 |
+| Policy | +3 Datenobjekte, +1 Paket, +2 Regeln | Datenobjekte `config.traeger_export_recipients`, `audit.traeger_export_transfers` (Export Transfer), `parent_billing.export_file_transfers` (Elternabrechnung); Paket `modules/exporttransfer/http` mit `http → contract` und `http → api/common` |
+| Pass-through-Register | unverändert | `TraegerService.Recipient` liest Empfänger und Journal, `DeleteRecipient` löscht und liest neu; der Root-Adapter übersetzt nur `Handover` mit Fehlerklassen |
+| Abfragebudget | neu `api.traeger.export_recipient` = 3 | Träger-Bindung, Empfänger, Journal; flach in der Zahl der Übergaben |
 
 ## Folgen
 
