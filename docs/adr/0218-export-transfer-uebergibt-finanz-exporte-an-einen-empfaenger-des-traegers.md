@@ -243,6 +243,7 @@ Wert alt → neu und Grund.
 | Command-Effects `parent-billing` | +1 | `FinanceExportTransfer.Handover` → `TraegerTransfers.Transfer`, `platform`/`durable` nach ADR 0098 |
 | Policy | +3 Datenobjekte, +1 Paket, +2 Regeln | Datenobjekte `config.traeger_export_recipients`, `audit.traeger_export_transfers` (Export Transfer), `parent_billing.export_file_transfers` (Elternabrechnung); Paket `modules/exporttransfer/http` mit `http → contract` und `http → api/common` |
 | Pass-through-Register | unverändert | `TraegerService.Recipient` liest Empfänger und Journal, `DeleteRecipient` löscht und liest neu; der Root-Adapter übersetzt nur `Handover` mit Fehlerklassen |
+| `belegErasureFunctions` (`database/migrations/beleg_deletion_guard_test.go`) | 6 → 7 | `parent_billing.release_failed_handover_bookings` löscht nur die DATEV-Markierungen einer Datei, deren Übergabe fehlschlug (Abschnitt 6); Rechnungen, Stornos, Belege und Protokolleintrag bleiben |
 | Abfragebudget | neu `api.traeger.export_recipient` = 3 | Träger-Bindung, Empfänger, Journal; flach in der Zahl der Übergaben |
 
 ## Folgen

@@ -69,6 +69,12 @@ var retentionControlTables = map[string]string{
 //     retention), an unsubmitted download with any member, when a later
 //     download supersedes it and 30 days after the download. No Beleg
 //     besides the file itself is deleted by them.
+//   - the release of the DATEV bookings of a handover that failed (#6824,
+//     ADR 0218 section 6): parent_billing.datev_booked_documents only marks
+//     which booking went to DATEV first. When the handover of that DATEV
+//     file fails, the file never arrived and its markers go, so the next
+//     file holds those bookings again. Invoices, Stornos, documents and the
+//     export file with its protocol entry stay.
 //
 // The erasure of a whole Träger after its export (#4657) deletes the
 // organization and reaches the Belege through its cascade.
@@ -77,6 +83,7 @@ var belegErasureFunctions = []string{
 	"parent_billing.delete_expired_sepa_debit_downloads",
 	"parent_billing.drop_sepa_debit_files_with_their_members",
 	"parent_billing.drop_superseded_sepa_debit_files",
+	"parent_billing.release_failed_handover_bookings",
 	"platform.erase_closed_demo_visitors",
 	"platform.erase_demo_visitor_families",
 }

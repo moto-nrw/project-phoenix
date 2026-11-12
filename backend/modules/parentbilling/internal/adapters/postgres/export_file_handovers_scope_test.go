@@ -11,7 +11,6 @@ import (
 	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -168,16 +167,21 @@ func TestExportHandoverPolicyHidesForeignAndSchoolRows(t *testing.T) {
 	_, err := db.NewRaw(`INSERT INTO parent_billing.export_file_transfers (organization_id, export_file_id, target_host, target_directory)
 		VALUES (?, ?, 'kaemmerei.example.org', '/eingang')`, other, file).Exec(context.Background())
 	require.NoError(t, err)
-	hidden := func(ctx context.Context) error {
-		transaction, ok := tenant.TransactionFromContext(ctx)
-		require.True(t, ok)
+	hidden := func(ctx context.Context, tx bun.IDB) {
 		var visible int
-		require.NoError(t, transaction.(bun.Tx).NewRaw(`SELECT count(*) FROM parent_billing.export_file_transfers`).Scan(ctx, &visible))
+		require.NoError(t, tx.NewRaw(`SELECT count(*) FROM parent_billing.export_file_transfers`).Scan(ctx, &visible))
 		assert.Zero(t, visible)
-		return nil
 	}
 	ctx := testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, db))
-	require.NoError(t, testpkg.WithinTraeger(ctx, own, hidden))
-	testpkg.OwnTenant(t)
-	require.NoError(t, tenant.WithinCurrentTenant(testpkg.Ctx(t), hidden))
+	require.NoError(t, testpkg.WithinTraeger(ctx, own, func(ctx context.Context) error {
+		tx, err := traegerDB(ctx, own)
+		require.NoError(t, err)
+		hidden(ctx, tx)
+		return nil
+	}))
+	school := testpkg.OwnTenant(t)
+	require.NoError(t, testpkg.WithinTenantTransaction(testpkg.Ctx(t), db, school, func(ctx context.Context, tx bun.Tx) error {
+		hidden(ctx, tx)
+		return nil
+	}))
 }
