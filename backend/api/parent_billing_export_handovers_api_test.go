@@ -185,3 +185,31 @@ func TestExportRecipientQueryBudget(t *testing.T) {
 	assert.Len(t, measure().Statements, len(first.Statements), "the recipient page is flat in handovers")
 	querybudgets.AssertQueryBudget(t, "api.traeger.export_recipient", first)
 }
+
+// The Träger comes from the session alone: an organization in the query or
+// the body never reaches another Träger's recipient or run.
+func TestFinanceExportHandoverIgnoresARequestedOrganization(t *testing.T) {
+	t.Parallel()
+	f := sepaDebitFixture(t, "Träger Übergabe eigen")
+	other := sepaDebitFixture(t, "Träger Übergabe fremd")
+	input := readyRecipient()
+	input["organization_id"] = other.office.organization
+	rec := saveRecipient(t, f, input)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var foreign int
+	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM config.traeger_export_recipients WHERE organization_id = ?`,
+		other.office.organization).Scan(context.Background(), &foreign))
+	assert.Zero(t, foreign, "the body names no Träger")
+
+	rec = traegerJSON(t, other.traeger, other.office.token, http.MethodGet,
+		fmt.Sprintf("%s?organization_id=%d", exportRecipientPath, f.office.organization), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), `"configured":false`, "the query names no Träger")
+
+	contract := careContract(t, f.db, f.office.organization, f.office.schools[0], "Mia", sepaDebitMonth, sjrServices()...)
+	createMandate(t, f, mandateBody(contract, "SJR-H-MIA"))
+	run := releaseDebitRun(t, f, sepaDebitMonth)
+	require.Equal(t, http.StatusOK, saveRecipient(t, other, readyRecipient()).Code)
+	rec = handOver(t, other, run, "pain008", map[string]any{"organization_id": f.office.organization})
+	assert.Equal(t, http.StatusNotFound, rec.Code, rec.Body.String())
+}

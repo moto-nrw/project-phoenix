@@ -315,6 +315,10 @@ func TestTraegerStoreFiltersTheTraegerBelowRowLevelSecurity(t *testing.T) {
 		require.NoError(t, err)
 		require.True(t, found)
 		assert.Equal(t, f.org, recipient.OrganizationID)
+		locked, found, err := store.LockRecipient(ctx, f.org)
+		require.NoError(t, err)
+		require.True(t, found)
+		assert.Equal(t, f.org, locked.OrganizationID, "the lock reaches only the own recipient")
 		require.NoError(t, store.ReplaceSealedPassword(ctx, f.org, []byte("rewrapped")))
 		return store.DeleteRecipient(ctx, f.org)
 	})
@@ -339,7 +343,7 @@ func TestTraegerStoreRefusesAForeignTransaction(t *testing.T) {
 	require.Error(t, err)
 	err = tenant.WithinTraeger(f.ctx, f.other, func(ctx context.Context) error {
 		var token string
-		return f.db.NewRaw(`SELECT audit.claim_traeger_export_transfer(?, 1)`, f.org).Scan(ctx, &token)
+		return requestTx(t, ctx).NewRaw(`SELECT audit.claim_traeger_export_transfer(?, 1)`, f.org).Scan(ctx, &token)
 	})
 	require.Error(t, err, "the fence functions check the Träger of the transaction")
 	testpkg.OwnTenant(t)

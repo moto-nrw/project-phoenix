@@ -18,6 +18,7 @@ import (
 	"crypto/rand"
 	"crypto/rsa"
 	"errors"
+	"io"
 	"net"
 	"net/netip"
 	"strconv"
@@ -63,6 +64,19 @@ var errAuthRejected = errors.New("password rejected")
 // Start boots the server and stops it when the test ends.
 func Start(t *testing.T) Server {
 	t.Helper()
+	return start(t, false)
+}
+
+// StartEchoing starts a counterpart that accepts the login and refuses every
+// upload with an SFTP error whose text repeats the password it received: the
+// case of a hostile or broken counterpart that echoes credentials back.
+func StartEchoing(t *testing.T) Server {
+	t.Helper()
+	return start(t, true)
+}
+
+func start(t *testing.T, echo bool) Server {
+	t.Helper()
 
 	password := rand.Text()
 	config := &ssh.ServerConfig{
@@ -97,7 +111,7 @@ func Start(t *testing.T) Server {
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = listener.Close() })
 
-	go acceptLoop(listener, config)
+	go acceptLoop(listener, config, password, echo)
 
 	addr, ok := listener.Addr().(*net.TCPAddr)
 	require.True(t, ok)
@@ -132,17 +146,17 @@ type AllowLoopbackPolicy struct{}
 
 func (AllowLoopbackPolicy) Allow(addr netip.Addr) bool { return addr.IsLoopback() }
 
-func acceptLoop(listener net.Listener, config *ssh.ServerConfig) {
+func acceptLoop(listener net.Listener, config *ssh.ServerConfig, password string, echo bool) {
 	for {
 		conn, err := listener.Accept()
 		if err != nil {
 			return // listener closed by cleanup
 		}
-		go serveConn(conn, config)
+		go serveConn(conn, config, password, echo)
 	}
 }
 
-func serveConn(conn net.Conn, config *ssh.ServerConfig) {
+func serveConn(conn net.Conn, config *ssh.ServerConfig, password string, echo bool) {
 	defer func() { _ = conn.Close() }()
 
 	sshConn, chans, reqs, err := ssh.NewServerConn(conn, config)
@@ -163,6 +177,18 @@ func serveConn(conn net.Conn, config *ssh.ServerConfig) {
 		}
 		go answerSubsystemRequests(requests)
 
+		if echo {
+			echoing := echoingHandler{password: password}
+			server := pkgsftp.NewRequestServer(channel, pkgsftp.Handlers{
+				FileGet: echoing, FilePut: echoing, FileCmd: echoing, FileList: echoing,
+			})
+			go func() {
+				_ = server.Serve()
+				_ = server.Close()
+				_ = channel.Close()
+			}()
+			continue
+		}
 		server, err := pkgsftp.NewServer(channel)
 		if err != nil {
 			return
@@ -176,6 +202,21 @@ func serveConn(conn net.Conn, config *ssh.ServerConfig) {
 			_ = channel.Close()
 		}()
 	}
+}
+
+// echoingHandler refuses every request with the received password in the
+// error text.
+type echoingHandler struct{ password string }
+
+func (h echoingHandler) refusal() error {
+	return errors.New("refused for credential " + h.password)
+}
+
+func (h echoingHandler) Fileread(*pkgsftp.Request) (io.ReaderAt, error)  { return nil, h.refusal() }
+func (h echoingHandler) Filewrite(*pkgsftp.Request) (io.WriterAt, error) { return nil, h.refusal() }
+func (h echoingHandler) Filecmd(*pkgsftp.Request) error                  { return h.refusal() }
+func (h echoingHandler) Filelist(*pkgsftp.Request) (pkgsftp.ListerAt, error) {
+	return nil, h.refusal()
 }
 
 // answerSubsystemRequests accepts exactly the "sftp" subsystem. The payload is

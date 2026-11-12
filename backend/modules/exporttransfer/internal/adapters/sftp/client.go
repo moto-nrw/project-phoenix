@@ -331,7 +331,7 @@ type pendingUpload struct {
 func (u *pendingUpload) Commit() error {
 	u.once.Do(func() {
 		if u.backupPath != "" {
-			u.err = u.client.remove(u.backupPath)
+			u.err = withheld(u.client.remove(u.backupPath))
 		}
 		if u.close != nil {
 			u.close()
@@ -343,9 +343,9 @@ func (u *pendingUpload) Commit() error {
 func (u *pendingUpload) Rollback() error {
 	u.once.Do(func() {
 		if u.backupPath != "" {
-			u.err = u.client.posixRename(u.backupPath, u.finalPath)
+			u.err = withheld(u.client.posixRename(u.backupPath, u.finalPath))
 		} else if err := u.client.remove(u.finalPath); err != nil && !errors.Is(err, os.ErrNotExist) {
-			u.err = err
+			u.err = withheld(err)
 		}
 		if u.close != nil {
 			u.close()
@@ -381,16 +381,39 @@ func (c *Client) newSFTPClient(conn net.Conn, addr netip.Addr, target Target) (*
 		if isAuthFailure(err) {
 			return nil, nil, ErrAuthFailed
 		}
-		return nil, nil, fmt.Errorf("%w: %w", ErrConnect, err)
+		return nil, nil, fmt.Errorf("%w: %w", ErrConnect, withheld(err))
 	}
 
 	sshClient := ssh.NewClient(sshConn, chans, reqs)
 	client, err := sftp.NewClient(sshClient)
 	if err != nil {
 		_ = sshClient.Close()
-		return nil, nil, fmt.Errorf("%w: %w", ErrConnect, err)
+		return nil, nil, fmt.Errorf("%w: %w", ErrConnect, withheld(err))
 	}
 	return sshClient, client, nil
+}
+
+// remoteMessage keeps the counterpart's own text out of an error. A
+// counterpart may answer with whatever it received, the password included,
+// and the error ends in the log (ADR 0218 section 3). The SFTP status code
+// stays; errors.Is and errors.As still reach the cause.
+type remoteMessage struct{ err error }
+
+func (r remoteMessage) Error() string {
+	var status *sftp.StatusError
+	if errors.As(r.err, &status) {
+		return fmt.Sprintf("counterpart answered SFTP status %d", status.Code)
+	}
+	return fmt.Sprintf("counterpart failed (%T, text withheld)", r.err)
+}
+
+func (r remoteMessage) Unwrap() error { return r.err }
+
+func withheld(err error) error {
+	if err == nil {
+		return nil
+	}
+	return remoteMessage{err: err}
 }
 
 // isAuthFailure recognizes a rejected login. x/crypto/ssh reports it as a
@@ -418,13 +441,13 @@ func (c *Client) writeAtomically(client remoteFileOperations, dir, filename stri
 	if errors.Is(statErr, os.ErrNotExist) {
 		if err := client.rename(tempPath, finalPath); err != nil {
 			_ = client.remove(tempPath)
-			return nil, fmt.Errorf("%w: rename: %w", ErrUpload, err)
+			return nil, fmt.Errorf("%w: rename: %w", ErrUpload, withheld(err))
 		}
 		return &pendingUpload{client: client, finalPath: finalPath}, nil
 	}
 	if statErr != nil {
 		_ = client.remove(tempPath)
-		return nil, fmt.Errorf("%w: inspect existing file: %w", ErrUpload, statErr)
+		return nil, fmt.Errorf("%w: inspect existing file: %w", ErrUpload, withheld(statErr))
 	}
 
 	// Replacing a prior export is allowed only through the POSIX extension:
@@ -444,7 +467,7 @@ func (c *Client) writeAtomically(client remoteFileOperations, dir, filename stri
 	if err := client.posixRename(tempPath, finalPath); err != nil {
 		_ = client.remove(tempPath)
 		_ = client.remove(backupPath)
-		return nil, fmt.Errorf("%w: atomic rename: %w", ErrUpload, err)
+		return nil, fmt.Errorf("%w: atomic rename: %w", ErrUpload, withheld(err))
 	}
 	return &pendingUpload{client: client, finalPath: finalPath, backupPath: backupPath}, nil
 }
@@ -452,24 +475,24 @@ func (c *Client) writeAtomically(client remoteFileOperations, dir, filename stri
 func copyRemoteFile(client remoteFileOperations, sourcePath, targetPath string) error {
 	source, err := client.open(sourcePath)
 	if err != nil {
-		return fmt.Errorf("%w: open previous file: %w", ErrUpload, err)
+		return fmt.Errorf("%w: open previous file: %w", ErrUpload, withheld(err))
 	}
 	target, err := client.create(targetPath)
 	if err != nil {
 		_ = source.Close()
-		return fmt.Errorf("%w: create rollback copy: %w", ErrUpload, err)
+		return fmt.Errorf("%w: create rollback copy: %w", ErrUpload, withheld(err))
 	}
 	_, copyErr := io.Copy(target, source)
 	targetCloseErr := target.Close()
 	sourceCloseErr := source.Close()
 	if copyErr != nil {
-		return fmt.Errorf("%w: copy previous file: %w", ErrUpload, copyErr)
+		return fmt.Errorf("%w: copy previous file: %w", ErrUpload, withheld(copyErr))
 	}
 	if targetCloseErr != nil {
-		return fmt.Errorf("%w: close rollback copy: %w", ErrUpload, targetCloseErr)
+		return fmt.Errorf("%w: close rollback copy: %w", ErrUpload, withheld(targetCloseErr))
 	}
 	if sourceCloseErr != nil {
-		return fmt.Errorf("%w: close previous file: %w", ErrUpload, sourceCloseErr)
+		return fmt.Errorf("%w: close previous file: %w", ErrUpload, withheld(sourceCloseErr))
 	}
 	return nil
 }
@@ -477,18 +500,18 @@ func copyRemoteFile(client remoteFileOperations, sourcePath, targetPath string) 
 func (c *Client) writeFile(client remoteFileOperations, remotePath string, data []byte) error {
 	file, err := client.create(remotePath)
 	if err != nil {
-		return fmt.Errorf("%w: create: %w", ErrUpload, err)
+		return fmt.Errorf("%w: create: %w", ErrUpload, withheld(err))
 	}
 	written, err := io.Copy(file, bytes.NewReader(data))
 	if err != nil {
 		_ = file.Close()
-		return fmt.Errorf("%w: write: %w", ErrUpload, err)
+		return fmt.Errorf("%w: write: %w", ErrUpload, withheld(err))
 	}
 	// Close is where a buffered write surfaces its error, so it is checked
 	// rather than deferred: a silent close would report a truncated file as a
 	// successful transfer.
 	if err := file.Close(); err != nil {
-		return fmt.Errorf("%w: close: %w", ErrUpload, err)
+		return fmt.Errorf("%w: close: %w", ErrUpload, withheld(err))
 	}
 	if written != int64(len(data)) {
 		return fmt.Errorf("%w: wrote %d of %d bytes", ErrUpload, written, len(data))

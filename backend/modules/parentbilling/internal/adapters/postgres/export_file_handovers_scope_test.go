@@ -8,8 +8,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
 
@@ -149,4 +151,33 @@ func TestFailedHandoverReleasesItsDatevBookings(t *testing.T) {
 		return rollback
 	})
 	require.ErrorIs(t, err, rollback)
+}
+
+// The policy on handovers hides another Träger's rows from an unfiltered
+// query of the request role, in a Träger and in a school transaction.
+func TestExportHandoverPolicyHidesForeignAndSchoolRows(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	unique := testpkg.UniqueTestTenantID(t)
+	own := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{Name: "Träger Sicht A", Slug: fmt.Sprintf("handover-rls-a-%d", unique)}).ID
+	other := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{Name: "Träger Sicht B", Slug: fmt.Sprintf("handover-rls-b-%d", unique)}).ID
+	var file int64
+	require.NoError(t, db.NewRaw(`INSERT INTO parent_billing.export_files (organization_id, file_number, format, run_kind, run_id, file_name,
+		content_sha256, invoice_count, total_cents) VALUES (?, 1, 'sollstellung', 'care', 77, 'fremd.csv', repeat('a', 64), 1, 100)
+		RETURNING id`, other).Scan(context.Background(), &file))
+	_, err := db.NewRaw(`INSERT INTO parent_billing.export_file_transfers (organization_id, export_file_id, target_host, target_directory)
+		VALUES (?, ?, 'kaemmerei.example.org', '/eingang')`, other, file).Exec(context.Background())
+	require.NoError(t, err)
+	hidden := func(ctx context.Context) error {
+		transaction, ok := tenant.TransactionFromContext(ctx)
+		require.True(t, ok)
+		var visible int
+		require.NoError(t, transaction.(bun.Tx).NewRaw(`SELECT count(*) FROM parent_billing.export_file_transfers`).Scan(ctx, &visible))
+		assert.Zero(t, visible)
+		return nil
+	}
+	ctx := testpkg.ContextWithTenantRuntime(context.Background(), testpkg.TenantRuntime(t, db))
+	require.NoError(t, testpkg.WithinTraeger(ctx, own, hidden))
+	testpkg.OwnTenant(t)
+	require.NoError(t, tenant.WithinCurrentTenant(testpkg.Ctx(t), hidden))
 }

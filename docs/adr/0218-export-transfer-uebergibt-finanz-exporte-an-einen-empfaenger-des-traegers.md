@@ -106,6 +106,11 @@ einen Träger-Scope; setzt auf
   nur `password_set`. Speichern ohne Passwort behält das gespeicherte.
   Lässt sich ein Chiffrat nicht öffnen (Schlüssel entfernt), gilt das
   Passwort als fehlend und der Empfänger als nicht bereit.
+- Der Text des Gegenübers erreicht keine Fehlermeldung: Ein Gegenüber
+  kann mit dem Passwort antworten, das es erhalten hat. Der SFTP-Adapter
+  behält von einer Antwort nur den SFTP-Statuscode; der Fehler, der ins Log
+  geht, nennt Schritt und Code. Das gilt auch für den Schul-Scope, der
+  denselben Adapter nutzt.
 - Das Journal hält weder Benutzername noch Passwort noch Fingerabdruck,
   nur Adresse, Port und Ordner.
 
@@ -216,6 +221,9 @@ Träger-Transaktionen, getrennt von der Anfrage:
 6. Eine Übergabe gleichen Inhalts wird ohne `repeat` nicht erneut gesendet.
 7. Journal und Protokoll werden in derselben Transaktion abgeschlossen.
 8. Eine fehlgeschlagene DATEV-Übergabe verbraucht keine Buchungen.
+9. Der Zaun nimmt ein Vorhaben einmal an und schließt es einmal ab, nur mit
+   seinem Token, nur im eigenen Träger und nur vor Ablauf.
+10. Ein Gegenüber, das das Passwort zurückgibt, bringt es nicht ins Log.
 
 Jede Invariante hat einen Test, der ohne den Schutz rot wird; die Belege
 stehen im PR.
