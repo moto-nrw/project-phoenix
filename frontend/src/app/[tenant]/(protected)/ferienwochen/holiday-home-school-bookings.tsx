@@ -76,9 +76,10 @@ function columns(
       render: (child) => (
         <span className="flex flex-col">
           <span className="text-gray-900">{child.timeModelName}</span>
-          <span className="text-gray-500">
+          <span className="whitespace-nowrap text-gray-500">
             {child.timeModelStartsAt} bis {child.timeModelEndsAt} Uhr
-            {" · "}
+          </span>
+          <span className="text-gray-500">
             {child.days.length > 0 ? holidayDayList(child.days) : "ganze Woche"}
           </span>
         </span>

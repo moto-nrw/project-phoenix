@@ -735,9 +735,7 @@ describe("FerienwochenPage", () => {
       expect(within(table).getByText("Läuft gerade")).toBeInTheDocument();
       expect(within(table).getByText("Ab 12.10.")).toBeInTheDocument();
       expect(
-        within(table).getByText("08:00 bis 15:00 Uhr · Mo 12.10., Mi 14.10.", {
-          exact: false,
-        }),
+        within(table).getByText("Mo 12.10., Mi 14.10."),
       ).toBeInTheDocument();
       expect(
         within(table).getByRole("link", { name: "Akte öffnen: Tom Beispiel" }),
