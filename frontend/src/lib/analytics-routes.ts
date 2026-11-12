@@ -154,6 +154,8 @@ export const TRACKED_PARENT_ROUTE_TEMPLATES = [
   "/documents/vertrag/:organizationId/:contractId",
   // Öffentliche Ferienanmeldung eines Trägers (#4661), ohne Konto.
   "/ferienanmeldung/:token",
+  // Stand einer Ferienanmeldung über den Link der Eingangsmail (#6676).
+  "/ferienanmeldung/status/:token",
   // Die eigenen Ferienanmeldungen eines Elternkontos (#6673).
   "/ferienanmeldungen",
   // Elternkonto aus dem Link der Ferienanmeldung einrichten (#6673).
@@ -209,6 +211,7 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/abrechnung/:id/faelligkeiten",
   "/abrechnung/ermaessigungen",
   "/abrechnung/exporte",
+  "/abrechnung/exporte/empfaenger",
   "/abrechnung/exporte/feldzuordnung",
   "/abrechnung/exporte/konten",
   "/abrechnung/familien",

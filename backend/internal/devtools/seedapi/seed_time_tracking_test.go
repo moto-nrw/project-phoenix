@@ -309,6 +309,33 @@ func TestSeedSchedulesViaAPISkipsExternalStaff(t *testing.T) {
 	assert.Equal(t, []any{"2026-06-03"}, validFrom)
 }
 
+// One member of staff stays without a Soll (#6887), so every dev and demo
+// stack shows the missing-Soll notices.
+func TestSeedSchedulesViaAPISkipsStaffWithoutTarget(t *testing.T) {
+	t.Parallel()
+
+	var paths []string
+	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
+		paths = append(paths, r.URL.Path)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = fmt.Fprint(w, `{"status":"success","data":{}}`)
+	})
+	defer srv.Close()
+
+	staff := []StaffCredentials{
+		{Name: "Julia Klein", Email: "klein@example.test", Position: "Pädagogische Fachkraft"},
+		{Name: seedStaffWithoutTarget, Email: "pham@example.test", Position: "Pädagogische Fachkraft"},
+	}
+	_, err := seedSchedulesViaAPI(
+		&Runtime{Client: newTestClient(srv.URL, false), TenantAuth: AuthRef{Token: "admin"}},
+		staff,
+		map[string]int64{"klein@example.test": 11, "pham@example.test": 22},
+		time.Date(2026, 6, 3, 0, 0, 0, 0, time.UTC),
+	)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"/api/staff/11/schedule"}, paths)
+}
+
 // F9 gates early arrivals and late departures on planned workdays only.
 // A seed captured on Sunday may reach its live stamp on Monday before 08:00.
 func TestSeedBreakClockingCarriesDeviationReasonsAtMidnight(t *testing.T) {

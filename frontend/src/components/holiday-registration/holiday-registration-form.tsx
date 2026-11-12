@@ -23,6 +23,7 @@ import {
   submitHolidayRegistration,
 } from "~/lib/holiday-registration-api";
 import { HolidayRegistrationPlacements } from "./holiday-registration-placements";
+import { holidayRegistrationStatusPath } from "~/lib/holiday-registration-status-api";
 import { createLogger } from "~/lib/logger";
 import { isFieldVisible } from "~/lib/enrollment-field-visibility";
 import {
@@ -107,6 +108,7 @@ export function HolidayRegistrationForm({
   const [placements, setPlacements] = useState<
     readonly HolidayReceiptPlacement[]
   >([]);
+  const [statusToken, setStatusToken] = useState("");
   const fieldError = (name: string) => errorPath.fieldError(name) ?? undefined;
   const accountFieldsetRef = useRef<HTMLFieldSetElement>(null);
   const [accountError, setAccountError] = useState<string | undefined>();
@@ -150,7 +152,7 @@ export function HolidayRegistrationForm({
     }
     setSubmitting(true);
     try {
-      const placed = await submitHolidayRegistration(
+      const receipt = await submitHolidayRegistration(
         token,
         payloadFromDraft(draft, offer, captchaToken),
       );
@@ -160,7 +162,8 @@ export function HolidayRegistrationForm({
           { clear: true },
         );
       }
-      setPlacements(placed ?? []);
+      setPlacements(receipt?.placements ?? []);
+      setStatusToken(receipt?.statusToken ?? "");
       setStep("done");
       window.scrollTo({ top: 0 });
     } catch (err) {
@@ -230,15 +233,38 @@ export function HolidayRegistrationForm({
               })}
             />
           ) : null}
-          {parentAccount === "signed-in" ? (
-            <ButtonLink
-              href={parentPath("/parents/ferienanmeldungen")}
-              variant="primary"
-              size="md"
-              className="max-sm:w-full"
-            >
-              {t("doneToRegistrations")}
-            </ButtonLink>
+          {statusToken || parentAccount === "signed-in" ? (
+            <div className="flex flex-col gap-3 border-t border-gray-100 pt-5 sm:flex-row sm:items-center">
+              {statusToken ? (
+                // Der Stand der Anmeldung über den geheimen Link, den auch
+                // die Eingangsmail trägt (#6676).
+                <ButtonLink
+                  href={parentPath(holidayRegistrationStatusPath(statusToken))}
+                  variant={
+                    parentAccount === "signed-in" ? "outline" : "primary"
+                  }
+                  size="md"
+                  className="max-sm:w-full"
+                >
+                  {t("doneToStatus")}
+                </ButtonLink>
+              ) : null}
+              {parentAccount === "signed-in" ? (
+                <ButtonLink
+                  href={parentPath("/parents/ferienanmeldungen")}
+                  variant="primary"
+                  size="md"
+                  className="max-sm:w-full"
+                >
+                  {t("doneToRegistrations")}
+                </ButtonLink>
+              ) : null}
+            </div>
+          ) : null}
+          {statusToken ? (
+            <p className="text-sm leading-6 text-gray-600">
+              {t("doneStatusHint")}
+            </p>
           ) : null}
         </div>
       </SectionCard>

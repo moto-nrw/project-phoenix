@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { beforeEach, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import type { SepaDebitRun } from "~/lib/traeger-sepa-debits-api";
 import { SepaDebitCard } from "./sepa-debit-card";
 
@@ -16,6 +17,12 @@ vi.mock("~/lib/traeger-sepa-debits-api", async (importOriginal) => ({
   ...api,
 }));
 vi.mock("~/lib/file-download", () => ({ downloadBlob: vi.fn() }));
+// The recipient of the handover (ADR 0218) is tested on its own.
+const handoverApi = vi.hoisted(() => ({ fetchExportRecipient: vi.fn() }));
+vi.mock("~/lib/traeger-export-handovers-api", async (importOriginal) => ({
+  ...(await importOriginal<object>()),
+  ...handoverApi,
+}));
 vi.mock("~/lib/traeger-url", () => ({ traegerPath: (path: string) => path }));
 
 const RUN: SepaDebitRun = {
@@ -49,6 +56,26 @@ beforeEach(() => {
     filename: "downloaded-id.xml",
   });
   api.submitSepaDebits.mockResolvedValue({ ...RUN, count: 0 });
+  handoverApi.fetchExportRecipient.mockReturnValue(
+    new Promise(() => undefined),
+  );
+});
+
+it("offers the handover of the debit file without the right to read the recipient", async () => {
+  handoverApi.fetchExportRecipient.mockRejectedValue(
+    new ApiError("forbidden", 403, { code: "general.forbidden" }),
+  );
+  render(
+    <ToastProvider>
+      <SepaDebitCard kind="care-runs" runId="42" />
+    </ToastProvider>,
+  );
+  fireEvent.click(
+    await screen.findByRole("button", { name: /an den Empfänger übergeben/ }),
+  );
+  expect(
+    screen.getByRole("menuitem", { name: /Lastschriftdatei übergeben/ }),
+  ).toBeInTheDocument();
 });
 
 it("confirms the downloaded file rather than the stale overview", async () => {

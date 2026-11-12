@@ -177,6 +177,7 @@ func newMonthSummary(staffID int64, key monthKey, carry int, agg *monthAggregate
 		CarryInMinutes:          carry,
 		TargetMinutes:           agg.target,
 		TargetMinutesToDate:     agg.targetToDate,
+		HasTarget:               agg.hasTarget,
 		ActualMinutes:           agg.actual,
 		CreditedSickMinutes:     agg.creditedSick,
 		CreditedVacationMinutes: agg.creditedVacation,

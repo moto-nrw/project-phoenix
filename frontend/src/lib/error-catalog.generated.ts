@@ -519,6 +519,8 @@ export const ERROR_CATALOG = {
         "Diesen Anmeldelink gibt es nicht. Bitte nutzen Sie den Link, den Sie vom Träger bekommen haben.",
       "enrollment.holiday_registration_state_conflict":
         "Das geht bei dieser Anmeldung gerade nicht. Bitte laden Sie die Seite neu.",
+      "enrollment.holiday_registration_status_not_found":
+        "Diesen Link zu einer Ferienanmeldung gibt es nicht. Bitte nutzen Sie den Link aus Ihrer E-Mail.",
       "enrollment.holiday_week_booked":
         "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen. Ein gebuchtes Zeitmodell können Sie archivieren. Dann kann es niemand mehr neu buchen.",
       "enrollment.holiday_week_day_limit":
@@ -1017,12 +1019,18 @@ export const ERROR_CATALOG = {
         "Diese Dokumentart gibt es für diese Leistung nicht. Bitte wählen Sie eine aus der Liste.",
       "parent_billing.due_dates_invalid":
         "Die Fälligkeiten konnten nicht gespeichert werden. Bitte prüfen Sie die Daten.",
+      "parent_billing.export_already_handed_over":
+        "Diese Datei ist schon beim Empfänger oder noch unterwegs. Es wurde keine neue Datei erstellt.",
       "parent_billing.export_file_number_start_locked":
         "Die Dateinummern laufen schon. Die erste Nummer lässt sich nicht mehr ändern.",
       "parent_billing.export_invoice_not_found":
         "Diese Rechnung gibt es nicht. Laden Sie die Seite neu.",
       "parent_billing.export_mapping_invalid":
         "Die Feldzuordnung ist nicht vollständig. Bitte prüfen Sie die markierten Felder.",
+      "parent_billing.export_recipient_invalid":
+        "Der Empfänger wurde nicht gespeichert. Bitte prüfen Sie die markierten Angaben.",
+      "parent_billing.export_recipient_not_ready":
+        "Der Empfänger fehlt oder ist unvollständig. Bitte ergänzen Sie ihn unter „Empfänger“. Es wurde keine Datei erstellt.",
       "parent_billing.export_run_empty":
         "In diesem Lauf gibt es keine Rechnung. Es gibt keine Datei zum Herunterladen.",
       "parent_billing.export_run_not_found":
@@ -2302,6 +2310,8 @@ export const ERROR_CATALOG = {
         "This registration link does not exist. Please use the link you received from the provider.",
       "enrollment.holiday_registration_state_conflict":
         "This is not possible for this registration right now. Please reload the page.",
+      "enrollment.holiday_registration_status_not_found":
+        "This link to a holiday registration does not exist. Please use the link from your email.",
       "enrollment.holiday_week_booked":
         "This week already has registrations. That is why the week and its booked time models cannot be removed. You can archive a booked time model instead. Then nobody can book it any more.",
       "enrollment.holiday_week_day_limit":
@@ -2474,12 +2484,18 @@ export const ERROR_CATALOG = {
         "The debtor number has {min_digits} to {max_digits} digits, for example {example}.",
       "parent_billing.debtor_number_digits":
         "The debtor number has {digits} digits, for example {example}.",
+      "parent_billing.export_already_handed_over":
+        "This file already reached the recipient or is still on its way. No new file was created.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
         "This invoice does not exist. Please reload the page.",
       "parent_billing.export_mapping_invalid":
         "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_recipient_invalid":
+        "The recipient was not saved. Please check the marked fields.",
+      "parent_billing.export_recipient_not_ready":
+        "The recipient is missing or incomplete. Please complete it under “Recipient”. No file was created.",
       "parent_billing.export_run_empty":
         "This run has no invoice. There is no file to download.",
       "parent_billing.export_run_not_found":
@@ -2964,6 +2980,8 @@ export const ERROR_CATALOG = {
         "Пожалуйста, проверьте отмеченные поля.",
       "enrollment.holiday_registration_not_found":
         "Такой ссылки для записи нет. Пожалуйста, используйте ссылку, которую вы получили от организатора.",
+      "enrollment.holiday_registration_status_not_found":
+        "Такой ссылки на запись на каникулы нет. Пожалуйста, используйте ссылку из письма.",
       "enrollment.holiday_week_no_care_day":
         "{date} присмотра нет ({name}). Эту неделю нельзя забронировать.",
       "enrollment.holiday_wish_missing":
@@ -3123,12 +3141,18 @@ export const ERROR_CATALOG = {
         "Номер дебитора состоит из {min_digits}–{max_digits} цифр, например {example}.",
       "parent_billing.debtor_number_digits":
         "Номер дебитора состоит из {digits} цифр, например {example}.",
+      "parent_billing.export_already_handed_over":
+        "This file already reached the recipient or is still on its way. No new file was created.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
         "This invoice does not exist. Please reload the page.",
       "parent_billing.export_mapping_invalid":
         "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_recipient_invalid":
+        "The recipient was not saved. Please check the marked fields.",
+      "parent_billing.export_recipient_not_ready":
+        "The recipient is missing or incomplete. Please complete it under “Recipient”. No file was created.",
       "parent_billing.export_run_empty":
         "This run has no invoice. There is no file to download.",
       "parent_billing.export_run_not_found":
@@ -3554,6 +3578,8 @@ export const ERROR_CATALOG = {
         "Ju lutemi kontrolloni fushat e shënuara.",
       "enrollment.holiday_registration_not_found":
         "Kjo lidhje regjistrimi nuk ekziston. Ju lutemi përdorni lidhjen që morët nga organizatori.",
+      "enrollment.holiday_registration_status_not_found":
+        "Kjo lidhje për regjistrimin e pushimeve nuk ekziston. Ju lutemi përdorni lidhjen nga emaili juaj.",
       "enrollment.holiday_week_no_care_day":
         "Më {date} nuk ka kujdes ({name}). Kjo javë nuk mund të rezervohet.",
       "enrollment.holiday_wish_missing":
@@ -3716,12 +3742,18 @@ export const ERROR_CATALOG = {
         "Numri i debitorit ka {min_digits} deri {max_digits} shifra, për shembull {example}.",
       "parent_billing.debtor_number_digits":
         "Numri i debitorit ka {digits} shifra, për shembull {example}.",
+      "parent_billing.export_already_handed_over":
+        "This file already reached the recipient or is still on its way. No new file was created.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
         "This invoice does not exist. Please reload the page.",
       "parent_billing.export_mapping_invalid":
         "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_recipient_invalid":
+        "The recipient was not saved. Please check the marked fields.",
+      "parent_billing.export_recipient_not_ready":
+        "The recipient is missing or incomplete. Please complete it under “Recipient”. No file was created.",
       "parent_billing.export_run_empty":
         "This run has no invoice. There is no file to download.",
       "parent_billing.export_run_not_found":
@@ -4137,6 +4169,8 @@ export const ERROR_CATALOG = {
       "enrollment.holiday_registration_invalid": "Sprawdź zaznaczone pola.",
       "enrollment.holiday_registration_not_found":
         "Ten link do zgłoszenia nie istnieje. Użyj linku, który dostałeś od organizatora.",
+      "enrollment.holiday_registration_status_not_found":
+        "Ten link do zgłoszenia na ferie nie istnieje. Użyj linku z e-maila.",
       "enrollment.holiday_week_no_care_day":
         "W dniu {date} nie ma opieki ({name}). Tego tygodnia nie można zarezerwować.",
       "enrollment.holiday_wish_missing":
@@ -4297,12 +4331,18 @@ export const ERROR_CATALOG = {
         "Numer dłużnika ma od {min_digits} do {max_digits} cyfr, na przykład {example}.",
       "parent_billing.debtor_number_digits":
         "Numer dłużnika ma {digits} cyfr, na przykład {example}.",
+      "parent_billing.export_already_handed_over":
+        "This file already reached the recipient or is still on its way. No new file was created.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
         "This invoice does not exist. Please reload the page.",
       "parent_billing.export_mapping_invalid":
         "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_recipient_invalid":
+        "The recipient was not saved. Please check the marked fields.",
+      "parent_billing.export_recipient_not_ready":
+        "The recipient is missing or incomplete. Please complete it under “Recipient”. No file was created.",
       "parent_billing.export_run_empty":
         "This run has no invoice. There is no file to download.",
       "parent_billing.export_run_not_found":
@@ -4724,6 +4764,8 @@ export const ERROR_CATALOG = {
         "Lütfen işaretli alanları kontrol edin.",
       "enrollment.holiday_registration_not_found":
         "Bu kayıt bağlantısı mevcut değil. Lütfen kurumdan aldığınız bağlantıyı kullanın.",
+      "enrollment.holiday_registration_status_not_found":
+        "Bu tatil kaydı bağlantısı mevcut değil. Lütfen e-postanızdaki bağlantıyı kullanın.",
       "enrollment.holiday_week_no_care_day":
         "{date} tarihinde bakım yok ({name}). Bu hafta rezerve edilemez.",
       "enrollment.holiday_wish_missing":
@@ -4883,12 +4925,18 @@ export const ERROR_CATALOG = {
         "Borçlu numarası {min_digits} ile {max_digits} arasında rakamdan oluşur, örneğin {example}.",
       "parent_billing.debtor_number_digits":
         "Borçlu numarası {digits} rakamdan oluşur, örneğin {example}.",
+      "parent_billing.export_already_handed_over":
+        "This file already reached the recipient or is still on its way. No new file was created.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
         "This invoice does not exist. Please reload the page.",
       "parent_billing.export_mapping_invalid":
         "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_recipient_invalid":
+        "The recipient was not saved. Please check the marked fields.",
+      "parent_billing.export_recipient_not_ready":
+        "The recipient is missing or incomplete. Please complete it under “Recipient”. No file was created.",
       "parent_billing.export_run_empty":
         "This run has no invoice. There is no file to download.",
       "parent_billing.export_run_not_found":
@@ -5303,6 +5351,8 @@ export const ERROR_CATALOG = {
         "Будь ласка, перевірте позначені поля.",
       "enrollment.holiday_registration_not_found":
         "Такого посилання для запису немає. Будь ласка, скористайтеся посиланням, яке ви отримали від організатора.",
+      "enrollment.holiday_registration_status_not_found":
+        "Такого посилання на запис на канікули немає. Будь ласка, скористайтеся посиланням з листа.",
       "enrollment.holiday_week_no_care_day":
         "{date} догляду немає ({name}). Цей тиждень не можна забронювати.",
       "enrollment.holiday_wish_missing":
@@ -5462,12 +5512,18 @@ export const ERROR_CATALOG = {
         "Номер дебітора має від {min_digits} до {max_digits} цифр, наприклад {example}.",
       "parent_billing.debtor_number_digits":
         "Номер дебітора має {digits} цифр, наприклад {example}.",
+      "parent_billing.export_already_handed_over":
+        "This file already reached the recipient or is still on its way. No new file was created.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
         "This invoice does not exist. Please reload the page.",
       "parent_billing.export_mapping_invalid":
         "The field mapping is incomplete. Please check the marked fields.",
+      "parent_billing.export_recipient_invalid":
+        "The recipient was not saved. Please check the marked fields.",
+      "parent_billing.export_recipient_not_ready":
+        "The recipient is missing or incomplete. Please complete it under “Recipient”. No file was created.",
       "parent_billing.export_run_empty":
         "This run has no invoice. There is no file to download.",
       "parent_billing.export_run_not_found":

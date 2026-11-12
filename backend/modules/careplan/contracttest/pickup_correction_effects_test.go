@@ -39,7 +39,7 @@ func pickupCorrectionFixture(t *testing.T) (*careFixture, calendar.Date, int64) 
 		owners.NewParentGuardianProfileReads(f.reposPeople.GuardianProfile),
 		owners.NewParentStudentGuardianReads(f.reposPeople.StudentGuardian),
 		owners.NewParentGuardianPolicy(), nil)
-	f.svc = owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+	f.svc = owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(nil,
 		f.reposCare.CarePlan(), f.persons, f.schedules.Arrivals, f.schedules.Pickups,
 		newPickupChangePresence(t, f.db), f.autoExcusal, f.reposCare.CarePlan(), f.caller,
 		f.emitter(t, messagingOnSettings{}, nil), nil, testpkg.RequestReviewPolicy[*peopledirectory.StudentState]{UserContext: f.caller},

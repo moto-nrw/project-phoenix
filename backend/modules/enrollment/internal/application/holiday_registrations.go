@@ -56,6 +56,13 @@ type HolidayRegistrationStore interface {
 	// Every booking takes the placement waiting (#4699, #4700).
 	InsertHolidayRegistration(ctx context.Context, organizationID, periodID int64, input enrollment.HolidayRegistrationInput, waiting string,
 		seal func(registrationID int64) (enrollment.HolidaySealedHealth, error)) (enrollment.HolidayRegistrationReceipt, error)
+	// FindHolidayRegistrationStatus names the registration of a status
+	// token in the administrative transaction (#6676).
+	FindHolidayRegistrationStatus(ctx context.Context, token string) (reference enrollment.HolidayRegistrationReference, found bool, err error)
+	// HolidayRegistrationStatus reads what the status link shows in the
+	// Träger transaction; schools names the host schools by ID.
+	HolidayRegistrationStatus(ctx context.Context, reference enrollment.HolidayRegistrationReference,
+		schools map[int64]string) (status enrollment.HolidayRegistrationStatus, found bool, err error)
 }
 
 // HolidayRegistrationDependencies are the ports of the public registration.
@@ -347,6 +354,9 @@ func (h *HolidayRegistrations) storeSubmitted(ctx context.Context, link enrollme
 		return enrollment.HolidayRegistrationReceipt{}, err
 	}
 	health, input := splitHolidayHealth(input, form)
+	if input.StatusToken, err = h.newStatusToken(); err != nil {
+		return enrollment.HolidayRegistrationReceipt{}, err
+	}
 	receipt, err := h.deps.Registrations.InsertHolidayRegistration(ctx, link.OrganizationID, link.PeriodID, input, holidayWaitingPlacement(period, enrollment.HolidayRegistrationReceived),
 		func(registrationID int64) (enrollment.HolidaySealedHealth, error) {
 			return sealHolidayHealth(h.deps.Health, link.OrganizationID, registrationID, health)
@@ -432,6 +442,7 @@ func (h *HolidayRegistrations) enqueueReceipt(ctx context.Context, link enrollme
 	form enrollment.HolidayPeriodForm, input enrollment.HolidayRegistrationInput, receipt enrollment.HolidayRegistrationReceipt) error {
 	mail := holidayReceiptMail(link.Traeger, period, input, receipt.Placements)
 	mail.Declaration = holidayMailDeclaration(period, form, input, receipt.SubmittedAt)
+	mail.StatusToken = receipt.StatusToken
 	payload, err := json.Marshal(mail)
 	if err != nil {
 		return fmt.Errorf("enrollment: encode holiday registration mail: %w", err)
@@ -528,6 +539,7 @@ func validateHolidayRegistration(input enrollment.HolidayRegistrationInput, peri
 		errs["children"] = fmt.Errorf("at most %d children", enrollment.HolidayRegistrationMaxChildren)
 	default:
 		childErrs := validateHolidayChildren(input.Children, schools, today)
+		addHolidayRequiredHealthErrors(childErrs, input.Children, form.HealthRequirement)
 		addHolidayBookingErrors(childErrs, input.Children, period)
 		addHolidayChildAnswerErrors(childErrs, form, answers, byKey)
 		if len(childErrs) > 0 {
@@ -557,6 +569,25 @@ func addHolidayBookingErrors(childErrs validation.Errors, children []enrollment.
 	for i, child := range children {
 		if bookingErr := validateHolidayBookings(child.Bookings, period, nil); bookingErr != nil {
 			nestHolidayChildError(childErrs, i, "bookings", bookingErr)
+		}
+	}
+}
+
+// addHolidayRequiredHealthErrors refuses an empty allergies or medication
+// field of each child when the form version requires them (#6686), as
+// "children.<i>.allergies". The parent answers "Keine" for a child without
+// any; the further health notes stay optional. The Träger-Büro's edit
+// leaves the sealed health fields alone and checks nothing here.
+func addHolidayRequiredHealthErrors(childErrs validation.Errors, children []enrollment.HolidayChildInput, requirement enrollment.HolidayHealthRequirement) {
+	if requirement != enrollment.HolidayHealthRequired {
+		return
+	}
+	for i, child := range children {
+		if child.Allergies == "" {
+			nestHolidayChildError(childErrs, i, "allergies", errors.New("is required"))
+		}
+		if child.Medication == "" {
+			nestHolidayChildError(childErrs, i, "medication", errors.New("is required"))
 		}
 	}
 }

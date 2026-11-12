@@ -4956,6 +4956,16 @@
       "reason": "Bounded forwarding debt for the approval-time eligibility check; ADR 0111 records its transaction boundary."
     },
     {
+      "decision": "0075",
+      "id": "roots/owners/pickupChangeTeamReach.NotifyPickupChanged",
+      "reason": "ADR 0075 owner-edge translation (#6855): maps Care Plan's device notice of a changed pickup time onto the root's shared staff push with the Delivery type, the school of the request and a per-decision idempotency key; no decision or SQL."
+    },
+    {
+      "decision": "0075",
+      "id": "roots/owners/pickupChangeTeamReach.ResponsibleAccountIDs",
+      "reason": "ADR 0075 owner-edge translation (#6855): asks Delivery's responsibility rule for the child's staff under the pickup change type, excluding the deciding account, and fails closed when unbound; no decision or SQL."
+    },
+    {
       "decision": "0090",
       "id": "roots/owners/pickupExceptionDirectory.FindPickupException",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."

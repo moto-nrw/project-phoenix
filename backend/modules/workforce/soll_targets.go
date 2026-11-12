@@ -257,6 +257,26 @@ func (r *DayTargetResolver) TargetFor(d calendar.Date) int {
 	return 0
 }
 
+// HasSource reports whether a maintained Soll source prices d: a
+// Sonderarbeitszeit, a schedule row matching the day, or the stand-in
+// template. Without one the day's Soll is zero only because nothing is
+// maintained (#6887), which is why absences on it credit nothing. It follows
+// the order of TargetFor, so a template that may not stand in never counts.
+func (r *DayTargetResolver) HasSource(d calendar.Date) bool {
+	if _, ok := r.Overrides[d.String()]; ok {
+		return true
+	}
+	if r.Schedule != nil {
+		_, matched := r.Schedule(d)
+		return matched
+	}
+	if r.Template != nil {
+		_, ok := r.Template(d)
+		return ok
+	}
+	return false
+}
+
 // SourceFor names what set the Soll of a day; empty is the regular schedule.
 func (r *DayTargetResolver) SourceFor(d calendar.Date) string {
 	if _, ok := r.Overrides[d.String()]; ok {

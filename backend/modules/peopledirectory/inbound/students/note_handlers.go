@@ -571,4 +571,5 @@ var studentNoteErrorRenderer = common.RulesRenderer([]common.ErrorRule{
 	{Target: peopleModule.ErrStudentNoteNotAuthor, Render: common.ErrorForbidden},
 	{Target: peopleModule.ErrStudentNoteImmutable, Render: common.ErrorForbidden},
 	{Target: peopleModule.ErrStudentNoteDeleteForbidden, Render: common.ErrorForbidden},
+	{Target: peopleModule.ErrStudentNoteTeamAudience, Render: common.ErrorInvalidRequest},
 }, common.ErrorInternalServer)

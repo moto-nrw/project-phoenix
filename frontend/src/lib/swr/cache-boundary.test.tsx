@@ -155,7 +155,11 @@ const REVIEWED_EXPORTS: Record<string, string[]> = {
   "parent-keys": ["parentKeys"],
   "rooms-keys": ["roomKeys"],
   "groups-keys": ["groupKeys"],
-  "staff-keys": ["staffKeys", "staffQualificationKeys"],
+  "staff-keys": [
+    "staffKeys",
+    "staffMonthSummaryKeys",
+    "staffQualificationKeys",
+  ],
   "me-keys": ["meKeys"],
   rooms: ["rooms"],
   groups: ["groups"],

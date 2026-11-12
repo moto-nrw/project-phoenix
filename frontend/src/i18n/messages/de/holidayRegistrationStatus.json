@@ -1,0 +1,41 @@
+{
+  "loading": "Stand wird geladen",
+  "errorObject": "Der Stand Ihrer Ferienanmeldung",
+  "kicker": "Ferienanmeldung",
+  "title": {
+    "received": "Ihre Anmeldung ist eingegangen",
+    "confirmed": "Ihre Anmeldung ist bestätigt",
+    "cancelled": "Diese Anmeldung gilt nicht mehr"
+  },
+  "lead": {
+    "received": "Das ist noch keine Zusage. {traeger} prüft Ihre Anmeldung und schreibt Ihnen eine E-Mail.",
+    "confirmed": "{traeger} hat Ihre Anmeldung bestätigt. Die Bestätigung kam per E-Mail.",
+    "cancelled": "{traeger} hat die Anmeldung storniert. Die Wochen unten gelten nicht mehr."
+  },
+  "periodLabel": "Zeitraum",
+  "submittedLabel": "Eingegangen am",
+  "stepsTitle": "So geht es weiter",
+  "stepsCancelled": "Es gibt keinen nächsten Schritt. Bei Fragen wenden Sie sich bitte an den Träger.",
+  "stepReceived": "Anmeldung eingegangen",
+  "stepReceivedDetail": "Am {date}",
+  "stepReview": "Der Träger prüft",
+  "stepReviewRunning": "Die Prüfung läuft.",
+  "stepReviewAfter": "Anmelden geht noch bis {date}. Danach entscheidet der Träger.",
+  "stepReviewDone": "Die Prüfung ist fertig.",
+  "stepDecision": "Zusage per E-Mail",
+  "stepDecisionNext": "Sie bekommen eine E-Mail, sobald der Träger entschieden hat.",
+  "stepDecisionDone": "Die Zusage ist da.",
+  "stepState": {
+    "done": "erledigt",
+    "current": "läuft gerade",
+    "next": "kommt noch"
+  },
+  "weeksTitle": "Wochen und Plätze",
+  "weeksDescription": "Nur zur Ansicht. Änderungen klären Sie bitte direkt mit dem Träger.",
+  "weekCount": "{count, plural, one {# Woche} other {# Wochen}}",
+  "noWeeks": "Keine Woche gebucht.",
+  "hostSchool": "in {school}",
+  "privacyNote": "Dieser Link zeigt nur den Stand Ihrer Anmeldung. Geben Sie ihn nicht weiter. Nach den Ferien löscht der Träger die Anmeldung. Dann gilt auch der Link nicht mehr.",
+  "notFoundTitle": "Wir finden diese Anmeldung nicht",
+  "notFoundText": "Vielleicht ist der Link unvollständig. Bitte öffnen Sie ihn noch einmal aus Ihrer E-Mail. Nach den Ferien wird die Anmeldung gelöscht. Dann gilt der Link nicht mehr."
+}

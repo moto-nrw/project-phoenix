@@ -292,10 +292,14 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0215: workflows/traegercatalog (+38) and modules/enrollment/compose
 // (+2: NewTraegerPhases and NewOfferingSelectionReferences, less shortened
 // comments); modules/careplan/compose stays.
-const moduleComposeBudgetTotal = 13378
+// ADR 0218: the Träger scope of modules/exporttransfer/compose with its
+// recipient rekey (+33) and the handovers of modules/parentbilling/compose (+5).
+// ADR 0220: the pickup change team constructor of modules/careplan/compose
+// adds exactly 13 LOC.
+const moduleComposeBudgetTotal = 13429
 
 // moduleComposeBudgets maps every owner composition package to its production
-// LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
+// LOC (ADR 0220 adds 13 to modules/careplan/compose), raised by ADR 0159 for withdrawal and termination (#4682), first
 // measured on 2026-10-15 on top of development c49b81c3a9: 61 packages,
 // 90627 LOC. #4084 carries the reduction to construction only;
 // modules/timetable/compose is the largest by far. Shrink-only — a new owner
@@ -318,7 +322,7 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0154: the booked care offering constructor (+13).
 	// #4704 (ADR 0215): the Träger offering constructors fit in shortened
 	// comments (±0).
-	"modules/careplan/compose":             1675,
+	"modules/careplan/compose":             1688, // ADR 0220: +13, the pickup change team constructor
 	"modules/careplan/requestfeed/compose": 53,
 	// Raised by ADR 0102: the class-trip status-day seam (#4799).
 	"modules/classday/compose": 210,
@@ -353,8 +357,9 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0216: account proofs and the account's holiday registrations (+10).
 	// ADR 0215: NewTraegerPhases (+4) and NewOfferingSelectionReferences (+4),
 	// less shortened comments and a merged file (-6).
-	"modules/enrollment/compose":                   635,
-	"modules/exporttransfer/compose":               149,
+	"modules/enrollment/compose": 635,
+	// ADR 0218: the Träger scope and the recipient rekey (+33).
+	"modules/exporttransfer/compose":               182,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
 	"modules/feedback/compose":                     61,
@@ -404,7 +409,8 @@ var moduleComposeBudgets = map[string]int{
 	// the unsubmitted PAIN.008 downloads (+5).
 	// ADR 0191: the constructor of the stored originals of the
 	// Jahresbescheide (+5).
-	"modules/parentbilling/compose":               124,
+	// ADR 0218: the handovers of the finance exports (+5).
+	"modules/parentbilling/compose":               129,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	// ADR 0188: the guardian bank backfill/rekey constructor (+6).

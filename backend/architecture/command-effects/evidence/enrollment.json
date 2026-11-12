@@ -1386,7 +1386,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
-      "binding_digest": "3c6af215213d95e9eb1df0ccd305ac33",
+      "binding_digest": "bb5dea234e3c9e69b4c4f149e63d94cd",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
       "source_owner": "enrollment",
       "target": "*github.com/moto-ogs/project-phoenix/modules/auditlog/compose.Command.Append",
@@ -1394,7 +1394,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
-      "binding_digest": "9f11f7e399f1d1d4d342ffa647aac414",
+      "binding_digest": "d9092965050d64779feb02527c735860",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/auditlog/records.AppendStore.Append",
@@ -1402,7 +1402,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
-      "binding_digest": "085b3f61f78b09b479cfde7b39b8c2d4",
+      "binding_digest": "5daa7f859634a60361cafff090cd30a0",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/auditlog/records.Command.Append",
@@ -1410,7 +1410,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
-      "binding_digest": "34a0920a282ff6328e591153d538c838",
+      "binding_digest": "4e0525b2ebf18f89da06ecedd123abbc",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
@@ -1783,6 +1783,14 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.HolidayRegistrationMailErasure.EraseHolidayRegistrationMails",
       "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.HolidayRegistrations.SubmitHolidayRegistration",
+      "binding_digest": "50dd30aba0eb5fb289acb5f33b6c2717",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayRegistrations.SubmitHolidayRegistration",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime"
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.HolidayRegistrations.UploadHolidayProof",

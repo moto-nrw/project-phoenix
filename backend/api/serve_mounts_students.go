@@ -181,6 +181,7 @@ func mountStudentRoutes(
 	reports owners.PresenceReports, structureViews StructureServices, organizations organizationtenancy.Query,
 	statusDays studentpresence.StatusDays, absences deliveryCompose.AbsenceNotifier, deletion *studentdeletion.Workflow,
 	groupLive grouplive.Query, decisions enrollmentOwner.Decisions, active studentpresence.Presence, resumption careStudentsHTTP.CareResumption,
+	noteTeam peopledirectory.StudentNoteTeamNotices, noteTeamReach studentsAPI.StudentNoteTeamReach,
 ) error {
 	// A direct school_class edit must resync Jahrgang-filtered offering-sourced
 	// Regeltermine like a grade transition does (#2147 review round 10); Care
@@ -203,10 +204,10 @@ func mountStudentRoutes(
 			Persons:                peopleCompose.NewStudentRoutePersons(services.Users),
 			StudentAuditService:    persons,
 			StudentDocumentService: requests.Documents,
-			StudentNotes:           persons,
-			StudentPhotos:          persons,
-			Uploads:                nativeUploads.UploadFiles{},
-			UserContextService:     caller,
+			StudentNotes:           persons, StudentNoteTeam: noteTeam, NoteTeamReach: noteTeamReach,
+			StudentPhotos:      persons,
+			Uploads:            nativeUploads.UploadFiles{},
+			UserContextService: caller,
 		},
 		careStudentsHTTP.ResourceConfig{
 			ArrivalScheduleService: schedules.Arrivals,
@@ -229,8 +230,8 @@ func mountStudentRoutes(
 			PartialAbsenceService:        schedules.PartialAbsences,
 			PeopleDirectory:              persons,
 			Persons:                      peopleCompose.NewStudentRoutePersons(services.Users),
-			PickupAdjustmentService:      requests.CareOfferings,
-			PickupScheduleService:        schedules.Pickups, PickupSignatureProofs: staffPickupSignatures{ledger: owners.SignatureLedger()}, Reports: newDeclarationReports(),
+			PickupAdjustmentService:      requests.CareOfferings, PickupChangeNotices: requests.PickupChangeTeam,
+			PickupScheduleService: schedules.Pickups, PickupSignatureProofs: staffPickupSignatures{ledger: owners.SignatureLedger()}, Reports: newDeclarationReports(),
 			Schools: studentSchoolDirectory{schools: organizations}, SettingsService: settings,
 			StudentAccidentReports: requests.AccidentReports, StudentAuditService: persons,
 			StudentConsents:        services.StudentConsents,
