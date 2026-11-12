@@ -106,7 +106,7 @@ function DebtorCell({
   const name = familyName(family) || family.familyEmail;
   const number = family.familyDebtorNumber;
   return (
-    <span className="block w-40 min-w-0">
+    <span className="block min-w-0 sm:w-40">
       <span className="flex min-w-0 items-center justify-between gap-3">
         {number ? (
           <span

@@ -348,6 +348,31 @@ func TestConfirmationWithoutANumberRemembersNoFamily(t *testing.T) {
 	assert.Equal(t, "-", f.familyNumber(t, "papa.muster@example.org"), "no row without a number")
 }
 
+// A confirmation without a number still uses the family's remembered one
+// for its invoice (#6677), so it refreshes when the family last used it:
+// the number's retention never ends before that invoice (#6692). It writes
+// no number and no row.
+func TestConfirmationWithoutANumberKeepsTheFamilyNumberAlive(t *testing.T) {
+	t.Parallel()
+	f := newReviewFixture(t, "Familie Nutzung")
+	first := f.submitFamily(t, "eva.muster@example.org")
+	second := f.submitFamily(t, "eva.muster@example.org")
+	require.Equal(t, http.StatusOK, f.confirmWith(t, first, map[string]any{"debtor_number": "11111"}).Code)
+	_, err := f.db.NewRaw(`UPDATE parent_billing.family_billing SET last_used_on = '2020-01-01' WHERE organization_id = ? AND family_email = ?`,
+		f.office.organization, "eva.muster@example.org").Exec(context.Background())
+	require.NoError(t, err)
+
+	require.Equal(t, http.StatusOK, f.confirmWith(t, second, nil).Code)
+
+	var used []calendar.Date
+	require.NoError(t, f.db.NewRaw(`SELECT last_used_on FROM parent_billing.family_billing WHERE organization_id = ? AND family_email = ?`,
+		f.office.organization, "eva.muster@example.org").Scan(context.Background(), &used))
+	require.Len(t, used, 1)
+	assert.True(t, used[0].After(calendar.NewDate(2020, 1, 1)), "the confirmation refreshes the use, got %s", used[0])
+	assert.Equal(t, "11111", f.familyNumber(t, "eva.muster@example.org"), "the number stays")
+	assert.Equal(t, "-", f.familyNumber(t, "papa.muster@example.org"), "no row for a family without a number")
+}
+
 // The office corrects a number without a choice only where the family has
 // it from the very registration it changes (#6692.3). A registration that
 // took the family's number as the proposal did not give it to the family:

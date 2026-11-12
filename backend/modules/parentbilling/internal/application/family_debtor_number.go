@@ -122,7 +122,7 @@ func (h *HolidayContributions) rememberFamilies(ctx context.Context, reviewer pa
 	number *string, choice string, correctingID int64,
 ) error {
 	if number == nil || *number == "" {
-		return nil
+		return h.touchFamilies(ctx, reviewer, registrations)
 	}
 	memories := familyMemories(registrations, *number, h.today())
 	if len(memories) == 0 {
@@ -157,6 +157,22 @@ func (h *HolidayContributions) rememberFamilies(ctx context.Context, reviewer pa
 	}
 	if err := h.store.InsertFamilyBillingEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, familyBillingSave, saved); err != nil {
 		return fmt.Errorf("parent billing: record the family's number: %w", err)
+	}
+	return nil
+}
+
+// touchFamilies refreshes when a family that already has a number last used
+// it: an invoice of a registration without its own number takes the
+// family's (#6677), so the number's retention must not end before that
+// invoice. It updates existing rows only, writes no number and records no
+// event: nothing the office decided changed (#6692).
+func (h *HolidayContributions) touchFamilies(ctx context.Context, reviewer parentbilling.HolidayReviewer, registrations []parentbilling.HolidayRegistration) error {
+	memories := familyMemories(registrations, "", h.today())
+	for i := range memories {
+		memories[i].DebtorNumber = nil
+	}
+	if _, err := h.store.RememberFamilies(ctx, reviewer.OrganizationID, reviewer.AccountID, memories); err != nil {
+		return fmt.Errorf("parent billing: refresh the use of the family's number: %w", err)
 	}
 	return nil
 }

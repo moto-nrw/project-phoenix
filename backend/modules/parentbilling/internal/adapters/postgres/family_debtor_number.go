@@ -62,7 +62,8 @@ func (s *Store) LockFamilies(ctx context.Context, organizationID int64, families
 // given, the number. A number that changes names the registration it came
 // from; the same number again keeps where it came from, so a registration
 // that took the proposal never becomes its origin. It answers the rows it
-// wrote.
+// wrote. A row without a number only changes when one is given: a
+// confirmation without a number refreshes only the use of a remembered one.
 func (s *Store) RememberFamilies(ctx context.Context, organizationID, accountID int64, families []parentbilling.FamilyMemory) ([]parentbilling.FamilyBilling, error) {
 	if len(families) == 0 {
 		return nil, nil
@@ -93,7 +94,7 @@ func (s *Store) RememberFamilies(ctx context.Context, organizationID, accountID 
 			updated_by_account_id = ?7, updated_at = CURRENT_TIMESTAMP
 		FROM unnest(?1::text[], ?2::text[], ?3::text[], ?4::date[], ?5::text[], ?6::boolean[], ?8::bigint[])
 			AS memory(email, first_name, last_name, used_on, number, set, origin)
-		WHERE family.organization_id = ?0 AND family.family_email = memory.email
+		WHERE family.organization_id = ?0 AND family.family_email = memory.email AND (memory.set OR family.debtor_number IS NOT NULL)
 		RETURNING family.*`,
 		organizationID, pgdialect.Array(emails), pgdialect.Array(first), pgdialect.Array(last), pgdialect.Array(used),
 		pgdialect.Array(numbers), pgdialect.Array(set), accountRef(accountID), pgdialect.Array(origins)).Scan(ctx, &rows); err != nil {
