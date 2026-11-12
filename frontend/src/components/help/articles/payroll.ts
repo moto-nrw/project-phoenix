@@ -27,6 +27,7 @@ export function payrollTopic(): HelpTopic {
           "Tragen Sie unter `Feste Lohnarten` die Nummern Ihres Lohnsystems ein.",
           "Tragen Sie unter `DATEV-Mandant` `Beraternummer` und `Mandantennummer` ein.",
           "Tragen Sie die `Personalnummern` bei den Personen nach. Das Feld steht beim Personal im Reiter `Stammdaten`.",
+          "Fehlt bei `Soll (Arbeitszeit)` etwas? Tippen Sie auf `Personen ohne Soll`. Tippen Sie auf eine Person und legen Sie im Reiter `Arbeitszeitmodell` das Soll fest.",
         ],
       },
       {
@@ -85,6 +86,7 @@ export function payrollTopic(): HelpTopic {
     ],
     troubleshootingDetails: [
       "Der Export erzeugt keine Datei? Dann fehlt oben unter `Vollständigkeit` noch etwas.",
+      "Ein Krankheitstag zählt 0 Stunden? Dann fehlt das Soll. `Vollständigkeit` zählt bei `Soll (Arbeitszeit)` alle Personen ohne Soll im laufenden Monat.",
       "`Zuschlagsregel anlegen` lässt sich nicht tippen? Dann fehlt noch eine eigene Lohnart.",
       "Unter `Letzter Versand` steht `Nicht gesendet` oder `Fehlgeschlagen`? Darunter steht der Grund. Wer die Zeiterfassung des Teams verwaltet, bekommt dazu eine E-Mail.",
       "Der `Versandweg` `SFTP` braucht die Gegenstelle aus den Einstellungen unter `Kalender und Export` bei `Zeitkonten übertragen`.",

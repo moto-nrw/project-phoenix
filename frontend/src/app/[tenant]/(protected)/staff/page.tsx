@@ -238,9 +238,12 @@ function StaffPageContent() {
   const [locationFilter, setLocationFilter] = useState(
     searchParams.get("status") === "ehemalige" ? "ehemalige" : "all",
   );
+  // `?view=accounts` öffnet die Zeitkonten, `&filter=ohne-soll` gleich mit
+  // dem Filter auf Personen ohne Soll: so führt die Vollständigkeit unter
+  // Abrechnung zu den Betroffenen (#6890).
   const [selectedView, setSelectedView] = useState<
     "status" | "accounts" | "audit" | "documents"
-  >("status");
+  >(() => (searchParams.get("view") === "accounts" ? "accounts" : "status"));
   const [employmentFilter, setEmploymentFilter] = useState("all");
   // Angezeigter Monat der Zeitkonten (#1417): Default ist der laufende Monat;
   // zurückblättern erlaubt der Endpoint seit #1988, vorwärts über heute hinaus
@@ -1025,6 +1028,9 @@ function StaffPageContent() {
                 )
               }
               canSetTarget={userIsAdmin}
+              initialOnlyWithoutTarget={
+                searchParams.get("filter") === "ohne-soll"
+              }
               saldoPreset={saldoPreset}
               onSaldoPresetChange={setSaldoPreset}
               customSaldoHours={customSaldoHours}

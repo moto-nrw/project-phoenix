@@ -3,12 +3,15 @@
 import { payrollKeys } from "~/lib/swr/portal-keys";
 
 import {
+  type ReactNode,
   useCallback,
   useEffect,
   useLayoutEffect,
   useRef,
   useState,
 } from "react";
+import { useSession } from "next-auth/react";
+import { CircleCheck, CircleDashed, TriangleAlert } from "lucide-react";
 import { useSWRAuth } from "~/lib/swr";
 import { SwitchRow } from "~/components/ui/switch";
 import { Alert } from "~/components/ui/alert";
@@ -37,6 +40,7 @@ import {
   duplicateLohnartNumbers,
   fetchPayrollDispatch,
   fetchPayrollStatus,
+  fetchPayrollTargetCoverage,
   PAYROLL_DISPATCH_CHANNEL_LABELS,
   PAYROLL_DISPATCH_EMAIL_PATTERN,
   PAYROLL_DISPATCH_FORMAT_LABELS,
@@ -51,7 +55,13 @@ import {
   type PayrollDispatchView,
   type PayrollSettingValue,
   type PayrollStatus,
+  type PayrollTargetCoverage,
 } from "~/lib/payroll-api";
+import { hasPermission } from "~/lib/auth-utils";
+import { notBookedModuleOf } from "~/lib/module-not-booked";
+import { MISSING_TARGET_OWNER } from "~/components/staff/missing-target-notice";
+import { ProgressBar } from "~/components/ui/progress-bar";
+import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { fetchSFTPStatus, type SFTPStatus } from "~/lib/sftp-export-api";
 import {
   archiveSurchargeRule,
@@ -78,7 +88,7 @@ import {
   CreateSurchargeRuleModal,
   CreateWageTypeModal,
 } from "~/components/payroll/payroll-rule-modals";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -190,6 +200,25 @@ export default function PayrollPage() {
     "die eigenen Lohnarten und Zuschläge",
     () => mutateRules(),
   );
+
+  // Soll-Prüfung (#6890): dieselbe Rechnung wie die Zeitkonten, nur die
+  // Zahlen. Ein eigener Ladefehler in der Karte, die übrigen Zeilen bleiben.
+  const {
+    data: targetCoverage,
+    error: targetCoverageError,
+    mutate: mutateTargetCoverage,
+  } = useSWRAuth(
+    isReady ? payrollKeys.targetCoverage() : null,
+    fetchPayrollTargetCoverage,
+    { keepPreviousData: false, shouldRetryOnError: false },
+  );
+  const targetCoverageLoadError = useSwrLoadError(
+    targetCoverageError,
+    "die Prüfung des Solls",
+    () => mutateTargetCoverage(),
+  );
+  const { data: session } = useSession();
+  const canOpenTimeAccounts = hasPermission(session, "time_tracking:manage");
 
   // Ob die SFTP-Gegenstelle bereit ist, braucht time_tracking:manage. Fehlt
   // das Recht oder scheitert die Abfrage, entfällt nur der Hinweis: Der
@@ -348,7 +377,16 @@ export default function PayrollPage() {
     >
       {status && (
         <div ref={formRef} className="space-y-6">
-          <ReadinessCard status={status} rules={rules} />
+          <ReadinessCard
+            status={status}
+            rules={rules}
+            targetCoverage={targetCoverage}
+            targetCoverageError={{
+              raw: targetCoverageError,
+              shown: targetCoverageLoadError,
+            }}
+            canOpenTimeAccounts={canOpenTimeAccounts}
+          />
 
           <FormErrorAlert message={saveError} />
           {duplicates.length > 0 && (
@@ -380,38 +418,48 @@ export default function PayrollPage() {
   );
 }
 
+/** Zeitkonten mit dem Filter „ohne Soll“ (#6890). */
+const STAFF_WITHOUT_TARGET_HREF = "/staff?view=accounts&filter=ohne-soll";
+
+interface ReadinessItem {
+  readonly key: string;
+  readonly label: string;
+  /** `null` solange die Prüfung lädt. */
+  readonly ok: boolean | null;
+  readonly detail: string;
+  readonly action?: ReactNode;
+}
+
 function ReadinessCard({
   status,
   rules,
+  targetCoverage,
+  targetCoverageError,
+  canOpenTimeAccounts,
 }: {
   readonly status: PayrollStatus;
   readonly rules: PayrollRules | undefined;
+  /** `undefined` solange die Soll-Prüfung lädt. */
+  readonly targetCoverage: PayrollTargetCoverage | undefined;
+  readonly targetCoverageError: {
+    readonly raw: unknown;
+    readonly shown: ReturnType<typeof useSwrLoadError>;
+  };
+  /** Darf die Zeitkonten mit den Namen öffnen (time_tracking:manage). */
+  readonly canOpenTimeAccounts: boolean;
 }) {
   const unnumbered = (rules?.wageTypes ?? []).filter((w) => w.number === "");
-  const items: { label: string; ok: boolean; detail: string }[] = [
+  const items: ReadinessItem[] = [
     {
+      key: "lohnarten",
       label: "Feste Lohnarten",
       ok: status.configuredCategories > 0,
       detail: `${status.configuredCategories} von ${status.totalCategories} Kategorien konfiguriert`,
     },
-    {
-      label: "DATEV-Mandant (nur LODAS)",
-      ok: status.lodasHeaderComplete,
-      detail: status.lodasHeaderComplete
-        ? "Berater- und Mandantennummer gesetzt"
-        : "Berater- oder Mandantennummer fehlt",
-    },
-    {
-      label: "Personalnummern",
-      ok: status.staffWithoutPersonnelNumber === 0,
-      detail:
-        status.staffWithoutPersonnelNumber === 0
-          ? `Alle ${status.staffTotal} Beschäftigten haben eine Personalnummer`
-          : `${status.staffWithoutPersonnelNumber} von ${status.staffTotal} Beschäftigten ohne Personalnummer (Pflege im Stammdaten-Tab der Person)`,
-    },
   ];
   if (rules && rules.wageTypes.length > 0) {
-    items.splice(1, 0, {
+    items.push({
+      key: "eigene-lohnarten",
       label: "Eigene Lohnarten",
       ok: unnumbered.length === 0,
       detail:
@@ -420,33 +468,157 @@ function ReadinessCard({
           : `Ohne Lohnartnummer, fehlen im DATEV-Export: ${unnumbered.map((w) => w.name).join(", ")}`,
     });
   }
+  items.push(
+    {
+      key: "datev",
+      label: "DATEV-Mandant (nur LODAS)",
+      ok: status.lodasHeaderComplete,
+      detail: status.lodasHeaderComplete
+        ? "Berater- und Mandantennummer gesetzt"
+        : "Berater- oder Mandantennummer fehlt",
+    },
+    {
+      key: "personalnummern",
+      label: "Personalnummern",
+      ok: status.staffWithoutPersonnelNumber === 0,
+      detail:
+        status.staffWithoutPersonnelNumber === 0
+          ? `Alle ${status.staffTotal} Beschäftigten haben eine Personalnummer`
+          : `${status.staffWithoutPersonnelNumber} von ${status.staffTotal} Beschäftigten ohne Personalnummer (Pflege im Stammdaten-Tab der Person)`,
+    },
+  );
+  // Ohne gebuchte Zeiterfassung gibt es kein Soll zu prüfen: dann entfällt
+  // die Zeile, statt einen Fehler zu zeigen.
+  const targetCheckBooked = notBookedModuleOf(targetCoverageError.raw) === null;
+  if (targetCheckBooked && !targetCoverageError.raw) {
+    items.push(targetItem(targetCoverage, canOpenTimeAccounts));
+  }
+
+  const checked = items.filter((item) => item.ok !== null);
+  const done = checked.filter((item) => item.ok).length;
+  const open = checked.length - done;
+  const loading = checked.length < items.length;
 
   return (
     <SectionCard
       title="Vollständigkeit"
+      titleBadge={
+        loading ? null : open > 0 ? (
+          <StatusBadge tone="warning" label={`${open} offen`} />
+        ) : (
+          <StatusBadge tone="green" label="Alles erledigt" />
+        )
+      }
       description="Ohne vollständige Konfiguration erzeugt der spätere DATEV-Export keine Datei. Eine Kategorie ohne Lohnartnummer wird nicht exportiert."
     >
-      <ul className="space-y-2">
+      <ProgressBar
+        value={done}
+        max={items.length}
+        label={`${done} von ${items.length} Punkten erledigt`}
+        tone={open > 0 ? "orange" : "green"}
+        size="sm"
+        className="mb-4"
+      />
+      <ResponsiveActionList>
         {items.map((item) => (
-          <li
-            key={item.label}
-            className="flex items-start justify-between gap-3 text-sm"
-          >
-            <span className="min-w-0 break-words">
-              <span className="font-medium text-gray-800">{item.label}:</span>{" "}
-              <span className="text-gray-600">{item.detail}</span>
-            </span>
-            <span className="shrink-0">
-              <StatusBadge
-                size="xs"
-                tone={item.ok ? "green" : "warning"}
-                label={item.ok ? "Erledigt" : "Fehlt"}
-              />
-            </span>
-          </li>
+          <ReadinessRow key={item.key} item={item} />
         ))}
-      </ul>
+      </ResponsiveActionList>
+      {targetCheckBooked && targetCoverageError.shown ? (
+        <div className="mt-3">
+          <LoadErrorAlert
+            error={targetCoverageError.shown}
+            actionLayout="responsive"
+          />
+        </div>
+      ) : null}
     </SectionCard>
+  );
+}
+
+/**
+ * Ob alle Beschäftigten im laufenden Monat ein Soll haben (#6890). Dieselbe
+ * Zahl wie der Hinweis über den Zeitkonten; der Link führt zu genau diesen
+ * Personen.
+ */
+function targetItem(
+  coverage: PayrollTargetCoverage | undefined,
+  canOpenTimeAccounts: boolean,
+): ReadinessItem {
+  const base = { key: "soll", label: "Soll (Arbeitszeit)" };
+  if (!coverage) {
+    return { ...base, ok: null, detail: "Wird geprüft …" };
+  }
+  const month = payrollMonthLabel(coverage.year, coverage.month);
+  const missing = coverage.staffWithoutTarget;
+  if (missing === 0) {
+    return {
+      ...base,
+      ok: true,
+      detail:
+        coverage.staffTotal === 1
+          ? `Die eine Person mit Zeitkonto hat im ${month} ein Soll`
+          : `Alle ${coverage.staffTotal} Personen mit Zeitkonto haben im ${month} ein Soll`,
+    };
+  }
+  return {
+    ...base,
+    ok: false,
+    detail: `${missing} von ${coverage.staffTotal} Personen mit Zeitkonto haben im ${month} kein Soll. Krankheit, Urlaub und Fortbildung zählen bei ihnen 0 Stunden.${
+      canOpenTimeAccounts ? "" : ` ${MISSING_TARGET_OWNER}`
+    }`,
+    action: canOpenTimeAccounts ? (
+      <ButtonLink
+        href={STAFF_WITHOUT_TARGET_HREF}
+        variant="surface"
+        size="compact"
+        tooltip="Öffnet die Zeitkonten mit allen Personen ohne Soll."
+      >
+        Personen ohne Soll
+      </ButtonLink>
+    ) : undefined,
+  };
+}
+
+/** Eine Zeile der Vollständigkeit: Zustand als Symbol, Text, Aktion. */
+function ReadinessRow({ item }: { readonly item: ReadinessItem }) {
+  const Icon =
+    item.ok === null ? CircleDashed : item.ok ? CircleCheck : TriangleAlert;
+  const iconClass =
+    item.ok === null
+      ? "text-gray-400"
+      : item.ok
+        ? "text-moto-green-strong"
+        : "text-moto-orange-strong";
+  return (
+    <li className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center">
+      <div className="flex min-w-0 items-start gap-3">
+        <Icon
+          className={`mt-0.5 size-5 shrink-0 ${iconClass}`}
+          aria-hidden="true"
+        />
+        <div className="min-w-0">
+          <p className="text-sm font-semibold text-gray-900">
+            {item.label}
+            <span className="sr-only">
+              {item.ok === null
+                ? ": wird geprüft"
+                : item.ok
+                  ? ": erledigt"
+                  : ": fehlt"}
+            </span>
+          </p>
+          <p className="mt-0.5 text-sm break-words text-gray-600">
+            {item.detail}
+          </p>
+        </div>
+      </div>
+      {item.action ? (
+        <div className="flex w-full flex-col gap-2 pl-8 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end sm:pl-0">
+          {item.action}
+        </div>
+      ) : null}
+    </li>
   );
 }
 

@@ -43,6 +43,10 @@ func (s datevOverviewStub) GetTimeTrackingOverview(context.Context, OverviewFilt
 	return nil, nil
 }
 
+func (s datevOverviewStub) TargetCoverage(context.Context, int, int) (*workforce.TargetCoverage, error) {
+	return nil, nil
+}
+
 func (s datevOverviewStub) GetMonthExportRows(context.Context, int, int) ([]MonthExportRow, error) {
 	return s.rows, nil
 }
