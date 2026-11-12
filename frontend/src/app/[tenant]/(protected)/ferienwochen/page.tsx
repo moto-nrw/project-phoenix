@@ -339,13 +339,13 @@ export default function FerienwochenPage() {
               {
                 label: "Als Excel herunterladen",
                 description:
-                  "Lädt die Teilnehmerliste der Woche als Excel-Datei.",
+                  "Speichert die Teilnehmerliste der Woche als Excel-Datei auf diesem Gerät.",
                 onClick: () => void exportRef.current("xlsx"),
               },
               {
                 label: "Als CSV herunterladen",
                 description:
-                  "Lädt die Teilnehmerliste der Woche als CSV-Datei.",
+                  "Speichert die Teilnehmerliste der Woche als CSV-Datei auf diesem Gerät.",
                 onClick: () => void exportRef.current("csv"),
               },
             ]}
