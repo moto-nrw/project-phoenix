@@ -80,7 +80,8 @@ import { DashboardSkeleton } from "./page-skeleton";
 const logger = createLogger({ component: "HomePage" });
 
 /** „Anpassen“ und „Bausteine hinzufügen“ öffnen dasselbe Anpassen (#6755). */
-const EDIT_HOME_TOOLTIP = "Öffnet Ihre Startseite zum Anordnen der Bausteine.";
+const EDIT_HOME_TOOLTIP =
+  "Zeigt die Bausteine zum Verschieben, Hinzufügen und Entfernen.";
 
 // Alles, was aus den Betriebszahlen (/analytics) lebt. Steht keiner dieser
 // Bausteine auf der Fläche, wird die Abfrage gar nicht erst gestellt (#2875).
@@ -491,7 +492,7 @@ function HomeContent() {
         ) : (
           // Auf allen Breiten nur das Symbol (#4346): als Textknopf war
           // „Anpassen" größer als alles, wofür man die Startseite öffnet.
-          // Name und Tooltip sagen „Anpassen". Die Kopfkarte gibt dem
+          // Der Name sagt „Anpassen", der Tooltip die Folge (#6755). Die Kopfkarte gibt dem
           // Symbolknopf dieselbe Höhe wie „Abbrechen" und „Fertig".
           // `data-icon-only` an der Hülle hält ihn unter sm in der
           // Titelzeile; die Blase steht rechtsbündig, weil der Knopf am

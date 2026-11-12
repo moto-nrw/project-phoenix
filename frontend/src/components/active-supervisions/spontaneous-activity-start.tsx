@@ -363,7 +363,7 @@ export function SpontaneousActivityStart({
               variant="outline"
               size="md"
               onClick={resetAndClose}
-              noTooltip="Schließt nur das Fenster, nichts wird gestartet."
+              noTooltip="Schließt nur das Fenster."
             >
               Abbrechen
             </Button>
@@ -517,6 +517,6 @@ function startBlockedReason(input: {
     return "Wählen oder schreiben Sie zuerst eine Aktivität.";
   if (input.roomId.length === 0) return "Wählen Sie zuerst einen Raum aus.";
   if (input.isSelectedRoomOccupied)
-    return "Der Raum ist belegt. Wählen Sie einen freien Raum.";
+    return "Wählen Sie einen freien Raum, dieser ist belegt.";
   return undefined;
 }

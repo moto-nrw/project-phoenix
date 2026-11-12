@@ -278,8 +278,8 @@ function PastBlockCard({
             aria-expanded={expanded}
             tooltip={
               expanded
-                ? "Blendet die Kinderliste dieses Blocks wieder aus."
-                : "Zeigt die eingeplanten Kinder dieses Blocks."
+                ? "Blendet die Kinderliste dieser Aktivität wieder aus."
+                : "Zeigt die eingeplanten Kinder dieser Aktivität."
             }
           >
             <span>Kinder</span>

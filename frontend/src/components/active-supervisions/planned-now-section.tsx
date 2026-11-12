@@ -88,8 +88,8 @@ function startClock(startAvailableAt: string): string {
 /** Why „Starten“ is locked; the button's own label names the same state. */
 function startBlockedReason(instance: PlannedTimetableInstance): string {
   return instance.startAvailableAt
-    ? `Der Block lässt sich erst ab ${startClock(instance.startAvailableAt)} Uhr starten.`
-    : "Nur eingeplante Betreuer können diesen Block starten.";
+    ? `Die Aktivität lässt sich erst ab ${startClock(instance.startAvailableAt)} Uhr starten.`
+    : "Nur eingeplante Betreuer können diese Aktivität starten.";
 }
 
 function isNotScheduled(row: TimetableRosterRow): boolean {
@@ -294,7 +294,7 @@ export function PlannedNowSection({
                               ? undefined
                               : startBlockedReason(instance)
                           }
-                          tooltip="Startet den Block sofort und öffnet seine Anwesenheitsliste."
+                          tooltip="Startet die Aktivität sofort und öffnet ihre Anwesenheitsliste."
                           onClick={() => onStart(instance)}
                           className="shrink-0 gap-2"
                         >

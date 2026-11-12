@@ -290,7 +290,7 @@ interface RosterActionAccess {
 }
 
 const CHECK_IN_TOOLTIP =
-  "Trägt das Kind sofort als anwesend in diesem Block ein.";
+  "Trägt das Kind sofort hier als anwesend ein, auch aus anderen Räumen.";
 
 interface RosterRowActionsProps {
   readonly access: RosterActionAccess;
@@ -381,7 +381,7 @@ function RosterRowActions({
               tooltip={
                 access.excuseAsksScope
                   ? "Fragt, ob das Kind nur hier oder den restlichen Tag entschuldigt ist."
-                  : "Trägt das Kind sofort für diesen Block als entschuldigt ein."
+                  : "Trägt das Kind sofort für diese Aktivität als entschuldigt ein."
               }
             >
               Entschuldigt
@@ -437,7 +437,7 @@ function RosterRowActions({
           variant="outline"
           size="icon"
           aria-label={`Profil ansehen: ${row.studentName || `Kind ${row.studentId}`}`}
-          tooltip="Öffnet die Akte des Kindes."
+          tooltip="Öffnet die Seite des Kindes."
           className="ml-auto shrink-0 sm:ml-0"
         >
           <ArrowUpRightIcon
@@ -847,7 +847,7 @@ function TimetableRosterHeader({
               onClick={onAddPresentStudents}
               variant="surface"
               size="md"
-              tooltip="Öffnet die Kinder, die gerade in der OGS sind, zum Hinzufügen."
+              tooltip="Öffnet eine Liste der anwesenden Kinder zum Hinzufügen."
             >
               <Users className="h-4 w-4" aria-hidden="true" />
               Anwesende Kinder
@@ -892,7 +892,7 @@ function TimetableRosterHeader({
               disabledReason={
                 isCompletingInstance
                   ? undefined
-                  : `Der Block lässt sich erst ab ${completeAvailableClock(roster.instance.completeAvailableAt, roster.instance.endTime)} Uhr beenden.`
+                  : `Die Aktivität lässt sich erst ab ${completeAvailableClock(roster.instance.completeAvailableAt, roster.instance.endTime)} Uhr beenden.`
               }
               tooltip="Beendet die Aktivität für alle Kinder. moto fragt vorher nach."
               onClick={handleCompleteClick}

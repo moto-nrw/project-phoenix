@@ -293,7 +293,7 @@ function submitBlockedReason(input: {
     return "Sie beaufsichtigen diese Aktivität nicht mehr.";
   if (mode === "release")
     return others.length === 0
-      ? "Sie sind die einzige Aufsicht. Übergeben Sie die Aufsicht an eine Person."
+      ? "Als einzige Aufsicht können Sie nur an eine Person übergeben."
       : undefined;
   if (overview.availableTargets.length === 0)
     return "Gerade kann niemand die Aufsicht übernehmen.";

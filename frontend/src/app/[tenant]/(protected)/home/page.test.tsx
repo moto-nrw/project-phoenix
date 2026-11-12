@@ -369,7 +369,9 @@ describe("Startseite", () => {
     await waitFor(() =>
       expect(
         document.body.querySelector("[data-action-hint]"),
-      ).toHaveTextContent("Öffnet Ihre Startseite zum Anordnen der Bausteine."),
+      ).toHaveTextContent(
+        "Zeigt die Bausteine zum Verschieben, Hinzufügen und Entfernen.",
+      ),
     );
   });
 
