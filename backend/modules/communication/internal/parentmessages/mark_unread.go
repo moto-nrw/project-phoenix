@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
+	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
 	"github.com/moto-nrw/project-phoenix/realtime"
 )
 
@@ -69,7 +70,14 @@ func (s *Service) broadcastStaffUnreadAfterCommit(ctx context.Context, thread *P
 	})
 }
 
-// MarkHandled confirms for the whole team that the guardian activity up to
+// MarkParentMessageThreadHandled is the communication.ParentMessageTeamHandling
+// capability (#6486): markHandled with the facade's error vocabulary, so the
+// HTTP surface maps its failures like every other messaging route.
+func (s *Service) MarkParentMessageThreadHandled(ctx context.Context, threadID, handledUpToMessageID int64) error {
+	return deliveryPorts.MapParentMessagingError(s.markHandled(ctx, threadID, handledUpToMessageID), NativeFacadeErrors())
+}
+
+// markHandled confirms for the whole team that the guardian activity up to
 // handledUpToMessageID is taken care of, without a reply (#6486). It is the
 // child card's "Als gelesen bestätigen": the staff member read the message in
 // the card's dialog (that read already moved their own cursor), and nobody
@@ -80,7 +88,7 @@ func (s *Service) broadcastStaffUnreadAfterCommit(ctx context.Context, thread *P
 // arrives meanwhile stays unread. A boundary outside the thread is refused. It
 // also ends a team-wide unread mark and wakes the other staff tabs, so their
 // cards and badges drop at once. Parents see no change.
-func (s *Service) MarkHandled(ctx context.Context, threadID, handledUpToMessageID int64) error {
+func (s *Service) markHandled(ctx context.Context, threadID, handledUpToMessageID int64) error {
 	if handledUpToMessageID <= 0 {
 		return ErrHandledBoundaryRequired
 	}

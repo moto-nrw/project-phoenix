@@ -369,7 +369,7 @@ func TestMarkHandled_ConfirmsForTheWholeTeam(t *testing.T) {
 	seen := detail.Messages[len(detail.Messages)-1].ID
 
 	f.bc.Reset()
-	require.NoError(t, testpkg.TenantCommand2(t, adminCtx(t, f.staffAccount), f.db, f.svc.MarkHandled, threadID, seen))
+	require.NoError(t, testpkg.TenantCommand2(t, adminCtx(t, f.staffAccount), f.db, f.svc.MarkParentMessageThreadHandled, threadID, seen))
 	assert.Equal(t, 1, parentEventCount(f.bc, realtime.EventParentMessageUnreadChanged), "confirming wakes the other staff tabs")
 	assertTeamUnread(t, f, f.staffAccount, 0)
 	assertTeamUnread(t, f, colleague.ID, 0)
@@ -386,9 +386,9 @@ func TestMarkHandled_RejectsBoundaryOutsideTheThread(t *testing.T) {
 	f := newFixture(t, true)
 	threadID := startReadThread(t, f)
 
-	err := testpkg.TenantCommand2(t, adminCtx(t, f.staffAccount), f.db, f.svc.MarkHandled, threadID, int64(0))
+	err := testpkg.TenantCommand2(t, adminCtx(t, f.staffAccount), f.db, f.svc.MarkParentMessageThreadHandled, threadID, int64(0))
 	require.ErrorIs(t, err, messaging.ErrHandledBoundaryRequired)
-	err = testpkg.TenantCommand2(t, adminCtx(t, f.staffAccount), f.db, f.svc.MarkHandled, threadID, int64(1<<40))
+	err = testpkg.TenantCommand2(t, adminCtx(t, f.staffAccount), f.db, f.svc.MarkParentMessageThreadHandled, threadID, int64(1<<40))
 	require.ErrorIs(t, err, messaging.ErrHandledBoundaryRequired)
 	assertTeamUnread(t, f, f.staffAccount, 0)
 }

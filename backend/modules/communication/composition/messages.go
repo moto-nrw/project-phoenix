@@ -53,9 +53,7 @@ func NewParentMessaging(cfg ParentMessagingConfig, runtime parentMessages.Runtim
 		CountPreferences: newCountPreferences(cfg.DB), Groups: cfg.UserContext,
 		GroupThreads: parentpostgres.NewGroupThreadStore(parentDatabase(cfg.DB)), GroupAudience: cfg.GroupAudience, Leaders: cfg.Persons,
 	}, runtime, policy)
-	observe := communicationPostgres.NewMessageObservation(cfg.Observe)
-	return deliveryPorts.NewParentMessagingFacade(service, parentMessages.NativeFacadeRows(), parentMessages.NativeFacadeErrors(), observe), service, service,
-		deliveryPorts.NewParentMessageTeamHandling(service, parentMessages.NativeFacadeErrors(), observe)
+	return deliveryPorts.NewParentMessagingFacade(service, parentMessages.NativeFacadeRows(), parentMessages.NativeFacadeErrors(), communicationPostgres.NewMessageObservation(cfg.Observe)), service, service, service
 }
 
 // messageAttachmentStore is the attachment store over the ambient tenant
