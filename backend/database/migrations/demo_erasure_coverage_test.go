@@ -31,8 +31,9 @@ import (
 // is out of scope: a visitor is never one of them.
 //
 // Each table in scope is erased by the function itself (DELETE or a
-// rewriting UPDATE in its current definition), goes by ON DELETE CASCADE
-// with a table the function deletes, or names its reason in
+// rewriting UPDATE in its current definition or in a function it performs),
+// goes by ON DELETE CASCADE with a table the function deletes, or names its
+// reason in
 // demoErasureExceptions (test/demo_erasure_ratchet_test.go). The demo
 // school itself stays soft-deleted, so most school tables are such
 // exceptions until the full erasure of retired demo schools (#5559) deletes
@@ -192,6 +193,21 @@ func maskedSQL(sql string) (masked string, literals []string) {
 	return out.String(), literals
 }
 
+var sqlPerformedFunction = regexp.MustCompile(`(?i)\bPERFORM\s+([a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*)\s*\(`)
+
+// demoErasureCalledFunctions returns the schema-qualified functions the
+// erasure performs, outside pg_catalog. Comments and literals call none.
+func demoErasureCalledFunctions(functionSQL string) []string {
+	var called []string
+	for _, match := range sqlPerformedFunction.FindAllStringSubmatch(sqlWithoutCommentsAndStrings(functionSQL), -1) {
+		name := strings.ToLower(match[1])
+		if !strings.HasPrefix(name, "pg_catalog.") && !slices.Contains(called, name) {
+			called = append(called, name)
+		}
+	}
+	return called
+}
+
 // demoErasureTargets returns the tables the function deletes from and the
 // tables it deletes from or rewrites. Comments and literals are no
 // statements.
@@ -289,13 +305,36 @@ func demoErasureCoverageOfSchema(t *testing.T) demoErasureCoverage {
 	}
 	var functionSQL string
 	require.NoError(t, db.NewRaw(`SELECT pg_get_functiondef('platform.erase_closed_demo_visitors()'::regprocedure)`).Scan(ctx, &functionSQL))
+	// A function the erasure performs erases as part of it (#6812).
+	read := map[string]bool{}
+	for queue := demoErasureCalledFunctions(functionSQL); len(queue) > 0; queue = queue[1:] {
+		if read[queue[0]] {
+			continue
+		}
+		read[queue[0]] = true
+		var definitions []string
+		require.NoError(t, db.NewRaw(`SELECT pg_get_functiondef(p.oid) FROM pg_proc AS p
+			JOIN pg_namespace AS n ON n.oid = p.pronamespace
+			WHERE n.nspname || '.' || p.proname = ? AND p.prokind = 'f'`, queue[0]).Scan(ctx, &definitions))
+		require.NotEmpty(t, definitions, "the erasure performs %s, which exists", queue[0])
+		for _, definition := range definitions {
+			functionSQL += "\n" + definition
+			queue = append(queue, demoErasureCalledFunctions(definition)...)
+		}
+	}
 	var cascades []cascadeEdge
 	require.NoError(t, db.NewRaw(`
 		SELECT DISTINCT cn.nspname || '.' || cc.relname AS child, pn.nspname || '.' || pc.relname AS parent
 		FROM pg_constraint AS f
 		JOIN pg_class AS cc ON cc.oid = f.conrelid JOIN pg_namespace AS cn ON cn.oid = cc.relnamespace
 		JOIN pg_class AS pc ON pc.oid = f.confrelid JOIN pg_namespace AS pn ON pn.oid = pc.relnamespace
-		WHERE f.contype = 'f' AND f.confdeltype = 'c'`).Scan(ctx, &cascades))
+		WHERE f.contype = 'f' AND f.confdeltype = 'c'
+		  -- A row that may outlive its parent by another foreign key to it
+		  -- (ON DELETE SET NULL or SET DEFAULT) does not go with the parent:
+		  -- the cascade holds only some of its rows (#6812).
+		  AND NOT EXISTS (SELECT 1 FROM pg_constraint AS kept
+			WHERE kept.contype = 'f' AND kept.conrelid = f.conrelid AND kept.confrelid = f.confrelid
+			  AND kept.confdeltype IN ('n', 'd'))`).Scan(ctx, &cascades))
 	sort.Strings(inScope)
 	register, _ := readDemoErasureRegister(t)
 	return demoErasureCoverage{
@@ -323,6 +362,34 @@ func TestDemoErasureGuardCatchesTheContractGapOfPR6000(t *testing.T) {
 	for _, table := range []string{"care_contract.contracts", "care_contract.contract_parties", "care_contract.contract_documents", "care_contract.contract_mailings"} {
 		require.Contains(t, problems, table+" holds personal data of the demo school or its visitor")
 	}
+}
+
+// The gap of #6812 is caught: a row of parent_billing.family_billing that a
+// holiday registration used only loses its contract when the contract goes
+// (ON DELETE SET NULL), and a row without a contract never had one, so the
+// cascade of the contract no longer counts for the table.
+func TestDemoErasureGuardCatchesTheFamilyGapOf6812(t *testing.T) {
+	t.Parallel()
+	coverage := demoErasureCoverageOfSchema(t)
+	withoutFamilies := regexp.MustCompile(`(?i)DELETE\s+FROM\s+parent_billing\.family_billing\b(\s+AS\s+family)`)
+	require.True(t, withoutFamilies.MatchString(coverage.FunctionSQL), "the erasure deletes the families of the visitor (1.15.951)")
+	coverage.FunctionSQL = withoutFamilies.ReplaceAllString(coverage.FunctionSQL, "SELECT 1 FROM parent_billing.family_billing$1")
+	require.Contains(t, strings.Join(demoErasureCoverageProblems(coverage), "\n"),
+		"parent_billing.family_billing holds personal data of the demo school or its visitor")
+}
+
+func TestDemoErasureCalledFunctions(t *testing.T) {
+	t.Parallel()
+	called := demoErasureCalledFunctions(`BEGIN
+		PERFORM pg_advisory_xact_lock(1);
+		PERFORM pg_catalog.pg_sleep(0);
+		-- PERFORM care.in_a_comment(hidden_schools);
+		RAISE LOG 'PERFORM care.in_a_literal(1)';
+		PERFORM Care.Families(hidden_schools);
+		PERFORM 1 FROM care.contracts;
+		PERFORM care.families (hidden_schools);
+	END`)
+	require.Equal(t, []string{"care.families"}, called)
 }
 
 func coverageFixture() demoErasureCoverage {
