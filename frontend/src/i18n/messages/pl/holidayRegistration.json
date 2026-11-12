@@ -171,5 +171,16 @@
   "summaryDays": "Dni: {days}",
   "contributionDays": "{count, plural, one {# dzień} other {# dni}}",
   "dayWithoutCare": "{date} nie ma opieki ({name}).",
-  "noCareDayAria": "{day}, brak opieki"
+  "noCareDayAria": "{day}, brak opieki",
+  "account": {
+    "question": "Czy chcą Państwo założyć konto rodzica?",
+    "benefit": "Z kontem widzą Państwo w aplikacji dla rodziców stan zgłoszenia, potwierdzenie i dokumenty.",
+    "yes": "Tak",
+    "no": "Nie",
+    "mailNote": "Otrzymają Państwo e-mail na adres {email}. Za pomocą linku w nim ustawią Państwo hasło.",
+    "required": "Proszę wybrać tak lub nie."
+  },
+  "doneAccountTitle": "Następny krok: Państwa konto rodzica",
+  "doneAccountText": "Wysłaliśmy drugi e-mail na adres {email}. Proszę otworzyć link w nim. Tam ustawią Państwo hasło lub się zalogują.",
+  "doneToRegistrations": "Do Państwa zgłoszeń na ferie"
 }

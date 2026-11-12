@@ -223,6 +223,15 @@ type HolidayRegistrationInput struct {
 	// RemoteIP is the client address the stored registration counts under
 	// (#6726); it is not stored with the registration.
 	RemoteIP string
+	// ParentAccountRequested is the parent's yes to a parent account at the
+	// end of the form (ADR 0216 point 4); ParentAccountProof the sealed
+	// proof of a signed-in account from the prefill (point 2).
+	ParentAccountRequested bool
+	ParentAccountProof     string
+	// ParentAccountID is the account the registration is linked to. Only
+	// the registration sets it, from a ParentAccountProof it opened;
+	// whatever a caller puts in is dropped.
+	ParentAccountID int64
 }
 
 // HolidayRegistrationReceipt confirms a stored registration. It repeats no
@@ -234,6 +243,10 @@ type HolidayRegistrationReceipt struct {
 	// waits for one (#4699). They name the child by its position in the
 	// form, not by its name.
 	Placements []HolidayReceiptPlacement
+	// ParentAccountOffered says that the registration enqueued the offer of
+	// a parent account (ADR 0216 point 4). The offer carries no link; the
+	// mail issues it when it is sent. No answer of the public route tells.
+	ParentAccountOffered bool
 }
 
 // HolidayRegistrations serves the public holiday registration.

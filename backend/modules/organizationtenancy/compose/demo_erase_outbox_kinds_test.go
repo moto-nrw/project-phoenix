@@ -34,6 +34,12 @@ var traegerOutboxRows = map[string]string{
 		SELECT organization_id, 'holiday_closure_notice', jsonb_build_object('address', 'besuch@example.org'),
 			jsonb_build_object('guardian_name', '` + visitorFull + `'), 'holiday_registration', holiday_registration_id
 		FROM enrollment.holiday_registration_children WHERE home_school_id = ?0 RETURNING id`,
+	// The offer of a parent account the holiday registration mailed (ADR 0216).
+	"platform.email_outbox holiday_parent_account_offer": `INSERT INTO platform.email_outbox
+			(organization_id, kind, recipient, payload, related_entity_type, related_entity_id)
+		SELECT organization_id, 'holiday_parent_account_offer', jsonb_build_object('address', 'besuch@example.org'),
+			jsonb_build_object('guardian_name', '` + visitorFull + `'), 'holiday_registration', holiday_registration_id
+		FROM enrollment.holiday_registration_children WHERE home_school_id = ?0 RETURNING id`,
 	// The mail that a booking of the holiday registration moved up from the
 	// waiting list (#4699).
 	"platform.email_outbox holiday_place_granted": `INSERT INTO platform.email_outbox

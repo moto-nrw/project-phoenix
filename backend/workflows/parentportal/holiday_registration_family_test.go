@@ -2,6 +2,7 @@ package parentportal_test
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"testing"
 
@@ -19,6 +20,11 @@ import (
 
 func buildHolidayRegistrationFamilyService(t *testing.T, wishes ...parentService.HolidayWishStatements) (*parentService.Portal, *bun.DB) {
 	t.Helper()
+	return buildHolidayRegistrationFamilyServiceWithProofs(t, nil, wishes...)
+}
+
+func buildHolidayRegistrationFamilyServiceWithProofs(t *testing.T, proofs parentService.HolidayAccountProofs, wishes ...parentService.HolidayWishStatements) (*parentService.Portal, *bun.DB) {
+	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	people := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
@@ -27,24 +33,25 @@ func buildHolidayRegistrationFamilyService(t *testing.T, wishes ...parentService
 		wishStatements = wishes[0]
 	}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		Memberships:         parentMemberships(t, db),
-		StudentGuardianRepo: guardStudentGuardians(t, db),
-		StudentRepo:         guardStudents(t, db),
-		HolidayWishes:       wishStatements,
-		GuardianChanges:     owners.ParentGuardianChanges(),
-		DeparturePolicy:     owners.ParentDeparturePolicy(),
-		GuardianPolicy:      owners.NewParentGuardianPolicy(),
-		Fingerprints:        owners.SecurityFingerprints{},
-		Declarations:        owners.ParentDeclarationPolicy(),
-		Locales:             owners.ParentPortalLocales(),
-		Runtime:             owners.ParentPortalRuntime{},
-		ChildRepo:           repos.ParentChildReads(),
-		PersonRepo:          owners.NewParentPersonReads(people.Person),
-		GuardianProfileRepo: owners.NewParentGuardianProfileReads(people.GuardianProfile),
-		GuardianPhoneRepo:   owners.NewParentGuardianPhoneReads(people.GuardianPhoneNumber),
-		ChildDataAccess:     owners.NewParentChildDataAccess(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataAccessLog),
-		Logger:              slog.Default(),
-		CarePlanPolicy:      owners.NewParentCarePlanPolicy(),
+		Memberships:          parentMemberships(t, db),
+		StudentGuardianRepo:  guardStudentGuardians(t, db),
+		StudentRepo:          guardStudents(t, db),
+		HolidayWishes:        wishStatements,
+		HolidayAccountProofs: proofs,
+		GuardianChanges:      owners.ParentGuardianChanges(),
+		DeparturePolicy:      owners.ParentDeparturePolicy(),
+		GuardianPolicy:       owners.NewParentGuardianPolicy(),
+		Fingerprints:         owners.SecurityFingerprints{},
+		Declarations:         owners.ParentDeclarationPolicy(),
+		Locales:              owners.ParentPortalLocales(),
+		Runtime:              owners.ParentPortalRuntime{},
+		ChildRepo:            repos.ParentChildReads(),
+		PersonRepo:           owners.NewParentPersonReads(people.Person),
+		GuardianProfileRepo:  owners.NewParentGuardianProfileReads(people.GuardianProfile),
+		GuardianPhoneRepo:    owners.NewParentGuardianPhoneReads(people.GuardianPhoneNumber),
+		ChildDataAccess:      owners.NewParentChildDataAccess(owners.NewTestAuditPersistence(testpkg.NewDatabase(t, db), nil).DataAccessLog),
+		Logger:               slog.Default(),
+		CarePlanPolicy:       owners.NewParentCarePlanPolicy(),
 	})
 	return svc, db
 }
@@ -162,4 +169,39 @@ func buildHolidayRegistrationFamilyServiceWithoutWishes(t *testing.T) *parentSer
 	t.Helper()
 	svc, _ := buildHolidayRegistrationFamilyService(t)
 	return svc
+}
+
+// recordedAccountProofs seals a readable proof and records what it sealed.
+type recordedAccountProofs struct {
+	sealed *[][3]int64
+}
+
+func (p recordedAccountProofs) HolidayParentAccountProof(organizationID, periodID, accountID int64) (string, error) {
+	*p.sealed = append(*p.sealed, [3]int64{organizationID, periodID, accountID})
+	return fmt.Sprintf("proof-%d-%d-%d", organizationID, periodID, accountID), nil
+}
+
+// TestHolidayRegistrationFamilyCarriesTheAccountProofForEveryAccount pins
+// ADR 0216 point 2: the prefill seals the signed-in account for the link's
+// Träger and period, also for an account the link offers no child, so a
+// parent without a school links the registration at once.
+func TestHolidayRegistrationFamilyCarriesTheAccountProofForEveryAccount(t *testing.T) {
+	t.Parallel()
+	var sealed [][3]int64
+	svc, db := buildHolidayRegistrationFamilyServiceWithProofs(t, recordedAccountProofs{sealed: &sealed})
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	chain := testpkg.CreateTestParentGuardianChain(t, db)
+	withoutChild := testpkg.CreateTestAccount(t, db, "ferien-ohne-kind")
+
+	family, err := svc.HolidayRegistrationFamily(ctx, chain.AccountID, parentService.HolidayRegistrationScope{OrganizationID: 42, PeriodID: 420, SchoolIDs: []int64{chain.TenantID}})
+	require.NoError(t, err)
+	require.Len(t, family.Children, 1)
+	assert.Equal(t, fmt.Sprintf("proof-42-420-%d", chain.AccountID), family.AccountProof)
+
+	empty, err := svc.HolidayRegistrationFamily(ctx, withoutChild.ID, parentService.HolidayRegistrationScope{OrganizationID: 42, PeriodID: 420, SchoolIDs: []int64{chain.TenantID}})
+	require.NoError(t, err)
+	assert.Empty(t, empty.Children, "the link offers this account no child")
+	assert.Nil(t, empty.Guardian)
+	assert.Equal(t, fmt.Sprintf("proof-42-420-%d", withoutChild.ID), empty.AccountProof, "the proof is there for every account")
+	assert.Equal(t, [][3]int64{{42, 420, chain.AccountID}, {42, 420, withoutChild.ID}}, sealed)
 }

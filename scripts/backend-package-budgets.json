@@ -1,0 +1,25 @@
+{
+  "defaultSeconds": 120,
+  "packages": {
+    "api": {
+      "seconds": 330,
+      "reason": "Full suite on blacksmith-8vcpu (#6784): 147-193 s with a warm build cache, 178-255 s when most test packages compile in the same job. Target is 60 s (ci-test-performance.md); lower this budget as the package gets faster."
+    },
+    "modules/organizationtenancy/compose": {
+      "seconds": 330,
+      "reason": "Full suite (#6784): 121-188 s warm, 158-251 s compiling. Per-test tenants for school lifecycle and erasure (#6452)."
+    },
+    "modules/dataimport/importtest": {
+      "seconds": 300,
+      "reason": "Full suite (#6784): 171 s warm, 199 s compiling, after the fault matrices were reduced to their representatives (5040 to 884 uploads); 245-389 s before."
+    },
+    "database/migrations": {
+      "seconds": 150,
+      "reason": "Full suite (#6784): 55-62 s warm, 76-106 s compiling. Runs every migration on fresh databases."
+    },
+    "cmd": {
+      "seconds": 150,
+      "reason": "Full suite (#6784): 43-52 s warm, 63-100 s compiling."
+    }
+  }
+}

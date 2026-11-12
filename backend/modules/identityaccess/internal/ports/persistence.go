@@ -296,6 +296,20 @@ type AccountLoginStore interface {
 	// permissions the effective set derives from.
 	LockAccountPermissionSources(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error)
 	TraegerRoleStore
+	TraegerParentAccessStore
+}
+
+// TraegerParentAccessStore persists the parents-portal access of an account
+// at a Träger without a school (ADR 0216). Every method runs on the caller's
+// administrative transaction.
+type TraegerParentAccessStore interface {
+	// ListTraegerParentAccess returns the Träger of the account's access,
+	// oldest access first.
+	ListTraegerParentAccess(ctx context.Context, accountID int64) ([]int64, domain.OperationStats, error)
+	// HasTraegerParentAccess reports one access; forShare pins its row.
+	HasTraegerParentAccess(ctx context.Context, accountID, organizationID int64, forShare bool) (bool, domain.OperationStats, error)
+	// GrantTraegerParentAccess records the access once.
+	GrantTraegerParentAccess(ctx context.Context, accountID, organizationID int64) (domain.OperationStats, error)
 }
 
 // TraegerRoleStore persists the Träger roles (ADR 0084). Every method runs on

@@ -1,0 +1,26 @@
+{
+  "title": "Holiday registrations",
+  "description": "Your registrations for holiday care and their status.",
+  "status": {
+    "received": "Received",
+    "confirmed": "Confirmed",
+    "cancelled": "Cancelled"
+  },
+  "statusNote": {
+    "received": "The provider is checking your registration and will write to you.",
+    "confirmed": "The provider has confirmed your registration.",
+    "cancelled": "This registration no longer applies. If you have questions, contact the provider."
+  },
+  "documentsHint": "You will find the confirmation and the invoice under Documents.",
+  "toDocuments": "To the documents",
+  "submittedOn": "Received on {date}",
+  "emptyTitle": "No holiday registrations yet",
+  "emptyDescription": "Register your child with the email address of this account. Then the registration appears here.",
+  "errorObject": "your holiday registrations",
+  "card": {
+    "title": "Your holiday registrations",
+    "showAll": "View all",
+    "showAllLabel": "View all holiday registrations",
+    "more": "{count, plural, one {# more registration} other {# more registrations}}"
+  }
+}

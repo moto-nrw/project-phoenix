@@ -328,6 +328,7 @@ const HOST_RULES: Record<HostedPortalKey, PortalHostRules> = {
       "/api/invitations/accept",
       "/api/guardian-invitations/",
       "/api/holiday-registrations/",
+      "/api/holiday-parent-setups/",
       "/api/enrollment/requests/",
       /^\/api\/enrollment\/[^/]+\/uploads$/,
       "/api/demo/access/",

@@ -189,9 +189,17 @@ func (m *weeklyProfileAPIMock) serve(t *testing.T, w seedHTTPResponseWriter, r *
 	case path == "/parent/me/holiday-registrations":
 		// The start page of the parents app offers the same period (#6671).
 		data = []map[string]any{{"token": "link-key", "open": true, "children": []map[string]any{{"student_id": "9"}}}}
+	case r.Method == "POST" && path == "/traeger/holiday-registrations/link-key" && r.Header.Get(seedTokenHeader) == "true":
+		// The guest family asking for a parent account gets the setup link
+		// only the local seeder receives (ADR 0216).
+		data = map[string]any{"id": 10, "parent_account_setup_url": "http://parents.localhost:3000/ferienkonto/setup-token"}
 	case path == "/parent/holiday-registrations/link-key/family":
-		// The first seeded parent's prefill of the same link (#4662).
-		data = map[string]any{"guardian": map[string]any{}, "children": []map[string]any{{"student_id": "9", "school_id": "1"}}}
+		// The first seeded parent's prefill of the same link (#4662) with the
+		// proof of the account (ADR 0216).
+		data = map[string]any{"guardian": map[string]any{}, "children": []map[string]any{{"student_id": "9", "school_id": "1"}}, "account_proof": "account-proof"}
+	case path == "/parent/me/holiday-registration-entries":
+		// The parent's linked holiday registrations (ADR 0216).
+		data = map[string]any{"registrations": []map[string]any{{"id": 1}, {"id": 2}}}
 	case path == "/auth/login":
 		token := "weekly-admin"
 		if body["tenant_slug"] == "vollbetrieb" {

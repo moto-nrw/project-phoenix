@@ -171,5 +171,16 @@
   "summaryDays": "Days: {days}",
   "contributionDays": "{count, plural, one {# day} other {# days}}",
   "dayWithoutCare": "There is no care on {date} ({name}).",
-  "noCareDayAria": "{day}, no care"
+  "noCareDayAria": "{day}, no care",
+  "account": {
+    "question": "Would you like to create a parent account?",
+    "benefit": "With the account you see the status of the registration, the confirmation and the documents in the parents app.",
+    "yes": "Yes",
+    "no": "No",
+    "mailNote": "You will get an email to {email}. Use the link in it to set your password.",
+    "required": "Please choose yes or no."
+  },
+  "doneAccountTitle": "Next step: your parent account",
+  "doneAccountText": "We have sent you a second email to {email}. Open the link in it. There you set your password or sign in.",
+  "doneToRegistrations": "To your holiday registrations"
 }

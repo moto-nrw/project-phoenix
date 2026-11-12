@@ -4356,6 +4356,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0216",
+      "id": "roots/owners/holidayAcceptanceAccounts.HolidayParentSetupURL",
+      "reason": "ADR 0216 point 11: Consumer-port adapter of the acceptance mail's setup link; it translates the setup link of a parent account into the URL the mail shows and offers none where Identity \u0026 Access does not serve the setup."
+    },
+    {
       "decision": "0120",
       "id": "roots/owners/holidayGuestPeople.SetHolidayGuestHealthInfo",
       "reason": "ADR 0120 addendum (#4722): Consumer-port adapter of Enrollment's holiday guest people; it translates the health information of a guest into the People Directory's enrollment profile patch for the health field of its child, in the hosting school's tenant transaction."
@@ -4374,6 +4379,11 @@
       "decision": "0075",
       "id": "roots/owners/holidayOwnChildPlans.HolidayOwnChildPickups",
       "reason": "Consumer-owned port translation (ADR 0068, ADR 0075): maps Care Plan exceptions onto Enrollment's own-child plan values. Reconciliation decisions live in Enrollment; no persistence or business policy in the binding."
+    },
+    {
+      "decision": "0216",
+      "id": "roots/owners/holidayParentAccountLinks.HolidayParentAccountLink",
+      "reason": "ADR 0216: Consumer-port adapter of Enrollment's setup link of a parent account; it signs the link through Identity \u0026 Access, which reads nothing and so runs in the registration's Träger transaction or when Delivery sends the acceptance mail, and translates the token into the page of the parents portal and its sign-in."
     },
     {
       "decision": "0116",

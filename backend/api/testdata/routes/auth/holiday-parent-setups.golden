@@ -1,0 +1,2 @@
+GET /auth/holiday-parent-setups/{token}
+POST /auth/holiday-parent-setups/{token}

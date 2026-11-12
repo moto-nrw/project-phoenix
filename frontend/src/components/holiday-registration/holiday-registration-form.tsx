@@ -10,7 +10,7 @@ import { Turnstile } from "@marsidev/react-turnstile";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
@@ -52,6 +52,10 @@ import { HolidayQuestions } from "./holiday-registration-questions";
 import { HolidayRegistrationCriteria } from "./holiday-registration-criteria";
 import { HolidayRegistrationDeclaration } from "./holiday-registration-declaration";
 import { HolidayRegistrationSummary } from "./holiday-registration-summary";
+import { HolidayRegistrationAccountQuestion } from "./holiday-registration-account-question";
+import { parentPath } from "~/lib/parent-url";
+import { useInvalidateMatching } from "~/lib/swr";
+import { parentKeys } from "~/lib/swr/parent-keys";
 
 /** The code of a refusal because the Träger changed the form (#5198). */
 const FORM_CHANGED = "enrollment.holiday_registration_form_changed";
@@ -62,10 +66,18 @@ const logger = createLogger({ component: "HolidayRegistrationForm" });
 
 export type HolidayRegistrationStep = "form" | "summary" | "done";
 
+/**
+ * How the registration meets the parent account (#6673): "ask" puts the
+ * question at the end of the summary, "signed-in" sends the account's proof
+ * and leads back to the parents app after sending.
+ */
+export type HolidayRegistrationParentAccount = "ask" | "signed-in";
+
 export function HolidayRegistrationForm({
   token,
   offer,
   family = null,
+  parentAccount,
   onFormChanged,
   onStepChange,
 }: Readonly<{
@@ -73,6 +85,8 @@ export function HolidayRegistrationForm({
   offer: HolidayRegistrationOffer;
   /** What the schools know of a parent with an account (#4662). */
   family?: HolidayKnownFamily | null;
+  /** Without a value the form neither asks nor links back (#6673). */
+  parentAccount?: HolidayRegistrationParentAccount;
   /**
    * Loads the offer again after the Träger changed the form (#5198). The
    * answers stay: they are kept by the key of their question.
@@ -94,6 +108,10 @@ export function HolidayRegistrationForm({
     readonly HolidayReceiptPlacement[]
   >([]);
   const fieldError = (name: string) => errorPath.fieldError(name) ?? undefined;
+  const accountFieldsetRef = useRef<HTMLFieldSetElement>(null);
+  const [accountError, setAccountError] = useState<string | undefined>();
+  const asksForAccount = parentAccount === "ask";
+  const invalidate = useInvalidateMatching();
 
   useEffect(() => {
     onStepChange?.(step);
@@ -121,12 +139,27 @@ export function HolidayRegistrationForm({
   };
 
   const submit = async () => {
+    // The question has no preselection: without an answer the send waits
+    // and the group names what is missing (#6673).
+    if (asksForAccount && draft.parentAccountRequested === undefined) {
+      setAccountError(t("account.required"));
+      accountFieldsetRef.current
+        ?.querySelector<HTMLInputElement>("input[type=radio]")
+        ?.focus();
+      return;
+    }
     setSubmitting(true);
     try {
       const placed = await submitHolidayRegistration(
         token,
         payloadFromDraft(draft, offer, captchaToken),
       );
+      if (parentAccount === "signed-in") {
+        await invalidate(
+          (key) => key === parentKeys.holidayRegistrationEntries(),
+          { clear: true },
+        );
+      }
       setPlacements(placed ?? []);
       setStep("done");
       window.scrollTo({ top: 0 });
@@ -185,6 +218,28 @@ export function HolidayRegistrationForm({
             weeks={offer.weeks}
             placements={placements}
           />
+          {asksForAccount && draft.parentAccountRequested === true ? (
+            // The second mail goes out for every address; the text does
+            // not say whether an account already exists (ADR 0216).
+            <Alert
+              type="info"
+              announce="off"
+              title={t("doneAccountTitle")}
+              message={t("doneAccountText", {
+                email: draft.guardian.email.trim(),
+              })}
+            />
+          ) : null}
+          {parentAccount === "signed-in" ? (
+            <ButtonLink
+              href={parentPath("/parents/ferienanmeldungen")}
+              variant="primary"
+              size="md"
+              className="max-sm:w-full"
+            >
+              {t("doneToRegistrations")}
+            </ButtonLink>
+          ) : null}
         </div>
       </SectionCard>
     );
@@ -214,8 +269,23 @@ export function HolidayRegistrationForm({
             <p className="text-sm text-gray-700">{t("captchaMissing")}</p>
           )
         }
+        accountQuestion={
+          asksForAccount ? (
+            <HolidayRegistrationAccountQuestion
+              value={draft.parentAccountRequested}
+              email={draft.guardian.email}
+              error={accountError}
+              fieldsetRef={accountFieldsetRef}
+              onChange={(parentAccountRequested) => {
+                setAccountError(undefined);
+                setDraft((current) => ({ ...current, parentAccountRequested }));
+              }}
+            />
+          ) : null
+        }
         onBack={() => {
           setCaptchaToken("");
+          setAccountError(undefined);
           setStep("form");
         }}
         onSubmit={() => void submit()}

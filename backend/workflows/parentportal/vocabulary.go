@@ -93,6 +93,11 @@ type (
 	HolidayRegistrationGuardian      = care.HolidayRegistrationGuardian
 	HolidayRegistrationScope         = care.HolidayRegistrationScope
 	HolidayWishClaim                 = care.HolidayWishClaim
+	HolidayParentRegistrations       = care.HolidayParentRegistrations
+	HolidayAccountProofs             = care.HolidayAccountProofs
+	HolidayRegistrationEntry         = care.HolidayRegistrationEntry
+	HolidayRegistrationEntryChild    = care.HolidayRegistrationEntryChild
+	HolidayRegistrationEntryWeek     = care.HolidayRegistrationEntryWeek
 	CreateGuardianContactInput       = care.CreateGuardianContactInput
 	GuardianAccess                   = care.GuardianAccess
 	SchoolMembershipLock             = care.SchoolMembershipLock
