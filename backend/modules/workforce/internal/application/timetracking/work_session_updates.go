@@ -160,8 +160,19 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 	}
 
 	recordedDay, recordedCheckIn := session.Date, session.CheckInTime
+	wasOpen := session.CheckOutTime == nil
 	s.applyTimeFieldUpdates(uc, updates)
 	s.applySimpleFieldUpdates(uc, updates)
+	// An edit that closes a running block is no regular checkout: it gets the
+	// rounding of now, no pack-up minutes. A closed block keeps the rule it
+	// was closed with, so a corrected stamp recomputes the same credit.
+	if wasOpen && session.CheckOutTime != nil {
+		credit, err := s.closingCreditRule(ctx, false)
+		if err != nil {
+			return nil, err
+		}
+		session.setCreditRule(credit)
+	}
 
 	session.UpdatedBy = &editorStaffID
 	session.UpdatedAt = uc.now
@@ -234,6 +245,13 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 		UpdatedBy:    &editorStaffID,
 	}
 	session.SetTenantID(tenant.FromContext(ctx))
+	// A Nachtrag records times an admin enters, not a checkout: it gets the
+	// rounding of now and no pack-up minutes (#6851, #6852).
+	credit, err := s.closingCreditRule(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+	session.setCreditRule(credit)
 
 	if err := session.Validate(); err != nil {
 		return nil, fmt.Errorf(errInvalidSessionData, err)
@@ -383,7 +401,11 @@ func (s *workSessionService) closeStaleOpenBlock(ctx context.Context, session *W
 			slog.Int64("session_id", session.ID),
 			slog.String("error", err.Error()))
 	}
-	_, err = s.repo.CloseWorkSession(ctx, session.ID, at, true)
+	credit, err := s.closingCreditRule(ctx, false)
+	if err != nil {
+		return err
+	}
+	_, err = s.repo.CloseWorkSession(ctx, session.ID, at, true, credit)
 	if err = workSessionWriteError("close session", err); err != nil {
 		return fmt.Errorf("failed to close stale work session %d: %w", session.ID, err)
 	}

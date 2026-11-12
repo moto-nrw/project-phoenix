@@ -14649,6 +14649,14 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings/internal/application.PresenceSettings.WorkTimeCredit",
+      "binding_digest": "bbdb7acad137afd70994d35ff3bf8d21",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.Settings.WorkTimeCredit",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/internal/application.PresenceSettings.WorkTimeCredit",
+      "target_owner": "settings-platform"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.absenceCommands.CreateAbsence",
       "binding_digest": "73726c14a26674737cc9d7a113e978c4",
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.StaffAbsenceService.CreateAbsence",
@@ -16134,6 +16142,14 @@
       "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.settingsResolver.TimeTrackingRetentionDays",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/internal/application.PresenceSettings.TimeTrackingRetentionDays",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.Settings.WorkTimeCredit",
+      "binding_digest": "bbdb7acad137afd70994d35ff3bf8d21",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.settingsResolver.WorkTimeCredit",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/internal/application.PresenceSettings.WorkTimeCredit",
       "target_owner": "settings-platform"
     },
     {

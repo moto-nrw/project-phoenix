@@ -55,6 +55,9 @@ func (snapshotSessionSettings) RequireDeviationReason(context.Context) (bool, er
 }
 func (snapshotSessionSettings) DeviationToleranceMinutes(context.Context) (int, error) { return 0, nil }
 func (snapshotSessionSettings) TimeTrackingRetentionDays(context.Context) (int, error) { return 0, nil }
+func (snapshotSessionSettings) WorkTimeCredit(context.Context) (int, int, string, error) {
+	return 0, 0, "", nil
+}
 
 // newAdminSessionService builds the admin correction path used to mutate a
 // closed month, wired exactly as services/factory.go does.

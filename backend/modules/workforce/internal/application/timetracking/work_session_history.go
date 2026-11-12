@@ -127,6 +127,7 @@ func sessionHistoryResponses(sessions []*WorkSession, breaksBySession map[int64]
 		// block's cache as complete — and a break still running across the
 		// limit would be booked as work (#2402).
 		asOf := BalanceSessionEnd(session, now)
+		credit := sessionCredit(session)
 		responses[i] = &SessionResponse{
 			WorkSession: session,
 			// A running break is NOT in the BreakMinutes cache, so netMinutes
@@ -135,7 +136,9 @@ func sessionHistoryResponses(sessions []*WorkSession, breaksBySession map[int64]
 			// deduct it) stand still (#1842). The breaks are already loaded
 			// above — no extra query.
 			BreakMinutes:     totalBreakMinutes(session, breaks, asOf),
-			NetMinutes:       netMinutesWithBreaks(session, breaks, asOf),
+			NetMinutes:       creditedNetMinutes(session, breaks, asOf),
+			PackUpMinutes:    credit.PackUpMinutes,
+			RoundingMinutes:  credit.RoundingMinutes,
 			IsOvertime:       isOvertime(session, breaks, asOf),
 			IsBreakCompliant: isBreakCompliant(session, breaks, asOf),
 			Breaks:           breaks,
@@ -164,7 +167,7 @@ func (s *workSessionService) buildWeeklySummaries(sessions []*SessionResponse, t
 		end := BalanceSessionEnd(session.WorkSession, now)
 		countedWeeks := make(map[summaryWeekKey]struct{})
 		firstDay, lastDay := summarySessionDays(session.CheckInTime, end, from, to)
-		for day, minutes := range netMinutesByDate(session.WorkSession, session.Breaks, end, firstDay, lastDay) {
+		for day, minutes := range creditedNetMinutesByDate(session.WorkSession, session.Breaks, end, firstDay, lastDay) {
 			year, week := day.UTCMidnight().ISOWeek()
 			key := summaryWeekKey{Year: year, Week: week}
 

@@ -33,7 +33,7 @@ func publicWorkSession(entity *WorkSession) *workforce.WorkSession {
 	return &workforce.WorkSession{
 		ID: entity.ID, TenantID: entity.TenantID, StaffID: entity.StaffID, Date: entity.Date.String(), Status: entity.Status,
 		Source: entity.Source, CheckInTime: entity.CheckInTime, CheckOutTime: entity.CheckOutTime, ReopenedAt: entity.ReopenedAt,
-		BreakMinutes: entity.BreakMinutes, Notes: entity.Notes, AutoCheckedOut: entity.AutoCheckedOut, CreatedBy: entity.CreatedBy,
+		BreakMinutes: entity.BreakMinutes, Notes: entity.Notes, AutoCheckedOut: entity.AutoCheckedOut, Credit: entity.creditRule(), CreatedBy: entity.CreatedBy,
 		UpdatedBy: entity.UpdatedBy, CreatedAt: entity.CreatedAt, UpdatedAt: entity.UpdatedAt,
 	}
 }
@@ -67,6 +67,7 @@ func publicSessionResponse(value *SessionResponse) *workforce.SessionResponse {
 		WorkSession: publicWorkSession(value.WorkSession), BreakMinutes: value.BreakMinutes, NetMinutes: value.NetMinutes,
 		IsOvertime: value.IsOvertime, IsBreakCompliant: value.IsBreakCompliant, Breaks: publicWorkSessionBreaks(value.Breaks),
 		EditCount: value.EditCount, AuditCount: value.AuditCount,
+		PackUpMinutes: value.PackUpMinutes, RoundingMinutes: value.RoundingMinutes,
 	}
 }
 

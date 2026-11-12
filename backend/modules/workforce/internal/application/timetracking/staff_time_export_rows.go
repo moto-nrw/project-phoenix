@@ -247,11 +247,14 @@ func (s *workSessionService) buildDayExportSessionResponses(ctx context.Context,
 	responses := make([]*SessionResponse, len(sessions))
 	for i, session := range sessions {
 		breaks := breaksBySession[session.ID]
+		credit := sessionCredit(session)
 		responses[i] = &SessionResponse{
-			WorkSession:  session,
-			BreakMinutes: totalBreakMinutes(session, breaks, now),
-			NetMinutes:   netMinutesWithBreaks(session, breaks, now),
-			EditCount:    editCounts[session.ID],
+			WorkSession:     session,
+			BreakMinutes:    totalBreakMinutes(session, breaks, now),
+			NetMinutes:      creditedNetMinutes(session, breaks, now),
+			EditCount:       editCounts[session.ID],
+			PackUpMinutes:   credit.PackUpMinutes,
+			RoundingMinutes: credit.RoundingMinutes,
 		}
 	}
 	return responses, nil

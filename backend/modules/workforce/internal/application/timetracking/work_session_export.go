@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/workforce"
@@ -323,7 +324,23 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 		quelle = "Manuell korrigiert"
 	}
 
-	return []string{datum, wochentag, start, ende, pauseMin, netto, status, quelle, sess.Notes}
+	return []string{datum, wochentag, start, ende, pauseMin, netto, status, quelle, exportRowNotes(sess.Notes, sr)}
+}
+
+// exportRowNotes appends the credit inside Netto to the row's notes, so a
+// reader can trace Netto back to the stamped Start and Ende (#6851, #6852).
+func exportRowNotes(notes string, sr *SessionResponse) string {
+	parts := make([]string, 0, 3)
+	if notes != "" {
+		parts = append(parts, notes)
+	}
+	if sr.PackUpMinutes != 0 {
+		parts = append(parts, fmt.Sprintf("Wegpackzeit +%d Min.", sr.PackUpMinutes))
+	}
+	if sr.RoundingMinutes != 0 {
+		parts = append(parts, fmt.Sprintf("Rundung %+d Min.", sr.RoundingMinutes))
+	}
+	return strings.Join(parts, "; ")
 }
 
 // quelleLabel renders the export "Quelle" cell from the persisted source.

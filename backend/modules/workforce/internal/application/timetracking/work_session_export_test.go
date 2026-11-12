@@ -42,6 +42,7 @@ func wsCreateTestServiceWithAbsenceRepo() (*workSessionService, *wsMockWorkSessi
 		auditRepo:                 auditRepo,
 		absenceRepo:               absenceRepo,
 		GroupSupervisorRepository: supervisorRepo,
+		settings:                  &wsMockSettingsResolver{},
 	}
 
 	return service, sessionRepo, breakRepo, auditRepo, absenceRepo, supervisorRepo

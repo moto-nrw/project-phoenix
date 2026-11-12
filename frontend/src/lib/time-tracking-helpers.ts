@@ -52,6 +52,8 @@ export interface BackendWorkSessionHistory extends BackendWorkSession {
   breaks: BackendWorkSessionBreak[] | null;
   edit_count: number;
   audit_count?: number;
+  pack_up_minutes?: number;
+  rounding_minutes?: number;
 }
 
 export interface BackendWeeklySummary {
@@ -258,6 +260,10 @@ export interface WorkSessionHistory extends WorkSession {
   breaks: WorkSessionBreak[];
   editCount: number;
   auditCount?: number;
+  /** Pack-up minutes credited for a regular checkout (#6852). */
+  packUpMinutes?: number;
+  /** Signed change the rounding made to the block's duration (#6851). */
+  roundingMinutes?: number;
 }
 
 export interface WorkSessionDayMinutes {
@@ -538,6 +544,8 @@ export function mapWorkSessionHistoryResponse(
     breaks: (data.breaks ?? []).map(mapWorkSessionBreakResponse),
     editCount: data.edit_count ?? 0,
     auditCount: data.audit_count ?? 0,
+    packUpMinutes: data.pack_up_minutes ?? 0,
+    roundingMinutes: data.rounding_minutes ?? 0,
   };
 }
 

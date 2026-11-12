@@ -1660,3 +1660,52 @@ describe("staff-session-table.invalidation", () => {
     });
   });
 });
+
+describe("staff-session-table.credit", () => {
+  // #6851, #6852: Wegpackzeit und Rundung stecken in der Ist-Zeit; die
+  // Hinweis-Spalte zeigt sie, die gestempelten Zeiten bleiben stehen.
+  function renderCredit(session: StaffHistorySession) {
+    return render(
+      <StaffSessionTable
+        staffId="1"
+        from={new Date(2026, 0, 5)}
+        to={new Date(2026, 0, 11)}
+        sessions={[session]}
+        schedule={null}
+        accountStartDate=""
+        accountStartDatePending={false}
+        accountStartDateError={false}
+        today={new Date(2026, 5, 15)}
+        isAdminView
+      />,
+    );
+  }
+
+  const stamped: StaffHistorySession = {
+    id: "51",
+    date: "2026-01-05",
+    // 08:00–14:03 Berlin, +5 Min. Wegpackzeit, auf 15 Min. gerundet: 6:15.
+    net_minutes: 375,
+    check_in_time: "2026-01-05T07:00:00Z",
+    check_out_time: "2026-01-05T13:03:00Z",
+    break_minutes: 0,
+    pack_up_minutes: 5,
+    rounding_minutes: 7,
+  };
+
+  it("zeigt Wegpackzeit und Rundung neben den gestempelten Zeiten", () => {
+    renderCredit(stamped);
+
+    expect(screen.getByText("+5 Min. Wegpackzeit")).toBeInTheDocument();
+    expect(screen.getByText("Gerundet +7 Min.")).toBeInTheDocument();
+    expect(screen.getByText("14:03")).toBeInTheDocument();
+  });
+
+  it("zeigt abgerundete Minuten mit Minuszeichen", () => {
+    renderCredit({ ...stamped, pack_up_minutes: 0, rounding_minutes: -3 });
+
+    expect(screen.getByText("Gerundet -3 Min.")).toBeInTheDocument();
+    expect(screen.getByText("14:03")).toBeInTheDocument();
+    expect(screen.queryByText(/Wegpackzeit/)).not.toBeInTheDocument();
+  });
+});

@@ -61,7 +61,7 @@ func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int
 			continue
 		}
 
-		for day, minutes := range netMinutesByDate(session, breaksBySessionID[session.ID], end, first, today) {
+		for day, minutes := range creditedNetMinutesByDate(session, breaksBySessionID[session.ID], end, first, today) {
 			if agg, ok := aggregates[monthOf(day)]; ok {
 				agg.actual += minutes
 			}

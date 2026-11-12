@@ -313,7 +313,13 @@ func (seedWorkSessionBreakStep) Run(_ context.Context, rt *Runtime) error {
 		return err
 	}
 	day := breakSessionDay(today, holidays)
-	if err := seedSessionWithBreakViaAPI(client, rng); err != nil {
+	// The live block closes with five minutes pack-up time (#6852), so the
+	// day view shows the credit. It lasts seconds, so a rounding would only
+	// cancel it again; the school keeps the defaults for every other block.
+	err = withTemporarySeedSetting(rt, rt.TenantAuth, "tracking.pack_up_minutes", 5, 0, func() error {
+		return seedSessionWithBreakViaAPI(client, rng)
+	})
+	if err != nil {
 		return fmt.Errorf("seed live break session: %w", err)
 	}
 	admin := NewClientWithAdapter(rt.Adapter, rt.Verbose)

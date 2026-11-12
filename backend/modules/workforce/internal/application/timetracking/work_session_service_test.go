@@ -45,7 +45,9 @@ type wsMockWorkSessionRepository struct {
 	getOpenSessionsFunc                func(ctx context.Context, beforeDate Date) ([]*WorkSession, error)
 	getTodayPresenceMapFunc            func(ctx context.Context) (map[int64]string, error)
 	closeSessionFunc                   func(ctx context.Context, id int64, checkOutTime time.Time, autoCheckedOut bool) (bool, error)
-	updateBreakMinutesFunc             func(ctx context.Context, id int64, breakMinutes int) error
+	// closedCredits records the credit rule of every CloseWorkSession call.
+	closedCredits          []workforce.WorkSessionCreditRule
+	updateBreakMinutesFunc func(ctx context.Context, id int64, breakMinutes int) error
 }
 
 func (m *wsMockWorkSessionRepository) LockStaffBalanceWrites(ctx context.Context, staffID int64) error {
@@ -271,6 +273,9 @@ func (m *wsMockWorkTimeModelRepository) Delete(ctx context.Context, id int64) er
 type wsMockSettingsResolver struct {
 	resolveBoolFunc func(ctx context.Context, question string) (bool, error)
 	resolveIntFunc  func(ctx context.Context, question string) (int, error)
+	// credit answers PackUpMinutes and WorkTimeRounding (#6851, #6852).
+	credit    workforce.WorkSessionCreditRule
+	creditErr error
 }
 
 // The time-tracking questions the work-session service asks.
@@ -317,6 +322,10 @@ func (m *wsMockSettingsResolver) DeviationToleranceMinutes(ctx context.Context) 
 
 func (m *wsMockSettingsResolver) TimeTrackingRetentionDays(ctx context.Context) (int, error) {
 	return m.resolveInt(ctx, timeTrackingRetentionQuestion)
+}
+
+func (m *wsMockSettingsResolver) WorkTimeCredit(context.Context) (int, int, string, error) {
+	return m.credit.PackUpMinutes, m.credit.RoundingIntervalMinutes, m.credit.RoundingMode, m.creditErr
 }
 
 // ============================================================================
@@ -686,6 +695,7 @@ func wsCreateTestService() (*workSessionService, *wsMockWorkSessionRepository, *
 		absenceRepo:               absenceRepo,
 		GroupSupervisorRepository: supervisorRepo,
 		externalCaregivers:        wsExternalCaregivers{},
+		settings:                  &wsMockSettingsResolver{},
 	}
 
 	return service, sessionRepo, breakRepo, auditRepo, supervisorRepo

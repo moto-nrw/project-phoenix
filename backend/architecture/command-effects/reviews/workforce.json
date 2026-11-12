@@ -20551,6 +20551,16 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/settings/internal/application.PresenceSettings.WorkTimeCredit",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.Settings.WorkTimeCredit",
+      "reason": "Read-only target: workforce reaches modules/settings/internal/application.PresenceSettings.WorkTimeCredit (settings-platform) through modules/settings/internal/application.PresenceSettings.WorkTimeCredit to store the closing block's credit rule (#6851, #6852). No persistent, lock or scope effect in the settings platform.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/internal/application.PresenceSettings.WorkTimeCredit",
+      "target_owner": "settings-platform"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.absenceCommands.CreateAbsence",
@@ -22611,6 +22621,16 @@
       "reason": "Read-only newly exposed target: workforce reaches modules/settings/internal/application.PresenceSettings.TimeTrackingRetentionDays (settings-platform) through modules/workforce/internal/application/timetracking.Settings.TimeTrackingRetentionDays. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
       "source_owner": "workforce",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/internal/application.PresenceSettings.TimeTrackingRetentionDays",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.Settings.WorkTimeCredit",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking.settingsResolver.WorkTimeCredit",
+      "reason": "Read-only target: workforce reaches modules/settings/internal/application.PresenceSettings.WorkTimeCredit (settings-platform) through modules/workforce/internal/application/timetracking.Settings.WorkTimeCredit to store the closing block's credit rule (#6851, #6852). No persistent, lock or scope effect in the settings platform.",
+      "source_owner": "workforce",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/internal/application.PresenceSettings.WorkTimeCredit",
       "target_owner": "settings-platform"
     },
     {

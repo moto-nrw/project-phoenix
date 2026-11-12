@@ -38,6 +38,9 @@ func (ws WorkSession) Validate() error {
 	if ws.BreakMinutes < 0 {
 		return invalidWorkSession("break minutes cannot be negative")
 	}
+	if err := ws.Credit.Validate(); err != nil {
+		return err
+	}
 	if ws.CreatedBy <= 0 {
 		return invalidWorkSession("created_by is required")
 	}

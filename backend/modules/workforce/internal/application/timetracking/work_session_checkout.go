@@ -79,8 +79,13 @@ func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day 
 		return nil, err
 	}
 
-	// Close the session using repository method
-	closed, err := s.repo.CloseWorkSession(ctx, session.ID, now, false)
+	// A regular checkout earns the pack-up minutes; the rule is stored on the
+	// block so later settings changes leave it alone (#6851, #6852).
+	credit, err := s.closingCreditRule(ctx, true)
+	if err != nil {
+		return nil, err
+	}
+	closed, err := s.repo.CloseWorkSession(ctx, session.ID, now, false, credit)
 	err = workSessionWriteError("close session", err)
 	if err != nil {
 		return nil, fmt.Errorf("failed to close session: %w", err)

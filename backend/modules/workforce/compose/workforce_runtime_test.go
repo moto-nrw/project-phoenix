@@ -106,7 +106,7 @@ func TestWorkforceOwnerRuntime(t *testing.T) {
 				if err != nil {
 					return err
 				}
-				closed, err := capability.CloseWorkSession(txCtx, session.ID, start.Add(8*time.Hour), false)
+				closed, err := capability.CloseWorkSession(txCtx, session.ID, start.Add(8*time.Hour), false, workforce.WorkSessionCreditRule{})
 				require.True(t, closed)
 				if err != nil {
 					return err

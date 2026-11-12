@@ -943,6 +943,10 @@ export interface StaffHistorySession {
   notes?: string;
   edit_count?: number;
   audit_count?: number;
+  // Credit inside `net_minutes` (#6851, #6852): pack-up time of a regular
+  // checkout and the signed change of the rounding. 0 for an open block.
+  pack_up_minutes?: number;
+  rounding_minutes?: number;
 }
 
 /** Die Antwort der Verlaufsroute samt Wochensummen und ArbZG-Hinweisen. */

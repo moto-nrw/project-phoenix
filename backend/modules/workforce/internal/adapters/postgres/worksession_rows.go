@@ -22,6 +22,9 @@ type workSessionRow struct {
 	BreakMinutes   int          `bun:"break_minutes,notnull,default:0"`
 	Notes          string       `bun:"notes"`
 	AutoCheckedOut bool         `bun:"auto_checked_out,notnull,default:false"`
+	PackUpMinutes  int          `bun:"pack_up_minutes,notnull,default:0"`
+	RoundingMins   int          `bun:"rounding_interval_minutes,notnull,default:0"`
+	RoundingMode   string       `bun:"rounding_mode,notnull,default:''"`
 	CreatedBy      int64        `bun:"created_by,notnull"`
 	UpdatedBy      *int64       `bun:"updated_by"`
 	CreatedAt      time.Time    `bun:"created_at,nullzero,notnull,default:current_timestamp"`
@@ -105,7 +108,8 @@ func workSessionFromDomain(value workforce.WorkSession) *workSessionRow {
 		Status: value.Status, Source: value.Source, CheckInTime: value.CheckInTime, CheckOutTime: value.CheckOutTime,
 		ReopenedAt: value.ReopenedAt, BreakMinutes: value.BreakMinutes, Notes: value.Notes,
 		AutoCheckedOut: value.AutoCheckedOut, CreatedBy: value.CreatedBy, UpdatedBy: value.UpdatedBy,
-		CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		PackUpMinutes: value.Credit.PackUpMinutes, RoundingMins: value.Credit.RoundingIntervalMinutes,
+		RoundingMode: value.Credit.RoundingMode, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
 }
 
@@ -115,6 +119,9 @@ func workSessionToDomain(row workSessionRow) workforce.WorkSession {
 		Status: row.Status, Source: row.Source, CheckInTime: row.CheckInTime, CheckOutTime: row.CheckOutTime,
 		ReopenedAt: row.ReopenedAt, BreakMinutes: row.BreakMinutes, Notes: row.Notes,
 		AutoCheckedOut: row.AutoCheckedOut, CreatedBy: row.CreatedBy, UpdatedBy: row.UpdatedBy,
+		Credit: workforce.WorkSessionCreditRule{
+			PackUpMinutes: row.PackUpMinutes, RoundingIntervalMinutes: row.RoundingMins, RoundingMode: row.RoundingMode,
+		},
 		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
 }
