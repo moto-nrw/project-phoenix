@@ -59,10 +59,11 @@ export function buttonStyles({
     base: "rounded-lg px-5 py-3",
     lg: "rounded-lg px-5 py-3",
     xl: "rounded-lg px-5 py-3",
-    compact: "h-8 gap-1.5 rounded-md px-2.5 disabled:cursor-not-allowed",
+    compact:
+      "h-8 gap-1.5 rounded-md px-2.5 disabled:cursor-not-allowed aria-disabled:cursor-not-allowed",
     // `aspect-square` statt `w-8`: erzwingt die Kopfkarte ihre Bedienhöhe
     // (40/44 px), folgt die Breite — sonst wird der quadratische Knopf oval.
-    icon: "aspect-square h-8 rounded-md pointer-coarse:min-w-11 disabled:cursor-not-allowed",
+    icon: "aspect-square h-8 rounded-md pointer-coarse:min-w-11 disabled:cursor-not-allowed aria-disabled:cursor-not-allowed",
     card: "w-full rounded-2xl p-4",
   };
   const variantStyles: Record<ButtonVariant, string> = {
@@ -151,7 +152,7 @@ export function buttonStyles({
   // bleibt es bei den Kit-Maßen. Kein Knopf braucht dafür ein eigenes
   // `min-h-11`. Kein `transform` im Übergang: das Kit skaliert nicht.
   const baseStyles =
-    "inline-flex items-center justify-center font-medium transition-[background-color,box-shadow,color,opacity] duration-200 pointer-coarse:min-h-11 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50";
+    "inline-flex items-center justify-center font-medium transition-[background-color,box-shadow,color,opacity] duration-200 pointer-coarse:min-h-11 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50 aria-disabled:opacity-50";
 
   // Die Variante steht hinter der Größe: Varianten mit eigenem Maß (`fab`,
   // `filter`, `day_chip` …) setzen sich so auch bei der Schriftgröße durch.
