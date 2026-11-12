@@ -186,6 +186,59 @@ func TestDueExitLockedByAnotherTransactionIsDeferred(t *testing.T) {
 	require.Equal(t, staffoffboarding.ExitSucceeded, lines[ids[1]]["outcome"])
 }
 
+// The execution takes the person lock after the preliminary locks. A held
+// person must defer that exit without recording an hourly retry or stopping
+// the other exits, even though the execution rolls back to a savepoint.
+func TestDueExitPersonLockedDuringExecutionIsDeferred(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	f, planner := newPlannerFixture(t)
+	ctx := testpkg.Ctx(t)
+	ids := threeDueExits(t, f, planner, "2027-10-10")
+	f.today, f.lockWait = "2027-10-11", 100*time.Millisecond
+	staff, err := f.membership.FindStaff(ctx, ids[1])
+	require.NoError(t, err)
+
+	holder, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = holder.Rollback() }()
+	_, err = holder.ExecContext(ctx, `SELECT id FROM users.persons WHERE id = ? FOR UPDATE`, staff.PersonID)
+	require.NoError(t, err)
+
+	runCtx, cancel := context.WithTimeout(ctx, 5*time.Second)
+	defer cancel()
+	require.NoError(t, planner.RunDue(runCtx), "the run finishes while the person lock is still held")
+	require.Len(t, planner.lastRun.Exits, 3)
+	require.Empty(t, planner.lastRun.Failed(), "a locked person defers the exit, it does not fail it")
+	for _, result := range planner.lastRun.Exits {
+		if result.StaffID == ids[1] {
+			require.Equal(t, staffoffboarding.ExitDeferred, result.Outcome)
+			require.ErrorIs(t, result.Err, staffoffboarding.ErrExitLocked)
+		} else {
+			require.Equal(t, staffoffboarding.ExitSucceeded, result.Outcome)
+		}
+	}
+	for _, id := range []int64{ids[0], ids[2]} {
+		require.True(t, f.staffRetired(t, id), "the other exits committed")
+	}
+	require.False(t, f.staffRetired(t, ids[1]))
+	plan, err := f.exits.FindPlannedExitForMutation(ctx, ids[1])
+	require.NoError(t, err)
+	require.Nil(t, plan.AccessLockedAt, "the deferred exit keeps no access change")
+	require.Nil(t, plan.NextAttemptAt, "the deferred exit is due on the next run, not in an hour")
+	lines := f.logs.exitLines(t)
+	require.Len(t, lines, 3)
+	require.Equal(t, staffoffboarding.ExitDeferred, lines[ids[1]]["outcome"])
+	require.Contains(t, lines[ids[1]]["error"], staffoffboarding.ErrExitLocked.Error())
+	require.NoError(t, holder.Rollback())
+
+	require.NoError(t, planner.RunDue(ctx))
+	require.True(t, f.staffRetired(t, ids[1]), "the next run completes the deferred exit")
+	require.Len(t, f.deletion, 3, "each exit completed once")
+	require.NoError(t, planner.RunDue(ctx))
+	require.Len(t, f.deletion, 3)
+}
+
 // A unit whose transaction can no longer be trusted ends the school's run:
 // it is reported as aborted, never as an isolated failure, and the exits
 // after it wait for the next run.

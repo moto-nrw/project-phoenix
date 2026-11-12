@@ -47,6 +47,7 @@ var ErrExitLocked = errors.New("staff offboarding: planned exit is locked by ano
 // started, unknown commit outcome, failed savepoint control, cancelled run)
 // and stops. BoundLockWaits runs fn so that a wait for a lock another
 // transaction holds ends after a bound with an error wrapping ErrExitLocked.
+// It covers the whole exit, including its execution and progress writes.
 // Isolate runs one offboarding in a savepoint of the exit's transaction,
 // with failed and err as in Within. Now is the scheduler's clock; Logger
 // takes one result line per planned exit (slog.Default when nil).
@@ -163,14 +164,14 @@ func (d *DueExits) runUnit(ctx context.Context, plan schoolmembership.PlannedExi
 	var exitErr error
 	failed, err := d.deps.Within(ctx, func(txCtx context.Context) error {
 		exitErr = nil
-		if err := d.deps.BoundLockWaits(txCtx, func(lockCtx context.Context) error {
-			return d.lockPlan(lockCtx, plan.StaffID)
-		}); err != nil {
+		return d.deps.BoundLockWaits(txCtx, func(lockCtx context.Context) error {
+			if err := d.lockPlan(lockCtx, plan.StaffID); err != nil {
+				return err
+			}
+			var err error
+			exitErr, err = d.runPlan(lockCtx, plan, today)
 			return err
-		}
-		var err error
-		exitErr, err = d.runPlan(txCtx, plan, today)
-		return err
+		})
 	})
 	switch {
 	case err != nil:
@@ -321,11 +322,18 @@ func (d *DueExits) runExit(ctx context.Context, plan schoolmembership.PlannedExi
 	}
 	asPlanner := plannerActor(plan)
 	execErr, err := d.deps.Isolate(ctx, func(spCtx context.Context) error {
-		_, err := d.planner.workflow.executeAs(spCtx, "planned_exit", plan.StaffID, "", asPlanner)
-		return err
+		// Classify lock timeouts before the savepoint rollback consumes the
+		// execution error, so contention never records a failed offboarding.
+		return d.deps.BoundLockWaits(spCtx, func(lockCtx context.Context) error {
+			_, err := d.planner.workflow.executeAs(lockCtx, "planned_exit", plan.StaffID, "", asPlanner)
+			return err
+		})
 	})
 	if err != nil || execErr == nil {
 		return nil, err
+	}
+	if errors.Is(execErr, ErrExitLocked) {
+		return nil, execErr
 	}
 	if err := d.recordFailedExit(ctx, plan, now, errors.Is(execErr, ErrInUse), asPlanner); err != nil {
 		return nil, err
