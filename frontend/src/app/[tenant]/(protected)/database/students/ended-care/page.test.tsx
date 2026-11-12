@@ -213,7 +213,7 @@ describe("Beendete Betreuungen", () => {
     const confirm = await screen.findByRole("button", {
       name: "Betreuung wieder aufnehmen",
     });
-    expect(confirm).toBeDisabled();
+    expect(confirm).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.getByText(
         /Gruppe, Angebote, Wochenplan und Zeiten schaltet moto nicht von selbst wieder ein/,
@@ -222,6 +222,7 @@ describe("Beendete Betreuungen", () => {
 
     fireEvent.click(screen.getByRole("checkbox"));
     expect(confirm).toBeEnabled();
+    expect(confirm).not.toHaveAttribute("aria-disabled");
 
     fireEvent.click(confirm);
     await waitFor(() =>
