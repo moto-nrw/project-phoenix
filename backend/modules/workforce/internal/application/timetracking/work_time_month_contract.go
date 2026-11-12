@@ -42,9 +42,10 @@ type MonthSummary struct {
 	VacationDays            float64 `json:"vacation_days"`
 	TrainingDays            float64 `json:"training_days"`
 	// *DaysWithoutTarget count the absence workdays (Monday to Friday, no
-	// holiday or closing day) of a month with HasTarget false. They credit
-	// nothing and stay out of the credited day counters above, which the
-	// DATEV and CSV exports book (#6889).
+	// holiday or closing day) that no maintained Soll governs: no
+	// Sonderarbeitszeit, schedule version or stand-in work-time model. They
+	// credit nothing and stay out of the credited day counters above, which
+	// the DATEV and CSV exports book (#6889).
 	SickDaysWithoutTarget     float64 `json:"sick_days_without_target"`
 	VacationDaysWithoutTarget float64 `json:"vacation_days_without_target"`
 	TrainingDaysWithoutTarget float64 `json:"training_days_without_target"`

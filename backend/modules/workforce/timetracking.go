@@ -631,7 +631,7 @@ type MonthSummary struct {
 	SickDays                float64 `json:"sick_days"`
 	VacationDays            float64 `json:"vacation_days"`
 	TrainingDays            float64 `json:"training_days"`
-	// *DaysWithoutTarget count absence workdays of a month without Soll;
+	// *DaysWithoutTarget count absence workdays no maintained Soll governs;
 	// they credit nothing (#6889).
 	SickDaysWithoutTarget     float64 `json:"sick_days_without_target"`
 	VacationDaysWithoutTarget float64 `json:"vacation_days_without_target"`

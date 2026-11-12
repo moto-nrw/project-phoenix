@@ -12,11 +12,14 @@ import { Lock } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { Button, ButtonLink } from "~/components/ui/button";
+import { Button } from "~/components/ui/button";
 import { SectionCard } from "~/components/ui/section-card";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { MISSING_TARGET_OWNER } from "~/components/staff/missing-target-notice";
+import {
+  MISSING_TARGET_OWNER,
+  SetTargetAction,
+} from "~/components/staff/missing-target-notice";
 import { formatSignedDuration } from "~/components/staff/staff-time-views";
 import { formatLocalizedDate } from "~/lib/localized-date-format";
 import {
@@ -106,7 +109,7 @@ interface AbsenceRow {
   readonly minutes: number;
   /** Credited days; Sonstiges has no credited day counter. */
   readonly days?: number;
-  /** Days of a month without Soll, credited with 0 hours (#6889). */
+  /** Days no maintained Soll governs, credited with 0 hours (#6889). */
   readonly daysWithoutTarget: number;
 }
 
@@ -404,25 +407,12 @@ export function Monatskarte({
             onSetTarget || setTargetHref ? "" : ` ${MISSING_TARGET_OWNER}`
           }`}
           action={
-            setTargetHref ? (
-              <ButtonLink
+            onSetTarget || setTargetHref ? (
+              <SetTargetAction
                 href={setTargetHref}
-                variant="outline"
-                size="compact"
-                tooltip="Öffnet das Arbeitszeitmodell dieser Person."
-              >
-                Soll festlegen
-              </ButtonLink>
-            ) : onSetTarget ? (
-              <Button
-                type="button"
-                variant="outline"
-                size="compact"
                 onClick={onSetTarget}
-                tooltip="Öffnet das Arbeitszeitmodell dieser Person."
-              >
-                Soll festlegen
-              </Button>
+                variant="outline"
+              />
             ) : undefined
           }
         />

@@ -84,15 +84,13 @@ func (c *absenceDayCounts) count(absenceType string, fraction float64) {
 	}
 }
 
-// isWorkdayWithoutPlan reports whether d is a workday when no Soll says
-// otherwise: Monday to Friday, no statutory holiday and no closing day. A
-// holiday's Soll is 0 by contract, not for lack of maintenance (#6889); the
-// weekdays match the vacation request's working-day count.
+// isWorkdayWithoutPlan reports whether d is a workday no maintained Soll
+// governs: no Sonderarbeitszeit, schedule version or stand-in template
+// (DayTargetResolver.Maintains), Monday to Friday like the vacation request's
+// working-day count, and no statutory holiday or closing day, whose Soll is 0
+// by contract, not for lack of maintenance (#6889).
 func isWorkdayWithoutPlan(d calendar.Date, resolver *dailyTargetResolver) bool {
-	if weekday := d.Weekday(); weekday == time.Saturday || weekday == time.Sunday {
-		return false
-	}
-	return !resolver.NonWorkingDays[d]
+	return isWorkingDay(d) && !resolver.NonWorkingDays[d] && !resolver.Maintains(d)
 }
 
 // AbsenceTypeCredit is the credit of one school absence type in a month: the

@@ -948,7 +948,7 @@ export interface BackendMonthSummary {
   sick_days: number;
   vacation_days: number;
   training_days: number;
-  /** Absence workdays of a month without Soll; they credit nothing (#6889). */
+  /** Absence workdays no maintained Soll governs; they credit nothing (#6889). */
   sick_days_without_target: number;
   vacation_days_without_target: number;
   training_days_without_target: number;
@@ -1048,9 +1048,10 @@ export interface MonthSummary {
   sickDays: number;
   vacationDays: number;
   trainingDays: number;
-  /** Absence workdays (Mo–Fr, no holiday or closing day) of a month without
-   *  any Soll (`hasTarget` false). They credit 0 hours and stay out of the
-   *  credited day counters above, which the payroll exports book (#6889). */
+  /** Absence workdays (Mo–Fr, no holiday or closing day) that no maintained
+   *  Soll governs: no Sonderarbeitszeit, work schedule or work-time model on
+   *  that day. They credit 0 hours and stay out of the credited day counters
+   *  above, which the payroll exports book (#6889). */
   sickDaysWithoutTarget: number;
   vacationDaysWithoutTarget: number;
   trainingDaysWithoutTarget: number;

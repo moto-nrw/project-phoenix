@@ -109,8 +109,8 @@ func sessionEndUpTo(session *WorkSession, now time.Time) time.Time {
 // once (lowest absence ID wins), and only reported/approved absences count.
 // Day counters are schedule-aware: a vacation day only counts when the day
 // actually had a target (> 0), so part-timers aren't charged for days off.
-// In a month without any maintained Soll the zero says nothing about a plan;
-// there the workdays of the absence are counted separately (#6889).
+// A zero on a day no maintained Soll governs says nothing about a plan; such
+// workdays of the absence are counted separately (#6889).
 func (s *workTimeMonthService) addAbsenceCredits(ctx context.Context, staffID int64, first, last, today calendar.Date, resolver *dailyTargetResolver, aggregates map[monthKey]*monthAggregates) error {
 	absenceValues, err := s.absenceRepo.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{StaffID: staffID, OverlapFrom: first.String(), OverlapTo: last.String(), Order: []workforce.StaffAbsenceOrder{{Field: workforce.StaffAbsenceOrderDateStart}}})
 	absences := absencesToRecord(absenceValues)
@@ -128,7 +128,7 @@ func (s *workTimeMonthService) addAbsenceCredits(ctx context.Context, staffID in
 		},
 		func(d calendar.Date, absence *StaffAbsence, fraction float64) {
 			agg := aggregates[monthOf(d)]
-			if agg == nil || agg.hasTarget || !isWorkdayWithoutPlan(d, resolver) {
+			if agg == nil || !isWorkdayWithoutPlan(d, resolver) {
 				return
 			}
 			agg.daysWithoutTarget.count(absence.AbsenceType, fraction)

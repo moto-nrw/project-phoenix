@@ -181,6 +181,7 @@ describe("Monatskarte", () => {
       expect(sick).toHaveTextContent("0min");
       const vacation = screen.getByText("Gutschrift Urlaub").closest("div");
       expect(vacation).toHaveTextContent("19 Tage ohne Soll");
+      // Anker: the Soll row of the current month, with its badge.
       expect(screen.getByText("Kein Soll hinterlegt")).toBeInTheDocument();
       expect(screen.queryByText(/davon bis heute/)).not.toBeInTheDocument();
       expect(
@@ -216,12 +217,33 @@ describe("Monatskarte", () => {
       rerender(
         <Monatskarte summary={makeSummary(withoutTarget)} isLoading={false} />,
       );
+      // Anker: the note rendered, now naming the Leitung instead of a button.
       expect(
         screen.getByText(/Das Soll trägt die Leitung ein\./),
       ).toBeInTheDocument();
       expect(
         screen.queryByRole("button", { name: "Soll festlegen" }),
       ).not.toBeInTheDocument();
+    });
+
+    // The Soll is decided per day: a schedule from the 15th on credits the
+    // later sick day and leaves the earlier one at 0 hours.
+    it("shows credited days and days without Soll side by side", () => {
+      render(
+        <Monatskarte
+          summary={makeSummary({
+            creditedVacationMinutes: 0,
+            vacationDays: 0,
+            creditedSickMinutes: 480,
+            sickDays: 1,
+            sickDaysWithoutTarget: 2,
+          })}
+          isLoading={false}
+        />,
+      );
+      const sick = screen.getByText("Gutschrift Krankheit").closest("div");
+      expect(sick).toHaveTextContent("1 Tag · 2 Tage ohne Soll");
+      expect(sick).toHaveTextContent("8h");
     });
 
     it("keeps a month without absences to the Soll badge", () => {
@@ -235,6 +257,7 @@ describe("Monatskarte", () => {
           isLoading={false}
         />,
       );
+      // Anker: the loaded card with its Soll badge and rows.
       expect(screen.getByText("Kein Soll hinterlegt")).toBeInTheDocument();
       expect(screen.getByText("Summe Ist")).toBeInTheDocument();
       expect(
@@ -247,6 +270,7 @@ describe("Monatskarte", () => {
 
     it("shows no Soll badge in a month with Soll", () => {
       render(<Monatskarte summary={makeSummary()} isLoading={false} />);
+      // Anker: the Soll row the badge would sit in.
       expect(screen.getByText("Summe Soll")).toBeInTheDocument();
       expect(
         screen.queryByText("Kein Soll hinterlegt"),
