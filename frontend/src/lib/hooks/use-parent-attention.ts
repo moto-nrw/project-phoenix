@@ -67,10 +67,7 @@ export function useParentAttentionEnabled(): boolean {
  * Elternnachrichten lesen darf (users:read); Anfragen zählen nur für Personen,
  * die sie auch entscheiden dürfen.
  */
-export function useParentAttentionMap(): ReadonlyMap<
-  string,
-  ParentAttention
-> | null {
+function useParentAttentionMap(): ReadonlyMap<string, ParentAttention> | null {
   const enabled = useParentAttentionEnabled();
   const { data: session } = useSession();
   const readsMessages =
