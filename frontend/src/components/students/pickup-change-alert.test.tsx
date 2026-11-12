@@ -1,10 +1,29 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { render, screen, waitFor } from "@testing-library/react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import type { PickupChangeNotice } from "~/lib/pickup-change-notices-api";
 
 import type { PickupException } from "~/lib/pickup-schedule-helpers";
 
+const notices = vi.hoisted(() => ({
+  list: [] as PickupChangeNotice[],
+  markRead: vi.fn(async () => undefined),
+}));
+vi.mock("~/lib/hooks/use-pickup-change-notices", () => ({
+  usePickupChangeNotices: () => ({
+    notices: notices.list,
+    markRead: notices.markRead,
+  }),
+}));
+const refreshes = vi.hoisted(() => [] as string[]);
+const tenantMutate = vi.hoisted(() => async (key: string) => {
+  refreshes.push(key);
+});
+vi.mock("~/lib/swr", () => ({ useTenantMutate: () => tenantMutate }));
+
 import {
   PickupChangeAlert,
+  StudentPickupChanges,
   upcomingPickupChanges,
 } from "./pickup-change-alert";
 
@@ -104,5 +123,91 @@ describe("PickupChangeAlert", () => {
     );
 
     expect(container).toBeEmptyDOMElement();
+  });
+});
+
+function notice(over: Partial<PickupChangeNotice> = {}): PickupChangeNotice {
+  return {
+    requestId: "21",
+    studentId: "7",
+    studentFirstName: "Mia",
+    date: "2026-09-10",
+    pickupTime: "14:30",
+    withdrawn: false,
+    informedAt: "2026-09-09T11:00:00Z",
+    ...over,
+  };
+}
+
+// The changes the reader had not seen yet carry „Neu“; a taken-back change
+// has no exception any more and says that the regular time applies (#6855).
+describe("PickupChangeAlert with unseen changes", () => {
+  it("marks unseen days and lists a taken-back day", () => {
+    render(
+      <PickupChangeAlert
+        exceptions={[
+          exception({ exceptionDate: "2026-09-10" }),
+          exception({ id: "2", exceptionDate: "2026-09-14" }),
+        ]}
+        today={TODAY}
+        fresh={[
+          notice(),
+          notice({
+            requestId: "22",
+            date: "2026-09-11",
+            pickupTime: "",
+            withdrawn: true,
+          }),
+        ]}
+      />,
+    );
+
+    expect(screen.getByText("Morgen: 14:30 Uhr")).toBeInTheDocument();
+    expect(
+      screen.getByText("Freitag, 11.09.2026: wieder normale Abholzeit"),
+    ).toBeInTheDocument();
+    expect(screen.getAllByText("Neu")).toHaveLength(2);
+    expect(
+      screen.getByText("Montag, 14.09.2026: 14:30 Uhr"),
+    ).toBeInTheDocument();
+  });
+});
+
+describe("StudentPickupChanges", () => {
+  beforeEach(() => {
+    notices.list = [];
+    notices.markRead.mockClear();
+    refreshes.length = 0;
+  });
+
+  it("reloads the pickup times, then confirms only this child's loaded changes", async () => {
+    const mine = notice();
+    notices.list = [mine, notice({ requestId: "30", studentId: "8" })];
+    render(
+      <StudentPickupChanges
+        studentId="7"
+        exceptions={[exception({ exceptionDate: "2026-09-10" })]}
+        today={TODAY}
+      />,
+    );
+
+    await waitFor(() =>
+      expect(notices.markRead).toHaveBeenCalledWith("7", [mine]),
+    );
+    expect(refreshes).toEqual([expect.stringContaining("7")]);
+    expect(screen.getByText("Neu")).toBeInTheDocument();
+  });
+
+  it("confirms nothing before the pickup times are there", () => {
+    notices.list = [notice()];
+    render(
+      <StudentPickupChanges
+        studentId="7"
+        exceptions={undefined}
+        today={TODAY}
+      />,
+    );
+    expect(notices.markRead).not.toHaveBeenCalled();
+    expect(refreshes).toEqual([]);
   });
 });

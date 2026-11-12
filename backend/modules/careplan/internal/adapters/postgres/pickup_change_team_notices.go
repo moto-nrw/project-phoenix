@@ -3,10 +3,12 @@ package postgres
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 
 	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/domain"
 	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
@@ -129,20 +131,41 @@ func (s *PickupChangeTeamStore) ListUnreadPickupChangeNotices(ctx context.Contex
 	return out, stats, nil
 }
 
-// MarkPickupChangeNoticesRead clears the reader's markers of one child.
-func (s *PickupChangeTeamStore) MarkPickupChangeNoticesRead(ctx context.Context, readerAccountID, studentID int64) (domain.OperationStats, error) {
+// MarkPickupChangeNoticesRead clears only the revisions the reader loaded,
+// on requests of the child.
+func (s *PickupChangeTeamStore) MarkPickupChangeNoticesRead(ctx context.Context, readerAccountID, studentID int64, observed []ports.PickupChangeRevision) (domain.OperationStats, error) {
+	if len(observed) == 0 {
+		return domain.OperationStats{}, nil
+	}
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
+	requestIDs := make([]int64, 0, len(observed))
+	informedAt := make([]string, 0, len(observed))
+	for _, notice := range observed {
+		requestIDs = append(requestIDs, notice.RequestID)
+		informedAt = append(informedAt, notice.InformedAt.Format(time.RFC3339Nano))
+	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
-	result, err := withTenant(db.NewUpdate().TableExpr(tableExprPickupChangeTeamNotices), "pickup_notice", tenantID).
-		Set("read_at = NOW()").
-		Where(`"pickup_notice".recipient_account_id = ?`, readerAccountID).
-		Where(`"pickup_notice".read_at IS NULL`).
-		Where(`"pickup_notice".request_id IN (SELECT "request".id FROM schedule.care_schedule_change_requests AS "request" WHERE "request".tenant_id = ? AND "request".student_id = ?)`, tenantID, studentID).
-		Exec(ctx)
+	if tenantID <= 0 {
+		return domain.OperationStats{}, errors.New("care plan postgres: mark pickup change notices read: tenant is required")
+	}
+	result, err := db.NewRaw(`
+		UPDATE schedule.pickup_change_team_notices AS pickup_notice
+		SET read_at = NOW()
+		FROM schedule.care_schedule_change_requests AS request,
+			unnest(?::bigint[], ?::timestamptz[]) AS observed(request_id, informed_at)
+		WHERE pickup_notice.tenant_id = ?
+			AND pickup_notice.recipient_account_id = ?
+			AND pickup_notice.read_at IS NULL
+			AND pickup_notice.request_id = observed.request_id
+			AND pickup_notice.informed_at = observed.informed_at
+			AND request.id = pickup_notice.request_id
+			AND request.tenant_id = pickup_notice.tenant_id
+			AND request.student_id = ?`,
+		pgdialect.Array(requestIDs), pgdialect.Array(informedAt), tenantID, readerAccountID, studentID).Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return stats, fmt.Errorf("care plan postgres: mark pickup change notices read: %w", err)

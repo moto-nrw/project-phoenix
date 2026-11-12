@@ -38,11 +38,11 @@ import { useHelpHref } from "~/lib/hooks/use-help-href";
 import { useEnrollmentsUnread } from "~/lib/hooks/use-enrollments-unread";
 import { UnreadBadge } from "~/components/messaging/unread-badge";
 import {
-  TEAM_NOTES_TITLE,
-  TeamNotesList,
-} from "~/components/dashboard/header/team-notes-button";
+  STAFF_NEWS_TITLE,
+  StaffNewsList,
+  useStaffNews,
+} from "~/components/dashboard/header/staff-news-button";
 import { NotificationBadge } from "~/components/ui/notification-badge";
-import { useStudentNoteTeamNotices } from "~/lib/hooks/use-student-note-team-notices";
 import { navigationIcons } from "~/lib/navigation-icons";
 import {
   navigationEntryTarget,
@@ -710,9 +710,10 @@ export function MobileBottomNav(props: MobileBottomNavProps) {
 function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
   // Ungelesene Anmeldungen (#3778) an der Zeile „Anmeldungen" im Menü.
   const { unreadCount: enrollmentsUnreadCount } = useEnrollmentsUnread();
-  // Geteilte Notizen (#6854): Unter 1024 px gibt es keine Kopfzeile, also
-  // trägt „Mehr“ den roten Zähler und das Menü die Liste.
-  const { notices: teamNotes } = useStudentNoteTeamNotices();
+  // „Neu für Sie“: geteilte Notizen (#6854) und geänderte Abholzeiten
+  // (#6855). Unter 1024 px gibt es keine Kopfzeile, also trägt „Mehr“ den
+  // roten Zähler und das Menü die Liste.
+  const staffNews = useStaffNews();
   const rawPathname = usePathname();
   const tenantSlug = useTenantSlugSafe();
   const routingMode = useTenantRoutingModeSafe();
@@ -1246,13 +1247,13 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     </span>
                   </ButtonLink>
                 ) : null}
-                {/* Geteilte Notizen (#6854) ganz oben: hierher führt der rote
-                    Zähler am Knopf „Mehr“. */}
-                {mode === "teacher" && teamNotes.length > 0 ? (
+                {/* „Neu für Sie“ (#6854, #6855) ganz oben: hierher führt der
+                    rote Zähler am Knopf „Mehr“. */}
+                {mode === "teacher" && staffNews.length > 0 ? (
                   <div className="space-y-2">
-                    <SectionLabel as="h2">{TEAM_NOTES_TITLE}</SectionLabel>
-                    <TeamNotesList
-                      notices={teamNotes}
+                    <SectionLabel as="h2">{STAFF_NEWS_TITLE}</SectionLabel>
+                    <StaffNewsList
+                      items={staffNews}
                       onNavigate={closeOverflowMenu}
                     />
                   </div>
@@ -1476,10 +1477,10 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
             badge={
               mode === "teacher" ? (
                 <NotificationBadge
-                  count={teamNotes.length}
+                  count={staffNews.length}
                   tone="danger"
                   size="sm"
-                  ariaLabel={`${teamNotes.length} neue Notizen vom Team`}
+                  ariaLabel={`${staffNews.length} neu für Sie`}
                   className="absolute -top-1 -right-2"
                 />
               ) : null

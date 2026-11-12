@@ -83,6 +83,9 @@
     "DELETE tenant /api/students/id%2F1/partial-absences/partialAbsenceId%2F1",
     "PUT tenant /api/students/id%2F1/partial-absences/partialAbsenceId%2F1"
   ],
+  "api/students/[id]/pickup-change-notices/read": [
+    "POST tenant /api/students/id%2F1/pickup-change-notices/read"
+  ],
   "api/students/[id]/pickup-exceptions": [
     "POST tenant /api/students/id%2F1/pickup-exceptions"
   ],
@@ -213,6 +216,9 @@
   ],
   "api/students/offering-change-requests/[requestId]/preview": [
     "POST tenant /api/students/offering-change-requests/requestId%2F1/preview"
+  ],
+  "api/students/pickup-change-notices": [
+    "GET tenant /api/students/pickup-change-notices"
   ],
   "api/students/pickup-schedules/bulk": [
     "POST tenant /api/students/pickup-schedules/bulk"

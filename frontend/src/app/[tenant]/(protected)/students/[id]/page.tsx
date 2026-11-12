@@ -99,7 +99,7 @@ import {
   type PlannedStatusSubmitOptions,
 } from "~/components/students/planned-status-days-modal";
 import { fetchStudentPickupData } from "~/lib/pickup-schedule-api";
-import { PickupChangeAlert } from "~/components/students/pickup-change-alert";
+import { StudentPickupChanges } from "~/components/students/pickup-change-alert";
 import { getDayData, formatPickupTime } from "~/lib/pickup-schedule-helpers";
 import { fetchArrivalData } from "~/lib/student-arrival-api";
 import {
@@ -1810,7 +1810,8 @@ function StudentDetailPageContent() {
       ) : null}
 
       {!isHolidayGuest && hasFullAccess ? (
-        <PickupChangeAlert
+        <StudentPickupChanges
+          studentId={studentId}
           exceptions={pickupData?.exceptions}
           today={berlinToday}
         />

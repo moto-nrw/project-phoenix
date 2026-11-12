@@ -120,14 +120,16 @@ func TestPickupChangeTeamMarksTheTeamAndClearsOnOpen(t *testing.T) {
 	assert.Len(t, unreadPickups(t, db, ctx, team, office.ID), 2)
 
 	remaining, err := inPickupSchool(t, db, ctx, func(txCtx context.Context) ([]careplan.PickupChangeTeamNotice, error) {
-		return team.MarkPickupChangeNoticesRead(txCtx, office.ID, child.ID)
+		return team.MarkPickupChangeNoticesRead(txCtx, office.ID, child.ID, revisions(unreadPickups(t, db, ctx, team, office.ID)))
 	})
 	require.NoError(t, err)
 	require.Len(t, remaining, 1, "opening one child clears only its markers")
 	assert.Equal(t, other.ID, remaining[0].StudentID)
 	assert.Len(t, unreadPickups(t, db, ctx, team, colleague.ID), 1, "the colleague's marker stays until they open the child")
 
-	// A correction that takes the time back marks it unread again, as taken back.
+	// A correction that takes the time back marks it unread again, as taken
+	// back; a read of the revision the colleague loaded before leaves it.
+	loaded := revisions(unreadPickups(t, db, ctx, team, colleague.ID))
 	_, err = db.NewRaw(`UPDATE schedule.care_schedule_change_requests SET status = 'rejected' WHERE id = ?`, request).Exec(ctx)
 	require.NoError(t, err)
 	approvePickup(t, db, ctx, team, careplan.PickupChangeNotice{
@@ -143,11 +145,25 @@ func TestPickupChangeTeamMarksTheTeamAndClearsOnOpen(t *testing.T) {
 	}
 	assert.True(t, withdrawn.Withdrawn)
 	assert.Empty(t, withdrawn.PickupTime)
+	stale, err := inPickupSchool(t, db, ctx, func(txCtx context.Context) ([]careplan.PickupChangeTeamNotice, error) {
+		return team.MarkPickupChangeNoticesRead(txCtx, colleague.ID, child.ID, loaded)
+	})
+	require.NoError(t, err)
+	require.Len(t, stale, 1, "the taken-back time arrived after the colleague loaded the page")
+	assert.True(t, stale[0].Withdrawn)
 
 	// A deleted request takes its markers along.
 	_, err = db.NewRaw(`DELETE FROM schedule.care_schedule_change_requests WHERE id = ?`, otherRequest).Exec(ctx)
 	require.NoError(t, err)
 	assert.Len(t, unreadPickups(t, db, ctx, team, office.ID), 1)
+}
+
+func revisions(notices []careplan.PickupChangeTeamNotice) []careplan.PickupChangeNoticeRevision {
+	out := make([]careplan.PickupChangeNoticeRevision, 0, len(notices))
+	for _, notice := range notices {
+		out = append(out, careplan.PickupChangeNoticeRevision{RequestID: notice.RequestID, InformedAt: notice.InformedAt})
+	}
+	return out
 }
 
 func TestPickupChangeTeamSkipsPastDays(t *testing.T) {

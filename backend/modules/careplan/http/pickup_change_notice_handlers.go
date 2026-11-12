@@ -1,6 +1,7 @@
 package careplanhttp
 
 import (
+	json "encoding/json"
 	errors "errors"
 	http "net/http"
 	strconv "strconv"
@@ -40,8 +41,9 @@ func (rs *Resource) listPickupChangeNotices(w http.ResponseWriter, r *http.Reque
 	common.Respond(w, r, http.StatusOK, renderPickupChangeNotices(notices), "Pickup change notices retrieved")
 }
 
-// readPickupChangeNotices clears the reader's markers for one child once the
-// child is open, and answers with the markers still unread.
+// readPickupChangeNotices clears the markers the reader loaded for one child
+// once the child is open, and answers with the markers still unread. A marker
+// told again while the page loaded keeps its unread state.
 func (rs *Resource) readPickupChangeNotices(w http.ResponseWriter, r *http.Request) {
 	if rs.PickupChangeNotices == nil {
 		renderError(w, r, common.ErrorInternalServer(errPickupChangeNoticesUnbound))
@@ -51,7 +53,21 @@ func (rs *Resource) readPickupChangeNotices(w http.ResponseWriter, r *http.Reque
 	if !ok {
 		return
 	}
-	notices, err := rs.PickupChangeNotices.MarkPickupChangeNoticesRead(r.Context(), int64(sessiontoken.ClaimsFromCtx(r.Context()).ID), studentID)
+	var body struct {
+		Notices []struct {
+			RequestID  int64     `json:"request_id,string"`
+			InformedAt time.Time `json:"informed_at"`
+		} `json:"notices"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("invalid pickup change notice revisions")))
+		return
+	}
+	observed := make([]careplan.PickupChangeNoticeRevision, 0, len(body.Notices))
+	for _, notice := range body.Notices {
+		observed = append(observed, careplan.PickupChangeNoticeRevision{RequestID: notice.RequestID, InformedAt: notice.InformedAt})
+	}
+	notices, err := rs.PickupChangeNotices.MarkPickupChangeNoticesRead(r.Context(), int64(sessiontoken.ClaimsFromCtx(r.Context()).ID), studentID, observed)
 	if err != nil {
 		renderError(w, r, common.ErrorInternalServerWrap("failed to mark pickup change notices read", err))
 		return

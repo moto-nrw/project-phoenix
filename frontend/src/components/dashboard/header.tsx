@@ -37,7 +37,7 @@ import { isDemoBuild } from "~/lib/demo-access";
 import { BrandLink, BreadcrumbDivider } from "./header/brand-link";
 import { RefreshButton } from "./header/refresh-button";
 import { RemindersBell } from "./header/reminders-bell";
-import { TeamNotesButton } from "./header/team-notes-button";
+import { StaffNewsButton } from "./header/staff-news-button";
 import { SessionWarning } from "./header/session-warning";
 import {
   ProfileDropdownHeader,
@@ -525,7 +525,7 @@ export function Header() {
                 mode !== "traeger" && <RefreshButton />}
             </div>
 
-            {mode === "teacher" ? <TeamNotesButton /> : null}
+            {mode === "teacher" ? <StaffNewsButton /> : null}
             {mode === "teacher" ? <RemindersBell /> : null}
             {/* User menu */}
             <AnchoredPopover

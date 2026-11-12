@@ -9193,6 +9193,54 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.PickupChangeTeamService.NotifyPickupChangeApproved",
+      "binding_digest": "476911757121e35b400891430176681d",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeNotifier.NotifyPickupChangeApproved",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.PickupChangeTeam.NotifyPickupChangeApproved",
+      "binding_digest": "476911757121e35b400891430176681d",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeNotifier.NotifyPickupChangeApproved",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.PickupChangeTeamService.ListUnreadPickupChangeNotices",
+      "binding_digest": "476911757121e35b400891430176681d",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeTeamNotices.ListUnreadPickupChangeNotices",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.PickupChangeTeam.ListUnreadPickupChangeNotices",
+      "binding_digest": "476911757121e35b400891430176681d",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeTeamNotices.ListUnreadPickupChangeNotices",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.PickupChangeTeamService.MarkPickupChangeNoticesRead",
+      "binding_digest": "476911757121e35b400891430176681d",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeTeamNotices.MarkPickupChangeNoticesRead",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.PickupChangeTeam.MarkPickupChangeNoticesRead",
+      "binding_digest": "476911757121e35b400891430176681d",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeTeamNotices.MarkPickupChangeNoticesRead",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.pickupChangeTeamReach.NotifyPickupChanged",
       "binding_digest": "20ad49e39c6ab94f1fc4dc1e32ef5ce9",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeTeamReach.NotifyPickupChanged",
@@ -10927,6 +10975,30 @@
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.scope",
       "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.PickupChangeTeamService.ListUnreadPickupChangeNotices",
+      "binding_digest": "476911757121e35b400891430176681d",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.PickupChangeTeam.ListUnreadPickupChangeNotices",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.PickupChangeTeamService.MarkPickupChangeNoticesRead",
+      "binding_digest": "476911757121e35b400891430176681d",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.PickupChangeTeam.MarkPickupChangeNoticesRead",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.PickupChangeTeamService.NotifyPickupChangeApproved",
+      "binding_digest": "476911757121e35b400891430176681d",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.PickupChangeTeam.NotifyPickupChangeApproved",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.ExcusedAbsenceRequests.ListHistory",

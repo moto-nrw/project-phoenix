@@ -23,6 +23,7 @@ type pickupTeamStoreDouble struct {
 	rows      []ports.PickupChangeNoticeRow
 	from      calendar.Date
 	marked    [2]int64
+	observed  []ports.PickupChangeRevision
 	err       error
 }
 
@@ -36,8 +37,8 @@ func (s *pickupTeamStoreDouble) ListUnreadPickupChangeNotices(_ context.Context,
 	return s.rows, domain.OperationStats{Queries: 1}, nil
 }
 
-func (s *pickupTeamStoreDouble) MarkPickupChangeNoticesRead(_ context.Context, reader, studentID int64) (domain.OperationStats, error) {
-	s.marked = [2]int64{reader, studentID}
+func (s *pickupTeamStoreDouble) MarkPickupChangeNoticesRead(_ context.Context, reader, studentID int64, observed []ports.PickupChangeRevision) (domain.OperationStats, error) {
+	s.marked, s.observed = [2]int64{reader, studentID}, observed
 	return domain.OperationStats{Queries: 1}, nil
 }
 
@@ -166,9 +167,11 @@ func TestPickupChangeTeamListsTheRequestsCurrentState(t *testing.T) {
 	}}
 	team := newPickupTeam(store, &pickupTeamReachDouble{})
 
-	got, err := team.MarkPickupChangeNoticesRead(t.Context(), 11, 80)
+	seen := []careplan.PickupChangeNoticeRevision{{RequestID: 9, InformedAt: informed}}
+	got, err := team.MarkPickupChangeNoticesRead(t.Context(), 11, 80, seen)
 	require.NoError(t, err)
 	assert.Equal(t, [2]int64{11, 80}, store.marked)
+	assert.Equal(t, seen, store.observed)
 	assert.Equal(t, pickupTeamToday, store.from, "only days from today on")
 	require.Len(t, got, 2, "a request without a pickup day has nothing to show")
 	assert.Equal(t, careplan.PickupChangeTeamNotice{

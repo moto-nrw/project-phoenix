@@ -2190,7 +2190,7 @@ export const editStudentTopic = function editStudentTopic(): HelpTopic {
     ],
     notes: [
       // #6855: pickup-change-alert.tsx über den Bereichen der Kinderakte.
-      "Gilt ab heute an einzelnen Tagen eine andere Abholzeit, steht oben in der Kinderakte `Abholzeit an einzelnen Tagen geändert` mit Tag und Uhrzeit.",
+      "Gilt ab heute an einzelnen Tagen eine andere Abholzeit, steht oben in der Kinderakte `Abholzeit an einzelnen Tagen geändert` mit Tag und Uhrzeit. Ein Tag, den Sie noch nicht gesehen hatten, trägt `Neu`. Mit dem Öffnen des Kindes geht der Zähler bei `Neu für Sie` zurück.",
       "Nach einem Widerruf löscht moto das Foto des Kindes. Nach dem letzten Betreuungstag löscht moto Foto und Foto-Einwilligung in der Nacht danach von selbst.",
       "Steht unter dem Feld `Ankunft` die Auswahl `Nach Schulstunde`? Wählen Sie zum Beispiel `5. Stunde`. moto trägt die passende Uhrzeit ein.",
       // #3371: Knopf erscheint nur mit gepflegter Vorgabe unter einem leeren
@@ -7201,8 +7201,9 @@ export const parentRequestsTopic = function parentRequestsTopic(
       "Ist der Tag heute, zeigt die Kinderkarte nach dem Freigeben unten einen orangen Hinweis.",
       // #6855: freigegebene Abholzeit für einen Tag informiert das Team
       // (Typ student_pickup_changed) und markiert die Kinderakte.
-      "Geben Sie eine neue Abholzeit für einen Tag frei, bekommt das Team des Kindes einen Hinweis. Er erscheint in moto und, wenn eingeschaltet, auf dem Handy. Ein Tippen darauf öffnet das Kind.",
-      "Oben in der Kinderakte steht danach `Abholzeit an einzelnen Tagen geändert` mit Tag und Uhrzeit. Der Hinweis verschwindet, wenn der Tag vorbei ist oder die Ausnahme gelöscht wird.",
+      "Geben Sie eine neue Abholzeit für einen Tag frei, bekommt das Team des Kindes einen Hinweis. Er steht oben in der Kopfzeile unter `Neu für Sie` mit rotem Zähler. Ist es eingeschaltet, kommt er auch aufs Handy. Ein Tippen darauf öffnet das Kind.",
+      "Nehmen Sie die Freigabe mit `Entscheidung korrigieren` zurück, bekommt das Team wieder einen Hinweis: `wieder normale Abholzeit`.",
+      "Oben in der Kinderakte steht danach `Abholzeit an einzelnen Tagen geändert` mit Tag und Uhrzeit. Ist der Tag neu für die Person, steht `Neu` daneben. Der Hinweis verschwindet, wenn der Tag vorbei ist oder die Ausnahme gelöscht wird.",
       // #5102: von Hand gepflegte Regeltermine nach einer Angebotsanfrage.
       "Planen von Hand gepflegte Regeltermine das Kind nach einer Angebotsanfrage weiter ein? Dann bleibt die Anfrage nach dem Freigeben offen stehen. Sie zeigt `Nicht angepasst, weil von Hand gepflegt`. Wählen Sie `Dort auch entfernen` oder `Fertig`.",
       // Von Hand eingetragene Abholzeiten überdecken eine neue Buchung.
@@ -8397,7 +8398,7 @@ export const statisticsTopic = function statisticsTopic(): HelpTopic {
  *
  * Team informieren (#6854): `Speichern und Team informieren` steht neben
  * `Speichern` und geht nur mit `Ganzes Team`. Wer informiert wurde, sieht
- * oben in der Kopfzeile `Neue Notizen vom Team` mit rotem Zähler; das Öffnen
+ * oben in der Kopfzeile unter `Neu für Sie` mit rotem Zähler; das Öffnen
  * der Notizen des Kindes hakt sie ab.
  */
 export const studentNotesTopic = function studentNotesTopic(): HelpTopic {
@@ -8436,8 +8437,8 @@ export const studentNotesTopic = function studentNotesTopic(): HelpTopic {
       {
         title: "Eine geteilte Notiz lesen",
         steps: [
-          "Oben in der Kopfzeile erscheint ein Notizblock mit rotem Zähler.",
-          "Tippen Sie darauf. Die Liste zeigt `Neue Notizen vom Team`.",
+          "Oben in der Kopfzeile erscheint ein Postfach mit rotem Zähler.",
+          "Tippen Sie darauf. Die Liste `Neu für Sie` zeigt die Notiz.",
           "Tippen Sie auf das Kind. Die Notizen des Kindes öffnen sich.",
           "Die geteilte Notiz trägt `Neu`. Der Zähler geht zurück.",
         ],
@@ -8492,7 +8493,7 @@ export const studentNotesTopic = function studentNotesTopic(): HelpTopic {
     differences: [
       "Sie sehen weniger Notizen als eine Kollegin? Dann hat sie das Kind, Sie nicht. Die Reichweite entscheidet das je Notiz.",
       "Ein Hinweis trägt `Übernommen aus den Betreuernotizen`? Der stammt aus dem früheren Textfeld und hat deshalb keinen Verfasser.",
-      "Auf dem Handy gibt es keine Kopfzeile. Dort trägt `Mehr` unten den roten Zähler, und im Menü steht die Liste `Neue Notizen vom Team`.",
+      "Auf dem Handy gibt es keine Kopfzeile. Dort trägt `Mehr` unten den roten Zähler, und im Menü steht die Liste `Neu für Sie`.",
     ],
     troubleshootingDetails: [
       "Es fehlt der Reiter `Notizen`? Dann darf Ihre Rolle keine Notizen sehen. Fragen Sie Ihre Leitung.",

@@ -115,14 +115,16 @@ func (s *PickupChangeTeamService) ListUnreadPickupChangeNotices(ctx context.Cont
 	return result, err
 }
 
-// MarkPickupChangeNoticesRead clears the reader's markers of one child and
-// returns those still unread.
-func (s *PickupChangeTeamService) MarkPickupChangeNoticesRead(ctx context.Context, readerAccountID, studentID int64) (result []careplan.PickupChangeTeamNotice, err error) {
+// MarkPickupChangeNoticesRead clears the reader's observed markers of one
+// child and returns those still unread.
+func (s *PickupChangeTeamService) MarkPickupChangeNoticesRead(
+	ctx context.Context, readerAccountID, studentID int64, observed []careplan.PickupChangeNoticeRevision,
+) (result []careplan.PickupChangeTeamNotice, err error) {
 	if readerAccountID <= 0 || studentID <= 0 {
 		return nil, ErrPickupChangeNoticeInvalid
 	}
 	err = s.run(ctx, "mark_pickup_change_team_notices_read", func(txCtx context.Context, stats *domain.OperationStats) error {
-		markStats, markErr := s.store.MarkPickupChangeNoticesRead(txCtx, readerAccountID, studentID)
+		markStats, markErr := s.store.MarkPickupChangeNoticesRead(txCtx, readerAccountID, studentID, observed)
 		stats.Add(markStats)
 		if markErr != nil {
 			return markErr

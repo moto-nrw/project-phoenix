@@ -16,7 +16,7 @@ import { HELP_TOPICS } from "~/lib/help-topics";
  *
  * Team informieren (#6854): `Speichern und Team informieren` steht neben
  * `Speichern` und geht nur mit `Ganzes Team`. Wer informiert wurde, sieht
- * oben in der Kopfzeile `Neue Notizen vom Team` mit rotem Zähler; das Öffnen
+ * oben in der Kopfzeile unter `Neu für Sie` mit rotem Zähler; das Öffnen
  * der Notizen des Kindes hakt sie ab.
  */
 export function studentNotesTopic(): HelpTopic {
@@ -55,8 +55,8 @@ export function studentNotesTopic(): HelpTopic {
       {
         title: "Eine geteilte Notiz lesen",
         steps: [
-          "Oben in der Kopfzeile erscheint ein Notizblock mit rotem Zähler.",
-          "Tippen Sie darauf. Die Liste zeigt `Neue Notizen vom Team`.",
+          "Oben in der Kopfzeile erscheint ein Postfach mit rotem Zähler.",
+          "Tippen Sie darauf. Die Liste `Neu für Sie` zeigt die Notiz.",
           "Tippen Sie auf das Kind. Die Notizen des Kindes öffnen sich.",
           "Die geteilte Notiz trägt `Neu`. Der Zähler geht zurück.",
         ],
@@ -111,7 +111,7 @@ export function studentNotesTopic(): HelpTopic {
     differences: [
       "Sie sehen weniger Notizen als eine Kollegin? Dann hat sie das Kind, Sie nicht. Die Reichweite entscheidet das je Notiz.",
       "Ein Hinweis trägt `Übernommen aus den Betreuernotizen`? Der stammt aus dem früheren Textfeld und hat deshalb keinen Verfasser.",
-      "Auf dem Handy gibt es keine Kopfzeile. Dort trägt `Mehr` unten den roten Zähler, und im Menü steht die Liste `Neue Notizen vom Team`.",
+      "Auf dem Handy gibt es keine Kopfzeile. Dort trägt `Mehr` unten den roten Zähler, und im Menü steht die Liste `Neu für Sie`.",
     ],
     troubleshootingDetails: [
       "Es fehlt der Reiter `Notizen`? Dann darf Ihre Rolle keine Notizen sehen. Fragen Sie Ihre Leitung.",

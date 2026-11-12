@@ -84,7 +84,7 @@ export function editStudentTopic(): HelpTopic {
     ],
     notes: [
       // #6855: pickup-change-alert.tsx über den Bereichen der Kinderakte.
-      "Gilt ab heute an einzelnen Tagen eine andere Abholzeit, steht oben in der Kinderakte `Abholzeit an einzelnen Tagen geändert` mit Tag und Uhrzeit.",
+      "Gilt ab heute an einzelnen Tagen eine andere Abholzeit, steht oben in der Kinderakte `Abholzeit an einzelnen Tagen geändert` mit Tag und Uhrzeit. Ein Tag, den Sie noch nicht gesehen hatten, trägt `Neu`. Mit dem Öffnen des Kindes geht der Zähler bei `Neu für Sie` zurück.",
       "Nach einem Widerruf löscht moto das Foto des Kindes. Nach dem letzten Betreuungstag löscht moto Foto und Foto-Einwilligung in der Nacht danach von selbst.",
       "Steht unter dem Feld `Ankunft` die Auswahl `Nach Schulstunde`? Wählen Sie zum Beispiel `5. Stunde`. moto trägt die passende Uhrzeit ein.",
       // #3371: Knopf erscheint nur mit gepflegter Vorgabe unter einem leeren

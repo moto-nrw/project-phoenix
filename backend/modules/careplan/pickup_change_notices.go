@@ -77,12 +77,20 @@ type PickupChangeTeamNotice struct {
 	InformedAt time.Time
 }
 
+// PickupChangeNoticeRevision identifies a marker as the reader loaded it. A
+// corrected decision told after the load is another revision.
+type PickupChangeNoticeRevision struct {
+	RequestID  int64
+	InformedAt time.Time
+}
+
 // PickupChangeTeamNotices is the read side of the markers.
 type PickupChangeTeamNotices interface {
 	// ListUnreadPickupChangeNotices returns the reader's unread markers on
 	// days from today on, newest first.
 	ListUnreadPickupChangeNotices(ctx context.Context, readerAccountID int64) ([]PickupChangeTeamNotice, error)
-	// MarkPickupChangeNoticesRead clears the reader's markers for one child
-	// (the reader opened the child) and returns the markers still unread.
-	MarkPickupChangeNoticesRead(ctx context.Context, readerAccountID, studentID int64) ([]PickupChangeTeamNotice, error)
+	// MarkPickupChangeNoticesRead clears the observed markers of one child
+	// (the reader opened the child) and returns the markers still unread. A
+	// marker told again while the child loaded stays unread.
+	MarkPickupChangeNoticesRead(ctx context.Context, readerAccountID, studentID int64, observed []PickupChangeNoticeRevision) ([]PickupChangeTeamNotice, error)
 }

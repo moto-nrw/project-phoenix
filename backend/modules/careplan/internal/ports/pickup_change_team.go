@@ -16,6 +16,7 @@ type (
 	PickupChangeNotice    = careplanNative.PickupChangeNotice
 	PickupChangeNotifier  = careplanNative.PickupChangeNotifier
 	PickupChangeTeamReach = careplanNative.PickupChangeTeamReach
+	PickupChangeRevision  = careplanNative.PickupChangeNoticeRevision
 )
 
 // PickupChangeNoticeRow is one unread marker as the store reads it: the
@@ -38,6 +39,7 @@ type PickupChangeTeamStore interface {
 	// ListUnreadPickupChangeNotices reads the reader's unread markers on days
 	// from `from` on, newest first, at most limit, in one statement.
 	ListUnreadPickupChangeNotices(ctx context.Context, readerAccountID int64, from calendar.Date, limit int) ([]PickupChangeNoticeRow, domain.OperationStats, error)
-	// MarkPickupChangeNoticesRead clears the reader's markers of one child.
-	MarkPickupChangeNoticesRead(ctx context.Context, readerAccountID, studentID int64) (domain.OperationStats, error)
+	// MarkPickupChangeNoticesRead clears the reader's observed markers of one
+	// child.
+	MarkPickupChangeNoticesRead(ctx context.Context, readerAccountID, studentID int64, observed []PickupChangeRevision) (domain.OperationStats, error)
 }

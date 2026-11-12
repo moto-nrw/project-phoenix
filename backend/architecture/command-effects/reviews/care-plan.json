@@ -12581,6 +12581,72 @@
     },
     {
       "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.PickupChangeTeamService.NotifyPickupChangeApproved",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeNotifier.NotifyPickupChangeApproved",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through application.PickupChangeTeamService.NotifyPickupChangeApproved (#6855). The pickup change markers join the caller's tenant unit or open one; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.PickupChangeTeam.NotifyPickupChangeApproved",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeNotifier.NotifyPickupChangeApproved",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through compose.PickupChangeTeam.NotifyPickupChangeApproved (#6855). The pickup change markers join the caller's tenant unit or open one; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.PickupChangeTeamService.ListUnreadPickupChangeNotices",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeTeamNotices.ListUnreadPickupChangeNotices",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through application.PickupChangeTeamService.ListUnreadPickupChangeNotices (#6855). The pickup change markers join the caller's tenant unit or open one; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.PickupChangeTeam.ListUnreadPickupChangeNotices",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeTeamNotices.ListUnreadPickupChangeNotices",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through compose.PickupChangeTeam.ListUnreadPickupChangeNotices (#6855). The pickup change markers join the caller's tenant unit or open one; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.PickupChangeTeamService.MarkPickupChangeNoticesRead",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeTeamNotices.MarkPickupChangeNoticesRead",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through application.PickupChangeTeamService.MarkPickupChangeNoticesRead (#6855). The pickup change markers join the caller's tenant unit or open one; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.PickupChangeTeam.MarkPickupChangeNoticesRead",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeTeamNotices.MarkPickupChangeNoticesRead",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through compose.PickupChangeTeam.MarkPickupChangeNoticesRead (#6855). The pickup change markers join the caller's tenant unit or open one; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.pickupChangeTeamReach.NotifyPickupChanged",
       "classification": "platform",
       "effect": "durable",
@@ -14908,6 +14974,39 @@
       "source_owner": "care-plan",
       "target": "unresolved:function:github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.MasterDataDecisions.scope",
       "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.PickupChangeTeamService.ListUnreadPickupChangeNotices",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.PickupChangeTeam.ListUnreadPickupChangeNotices",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through application.PickupChangeTeamService.ListUnreadPickupChangeNotices (#6855). The pickup change markers join the caller's tenant unit or open one; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.PickupChangeTeamService.MarkPickupChangeNoticesRead",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.PickupChangeTeam.MarkPickupChangeNoticesRead",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through application.PickupChangeTeamService.MarkPickupChangeNoticesRead (#6855). The pickup change markers join the caller's tenant unit or open one; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/internal/application.PickupChangeTeamService.NotifyPickupChangeApproved",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan/compose.PickupChangeTeam.NotifyPickupChangeApproved",
+      "reason": "Platform protocol participation (scope): care-plan reaches tenant.TransactionRunner.RunInTx (tenant-runtime) through application.PickupChangeTeamService.NotifyPickupChangeApproved (#6855). The pickup change markers join the caller's tenant unit or open one; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "*github.com/moto-ogs/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/careplan/compose.ExcusedAbsenceRequests.ListHistory",
