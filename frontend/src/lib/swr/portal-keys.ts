@@ -346,6 +346,12 @@ export const traegerKeys = {
   // Geteilte Dokumente (#4692): Titel, Dateiname und Freigaben, keine Inhalte.
   documents: () => "traeger-document-list",
   documentAudiences: () => "traeger-document-audiences",
+  // Anmeldephasen und Angebote des Trägers (#4704): Entwürfe, Versionen und
+  // das Ergebnis je Schule, keine Personendaten.
+  catalogFamily: "traeger-catalog-phase-",
+  catalogPhases: () => "traeger-catalog-phase-list",
+  catalogPhase: (id: string) =>
+    `traeger-catalog-phase-detail-${encodeURIComponent(id)}`,
   periodPreview(data: unknown, id: string): ListPreview | undefined {
     const row = previewRow(data, id);
     const name = previewText(row?.name);

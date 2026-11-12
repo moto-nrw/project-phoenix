@@ -89,6 +89,8 @@ describe("TraegerSidebar", () => {
       "Stichtagszahlen",
       "Belegung",
       "Ferienbetreuung",
+      // Anmeldephasen für mehrere Schulen, mit demselben Recht (#4704).
+      "Anmeldephasen",
       "Schließtage",
       "Dokumente",
       "Abrechnung",
@@ -125,6 +127,7 @@ describe("TraegerSidebar", () => {
       "Dokumente",
     ]);
     expect(mainNav().queryByText("Ferienbetreuung")).toBeNull();
+    expect(mainNav().queryByText("Anmeldephasen")).toBeNull();
     expect(mainNav().queryByText("Finanzen")).toBeNull();
   });
 

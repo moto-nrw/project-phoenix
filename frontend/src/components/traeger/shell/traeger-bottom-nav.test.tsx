@@ -47,9 +47,10 @@ describe("TraegerBottomNav", () => {
 
   it("follows the sidebar: main navigation, then Hilfe and Einstellungen (#5685)", () => {
     // Ohne Dashboard (#4674) passen alle Ziele in die Leiste.
+    // Drei Ziele der Hauptnavigation lassen Platz für Hilfe und
+    // Einstellungen; „Anmeldung verwalten“ öffnet seit #4704 zwei Ziele.
     sessionUser.permissions = [
       "traeger_enrollment:manage",
-      "traeger_billing:manage",
       "traeger_accounts:manage",
     ];
     render(<TraegerBottomNav />);
@@ -61,7 +62,7 @@ describe("TraegerBottomNav", () => {
     ).toEqual([
       "Schulen",
       "Ferienbetreuung",
-      "Abrechnung",
+      "Anmeldephasen",
       "Hilfe",
       "Einstellungen",
     ]);

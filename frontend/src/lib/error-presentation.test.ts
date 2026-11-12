@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ApiError } from "./api-error";
-import { presentError } from "./error-presentation";
+import { errorCodeMessage, presentError } from "./error-presentation";
 
 describe("presentError", () => {
   it.each(["de", "en", "pl", "ru", "sq", "tr", "uk"] as const)(
@@ -207,5 +207,21 @@ describe("presentError", () => {
     expect(presentError(error, "Der Raum").message).toBe(
       "Der Raum konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
     );
+  });
+});
+
+describe("errorCodeMessage", () => {
+  it("names a school's refusal in the words of the catalog (#4704)", () => {
+    expect(
+      errorCodeMessage("enrollment.traeger_copy_rejected", "die Anmeldephase"),
+    ).toBe(
+      "Die Schule kann diese Angaben so nicht übernehmen. Bitte prüfen Sie die Angaben oder die Einstellungen der Schule.",
+    );
+  });
+
+  it("falls back to the class text for a code this build does not know", () => {
+    expect(
+      errorCodeMessage("enrollment.unknown_future_code", "die Anmeldephase"),
+    ).toBe(presentError(new ApiError("x", 400), "die Anmeldephase").message);
   });
 });

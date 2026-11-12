@@ -136,36 +136,22 @@ import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { RemovableChip } from "~/components/ui/removable-chip";
 import { FormFieldset } from "~/components/ui/form-fieldset";
+import {
+  PHASE_AUDIENCE_LABELS,
+  PHASE_CARE_SELECTION_LABELS,
+  PHASE_KIND_LABELS,
+  PHASE_OVERFLOW_LABELS,
+} from "~/lib/enrollment-phase-labels";
 
 const logger = createLogger({ component: "PhasesEditor" });
 
-const KIND_LABELS: Record<PhaseKind, string> = {
-  school_year: "Schuljahr",
-  holiday: "Ferienbetreuung",
-  custom: "Sonstiges",
-};
-
-const OVERFLOW_LABELS: Record<PhaseCareOverflowMode, string> = {
-  waitlist: "Auf Warteliste setzen",
-  reject: "Anmeldung blockieren",
-  allow: "Ohne Hinweis akzeptieren",
-};
-
-const CARE_SELECTION_LABELS: Record<CareOfferingSelectionMode, string> = {
-  optional: "Optional",
-  at_least_one: "Mindestens ein Angebot",
-  exactly_one: "Genau ein Angebot",
-};
+const KIND_LABELS = PHASE_KIND_LABELS;
+const OVERFLOW_LABELS = PHASE_OVERFLOW_LABELS;
+const CARE_SELECTION_LABELS = PHASE_CARE_SELECTION_LABELS;
+const AUDIENCE_LABELS = PHASE_AUDIENCE_LABELS;
 
 // Entspricht careplan.MaxCareExitBatchSize: jede Gruppe wird einzeln bestätigt.
 const CARE_EXIT_BATCH_SIZE = 500;
-
-const AUDIENCE_LABELS: Record<PhaseAudience, string> = {
-  open: "Offen für alle",
-  new_students: "Nur neue Kinder",
-  existing_students: "Nur bereits angemeldete Kinder",
-  linked_parents: "Nur Eltern mit Konto an der Schule",
-};
 
 // Compact labels for the phases table badge (the full labels are too long
 // for a table cell). "open" needs no badge, so it is intentionally omitted.

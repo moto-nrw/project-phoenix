@@ -231,6 +231,7 @@ export const HELP_TOPICS = {
   traegerHolidayWish: "traeger-ferien-ferienwunsch",
   traegerHolidayAllocation: "traeger-ferienplaetze-nach-kriterien",
   traegerHolidayContribution: "traeger-ferienbeitrag",
+  traegerCatalogPhases: "traeger-anmeldephasen-fuer-mehrere-schulen",
   traegerBillingRun: "ferien-abrechnen",
   traegerCareMonths: "monatsbeitraege-abrechnen",
   traegerCareNotices: "jahresbescheide-ausstellen",
