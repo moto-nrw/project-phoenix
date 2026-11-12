@@ -153,7 +153,10 @@ jobs:
           fetch-depth: 1
           filter: ${{ !(matrix.blobs || matrix.shard == 1) && 'blob:none' || '' }}
 
-      - name: Fetch backend comparison history
+      # Runs in the background while Node, Go and the build cache are set up
+      # (28 s of 383 s in series, #6784); "Finish fetching" below waits for it.
+      # None of the steps in between reads git.
+      - name: Start fetching backend comparison history
         env:
           BASE_REF: ${{ inputs.base_ref }}
         run: |
@@ -163,7 +166,11 @@ jobs:
           fi
           # Full ancestry keeps merge-base intact for the architecture
           # comparisons. Unrelated refs and tags are not test inputs.
-          git fetch --no-tags --unshallow origin "${refs[@]}"
+          (
+            set +e
+            git fetch --no-tags --unshallow origin "${refs[@]}"
+            echo "$?" > "$RUNNER_TEMP/history-status"
+          ) > "$RUNNER_TEMP/history.log" 2>&1 < /dev/null &
 
       - name: Setup Node.js for error-code generator fixtures
         uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
@@ -211,6 +218,13 @@ jobs:
           path: ~/.cache/go-build
           key: ${{ steps.build-cache-key.outputs.key }}
           restore-keys: ${{ steps.build-cache-key.outputs.prefix }}
+
+      - name: Finish fetching backend comparison history
+        timeout-minutes: 5
+        run: |
+          until test -s "$RUNNER_TEMP/history-status"; do sleep 1; done
+          cat "$RUNNER_TEMP/history.log"
+          exit "$(cat "$RUNNER_TEMP/history-status")"
 
       - name: Test backend test scripts
         if: ${{ matrix.shard == 0 && (!inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '') }}
