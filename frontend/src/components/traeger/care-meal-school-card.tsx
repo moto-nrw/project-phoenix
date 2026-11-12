@@ -141,7 +141,8 @@ export function CareMealSchoolCard({
               ariaLabel={`Weitere Aktionen: ${school.name}`}
               items={deletable.map((tariff) => ({
                 label: `Preis ab ${formatMonth(tariff.validFrom)} löschen`,
-                description: "Nur für diese Schule, moto fragt vorher nach",
+                description:
+                  "Dann gilt der Preis davor, moto fragt vorher nach",
                 destructive: true,
                 onClick: () => onDelete(tariff),
               }))}

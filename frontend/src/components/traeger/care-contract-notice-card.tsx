@@ -236,8 +236,8 @@ function EndDecisionActions({
           className="w-full"
           onClick={onReject}
           disabled={!reinterpretedEndsOn}
-          disabledReason="moto kann das Vertragsende gerade nicht berechnen. Bitte laden Sie die Seite neu."
-          tooltip="Wertet die Kündigung als ordentliche Kündigung, moto fragt vorher nach."
+          disabledReason="Das neue Vertragsende fehlt noch. Bitte laden Sie die Seite neu."
+          tooltip="Benachrichtigt die Eltern über das neue Vertragsende, moto fragt vorher nach."
         >
           Grund nicht anerkennen
         </Button>

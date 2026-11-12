@@ -130,15 +130,19 @@ export function RecordNoticeModal({
 
   const extraordinary =
     kind === "kuendigung" && terminationKind === "ausserordentlich";
+  // Nur eine fehlende Angabe sperrt fachlich; solange die Termine laden,
+  // bleibt der Knopf ohne Grund gesperrt.
+  const missingText =
+    !choices || optionsError
+      ? undefined
+      : kind === "widerruf" && !dispatchedOn
+        ? "Tragen Sie zuerst ein, wann die Eltern den Widerruf abgesendet haben."
+        : extraordinary && !reason.trim()
+          ? "Tragen Sie zuerst den Grund der Eltern ein."
+          : undefined;
 
   const submit = async () => {
-    if (
-      !choices ||
-      optionsError ||
-      (kind === "widerruf" && !dispatchedOn) ||
-      (extraordinary && !reason.trim())
-    )
-      return;
+    if (!choices || optionsError || missingText) return;
     formErrors.clear();
     await save.run(async (op) => {
       try {
@@ -175,16 +179,6 @@ export function RecordNoticeModal({
   };
 
   const verb = kind === "widerruf" ? "Widerruf" : "Kündigung";
-  // Nur eine fehlende Angabe sperrt fachlich; solange die Termine laden,
-  // bleibt der Knopf ohne Grund gesperrt.
-  const missingText =
-    !choices || optionsError
-      ? undefined
-      : kind === "widerruf" && !dispatchedOn
-        ? "Tragen Sie zuerst ein, wann die Eltern den Widerruf abgesendet haben."
-        : extraordinary && !reason.trim()
-          ? "Tragen Sie zuerst den Grund der Eltern ein."
-          : undefined;
 
   return (
     <FormModal
@@ -216,8 +210,7 @@ export function RecordNoticeModal({
               saving ||
               !choices ||
               Boolean(optionsError) ||
-              (kind === "widerruf" && !dispatchedOn) ||
-              (extraordinary && !reason.trim())
+              Boolean(missingText)
             }
             disabledReason={missingText}
             tooltip={`Trägt ${kind === "widerruf" ? "den Widerruf" : "die Kündigung"} ein und schickt den Eltern sofort eine Bestätigung.`}
@@ -492,7 +485,7 @@ export function SetNoticeEndModal({
             size="md"
             disabled={saving || !endsOn}
             disabledReason="Wählen Sie zuerst den letzten Tag des Vertrags."
-            tooltip="Legt das Vertragsende fest und benachrichtigt die Eltern sofort."
+            tooltip="Legt das Vertragsende fest und teilt es den Eltern mit."
             isLoading={saving}
             loadingText="Wird eingetragen …"
           >

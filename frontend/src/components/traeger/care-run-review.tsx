@@ -387,8 +387,8 @@ function DebitHintsCard({ items }: Readonly<{ items: readonly DebitItem[] }>) {
           aria-expanded={expanded}
           tooltip={
             expanded
-              ? "Zeigt wieder nur die ersten Familien der Liste."
-              : "Zeigt alle Familien mit Hinweis zur Lastschrift."
+              ? "Zeigt wieder nur die ersten Einträge der Liste an."
+              : "Zeigt weitere Einträge unten in der Liste an."
           }
           onClick={() => setExpanded((value) => !value)}
         >

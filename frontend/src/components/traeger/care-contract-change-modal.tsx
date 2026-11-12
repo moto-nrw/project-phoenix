@@ -123,12 +123,14 @@ export function DecideChangeModal({
   const previewReady =
     !approve || (effectiveFrom && preview?.date === effectiveFrom);
   const ready = (!needsReason || reason.trim() !== "") && previewReady;
-  // Nur ein fehlender Text sperrt fachlich; solange die Vorschau lädt, bleibt
-  // der Knopf ohne Grund gesperrt.
+  // Ein fehlendes Datum oder ein fehlender Text sperrt fachlich; solange die
+  // Vorschau lädt, bleibt der Knopf ohne Grund gesperrt.
   const reasonMissingText =
-    previewReady && needsReason && reason.trim() === ""
-      ? "Schreiben Sie zuerst eine Begründung für die Eltern."
-      : undefined;
+    approve && !effectiveFrom
+      ? "Wählen Sie zuerst, ab wann die Änderung gilt."
+      : previewReady && needsReason && reason.trim() === ""
+        ? "Schreiben Sie zuerst eine Begründung für die Eltern."
+        : undefined;
 
   const submit = async () => {
     // Ein zweiter Klick während des Speicherns ändert nichts: run läuft nur

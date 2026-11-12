@@ -230,7 +230,7 @@ export function CareContractCreateModal({
                 type="button"
                 variant="ghost_tone"
                 size="compact"
-                tooltip="Öffnet die Seite mit den Vertragsbedingungen der Module."
+                tooltip="Schließt das Fenster und öffnet die Vertragsbedingungen der Module."
                 onClick={onOpenConditions}
               >
                 Bedingungen festlegen

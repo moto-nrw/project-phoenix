@@ -254,7 +254,9 @@ export function CarePriceListCard({
                   label: shownMonth
                     ? `Preise ab ${formatMonth(shownMonth)} löschen`
                     : "Preise löschen",
-                  description: "Nur für diese Schule, moto fragt vorher nach",
+                  description: deletable
+                    ? "Dann gelten die Preise davor, moto fragt vorher nach"
+                    : "Wählen Sie zuerst oben, welche Preise Sie sehen",
                   destructive: true,
                   disabled: !deletable,
                   onClick: () => onDelete(shownMonth),
