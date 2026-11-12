@@ -168,8 +168,8 @@ function CriterionRow({
               {
                 label: "Entfernen",
                 description: draft.answered
-                  ? "Wirksam nach dem Speichern. Gegebene Antworten bleiben gespeichert."
-                  : "Nimmt das Kriterium aus der Liste, wirksam nach dem Speichern.",
+                  ? "Wirksam erst nach dem Speichern. Gegebene Antworten bleiben gespeichert."
+                  : "Nimmt das Kriterium aus der Liste, wirksam erst nach dem Speichern.",
                 destructive: true,
                 onClick: onRemove,
               },
