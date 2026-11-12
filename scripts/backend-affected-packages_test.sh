@@ -48,6 +48,11 @@ printf 'package localization\n\nconst Value = 1\n' >"$fixture/backend/modules/de
 printf 'package listrenderer\n\nconst Value = 1\n' >"$fixture/backend/modules/documentrendering/internal/application/listrenderer/service.go"
 printf 'package email\n' >"$fixture/backend/templates/email/template_test.go"
 printf 'package test\n' >"$fixture/backend/test/test.go"
+mkdir -p "$fixture/backend/database/audits"
+audit_names=(phase_edit_stale_pending_activations phase_edit_stale_class_switches booking_led_care_without_source_or_task)
+for audit in "${audit_names[@]}"; do
+  printf 'SELECT 1;\n' >"$fixture/backend/database/audits/$audit.sql"
+done
 # The query-budget register is its own package: only packages asserting budgets
 # depend on it, while ordinary importers of the shared test package do not.
 mkdir -p "$fixture/backend"/{test/query-budgets/api/students,budgetuser,fixtureuser}
@@ -267,6 +272,22 @@ printf 'template\n' >"$fixture/backend/templates/email/probe.html"
 assert_output $'example.test/project/templates/email\nexample.test/project/test'
 rm "$fixture/backend/templates/email/probe.html"
 
+# Audit SQL has no import edge. CI selects its test package, while --direct
+# leaves the targeted source-test selection to test-changed.sh.
+for audit in "${audit_names[@]}"; do
+  audit_path="backend/database/audits/$audit.sql"
+  printf '\n-- changed\n' >>"$fixture/$audit_path"
+  assert_output 'example.test/project/test'
+  assert_output_direct ''
+  git -C "$fixture" restore "$audit_path"
+  rm "$fixture/$audit_path"
+  assert_output 'example.test/project/test'
+  git -C "$fixture" restore "$audit_path"
+done
+printf 'SELECT 1;\n' >"$fixture/backend/database/audits/new_audit.sql"
+assert_output 'example.test/project/test'
+rm "$fixture/backend/database/audits/new_audit.sql"
+
 printf '{}\n' >"$fixture/backend/modules/delivery/internal/adapters/localization/locales.json"
 assert_output $'example.test/project/modules/delivery/internal/adapters/localization\nexample.test/project/modules/delivery/localeconsumer\nexample.test/project/test'
 rm "$fixture/backend/modules/delivery/internal/adapters/localization/locales.json"
@@ -395,6 +416,7 @@ if select_packages >/dev/null 2>&1; then
 fi
 
 assert_workflow_filter backend-tests 'backend/**/testdata/**' present
+assert_workflow_filter backend-tests 'backend/database/audits/*.sql' present
 assert_workflow_filter backend-tests 'backend/architecture/policy.json' present
 assert_workflow_filter error-codes 'frontend/src/lib/error-codes/*.generated.ts' present
 assert_workflow_filter backend-production 'backend/**/testdata/**' absent
