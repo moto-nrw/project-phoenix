@@ -107,6 +107,8 @@ async function fetchTenantInfo(
     studentPhotosEnabled: data.student_photos_enabled === true,
     ...bookedModuleFields(data.booked_modules),
     messagingEnabled: data.parent_messaging_enabled === true,
+    parentMessageCardBadgeEnabled:
+      data.parent_message_card_badge_enabled === true,
     staffMessagingEnabled: data.staff_messaging_enabled === true,
     displayEnabled: data.display_enabled === true,
     caldavEnabled: data.caldav_enabled === true,

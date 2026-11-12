@@ -89,6 +89,12 @@ export interface TenantInfo {
    */
   messagingEnabled: boolean;
   /**
+   * Whether child cards show new parent messages and open parent requests as
+   * a count (operations.parent_message_card_badge_enabled, #6486). The backend
+   * reports it only while parent messaging is on. Missing means off.
+   */
+  parentMessageCardBadgeEnabled?: boolean;
+  /**
    * Whether the OGS-internal Team-Chat is switched on for this school
    * (operations.staff_messaging_enabled, #2598). The registry default is ON
    * (opt-out since #3254), but a missing flag still maps to FALSE: an internal
@@ -215,6 +221,7 @@ interface TenantResolveResponse {
   student_photos_enabled?: boolean;
   booked_modules?: string[];
   parent_messaging_enabled?: boolean;
+  parent_message_card_badge_enabled?: boolean;
   staff_messaging_enabled?: boolean;
   display_enabled?: boolean;
   caldav_enabled?: boolean;
@@ -364,6 +371,8 @@ export async function resolveTenant(slug: string): Promise<TenantInfo | null> {
       studentPhotosEnabled: data.student_photos_enabled === true,
       ...bookedModuleFields(data.booked_modules),
       messagingEnabled: data.parent_messaging_enabled === true,
+      parentMessageCardBadgeEnabled:
+        data.parent_message_card_badge_enabled === true,
       staffMessagingEnabled: data.staff_messaging_enabled === true,
       displayEnabled: data.display_enabled === true,
       caldavEnabled: data.caldav_enabled === true,

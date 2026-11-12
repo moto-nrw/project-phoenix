@@ -142,6 +142,7 @@ describe("tenant-api", () => {
         bookedModules: [],
         nfcEnabled: false,
         messagingEnabled: false,
+        parentMessageCardBadgeEnabled: false,
         // Der Team-Chat (#2598) fehlt in dieser Antwort, also bleibt er aus —
         // eine ältere Backend-Antwort darf die Fläche nie aufschalten.
         staffMessagingEnabled: false,

@@ -124,6 +124,9 @@ export const messageKeys = {
     `messages-inbox-${encodeURIComponent(String(onlyUnread))}`,
   /** Every filter of the parent-message inbox. */
   messagesInboxFamily: () => "messages-inbox-",
+  /** Neue Nachrichten und offene Anfragen je Kind für die Kinderkachel (#6486). */
+  parentAttention: (withRequests: boolean) =>
+    `parent-attention-${withRequests ? "requests" : "messages"}`,
   groupMessages: () => "group-messages",
   messageThread: (id: string | undefined) =>
     `message-thread-${encodeURIComponent(id ?? "")}`,

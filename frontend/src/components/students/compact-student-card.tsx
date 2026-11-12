@@ -13,7 +13,9 @@
 
 "use client";
 
+import { ParentAttentionBadge } from "~/components/students/parent-attention-badge";
 import { Avatar } from "~/components/ui/avatar";
+import { useParentAttentionEnabled } from "~/lib/hooks/use-parent-attention";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
 
 interface CompactStudentCardProps {
@@ -47,6 +49,7 @@ export function CompactStudentCard({
   // Per-tenant feature flag. When off, the avatar slot is suppressed so
   // opt-out schools see the original pre-feature shape (name + meta only).
   const { enabled: photosEnabled } = useStudentPhotosEnabled();
+  const parentAttentionEnabled = useParentAttentionEnabled();
   // No "Gruppe X" prefix, group names are already self-evidently
   // group names ("Bärengruppe", "Sternengruppe", …), so prefixing with
   // "Gruppe" reads as a stutter ("Gruppe Bärengruppe").
@@ -73,8 +76,9 @@ export function CompactStudentCard({
     </>
   );
 
+  let card: React.ReactElement;
   if (!onClick) {
-    return (
+    card = (
       <div
         data-testid={`compact-student-card-${studentId}`}
         className={`flex w-full items-center gap-3 rounded-xl text-left ${chromeClass} ${className}`}
@@ -82,18 +86,31 @@ export function CompactStudentCard({
         {content}
       </div>
     );
+  } else {
+    card = (
+      <button
+        key={studentId}
+        type="button"
+        onClick={onClick}
+        aria-label={`${firstName} ${lastName} - Profil öffnen`}
+        data-testid={`compact-student-card-${studentId}`}
+        className={`group moto-hover-elevated flex w-full items-center gap-3 rounded-xl text-left transition-colors duration-150 focus:outline-none focus-visible:outline-2 focus-visible:outline-gray-300 ${chromeClass} ${className}`}
+      >
+        {content}
+      </button>
+    );
   }
 
+  if (!parentAttentionEnabled) return card;
+  // Neue Elternnachrichten (#6486), wie an der großen Kinderkachel.
   return (
-    <button
-      key={studentId}
-      type="button"
-      onClick={onClick}
-      aria-label={`${firstName} ${lastName} - Profil öffnen`}
-      data-testid={`compact-student-card-${studentId}`}
-      className={`group moto-hover-elevated flex w-full items-center gap-3 rounded-xl text-left transition-colors duration-150 focus:outline-none focus-visible:outline-2 focus-visible:outline-gray-300 ${chromeClass} ${className}`}
-    >
-      {content}
-    </button>
+    <div className="relative">
+      {card}
+      <ParentAttentionBadge
+        studentId={String(studentId)}
+        studentName={fullName}
+        className="absolute -top-3 -right-3 z-10"
+      />
+    </div>
   );
 }

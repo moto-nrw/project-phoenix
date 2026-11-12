@@ -91,6 +91,7 @@ export function AggregatedRequestList({
   filters,
   onCountChange,
   focusRequest = null,
+  singleChild = false,
 }: Readonly<{
   view: "open" | "history";
   filters: AggregatedRequestFilters;
@@ -101,6 +102,11 @@ export function AggregatedRequestList({
    * (#4767). `nonce` lässt denselben Sprung wiederholen.
    */
   focusRequest?: { readonly studentId: string; readonly nonce: number } | null;
+  /**
+   * Nur die offenen Anfragen des Kindes aus `filters.studentId`, ohne die
+   * Kinderliste daneben: der Dialog an der Kinderkachel (#6486).
+   */
+  singleChild?: boolean;
 }>) {
   // useTenantSafe statt useTenant: die Liste wird auch außerhalb des
   // Tenant-Providers gerendert (Tests, Einbettungen). Ohne Provider gilt die
@@ -289,11 +295,12 @@ export function AggregatedRequestList({
     }
   }, [openCases, selectedCaseKey]);
 
-  const selectedCase =
-    openCases.find((childCase) => childCase.key === selectedCaseKey) ??
-    // In der breiten Ansicht steht rechts das erste Kind, solange nichts
-    // gewählt ist: eine leere halbe Seite hilft niemandem.
-    (wide && selectedCaseKey === null ? openCases[0] : undefined);
+  const selectedCase = singleChild
+    ? openCases[0]
+    : (openCases.find((childCase) => childCase.key === selectedCaseKey) ??
+      // In der breiten Ansicht steht rechts das erste Kind, solange nichts
+      // gewählt ist: eine leere halbe Seite hilft niemandem.
+      (wide && selectedCaseKey === null ? openCases[0] : undefined));
 
   const selectCase = useCallback(
     (childCase: OpenCase) => {
@@ -477,8 +484,10 @@ export function AggregatedRequestList({
     Boolean(filters.from) ||
     Boolean(filters.to);
 
-  const showList = view === "open" && (wide || selectedCase === undefined);
-  const showDetail = view === "open" && (wide || selectedCase !== undefined);
+  const showList =
+    view === "open" && !singleChild && (wide || selectedCase === undefined);
+  const showDetail =
+    view === "open" && (singleChild || wide || selectedCase !== undefined);
 
   return (
     <div className="space-y-3">
@@ -501,7 +510,11 @@ export function AggregatedRequestList({
           />
           <div
             ref={listAreaRef}
-            className="grid scroll-mt-20 gap-3 lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)]"
+            className={
+              singleChild
+                ? "grid gap-3"
+                : "grid scroll-mt-20 gap-3 lg:grid-cols-[minmax(20rem,26rem)_minmax(0,1fr)]"
+            }
           >
             {showList && (
               <RequestCaseList
@@ -520,7 +533,7 @@ export function AggregatedRequestList({
                   )}
                   reasonRequired={reasonRequired}
                   selected={selectedForBulk}
-                  narrow={!wide}
+                  narrow={!wide && !singleChild}
                   onBackToList={backToList}
                   onSelectionChange={handleBulkSelection}
                   onDecided={handleDecided}

@@ -20,7 +20,8 @@ export type ButtonVariant =
   | "segment"
   | "disclosure"
   | "day_chip"
-  | "day_chip_stacked";
+  | "day_chip_stacked"
+  | "count_badge";
 export type ButtonSize =
   "sm" | "md" | "field" | "base" | "lg" | "xl" | "compact" | "icon" | "card";
 
@@ -146,6 +147,11 @@ export function buttonStyles({
     // stacked`): Kürzel, Datum und Zustand untereinander.
     day_chip_stacked:
       "h-auto flex-col justify-start gap-0.5 rounded-lg px-1 py-1.5 text-sm font-normal bg-transparent text-gray-600 hover:bg-gray-100 aria-pressed:bg-gray-900 aria-pressed:text-white aria-pressed:hover:bg-gray-900",
+    // Zahl an der Ecke einer Kachel, die etwas öffnet (#6486): die Fläche ist
+    // durchsichtig, die sichtbare Zahl ist ein `NotificationBadge` im Knopf.
+    // 32 px Trefferfläche, per Finger 44 px. Bringt sein Maß selbst mit.
+    count_badge:
+      "h-8 min-w-8 rounded-full p-0 bg-transparent shadow-none pointer-coarse:min-w-11 hover:opacity-90 focus-visible:ring-moto-red",
   };
   // Fingerregel (#5531): Bei Bedienung per Finger ist jeder Kit-Knopf
   // mindestens 44 px hoch (Apple HIG 44 pt), `icon` auch 44 px breit. Mit Maus
