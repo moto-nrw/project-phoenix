@@ -1,5 +1,6 @@
 import {
   holidayAddressRequirement,
+  holidayHealthRequirement,
   holidayLegalBlocks,
   type HolidayLegalBlockWire,
 } from "~/lib/holiday-form-field";
@@ -155,6 +156,7 @@ interface BackendOffer {
     fields?: HolidayFormField[] | null;
     legal_blocks?: HolidayLegalBlockWire[] | null;
     address_requirement?: string | null;
+    health_requirement?: string | null;
   } | null;
   consent_texts?: BackendConsentTexts | null;
   holiday_wish_mode?: HolidayWishMode;
@@ -285,6 +287,9 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
       fields: offer.form?.fields ?? [],
       addressRequirement: holidayAddressRequirement(
         offer.form?.address_requirement,
+      ),
+      healthRequirement: holidayHealthRequirement(
+        offer.form?.health_requirement,
       ),
     },
     consentTexts: consentTextsFromBackend(offer.consent_texts),

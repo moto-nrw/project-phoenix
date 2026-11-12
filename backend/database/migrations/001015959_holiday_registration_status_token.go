@@ -7,14 +7,14 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayRegistrationStatusTokenVersion = "1.15.958"
+const holidayRegistrationStatusTokenVersion = "1.15.959"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     holidayRegistrationStatusTokenVersion,
 		Description: "Ferienanmeldung: geheimer Status-Link je Anmeldung (#6676)",
 		DependsOn: []string{
-			holidayHomeSchoolBookingsVersion,        // the newest migration on development (1.15.957)
+			holidayHealthRequirementVersion,         // the newest migration on development (1.15.958)
 			holidayRegistrationParentAccountVersion, // the last change of the table (1.15.945)
 		},
 	})

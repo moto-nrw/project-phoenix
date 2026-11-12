@@ -49,6 +49,15 @@ export function traegerHolidayFormTopic(): HelpTopic {
         ],
       },
       {
+        title: "Allergien und Medikamente zur Pflicht machen",
+        steps: [
+          "Wählen Sie unter `Gesundheit` die Einstellung `Pflicht`.",
+          "Wählen Sie `Als neue Version speichern`.",
+          "Eltern beantworten dann für jedes Kind zwei Fragen: Allergien und Medikamente. Hat das Kind keine, wählen sie `Nein, keine`. Bei `Ja` schreiben sie auf, was ihr Kind hat.",
+          "In der Anmeldung steht dann „Keine“ oder der Text der Eltern. Ein leeres Feld gibt es nicht mehr.",
+        ],
+      },
+      {
         title: "Anschrift abfragen",
         steps: [
           "Wählen Sie unter `Anschrift`, ob Eltern Straße, PLZ und Ort angeben: `Nicht abfragen`, `Freiwillig` oder `Pflicht`.",
@@ -80,6 +89,8 @@ export function traegerHolidayFormTopic(): HelpTopic {
       "Neue Anmeldungen nutzen das gespeicherte Formular. Rechts sehen Sie, wie Eltern es sehen.",
     notes: [
       "Name, Geburtsdatum, Schule, Wochen, Allergien, Medikamente, Kontakte und Zustimmungen fragt die Anmeldung immer ab.",
+      "Allergien und Medikamente sind zuerst freiwillig. Mit `Pflicht` unter `Gesundheit` brauchen Sie keine eigene Frage dafür. Eine eigene Pflichtfrage zu Allergien fragt dasselbe ein zweites Mal.",
+      "Bei `Pflicht` brauchen Eltern immer die Zustimmung zu den Gesundheitsangaben. Auch „Keine“ ist eine Gesundheitsangabe. Weitere Hinweise zur Gesundheit bleiben freiwillig.",
       "Ein neuer Ferienzeitraum fragt keine Anschrift ab. Ältere Versionen fragen auch keine ab. Bei `Freiwillig` geben Eltern alle drei Angaben an oder keine.",
       "Ein neuer Ferienzeitraum startet mit der Standardvorlage. Alle Fragen darin sind zuerst freiwillig. Alle Fragen sind für die ausrichtende OGS freigegeben. Antworten auf Gesundheitsfragen sieht sie nur, wenn die Eltern zustimmen.",
       "Schon verwendete PDFs bleiben bei der alten Anmeldung lesbar. Neue Anmeldungen sehen die neue Version.",

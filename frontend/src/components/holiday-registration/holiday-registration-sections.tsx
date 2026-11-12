@@ -18,7 +18,6 @@ import { Input } from "~/components/ui/input";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { Textarea } from "~/components/ui/textarea";
 import { WeekdayToggleGroup } from "~/components/ui/weekday-toggle-group";
 import { formatDate } from "~/lib/date-helpers";
 import {
@@ -57,6 +56,7 @@ import {
   type RegistrationDraft,
 } from "./holiday-registration-model";
 import { GuardianAddressFields } from "./holiday-guardian-address-fields";
+import { ChildHealthFields } from "./holiday-registration-health";
 import { HolidayQuestions } from "./holiday-registration-questions";
 import { useCareTermTranslations } from "~/lib/care-facility-term";
 
@@ -485,34 +485,13 @@ export function ChildCard({
           />
         </fieldset>
 
-        <fieldset className="space-y-3">
-          <legend className="text-sm font-semibold text-gray-900">
-            {t("healthTitle")}
-          </legend>
-          <p className="text-sm text-gray-600">{t("healthText")}</p>
-          <Input
-            name={`${prefix}.allergies`}
-            label={t("allergies")}
-            maxLength={1000}
-            value={child.allergies}
-            onChange={(event) => set({ allergies: event.target.value })}
-          />
-          <Input
-            name={`${prefix}.medication`}
-            label={t("medication")}
-            maxLength={1000}
-            value={child.medication}
-            onChange={(event) => set({ medication: event.target.value })}
-          />
-          <Textarea
-            name={`${prefix}.health_notes`}
-            label={t("healthNotes")}
-            rows={2}
-            maxLength={2000}
-            value={child.healthNotes}
-            onChange={(event) => set({ healthNotes: event.target.value })}
-          />
-        </fieldset>
+        <ChildHealthFields
+          form={offer.form}
+          prefix={prefix}
+          child={child}
+          fieldError={fieldError}
+          set={set}
+        />
 
         {questions.some((field) => isFieldVisible(field, questionContext)) ? (
           <fieldset className="space-y-3">

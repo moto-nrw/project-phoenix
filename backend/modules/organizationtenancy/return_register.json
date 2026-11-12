@@ -13338,6 +13338,12 @@
           "type": "text",
           "udt": "text",
           "nullable": false
+        },
+        {
+          "name": "health_requirement",
+          "type": "text",
+          "udt": "text",
+          "nullable": false
         }
       ],
       "relationships": [
