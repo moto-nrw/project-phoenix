@@ -125,7 +125,7 @@ func (a *AccountAdministration) findManageableAccount(ctx context.Context, accou
 	if err != nil {
 		return domain.ManagedAccountRecord{}, failed(opGetAccount, err)
 	}
-	account, found, _, err := a.store.FindManageableAccountRecord(ctx, accountID, visibility)
+	account, found, _, err := a.store.FindManageableAccountRecord(ctx, accountID, visibility, false)
 	if err != nil {
 		return domain.ManagedAccountRecord{}, failed(opGetAccount, err)
 	}
@@ -192,7 +192,11 @@ func (a *AccountAdministration) updateManageableAccount(ctx context.Context, upd
 	if err != nil {
 		return failed(opUpdateAccount, err)
 	}
-	previous, found, _, err := a.store.FindManageableAccountRecord(ctx, update.AccountID, visibility)
+	// The row lock holds the ownership check, the previous address and the
+	// write together: a second edit waits for this one, and so does a school
+	// mapping or role insert, whose foreign key takes a key share lock on the
+	// account; one committed before is visible to the check.
+	previous, found, _, err := a.store.FindManageableAccountRecord(ctx, update.AccountID, visibility, true)
 	if err != nil {
 		return failed(opUpdateAccount, err)
 	}

@@ -7,10 +7,12 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/moto-ogs/project-phoenix/api/testutil"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
@@ -182,4 +184,40 @@ func TestSchoolAdminResetsSecondFactorOfOwnAccountAndHolderLearnsOfIt(t *testing
 
 	assert.Equal(t, []string{address}, e.noticeRecipients(t, "account_mfa_reset", id))
 	assert.Greater(t, e.secondFactorGeneration(t, id), before, "the reset reached the account")
+}
+
+// A school that links the account while the administrator changes its
+// address: the change waits for the link and then refuses, instead of
+// rewriting the login of an account that has become shared.
+func TestSchoolAdminAddressChangeWaitsForASchoolLinkingTheAccount(t *testing.T) {
+	t.Parallel()
+	e := newAccountIsolationEnv(t)
+	id, address := e.localAccount(t, "linked-meanwhile")
+	ctx := context.Background()
+
+	link, err := e.tc.db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = link.Rollback() }()
+	var linkPID int
+	require.NoError(t, link.NewRaw(`SELECT pg_backend_pid()`).Scan(ctx, &linkPID))
+	_, err = link.ExecContext(ctx, `INSERT INTO auth.account_tenants (account_id, tenant_id, status, created_at, updated_at)
+		VALUES (?, ?, 'active', NOW(), NOW())`, id, e.foreignTenantID)
+	require.NoError(t, err)
+
+	req := testutil.NewJSONRequest(t, http.MethodPut, fmt.Sprintf("/auth/accounts/%d", id),
+		map[string]string{"email": fmt.Sprintf("linked-meanwhile-%d@example.test", id)})
+	done := make(chan *httptest.ResponseRecorder, 1)
+	go func() { done <- testutil.ExecuteWithAuth(t, e.router, req, e.claims) }()
+
+	// The change reaches the account and waits for the uncommitted link.
+	require.Eventually(t, func() bool {
+		var waiting bool
+		return testpkg.SetupTestDB(t).NewRaw(`SELECT EXISTS (SELECT FROM pg_stat_activity
+			WHERE ? = ANY(pg_blocking_pids(pid)))`, linkPID).Scan(ctx, &waiting) == nil && waiting
+	}, 5*time.Second, 10*time.Millisecond)
+	require.NoError(t, link.Commit())
+
+	requireSharedAccountRefusal(t, <-done)
+	assert.Equal(t, address, e.storedAddress(t, id), "the login address stays")
+	assert.Empty(t, e.noticeRecipients(t, "account_login_address_changed", id))
 }
