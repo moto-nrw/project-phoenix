@@ -33,10 +33,7 @@ export const CONTRACT_STATUS_LABELS: Record<CareContractStatus, string> = {
   beendet: "Beendet",
 };
 
-export const CONTRACT_STATUS_TONES: Record<
-  CareContractStatus,
-  StatusBadgeTone
-> = {
+const CONTRACT_STATUS_TONES: Record<CareContractStatus, StatusBadgeTone> = {
   entwurf: "gray",
   versendet: "blue",
   aktiv: "green",

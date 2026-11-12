@@ -10,7 +10,7 @@ import { StatCard } from "~/components/ui/stat-card";
 import type { BillingAmounts } from "~/lib/traeger-billing-families-api";
 import { formatEuro } from "./contribution-format";
 
-export const OPEN_AMOUNT_HINT =
+const OPEN_AMOUNT_HINT =
   "Ausgestellt minus Storno und Gutschrift. Ob gezahlt wurde, sieht moto nicht.";
 
 export function BillingAmountCards({

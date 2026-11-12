@@ -25,7 +25,7 @@ import { StatusColorBadge } from "~/components/ui/status-color-badge";
 type SortDirection = "asc" | "desc";
 
 /** The footer button of a list the server pages (`moreAction`). */
-export interface DataTableMoreAction {
+interface DataTableMoreAction {
   readonly label: string;
   readonly onClick: () => void;
   readonly loading?: boolean;
