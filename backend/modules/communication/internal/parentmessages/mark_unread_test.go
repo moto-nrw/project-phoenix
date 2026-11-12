@@ -352,8 +352,9 @@ func TestMarkUnread_DisabledSchoolShowsNoUnread(t *testing.T) {
 	require.NoError(t, err)
 	assert.Empty(t, onlyUnread)
 
-	// A stale card cannot confirm for the team either (#6486).
-	err = testpkg.TenantCommand2(t, ctx, f.db, disabled.MarkParentMessageThreadHandled, threadID, int64(1))
+	// A stale card cannot confirm for the team either (#6486). The switch is
+	// checked before the boundary, so any positive boundary is refused.
+	err = testpkg.TenantCommand2(t, ctx, f.db, disabled.MarkParentMessageThreadHandled, threadID, threadID)
 	require.ErrorIs(t, err, messaging.ErrMessagingDisabled)
 }
 

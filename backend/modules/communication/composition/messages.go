@@ -41,8 +41,7 @@ type ParentMessagingConfig struct {
 }
 
 // NewParentMessaging also returns the OGS side of the group threads (#4784),
-// the photos and files of both (#6685) and the team confirmation without a
-// reply (#6486).
+// the photos and files of both (#6685) and the team confirmation (#6486).
 func NewParentMessaging(cfg ParentMessagingConfig, runtime parentMessages.Runtime, policy deliveryPorts.ParentDeliveryPolicy) (communication.ParentMessagingCapability, communication.ParentGroupThreadCapability, communication.MessageAttachmentCapability, communication.ParentMessageTeamHandling) {
 	service := parentMessages.NewService(parentMessages.Config{
 		Attachments: messageAttachmentStore(cfg.DB),
