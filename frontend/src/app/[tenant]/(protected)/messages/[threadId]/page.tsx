@@ -37,7 +37,11 @@ import { TenantPage } from "~/components/ui/tenant-page";
 import NavigationLink from "~/components/ui/navigation-link";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { MessageComposer } from "~/components/messaging/message-composer";
-import { ChatBubble, ChatEventCard } from "~/components/messaging/chat-bubble";
+import {
+  ChatBubble,
+  ChatEventCard,
+  type ChatEventAction,
+} from "~/components/messaging/chat-bubble";
 import { PickupRequestDetailModal } from "~/components/messaging/pickup-request-detail-modal";
 import { RequestStatusBadge } from "~/components/messaging/request-status-badge";
 import { useChatViewportLock } from "~/lib/hooks/use-chat-viewport-lock";
@@ -292,10 +296,7 @@ function MessageThreadContent() {
   // Other request pills keep the deep-link to the queue while still open.
   // Either action needs the review scope to reach the child (#3886).
   const [openRequestId, setOpenRequestId] = useState<string | null>(null);
-  const eventAction = (
-    message: Message,
-  ):
-    { label: string; description: string; onClick: () => void } | undefined => {
+  const eventAction = (message: Message): ChatEventAction | undefined => {
     if (!canReviewRequests) return undefined;
     if (!requestPillCoveredByReview(message, reviewCoverage)) return undefined;
     const pickupRef = pickupRequestRef(message);
@@ -712,6 +713,7 @@ function MessageThreadContent() {
                 attachments={{
                   uploadUrl: PARENT_MESSAGE_ATTACHMENTS.uploadUrl,
                 }}
+                sendHint={`Schickt die Nachricht sofort an ${thread?.guardian_name ?? "die Eltern"}.`}
                 placeholder="Nachricht an die Eltern schreiben…"
               />
             ) : (

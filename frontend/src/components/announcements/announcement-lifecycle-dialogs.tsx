@@ -280,8 +280,7 @@ export function buildAnnouncementMenuItems(
     items.push({
       // moto schule sagt Senden: die Lehrkraft schickt einen Brief ab.
       label: handlers.classLetterAuthor ? "Senden" : "Veröffentlichen",
-      description:
-        "Benachrichtigt die gewählten Eltern, moto fragt vorher nach",
+      description: "Geht nach Ihrer Bestätigung sofort an die gewählten Eltern",
       icon: <Send className="size-4" aria-hidden />,
       onClick: handlers.onPublish,
     });
@@ -313,7 +312,7 @@ export function buildAnnouncementMenuItems(
         ? "Erinnerung ändern"
         : "Erinnerung planen",
       description:
-        "Legt fest, wann moto sie allen Empfängern noch einmal schickt",
+        "Legt fest, wann moto den Eintrag allen Empfängern noch einmal schickt",
       icon: <BellRing className="size-4" aria-hidden />,
       onClick: handlers.onReminder,
     });
@@ -321,7 +320,8 @@ export function buildAnnouncementMenuItems(
   if (!announcement.system_kind && announcement.status === "published") {
     items.push({
       label: "Zurückziehen",
-      description: "Eltern sehen sie nicht mehr, moto fragt vorher nach",
+      description:
+        "Macht den Eintrag wieder zum Entwurf, moto fragt vorher nach",
       icon: <Undo2 className="size-4" aria-hidden />,
       onClick: handlers.onUnpublish,
     });
@@ -341,7 +341,7 @@ export function buildAnnouncementMenuItems(
 function viewItem(onView: () => void): OverflowMenuItem {
   return {
     label: "Anzeigen",
-    description: "Öffnet den Eintrag mit allen Rückmeldungen der Eltern",
+    description: "Öffnet die Seite mit Text und Empfängern des Eintrags",
     icon: <MotoConceptIcon concept={reportsConcept} size={16} />,
     onClick: onView,
   };

@@ -2105,7 +2105,7 @@ function AnnouncementFormModal({
                         onClick={() => fileInputRef.current?.click()}
                         disabledReason={
                           attachmentCount >= MAX_ATTACHMENTS
-                            ? "Die Höchstzahl an Dateien ist erreicht. Entfernen Sie zuerst eine."
+                            ? `Mehr als ${MAX_ATTACHMENTS} Dateien gehen nicht. Entfernen Sie zuerst eine.`
                             : undefined
                         }
                         tooltip="Öffnet Ihre Dateien, um einen Anhang auszuwählen."

@@ -342,6 +342,7 @@ function GroupMessageContent() {
                 return sendArrived.current;
               }}
               sending={sending}
+              sendHint="Schickt die Nachricht sofort an alle Eltern dieser Gruppennachricht."
               placeholder="Weitere Nachricht an alle Eltern…"
               attachments={{
                 uploadUrl: PARENT_MESSAGE_ATTACHMENTS.uploadUrl,

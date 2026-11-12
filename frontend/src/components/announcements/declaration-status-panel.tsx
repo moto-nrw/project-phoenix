@@ -384,7 +384,7 @@ export function DeclarationStatusPanel({
             disabled={busy !== null || waiting === 0}
             disabledReason={
               waiting === 0
-                ? "Für jedes Kind liegt schon eine Antwort vor."
+                ? "Gerade gibt es niemanden, den moto erinnern kann."
                 : undefined
             }
             tooltip="Schickt sofort eine E-Mail an Eltern, die noch nicht geantwortet haben."

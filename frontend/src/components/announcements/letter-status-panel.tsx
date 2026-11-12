@@ -416,7 +416,7 @@ export function LetterStatusPanel({
             disabled={busy !== null || s.children_open === 0}
             disabledReason={
               s.children_open === 0
-                ? "Für jedes Kind liegt schon eine Bestätigung vor."
+                ? "Gerade gibt es niemanden, den moto erinnern kann."
                 : undefined
             }
             tooltip="Schickt sofort eine E-Mail an Eltern, die noch nicht bestätigt haben."
