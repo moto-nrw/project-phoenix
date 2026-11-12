@@ -161,21 +161,27 @@ function fits(contacts: readonly ContactDraft[], values: ContactValues) {
 function syncContacts(
   current: readonly ContactDraft[],
   wanted: readonly HolidayKnownContact[],
+  dismissed: ReadonlySet<string>,
   label: RelationshipLabel,
 ): readonly ContactDraft[] {
-  const wantedIds = new Set(wanted.map((known) => known.guardianProfileId));
-  // A contact the parent typed or changed stays; an untouched one from the
-  // prefill goes when no picked child has it any more.
-  const kept = current.filter(
-    (contact) =>
-      !isPrefilledContact(contact) ||
-      wantedIds.has(contact.knownGuardianId ?? ""),
-  );
+  const byId = new Map(wanted.map((known) => [known.guardianProfileId, known]));
+  // A contact the parent typed or changed stays as it is. An untouched one
+  // from the prefill follows the picked children: it takes their current
+  // roles, or goes when no picked child has it any more.
+  const kept = current.flatMap((contact): ContactDraft[] => {
+    if (!isPrefilledContact(contact)) return [contact];
+    const known = byId.get(contact.knownGuardianId ?? "");
+    if (!known || !(known.emergency || known.pickup)) return [];
+    const values = contactValues(known, label);
+    return [{ ...contact, ...values, prefilled: values }];
+  });
   const present = new Set(kept.map((contact) => contact.knownGuardianId));
   let contacts = kept.filter((contact) => !isBlankContact(contact));
   for (const known of wanted) {
     if (!(known.emergency || known.pickup)) continue;
     if (present.has(known.guardianProfileId)) continue;
+    // The parent removed this person; another child does not bring it back.
+    if (dismissed.has(known.guardianProfileId)) continue;
     const values = contactValues(known, label);
     if (!fits(contacts, values)) continue;
     contacts = [
@@ -246,6 +252,33 @@ export function withKnownContacts(
   return {
     ...draft,
     ...syncSecondGuardian(draft, wanted),
-    contacts: syncContacts(draft.contacts, wanted, label),
+    contacts: syncContacts(
+      draft.contacts,
+      wanted,
+      new Set(draft.dismissedContactIds),
+      label,
+    ),
+  };
+}
+
+/**
+ * Takes the contacts the parent edited. A person from the account the parent
+ * removed stays out when the choice of children changes later (#6682).
+ */
+export function withEditedContacts(
+  draft: RegistrationDraft,
+  contacts: readonly ContactDraft[],
+): RegistrationDraft {
+  const left = new Set(contacts.map((contact) => contact.knownGuardianId));
+  const removed = draft.contacts.flatMap((contact) =>
+    contact.knownGuardianId && !left.has(contact.knownGuardianId)
+      ? [contact.knownGuardianId]
+      : [],
+  );
+  if (removed.length === 0) return { ...draft, contacts };
+  return {
+    ...draft,
+    contacts,
+    dismissedContactIds: [...(draft.dismissedContactIds ?? []), ...removed],
   };
 }

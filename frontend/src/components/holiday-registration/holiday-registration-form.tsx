@@ -56,6 +56,7 @@ import {
   isPrefilledContact,
   isPrefilledSecondGuardian,
   sameGuardian,
+  withEditedContacts,
   withKnownContacts,
 } from "./holiday-registration-prefill";
 import { HolidayQuestions } from "./holiday-registration-questions";
@@ -541,7 +542,7 @@ export function HolidayRegistrationForm({
         max={MAX_CONTACTS}
         fromAccount={draft.contacts.some(isPrefilledContact)}
         fieldError={fieldError}
-        onChange={(contacts) => setDraft({ ...draft, contacts })}
+        onChange={(contacts) => setDraft(withEditedContacts(draft, contacts))}
       />
 
       <HolidayRegistrationLegal

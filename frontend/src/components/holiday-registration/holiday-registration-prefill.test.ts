@@ -14,6 +14,7 @@ import {
   addressFromAccount,
   isPrefilledContact,
   isPrefilledSecondGuardian,
+  withEditedContacts,
   withKnownContacts,
 } from "./holiday-registration-prefill";
 
@@ -142,6 +143,35 @@ describe("prefill from the parent account (#6682)", () => {
       "22",
     ]);
     expect(draft.contacts[1]).toMatchObject({ emergency: true, pickup: true });
+  });
+
+  it("lets untouched contacts follow the roles of the picked children", () => {
+    // The second child alone has grandma as pickup only.
+    let draft = pick(registrationFromFamily(family), family.children[1]!);
+    expect(draft.contacts[0]).toMatchObject({
+      knownGuardianId: "21",
+      emergency: false,
+      pickup: true,
+    });
+    draft = pick(draft, family.children[0]!);
+    expect(
+      draft.contacts.find((c) => c.knownGuardianId === "21"),
+    ).toMatchObject({ emergency: true, pickup: true });
+    expect(draft.contacts.every(isPrefilledContact)).toBe(true);
+    draft = pick(draft, family.children[0]!);
+    expect(
+      draft.contacts.find((c) => c.knownGuardianId === "21"),
+    ).toMatchObject({ emergency: false, pickup: true });
+  });
+
+  it("keeps a person the parent removed out of the contacts", () => {
+    let draft = pick(registrationFromFamily(family), family.children[0]!);
+    draft = withEditedContacts(
+      draft,
+      draft.contacts.filter((c) => c.knownGuardianId !== "21"),
+    );
+    draft = pick(draft, family.children[1]!);
+    expect(draft.contacts.map((c) => c.knownGuardianId)).toEqual(["20", "22"]);
   });
 
   it("drops untouched values with the child and keeps the parent's changes", () => {
