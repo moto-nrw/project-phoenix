@@ -48,6 +48,9 @@ export interface PeriodMetrics {
   readonly accountBalanceMinutes: number | null;
   /** A Sonderarbeitszeit sets the Soll of a day in the current week. */
   readonly hasTargetOverride?: boolean;
+  /** False when no Soll is maintained for the current month (#6887);
+   *  undefined while the Monatskarte loads. */
+  readonly hasTarget?: boolean;
   /** A source failed to load; the null figures will not arrive. */
   readonly failed?: boolean;
   /** The source error for the in-place load error display. */
@@ -348,6 +351,7 @@ export function usePeriodMetrics(staffId?: string): PeriodMetrics {
     accountStart,
     accountBalanceMinutes,
     hasTargetOverride,
+    hasTarget: monthSummary?.hasTarget,
     failed,
     error,
     retry,

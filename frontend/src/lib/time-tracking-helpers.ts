@@ -908,6 +908,8 @@ export interface BackendMonthSummary {
   carry_in_minutes: number;
   target_minutes: number;
   target_minutes_to_date: number;
+  /** False when no Soll is maintained for the month (#6887). */
+  has_target: boolean;
   actual_minutes: number;
   credited_sick_minutes: number;
   credited_vacation_minutes: number;
@@ -999,6 +1001,10 @@ export interface MonthSummary {
   carryInMinutes: number;
   targetMinutes: number;
   targetMinutesToDate: number;
+  /** False when no Soll is maintained for any day of the month: no work
+   *  schedule, no work-time model, no Sonderarbeitszeit (#6887). Sick and
+   *  vacation days then count 0 hours. */
+  hasTarget: boolean;
   actualMinutes: number;
   creditedSickMinutes: number;
   creditedVacationMinutes: number;
@@ -1114,6 +1120,7 @@ export function mapMonthSummaryResponse(
     carryInMinutes: data.carry_in_minutes,
     targetMinutes: data.target_minutes,
     targetMinutesToDate: data.target_minutes_to_date,
+    hasTarget: data.has_target,
     actualMinutes: data.actual_minutes,
     creditedSickMinutes: data.credited_sick_minutes,
     creditedVacationMinutes: data.credited_vacation_minutes,

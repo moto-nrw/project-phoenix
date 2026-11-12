@@ -160,6 +160,7 @@ describe("StaffTimeAccountsTable Hinweise", () => {
   const account = {
     employmentType: "",
     sollMinutes: 0,
+    hasTarget: true,
     istMinutes: 0,
     balanceMinutes: 0,
     remainingVacationDays: 0,
@@ -215,5 +216,98 @@ describe("StaffTimeAccountsTable Hinweise", () => {
 
     fireEvent.click(filter);
     expect(screen.getByText("Brandt, Ben")).toBeInTheDocument();
+  });
+});
+
+// #6887: Personen ohne gepflegtes Soll fallen in der Liste auf.
+describe("StaffTimeAccountsTable ohne Soll", () => {
+  const account = {
+    employmentType: "",
+    sollMinutes: 0,
+    istMinutes: 0,
+    balanceMinutes: 0,
+    remainingVacationDays: 0,
+    laborHintDays: 0,
+  };
+  const rows = [
+    {
+      ...account,
+      staffId: "1",
+      firstName: "Anna",
+      lastName: "Albers",
+      name: "Anna Albers",
+      sollMinutes: 4800,
+      hasTarget: true,
+    },
+    {
+      ...account,
+      staffId: "2",
+      firstName: "Ben",
+      lastName: "Brandt",
+      name: "Ben Brandt",
+      hasTarget: false,
+    },
+  ];
+
+  function renderAccounts(canSetTarget: boolean) {
+    render(
+      <StaffTimeAccountsTable
+        {...baseProps}
+        rows={rows}
+        canSetTarget={canSetTarget}
+        onSaldoPresetChange={vi.fn()}
+        onCustomSaldoHoursChange={vi.fn()}
+        showCustomSaldo={false}
+        onShowCustomSaldoChange={vi.fn()}
+      />,
+    );
+  }
+
+  it("zählt Personen ohne Soll und zeigt „Kein Soll“ statt 0 Minuten", () => {
+    renderAccounts(true);
+
+    expect(
+      screen.getByText(/1 Person hat in Juli 2026 kein Soll\./),
+    ).toHaveTextContent(
+      "Krankheit, Urlaub und Fortbildung zählen bei ihnen 0 Stunden. Ein Klick auf die Zeile öffnet das Arbeitszeitmodell.",
+    );
+    expect(screen.getByText("Kein Soll")).toBeInTheDocument();
+    expect(screen.getByText("80h")).toBeInTheDocument();
+  });
+
+  it("filtert auf Personen ohne Soll", () => {
+    renderAccounts(true);
+
+    const filter = screen.getByRole("button", { name: "Nur diese zeigen" });
+    fireEvent.click(filter);
+
+    expect(screen.getByText("Brandt, Ben")).toBeInTheDocument();
+    expect(screen.queryByText("Albers, Anna")).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Alle zeigen" }));
+    expect(screen.getByText("Albers, Anna")).toBeInTheDocument();
+  });
+
+  it("nennt ohne Recht, wer das Soll einträgt", () => {
+    renderAccounts(false);
+
+    expect(
+      screen.getByText(/1 Person hat in Juli 2026 kein Soll\./),
+    ).toHaveTextContent("Das Soll trägt die Leitung ein.");
+  });
+
+  it("zeigt keinen Hinweis, wenn alle ein Soll haben", () => {
+    render(
+      <StaffTimeAccountsTable
+        {...baseProps}
+        rows={rows.filter((row) => row.hasTarget)}
+        onSaldoPresetChange={vi.fn()}
+        onCustomSaldoHoursChange={vi.fn()}
+        showCustomSaldo={false}
+        onShowCustomSaldoChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Albers, Anna")).toBeInTheDocument();
+    expect(screen.queryByText(/kein Soll/)).not.toBeInTheDocument();
   });
 });

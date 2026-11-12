@@ -34,3 +34,12 @@ export const staffQualificationKeys = {
     `staff-qualification-entries-${encodeURIComponent(staffId)}`,
   own: () => "own-staff-qualifications",
 } as const;
+
+/** Monatskarte einer Person (#1842). Derselbe Schlüssel, den
+ *  `usePeriodMetrics` und die Zeiterfassung schreiben, damit eine offene
+ *  Personalakte die Abfrage teilt; Invalidierungen matchen auf
+ *  „staff-month-summary-“. */
+export const staffMonthSummaryKeys = {
+  month: (staffId: string, year: number, month: number) =>
+    `staff-month-summary-${staffId}-${year}-${month}`,
+} as const;

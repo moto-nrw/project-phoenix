@@ -4,6 +4,10 @@ import { parseISODate, berlinTodayISO } from "~/lib/date-helpers";
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 
 import { StatCard } from "~/components/ui/stat-card";
+import { Alert } from "~/components/ui/alert";
+import { EmptyState } from "~/components/ui/empty-state";
+import { MISSING_TARGET_OWNER } from "~/components/staff/missing-target-notice";
+import { useStaffHasTarget } from "~/lib/hooks/use-staff-has-target";
 import { Button } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -103,6 +107,10 @@ export function ArbeitszeitmodellTab({
   readonly canEdit: boolean;
 }) {
   const [editing, setEditing] = useState(false);
+  // Gilt in diesem Monat ein Soll? Dieselbe Regel, nach der das Stundenkonto
+  // rechnet (#6887); null solange unbekannt.
+  // Den Reiter sieht nur die Leitung; sie darf Zeitkonten lesen.
+  const hasTarget = useStaffHasTarget(staffId, berlinTodayISO(), canEdit);
 
   const {
     data: schedule,
@@ -185,18 +193,40 @@ export function ArbeitszeitmodellTab({
     );
   }
 
+  // Ohne Vorlage und ohne eigene Tage ist nichts gepflegt: statt
+  // „Eigenes Modell · Schnitt 0min“ sagt der Reiter, was fehlt (#6887).
+  const scheduleEmpty = !schedule.model && schedule.entries.length === 0;
+  const missingTargetText = `Ohne Soll zählen Krankheit, Urlaub und Fortbildung 0 Stunden. Gearbeitete Zeit zählt ganz als Plus. ${
+    canEdit
+      ? "Tragen Sie mit „Bearbeiten“ die Wochenstunden aus dem Arbeitsvertrag ein."
+      : MISSING_TARGET_OWNER
+  }`;
+
   return (
     <div className="space-y-5">
+      {hasTarget === false && !scheduleEmpty ? (
+        <Alert
+          type="warning"
+          announce="off"
+          message={`In diesem Monat gilt kein Soll. ${missingTargetText}`}
+        />
+      ) : null}
       <SectionCard
         title={
-          schedule.mode === "template" && schedule.model
-            ? schedule.model.name
-            : "Eigenes Modell"
+          scheduleEmpty
+            ? "Arbeitszeitmodell"
+            : schedule.mode === "template" && schedule.model
+              ? schedule.model.name
+              : "Eigenes Modell"
         }
         headingLevel={3}
-        description={`${weeksLabel} · Schnitt ${formatDuration(
-          Math.round(averagePerWeek),
-        )} / Woche`}
+        description={
+          scheduleEmpty
+            ? undefined
+            : `${weeksLabel} · Schnitt ${formatDuration(
+                Math.round(averagePerWeek),
+              )} / Woche`
+        }
         action={
           canEdit ? (
             <Button
@@ -210,50 +240,58 @@ export function ArbeitszeitmodellTab({
           ) : undefined
         }
       >
-        <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-          {schedule.weeklyTotals.map((total, idx) => (
-            <div key={WEEK_BADGE_LETTERS[idx] ?? `week-${idx}`}>
-              {/* Eigene Hülle: `h-full` der Kachel soll sich nicht auf die Höhe
+        {scheduleEmpty ? (
+          <EmptyState
+            variant="compact"
+            title="Kein Soll hinterlegt"
+            description={missingTargetText}
+          />
+        ) : (
+          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+            {schedule.weeklyTotals.map((total, idx) => (
+              <div key={WEEK_BADGE_LETTERS[idx] ?? `week-${idx}`}>
+                {/* Eigene Hülle: `h-full` der Kachel soll sich nicht auf die Höhe
                   samt Tageszeile darunter beziehen. */}
-              <div>
-                <StatCard
-                  label={`Woche ${WEEK_BADGE_LETTERS[idx] ?? idx + 1}`}
-                  value={formatDuration(total)}
-                  tone="neutral"
-                />
-              </div>
-              <div className="mt-3 grid grid-cols-5 gap-1 text-center text-xs">
-                {WORK_DAYS.map((d) => {
-                  const entry = schedule.entries.find(
-                    (e) => e.weekIndex === idx && e.dayOfWeek === d,
-                  );
-                  const minutes = entry?.targetMinutes ?? 0;
-                  return (
-                    <div key={d} className="space-y-0.5">
-                      <div className="text-xs text-gray-500">
-                        {dayLabels[d]}
-                      </div>
-                      <div
-                        className={`tabular-nums ${
-                          minutes > 0
-                            ? "font-medium text-gray-700"
-                            : "text-gray-300"
-                        }`}
-                      >
-                        {minutes > 0 ? formatDuration(minutes) : "–"}
-                      </div>
-                      {minutes > 0 && entry?.startTime && (
-                        <div className="text-xs text-gray-400 tabular-nums">
-                          ab {entry.startTime}
+                <div>
+                  <StatCard
+                    label={`Woche ${WEEK_BADGE_LETTERS[idx] ?? idx + 1}`}
+                    value={formatDuration(total)}
+                    tone="neutral"
+                  />
+                </div>
+                <div className="mt-3 grid grid-cols-5 gap-1 text-center text-xs">
+                  {WORK_DAYS.map((d) => {
+                    const entry = schedule.entries.find(
+                      (e) => e.weekIndex === idx && e.dayOfWeek === d,
+                    );
+                    const minutes = entry?.targetMinutes ?? 0;
+                    return (
+                      <div key={d} className="space-y-0.5">
+                        <div className="text-xs text-gray-500">
+                          {dayLabels[d]}
                         </div>
-                      )}
-                    </div>
-                  );
-                })}
+                        <div
+                          className={`tabular-nums ${
+                            minutes > 0
+                              ? "font-medium text-gray-700"
+                              : "text-gray-300"
+                          }`}
+                        >
+                          {minutes > 0 ? formatDuration(minutes) : "–"}
+                        </div>
+                        {minutes > 0 && entry?.startTime && (
+                          <div className="text-xs text-gray-400 tabular-nums">
+                            ab {entry.startTime}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
               </div>
-            </div>
-          ))}
-        </div>
+            ))}
+          </div>
+        )}
       </SectionCard>
 
       <SonderarbeitszeitenSection staffId={staffId} canEdit={canEdit} />

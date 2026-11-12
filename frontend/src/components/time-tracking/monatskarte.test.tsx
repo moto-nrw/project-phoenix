@@ -12,6 +12,7 @@ function makeSummary(overrides: Partial<MonthSummary> = {}): MonthSummary {
     carryInMinutes: -90,
     targetMinutes: 2400,
     targetMinutesToDate: 2400,
+    hasTarget: true,
     actualMinutes: 720,
     creditedSickMinutes: 480,
     creditedVacationMinutes: 240,
