@@ -196,7 +196,7 @@
   "doneAccountTitle": "Hapi tjetër: llogaria juaj e prindit",
   "doneAccountText": "Ju dërguam një email të dytë në {email}. Hapni lidhjen në të. Atje vendosni fjalëkalimin ose hyni.",
   "doneToRegistrations": "Te regjistrimet tuaja për pushimet",
-  "prefillBadge": "Nga llogaria e prindit",
+  "fromAccountHint": "Nga llogaria e prindit",
   "healthNotPrefilled": "Të dhënat shëndetësore nuk i marrim. Ju lutemi shkruajini këtu.",
   "knownContactPhoneHint": "Këtë numër nuk e shihni në llogarinë e prindit. Ju lutemi shkruajeni.",
   "relationshipTypes": {

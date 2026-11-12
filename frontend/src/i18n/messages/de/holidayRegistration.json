@@ -196,7 +196,7 @@
   "doneAccountTitle": "Nächster Schritt: Ihr Elternkonto",
   "doneAccountText": "Wir haben Ihnen eine zweite E-Mail an {email} geschickt. Öffnen Sie den Link darin. Dort legen Sie Ihr Passwort fest oder melden sich an.",
   "doneToRegistrations": "Zu Ihren Ferienanmeldungen",
-  "prefillBadge": "Aus dem Elternkonto",
+  "fromAccountHint": "Aus dem Elternkonto",
   "healthNotPrefilled": "Gesundheitsangaben übernehmen wir nicht. Bitte tragen Sie sie hier ein.",
   "knownContactPhoneHint": "Diese Nummer sehen Sie im Elternkonto nicht. Bitte tragen Sie sie ein.",
   "relationshipTypes": {

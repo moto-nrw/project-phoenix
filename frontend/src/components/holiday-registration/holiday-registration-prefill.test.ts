@@ -11,7 +11,7 @@ import {
   toggleKnownChild,
 } from "./holiday-registration-model";
 import {
-  addressFromAccount,
+  fromAccount,
   isPrefilledContact,
   isPrefilledSecondGuardian,
   withEditedContacts,
@@ -94,13 +94,14 @@ describe("prefill from the parent account (#6682)", () => {
   it("takes the address the school knows", () => {
     const draft = registrationFromFamily(family);
     expect(draft.guardianAddress).toEqual(family.guardian.address);
-    expect(addressFromAccount(draft.guardianAddress, family)).toBe(true);
-    expect(
-      addressFromAccount(
-        { ...draft.guardianAddress, street: "Neuer Weg 1" },
-        family,
-      ),
-    ).toBe(false);
+  });
+
+  it("marks each field alone while it holds the account's value", () => {
+    expect(fromAccount("Lindenweg 4", "Lindenweg 4")).toBe(true);
+    // Changed by the parent, never prefilled, or empty: no source to name.
+    expect(fromAccount("Neuer Weg 1", "Lindenweg 4")).toBe(false);
+    expect(fromAccount("Lindenweg 4", undefined)).toBe(false);
+    expect(fromAccount("", "")).toBe(false);
   });
 
   it("fills the second custodian and the contacts of a picked child", () => {

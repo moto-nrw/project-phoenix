@@ -196,7 +196,7 @@
   "doneAccountTitle": "Sonraki adım: veli hesabınız",
   "doneAccountText": "{email} adresine ikinci bir e-posta gönderdik. İçindeki bağlantıyı açın. Orada şifrenizi belirler veya giriş yaparsınız.",
   "doneToRegistrations": "Tatil kayıtlarınıza git",
-  "prefillBadge": "Veli hesabından",
+  "fromAccountHint": "Veli hesabından",
   "healthNotPrefilled": "Sağlık bilgilerini aktarmıyoruz. Lütfen buraya yazın.",
   "knownContactPhoneHint": "Bu numarayı veli hesabında göremezsiniz. Lütfen yazın.",
   "relationshipTypes": {

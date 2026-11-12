@@ -1109,7 +1109,20 @@ describe("HolidayRegistrationForm", () => {
     });
     // Own fields and address come with the account at once.
     expect(screen.getByLabelText(/Straße/)).toHaveValue("Lindenweg 4");
-    expect(screen.getAllByText("Aus dem Elternkonto")).toHaveLength(2);
+    // Each field from the account says so: four own fields, three address parts.
+    expect(screen.getAllByText("Aus dem Elternkonto")).toHaveLength(7);
+    expect(screen.getByLabelText(/Straße/)).toHaveAccessibleDescription(
+      "Aus dem Elternkonto",
+    );
+    // A changed field loses its line, the others keep theirs.
+    type(screen.getByLabelText(/Straße/), "Neuer Weg 1");
+    expect(screen.getByLabelText(/Straße/)).not.toHaveAccessibleDescription(
+      "Aus dem Elternkonto",
+    );
+    expect(screen.getByLabelText(/^Ort/)).toHaveAccessibleDescription(
+      "Aus dem Elternkonto",
+    );
+    expect(screen.getAllByText("Aus dem Elternkonto")).toHaveLength(6);
 
     fireEvent.click(screen.getByRole("checkbox", { name: /Felix Schneider/ }));
     const second = within(
@@ -1118,12 +1131,25 @@ describe("HolidayRegistrationForm", () => {
         .closest("section")!,
     );
     expect(second.getByLabelText(/Vorname/)).toHaveValue("Jonas");
-    expect(second.getByText("Aus dem Elternkonto")).toBeInTheDocument();
+    // Only filled fields name the account; the hidden number stays unmarked.
+    expect(second.getAllByText("Aus dem Elternkonto")).toHaveLength(2);
+    expect(second.getByLabelText(/Telefon/)).not.toHaveAccessibleDescription(
+      "Aus dem Elternkonto",
+    );
     const contacts = within(
       screen.getByRole("heading", { name: "Kontakte" }).closest("section")!,
     );
     expect(contacts.getByLabelText(/^Name/)).toHaveValue("Jonas Schneider");
     expect(contacts.getByLabelText(/Beziehung/)).toHaveValue("Elternteil");
+    expect(contacts.getAllByText("Aus dem Elternkonto")).toHaveLength(2);
+    type(contacts.getByLabelText(/Beziehung/), "Vater");
+    expect(contacts.getAllByText("Aus dem Elternkonto")).toHaveLength(1);
+    expect(contacts.getByLabelText(/^Name/)).toHaveAccessibleDescription(
+      "Aus dem Elternkonto",
+    );
+    // Back to the account's value: the line and the link to the child return.
+    type(contacts.getByLabelText(/Beziehung/), "Elternteil");
+    expect(contacts.getAllByText("Aus dem Elternkonto")).toHaveLength(2);
     // The account shows this number to nobody else: the parent types it.
     expect(
       contacts.getByText(

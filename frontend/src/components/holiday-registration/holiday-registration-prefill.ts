@@ -9,7 +9,6 @@ import type {
   HolidayKnownFamily,
 } from "~/lib/holiday-registration-api";
 import {
-  type AddressDraft,
   type ContactDraft,
   emptyContact,
   MAX_CONTACTS,
@@ -38,7 +37,7 @@ export function isNamedRelationshipType(
 }
 
 /** Whether two sets of person fields are the same. */
-export function sameGuardian(
+function sameGuardian(
   a: RegistrationDraft["guardian"],
   b: RegistrationDraft["guardian"],
 ): boolean {
@@ -50,18 +49,12 @@ export function sameGuardian(
   );
 }
 
-/** Whether the address is still the one the prefill wrote. */
-export function addressFromAccount(
-  address: AddressDraft,
-  family: HolidayKnownFamily | null,
-): boolean {
-  const known = family?.guardian.address;
-  return (
-    !!known &&
-    address.street === known.street &&
-    address.postalCode === known.postalCode &&
-    address.city === known.city
-  );
+/**
+ * Whether a field still holds the value the account brought. Each field
+ * counts alone: a changed phone keeps the name marked as from the account.
+ */
+export function fromAccount(value: string, known: string | undefined): boolean {
+  return known !== undefined && value.trim() !== "" && value === known;
 }
 
 /** Whether the contact still holds exactly what the prefill wrote. */
