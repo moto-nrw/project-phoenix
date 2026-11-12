@@ -325,19 +325,52 @@ func stayExportRow(
 	return unassignedExportRow(stay), true
 }
 
-// slotHoldingStay is the present slot whose window holds the stay's check-in:
-// the slot the child was in before going to class.
+// slotHoldingStay prefers a unique recorded slot interval at departure. A
+// school stay can begin in a different slot, so its check-in alone is not an
+// association. If re-entry overwrote that interval, infer a slot only when one
+// window covers the entire stay and no other present slot matches departure.
 func slotHoldingStay(slots []*studentpresence.HistorySlot, stay *studentpresence.Attendance) *studentpresence.HistorySlot {
-	clock := stay.CheckInTime.In(calendar.Berlin).Format("15:04")
+	if stay.CheckOutTime == nil {
+		return nil
+	}
+	var match *studentpresence.HistorySlot
 	for _, slot := range slots {
-		if slot.Attendance.Status != studentpresence.SessionAttendancePresent {
+		row := slot.Attendance
+		if row.Status != studentpresence.SessionAttendancePresent || row.CheckedInAt == nil ||
+			row.CheckedInAt.Before(stay.CheckInTime) || row.CheckedInAt.After(*stay.CheckOutTime) ||
+			(row.CheckedOutAt != nil && row.CheckedOutAt.Before(*stay.CheckOutTime)) {
 			continue
 		}
-		if slot.Instance.StartTime.Format("15:04") <= clock && clock < slot.Instance.EndTime.Format("15:04") {
-			return slot
+		if match != nil {
+			return nil
 		}
+		match = slot
 	}
-	return nil
+	if match != nil {
+		return match
+	}
+	return overwrittenClassStaySlot(slots, stay)
+}
+
+func overwrittenClassStaySlot(slots []*studentpresence.HistorySlot, stay *studentpresence.Attendance) *studentpresence.HistorySlot {
+	from := stay.CheckInTime.In(calendar.Berlin).Format("15:04:05")
+	until := stay.CheckOutTime.In(calendar.Berlin).Format("15:04:05")
+	var match *studentpresence.HistorySlot
+	for _, slot := range slots {
+		if slot.Attendance.Status != studentpresence.SessionAttendancePresent ||
+			slot.Instance.StartTime.Format("15:04:05") > until || until > slot.Instance.EndTime.Format("15:04:05") {
+			continue
+		}
+		if match != nil {
+			return nil
+		}
+		match = slot
+	}
+	if match == nil || match.Attendance.CheckedInAt == nil || !match.Attendance.CheckedInAt.After(*stay.CheckOutTime) ||
+		match.Instance.StartTime.Format("15:04:05") > from || from >= match.Instance.EndTime.Format("15:04:05") {
+		return nil
+	}
+	return match
 }
 
 // classStayExportRow names the slot a stay before class belonged to (#5710).

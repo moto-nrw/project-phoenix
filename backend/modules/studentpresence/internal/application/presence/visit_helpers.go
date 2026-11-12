@@ -140,6 +140,11 @@ func (s *service) syncAttendanceForVisitRevision(
 	if !changed {
 		return nil
 	}
+	// Moving only a matching boundary must not invert the stay's interval.
+	// Independent boundaries belong to the school stay, not to this visit.
+	if row.CheckOutTime != nil && row.CheckOutTime.Before(row.CheckInTime) {
+		return ErrInvalidTimeRange
+	}
 	_, err = s.SchoolPresence.ReviseAttendance(ctx, row)
 	return err
 }

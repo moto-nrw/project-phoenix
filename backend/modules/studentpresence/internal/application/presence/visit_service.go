@@ -195,7 +195,7 @@ func (s *service) updateVisit(ctx context.Context, visit *studentpresence.Visit)
 
 	if intervalChanged {
 		if err := s.syncAttendanceForVisitRevision(ctx, existing, visit); err != nil {
-			return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+			return &ActiveError{Op: "UpdateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
 		}
 	}
 

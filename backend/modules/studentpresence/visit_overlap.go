@@ -54,8 +54,13 @@ func (e *VisitOverlapError) ErrorDetails() any {
 }
 
 // VisitsOverlap reports whether two visit intervals share an instant beyond a
-// common boundary. A nil exit is an open visit that runs on.
+// common boundary. A nil exit is an open visit that runs on; empty intervals
+// occupy no time, including when another visit spans their boundary.
 func VisitsOverlap(a, b Visit) bool {
+	if (a.ExitTime != nil && a.EntryTime.Equal(*a.ExitTime)) ||
+		(b.ExitTime != nil && b.EntryTime.Equal(*b.ExitTime)) {
+		return false
+	}
 	return startsBeforeEnd(a.EntryTime, b.ExitTime) && startsBeforeEnd(b.EntryTime, a.ExitTime)
 }
 

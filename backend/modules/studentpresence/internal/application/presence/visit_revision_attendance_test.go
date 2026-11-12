@@ -104,6 +104,39 @@ func TestSyncAttendanceForVisitRevision_LeavesAnIndependentCheckout(t *testing.T
 	}
 }
 
+func TestUpdateVisitRejectsInvalidResultingStay(t *testing.T) {
+	t.Parallel()
+	previous := studentpresence.Visit{ID: 10, StudentID: 200, ActiveGroupID: 300, EntryTime: at("08:00"), ExitTime: ptr(at("09:00"))}
+	for _, tt := range []struct {
+		name           string
+		checkIn, entry string
+		exit, checkOut string
+	}{
+		{name: "checkout before retained check-in", checkIn: "07:30", entry: "07:00", exit: "07:15", checkOut: "09:00"},
+		{name: "check-in after independent checkout", checkIn: "08:00", entry: "10:00", exit: "11:00", checkOut: "09:30"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			repo := &stayRepository{
+				StudentPresence: &mockVisitRepository{
+					findByIDFunc: func(context.Context, interface{}) (*studentpresence.Visit, error) {
+						copy := previous
+						return &copy, nil
+					},
+				},
+				rows: []studentpresence.Attendance{{ID: 1, StudentID: 200, CheckInTime: at(tt.checkIn), CheckOutTime: ptr(at(tt.checkOut))}},
+			}
+			svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: repo}}
+			updated := previous
+			updated.EntryTime, updated.ExitTime = at(tt.entry), ptr(at(tt.exit))
+
+			err := svc.updateVisit(context.Background(), &updated)
+			require.ErrorIs(t, err, studentpresence.ErrInvalidTimeRange)
+			assert.Nil(t, repo.revised, "an invalid stay must not reach persistence")
+		})
+	}
+}
+
 // A visit correction that would cross another visit of the child is refused
 // before any write (#5710): A 08–09, B 10–11, A's end moved to 12.
 func TestUpdateVisitRefusesOverlapBeforeAnyWrite(t *testing.T) {
