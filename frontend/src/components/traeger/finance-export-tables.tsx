@@ -73,7 +73,11 @@ function LastFile({
         </span>
       </span>
       <span className="block text-sm text-gray-500">
-        {byLabel(entry.exportedByYou, entry.exportedByAccount)}
+        {byLabel(
+          entry.exportedByYou,
+          entry.exportedByAccount,
+          entry.exportedByName,
+        )}
       </span>
     </span>
   );
@@ -488,7 +492,11 @@ const PROTOCOL_COLUMNS: DataTableColumn<ExportProtocolEntry>[] = [
           {exportedAtLabel(entry.exportedAt)}
         </span>
         <span className="block text-sm text-gray-500">
-          {byLabel(entry.exportedByYou, entry.exportedByAccount)}
+          {byLabel(
+            entry.exportedByYou,
+            entry.exportedByAccount,
+            entry.exportedByName,
+          )}
         </span>
       </span>
     ),
