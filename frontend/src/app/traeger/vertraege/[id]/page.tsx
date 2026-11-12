@@ -301,13 +301,7 @@ export default function TraegerVertragPage() {
   return (
     <TenantPage
       title={contract ? childName(contract) : "Vertrag"}
-      leading={
-        <ConceptIconTile
-          concept={careContractsConcept}
-          size="page"
-          className="max-sm:hidden"
-        />
-      }
+      leading={<ConceptIconTile concept={careContractsConcept} size="page" />}
       back
       backHref={LIST_HREF}
       backLabel="Zurück zu den Verträgen"

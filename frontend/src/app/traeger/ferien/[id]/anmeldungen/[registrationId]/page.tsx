@@ -367,13 +367,7 @@ export default function TraegerHolidayRegistrationPage() {
   return (
     <TenantPage
       title={title}
-      leading={
-        <ConceptIconTile
-          concept={holidayWeeksConcept}
-          size="page"
-          className="max-sm:hidden"
-        />
-      }
+      leading={<ConceptIconTile concept={holidayWeeksConcept} size="page" />}
       back
       backHref={traegerPath(`/traeger/ferien/${periodId}/anmeldungen`)}
       backLabel="Zurück zu den Anmeldungen"

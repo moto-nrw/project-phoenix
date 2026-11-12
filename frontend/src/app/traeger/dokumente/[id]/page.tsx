@@ -153,13 +153,7 @@ export default function TraegerDocumentPage() {
   return (
     <TenantPage
       title={document?.title ?? "Dokument"}
-      leading={
-        <ConceptIconTile
-          concept={documentsConcept}
-          size="page"
-          className="max-sm:hidden"
-        />
-      }
+      leading={<ConceptIconTile concept={documentsConcept} size="page" />}
       back
       backHref={traegerPath("/traeger/dokumente")}
       backLabel="Zurück zu den Dokumenten"

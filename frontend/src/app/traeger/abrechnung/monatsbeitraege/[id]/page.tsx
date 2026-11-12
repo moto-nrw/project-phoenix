@@ -345,13 +345,7 @@ export default function TraegerCareRunPage() {
 
   return (
     <TenantPage
-      leading={
-        <ConceptIconTile
-          concept={billingConcept}
-          size="page"
-          className="max-sm:hidden"
-        />
-      }
+      leading={<ConceptIconTile concept={billingConcept} size="page" />}
       title={
         run ? `Monatsbeitrag ${formatMonth(run.billingMonth)}` : "Monatslauf"
       }

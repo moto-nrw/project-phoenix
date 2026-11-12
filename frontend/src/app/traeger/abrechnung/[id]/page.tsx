@@ -282,13 +282,7 @@ export default function TraegerBillingRunPage() {
   return (
     <TenantPage
       title={run?.periodName ?? "Abrechnungslauf"}
-      leading={
-        <ConceptIconTile
-          concept={holidayWeeksConcept}
-          size="page"
-          className="max-sm:hidden"
-        />
-      }
+      leading={<ConceptIconTile concept={holidayWeeksConcept} size="page" />}
       back
       backHref={traegerPath("/traeger/abrechnung")}
       backLabel="Zurück zu den Abrechnungsläufen"

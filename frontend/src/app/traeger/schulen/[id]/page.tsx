@@ -169,13 +169,7 @@ export default function TraegerSchoolPage() {
   return (
     <TenantPage
       title={school?.name ?? "Schule"}
-      leading={
-        <ConceptIconTile
-          concept={schoolsConcept}
-          size="page"
-          className="max-sm:hidden"
-        />
-      }
+      leading={<ConceptIconTile concept={schoolsConcept} size="page" />}
       back
       backHref={traegerPath("/traeger")}
       backLabel="Zurück zu den Schulen"
