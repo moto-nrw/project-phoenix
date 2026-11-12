@@ -141,15 +141,23 @@ describe("MyGroupBlock (#2180)", () => {
   it("nennt ein zum Unterricht abgemeldetes krankes Kind „Im Unterricht“", () => {
     snapshot.current = withGroup({
       away: [
-        student({ id: "1", sick: true, current_location: "Im Unterricht" }),
+        student({
+          id: "1",
+          sick: true,
+          current_location: "Im Unterricht",
+          day_planning_status: "not_coming_today",
+          day_planning_label: "krank gemeldet",
+        }),
       ],
       present: 20,
     });
 
     render(<MyGroupBlock />);
 
+    // Anker: das Kind erscheint mit seinem erfassten Unterrichtsort.
     expect(screen.getByText("Im Unterricht")).toBeInTheDocument();
     expect(screen.queryByText("Krank")).not.toBeInTheDocument();
+    expect(screen.queryByText("krank gemeldet")).not.toBeInTheDocument();
   });
 
   // Die Reihenfolge ist die Dringlichkeit: wer längst da sein sollte, dann

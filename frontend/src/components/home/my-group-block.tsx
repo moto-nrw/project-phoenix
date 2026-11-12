@@ -339,6 +339,14 @@ function AwayBadge({
 }) {
   // Zum Unterricht abgemeldet: nur „Im Unterricht“, auch bei Krankmeldung
   // (#5710); dieselbe Regel wie Zahl und Filter (countedDayStatus).
+  if (isInClassLocation(student.current_location)) {
+    return (
+      <StatusColorBadge
+        label="Im Unterricht"
+        color={LOCATION_COLORS.IN_CLASS}
+      />
+    );
+  }
   const dayStatus = countedDayStatus(student);
   if (dayStatus === "sick") return <StatusBadge tone="red" label="Krank" />;
   // Unterricht bis zur Abholzeit: kommt nur, wenn eine Stunde ausfällt (#3373).
@@ -365,14 +373,6 @@ function AwayBadge({
   if (isAtSchoolLocation(student.current_location)) {
     return (
       <StatusColorBadge label="Schule" color={LOCATION_COLORS.AT_SCHOOL} />
-    );
-  }
-  if (isInClassLocation(student.current_location)) {
-    return (
-      <StatusColorBadge
-        label="Im Unterricht"
-        color={LOCATION_COLORS.IN_CLASS}
-      />
     );
   }
   return <StatusBadge tone="gray" label="Zuhause" />;
