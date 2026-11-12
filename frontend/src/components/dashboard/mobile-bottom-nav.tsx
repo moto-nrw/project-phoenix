@@ -1246,6 +1246,17 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
                     </span>
                   </ButtonLink>
                 ) : null}
+                {/* Geteilte Notizen (#6854) ganz oben: hierher führt der rote
+                    Zähler am Knopf „Mehr“. */}
+                {mode === "teacher" && teamNotes.length > 0 ? (
+                  <div className="space-y-2">
+                    <SectionLabel as="h2">{TEAM_NOTES_TITLE}</SectionLabel>
+                    <TeamNotesList
+                      notices={teamNotes}
+                      onNavigate={closeOverflowMenu}
+                    />
+                  </div>
+                ) : null}
                 {visibleDrawerGroups.map((group) => (
                   <div key={group.key} className="space-y-2">
                     {/* Gruppenüberschrift wie in der Seitenleiste; die
@@ -1304,15 +1315,6 @@ function MainMobileBottomNav({ className = "" }: MobileBottomNavProps) {
                   </div>
                 ))}
               </div>
-              {mode === "teacher" && teamNotes.length > 0 ? (
-                <div className="mt-4 space-y-2 border-t border-gray-100 pt-4">
-                  <SectionLabel as="h2">{TEAM_NOTES_TITLE}</SectionLabel>
-                  <TeamNotesList
-                    notices={teamNotes}
-                    onNavigate={closeOverflowMenu}
-                  />
-                </div>
-              ) : null}
               {(mode === "teacher" ||
                 mode === "operator" ||
                 isSessionExpired ||
