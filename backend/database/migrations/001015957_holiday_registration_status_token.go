@@ -15,7 +15,7 @@ func init() {
 		Description: "Ferienanmeldung: geheimer Status-Link je Anmeldung (#6676)",
 		DependsOn: []string{
 			studentNoteTeamNoticesVersion,           // the newest migration on development (1.15.956)
-			holidayRegistrationParentAccountVersion,      // the last change of the table (1.15.945)
+			holidayRegistrationParentAccountVersion, // the last change of the table (1.15.945)
 		},
 	})
 	Migrations.MustRegister(holidayRegistrationStatusTokenUp, holidayRegistrationStatusTokenDown)
