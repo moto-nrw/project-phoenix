@@ -72,7 +72,7 @@ function LastFile({
           {exportedAtLabel(entry.exportedAt)}
         </span>
       </span>
-      <span className="block text-sm text-gray-500">
+      <span className="block text-sm wrap-anywhere text-gray-500">
         {byLabel(
           entry.exportedByYou,
           entry.exportedByAccount,
@@ -491,7 +491,7 @@ const PROTOCOL_COLUMNS: DataTableColumn<ExportProtocolEntry>[] = [
         <span className="block whitespace-nowrap tabular-nums">
           {exportedAtLabel(entry.exportedAt)}
         </span>
-        <span className="block text-sm text-gray-500">
+        <span className="block text-sm wrap-anywhere text-gray-500">
           {byLabel(
             entry.exportedByYou,
             entry.exportedByAccount,

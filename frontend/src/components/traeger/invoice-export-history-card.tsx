@@ -165,7 +165,7 @@ export function InvoiceExportHistoryCard({
                       {stepDetail(step)}
                     </p>
                   ) : null}
-                  <p className="text-sm text-gray-500">
+                  <p className="text-sm wrap-anywhere text-gray-500">
                     {exportedAtLabel(step.at)} ·{" "}
                     {byLabel(step.byYou, step.byAccount, step.accountName)}
                   </p>
