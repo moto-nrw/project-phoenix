@@ -47,7 +47,7 @@ const REFRESH = { revalidateOnFocus: true, refreshInterval: 60_000 };
 const NO_ASSIGNMENTS: readonly HolidayOwnChildAssignment[] = [];
 // Reiter der eigenen Kinder in Ferienwochen anderer OGS (#6679). Wochen-IDs
 // sind Zahlen, der Wert kann mit keiner Woche zusammenfallen.
-const ELSEWHERE_TAB = "andere-ogs";
+const HOME_SCHOOL_TAB = "andere-ogs";
 
 // Ferienwochen (#4665): die ausrichtende OGS sieht vor und während ihrer
 // Woche die Kinder, deren Anmeldung der Träger bestätigt hat, mit Zahlen je
@@ -263,16 +263,18 @@ export default function FerienwochenPage() {
     fetchHostedHolidayWeeks,
     REFRESH,
   );
-  const elsewhere = useSWRAuth(
-    isReady ? holidayKeys.homeSchoolBookings() : null,
+  const [chosenWeek, setChosenWeek] = useState<string | null>(null);
+  const showHomeSchool =
+    chosenWeek === HOME_SCHOOL_TAB ||
+    (weeks.data !== undefined && weeks.data.length === 0);
+  // Nur geladen, solange die Kinder bei anderen OGS zu sehen sind: Jeder
+  // Abruf mit Kindern steht im Zugriffsprotokoll der Schule.
+  const homeSchool = useSWRAuth(
+    isReady && showHomeSchool ? holidayKeys.homeSchoolBookings() : null,
     fetchHolidayHomeSchoolBookings,
     REFRESH,
   );
-  const [chosenWeek, setChosenWeek] = useState<string | null>(null);
-  const showElsewhere =
-    chosenWeek === ELSEWHERE_TAB ||
-    (weeks.data !== undefined && weeks.data.length === 0);
-  const selectedWeek = showElsewhere
+  const selectedWeek = showHomeSchool
     ? undefined
     : (weeks.data?.find((week) => week.id === chosenWeek) ?? weeks.data?.[0]);
   const participants = useSWRAuth(
@@ -296,10 +298,10 @@ export default function FerienwochenPage() {
   const weeksError = useSwrLoadError(weeks.error, "die Ferienwochen", () =>
     weeks.mutate(),
   );
-  const elsewhereError = useSwrLoadError(
-    showElsewhere ? elsewhere.error : undefined,
+  const homeSchoolError = useSwrLoadError(
+    showHomeSchool ? homeSchool.error : undefined,
     "die Kinder bei anderen OGS",
-    () => elsewhere.mutate(),
+    () => homeSchool.mutate(),
   );
   const participantsError = useSwrLoadError(
     participants.error,
@@ -338,17 +340,16 @@ export default function FerienwochenPage() {
   const loading =
     loadingWeeks ||
     (Boolean(selectedWeek) && !list && !participants.error) ||
-    (showElsewhere && !elsewhere.data && !elsewhere.error) ||
+    (showHomeSchool && !homeSchool.data && !homeSchool.error) ||
     (Boolean(weeks.error) && !weeksError);
   const hostsWeeks = (weeks.data?.length ?? 0) > 0;
-  const elsewhereCount = elsewhere.data?.length ?? 0;
 
   const stats = useMemo(() => {
-    if (showElsewhere) {
-      if (!elsewhere.data || elsewhere.data.length === 0) return null;
-      const weekCount = new Set(elsewhere.data.map((child) => child.weekId))
+    if (showHomeSchool) {
+      if (!homeSchool.data || homeSchool.data.length === 0) return null;
+      const weekCount = new Set(homeSchool.data.map((child) => child.weekId))
         .size;
-      return `${childCount(elsewhere.data.length)} bei anderen OGS · ${
+      return `${childCount(homeSchool.data.length)} bei anderen OGS · ${
         weekCount === 1 ? "1 Ferienwoche" : `${weekCount} Ferienwochen`
       }`;
     }
@@ -356,7 +357,7 @@ export default function FerienwochenPage() {
     return `${selectedWeek.periodName} · ${weekLabel(selectedWeek)} · ${childCount(
       list?.participants.length ?? selectedWeek.participants,
     )}`;
-  }, [showElsewhere, elsewhere.data, selectedWeek, list]);
+  }, [showHomeSchool, homeSchool.data, selectedWeek, list]);
 
   return (
     <TenantPage
@@ -365,7 +366,7 @@ export default function FerienwochenPage() {
       stats={stats}
       statsLoading={loadingWeeks}
       loading={loading}
-      error={weeksError ?? participantsError ?? elsewhereError}
+      error={weeksError ?? participantsError ?? homeSchoolError}
       actions={
         selectedWeek ? (
           <OverflowMenu
@@ -386,7 +387,9 @@ export default function FerienwochenPage() {
       tabs={
         weeks.data && hostsWeeks
           ? {
-              value: showElsewhere ? ELSEWHERE_TAB : (selectedWeek?.id ?? ""),
+              value: showHomeSchool
+                ? HOME_SCHOOL_TAB
+                : (selectedWeek?.id ?? ""),
               onChange: setChosenWeek,
               label: "Ferienwoche",
               items: [
@@ -395,16 +398,15 @@ export default function FerienwochenPage() {
                   label: weekLabel(week),
                 })),
                 {
-                  value: ELSEWHERE_TAB,
+                  value: HOME_SCHOOL_TAB,
                   label: "Kinder bei anderen OGS",
-                  ...(elsewhereCount > 0 ? { badge: elsewhereCount } : {}),
                 },
               ],
             }
           : undefined
       }
       empty={
-        weeks.data && !hostsWeeks && elsewhere.data?.length === 0
+        weeks.data && !hostsWeeks && homeSchool.data?.length === 0
           ? {
               title: "Ihre OGS richtet gerade keine Ferienwoche aus",
               description:
@@ -413,8 +415,8 @@ export default function FerienwochenPage() {
           : null
       }
     >
-      {showElsewhere && elsewhere.data && (
-        <HolidayHomeSchoolBookings bookings={elsewhere.data} />
+      {showHomeSchool && homeSchool.data && (
+        <HolidayHomeSchoolBookings bookings={homeSchool.data} />
       )}
       {list && selectedWeek && (
         <div className="flex flex-col gap-6">

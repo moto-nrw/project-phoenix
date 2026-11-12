@@ -22,7 +22,10 @@ function statusBadge(booking: HolidayHomeSchoolBooking, today: string) {
   return booking.startsOn <= today ? (
     <StatusBadge tone="green" label="Läuft gerade" />
   ) : (
-    <StatusBadge tone="blue" label="Bestätigt" />
+    <StatusBadge
+      tone="blue"
+      label={`Ab ${formatDate(booking.startsOn).slice(0, 6)}`}
+    />
   );
 }
 
@@ -151,7 +154,7 @@ export function HolidayHomeSchoolBookings({
           emptyState={
             <EmptyState
               title="Kein Kind Ihrer OGS ist bei einer anderen OGS angemeldet"
-              description="Hier stehen Kinder Ihrer OGS, deren Anmeldung der Träger für eine andere OGS bestätigt hat. Offene oder abgesagte Anmeldungen und Plätze auf der Warteliste stehen hier nicht. Nach dem letzten Tag der Woche ist das Kind nicht mehr da."
+              description="Hier stehen Kinder Ihrer OGS, deren Anmeldung der Träger für eine andere OGS bestätigt hat. Offene oder abgesagte Anmeldungen und Plätze auf der Warteliste stehen hier nicht. Nach dem letzten Tag der Woche steht das Kind nicht mehr hier."
             />
           }
         />

@@ -178,7 +178,7 @@ func (rs *HolidayHostResource) listHomeSchoolBookings(w http.ResponseWriter, r *
 	}
 	names := hostSchoolNames(r.Context())
 	for i := range bookings {
-		bookings[i].HostSchoolName = names.homeSchool(&bookings[i].HostSchoolID)
+		bookings[i].HostSchoolName = names.school(bookings[i].HostSchoolID)
 	}
 	common.Respond(w, r, http.StatusOK, bookings, "Holiday bookings of the school's children at other schools retrieved successfully")
 }

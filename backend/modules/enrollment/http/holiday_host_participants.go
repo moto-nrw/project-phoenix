@@ -254,7 +254,12 @@ func (n holidaySchoolNameMap) homeSchool(id *int64) string {
 	if id == nil {
 		return "Feriengäste"
 	}
-	if name, ok := n[*id]; ok {
+	return n.school(*id)
+}
+
+// school names a school of the Träger.
+func (n holidaySchoolNameMap) school(id int64) string {
+	if name, ok := n[id]; ok {
 		return name
 	}
 	return "Schule nicht mehr vorhanden"

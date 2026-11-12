@@ -733,7 +733,7 @@ describe("FerienwochenPage", () => {
       expect(within(table).getByText("Beispiel, Tom")).toBeInTheDocument();
       expect(within(table).getAllByText("GS Bissendorf")).toHaveLength(2);
       expect(within(table).getByText("Läuft gerade")).toBeInTheDocument();
-      expect(within(table).getByText("Bestätigt")).toBeInTheDocument();
+      expect(within(table).getByText("Ab 12.10.")).toBeInTheDocument();
       expect(
         within(table).getByText("08:00 bis 15:00 Uhr · Mo 12.10., Mi 14.10.", {
           exact: false,
@@ -758,7 +758,10 @@ describe("FerienwochenPage", () => {
       renderPage();
 
       await screen.findByText("Muster, Lia", { selector: "td, td *" });
-      const tab = screen.getByRole("tab", { name: /Kinder bei anderen OGS/ });
+      // Erst der Reiter lädt die Kinder: Jeder Abruf steht im
+      // Zugriffsprotokoll, ein Blick auf die eigene Woche ist keiner.
+      expect(homeSchoolMock).not.toHaveBeenCalled();
+      const tab = screen.getByRole("tab", { name: "Kinder bei anderen OGS" });
       fireEvent.click(tab);
 
       const table = await waitFor(() => tableWith("Betreut von"));
@@ -789,6 +792,20 @@ describe("FerienwochenPage", () => {
           { exact: false },
         ),
       ).toBeInTheDocument();
+    });
+
+    it("says when the children at other OGS cannot be loaded", async () => {
+      weeksMock.mockResolvedValue([]);
+      homeSchoolMock.mockRejectedValue(new Error("boom"));
+
+      renderPage();
+
+      expect(
+        await screen.findByText("die Kinder bei anderen OGS", { exact: false }),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByText("Ihre OGS richtet gerade keine Ferienwoche aus"),
+      ).not.toBeInTheDocument();
     });
   });
 });
