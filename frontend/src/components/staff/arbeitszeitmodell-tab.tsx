@@ -204,6 +204,7 @@ export function ArbeitszeitmodellTab({
               variant="outline"
               size="md"
               onClick={() => setEditing(true)}
+              tooltip="Öffnet das Arbeitszeitmodell dieser Person zum Bearbeiten."
             >
               Bearbeiten
             </Button>

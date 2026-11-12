@@ -444,6 +444,7 @@ export function InvitationForm({
           size="md"
           data-setup-tour="invite-submit"
           disabled={isSubmitting || isLoadingRoles || checkingAddress}
+          tooltip="Schickt sofort eine E-Mail mit Einladungslink an diese Adresse."
           className="w-full"
         >
           {isSubmitting

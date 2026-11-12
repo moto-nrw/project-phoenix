@@ -5922,6 +5922,25 @@ const TOOLTIP_SCOPE = [
   "src/app/[tenant]/(protected)/settings/",
   "src/app/traeger/einstellungen/",
   "src/components/settings/",
+  // Mitarbeitende: Seiten, Einladungen, Rollen, Abwesenheiten (#6750).
+  "src/app/[tenant]/(protected)/admin/enrollments/page.tsx",
+  "src/app/[tenant]/(protected)/staff/[id]/page.tsx",
+  "src/app/[tenant]/(protected)/staff/page.tsx",
+  "src/components/admin/guardian-approval-queue.tsx",
+  "src/components/admin/invitation-form.tsx",
+  "src/components/admin/pending-invitations-list.tsx",
+  "src/components/roles/role-permissions-tab.tsx",
+  "src/components/roles/roles-master-detail.tsx",
+  "src/components/staff-preview/staff-preview-banner.tsx",
+  "src/components/staff-preview/staff-preview-modal.tsx",
+  "src/components/staff/absence-booking-modal.tsx",
+  "src/components/staff/absence-decision-modals.tsx",
+  "src/components/staff/absence-rebook-modal.tsx",
+  "src/components/staff/absence-request-row.tsx",
+  "src/components/staff/abwesenheiten-tab.tsx",
+  "src/components/staff/admin-session-edit-modal.tsx",
+  "src/components/staff/allowance-card.tsx",
+  "src/components/staff/arbeitszeitmodell-tab.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {

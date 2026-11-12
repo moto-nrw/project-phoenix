@@ -260,6 +260,18 @@ export function AbsenceRebookModal({
 
   const disabled =
     saving || !selected || loading || Boolean(previewError) || exceeded;
+  // Der Grund am gesperrten Knopf; beim Speichern bleibt er nativ gesperrt.
+  const blockedReason = saving
+    ? undefined
+    : !selected
+      ? "Wählen Sie zuerst eine neue Art aus."
+      : loading
+        ? "moto rechnet die Folgen der Änderung noch aus."
+        : previewError
+          ? "Laden Sie zuerst die Vorschau oben neu."
+          : exceeded
+            ? "Es reichen nicht genug Tage. Erhöhen Sie zuerst den Anspruch."
+            : undefined;
   // Warum „Art ändern“ gesperrt ist: steht im Fehlerfeld oben im Formular.
   const allowanceBlocker =
     [
@@ -331,6 +343,7 @@ export function AbsenceRebookModal({
             size="md"
             onClick={onClose}
             disabled={saving}
+            noTooltip="Abbrechen schließt den Dialog, ohne etwas zu ändern."
           >
             Abbrechen
           </Button>
@@ -340,8 +353,10 @@ export function AbsenceRebookModal({
             size="md"
             onClick={() => void save()}
             disabled={disabled}
+            disabledReason={blockedReason}
             isLoading={saving}
             loadingText="Wird geändert…"
+            tooltip="Bucht die gewählten Einträge sofort auf die neue Art um."
           >
             Art ändern
           </Button>

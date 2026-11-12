@@ -685,6 +685,32 @@ export function AbsenceBookingModal({
     (customTypeId !== null &&
       (allowanceLoading || allowanceFailed || customBlocked)) ||
     (isCompTime && (previewLoading || (isOverdraft && !overdraftConfirmed)));
+  // Der Grund am gesperrten Knopf; beim Speichern bleibt er nativ gesperrt.
+  const quotaPending =
+    (selected?.kind === "quota" && loading) ||
+    (customTypeId !== null && allowanceLoading) ||
+    (isCompTime && previewLoading);
+  const quotaFailed =
+    (selected?.kind === "quota" && failed) ||
+    (customTypeId !== null && allowanceFailed);
+  const blockedReason = saving
+    ? undefined
+    : !selected
+      ? "Wählen Sie zuerst eine Art aus."
+      : !dateStart || !effectiveEnd
+        ? "Wählen Sie zuerst den Zeitraum aus."
+        : effectiveEnd < dateStart
+          ? "Das Ende muss nach dem Beginn liegen."
+          : quotaPending
+            ? "moto rechnet die verfügbaren Tage noch aus."
+            : quotaFailed
+              ? "Die verfügbaren Tage fehlen. Laden Sie sie oben neu."
+              : (selected.kind === "quota" && shortfall !== undefined) ||
+                  (customTypeId !== null && customBlocked)
+                ? "Es reichen nicht genug Tage. Ändern Sie zuerst den Anspruch."
+                : isOverdraft && !overdraftConfirmed
+                  ? "Bestätigen Sie zuerst das Minus im Stundenkonto."
+                  : undefined;
 
   const save = async () => {
     if (disabled || !selected) return;
@@ -737,6 +763,7 @@ export function AbsenceBookingModal({
             size="md"
             onClick={onClose}
             disabled={saving}
+            noTooltip="Abbrechen schließt den Dialog, ohne etwas zu ändern."
           >
             Abbrechen
           </Button>
@@ -746,8 +773,10 @@ export function AbsenceBookingModal({
             size="md"
             onClick={() => void save()}
             disabled={disabled}
+            disabledReason={blockedReason}
             isLoading={saving}
             loadingText="Wird eingetragen…"
+            tooltip="Trägt die Abwesenheit sofort ein, ohne Antrag."
           >
             Eintragen
           </Button>
