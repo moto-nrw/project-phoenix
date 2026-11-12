@@ -57,11 +57,11 @@ const STEPS = [
   "Hier bestätigen",
 ] as const;
 
-/** The mandate page of a family. */
 /** Why the file and its confirmation wait while the Träger has no account. */
 const ACCOUNT_MISSING_REASON =
   "Legen Sie zuerst eine Bankverbindung des Trägers als Standard fest.";
 
+/** The mandate page of a family. */
 function mandateHref(debit: SepaDebit): string {
   return traegerPath(`/traeger/abrechnung/lastschrift/${debit.contractId}`);
 }

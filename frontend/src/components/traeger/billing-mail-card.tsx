@@ -164,7 +164,7 @@ export function BillingMailCard({ runId }: Readonly<{ runId: string }>) {
             isLoading={sendingAll}
             loadingText="Wird gesendet …"
             disabled={!mailings}
-            tooltip="Sendet jeder Familie sofort ihr noch offenes Schreiben per Mail."
+            tooltip="Sendet jeder Familie mit Mail-Adresse sofort ihr noch nicht gesendetes Schreiben."
             onClick={() => void sendAll()}
           >
             An alle Familien senden

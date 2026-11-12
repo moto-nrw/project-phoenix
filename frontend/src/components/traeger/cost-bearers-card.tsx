@@ -406,8 +406,8 @@ export function CostBearersCard({
                     {
                       label: bearer.active ? "Ausschalten" : "Einschalten",
                       description: bearer.active
-                        ? "Nimmt ihn sofort aus der Auswahl beim Bestätigen."
-                        : "Macht ihn sofort wieder beim Bestätigen wählbar.",
+                        ? "Nimmt den Kostenträger sofort aus der Auswahl beim Bestätigen von Anmeldungen."
+                        : "Bietet den Kostenträger sofort wieder beim Bestätigen von Anmeldungen an.",
                       onClick: () => void switchActive(bearer),
                     },
                     ...(bearer.inUse

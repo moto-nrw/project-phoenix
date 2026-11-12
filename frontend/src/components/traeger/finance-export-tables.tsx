@@ -158,7 +158,9 @@ function DatevActions({
     blockedReason = "Tragen Sie zuerst die fehlenden DATEV-Werte ein.";
   } else if (nothingNew) {
     blockedReason =
-      "Alle Buchungen dieses Laufs sind schon in einer DATEV-Datei.";
+      state.fiscalYears.length > 0 && run.lastDatev
+        ? "Es gibt keine neue Buchung; eine verlorene Datei holen Sie über das Menü."
+        : "Dieser Lauf hat keine Rechnung mit Betrag, also keine Buchung.";
   }
   return (
     <>
@@ -170,7 +172,7 @@ function DatevActions({
         loadingText="Wird erstellt"
         disabled={downloading !== null || !ready || nothingNew}
         disabledReason={blockedReason}
-        tooltip="Lädt die neuen Buchungen des Laufs als DATEV-Datei (CSV) herunter."
+        tooltip="Lädt die neuen Buchungen als DATEV-Datei (CSV) mit neuer Dateinummer herunter."
         aria-describedby={describedBy}
         aria-label={
           state && state.newBookings > 0
@@ -189,7 +191,8 @@ function DatevActions({
           items={[
             {
               label: "Alle Buchungen erneut",
-              description: "Nur für eine verlorene Datei",
+              description:
+                "Lädt alle Buchungen erneut, nur für eine verlorene Datei. moto fragt vorher nach.",
               icon: <RotateCcw className="h-4 w-4" aria-hidden />,
               onClick: () => onRepeat(run),
             },

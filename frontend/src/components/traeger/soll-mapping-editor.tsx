@@ -18,7 +18,10 @@ import {
   sollPreview,
   sollSplitsLines,
 } from "~/components/traeger/finance-export-format";
-import { BOOKING_ACCOUNTS_PATH } from "~/components/traeger/finance-export-datev";
+import {
+  BOOKING_ACCOUNTS_HINT,
+  BOOKING_ACCOUNTS_PATH,
+} from "~/components/traeger/finance-export-datev";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
@@ -121,7 +124,7 @@ function ColumnRow({
           {
             label: "Spalte entfernen",
             description:
-              "Nimmt die Spalte aus dem Entwurf. Erst Speichern übernimmt es.",
+              "Nimmt die Spalte aus dem Entwurf; die Datei ändert sich beim Speichern.",
             destructive: true,
             onClick: onRemove,
           },
@@ -261,7 +264,7 @@ export function SollMappingEditor({
             variant="outline"
             size="md"
             disabled={draft.columns.length >= 40}
-            disabledReason="Mehr als 40 Spalten gehen nicht. Entfernen Sie zuerst eine."
+            disabledReason="Entfernen Sie zuerst eine Spalte, mehr als 40 gehen nicht."
             tooltip="Fügt rechts eine neue Spalte an, zuerst mit der Rechnungsnummer."
             onClick={() =>
               setColumns((columns) => [
@@ -320,7 +323,7 @@ export function SollMappingEditor({
                 href={traegerPath(BOOKING_ACCOUNTS_PATH)}
                 variant="ghost_tone"
                 size="compact"
-                tooltip="Öffnet die Seite „Konten und Kostenstellen“."
+                tooltip={BOOKING_ACCOUNTS_HINT}
               >
                 Konten ansehen
               </ButtonLink>

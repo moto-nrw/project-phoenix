@@ -21,7 +21,10 @@ import {
   exportFormatOptions,
   exportMenuItems,
 } from "~/components/ui/export-menu";
-import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import {
+  OverflowMenu,
+  type OverflowMenuItem,
+} from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
@@ -212,8 +215,7 @@ export function BillingRunOverviewCard({
     if (!released || document.kind !== "invoice" || isCancelled(document)) {
       return [];
     }
-    const items: { label: string; description: string; onClick: () => void }[] =
-      [];
+    const items: OverflowMenuItem[] = [];
     if (onCancel && !isCredited(document)) {
       items.push({
         label: "Rechnung stornieren",
