@@ -38,5 +38,10 @@ func WithLockTimeout(ctx context.Context, limit time.Duration, fn func(context.C
 	if uow.boundLocks == nil {
 		return fmt.Errorf("%w: lock bound function is required", ErrRuntimeRequired)
 	}
-	return uow.boundLocks(ctx, limit, fn)
+	err = uow.boundLocks(ctx, limit, fn)
+	var exceeded interface{ LockWaitExceeded() }
+	if errors.As(err, &exceeded) {
+		return fmt.Errorf("%w: %w", ErrLockWaitExceeded, err)
+	}
+	return err
 }

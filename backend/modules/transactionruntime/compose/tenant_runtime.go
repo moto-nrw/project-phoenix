@@ -6,7 +6,6 @@ package compose
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/uptrace/bun"
@@ -52,14 +51,7 @@ func bindTenantRuntime(unitOfWork *postgres.PostgresUnitOfWork, err error, retry
 	if err != nil {
 		return tenant.UnitOfWork{}, err
 	}
-	runtime = runtime.WithTransactionDetacher(unitOfWork.ContextWithoutTransaction).WithStatementBound(unitOfWork.BoundStatements).
-		WithLockBound(func(ctx context.Context, limit time.Duration, fn func(context.Context) error) error {
-			err := unitOfWork.BoundLocks(ctx, limit, fn)
-			if postgres.IsLockNotAvailable(err) {
-				return fmt.Errorf("%w: %w", tenant.ErrLockWaitExceeded, err)
-			}
-			return err
-		})
+	runtime = runtime.WithTransactionDetacher(unitOfWork.ContextWithoutTransaction).WithStatementBound(unitOfWork.BoundStatements).WithLockBound(unitOfWork.BoundLocks)
 	return runtime.WithContextAdapters(auditlog.ContextWithTenant, auditlog.ContextWithTransaction), nil
 }
 

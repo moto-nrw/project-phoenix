@@ -323,17 +323,15 @@ func (r *PostgresUnitOfWork) BoundStatements(ctx context.Context, limit time.Dur
 }
 
 // BoundLocks runs fn with lock_timeout set to limit for the active
-// transaction, like BoundStatements. A lock wait the limit ends fails with
-// 55P03 (IsLockNotAvailable).
+// transaction, like BoundStatements. A lock wait the limit ends (55P03,
+// lock_not_available) comes back as protocol.LockNotAvailableError, which
+// tenant.WithLockTimeout reports as tenant.ErrLockWaitExceeded.
 func (r *PostgresUnitOfWork) BoundLocks(ctx context.Context, limit time.Duration, fn func(context.Context) error) error {
-	return boundSetting(ctx, "lock_timeout", limit, fn)
-}
-
-// IsLockNotAvailable reports PostgreSQL's lock_not_available (55P03): a lock
-// wait that lock_timeout ended, or a NOWAIT lock another transaction holds.
-func IsLockNotAvailable(err error) bool {
-	pgErr, ok := operationAs[pgdriver.Error](err)
-	return ok && pgErr.Field('C') == "55P03"
+	err := boundSetting(ctx, "lock_timeout", limit, fn)
+	if pgErr, ok := operationAs[pgdriver.Error](err); ok && pgErr.Field('C') == "55P03" {
+		return protocol.NewLockNotAvailableError(err)
+	}
+	return err
 }
 
 func boundSetting(ctx context.Context, setting string, limit time.Duration, fn func(context.Context) error) error {
