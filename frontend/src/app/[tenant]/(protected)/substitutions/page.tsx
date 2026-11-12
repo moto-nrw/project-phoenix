@@ -486,7 +486,7 @@ function AssignmentFooter({
 }: Readonly<{
   saving: boolean;
   disabled: boolean;
-  /** Was im Formular noch fehlt; leer, solange nur gespeichert wird. */
+  /** Was im Formular noch fehlt; leer, sobald es vollständig ist. */
   disabledReason?: string;
   onClose: () => void;
   onSubmit: () => void;
@@ -549,6 +549,7 @@ function useAssignmentForm(
     setStart(value);
     if (end < value) setEnd(value);
   };
+  const missing = assignmentMissing(groupId, staffId, start, end);
   return {
     values: { groupId, staffId, today, start, end },
     setters: {
@@ -558,8 +559,8 @@ function useAssignmentForm(
       end: setEnd,
     },
     submit: () => onSubmit(groupId, staffId, start, end),
-    complete: Boolean(groupId && staffId && end >= start),
-    missing: assignmentMissing(groupId, staffId, start, end),
+    missing,
+    complete: missing === undefined,
   };
 }
 

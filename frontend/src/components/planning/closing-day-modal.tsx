@@ -45,8 +45,6 @@ export function ClosingDayModal({
   consequences,
   saveLabel = "Speichern",
   saveBlocked = false,
-  saveBlockedReason = "Warten Sie, bis die Auswirkungen unten fertig geladen sind.",
-  saveTooltip,
 }: ClosingDayModalProps) {
   const [startDate, setStartDate] = useState("");
   const [endDate, setEndDate] = useState("");
@@ -177,10 +175,7 @@ export function ClosingDayModal({
             size="md"
             onClick={() => void handleSave()}
             disabled={saving || saveBlocked}
-            disabledReason={
-              saveBlocked && !saving ? saveBlockedReason : undefined
-            }
-            tooltip={saveTooltip ?? defaultSaveTooltip(onOfferCancel, schools)}
+            tooltip={saveTooltip(onOfferCancel, schools)}
           >
             {saving ? "Speichern..." : saveLabel}
           </Button>
@@ -314,10 +309,6 @@ interface ClosingDayModalProps {
   readonly saveLabel?: string;
   /** Holds the save while the consequences are still loading. */
   readonly saveBlocked?: boolean;
-  /** Why `saveBlocked` holds the save, shown on the blocked button (#6751). */
-  readonly saveBlockedReason?: string;
-  /** What saving does, e.g. when it also tells parents (#6751). */
-  readonly saveTooltip?: string;
   /** Opens „Termine absagen“ for the saved range when appointments remain. */
   readonly onOfferCancel?: (range: {
     startDate: string;
@@ -325,15 +316,20 @@ interface ClosingDayModalProps {
   }) => void;
 }
 
-/** Was „Speichern“ auslöst, wenn der Aufrufer keinen eigenen Satz setzt. */
-function defaultSaveTooltip(
+/**
+ * Was „Speichern“ auslöst (#6751). Mit Schulauswahl speichert das Träger-Büro;
+ * dann bekommen Eltern mit gebuchten Ferientagen im Zeitraum eine E-Mail.
+ */
+function saveTooltip(
   onOfferCancel: ClosingDayModalProps["onOfferCancel"],
   schools: ClosingDayModalProps["schools"],
 ): string {
   if (onOfferCancel) {
     return "Speichert den Schließtag und bietet an, Termine darin abzusagen.";
   }
-  if (schools) return "Speichert den Schließtag für die gewählten Schulen.";
+  if (schools) {
+    return "Speichert den Schließtag für die gewählten Schulen und informiert betroffene Eltern.";
+  }
   return "Speichert den Schließtag.";
 }
 

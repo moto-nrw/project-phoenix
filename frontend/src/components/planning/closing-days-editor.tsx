@@ -268,7 +268,7 @@ export function ClosingDaysEditor({
                           label: "Termine absagen",
                           icon: <CalendarX className="h-4 w-4" aria-hidden />,
                           description:
-                            "moto fragt vorher nach und sagt dann die Termine an diesen Tagen ab",
+                            "Sagt nach Rückfrage die Termine dieser Tage ab, ohne Nachricht an Eltern",
                           onClick: () =>
                             setCancelRange({
                               startDate: day.startDate,

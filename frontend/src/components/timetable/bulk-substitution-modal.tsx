@@ -278,31 +278,25 @@ export function BulkSubstitutionModal({
   // Das Backend nimmt höchstens 31 Daten pro Save: gezählt werden die
   // GEWÄHLTEN Tage, nicht die Kalenderspanne.
   const tooManyDates = selectedDates.length > MAX_SELECTED_DATES;
-  // Grund für den gesperrten Save (#6751). Während Speichern oder Laden der
-  // Vorschau bleibt er leer: dann ist der Knopf nur kurz gesperrt.
-  const saveBlockedReason =
-    save.pending || rangeLoading
-      ? undefined
-      : bulkSaveBlockedReason({
-          absentStaffId,
-          rangeValid,
-          rangeError: Boolean(rangeError),
-          selectedDays: selectedDates.length,
-          tooManyDates,
-        });
-
-  const canSave =
-    !save.pending &&
-    absentStaffId !== "" &&
-    rangeValid &&
-    // Nur mit erfolgreich geladener Vorschau des AKTUELLEN Zeitraums: die
-    // globale keepPreviousData-Konfiguration hält beim Zeitraumwechsel die
-    // Tage des alten Zeitraums in data — ein schneller Save würde sonst Tage
-    // außerhalb des neu gewählten Zeitraums senden.
-    !rangeLoading &&
-    !rangeError &&
-    selectedDates.length > 0 &&
-    !tooManyDates;
+  // Was dem Save noch fehlt (#6751). Dieselbe Prüfung sperrt den Knopf, der
+  // Grund steht dann an ihm.
+  const missingForSave = bulkSaveBlockedReason({
+    absentStaffId,
+    fromISO,
+    toISO,
+    rangeValid,
+    rangeError: Boolean(rangeError),
+    selectedDays: selectedDates.length,
+    tooManyDates,
+  });
+  // Nur mit erfolgreich geladener Vorschau des AKTUELLEN Zeitraums: die
+  // globale keepPreviousData-Konfiguration hält beim Zeitraumwechsel die
+  // Tage des alten Zeitraums in data — ein schneller Save würde sonst Tage
+  // außerhalb des neu gewählten Zeitraums senden. Während Speichern oder Laden
+  // ist der Knopf nur kurz gesperrt und nennt keinen Grund.
+  const busy = save.pending || rangeLoading;
+  const canSave = !busy && missingForSave === undefined;
+  const saveBlockedReason = busy ? undefined : missingForSave;
 
   const handleSave = () => {
     if (!canSave) return;
@@ -603,6 +597,8 @@ export function BulkSubstitutionModal({
 
 function bulkSaveBlockedReason(state: {
   absentStaffId: string;
+  fromISO: string;
+  toISO: string;
   rangeValid: boolean;
   rangeError: boolean;
   selectedDays: number;
@@ -610,6 +606,9 @@ function bulkSaveBlockedReason(state: {
 }): string | undefined {
   if (state.absentStaffId === "") {
     return "Wählen Sie zuerst die abwesende Person aus.";
+  }
+  if (state.fromISO === "" || state.toISO === "") {
+    return "Wählen Sie zuerst den ersten und den letzten Tag aus.";
   }
   if (!state.rangeValid) {
     return "Wählen Sie einen kürzeren Zeitraum, höchstens acht Wochen.";

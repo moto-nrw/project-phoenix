@@ -20,6 +20,7 @@ import {
   calendarEmptyLabel,
   calendarFetchRange,
   CalendarOverviewList,
+  NEW_APPOINTMENT_HINT,
   PersonalCalendar,
   PersonalCalendarChrome,
   visibleCalendarEvents,
@@ -1021,7 +1022,7 @@ function StaffCalendarPageInner() {
             size="md"
             className="gap-1.5"
             onClick={handleCreate}
-            tooltip="Öffnet ein leeres Formular für einen neuen Termin."
+            tooltip={NEW_APPOINTMENT_HINT}
           >
             <Plus className="h-4 w-4" aria-hidden />
             Neuer Termin
@@ -1575,7 +1576,6 @@ function StaffCalendarPageInner() {
   );
 }
 
-/** Prüfung vor dem Senden. Schlüssel sind die Feldnamen des Backends. */
 /**
  * Was „Termin speichern“ auslöst (#6751): Eine Änderung gilt immer für die
  * ganze Reihe (das Formular lädt die Reihe, nicht den Einzeltermin), und die
@@ -1586,10 +1586,10 @@ function appointmentSaveHint(
   recurring: boolean,
   notifyParents: boolean,
 ): string {
-  const parents = " und schickt den Eltern eine E-Mail.";
+  const parents = " und schickt den Eltern sofort eine E-Mail.";
   if (!editing) {
     return notifyParents
-      ? `Trägt den Termin bei den Empfängern ein${parents}`
+      ? `Trägt den Termin ein${parents}`
       : "Trägt den Termin bei allen gewählten Empfängern ein.";
   }
   const what = recurring
@@ -1598,6 +1598,7 @@ function appointmentSaveHint(
   return notifyParents ? `${what}${parents}` : `${what} für alle Empfänger.`;
 }
 
+/** Prüfung vor dem Senden. Schlüssel sind die Feldnamen des Backends. */
 function appointmentFieldErrors(
   title: string,
   startDate: string,

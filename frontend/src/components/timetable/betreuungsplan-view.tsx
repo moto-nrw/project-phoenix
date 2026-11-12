@@ -2107,7 +2107,7 @@ function TimetablesContent() {
             label: "Termine im Zeitraum absagen",
             icon: <CalendarX className="h-4 w-4" aria-hidden />,
             description:
-              "Wählt einen Zeitraum, moto fragt vor dem Absagen nach",
+              "Öffnet ein Fenster zum Absagen, Eltern bekommen keine Nachricht",
             onClick: () => setBulkCancelOpen(true),
           },
         ]

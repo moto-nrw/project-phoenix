@@ -1410,7 +1410,7 @@ function CalendarEventDetail({
             </div>
           ) : null}
           {showIcs ? (
-            <ActionHint text="Speichert den Termin als Datei für Ihre Kalender-App.">
+            <ActionHint text="Speichert den Termin als Datei für Ihren Kalender.">
               <a
                 href={`${icsHrefBase}/${encodeURIComponent(
                   event.appointment_id!,
@@ -1477,7 +1477,11 @@ function CalendarEventDetail({
                     onCancel(event);
                     onClose();
                   }}
-                  tooltip="moto fragt vorher nach und sagt den Termin dann für alle Empfänger ab."
+                  tooltip={
+                    event.recurring
+                      ? "moto fragt, ob nur dieser Termin oder die ganze Reihe ausfällt."
+                      : "moto fragt vorher nach und sagt den Termin für alle Empfänger ab."
+                  }
                 >
                   <MotoConceptIcon concept={closingDaysConcept} size={16} />
                   Absagen
@@ -1494,7 +1498,11 @@ function CalendarEventDetail({
                     onDelete(event);
                     onClose();
                   }}
-                  tooltip="moto fragt vorher nach und löscht den Termin dann für alle Empfänger."
+                  tooltip={
+                    event.recurring
+                      ? "moto fragt, ob nur dieser Termin oder die ganze Reihe gelöscht wird."
+                      : "moto fragt vorher nach und löscht den Termin für alle Empfänger."
+                  }
                 >
                   <Trash2 className="h-4 w-4" aria-hidden />
                   Löschen
@@ -1648,7 +1656,7 @@ export function PersonalCalendarChrome({
             size="md"
             className="gap-1.5"
             onClick={onCreate}
-            tooltip="Öffnet ein leeres Formular für einen neuen Termin."
+            tooltip={NEW_APPOINTMENT_HINT}
           >
             <Plus className="h-4 w-4" aria-hidden />
             Neuer Termin
@@ -1678,3 +1686,7 @@ export function PersonalCalendarChrome({
     </PlanningContextBar>
   );
 }
+
+/** Erklärung von „Neuer Termin“, gleich im Kopf der Seite und in der Leiste. */
+export const NEW_APPOINTMENT_HINT =
+  "Öffnet ein leeres Formular für einen neuen Termin.";

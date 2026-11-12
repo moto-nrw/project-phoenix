@@ -392,7 +392,7 @@ function OpenLeftoverActions({
           aria-label={`Entfernen: ${about}`}
           onClick={() => onRemove(leftover)}
           disabled={busy}
-          tooltip="moto fragt vorher nach und nimmt das Kind dann aus dem Regeltermin."
+          tooltip="moto fragt vorher nach und nimmt das Kind an diesen Tagen heraus."
         >
           Entfernen
         </Button>
@@ -404,7 +404,7 @@ function OpenLeftoverActions({
         aria-label={`Bleibt so: ${about}`}
         onClick={() => onKeep(leftover)}
         disabled={busy}
-        tooltip="Lässt das Kind im Regeltermin und legt den Hinweis zu den entschiedenen."
+        tooltip="Lässt das Kind im Regeltermin und schließt den Hinweis."
       >
         Bleibt so
       </Button>
