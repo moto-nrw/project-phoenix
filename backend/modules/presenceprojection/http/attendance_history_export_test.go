@@ -220,3 +220,40 @@ func TestAttendanceExportRows_SortsChronologicallyAcrossSources(t *testing.T) {
 	assert.Equal(t, "15.07.2026", rows[2].Values[attendanceColumnDate])
 	assert.Equal(t, "Nachmittagsbetreuung", rows[2].Values[attendanceColumnOffering])
 }
+
+// A child who goes to class and comes back into the same slot keeps the stay
+// before class as its own row. The row names the slot it belonged to, not
+// "Ohne Zuordnung" (#5710).
+func TestAttendanceExportRows_StayBeforeClassNamesItsSlot(t *testing.T) {
+	t.Parallel()
+
+	date := calendar.NewDate(2026, 11, 4)
+	at := func(hour, minute int) time.Time { return time.Date(2026, 11, 4, hour, minute, 0, 0, calendar.Berlin) }
+	beforeClass := at(13, 0)
+	leftForClass := at(13, 30)
+	back := at(14, 30)
+	class := studentpresence.CheckoutReasonClass
+	rows := attendanceExportRows([]*studentpresence.HistorySlot{{
+		Instance: &studentpresence.HistorySlotInstance{
+			Date: date, Title: "Nachmittag",
+			StartTime: time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
+			EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
+		},
+		// The return re-stamped the slot's check-in.
+		Attendance: &studentpresence.HistorySlotAttendance{Status: studentpresence.SessionAttendancePresent, CheckedInAt: &back},
+	}}, []*studentpresence.Attendance{
+		{Date: date.String(), CheckInTime: beforeClass, CheckOutTime: &leftForClass, CheckOutReason: &class},
+		{Date: date.String(), CheckInTime: back},
+	}, studentpresence.NewAttendanceRecorders(nil))
+
+	require.Len(t, rows, 2)
+	stay := rows[1].Values // the stay at 13:00 sorts after the slot row at 12:00
+	assert.Equal(t, "Nachmittag", stay[attendanceColumnOffering])
+	assert.Equal(t, "Gebucht", stay[attendanceColumnAssignment])
+	assert.Equal(t, "13:00", stay[attendanceColumnCheckIn])
+	assert.Equal(t, "13:30", stay[attendanceColumnCheckOut])
+	assert.Equal(t, attendanceWentToClassNote, stay[attendanceColumnNote])
+	for _, row := range rows {
+		assert.NotEqual(t, "Ohne Zuordnung", row.Values[attendanceColumnOffering])
+	}
+}

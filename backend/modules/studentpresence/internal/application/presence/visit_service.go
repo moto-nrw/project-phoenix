@@ -246,6 +246,9 @@ func (s *service) prepareVisitRevision(ctx context.Context, visit *studentpresen
 	if existing.StudentID != previous.StudentID {
 		return nil, &ActiveError{Op: "UpdateVisit", Err: studentpresence.ErrVisitWriteConflict}
 	}
+	if err := s.ensureRevisionDoesNotOverlap(ctx, existing, visit); err != nil {
+		return nil, err
+	}
 	return existing, nil
 }
 

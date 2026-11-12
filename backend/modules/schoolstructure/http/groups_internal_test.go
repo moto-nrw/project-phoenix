@@ -3,10 +3,14 @@
 package schoolstructurehttp
 
 import (
+	"context"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
 )
 
 // =============================================================================
@@ -95,3 +99,43 @@ func TestTeacherResponse_Fields(t *testing.T) {
 }
 
 // NOTE: NewResource requires non-nil services, tested via integration tests in groups_test.go
+
+type careDayRule struct {
+	holds bool
+	calls int
+}
+
+func (c *careDayRule) InClassStillHolds(context.Context) (bool, error) {
+	c.calls++
+	return c.holds, nil
+}
+
+// After the care day a child still "Im Unterricht" reads "Abwesend", like in
+// the staff views (#5710). Before it the label stays.
+func TestEndInClassAfterCareDay(t *testing.T) {
+	t.Parallel()
+	list := func() []GroupStudentResponse {
+		return []GroupStudentResponse{
+			{ID: 1, Location: studentpresence.InClassLocationLabel},
+			{ID: 2, Location: "Anwesend - Raum 1"},
+			{ID: 3, Location: studentpresence.InClassLocationLabel},
+		}
+	}
+
+	over := &careDayRule{holds: false}
+	afterEnd := list()
+	require.NoError(t, (&Resource{InClass: over}).endInClassAfterCareDay(t.Context(), afterEnd))
+	assert.Equal(t, studentpresence.AbsentLocationLabel, afterEnd[0].Location)
+	assert.Equal(t, "Anwesend - Raum 1", afterEnd[1].Location)
+	assert.Equal(t, studentpresence.AbsentLocationLabel, afterEnd[2].Location)
+	assert.Equal(t, 1, over.calls, "one settings read per list")
+
+	running := &careDayRule{holds: true}
+	beforeEnd := list()
+	require.NoError(t, (&Resource{InClass: running}).endInClassAfterCareDay(t.Context(), beforeEnd))
+	assert.Equal(t, studentpresence.InClassLocationLabel, beforeEnd[0].Location)
+
+	idle := &careDayRule{}
+	require.NoError(t, (&Resource{InClass: idle}).endInClassAfterCareDay(t.Context(), []GroupStudentResponse{{ID: 4, Location: "Abwesend"}}))
+	assert.Zero(t, idle.calls, "no child in class, no settings read")
+}

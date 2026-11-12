@@ -223,11 +223,13 @@ func attendanceExportRowsWithOptionalActors(slots []*studentpresence.HistorySlot
 	entries := make([]sortableExportRow, 0, len(slots)+len(attendanceRows))
 	notes := checkOutNotesByInstant(attendanceRows)
 	coverageByDate := make(map[calendar.Date][]slotCoverage, len(slots))
+	slotsByDate := make(map[calendar.Date][]*studentpresence.HistorySlot, len(slots))
 	slotCheckOuts := make(map[int64]bool, len(slots))
 	for _, row := range slots {
 		if row == nil || row.Instance == nil || row.Attendance == nil {
 			continue
 		}
+		slotsByDate[calendar.Date(row.Instance.Date)] = append(slotsByDate[calendar.Date(row.Instance.Date)], row)
 		if row.Attendance.CheckedOutAt != nil {
 			slotCheckOuts[row.Attendance.CheckedOutAt.UnixNano()] = true
 		}
@@ -249,14 +251,15 @@ func attendanceExportRowsWithOptionalActors(slots []*studentpresence.HistorySlot
 		})
 	}
 	for _, attendance := range attendanceRows {
-		if sessionCoveredBySlots(coverageByDate[calendar.Date(attendance.Date)], attendance.CheckInTime) &&
-			!classStayLostFromSlots(attendance, slotCheckOuts) {
+		date := calendar.Date(attendance.Date)
+		row, ok := stayExportRow(attendance, coverageByDate[date], slotsByDate[date], slotCheckOuts)
+		if !ok {
 			continue
 		}
 		entries = append(entries, sortableExportRow{
 			date:  calendar.Date(attendance.Date),
 			clock: attendance.CheckInTime.In(calendar.Berlin).Format("15:04:05"),
-			row:   withAttendanceActors(unassignedExportRow(attendance), attendance, recorders),
+			row:   withAttendanceActors(row, attendance, recorders),
 		})
 	}
 	sort.SliceStable(entries, func(i, j int) bool {
@@ -302,6 +305,52 @@ func attendanceStayNote(row *studentpresence.Attendance) string {
 // this stay needs its own row or the export would hide the class (#5656).
 func classStayLostFromSlots(row *studentpresence.Attendance, slotCheckOuts map[int64]bool) bool {
 	return row.LeftForClass() && row.CheckOutTime != nil && !slotCheckOuts[row.CheckOutTime.UnixNano()]
+}
+
+// stayExportRow is the export row of a stay no slot row shows: an observed
+// session no slot claims, or the stay before class a return into the same slot
+// overwrote. ok is false for a stay its slot row already covers.
+func stayExportRow(
+	stay *studentpresence.Attendance, coverages []slotCoverage, slotsOfDay []*studentpresence.HistorySlot, slotCheckOuts map[int64]bool,
+) (lists.Row, bool) {
+	if !classStayLostFromSlots(stay, slotCheckOuts) {
+		if sessionCoveredBySlots(coverages, stay.CheckInTime) {
+			return lists.Row{}, false
+		}
+		return unassignedExportRow(stay), true
+	}
+	if slot := slotHoldingStay(slotsOfDay, stay); slot != nil {
+		return classStayExportRow(slot, stay), true
+	}
+	return unassignedExportRow(stay), true
+}
+
+// slotHoldingStay is the present slot whose window holds the stay's check-in:
+// the slot the child was in before going to class.
+func slotHoldingStay(slots []*studentpresence.HistorySlot, stay *studentpresence.Attendance) *studentpresence.HistorySlot {
+	clock := stay.CheckInTime.In(calendar.Berlin).Format("15:04")
+	for _, slot := range slots {
+		if slot.Attendance.Status != studentpresence.SessionAttendancePresent {
+			continue
+		}
+		if slot.Instance.StartTime.Format("15:04") <= clock && clock < slot.Instance.EndTime.Format("15:04") {
+			return slot
+		}
+	}
+	return nil
+}
+
+// classStayExportRow names the slot a stay before class belonged to (#5710).
+// A return into the same slot re-stamps the slot's times, so the stay keeps its
+// own row; it reads as part of that offering with "Zum Unterricht gegangen",
+// not as "Ohne Zuordnung".
+func classStayExportRow(slot *studentpresence.HistorySlot, stay *studentpresence.Attendance) lists.Row {
+	row := slotExportRow(slot, nil)
+	row.Values[attendanceColumnStatus] = "Anwesend"
+	row.Values[attendanceColumnCheckIn] = exportOptionalTime(&stay.CheckInTime)
+	row.Values[attendanceColumnCheckOut] = exportOptionalTime(stay.CheckOutTime)
+	row.Values[attendanceColumnNote] = attendanceWentToClassNote
+	return row
 }
 
 func slotCheckOutNote(row *studentpresence.HistorySlot, notes map[int64]string) string {

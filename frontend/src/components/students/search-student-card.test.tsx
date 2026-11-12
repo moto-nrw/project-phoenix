@@ -3,7 +3,10 @@ import { useState } from "react";
 import { render, screen, fireEvent, act } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 
-import { SearchStudentCard } from "./search-student-card";
+import {
+  SearchStudentCard,
+  SearchStudentStatusBadge,
+} from "./search-student-card";
 import { StudentCardClockProvider } from "./student-card-clock";
 import type { Student } from "~/lib/student-helpers";
 
@@ -269,5 +272,38 @@ describe("SearchStudentCard", () => {
         atFifteen,
       );
     });
+  });
+});
+
+describe("SearchStudentStatusBadge", () => {
+  const badge = (location: string) =>
+    render(
+      <SearchStudentStatusBadge
+        student={
+          {
+            ...student,
+            current_location: location,
+            location_since: "2026-09-09T11:15:00+02:00",
+          } as Student
+        }
+        isToday
+        userGroups={EMPTY}
+        groupRooms={EMPTY}
+        supervisedRooms={EMPTY}
+      />,
+    );
+
+  // #5710: wie die Kindakte nennt die Kindersuche, seit wann ein Kind im
+  // Unterricht ist.
+  it("zeigt bei „Im Unterricht“ die Uhrzeit der Abmeldung", () => {
+    badge("Im Unterricht");
+    expect(screen.getByText("Im Unterricht")).toBeInTheDocument();
+    expect(screen.getByText("seit 11:15 Uhr")).toBeInTheDocument();
+  });
+
+  it("zeigt bei einem Raum weiter keine Uhrzeit", () => {
+    badge("Anwesend - Raum 1");
+    expect(screen.getByText(/Raum 1/)).toBeInTheDocument();
+    expect(screen.queryByText(/^seit /)).not.toBeInTheDocument();
   });
 });

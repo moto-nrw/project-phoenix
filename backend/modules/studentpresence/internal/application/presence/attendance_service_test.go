@@ -693,6 +693,7 @@ func TestToggleStudentAttendance_IoTDevice(t *testing.T) {
 		// ASSERT: Should fail - no active group for device
 		require.Error(t, err)
 		assert.Contains(t, err.Error(), "device must have an active group")
+		assert.ErrorIs(t, err, activeService.ErrNoActiveSession, "the kiosk contract answers a missing session with its 404 code (#5710)")
 	})
 }
 
