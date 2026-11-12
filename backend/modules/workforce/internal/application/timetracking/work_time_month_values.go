@@ -39,8 +39,11 @@ func (k monthKey) before(o monthKey) bool {
 }
 
 type monthAggregates struct {
-	target           int
-	targetToDate     int
+	target       int
+	targetToDate int
+	// hasTarget: a maintained Soll source prices at least one day of the
+	// month (DayTargetResolver.HasSource, #6887).
+	hasTarget        bool
 	actual           int
 	creditedSick     int
 	creditedVacation int

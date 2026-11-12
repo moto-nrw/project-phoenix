@@ -68,7 +68,10 @@ type TimeTrackingOverviewRow struct {
 	// EmploymentType is "" when the staff member has none recorded.
 	EmploymentType string `json:"employment_type"`
 	SollMinutes    int    `json:"soll_minutes"`
-	IstMinutes     int    `json:"ist_minutes"`
+	// HasTarget is false when no Soll is maintained for the month; the
+	// Monatskarte's HasTarget (#6887).
+	HasTarget  bool `json:"has_target"`
+	IstMinutes int  `json:"ist_minutes"`
 	// BalanceMinutes is the authoritative closing balance: frozen for an
 	// actively closed month, live otherwise.
 	BalanceMinutes        int     `json:"balance_minutes"`
@@ -400,6 +403,7 @@ func (s *staffOverviewService) overviewRow(ctx context.Context, monthSvc WorkTim
 	row := TimeTrackingOverviewRow{
 		StaffID:        staff.ID,
 		SollMinutes:    summary.TargetMinutesToDate,
+		HasTarget:      summary.HasTarget,
 		IstMinutes:     summary.ActualMinutes,
 		BalanceMinutes: balanceMinutes,
 		RemainingVacationDays: s.remainingVacationDays(
