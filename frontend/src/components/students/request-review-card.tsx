@@ -430,7 +430,7 @@ export function RequestReviewCard({
                   variant="outline"
                   size="md"
                   disabled={busy}
-                  tooltip="Lehnt die Anfrage mit Ihrer Begründung ab, die Eltern sehen sie."
+                  tooltip="Lehnt die Anfrage sofort ab, die Eltern sehen Ihre Begründung."
                   onClick={onReject}
                 >
                   Ablehnen

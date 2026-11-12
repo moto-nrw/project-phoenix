@@ -889,7 +889,7 @@ export function PlannedStatusDaysModal({
     if (hasSelectionTooWide)
       return "Ein Zeitraum darf höchstens 366 Tage umfassen.";
     if (conflictCheckFailed)
-      return "Laden Sie zuerst die schon eingetragenen Tage neu.";
+      return "Wählen Sie die Tage neu, die Prüfung hat nicht geklappt.";
     if (isCheckingConflicts || !checkedCurrentSelection) return undefined;
     if (partialConflicts.length > 0 && selectableDateKeys.length === 0)
       return "An allen gewählten Tagen ist schon etwas eingetragen.";

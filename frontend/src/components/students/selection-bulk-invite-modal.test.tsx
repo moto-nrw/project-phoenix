@@ -136,9 +136,11 @@ describe("SelectionBulkInviteModal", () => {
 
     resolvePreview!(result({ resent: 1 }));
 
-    expect(
-      await screen.findByRole("button", { name: "1 Elternteil einladen" }),
-    ).toBeEnabled();
+    const invite = await screen.findByRole("button", {
+      name: "1 Elternteil einladen",
+    });
+    expect(invite).toBeEnabled();
+    expect(invite).not.toHaveAttribute("aria-disabled");
     expect(bulkInvite).toHaveBeenLastCalledWith(["4", "9"], {
       dryRun: true,
       resendOpen: true,

@@ -157,7 +157,7 @@ function OfferingButton(
         tooltip="Zeigt die Folgen dieses Angebots, gespeichert wird noch nichts."
         disabledReason={
           isFull
-            ? "Das Angebot ist voll. Wählen Sie ein anderes Angebot."
+            ? "Wählen Sie ein anderes Angebot, dieses ist voll."
             : undefined
         }
         onClick={() => props.onSelectOffering(props.offering.offering_id)}

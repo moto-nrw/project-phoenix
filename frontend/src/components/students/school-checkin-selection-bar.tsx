@@ -6,8 +6,10 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { SelectionBar } from "~/components/ui/selection-bar";
 import {
   CHECKIN_HINTS,
-  leftOutLabel,
   selectAllBlockedReason,
+} from "~/components/students/school-checkin-hints";
+import {
+  leftOutLabel,
   type SelectAllControl,
 } from "~/components/students/school-checkin-select-all";
 import { SpinnerIcon } from "~/components/ui/icons";

@@ -151,7 +151,7 @@ export function useEarlyCheckoutDialog(
             type="button"
             variant={target?.room ? "danger" : "primary"}
             size="md"
-            tooltip="Meldet das Kind ab und speichert den Grund beim Kind."
+            tooltip="Meldet das Kind ab und speichert einen eingetragenen Grund."
             onClick={() => confirm(note)}
           >
             Geht nach Hause

@@ -242,6 +242,7 @@ describe("CareWeeklyPlanEditForm", () => {
         vi.advanceTimersByTime(60_000);
       });
       expect(button).toBeEnabled();
+      expect(button).not.toHaveAttribute("aria-disabled");
     },
   );
 
@@ -685,6 +686,7 @@ describe("CareWeeklyPlanEditForm", () => {
     expect(saveOffering).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(screen.getByText(/Ich bestätige: Das Angebot gilt ab/));
     expect(saveOffering).toBeEnabled();
+    expect(saveOffering).not.toHaveAttribute("aria-disabled");
     fireEvent.click(saveOffering);
 
     await waitFor(() => {

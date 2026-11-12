@@ -3,7 +3,7 @@
 import { between } from "~/lib/hooks/use-media-query";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Check, CheckSquare } from "lucide-react";
-import { CHECKIN_HINTS } from "~/components/students/school-checkin-select-all";
+import { CHECKIN_HINTS } from "~/components/students/school-checkin-hints";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import { useFloatingFabOffset } from "~/lib/hooks/use-floating-fab-offset";
 import { Button } from "~/components/ui/button";

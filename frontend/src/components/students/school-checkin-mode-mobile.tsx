@@ -9,8 +9,10 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import {
   CHECKIN_HINTS,
-  leftOutLabel,
   selectAllBlockedReason,
+} from "~/components/students/school-checkin-hints";
+import {
+  leftOutLabel,
   type SelectAllControl,
 } from "~/components/students/school-checkin-select-all";
 import { SpinnerIcon } from "~/components/ui/icons";
@@ -241,9 +243,7 @@ export function SchoolCheckinModeMobile({
               aria-label="Auswahl aufheben"
               tooltip={CHECKIN_HINTS.clearSelection}
               disabledReason={
-                selectedCount === 0
-                  ? "Es ist noch kein Kind ausgewählt."
-                  : undefined
+                selectedCount === 0 ? CHECKIN_HINTS.noneSelected : undefined
               }
             >
               <X className="size-3.5" aria-hidden />

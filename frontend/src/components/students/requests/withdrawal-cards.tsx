@@ -67,7 +67,7 @@ export function OpenWithdrawalCard({
             type="button"
             variant="outline_danger"
             size="md"
-            tooltip="Löscht das Kind mit seinen Daten, moto fragt vorher nach."
+            tooltip="Löscht das Kind samt Eltern-Zugang zu ihm, moto fragt vorher nach."
             onClick={() => openDeletionDialog(row)}
           >
             Kind sofort löschen
