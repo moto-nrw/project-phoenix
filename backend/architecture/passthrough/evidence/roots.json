@@ -4622,13 +4622,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (n carePlanPickupChanges) NotifyPickupChangeApproved(ctx context.Context, notice careplan.PickupChangeNotice) error {\n\treturn n.notifier.NotifyPickupChanged(ctx, deliveryContract.PickupChangeReport{TenantID: notice.TenantID, StudentID: notice.StudentID, Date: notice.Date, PickupTime: notice.PickupTime, Withdrawn: notice.Withdrawn, ActorAccountID: notice.ReviewerAccountID, Revision: notice.RequestID})\n}",
-      "form": "unclassified-evidence",
-      "id": "roots/owners/carePlanPickupChanges.NotifyPickupChangeApproved",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
       "evidence": "func (r carePlanRecords) CreateArrivalException(ctx context.Context, value timetablePorts.CareArrivalException) (timetablePorts.CareArrivalException, error) {\n\tcreated, err := r.capability.CreateArrivalException(ctx, CareArrivalExceptionFromRows(value))\n\treturn CareArrivalExceptionToRows(created), carePlanScheduleError(err)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/carePlanRecords.CreateArrivalException",
@@ -6942,6 +6935,20 @@
       "evidence": "func (a pickupApprovalAdapter) ValidatePickupPerson(ctx context.Context, studentID, guardianProfileID int64) error {\n\tif a.s.PickupPermissionApprovals == nil {\n\t\treturn errors.New(\"schedule: pickup permission approvals not configured\")\n\t}\n\treturn a.s.ValidatePickupPerson(ctx, studentID, guardianProfileID)\n}",
       "form": "guard-debt",
       "id": "roots/owners/pickupApprovalAdapter.ValidatePickupPerson",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r pickupChangeTeamReach) NotifyPickupChanged(ctx context.Context, push careplan.PickupChangePush) error {\n\treturn r.push.Notify(ctx, StaffPush{TenantID: tenant.FromContext(ctx), Type: deliveryContract.NotificationStudentPickupChanged, IdempotencyKey: fmt.Sprintf(\"student_pickup_changed:%d:%t:%d\", push.RequestID, push.Withdrawn, r.now().UnixNano()), RelatedType: \"care_schedule_request\", RelatedID: push.RequestID, Title: push.Title, Body: push.Body, DeepLink: push.DeepLink, AccountIDs: push.RecipientAccountIDs})\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/pickupChangeTeamReach.NotifyPickupChanged",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r pickupChangeTeamReach) ResponsibleAccountIDs(ctx context.Context, studentID, excludedAccountID int64) ([]int64, error) {\n\tif r.staff == nil {\n\t\treturn nil, errors.New(\"pickup change team: responsible staff are not configured\")\n\t}\n\taccounts, err := r.staff.ResponsibleStaffAccountIDs(ctx, studentID, deliveryContract.NotificationStudentPickupChanged, []int64{excludedAccountID})\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"pickup change team: responsible staff: %w\", err)\n\t}\n\treturn accounts, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/pickupChangeTeamReach.ResponsibleAccountIDs",
       "owner": "roots"
     },
     {

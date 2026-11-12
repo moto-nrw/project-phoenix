@@ -415,6 +415,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/api/students/{id}/partial-absences/{partialAbsenceId}"}:    notCaptured,
 	{http.MethodDelete, "/api/students/{id}/photo"}:                               notCaptured,
 	{http.MethodPost, "/api/students/{id}/photo"}:                                 notCaptured,
+	{http.MethodPost, "/api/students/{id}/pickup-change-notices/read"}:            notCaptured,
 	{http.MethodPost, "/api/students/{id}/pickup-exceptions"}:                     notCaptured,
 	{http.MethodDelete, "/api/students/{id}/pickup-exceptions/{exceptionId}"}:     notCaptured,
 	{http.MethodPut, "/api/students/{id}/pickup-exceptions/{exceptionId}"}:        notCaptured,

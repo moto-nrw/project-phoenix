@@ -94,7 +94,7 @@ func TestCareDecisionTellsTheOtherGuardian(t *testing.T) {
 func careServiceWithCoGuardianEmitter(t *testing.T, f *careFixture, sharedWith []int64) carerequests.Service {
 	t.Helper()
 	emitter := f.emitter(t, messagingOnSettings{}, testpkg.NewRecordingBroadcaster())
-	return owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+	return owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(nil,
 		f.reposCare.CarePlan(), f.persons,
 		f.schedules.Arrivals, f.schedules.Pickups, newPickupChangePresence(t, f.db), f.autoExcusal,
 		f.reposCare.CarePlan(),

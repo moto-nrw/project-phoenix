@@ -35,10 +35,3 @@ type CareScheduleBroadcaster interface {
 type GuardianAccess interface {
 	GuardianHasChildAccess(ctx context.Context, studentID, guardianAccountID int64) (bool, error)
 }
-
-// PickupChangeNotice and PickupChangeNotifier tell the child's team about an
-// approved or taken-back one-day pickup time (#6855).
-type (
-	PickupChangeNotice   = careplanNative.PickupChangeNotice
-	PickupChangeNotifier = careplanNative.PickupChangeNotifier
-)

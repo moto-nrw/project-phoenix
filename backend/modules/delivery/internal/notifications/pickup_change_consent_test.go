@@ -1,6 +1,7 @@
-// The changed pickup time (#6855) reaches the responsible staff without a
-// prior opt-in: it is on until a person switches it off, and only for whoever
-// may read the child's pickup times. FilterDeliverable is the shared rule.
+// The changed pickup time (#6855) reaches the staff responsible for the child
+// who may read its pickup times. Responsibility and the right decide who gets
+// the unread marker in moto; the personal "off" only stops the device
+// notification, which the root's staff push filters (FilterNotOptedOut).
 package notifications_test
 
 import (
@@ -10,7 +11,6 @@ import (
 	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/notifications"
 	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
-	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -26,71 +26,61 @@ func TestStudentPickupChangedNoticeFollowsTheRight(t *testing.T) {
 	assert.False(t, def.SchoolPortal, "a pickup time is OGS work, not moto schule")
 }
 
-func TestFilterDeliverableDefaultOnNeedsNoOptInButTheRight(t *testing.T) {
+func TestFilterPermittedKeepsWhoHoldsTheRight(t *testing.T) {
 	t.Parallel()
-	const reader, declined, withoutRight, otherSchool = int64(501), int64(502), int64(503), int64(504)
-	repo := &fakePreferenceRepo{optedOut: map[string][]int64{notifications.TypeStudentPickupChanged: {declined}}}
-	accounts := fakeAccountPermissions{
-		reader:       {permissions.UsersRead},
-		declined:     {permissions.UsersRead},
-		withoutRight: {permissions.StudentsRead},
-	}
-	svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, accounts, securityruntime.HasPermission)
+	const reader, withoutRight, otherSchool = int64(501), int64(503), int64(504)
+	accounts := fakeAccountPermissions{reader: {permissions.UsersRead}, withoutRight: {permissions.StudentsRead}}
+	svc := notifications.NewPreferenceService(&fakePreferenceRepo{}, allSettingsOn(), nil, accounts, securityruntime.HasPermission)
 	ctx := tenant.WithTenantID(context.Background(), 9)
 
-	got, err := svc.FilterDeliverable(ctx, notifications.TypeStudentPickupChanged, []int64{reader, declined, withoutRight, otherSchool})
+	got, err := svc.FilterPermitted(ctx, notifications.TypeStudentPickupChanged, []int64{reader, withoutRight, otherSchool})
 	require.NoError(t, err)
-	assert.Equal(t, []int64{reader}, got, "on by default, minus who switched it off and who may not read pickup times")
+	assert.Equal(t, []int64{reader}, got)
 
-	got, err = svc.FilterDeliverable(context.Background(), notifications.TypeStudentPickupChanged, []int64{reader})
+	got, err = svc.FilterPermitted(context.Background(), notifications.TypeStudentPickupChanged, []int64{reader})
 	require.NoError(t, err)
 	assert.Empty(t, got, "without a school nobody holds the right")
-}
 
-func TestFilterDeliverableKeepsOptInTypesConsentFirst(t *testing.T) {
-	t.Parallel()
-	repo := &fakePreferenceRepo{optedIn: map[string][]int64{notifications.TypeStudentAbsenceReported: {601}}}
-	svc := notifications.NewPreferenceService(repo, allSettingsOn(), nil, fakeAccountPermissions{}, securityruntime.HasPermission)
-
-	got, err := svc.FilterDeliverable(tenant.WithTenantID(context.Background(), 9), notifications.TypeStudentAbsenceReported, []int64{601, 602})
+	got, err = svc.FilterPermitted(ctx, notifications.TypeStudentAbsenceReported, []int64{reader, withoutRight})
 	require.NoError(t, err)
-	assert.Equal(t, []int64{601}, got)
+	assert.Equal(t, []int64{reader, withoutRight}, got, "a type without a right keeps everyone")
 
-	_, err = svc.FilterDeliverable(context.Background(), "not_a_type", []int64{601})
+	_, err = svc.FilterPermitted(ctx, "not_a_type", []int64{reader})
 	require.ErrorIs(t, err, notifications.ErrUnknownNotificationType)
 }
 
-// TestPickupChangeReachesOnlyTheChildsTeam resolves recipients through the
-// shared resolver and the real consent rule: the child's group team and the
-// office hear about it without opting in; the team of another group, a
-// person who switched it off and the family itself do not.
+// TestPickupChangeReachesOnlyTheChildsTeam: the child's group team and the
+// office are responsible; the team of another group, a person without the
+// right and the person who decided are not. Someone who switched the type
+// off still gets the marker, and on-duty rules do not apply to it.
 func TestPickupChangeReachesOnlyTheChildsTeam(t *testing.T) {
 	t.Parallel()
-	const declinedStaff, declinedAccount = int64(94), int64(105)
+	const declinedStaff, declinedAccount, guestStaff, guestAccount = int64(94), int64(105), int64(95), int64(106)
 	repo := &fakePreferenceRepo{optedOut: map[string][]int64{notifications.TypeStudentPickupChanged: {declinedAccount}}}
 	accounts := fakeAccountPermissions{
 		absenceAccountA: {permissions.UsersRead}, absenceAccountB: {permissions.UsersRead},
-		absenceAdmin: {"*:*"}, declinedAccount: {permissions.UsersRead},
+		absenceAdmin: {"*:*"}, declinedAccount: {permissions.UsersRead}, guestAccount: {permissions.StudentsRead},
+		absenceActorAcct: {permissions.UsersRead},
 	}
 	preferences := notifications.NewPreferenceService(repo, allSettingsOn(), nil, accounts, securityruntime.HasPermission)
 	resolver := notifications.NewStaffRecipientResolver(preferences,
 		&fakeStudentReader{groups: map[int64]int64{absenceStudentA: absenceGroupA, absenceStudentB: absenceGroupB}},
-		&fakeGroupReader{staffByGroup: map[int64][]int64{absenceGroupA: {absenceStaffA, declinedStaff}, absenceGroupB: {absenceStaffB}}},
+		&fakeGroupReader{staffByGroup: map[int64][]int64{absenceGroupA: {absenceStaffA, declinedStaff, guestStaff}, absenceGroupB: {absenceStaffB}}},
 		&fakeStaffAccountReader{accounts: map[int64]int64{
-			absenceStaffA: absenceAccountA, absenceStaffB: absenceAccountB, declinedStaff: declinedAccount, absenceAdminStaff: absenceAdmin,
+			absenceStaffA: absenceAccountA, absenceStaffB: absenceAccountB, declinedStaff: declinedAccount,
+			guestStaff: guestAccount, absenceAdminStaff: absenceAdmin,
 		}},
-		&fakeAdminReader{ids: []int64{absenceAdmin}},
-		&fakeOnDutySetting{},
+		&fakeAdminReader{ids: []int64{absenceAdmin, absenceActorAcct}},
+		&fakeOnDutySetting{enabled: true},
 		&fakeDutyReader{},
 	)
-	capture := &captureNotifier{}
-	producer := notifications.NewAbsenceNotifier(capture, resolver, nil, nil).(notifications.PickupChangeNotifier)
+	responsible, ok := resolver.(interface {
+		ResponsibleStaffAccountIDs(context.Context, int64, string, []int64) ([]int64, error)
+	})
+	require.True(t, ok)
 
-	require.NoError(t, producer.NotifyPickupChanged(tenant.WithTenantID(context.Background(), absenceTenant), notifications.PickupChangeReport{
-		TenantID: absenceTenant, StudentID: absenceStudentA, Date: calendar.NewDate(2099, 3, 2), PickupTime: "14:30", ActorAccountID: absenceActorAcct,
-	}))
-
-	require.Len(t, capture.events, 1)
-	assert.Equal(t, []int64{absenceAccountA, absenceAdmin}, capture.events[0].Audience.StaffAccountIDs)
-	assert.Equal(t, absenceTenant, capture.events[0].Audience.TenantID)
+	got, err := responsible.ResponsibleStaffAccountIDs(tenant.WithTenantID(context.Background(), absenceTenant),
+		absenceStudentA, notifications.TypeStudentPickupChanged, []int64{absenceActorAcct})
+	require.NoError(t, err)
+	assert.Equal(t, []int64{absenceAccountA, absenceAdmin, declinedAccount}, got)
 }

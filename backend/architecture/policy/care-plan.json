@@ -250,6 +250,10 @@
       "write_owner": "care-plan"
     },
     {
+      "name": "schedule.pickup_change_team_notices",
+      "write_owner": "care-plan"
+    },
+    {
       "name": "schedule.student_arrival_exceptions",
       "write_owner": "care-plan"
     },

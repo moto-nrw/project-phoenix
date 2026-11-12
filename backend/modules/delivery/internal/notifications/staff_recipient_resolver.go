@@ -10,8 +10,7 @@ import (
 
 // StaffRecipientRequest describes a child-related staff notification. The
 // resolver builds recipients from responsibility first, then applies personal
-// consent (FilterDeliverable: opt-in, or default-on with the type's
-// permission) and the tenant's on-duty rule.
+// consent and the tenant's on-duty rule.
 type StaffRecipientRequest struct {
 	StudentIDs         []int64
 	NotificationType   string
@@ -130,7 +129,7 @@ func (r *staffRecipientResolver) Resolve(ctx context.Context, request StaffRecip
 		return nil, nil
 	}
 
-	optedIn, err := r.preferences.FilterDeliverable(ctx, request.NotificationType, sortedAccountIDs(visibleByAccount))
+	optedIn, err := r.preferences.FilterOptedIn(ctx, request.NotificationType, sortedAccountIDs(visibleByAccount))
 	if err != nil {
 		return nil, err
 	}
@@ -140,6 +139,28 @@ func (r *staffRecipientResolver) Resolve(ctx context.Context, request StaffRecip
 	}
 
 	return staffRecipientScopes(visibleByAccount, optedIn), nil
+}
+
+// ResponsibleStaffAccountIDs lists the staff responsible for one child who
+// may hear about the type, without the excluded accounts. Unlike Resolve it
+// applies neither the personal choice nor the on-duty rule: an unread marker
+// in moto reaches everyone responsible, and the device notification filters
+// the people who switched the type off (#6855).
+func (r *staffRecipientResolver) ResponsibleStaffAccountIDs(ctx context.Context, studentID int64, notificationType string, excludedAccountIDs []int64) ([]int64, error) {
+	if !r.configured() || studentID <= 0 {
+		return nil, nil
+	}
+	visibleByAccount, err := r.resolveVisibility(ctx, []int64{studentID})
+	if err != nil {
+		return nil, err
+	}
+	for _, accountID := range excludedAccountIDs {
+		delete(visibleByAccount, accountID)
+	}
+	if len(visibleByAccount) == 0 {
+		return nil, nil
+	}
+	return r.preferences.FilterPermitted(ctx, notificationType, sortedAccountIDs(visibleByAccount))
 }
 
 func (r *staffRecipientResolver) configured() bool {

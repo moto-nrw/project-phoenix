@@ -115,32 +115,9 @@ type RequestReviewPolicy interface {
 
 // NewCareScheduleRequestServiceWithPickupChangesAndPolicy requires the
 // production review policy at construction, so missing wiring cannot widen
-// reviewer access.
+// reviewer access. pickupChanges tells the child's team about an approved
+// one-day pickup time inside the decision (#6855); nil tells nobody.
 func NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
-	requestRecords RequestRecords,
-	people RequestPeople,
-	arrival RequestArrivalPlans,
-	pickup RequestPickupPlans,
-	attendance PickupChangePresence,
-	pickupAutoExcusal careplan.PickupAutoExcusal,
-	dayLocker careplan.CareDayLocker,
-	userContext CareRequestStaff,
-	emitter eventContract.Emitter,
-	broadcaster realtime.Broadcaster,
-	reviewPolicy RequestReviewPolicy,
-	permissions func(context.Context) []string,
-	events peopleValues.ParentRequestEvents,
-	logger *slog.Logger,
-	studentAudit peoplePorts.StudentChangeRecorder,
-	options ...CareRequestOption,
-) carerequests.Service {
-	return buildCareScheduleRequestService(nil, requestRecords, people, arrival, pickup, attendance, pickupAutoExcusal, dayLocker,
-		userContext, emitter, broadcaster, reviewPolicy, permissions, events, logger, studentAudit, options...)
-}
-
-// buildCareScheduleRequestService is the constructor with the staff notice
-// about an approved one-day pickup time (#6855); nil sends none.
-func buildCareScheduleRequestService(
 	pickupChanges careplan.PickupChangeNotifier,
 	requestRecords RequestRecords,
 	people RequestPeople,
@@ -257,7 +234,9 @@ func newCareRequestEffects(
 	shares eventContract.ShareVisibilityResolver,
 	pickupChanges careplan.PickupChangeNotifier,
 ) (compose.RequestMessenger, compose.CareRequestEffects, error) {
-	ports := compose.CareRequestEffectPorts{Records: s.RequestRecords, Students: requestSubmissionAdapter{s}, Shares: shares, PickupChanges: pickupChanges, Logger: s.Logger}
+	ports := compose.CareRequestEffectPorts{
+		Records: s.RequestRecords, Students: requestSubmissionAdapter{s}, Shares: shares, PickupChanges: pickupChanges, Logger: s.Logger,
+	}
 	var messenger compose.RequestMessenger
 	if emitter != nil {
 		messenger = NewExcusedRequestMessenger(emitter)

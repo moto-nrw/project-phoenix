@@ -11,7 +11,6 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
 	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
-	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 	"github.com/moto-ogs/project-phoenix/realtime"
 	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
@@ -104,25 +103,5 @@ func (n excusedAbsenceNotifier) NotifyAbsenceReported(ctx context.Context, repor
 	return n.notifier.NotifyAbsenceReported(ctx, deliveryCompose.AbsenceReport{
 		TenantID: report.TenantID, StudentIDs: report.StudentIDs, Status: report.Status, Dates: dates,
 		FromParent: report.FromParent, ActorAccountID: report.ActorAccountID, ExcludedAccountIDs: report.ExcludedAccountIDs,
-	})
-}
-
-// carePlanPickupChanges hands approved or taken-back one-day pickup times to
-// the Delivery producer (#6855).
-type carePlanPickupChanges struct {
-	notifier deliveryContract.PickupChangeNotifier
-}
-
-func bindCarePlanPickupChanges(notifier deliveryContract.PickupChangeNotifier) careplan.PickupChangeNotifier {
-	if notifier == nil {
-		return nil
-	}
-	return carePlanPickupChanges{notifier: notifier}
-}
-
-func (n carePlanPickupChanges) NotifyPickupChangeApproved(ctx context.Context, notice careplan.PickupChangeNotice) error {
-	return n.notifier.NotifyPickupChanged(ctx, deliveryContract.PickupChangeReport{
-		TenantID: notice.TenantID, StudentID: notice.StudentID, Date: notice.Date, PickupTime: notice.PickupTime,
-		Withdrawn: notice.Withdrawn, ActorAccountID: notice.ReviewerAccountID, Revision: notice.RequestID,
 	})
 }

@@ -41,9 +41,9 @@ type DeliveryNotifications struct {
 	Preferences         deliveryCompose.NotificationPreferenceService
 	StaffParentMessages deliveryCompose.StaffParentMessageNotifier
 	AbsenceNotifier     deliveryCompose.AbsenceNotifier
-	// PickupChanges tells the responsible staff about a family's changed
-	// pickup time of one day (#6855).
-	PickupChanges deliveryContract.PickupChangeNotifier
+	// ResponsibleStaff names the staff responsible for a child, such as the
+	// team told about a changed pickup time (#6855).
+	ResponsibleStaff deliveryContract.ResponsibleStaff
 	// UnreportedAbsences tells the Schulverwaltung about children missing
 	// without a report (#4791).
 	UnreportedAbsences deliveryContract.UnreportedAbsenceNotifier
@@ -94,9 +94,9 @@ func BuildDeliveryNotifications(
 	if !ok {
 		return DeliveryNotifications{}, fmt.Errorf("absence notifier does not send the notice about children missing without a report")
 	}
-	pickups, ok := absences.(deliveryContract.PickupChangeNotifier)
+	responsible, ok := recipients.(deliveryContract.ResponsibleStaff)
 	if !ok {
-		return DeliveryNotifications{}, fmt.Errorf("absence notifier does not send the notice about a changed pickup time")
+		return DeliveryNotifications{}, fmt.Errorf("staff recipients do not name the staff responsible for a child")
 	}
 	return DeliveryNotifications{
 		UnreportedAbsences: unreported,
@@ -104,8 +104,8 @@ func BuildDeliveryNotifications(
 		Preferences:        preferences,
 		StaffParentMessages: deliveryCompose.NewStaffParentMessageNotifier(notifier, recipients,
 			messaging.ParentMessageThread, BindParentMessageLeadership(people.Staff, identity), db.Pool(), logger.With("producer", "staff_parent_message_notifications")),
-		AbsenceNotifier: absences,
-		PickupChanges:   pickups,
+		AbsenceNotifier:  absences,
+		ResponsibleStaff: responsible,
 	}, nil
 }
 

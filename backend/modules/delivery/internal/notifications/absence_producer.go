@@ -77,9 +77,6 @@ type absenceNotifier struct {
 	// school adds the moto schule notice (#4792); nil keeps the producer
 	// OGS-only.
 	school *contract.SchoolClassRecipients
-	// today is the pickup change notice's clock (#6855); nil is the
-	// school's today.
-	today func() calendar.Date
 }
 
 // AbsenceNotifierOption configures optional recipients of the producer.
