@@ -1,4 +1,5 @@
 import { act, fireEvent, render, screen } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { releaseFakeTimers } from "~/test/clock";
@@ -339,6 +340,11 @@ describe("disabledReason on kit buttons", () => {
     fireEvent.pointerDown(button, { pointerType: "touch" });
     fireEvent.pointerLeave(button, { pointerType: "touch" });
     expect(bubble()).toHaveTextContent(REASON);
+    const shown = bubble();
+    if (!shown) throw new Error("bubble did not open");
+    fireEvent.pointerDown(shown, { pointerType: "touch" });
+    fireEvent.pointerLeave(shown, { pointerType: "touch" });
+    expect(bubble()).toHaveTextContent(REASON);
     fireEvent.pointerDown(button, { pointerType: "touch" });
     // Anker: der erste Tipp hat die Blase geöffnet (Prüfung oben).
     expect(bubble()).toBeNull();
@@ -351,51 +357,84 @@ describe("disabledReason on kit buttons", () => {
     expect(bubble()).toBeNull();
   });
 
-  it("runs neither onClick nor submit on click or Enter", async () => {
-    const { default: userEvent } = await import("@testing-library/user-event");
-    const user = userEvent.setup();
-    const onClick = vi.fn();
-    const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
+  it("shows the reason at once when a mouse clicks the blocked button", () => {
     render(
-      <form onSubmit={onSubmit}>
-        <input aria-label="Name" />
-        <Button onClick={onClick} disabled disabledReason={REASON}>
-          Speichern
-        </Button>
-      </form>,
+      <Button type="button" disabled disabledReason={REASON}>
+        Speichern
+      </Button>,
     );
     const button = screen.getByRole("button", { name: "Speichern" });
 
-    await user.click(button);
-    button.focus();
-    await user.keyboard("{Enter}");
-    await user.click(screen.getByRole("textbox", { name: "Name" }));
-    await user.keyboard("{Enter}");
+    fireEvent.pointerEnter(button, { pointerType: "mouse" });
+    fireEvent.pointerDown(button, { pointerType: "mouse" });
 
-    // Anker: der Knopf ist erreichbar und bleibt fokussierbar.
-    expect(button).toHaveAttribute("aria-disabled", "true");
-    expect(onClick).not.toHaveBeenCalled();
-    expect(onSubmit).not.toHaveBeenCalled();
+    expect(bubble()).toHaveTextContent(REASON);
   });
 
-  it("does not navigate from a blocked ButtonLink", () => {
-    const onNavigate = vi.fn();
+  it("runs neither onClick, key handlers nor submit on click or Enter", async () => {
+    const user = userEvent.setup();
+    const onClick = vi.fn();
+    const onKeyDown = vi.fn();
+    const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
+    function Form({ blocked }: Readonly<{ blocked: boolean }>) {
+      return (
+        <form onSubmit={onSubmit}>
+          <input aria-label="Name" />
+          <Button
+            onClick={onClick}
+            onKeyDown={onKeyDown}
+            disabled={blocked}
+            disabledReason={REASON}
+          >
+            Speichern
+          </Button>
+        </form>
+      );
+    }
+    async function pressEverything() {
+      await user.click(screen.getByRole("button", { name: "Speichern" }));
+      screen.getByRole("button", { name: "Speichern" }).focus();
+      await user.keyboard("{Enter}");
+      await user.click(screen.getByRole("textbox", { name: "Name" }));
+      await user.keyboard("{Enter}");
+    }
+    const { rerender } = render(<Form blocked />);
+
+    await pressEverything();
+    expect(onClick).not.toHaveBeenCalled();
+    expect(onKeyDown).not.toHaveBeenCalled();
+    expect(onSubmit).not.toHaveBeenCalled();
+
+    // Gegenprobe: derselbe Weg löst am freien Knopf alles aus.
+    rerender(<Form blocked={false} />);
+    await pressEverything();
+    expect(onClick).toHaveBeenCalled();
+    expect(onKeyDown).toHaveBeenCalled();
+    expect(onSubmit).toHaveBeenCalled();
+  });
+
+  it("gives a blocked ButtonLink no target to navigate to", () => {
     render(
-      <ButtonLink
-        href="/help"
-        onNavigate={onNavigate}
-        disabled
-        disabledReason={REASON}
-      >
-        Hilfe
-      </ButtonLink>,
+      <>
+        <ButtonLink href="/help" disabled disabledReason={REASON}>
+          Hilfe
+        </ButtonLink>
+        <ButtonLink href="/start" tooltip="Öffnet die Startseite.">
+          Start
+        </ButtonLink>
+      </>,
     );
     const link = screen.getByRole("link", { name: "Hilfe" });
 
+    // Gegenprobe: ein freier ButtonLink trägt sein Ziel.
+    expect(screen.getByRole("link", { name: "Start" })).toHaveAttribute(
+      "href",
+      "/start",
+    );
+    expect(link).not.toHaveAttribute("href");
     expect(link).toHaveAttribute("aria-disabled", "true");
+    expect(link).toHaveAttribute("tabindex", "0");
     expect(link).toHaveAccessibleDescription(REASON);
-    expect(fireEvent.click(link)).toBe(false);
-    expect(onNavigate).not.toHaveBeenCalled();
   });
 
   it("keeps the native lock while loading", () => {

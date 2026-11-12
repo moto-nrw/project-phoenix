@@ -73,9 +73,10 @@ interface ActionHintProps {
   /** Exactly one interactive element: button, link or a label styled as one. */
   readonly children: React.ReactElement;
   /**
-   * Also open on a touch or pen tap; a second tap or a tap elsewhere closes
-   * it. Only for a blocked control (`disabledReason`), where a tap runs no
-   * action and the reason would otherwise stay unreachable.
+   * Also open at once on a click or a touch or pen tap; a second tap or a
+   * tap elsewhere closes it. Only for a blocked control (`disabledReason`),
+   * where pressing runs no action and the reason would otherwise stay
+   * unreachable on touch.
    */
   readonly showOnTap?: boolean;
 }
@@ -206,10 +207,13 @@ export function ActionHint({
         },
         onPointerDown: (event) => {
           props.onPointerDown?.(event);
-          if (showOnTap && event.pointerType !== "mouse") {
+          if (showOnTap) {
+            // Ein Klick auf einen gesperrten Knopf löst nichts aus: er zeigt
+            // den Grund sofort. Ein zweiter Tipp schließt ihn wieder.
             const target = event.currentTarget;
+            const tap = event.pointerType !== "mouse";
             cancel();
-            setAnchor((open) => (open ? null : target));
+            setAnchor((open) => (tap && open ? null : target));
             return;
           }
           hide();
@@ -283,7 +287,10 @@ function HintBubble({
       data-action-hint=""
       aria-hidden="true"
       onPointerEnter={onPointerEnter}
-      onPointerLeave={onPointerLeave}
+      onPointerLeave={(event) => {
+        // Ein Finger auf der Blase „verlässt“ sie beim Abheben.
+        if (event.pointerType === "mouse") onPointerLeave();
+      }}
       className="fixed w-max max-w-xs rounded-md bg-gray-900 px-2 py-1 text-xs font-medium text-pretty text-white shadow-lg"
       style={{
         top: position?.top ?? 0,
