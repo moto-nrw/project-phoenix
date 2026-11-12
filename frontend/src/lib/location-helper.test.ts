@@ -19,6 +19,7 @@ import {
   isTransitLocation,
   isCheckedInLocation,
   countedDayStatus,
+  dayStatusPresentation,
   type StudentLocationContext,
 } from "./location-helper";
 
@@ -657,6 +658,44 @@ describe("location check helpers", () => {
         countedDayStatus({ excused: true, current_location: "Schule" }),
       ).toBe("excused");
       expect(countedDayStatus({ current_location: "Zuhause" })).toBeNull();
+    });
+
+    // #5710: Eine erfasste Abmeldung zum Unterricht schlägt den Tagesstatus;
+    // das nur abgeleitete „Schule“ nicht.
+    it("ignores the status of a child staff checked out to class", () => {
+      expect(
+        countedDayStatus({ sick: true, current_location: "Im Unterricht" }),
+      ).toBeNull();
+      expect(
+        countedDayStatus({ excused: true, current_location: "Im Unterricht" }),
+      ).toBeNull();
+      expect(
+        countedDayStatus({
+          class_trip: true,
+          current_location: "Im Unterricht",
+        }),
+      ).toBeNull();
+      expect(countedDayStatus({ sick: true, current_location: "Schule" })).toBe(
+        "sick",
+      );
+    });
+  });
+
+  describe("dayStatusPresentation (#5710)", () => {
+    it("shows only Im Unterricht after a recorded checkout to class", () => {
+      expect(dayStatusPresentation("Im Unterricht")).toBe("none");
+    });
+
+    it("replaces a location without check-in, also the derived Schule", () => {
+      for (const location of ["Zuhause", "Schule", "", null, undefined]) {
+        expect(dayStatusPresentation(location)).toBe("replace");
+      }
+    });
+
+    it("keeps the status as a hint for a checked-in child", () => {
+      for (const location of ["Anwesend - Raum 101", "Schulhof", "Unterwegs"]) {
+        expect(dayStatusPresentation(location)).toBe("hint");
+      }
     });
   });
 
