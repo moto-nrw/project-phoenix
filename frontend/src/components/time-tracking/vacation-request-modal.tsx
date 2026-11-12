@@ -486,6 +486,7 @@ export function VacationRequestModal({
                   onClose();
                 }}
                 disabled={save.pending}
+                noTooltip="Schließt das Formular, ohne etwas zu senden."
               >
                 Abbrechen
               </Button>
@@ -502,6 +503,20 @@ export function VacationRequestModal({
                   exceedsBalance ||
                   Boolean(overlapMessage)
                 }
+                disabledReason={
+                  save.pending
+                    ? undefined
+                    : !range?.from || !range.to
+                      ? "Wählen Sie zuerst einen Zeitraum."
+                      : workingDays === 0
+                        ? "Der Zeitraum enthält keine Arbeitstage."
+                        : exceedsBalance
+                          ? "Sie haben nicht mehr genug Urlaubstage."
+                          : overlapMessage
+                            ? "Der Zeitraum überschneidet sich mit anderem Urlaub."
+                            : undefined
+                }
+                tooltip="Sendet den Antrag sofort an die Leitung zur Genehmigung."
               >
                 {save.pending ? "Wird gesendet…" : "Antrag senden"}
               </Button>

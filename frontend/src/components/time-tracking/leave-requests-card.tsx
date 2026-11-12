@@ -243,6 +243,7 @@ export function LeaveRequestsCard() {
               size="md"
               onClick={() => setModalOpen(true)}
               disabled={loading || load.error !== null}
+              tooltip="Öffnet ein Formular für einen neuen Urlaubsantrag."
             >
               Urlaub beantragen
             </Button>
@@ -422,6 +423,7 @@ function AbsenceRequestItem({
               variant="ghost_danger"
               size="compact"
               onClick={() => onCancel(absence)}
+              tooltip="Zieht den Antrag zurück. moto fragt vorher nach."
             >
               Stornieren
             </Button>
@@ -505,6 +507,7 @@ function ResubmitAbsenceForm({
           size="compact"
           onClick={handleSubmit}
           disabled={submitting}
+          tooltip="Sendet Ihre Antwort sofort an die Leitung zur Entscheidung."
         >
           {submitting ? "…" : "Antwort senden & erneut einreichen"}
         </Button>

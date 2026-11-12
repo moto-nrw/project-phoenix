@@ -329,6 +329,7 @@ export default function AbsencesPage() {
                     variant="outline"
                     size="md"
                     onClick={clearFilters}
+                    tooltip="Leert Suche und Filter und zeigt alle Einträge im Zeitraum."
                   >
                     Filter zurücksetzen
                   </Button>
@@ -360,6 +361,12 @@ export default function AbsencesPage() {
                 variant="outline"
                 size="md"
                 disabled={displayedPage === 1 || isValidating}
+                disabledReason={
+                  displayedPage === 1
+                    ? "Sie sehen schon die erste Seite."
+                    : undefined
+                }
+                tooltip="Zeigt die vorherigen Abwesenheitstage."
                 onClick={() => setPage(Math.max(1, displayedPage - 1))}
               >
                 Zurück
@@ -369,6 +376,10 @@ export default function AbsencesPage() {
                 variant="outline"
                 size="md"
                 disabled={!hasMore || isValidating}
+                disabledReason={
+                  hasMore ? undefined : "Es gibt keine weiteren Einträge."
+                }
+                tooltip="Zeigt die nächsten Abwesenheitstage."
                 onClick={() => setPage(displayedPage + 1)}
               >
                 Weiter

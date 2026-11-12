@@ -95,7 +95,10 @@ describe("payroll rule dialogs (#4807)", () => {
     });
 
     expect(screen.getByText("1 bis 4 Ziffern.")).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Anlegen" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Anlegen" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 
   it("legt eine Nachtregel mit dem vorgegebenen Zeitraum an", async () => {

@@ -881,7 +881,7 @@ describe("PayrollPage eigene Lohnarten und Zuschläge (#4807)", () => {
 
     expect(
       screen.getByRole("button", { name: "Zuschlagsregel anlegen" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.getByText(/Legen Sie zuerst oben eine Lohnart an/),
     ).toBeInTheDocument();
