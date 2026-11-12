@@ -7,16 +7,16 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const traegerExportTransferVersion = "1.15.953"
+const traegerExportTransferVersion = "1.15.955"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     traegerExportTransferVersion,
 		Description: "Export Transfer mit Träger-Scope: Empfänger, Journal und Übergaben im Exportprotokoll (#6824, ADR 0218)",
 		DependsOn: []string{
-			demoVisitorErasureFamilyDebtorNumbersVersion, // the newest migration on development (1.15.951)
-			exportTransferDispatchVersion,                // the school journal and fence this one mirrors
-			parentBillingDatevExportFilesVersion,         // the export protocol whose files are handed over
+			workSessionCreditRuleVersion,         // the newest migration on development (1.15.953)
+			exportTransferDispatchVersion,        // the school journal and fence this one mirrors
+			parentBillingDatevExportFilesVersion, // the export protocol whose files are handed over
 		},
 	})
 	Migrations.MustRegister(traegerExportTransferUp, traegerExportTransferDown)
