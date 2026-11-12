@@ -333,6 +333,7 @@ function TemplateEditorPage({
                       type="button"
                       variant="outline"
                       size="md"
+                      tooltip="Setzt den Standardtext ins Formular, gespeichert wird erst mit „Speichern“."
                       disabled={saving}
                       onClick={() => {
                         setDraft(templateTextOf(standard));
@@ -445,6 +446,7 @@ function TemplateEditorPage({
                       type="button"
                       variant="outline"
                       size="md"
+                      tooltip="Zeigt, wie der Brief mit dem aktuellen Text aussieht."
                       disabled={saving || previewing || !previewStale}
                       isLoading={previewing}
                       loadingText="Vorschau lädt…"

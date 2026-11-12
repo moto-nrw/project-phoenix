@@ -404,6 +404,7 @@ export default function TraegerAccessLogPage() {
             type="button"
             variant="outline"
             size="md"
+            tooltip="Zeigt weitere Einträge unten in der Liste an."
             isLoading={loadingMore}
             loadingText="Lädt …"
             onClick={() => void loadMore()}

@@ -227,6 +227,7 @@ export function PasskeySettingsSection({
             variant="outline"
             size="md"
             className="gap-2"
+            tooltip="Öffnet die Schritte, um einen neuen Passkey anzulegen."
             disabled={busy}
             onClick={() => {
               enrollErrors.clear();
@@ -268,6 +269,7 @@ export function PasskeySettingsSection({
                 variant="primary"
                 size="md"
                 className="gap-2"
+                tooltip="Schickt sofort einen sechsstelligen Code an Ihre E-Mail-Adresse."
                 disabled={busy}
                 onClick={() => void startEnrollment()}
               >
@@ -278,6 +280,7 @@ export function PasskeySettingsSection({
                 type="button"
                 variant="outline"
                 size="md"
+                noTooltip="Abbrechen schließt nur den Schritt, ohne etwas zu ändern."
                 disabled={busy}
                 onClick={() => {
                   setConfirmingEnrollment(false);
@@ -327,6 +330,7 @@ export function PasskeySettingsSection({
                 type="button"
                 variant="primary"
                 size="md"
+                tooltip="Speichert den Passkey, nachdem Ihr Gerät nach PIN oder Fingerabdruck fragt."
                 disabled={busy || code.trim().length === 0}
                 onClick={() => void finishEnrollment()}
               >
@@ -336,6 +340,7 @@ export function PasskeySettingsSection({
                 type="button"
                 variant="outline"
                 size="md"
+                noTooltip="Abbrechen schließt nur den Schritt, ohne etwas zu ändern."
                 disabled={busy}
                 onClick={() => {
                   setConfirmingEnrollment(false);
