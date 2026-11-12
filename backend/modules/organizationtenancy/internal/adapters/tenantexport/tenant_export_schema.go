@@ -3,7 +3,7 @@ package tenantexport
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 	"github.com/uptrace/bun"
 )
 
@@ -27,6 +27,14 @@ type exportSchemaRelation struct {
 type exportSchema struct {
 	columns   map[string][]exportSchemaColumn
 	relations map[string][]exportSchemaRelation
+	// primaryKeys names a row of a table; a Träger package names its
+	// document files by it.
+	primaryKeys map[string][]string
+}
+
+type exportSchemaKey struct {
+	TableName string
+	Column    string
 }
 
 func loadExportSchema(ctx context.Context, tx bun.Tx, catalog organizationtenancy.DataLifecycleCatalog) (*exportSchema, error) {
@@ -61,7 +69,23 @@ func loadExportSchema(ctx context.Context, tx bun.Tx, catalog organizationtenanc
 	if err != nil {
 		return nil, err
 	}
-	schema := &exportSchema{columns: make(map[string][]exportSchemaColumn), relations: make(map[string][]exportSchemaRelation)}
+	var keys []exportSchemaKey
+	err = tx.NewRaw(`SELECT ns.nspname || '.' || c.relname AS table_name, a.attname AS column
+  FROM pg_catalog.pg_index i
+  JOIN pg_catalog.pg_class c ON c.oid = i.indrelid
+  JOIN pg_catalog.pg_namespace ns ON ns.oid = c.relnamespace
+  CROSS JOIN LATERAL unnest(i.indkey) WITH ORDINALITY AS k(attnum, n)
+  JOIN pg_catalog.pg_attribute a ON a.attrelid = c.oid AND a.attnum = k.attnum
+  WHERE i.indisprimary AND ns.nspname || '.' || c.relname IN (?)
+  ORDER BY ns.nspname, c.relname, k.n`, bun.List(names)).Scan(ctx, &keys)
+	if err != nil {
+		return nil, err
+	}
+	schema := &exportSchema{columns: make(map[string][]exportSchemaColumn), relations: make(map[string][]exportSchemaRelation),
+		primaryKeys: make(map[string][]string)}
+	for _, key := range keys {
+		schema.primaryKeys[key.TableName] = append(schema.primaryKeys[key.TableName], key.Column)
+	}
 	for _, column := range columns {
 		schema.columns[column.TableName] = append(schema.columns[column.TableName], column)
 	}

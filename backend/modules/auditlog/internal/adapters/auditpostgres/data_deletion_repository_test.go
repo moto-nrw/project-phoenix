@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	audit "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -298,4 +298,42 @@ func TestTenantIsolation_DataDeletionVisibility(t *testing.T) {
 	_, err = testpkg.TenantQuery1(t, ctxB, db, repo.FindByID, any(ddA.ID))
 	assert.Error(t, err,
 		"cross-tenant FindByID should fail: tenant B must not see tenant A data deletion %d", ddA.ID)
+}
+
+// CreateAll appends the deletions of many students in one call (#6455) and
+// writes none of them when one is invalid.
+func TestDataDeletionRepository_CreateAll(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	repo := NewDataDeletionRepository(NewRuntime(db, auditTestTenantID))
+	ctx := testpkg.Ctx(t)
+	first := testpkg.CreateTestStudent(t, db, "Stapel", "Eins", "1a")
+	second := testpkg.CreateTestStudent(t, db, "Stapel", "Zwei", "1a")
+
+	invalid := audit.NewDataDeletion(second.ID, "", 1, "system")
+	err := testpkg.TenantCommand1(t, ctx, db, repo.CreateAll, []*audit.DataDeletion{audit.NewDataDeletion(first.ID, audit.DeletionTypeVisitRetention, 2, "system"), invalid})
+	require.Error(t, err)
+	err = testpkg.TenantCommand1(t, ctx, db, repo.CreateAll, []*audit.DataDeletion{audit.NewDataDeletion(first.ID, audit.DeletionTypeVisitRetention, 2, "system"), nil})
+	require.ErrorContains(t, err, "cannot be nil")
+	stored, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByStudentID, first.ID)
+	require.NoError(t, err)
+	assert.Empty(t, stored, "a rejected batch writes no row")
+
+	rows := []*audit.DataDeletion{
+		audit.NewDataDeletion(first.ID, audit.DeletionTypeVisitRetention, 2, "system"),
+		audit.NewDataDeletion(second.ID, audit.DeletionTypeVisitRetention, 3, "system"),
+	}
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.CreateAll, rows))
+	for _, tc := range []struct {
+		studentID int64
+		records   int
+	}{{first.ID, 2}, {second.ID, 3}} {
+		stored, err := testpkg.TenantQuery1(t, ctx, db, repo.FindByStudentID, tc.studentID)
+		require.NoError(t, err)
+		require.Len(t, stored, 1)
+		assert.Equal(t, tc.records, stored[0].RecordsDeleted)
+		assert.Equal(t, testpkg.Tenant(t), stored[0].TenantID)
+	}
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, repo.CreateAll, nil), "an empty batch writes nothing")
 }

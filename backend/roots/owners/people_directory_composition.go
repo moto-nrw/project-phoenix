@@ -3,18 +3,19 @@ package owners
 import (
 	"context"
 	"encoding/json"
+	"errors"
 
-	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
+	guardianLinkView "github.com/moto-ogs/project-phoenix/modules/guardianlinkview/compose"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	careplanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 )
 
 // ComposePeopleDirectory composes the person and student owner over the
@@ -187,6 +188,46 @@ func (s studentOwners) SaveCare(ctx context.Context, membershipID int64, record 
 	})
 }
 
+// SaveCareBatch saves the care profiles of many new memberships in one Care
+// Plan statement, each built as SaveCare builds it (#5552).
+func (s studentOwners) SaveCareBatch(ctx context.Context, saves []peopledirectory.StudentCareSave) error {
+	batches, ok := s.care.(careplan.StudentCareProfileBatches)
+	if !ok {
+		return errStudentCareBatchesUnbound
+	}
+	rows := make([]careplan.StudentCareProfileSave, len(saves))
+	for i, save := range saves {
+		rows[i].Profile, rows[i].Plan = careProfileOf(save.MembershipID, save.Record, save.Plan, save.Note, save.Touched)
+	}
+	return batches.SaveStudentCareProfiles(ctx, rows)
+}
+
+var errStudentCareBatchesUnbound = errors.New("people directory student owners: the care profile batch is not bound")
+
+// careProfileOf is the Care Plan care profile and departure plan of one
+// membership, built as SaveCare builds them.
+func careProfileOf(membershipID int64, record peopledirectory.StudentRecord, plan peopledirectory.StudentPlan, note *string, touched bool) (careplan.StudentCareProfile, *careplan.StudentDeparturePlan) {
+	modes := make(map[string][]string, len(plan.AllowedDepartureModes))
+	for day, values := range plan.AllowedDepartureModes {
+		for _, value := range values {
+			modes[day] = append(modes[day], string(value))
+		}
+	}
+	days := make(map[string]string, len(plan.DepartureDays))
+	for day, value := range plan.DepartureDays {
+		days[day] = string(value)
+	}
+	return careplan.StudentCareProfile{
+		MembershipID: membershipID, HealthInfo: record.HealthInfo,
+		PickupStatus: record.PickupStatus, Sick: record.Sick != nil && *record.Sick,
+		SickSince: record.SickSince, Excused: record.Excused != nil && *record.Excused, ExcusedSince: record.ExcusedSince,
+	}, &careplan.StudentDeparturePlan{
+		MembershipID: membershipID, PickupStatus: plan.AllowedDepartureModes.LegacyPickupStatus(),
+		AllowedDepartureModes: modes, DepartureDays: days,
+		BusDays: plan.BusDays, PickupDays: plan.PickupDays, CompanionNote: note, PlanTouched: touched,
+	}
+}
+
 // careplanCompanions binds Care Plan's companion contract behind the People
 // Directory write path's seam. Care Plan owns users.student_companions; the
 // directory only asks which links a narrowed plan can no longer justify.
@@ -261,6 +302,25 @@ func (p guardianPickupPort) ChangeGuardianPickupPermission(ctx context.Context, 
 	})
 }
 
+// CreateGuardianPickupPermissions writes the pickup halves of many new links
+// in one Care Plan statement (#5552); an owner without the batch slice
+// refuses.
+func (p guardianPickupPort) CreateGuardianPickupPermissions(ctx context.Context, tenantID int64, links []peopledirectory.NewGuardianLinkHalves) error {
+	batches, ok := p.owner.(careplan.GuardianPickupPermissionBatches)
+	if !ok {
+		return errGuardianLinkBatchesUnbound
+	}
+	rows := make([]careplan.GuardianPickupPermission, len(links))
+	for i, link := range links {
+		rows[i] = careplan.GuardianPickupPermission{
+			TenantID: tenantID, RelationshipID: link.RelationshipID, CanPickup: link.CanPickup, PickupNotes: link.PickupNotes,
+		}
+	}
+	return batches.CreateGuardianPickupPermissions(ctx, rows)
+}
+
+var errGuardianLinkBatchesUnbound = errors.New("people directory link owners: the batch slice is not bound")
+
 type guardianAccessPort struct {
 	owner guardianStudentAccess
 }
@@ -285,6 +345,23 @@ func (p guardianAccessPort) GrantGuardianStudentAccess(ctx context.Context, tena
 
 func (p guardianAccessPort) SetGuardianStudentPermissions(ctx context.Context, tenantID, relationshipID int64, permissions json.RawMessage) (bool, error) {
 	return p.owner.SetGuardianStudentPermissions(ctx, tenantID, relationshipID, permissions)
+}
+
+// GrantGuardianStudentAccesses writes the access halves of many new links in
+// one Identity & Access statement (#5552); an owner without the batch slice
+// refuses.
+func (p guardianAccessPort) GrantGuardianStudentAccesses(ctx context.Context, tenantID int64, links []peopledirectory.NewGuardianLinkHalves) error {
+	batches, ok := p.owner.(identityaccess.GuardianStudentAccessBatches)
+	if !ok {
+		return errGuardianLinkBatchesUnbound
+	}
+	rows := make([]identityaccess.GuardianStudentAccessGrant, len(links))
+	for i, link := range links {
+		rows[i] = identityaccess.GuardianStudentAccessGrant{
+			TenantID: tenantID, RelationshipID: link.RelationshipID, AccountID: link.AccountID, Permissions: link.Permissions,
+		}
+	}
+	return batches.GrantGuardianStudentAccesses(ctx, rows)
 }
 
 // guardianLinkOwners serves People Directory's parents-portal link writes the

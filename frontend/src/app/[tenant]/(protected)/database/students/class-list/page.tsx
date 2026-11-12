@@ -480,7 +480,7 @@ export default function ClassListEntriesPage() {
         }
         return row.entry.matchingStudentIds.length > 0 ? (
           <StatusBadge
-            tone="orange"
+            tone="warning"
             label="Mögliche Dublette"
             title="Ein regulär angelegtes Kind trägt denselben Namen in derselben Klasse. Bitte prüfen und bewusst zuordnen."
           />
@@ -716,6 +716,7 @@ export default function ClassListEntriesPage() {
             title="Eintrag zuordnen"
             confirmText="Zuordnen"
             isConfirmLoading={saving}
+            loadingText="Wird zugeordnet …"
             isConfirmDisabled={!assignTarget}
           >
             {modal?.kind === "assign" ? (

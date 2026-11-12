@@ -3,11 +3,11 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 )
 
 type enrollmentPersonRows interface {

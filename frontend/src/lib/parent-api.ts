@@ -1,4 +1,10 @@
 import type { ParentConferenceOffer } from "~/lib/parent-conferences";
+import type { MessageAttachment } from "~/lib/message-attachments";
+import {
+  type BackendHolidayRegistrationEntries,
+  type HolidayRegistrationEntry,
+  holidayRegistrationEntriesFromBackend,
+} from "~/lib/parent-holiday-registration-entries";
 import type { CareContractStatus } from "./traeger-care-contracts-api";
 import {
   ApiError,
@@ -288,6 +294,10 @@ export interface ChildFeatures {
   // Frist vorbei ist; der Server entscheidet das, der Client rechnet nicht nach.
   readonly pickup_change_cutoff_time?: string;
   readonly pickup_change_today_closed?: boolean;
+  // Die Betreuung ist für heute zu Ende (operations.session_end_time, #5710):
+  // Eltern ändern die heutige Abholzeit nicht mehr, auch wenn das Kind noch
+  // im Unterricht ist. Der Server entscheidet das.
+  readonly pickup_change_care_day_ended?: boolean;
   readonly pickup_manage_allowed?: boolean;
   readonly guardian_contact_manage_allowed: boolean;
   // Ob die Person ihre eigenen offenen Abwesenheitsanfragen ändern darf
@@ -314,6 +324,9 @@ export interface ChildFeatures {
   // Neuigkeiten feed is empty, so the parents-portal nav/panel entries gate on
   // this to avoid dead-ending on an empty page.
   readonly parent_news_enabled: boolean;
+  // The school's term for its care („OGS“, „GTS“; #6082). Every parent text
+  // that names the care of this child uses it.
+  readonly care_facility_term?: string;
 }
 
 // One dish of the read-only meal plan (Essensplan) for a child's school.
@@ -353,6 +366,10 @@ export interface CareException {
   // Die Abholart, die die OGS für diesen Tag eingetragen oder bestätigt hat
   // (#3945). Fehlt sie, gilt die Abholart aus dem Wochenplan.
   readonly departure_mode?: DayDepartureMode;
+  // „HH:MM“, ab der die OGS das Kind an diesem Tag entschuldigt hat (eine
+  // Teil-Abwesenheit). Eine Abmeldung für den ganzen Tag lehnt der Server an
+  // diesem Tag ab; der Dialog nennt ihn deshalb vorher (#5698).
+  readonly excused_from?: string;
 }
 
 // Abholarten, die Eltern für einen einzelnen Tag anfragen können (#3945).
@@ -1222,17 +1239,41 @@ export interface ParentDeclarationChild {
     readonly action: ParentDeclarationAction | null;
     readonly submitted_at: string | null;
   }[];
+  /**
+   * This guardian's consent to an older wording that still stands after the
+   * school changed the text (#6303). It stays revocable; null without one.
+   */
+  readonly earlier_consent?: ParentDeclarationEarlierConsent | null;
+}
+
+/** A standing consent to an older wording of an Einverständnis. */
+interface ParentDeclarationEarlierConsent {
+  readonly version: {
+    readonly id: string;
+    readonly version_no: number;
+    readonly content_hash: string;
+    readonly title: string;
+    readonly body: string;
+  };
+  readonly submitted_at: string;
+  readonly allowed_actions: readonly ParentDeclarationAction[];
 }
 
 export interface ParentDeclaration {
   readonly kind: "consent";
   readonly signers: "any" | "all";
-  readonly revocable: boolean;
   readonly requires_password: boolean;
   /** Agreeing needs a signature with finger, pen or mouse (#4785). */
   readonly requires_signature: boolean;
   readonly deadline: string | null;
   readonly closed: boolean;
+  /**
+   * The school no longer shows this Einverständnis (withdrawn, deactivated
+   * or expired).
+   * It stays in the feed because this guardian answered it; only revoking an
+   * own consent remains (#6290).
+   */
+  readonly ended: boolean;
   readonly version: {
     readonly id: string;
     readonly version_no: number;
@@ -1294,6 +1335,49 @@ export interface ThreadView {
 export async function listMessageThreads(): Promise<ThreadSummary[]> {
   const threads = await getJson<ThreadSummary[]>("/api/parent/me/messages");
   return Array.isArray(threads) ? threads : [];
+}
+
+/** A holiday period a parent can register children for (#6671). */
+export interface HolidayOffer {
+  /** The key of the period's registration link. */
+  token: string;
+  name: string;
+  traeger_name: string;
+  /** "YYYY-MM-DD" */
+  registration_opens_on: string;
+  /** "YYYY-MM-DD", the last day of the registration. */
+  registration_closes_on: string;
+  /** First and last care day, absent while the period has no weeks. */
+  first_day?: string;
+  last_day?: string;
+  open: boolean;
+  /** The account's children the period is for. */
+  children: { student_id: string; first_name: string }[];
+}
+
+/**
+ * The published holiday periods of the Träger of the account's children
+ * whose registration has not closed. Empty without a child the account may
+ * register.
+ */
+export async function listHolidayOffers(): Promise<HolidayOffer[]> {
+  const offers = await getJson<HolidayOffer[]>(
+    "/api/parent/me/holiday-registrations",
+  );
+  return Array.isArray(offers) ? offers : [];
+}
+
+/**
+ * The holiday registrations linked to the account (#6673, ADR 0216), newest
+ * first. Empty for an account without one.
+ */
+export async function listHolidayRegistrationEntries(): Promise<
+  HolidayRegistrationEntry[]
+> {
+  const body = await getJson<BackendHolidayRegistrationEntries | null>(
+    "/api/parent/me/holiday-registration-entries",
+  );
+  return holidayRegistrationEntriesFromBackend(body);
 }
 
 /**
@@ -1614,6 +1698,7 @@ export async function postChildMessage(
   groupThreadId?: string,
   audience: MessageAudience = "team",
   clientMessageId?: string,
+  attachmentIds?: readonly string[],
 ): Promise<ThreadView> {
   // An answer to a group thread always goes to the team conversation.
   return postJson<ThreadView>(
@@ -1623,6 +1708,7 @@ export async function postChildMessage(
       body,
       client_message_id: clientMessageId,
       group_thread_id: groupThreadId,
+      attachment_ids: attachmentIds?.length ? attachmentIds : undefined,
       audience: groupThreadId || audience === "team" ? undefined : audience,
     },
   );
@@ -1660,6 +1746,8 @@ interface GroupThreadMessage {
   readonly id: string;
   readonly body: string;
   readonly created_at: string; // ISO timestamp
+  /** Fotos und Dateien der Nachricht (#6685). */
+  readonly attachments?: readonly MessageAttachment[];
 }
 
 /** An opened group thread. */
@@ -1943,11 +2031,19 @@ export async function inviteRelatedAccount(
  * Fetches the child's pickup/arrival overrides (today .. +2 months by default),
  * staff- and parent-set alike, so the modal can show what is already in place.
  */
+/**
+ * Without a range the server answers today to two months ahead; the absence
+ * dialog passes its chosen days, which may lie further out (#5698).
+ */
 export async function listCareExceptions(
   studentId: string,
+  range?: { readonly from: string; readonly to: string },
 ): Promise<CareException[]> {
+  const query = range
+    ? `?from=${encodeURIComponent(range.from)}&to=${encodeURIComponent(range.to)}`
+    : "";
   return getJson<CareException[]>(
-    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-exception`,
+    `/api/parent/me/children/${encodeURIComponent(studentId)}/care-exception${query}`,
   );
 }
 
@@ -2463,7 +2559,9 @@ export interface ParentDocument {
   /**
    * The confirmation letter, the letter of its Storno or Gutschrift (#4690),
    * a care contract (#4678), or the letter of a monthly invoice and of its
-   * Storno (#4684), named „Monatsbeitrag Januar 2027“ in `period_name`.
+   * Storno (#4684), named „Monatsbeitrag Januar 2027“ in `period_name`, or
+   * a Jahresbescheid and its Änderungsbescheid (#6347), named
+   * „Betreuung 2027“.
    */
   readonly kind:
     | "confirmation_letter"
@@ -2471,6 +2569,8 @@ export interface ParentDocument {
     | "credit_letter"
     | "care_invoice_letter"
     | "care_cancellation_letter"
+    | "care_fee_notice"
+    | "care_change_notice"
     | "care_contract";
   readonly number: string;
   readonly period_name: string;
@@ -2502,6 +2602,10 @@ export interface ParentDocument {
    * inbox shows „Vertrag widerrufen“ (§ 356a BGB, #6105).
    */
   readonly can_withdraw_contract?: boolean;
+  readonly sepa_mandate?: {
+    readonly enabled: boolean;
+    readonly collection_eligible: boolean;
+  };
 }
 
 /**

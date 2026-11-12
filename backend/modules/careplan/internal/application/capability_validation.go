@@ -8,7 +8,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 )
 
 func validateDepartureException(v careplan.DepartureException) bool {
@@ -25,7 +25,8 @@ func normalizeStudentScheduleFilter(filter careplan.StudentScheduleFilter) carep
 func validWeekday(day int) bool { return day >= 1 && day <= 5 }
 
 func validAuthor(source string, staff int64, guardian *int64) bool {
-	return (source == "" || source == careplan.ExceptionSourceStaff) && staff > 0 || source == careplan.ExceptionSourceGuardian && guardian != nil && *guardian > 0
+	return (source == "" || source == careplan.ExceptionSourceStaff) && staff > 0 || source == careplan.ExceptionSourceGuardian && guardian != nil && *guardian > 0 ||
+		source == careplan.ExceptionSourceHolidayBooking && staff == 0 && guardian == nil
 }
 
 func validText(value *string, max int) bool {

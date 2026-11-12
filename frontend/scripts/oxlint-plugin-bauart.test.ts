@@ -1070,9 +1070,9 @@ describe.concurrent("bauart rules", () => {
         );
       }`;
       const baselined = await lintSource(
-        // Der Eintrag steht in der Baseline auf Zeile 90; darüber Leerzeilen,
+        // Der Eintrag steht in der Baseline auf Zeile 154; darüber Leerzeilen,
         // damit das Element genau dort landet.
-        `${"\n".repeat(86)}${source}`,
+        `${"\n".repeat(150)}${source}`,
         "src/components/planning/closing-day-modal.tsx",
       );
       expect(baselined.output).not.toContain("bauart(no-edit-overlay)");
@@ -1313,23 +1313,27 @@ describe.concurrent("bauart rules", () => {
     });
 
     it("rejects a radius class on Skeleton, in the other portals too", async () => {
-      for (const path of [
-        "src/components/probe.tsx",
-        "src/components/parent/probe.tsx",
-        "src/app/operator/probe.tsx",
-      ]) {
-        for (const className of ["rounded", "rounded-full", "sm:rounded-xl"]) {
-          const { status, output } = await lintSource(
-            `import { Skeleton } from "~/components/ui/skeleton";
+      const results = await Promise.all(
+        [
+          "src/components/probe.tsx",
+          "src/components/parent/probe.tsx",
+          "src/app/operator/probe.tsx",
+        ].flatMap((path) =>
+          ["rounded", "rounded-full", "sm:rounded-xl"].map((className) =>
+            lintSource(
+              `import { Skeleton } from "~/components/ui/skeleton";
             export function Probe() {
               return <Skeleton className="h-4 ${className}" />;
             }`,
-            path,
-          );
+              path,
+            ),
+          ),
+        ),
+      );
 
-          expect(status).toBe(1);
-          expect(output).toContain("bauart(no-own-skeleton)");
-        }
+      for (const { status, output } of results) {
+        expect(status).toBe(1);
+        expect(output).toContain("bauart(no-own-skeleton)");
       }
     });
 

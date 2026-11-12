@@ -9,7 +9,7 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // The list of a monthly run for one cost bearer (#4687, ADR 0169): one row
@@ -27,7 +27,7 @@ var careCostShareColumns = []ExportColumn{
 	{ID: "school", Label: "Schule"},
 	{ID: "child", Label: "Kind"},
 	{ID: "kind", Label: "Art"},
-	{ID: "contribution", Label: "Monatsbeitrag in Euro"},
+	{ID: "contribution", Label: "Berechnungsgrundlage in Euro"},
 	{ID: "share", Label: "Anteil"},
 	{ID: "amount", Label: "Übernommener Betrag in Euro"},
 	{ID: "status", Label: "Status"},
@@ -65,6 +65,9 @@ func (c *CareBilling) ExportCareCostShares(ctx context.Context, reviewer parentb
 	detail, err := c.CareRun(ctx, reviewer, runID)
 	if err != nil {
 		return parentbilling.ExportFile{}, err
+	}
+	if detail.Status == parentbilling.RunDiscarded {
+		return parentbilling.ExportFile{}, parentbilling.ErrBillingRunDiscarded
 	}
 	cancelled := map[int64]bool{}
 	if detail.Status == parentbilling.RunReleased {

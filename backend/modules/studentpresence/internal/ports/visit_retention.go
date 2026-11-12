@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // VisitRetentionStore reads completed visits past their retention window. A
@@ -15,4 +15,13 @@ type VisitRetentionStore interface {
 	CountExpiredVisits(ctx context.Context, policy studentpresence.VisitRetentionPolicy) (int64, Stats, error)
 	OldestExpiredVisitDate(ctx context.Context, policy studentpresence.VisitRetentionPolicy) (*time.Time, Stats, error)
 	ListExpiredVisitMonths(ctx context.Context, policy studentpresence.VisitRetentionPolicy) ([]studentpresence.VisitMonthCount, Stats, error)
+}
+
+// VisitExpiry selects the completed visits of one student to delete: those
+// that ended before Cutoff when ByExit is set, otherwise those created before
+// Cutoff.
+type VisitExpiry struct {
+	StudentID int64
+	Cutoff    time.Time
+	ByExit    bool
 }

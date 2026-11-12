@@ -1,14 +1,14 @@
 # Schutz gespeicherter Daten
 
-Stand: 23.10.2026, Slices 3840-a und 3840-f, Teil von [#3840](https://github.com/moto-nrw/project-phoenix/issues/3840)
-und [#3846](https://github.com/moto-nrw/project-phoenix/issues/3846).
+Stand: 23.10.2026, Slices 3840-a und 3840-f, Teil von [#3840](https://github.com/moto-ogs/project-phoenix/issues/3840)
+und [#3846](https://github.com/moto-ogs/project-phoenix/issues/3846).
 Geprüfte Codebasis: `origin/development` bei
 `d780efb392ef4d085a5731e615533eead3ee652b`.
 Nachprüfung der Dateischreibpfade in Runde 2 nach Merge von `origin/development`
 bei `c66191b29879360e1eb6085ce46d716080a3b3be`.
 Rollen-/Gesundheitshistorie gegen `origin/development` bei
 `caca213bdb1bf4ef8ff9a5713875f88d3ebe5981` geprüft, ergänzt um Migration `1.15.488`.
-Foto-/Avatar-Abhilfe aus [#4852](https://github.com/moto-nrw/project-phoenix/pull/4852)
+Foto-/Avatar-Abhilfe aus [#4852](https://github.com/moto-ogs/project-phoenix/pull/4852)
 (Slice 3840-h) nach Merge von `origin/development` bei
 `6a8e863cf73047493a602a1abd058aa424761d2a` ergänzt.
 
@@ -72,8 +72,8 @@ hier keine neuen Aufbewahrungsfristen.
 
 | Bestand | Im Code umgesetzt / gespeicherte Form | Produktiv nachgewiesen | Offen / Nachweisbedarf |
 |---|---|---|---|
-| `users.staff_financial_data`: `iban`, `tax_id`, `social_security_number` | `TEXT`, ohne Feldverschlüsselung; Finanzlesepfade maskieren standardmäßig und protokollieren Aufdecken [D1, D4] | Offen | Rollout, echte Rollen/DB-Zugänge, Datenträgerschutz; keine pauschalen Diagnose-SELECTs (3840-f) |
-| `users.guardian_financial_data`: `iban`, `account_holder` | `TEXT`, ohne Feldverschlüsselung; IBAN standardmäßig maskiert, Aufdecken protokolliert. Kontoinhaber bleibt im Standardlesepfad sichtbar [D2, D4] | Offen | Wie oben; Maskierung der Anzeige ist keine Verschlüsselung des Bestands |
+| `users.staff_financial_data`: IBAN, Steuer-ID, SV-Nummer | **Code umgesetzt (#6332, ADR 0188):** AES-256-GCM mit dem Bankring (`BANK_DATA_KEYS`), an Feld, Schule und Personal gebunden; gespeicherte IBAN-Maske, Finanzlesepfade maskieren ohne Öffnen und protokollieren Aufdecken [D1, D4] | Backfill 10.11.2026 in Staging, Produktion und Demo: zweiter Lauf `changed_total=0`, Klartextzeilen 0 | Klartextspalten entfernt (1.15.900, #6363); Abschlusslauf ohne Legacy-Ring je Umgebung (#6508); echte Rollen/DB-Zugänge, Datenträgerschutz; keine pauschalen Diagnose-SELECTs (3840-f) |
+| `users.guardian_financial_data`: IBAN, Kontoinhaber | **Code umgesetzt (#6332, ADR 0188):** mit dem Bankring versiegelt, an Feld, Schule und Erziehungsberechtigten gebunden; IBAN aus der gespeicherten Maske, Aufdecken protokolliert. Kontoinhaber bleibt im Standardlesepfad sichtbar [D2, D4] | Wie oben | Wie oben |
 | `users.student_care_profiles.health_info` | `TEXT`, ohne Feldverschlüsselung; laufende Betreuungsangabe [D3] | Offen | Rollen, Datenträger und Erforderlichkeit je Einsatz; Gesundheitsangaben brauchen besonderen Schutz |
 | Personal-, Eltern- und Kinderdaten, insbesondere `users.persons`, `users.staff_master_data`, `users.staff_school_memberships`, `users.guardian_profiles`, `users.student_profiles`, `users.student_school_memberships`, `users.student_notes` | Fachliche Stammdaten, Adressen, Beschäftigung, Beziehungen und Notizen ohne Feldverschlüsselung; Zuordnung und Löschpfade im Katalog [D5] | Offen | Tatsächliche Rechte, Löschläufe, Datenminimierung und Fehlablagen in Freitext prüfen |
 | `audit.staff_master_data_changes`, `audit.guardian_financial_changes`: `old_value`, `new_value` | Finanzwerte beim Schreiben maskiert: IBAN-Ende bleibt sichtbar, Steuer-/Sozialversicherungsnummer und geänderter Kontoinhaber vollständig maskiert. Andere Personalwerte und freie Notizen sind nicht pauschal maskiert [D4] | Offen | Version/Bestand und Freitext prüfen; aus aktuellen Schreibern folgt kein vollständiger Nachweis historischer Bereinigung |
@@ -201,8 +201,8 @@ allein mit Verweis auf Option 1 entfallen.
 
 Rechtlicher Bewertungsrahmen, nur gelesen: Legal-Repo bei
 `7a21f6742782bcf6141470a47333ae5be6c3182f`,
-[Pflichtumfang](https://github.com/moto-nrw/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/research/14-dsgvo-mindestumfang.md),
-[Checkliste](https://github.com/moto-nrw/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/vertragspaket/intern/checkliste.md),
-[AVV-Entwurf, Anhang 1 Ziff. 3/7](https://github.com/moto-nrw/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/vertragspaket/03-avv.md).
+[Pflichtumfang](https://github.com/moto-ogs/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/research/14-dsgvo-mindestumfang.md),
+[Checkliste](https://github.com/moto-ogs/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/vertragspaket/intern/checkliste.md),
+[AVV-Entwurf, Anhang 1 Ziff. 3/7](https://github.com/moto-ogs/legal/blob/7a21f6742782bcf6141470a47333ae5be6c3182f/vertragspaket/03-avv.md).
 Maßstab ist die dort erläuterte risikobasierte Bewertung nach Art. 32 DSGVO,
 keine allein aus einer älteren TOM abgeleitete Technologiepflicht.

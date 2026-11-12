@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/care"
 )
 
 var (
@@ -53,8 +53,9 @@ var (
 // ListAnnouncements returns the guardian's parent-news feed: published, active,
 // unexpired announcements they are targeted by across all their children's
 // schools, newest-published first, each with the guardian's read/ack state.
-// Schools that have turned the news feature off are excluded so the feed agrees
-// with the unread badge. Cross-tenant.
+// Schools that have turned the news feature off contribute only their system
+// notices and the guardian's own given consents, which stay revocable (#6303).
+// Cross-tenant.
 func (s *Service) ListAnnouncements(ctx context.Context, accountID int64) ([]*AnnouncementFeedItem, error) {
 	if accountID <= 0 {
 		return nil, fmt.Errorf("parent: account_id must be positive")
@@ -72,7 +73,7 @@ func (s *Service) ListAnnouncements(ctx context.Context, accountID int64) ([]*An
 		if err != nil {
 			return err
 		}
-		out = rows
+		out = endNewsOffDeclarations(rows, scope)
 		if err := s.attachPollData(adminCtx, accountID, rows); err != nil {
 			return err
 		}
@@ -83,7 +84,7 @@ func (s *Service) ListAnnouncements(ctx context.Context, accountID int64) ([]*An
 	}); txErr != nil {
 		return nil, fmt.Errorf("parent: list announcements: %w", txErr)
 	}
-	return out, nil
+	return withoutEmptyEndedDeclarations(presentEndedDeclarations(onlyGivenConsentsWithNewsOff(out, scope))), nil
 }
 
 // attachPollData loads the answer options and the guardian's answerable children
@@ -300,12 +301,38 @@ func (s *Service) RespondToAnnouncement(ctx context.Context, accountID, announce
 	if !validPollSelection(responseType, options, optionIDs) {
 		return ErrInvalidPollResponse
 	}
-	// Phase 2: the write re-evaluates liveness, version AND deadline inside the
-	// same statement, so a deadline that passes between here and the write cannot
-	// let a late answer through. A missed guard is a 409, never a silent 200.
-	return s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
-		return s.writeAnnouncementResponse(adminCtx, announcementTenantID, announcementID, accountID, studentID, optionIDs, expectedPublishedAt)
+	return s.writeChildAnswer(ctx, announcementTenantID, announcementID, accountID, studentID, optionIDs, expectedPublishedAt)
+}
+
+// writeChildAnswer stores the answer behind the child write guard (#6638):
+// the answer for a child is a parent write for that child, so membership,
+// relationship, portal access and parent_portal.poll.response stay locked
+// until it commits, in the guard's order Konto → Schule → Kind → Beziehung.
+// The write then re-evaluates liveness, version, deadline and the poll's
+// audience inside the same transaction, so a change between the checks above
+// and the write cannot let a late or stale answer through. A refusal there
+// is a 409, never a silent 200, as before the guard.
+func (s *Service) writeChildAnswer(ctx context.Context, announcementTenantID, announcementID, accountID, studentID int64, optionIDs []int64, expectedPublishedAt time.Time) error {
+	child, err := s.resolvePermittedChild(ctx, accountID, studentID, care.GuardianPermissionPollResponse)
+	if errors.Is(err, care.ErrGuardianPermissionDenied) || errors.Is(err, care.ErrChildNotLinked) {
+		return ErrChildNotAnswerable
+	}
+	if err != nil {
+		return err
+	}
+	if child.TenantID != announcementTenantID {
+		return ErrChildNotAnswerable
+	}
+	access := care.ChildWriteAccess{Permissions: []string{care.GuardianPermissionPollResponse}}
+	err = s.Children.WithChildWrite(ctx, accountID, studentID, child, access, func(txCtx context.Context) error {
+		return s.writeAnnouncementResponse(txCtx, announcementTenantID, announcementID, accountID, studentID, optionIDs, expectedPublishedAt)
 	})
+	if errors.Is(err, care.ErrGuardianPermissionDenied) || errors.Is(err, care.ErrChildNotLinked) {
+		// The guard found the relationship, its permission or the school
+		// membership withdrawn since the check above.
+		return ErrAnnouncementStale
+	}
+	return err
 }
 
 func validPollSelection(responseType string, options []*ParentAnnouncementOption, optionIDs []int64) bool {

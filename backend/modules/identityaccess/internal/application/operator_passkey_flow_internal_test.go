@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // The operator ceremonies moved here with the passkey flows (#3331). They
@@ -35,12 +35,12 @@ type fakeOperatorPasskeyGate struct {
 	verifiedCode       string
 }
 
-func (g *fakeOperatorPasskeyGate) StartOperatorMFAChallenge(_ context.Context, operatorID int64, _ net.IP) (string, error) {
+func (g *fakeOperatorPasskeyGate) StartOperatorMFAChallenge(_ context.Context, operatorID int64, _ net.IP, _ *int64) (string, error) {
 	g.startedOperatorID = operatorID
 	return g.challengeToken, g.startErr
 }
 
-func (g *fakeOperatorPasskeyGate) VerifyOperatorMFACode(_ context.Context, operatorID int64, code string) error {
+func (g *fakeOperatorPasskeyGate) VerifyOperatorMFACode(_ context.Context, operatorID int64, code string, _ *int64) error {
 	g.verifiedOperatorID, g.verifiedCode = operatorID, code
 	return g.verifyErr
 }
@@ -52,7 +52,7 @@ type fakeOperatorPasskeySessions struct {
 	issueErr error
 }
 
-func (s *fakeOperatorPasskeySessions) IssueTokensForAuthenticatedOperator(_ context.Context, _ int64, _, _ string) (string, string, error) {
+func (s *fakeOperatorPasskeySessions) IssueTokensForAuthenticatedOperator(_ context.Context, _ int64, _ *int64, _, _ string) (string, string, error) {
 	return s.access, s.refresh, s.issueErr
 }
 

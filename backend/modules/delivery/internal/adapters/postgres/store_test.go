@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	postgresadapter "github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	postgresadapter "github.com/moto-ogs/project-phoenix/modules/delivery/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/domain"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -573,4 +573,44 @@ func TestStoreStatusReadIsTenantIsolatedByRLS(t *testing.T) {
 		return nil
 	})
 	require.NoError(t, err)
+}
+
+func TestHolidayClosureCorrectionWaitsForPredecessor(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	store, ctx := testStore(t, db)
+	first := enqueueEmail(t, db, store, ctx, "closure")
+	second := enqueueEmail(t, db, store, ctx, "reopening")
+	_, err := db.ExecContext(ctx, `UPDATE platform.email_outbox SET kind = 'holiday_closure_notice' WHERE tenant_id = ? AND id IN (?, ?)`, testpkg.Tenant(t), first.ID, second.ID)
+	require.NoError(t, err)
+	now := time.Now()
+	claimed, err := store.Claim(ctx, domain.TransportEmail, 10, now, now.Add(time.Minute))
+	require.NoError(t, err)
+	require.Len(t, claimed, 1, "one batch must not lease contradictory notices together")
+	require.Equal(t, first.ID, claimed[0].ID)
+	_, err = store.FinalizeFailure(ctx, domain.TransportEmail, first.ID, *claimed[0].LeaseToken, 1, "mailbox unavailable", now, 1)
+	require.NoError(t, err)
+	claimed, err = store.Claim(ctx, domain.TransportEmail, 10, now, now.Add(time.Minute))
+	require.NoError(t, err)
+	assert.Empty(t, claimed, "a dead letter awaiting retry still blocks its correction")
+	var acquired bool
+	require.NoError(t, tenant.WithAdminTx(ctx, db, func(ctx context.Context, _ bun.Tx) error {
+		_, claimed, err := store.ClaimEmail(ctx, testpkg.Tenant(t), second.ID, now, now.Add(time.Minute))
+		acquired = claimed
+		return err
+	}))
+	assert.False(t, acquired, "targeted dispatch must also wait for the predecessor")
+	_, err = db.ExecContext(ctx, `UPDATE platform.email_outbox SET status = 'pending', next_retry_at = ? WHERE tenant_id = ? AND id = ?`, now, testpkg.Tenant(t), first.ID)
+	require.NoError(t, err)
+	claimed, err = store.Claim(ctx, domain.TransportEmail, 10, now, now.Add(time.Minute))
+	require.NoError(t, err)
+	require.Len(t, claimed, 1)
+	require.Equal(t, first.ID, claimed[0].ID, "retry the closure first")
+	sent, err := store.FinalizeSent(ctx, domain.TransportEmail, first.ID, *claimed[0].LeaseToken, json.RawMessage(`{}`), now)
+	require.NoError(t, err)
+	require.True(t, sent)
+	claimed, err = store.Claim(ctx, domain.TransportEmail, 10, now, now.Add(time.Minute))
+	require.NoError(t, err)
+	require.Len(t, claimed, 1)
+	assert.Equal(t, second.ID, claimed[0].ID, "only the accepted predecessor releases its correction")
 }

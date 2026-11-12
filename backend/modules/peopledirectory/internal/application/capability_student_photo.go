@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
 func (s *Service) FindStudentPhoto(ctx context.Context, studentID int64, filename string) (string, error) {
@@ -64,5 +64,5 @@ func (s *Service) ApplyStudentPhotoConsent(
 }
 
 func (s *Service) ScheduleStudentPhotoUnlink(ctx context.Context, storedURL string) error {
-	return mapPhotoError(s.studentPhotos.ScheduleUnlink(ctx, storedURL))
+	return mapPhotoError(s.studentPhotos.queueUnlink(ctx, storedURL))
 }

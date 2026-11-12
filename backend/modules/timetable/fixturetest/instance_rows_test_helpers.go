@@ -5,11 +5,12 @@ package fixturetest
 import (
 	"context"
 	"fmt"
+	"sync"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	records "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	records "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // InstanceReadsOf serves a fake instance repository as the joined instance
@@ -109,4 +110,29 @@ func (s fakeInstanceSessions) transition(ctx context.Context, instanceID int64, 
 	row.ID = instanceID
 	_, err := s.fake.UpdateColumns(ctx, row, "status")
 	return err
+}
+
+// AfterFirstInstanceRead serves the real reads and calls after once, with
+// the reader's context, when the first read of exactly the block returns.
+// A race test parks a command there, between its unlocked load and the rest
+// of its transaction, and lets a competing command commit meanwhile.
+func AfterFirstInstanceRead(reads ports.LegacyInstanceReads, instanceID int64, after func(context.Context) error) ports.LegacyInstanceReads {
+	return &pausingInstanceReads{LegacyInstanceReads: reads, instanceID: instanceID, after: after}
+}
+
+type pausingInstanceReads struct {
+	ports.LegacyInstanceReads
+	instanceID int64
+	after      func(context.Context) error
+	once       sync.Once
+}
+
+func (r *pausingInstanceReads) ListLegacyInstances(ctx context.Context, filter ports.LegacyInstanceFilter) ([]*records.ActivityInstance, error) {
+	rows, err := r.LegacyInstanceReads.ListLegacyInstances(ctx, filter)
+	if err != nil || len(filter.IDs) != 1 || filter.IDs[0] != r.instanceID {
+		return rows, err
+	}
+	var afterErr error
+	r.once.Do(func() { afterErr = r.after(ctx) })
+	return rows, afterErr
 }

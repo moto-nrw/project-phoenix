@@ -7,20 +7,20 @@ import (
 	"log/slog"
 	"time"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/classday"
-	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/classday"
+	classdayCompose "github.com/moto-ogs/project-phoenix/modules/classday/compose"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/realtime"
 
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The bindings below connect the school portal's class-day capability
@@ -177,18 +177,21 @@ func classDayRoster(roster *enrollmentOwner.ClassRosterDay) *classdayCompose.Day
 	return out
 }
 
-// classDayStatusDays reads the active scheduled day statuses.
+// classDayStatusDays reads the scheduled day statuses that stand for a day.
 type classDayStatusDays struct {
 	reader classDayStatusDayReader
 }
 
-// classDayStatusDayReader reads Care Plan's active scheduled day statuses.
+// classDayStatusDayReader reads Care Plan's status days that stand for a
+// day: active, or archived at the end of their day (#6291). The archive
+// keeps the day's status and source, so the class day reports a child sick
+// after 18:00 as before it.
 type classDayStatusDayReader interface {
-	FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date absencerecords.Date) ([]*absencerecords.StudentStatusDay, error)
+	FindSignedOffByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date absencerecords.Date) ([]*absencerecords.StudentStatusDay, error)
 }
 
-func (b classDayStatusDays) ActiveStatusDays(ctx context.Context, studentIDs []int64, date timezone.Date) ([]classdayCompose.StatusDayEntry, error) {
-	entries, err := b.reader.FindActiveByStudentIDsAndDate(ctx, studentIDs, date)
+func (b classDayStatusDays) StandingStatusDays(ctx context.Context, studentIDs []int64, date timezone.Date) ([]classdayCompose.StatusDayEntry, error) {
+	entries, err := b.reader.FindSignedOffByStudentIDsAndDate(ctx, studentIDs, date)
 	if err != nil {
 		return nil, err
 	}

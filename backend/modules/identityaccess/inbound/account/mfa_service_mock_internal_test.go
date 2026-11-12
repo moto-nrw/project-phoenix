@@ -5,13 +5,16 @@ import (
 	"net"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // MFAServiceMock is a func-field test double for the Identity & Access
 // account MFA capability (#3331). A nil field answers the zero value, so a
 // test configures only the calls it cares about.
 type MFAServiceMock struct {
+	// StartedCredentialGenerations records the credential generation of
+	// every StartMFAChallenge call (#6289).
+	StartedCredentialGenerations   []int64
 	IsRequiredFn                   func(ctx context.Context, accountID int64, roleNames []string, tenantID int64) (bool, error)
 	ResolveMFAPolicyFn             func(ctx context.Context, accountID, tenantID int64) (identityaccess.MFAPolicy, error)
 	ResolveMFAPolicyInTxFn         func(ctx context.Context, accountID, tenantID int64) (identityaccess.MFAPolicy, error)
@@ -24,7 +27,7 @@ type MFAServiceMock struct {
 	ResendMFAChallengeFn           func(ctx context.Context, challengeToken string, ip net.IP) (string, error)
 	ResendMFAChallengeForScopeFn   func(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error)
 	VerifyMFACodeForAccountFn      func(ctx context.Context, accountID, tenantID int64, code, expectedScope string) error
-	EnrollMFAFn                    func(ctx context.Context, accountID int64) error
+	EnrollMFAFn                    func(ctx context.Context, proof identityaccess.VerifiedMFAChallenge) error
 	DisableMFAFn                   func(ctx context.Context, accountID int64) error
 	IssueTrustedDeviceFn           func(ctx context.Context, accountID, tenantID int64, userAgent string, ip net.IP) (string, time.Time, error)
 	VerifyTrustedDeviceFn          func(ctx context.Context, accountID, tenantID int64, signedCookie string) (bool, error)
@@ -99,7 +102,8 @@ func (m *MFAServiceMock) AccountBelongsToSchool(ctx context.Context, accountID, 
 	return false, nil
 }
 
-func (m *MFAServiceMock) StartMFAChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error) {
+func (m *MFAServiceMock) StartMFAChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP, credentialGeneration int64) (string, error) {
+	m.StartedCredentialGenerations = append(m.StartedCredentialGenerations, credentialGeneration)
 	if m.StartMFAChallengeFn != nil {
 		return m.StartMFAChallengeFn(ctx, accountID, tenantID, scope, ip)
 	}
@@ -156,9 +160,9 @@ func (m *MFAServiceMock) VerifyMFACodeForAccount(ctx context.Context, accountID,
 	return identityaccess.VerifiedMFAChallenge{AccountID: accountID, TenantID: tenantID, Scope: expectedScope}, err
 }
 
-func (m *MFAServiceMock) EnrollMFA(ctx context.Context, accountID int64) error {
+func (m *MFAServiceMock) EnrollMFA(ctx context.Context, proof identityaccess.VerifiedMFAChallenge) error {
 	if m.EnrollMFAFn != nil {
-		return m.EnrollMFAFn(ctx, accountID)
+		return m.EnrollMFAFn(ctx, proof)
 	}
 	return nil
 }

@@ -39,7 +39,8 @@ var (
 		"pyreportal": true, "help": true, "admin": true, "app": true,
 		"dashboard": true, "analytics": true, "status": true, "mail": true,
 		"staging": true, "demo": true, "ingest": true, "caterer": true,
-		"lohnbuero": true,
+		"lohnbuero": true, "start": true, "invite": true, "onboarding": true,
+		"reset-password": true, "monitoring": true,
 	}
 
 	ErrOrganizationNotFound       = errors.New("organization not found")

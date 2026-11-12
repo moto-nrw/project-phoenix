@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.dataimport.class_list_batch.import_110",
+  "max": 38,
+  "exact": false,
+  "description": "110-row class-list create like class_list_batch.import in two write transactions. Measured by TestClassListImportBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110). Since #5827 each chunk is one batch attempt in SAVEPOINT chunk: one protected read of entries, names and students, the student guard, and one bounded batch command for entries and audit changes (decision E13/E13')."
+}

@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -126,8 +126,7 @@ func TestSickNoteRetentionRefusesACutoffInsideTheFrame(t *testing.T) {
 		"sick note cutoff exceeds retention window")
 	require.ErrorContains(t, inSchool(`SELECT users.delete_expired_staff_sick_notes(?, CURRENT_TIMESTAMP - INTERVAL '1096 days')`, school),
 		"sick note cutoff exceeds retention window")
-	require.ErrorContains(t, inSchool(`DELETE FROM users.staff_documents WHERE id = ?`, recent),
-		"permission denied for table staff_documents", "the tenant role keeps no direct DELETE on staff documents")
+	require.Equal(t, "42501", testpkg.PostgresSQLState(inSchool(`DELETE FROM users.staff_documents WHERE id = ?`, recent)), "the tenant role keeps no direct DELETE on staff documents")
 	assert.True(t, suite.exists(t, "users.staff_documents", recent))
 }
 

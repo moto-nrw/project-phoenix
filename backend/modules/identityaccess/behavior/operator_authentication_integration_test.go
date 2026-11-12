@@ -17,12 +17,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/tokenprimitives"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Operator login, the MFA-proven token issue, refresh, profile and password
@@ -124,7 +124,7 @@ func TestIntegration_OperatorLogin_GatesAndMintsThroughTheModule(t *testing.T) {
 	require.ErrorIs(t, err, identityaccess.ErrOperatorInvalidCredentials, "an unknown e-mail is indistinguishable from a wrong password")
 
 	// The MFA-proven mint is the path every second factor ends in.
-	access, refresh, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
+	access, refresh, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, nil, "127.0.0.1", "ua")
 	require.NoError(t, err)
 	assert.NotEmpty(t, access)
 	assert.NotEmpty(t, refresh)
@@ -136,7 +136,7 @@ func TestIntegration_OperatorLogin_GatesAndMintsThroughTheModule(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, lastLogin)
 
-	_, _, err = identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID+1_000_000, "127.0.0.1", "ua")
+	_, _, err = identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID+1_000_000, nil, "127.0.0.1", "ua")
 	require.ErrorIs(t, err, identityaccess.ErrOperatorNotFound)
 }
 
@@ -147,7 +147,7 @@ func TestIntegration_OperatorRefresh_RotatesAndRevokesReplay(t *testing.T) {
 	ctx := context.Background()
 	operator := testpkg.CreateTestOperatorWithPassword(t, db, operatorLoginEmail("operator-refresh"), testPassword)
 
-	_, issued, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
+	_, issued, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, nil, "127.0.0.1", "ua")
 	require.NoError(t, err)
 	predecessor := refreshHandle(t, issued)
 
@@ -194,7 +194,7 @@ func TestIntegration_OperatorRefresh_RefusesDeactivatedOperator(t *testing.T) {
 	identity := buildOperatorIdentity(t, db)
 	ctx := context.Background()
 	operator := testpkg.CreateTestOperatorWithPassword(t, db, operatorLoginEmail("operator-inactive"), testPassword)
-	_, issued, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
+	_, issued, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, nil, "127.0.0.1", "ua")
 	require.NoError(t, err)
 
 	_, err = db.NewUpdate().Table("platform.operators").Set("active = false").Where("id = ?", operator.ID).Exec(ctx)
@@ -203,7 +203,7 @@ func TestIntegration_OperatorRefresh_RefusesDeactivatedOperator(t *testing.T) {
 	_, _, err = identity.RefreshOperatorToken(ctx, issued, "")
 	require.ErrorIs(t, err, identityaccess.ErrOperatorInactive)
 	assert.Equal(t, 1, countOperatorSessions(t, db, operator.ID), "the refusal rolls back without rotating")
-	_, _, err = identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
+	_, _, err = identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, nil, "127.0.0.1", "ua")
 	require.ErrorIs(t, err, identityaccess.ErrOperatorInactive)
 	_, err = identity.LoginOperatorWithMFAGate(ctx, operator.Email, testPassword, "127.0.0.1", "ua", "")
 	require.ErrorIs(t, err, identityaccess.ErrOperatorInactive, "valid credentials of a deactivated operator are refused")
@@ -216,9 +216,9 @@ func TestIntegration_OperatorPasswordChange_RevokesSessions(t *testing.T) {
 	ctx := context.Background()
 	newPassword := testpkg.NewTestPassword()
 	operator := testpkg.CreateTestOperatorWithPassword(t, db, operatorLoginEmail("operator-password"), testPassword)
-	_, _, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
+	_, _, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, nil, "127.0.0.1", "ua")
 	require.NoError(t, err)
-	_, issued, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "127.0.0.1", "ua")
+	_, issued, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, nil, "127.0.0.1", "ua")
 	require.NoError(t, err)
 
 	require.ErrorIs(t, identity.ChangeOperatorPassword(ctx, operator.ID, "wrong", newPassword), identityaccess.ErrOperatorPasswordMismatch)
@@ -329,7 +329,7 @@ func TestOperatorLoginRollsBackTheSessionWhenTheAuditFails(t *testing.T) {
 	_, err := db.NewRaw(`ALTER TABLE platform.operator_audit_log ADD CONSTRAINT reject_login_audit_test CHECK (action <> 'login')`).Exec(ctx)
 	require.NoError(t, err)
 
-	access, refresh, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "203.0.113.7", "test-agent")
+	access, refresh, err := identity.IssueTokensForAuthenticatedOperator(ctx, operator.ID, nil, "203.0.113.7", "test-agent")
 
 	require.Error(t, err)
 	assert.Empty(t, access)

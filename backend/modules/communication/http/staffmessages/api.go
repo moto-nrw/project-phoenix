@@ -14,8 +14,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // Resource is the internal messaging HTTP resource.
@@ -113,6 +113,8 @@ type MessageResponse struct {
 	ReadByAccountIDs         []string `json:"read_by_account_ids,omitempty"`
 	EligibleReaderAccountIDs []string `json:"eligible_reader_account_ids,omitempty"`
 	ReaderCount              int      `json:"reader_count"`
+	// Attachments are the photos and files of the message (#6685).
+	Attachments json.RawMessage `json:"attachments,omitempty"`
 }
 
 // ThreadDetailResponse is the chat window payload.
@@ -156,6 +158,7 @@ func toMessageResponses(messages []communication.StaffMessage, viewer ...int64) 
 			ReadByAccountIDs:         formatIDs(m.ReadByAccountIDs),
 			EligibleReaderAccountIDs: formatIDs(m.EligibleReaderAccountIDs),
 			ReaderCount:              m.ReaderCount,
+			Attachments:              m.Attachments,
 		})
 	}
 	return out
@@ -304,18 +307,21 @@ func (rs *Resource) postMessage(w http.ResponseWriter, r *http.Request) {
 	var body struct {
 		ClientMessageID string `json:"client_message_id,omitempty"`
 		Body            string `json:"body"`
+		// AttachmentIDs names the uploads the message carries (#6685).
+		AttachmentIDs []string `json:"attachment_ids,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
 
-	if len(body.ClientMessageID) > 128 {
-		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCodeAndDetails("client_message_id exceeds 128 bytes", common.CodeGeneralInput, map[string]any{"max_bytes": 128}))
+	attachmentIDs, ok := common.ParseMessageSend(w, r, body.ClientMessageID, body.AttachmentIDs, communication.MaxMessageAttachments)
+	if !ok {
 		return
 	}
+	sendCtx := communication.WithMessageSend(r.Context(), body.ClientMessageID, attachmentIDs)
 
-	message, err := rs.Service.PostStaffMessage(communication.WithMessageSendID(r.Context(), body.ClientMessageID), threadID, body.Body)
+	message, err := rs.Service.PostStaffMessage(sendCtx, threadID, body.Body)
 	if err != nil {
 		renderStaffMessagingError(w, r, err)
 		return

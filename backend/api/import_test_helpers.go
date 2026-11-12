@@ -3,19 +3,24 @@
 package api
 
 import (
+	"context"
 	"time"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
-	importPorts "github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+
+	importPorts "github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
+
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // ImportTestModule is the Data Import a suite drives; the owners it imports
@@ -37,6 +42,48 @@ type ImportTestModule struct {
 type ImportTestOptions struct {
 	WrapGuardians importPorts.GuardianPortDecorator
 	Clock         func() time.Time
+	// BatchStatementLimit scales the bound of a batch attempt down (E13).
+	BatchStatementLimit time.Duration
+	// RowPathOnly composes without the statement bound: every chunk takes
+	// the row path, as before the chunk executor.
+	RowPathOnly bool
+	// UnboundedBatches runs batch attempts without a statement timeout, the
+	// counterprobe of the bound.
+	UnboundedBatches bool
+	// WrapClassListBatches decorates School Membership's class-list batch
+	// slice, so a suite can fail or delay a batch command.
+	WrapClassListBatches func(importPorts.ClassListEntryBatches) importPorts.ClassListEntryBatches
+	// WrapPersonBatches decorates People Directory's person batch slice, so
+	// a suite can fail or delay the student batch command.
+	WrapPersonBatches func(importPorts.PersonBatches) importPorts.PersonBatches
+	// Today is the calendar day a new child's status is taken against
+	// (#5552 step 7); nil is the real day.
+	Today func() timezone.Date
+}
+
+// NewImportTestRuntime is the import runtime NewImportTestModule composes,
+// for suites that drive their own config through the chunk executor.
+func NewImportTestRuntime(db transactionruntime.Database, options ImportTestOptions) (importPorts.ImportRuntime, *[]importModels.ImportObservation, error) {
+	command, err := auditCompose.NewCommand(owners.NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
+	if err != nil {
+		return importPorts.ImportRuntime{}, nil, err
+	}
+	observations := &[]importModels.ImportObservation{}
+	return importTestRuntime(command, observations, options), observations, nil
+}
+
+func importTestRuntime(command auditModels.Command, observations *[]importModels.ImportObservation, options ImportTestOptions) importPorts.ImportRuntime {
+	runtime := newImportRuntime(command, func(observation importModels.ImportObservation) {
+		*observations = append(*observations, observation)
+	})
+	runtime.BatchStatementLimit = options.BatchStatementLimit
+	switch {
+	case options.RowPathOnly:
+		runtime.BoundStatements = nil
+	case options.UnboundedBatches:
+		runtime.BoundStatements = func(ctx context.Context, _ time.Duration, fn func(context.Context) error) error { return fn(ctx) }
+	}
+	return runtime
 }
 
 // NewImportTestModule composes the Data Import over the real owners
@@ -118,9 +165,7 @@ func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.U
 	if err != nil {
 		return ImportTestModule{}, nil, nil, err
 	}
-	runtime := newImportRuntime(command, func(observation importModels.ImportObservation) {
-		*observations = append(*observations, observation)
-	})
+	runtime := importTestRuntime(command, observations, options)
 	// The composer binds one People Directory to three ports; only the
 	// guardian one is decorated, so the person and student paths keep
 	// talking to the real owner.
@@ -132,11 +177,11 @@ func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.U
 	}
 	dataImports := imports{
 		Student: newStudentImport(
-			runtime, rfid, groups, rooms, persons, studentGuardians, students.CarePlan, NewStudentPresenceForTests(db),
-			auditCompose.NewConsentRecorder(command),
+			runtime, rfid, groups, rooms, persons, wrapPersonBatches(personBatches(persons), options.WrapPersonBatches),
+			studentGuardians, students.CarePlan, NewStudentPresenceForTests(db), auditCompose.NewConsentRecorder(command), options.Today,
 		),
 		Staff:     newStaffImport(runtime, rfid, auth.Invitation, organizations, persons, membership, workTime),
-		ClassList: newClassListImport(runtime, membership, persons),
+		ClassList: newClassListImport(runtime, membership, persons, wrapClassListBatches(classListBatches(membership), options.WrapClassListBatches)),
 		OpeningBalance: newOpeningBalanceImport(runtime, importPorts.OpeningBalanceImportDeps{
 			BalanceAdjustService: workforce.TimeTracking.OpeningBalances,
 			StaffAbsenceService:  workforce.TimeTracking.VacationTakeovers,
@@ -147,4 +192,18 @@ func NewImportTestModuleWithOwners(db transactionruntime.Database, unit tenant.U
 		OpeningBalanceImport: dataImports.OpeningBalance,
 		Observations:         observations,
 	}, persons, membership, nil
+}
+
+func wrapClassListBatches(batches importPorts.ClassListEntryBatches, wrap func(importPorts.ClassListEntryBatches) importPorts.ClassListEntryBatches) importPorts.ClassListEntryBatches {
+	if wrap == nil || batches == nil {
+		return batches
+	}
+	return wrap(batches)
+}
+
+func wrapPersonBatches(batches importPorts.PersonBatches, wrap func(importPorts.PersonBatches) importPorts.PersonBatches) importPorts.PersonBatches {
+	if wrap == nil || batches == nil {
+		return batches
+	}
+	return wrap(batches)
 }

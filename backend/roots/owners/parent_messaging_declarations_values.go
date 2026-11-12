@@ -1,15 +1,14 @@
 package owners
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	parentportal "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 func parentMessagingFromOwnerAnnouncementDeclarationSettings(v communication.PortalAnnouncementDeclarationSettings) parentportal.AnnouncementDeclarationSettings {
 	return parentportal.AnnouncementDeclarationSettings{
 		Kind:              v.Kind,
 		Signers:           v.Signers,
-		Revocable:         v.Revocable,
 		RequiresPassword:  v.RequiresPassword,
 		RequiresSignature: v.RequiresSignature,
 	}
@@ -19,7 +18,6 @@ func parentMessagingFromOwnerAnnouncementFeedDeclaration(v communication.PortalA
 	return parentportal.AnnouncementFeedDeclaration{
 		Kind:              v.Kind,
 		Signers:           v.Signers,
-		Revocable:         v.Revocable,
 		RequiresPassword:  v.RequiresPassword,
 		RequiresSignature: v.RequiresSignature,
 		Deadline:          v.Deadline,

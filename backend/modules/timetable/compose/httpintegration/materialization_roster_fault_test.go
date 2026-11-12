@@ -6,11 +6,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -52,7 +52,7 @@ func TestMaterializationRosterReadFailurePersistsNothing(t *testing.T) {
 
 	result, err := s.svc.MaterializeForTenant(s.ctx, from, from, timetable.MaterializationSourceManual)
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "permission denied for table persons")
+	require.Equal(t, "42501", testpkg.PostgresSQLState(err))
 	t.Logf("FAULT own transaction: err=%v created=%d", err, createdOf(result))
 	require.Empty(t, listInstancesForDate(t, s.db, first.ID, from))
 	require.Empty(t, listInstancesForDate(t, s.db, s.template.ID, from))
@@ -63,7 +63,7 @@ func TestMaterializationRosterReadFailurePersistsNothing(t *testing.T) {
 		return nil
 	})
 	require.Error(t, swallowed)
-	require.Contains(t, swallowed.Error(), "permission denied for table persons")
+	require.Equal(t, "42501", testpkg.PostgresSQLState(swallowed))
 	t.Logf("FAULT ambient transaction: err=%v created=%d commit=%v", swallowed, createdOf(result), commitErr)
 	require.Empty(t, listInstancesForDate(t, s.db, first.ID, from), "the aborted transaction keeps no occurrence")
 	require.Empty(t, listInstancesForDate(t, s.db, s.template.ID, from))

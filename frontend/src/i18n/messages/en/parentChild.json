@@ -1,19 +1,14 @@
 {
-  "switcherLabel": "Choose a child",
   "overviewKicker": "Children at a glance",
   "overviewDescription": "Choose a child to view care, details and contacts.",
-  "ogsLabel": "OGS",
   "careEnded": {
     "title": "Care has ended",
-    "body": "Your child is no longer in care at this school. You can still view everything from before. New reports are no longer possible."
+    "body": "Your child is no longer in care at this {careTerm}. You can still view everything from before. New reports are no longer possible."
   },
   "notFound": "There is no child at this address in your account. Please choose your child from the overview.",
-  "noChildren": "No child is linked to your account yet. Your school's OGS can set this up.",
+  "noChildren": "No child is linked to your account yet. Your school's {careTerm} can set this up.",
   "sections": {
-    "today": "Today",
-    "care": "Care at the OGS",
-    "data": "Child details",
-    "people": "Parents and pick-up contacts"
+    "today": "Today"
   },
   "areas": {
     "label": "Child sections",
@@ -45,14 +40,15 @@
     "pickupUnknown": "The pick-up time is not available right now"
   },
   "care": {
-    "weekTitle": "OGS weekly schedule",
+    "weekTitle": "{careTerm} weekly schedule",
     "absenceTitle": "Absences"
   },
   "consents": {
     "title": "Consents and confirmations",
     "description": "Here you can see your child's consents.",
-    "staffDescription": "For information only. Parents change photo consent in the parent portal.",
+    "staffDescription": "Parents change photo consent in the parent portal. Parents without the portal tell you. Then remove the tick under “Bearbeiten” at the photo.",
     "photoDescription": "You can change photo consent here.",
+    "photoViaCareDescription": "To withdraw photo consent, contact the {careTerm}.",
     "items": {
       "agb": "General terms and conditions",
       "data_processing": "Privacy information acknowledged",
@@ -81,7 +77,7 @@
     "grantButton": "Give photo consent again",
     "grantButtonShort": "Give again",
     "grantConfirmTitle": "Give photo consent again?",
-    "grantConfirmBody": "The OGS may store a photo again afterwards.",
+    "grantConfirmBody": "The {careTerm} may store a photo again afterwards.",
     "grantConfirmButton": "Give consent",
     "granting": "Saving",
     "grantSuccess": "Photo consent was given again.",

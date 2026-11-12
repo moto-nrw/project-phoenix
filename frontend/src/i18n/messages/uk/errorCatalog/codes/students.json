@@ -66,7 +66,7 @@
   "offering_change_capacity_full": "В одній із пропозицій більше немає вільних місць. Перевірте заповненість.",
   "offering_change_date_out_of_range": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "offering_changes_no_enrollment": "Дитина більше не має чинного запису. Відхиліть: {object}.",
-  "partial_absence_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "partial_absence_conflict": "В один із вибраних днів дитину вже звільнено з певного часу. Спочатку видаліть це часткове звільнення в «Entschuldigen» і «Ab Uhrzeit».",
   "partial_absence_requires_dedicated_action": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "photo_consent_required": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "photo_consent_withdrawn": "Не вдалося змінити: {object}. Перевірте поточний стан.",

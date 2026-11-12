@@ -15,14 +15,14 @@
  *
  * Die Stufe greift auf ZWEI Achsen, weil es zwei verschiedene Engen sind:
  *
- *   - zu schmal  (max-width < 64rem): Tablet, halbes Fenster. Dort fehlt
+ *   - zu schmal  (width < 64rem, wie `max-lg:`): Tablet, halbes Fenster. Dort fehlt
  *     waagerecht Platz, und senkrecht ebenso.
  *   - zu flach   (max-height < 56.25rem): der 13-Zoll-Laptop bei 1440x900.
  *     Der ist breit genug — ihm fehlt nur die Höhe. Eine reine Breiten-
  *     Stufe (`max-lg:`) hätte genau diesen, im Issue zuerst genannten Fall
  *     nicht erwischt.
  *
- * `min-width: 48rem` schneidet die Telefon- und die kleine Tablet-Stufe
+ * `width >= 48rem` (wie `md:`) schneidet die Telefon- und die kleine Tablet-Stufe
  * bewusst ab: unter 768 px gelten weiter die `max-sm:`- und `max-md:`-Masse
  * des Gerüsts. Dadurch überschneidet sich `compact:` mit KEINEM `max-sm:`
  * und die Reihenfolge im erzeugten CSS ist nie eine Ermessensfrage — genau
@@ -33,7 +33,7 @@
  * stehen zwei Varianten-Regeln für dieselbe Eigenschaft nebeneinander und
  * welche gewinnt, hängt an der internen Sortierung von Tailwind.
  */
-@custom-variant compact (@media (min-width: 48rem) and ((max-width: 63.9375rem) or (max-height: 56.25rem)));
+@custom-variant compact (@media (width >= 48rem) and ((width < 64rem) or (max-height: 56.25rem)));
 
 /*
  * moto brand tokens
@@ -141,7 +141,7 @@
   --color-moto-stone-strong: #44403c;
   --color-moto-stone-soft: #f5f5f4;
 
-  /* Aus moto-nrw/website src/app/globals.css. Die Website ist die einzige
+  /* Aus moto-ogs/website src/app/globals.css. Die Website ist die einzige
      Designquelle; diese Werte fehlten der App bisher. */
   --color-moto-gray-150: #eef0f3;
   --color-moto-ink: #030712;
@@ -445,7 +445,7 @@
   inset: 0;
 }
 
-@media (min-width: 1024px) {
+@media (width >= 64rem) {
   .moto-dotted-background--app-fixed {
     inset: 0;
   }
@@ -514,7 +514,7 @@
   background: var(--color-white);
 }
 
-@media (max-width: 1023px) {
+@media (width < 64rem) {
   .moto-auth-shell-background {
     background: #f9fafb;
   }
@@ -607,7 +607,10 @@
    untereinander statt nebeneinander. Auch eine Karte IN einer Tabelle zählt
    nicht (die Änderungshistorie in einer aufgeklappten Zeile): als Flex-Spalte
    hätte die äußere Tabelle keine gemeinsamen Spalten mehr, jede Zeile rechnete
-   ihre Breiten für sich (#5600). */
+   ihre Breiten für sich (#5600). Was IN einer Karte liegt, ist nie Hülle auf
+   dem Weg zur letzten Fläche: Eine innere Fläche (die Wochenliste einer
+   Hinweiszeile) machte sonst Zeile und Liste zur Flex-Spalte, und die Zeile
+   verlor ihr Gitter mit der gemeinsamen Aktionsspalte (ADR 0196). */
 .moto-tenant-body
   > :last-child:not(.grid, .moto-content-surface, .hidden, .md\:hidden):has(
     .moto-content-surface:last-child:is(section, div):not(
@@ -623,7 +626,8 @@
     .moto-content-surface,
     .hidden,
     .md\:hidden,
-    .moto-scroll-surface *
+    .moto-scroll-surface *,
+    .moto-content-surface *
   ):has(
     .moto-content-surface:last-child:is(section, div):not(
         .moto-scroll-surface,
@@ -877,6 +881,34 @@ body {
   background: var(--color-gray-50);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ein Chat sperrt das Seiten-Scrollen, solange er auf den Bildschirm passt;
+   nur sein Verlauf scrollt (`useChatViewportLock`). Ein Attribut statt
+   Inline-Stilen: Modals sperren über `style.overflow` und stellen beim
+   Schließen ihren gemerkten Wert wieder her. */
+html[data-chat-page-lock],
+html[data-chat-page-lock] body {
+  overflow: hidden;
+}
+
+/* iOS vergrößert die ganze Seite, sobald jemand in ein Feld mit Schrift unter
+   16 px tippt, und lässt sie danach vergrößert stehen: Der Chat verschwand
+   dabei über dem oberen Rand, jede andere Seite sprang. Auf Touch-Geräten
+   schreiben Felder deshalb mit mindestens 16 px. Den Zoom zu sperren
+   (`maximum-scale`) ist kein Ausweg: Menschen müssen vergrößern können
+   (#2267). Ohne `@layer`, damit die Regel `text-sm` am Feld überstimmt;
+   größere Schrift bleibt. */
+@media (pointer: coarse) {
+  :is(input, textarea, select):not(
+      [class*="text-lg"],
+      [class*="text-xl"],
+      [class*="text-2xl"],
+      [class*="text-3xl"],
+      [class*="text-4xl"]
+    ) {
+    font-size: 16px;
+  }
 }
 
 ::selection {

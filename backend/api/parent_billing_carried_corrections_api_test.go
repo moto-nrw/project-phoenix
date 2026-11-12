@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 const carriedCorrectionCents = int64(2000)
@@ -64,6 +64,7 @@ type carriedRunBody struct {
 	Status       string                `json:"status"`
 	PreviewCount int                   `json:"preview_count"`
 	PreviewCents int64                 `json:"preview_cents"`
+	Fingerprint  string                `json:"fingerprint"`
 	Documents    []carriedDocumentBody `json:"documents"`
 }
 
@@ -81,7 +82,7 @@ func carriedCorrectionPath(runID, positionID int64) string {
 func releaseCarriedRun(t *testing.T, f reviewFixture, token string, run carriedRunBody) carriedDocumentBody {
 	t.Helper()
 	rec := traegerJSON(t, f.traeger, token, http.MethodPost, billingRunPath(run.ID, "/release"),
-		map[string]any{"document_count": run.PreviewCount, "total_cents": run.PreviewCents})
+		map[string]any{"document_count": run.PreviewCount, "total_cents": run.PreviewCents, "fingerprint": run.Fingerprint})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	released := carriedRun(t, f, token, run.ID)
 	require.Len(t, released.Documents, 1)

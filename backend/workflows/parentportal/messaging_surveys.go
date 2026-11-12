@@ -1,6 +1,6 @@
 package parentportal
 
-import "github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging"
+import "github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/messaging"
 
 // Parent survey values and port (#4781). The root binds the port to
 // Communication's parent surveys.

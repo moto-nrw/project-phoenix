@@ -5,14 +5,14 @@ import (
 	"fmt"
 	"testing"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
 
-	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	settingsModule "github.com/moto-ogs/project-phoenix/modules/settings"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -667,8 +667,7 @@ func TestCleanupIntentRetentionRefusesAYoungCutoff(t *testing.T) {
 	}
 	require.ErrorContains(t, inSchool(`SELECT documents.delete_finished_file_cleanups(?, CURRENT_TIMESTAMP)`, school),
 		"cleanup intent cutoff exceeds retention window")
-	require.ErrorContains(t, inSchool(`DELETE FROM documents.file_cleanup WHERE id = ?`, recent),
-		"permission denied for table file_cleanup", "the tenant role keeps no direct DELETE on the intents")
+	require.Equal(t, "42501", testpkg.PostgresSQLState(inSchool(`DELETE FROM documents.file_cleanup WHERE id = ?`, recent)), "the tenant role keeps no direct DELETE on the intents")
 	assert.True(t, suite.exists(t, "documents.file_cleanup", recent))
 }
 

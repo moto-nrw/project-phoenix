@@ -10,10 +10,10 @@ import (
 	"testing"
 	"time"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -56,12 +56,12 @@ func TestDemoAdminEnrollsAndSignsInAgainWithoutExternalMail(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, identityaccess.LoginStatusMFAEnrollmentRequired, login.Status)
 
-	challenge, err := module.MFA.StartMFAChallenge(ctx, account.ID, school, identityaccess.MFAChallengeScopeTenant, nil)
+	challenge, err := module.MFA.StartMFAChallenge(ctx, account.ID, school, identityaccess.MFAChallengeScopeTenant, nil, 0)
 	require.NoError(t, err, "demo bootstrap must be able to deliver an enrollment code internally")
 	code := <-codes
 	_, err = module.MFA.VerifyMFACodeForAccount(ctx, account.ID, school, code, identityaccess.MFAChallengeScopeTenant)
 	require.NoError(t, err)
-	require.NoError(t, module.MFA.EnrollMFA(testpkg.TenantContext(school), account.ID))
+	require.NoError(t, enrollMFA(testpkg.TenantContext(school), t, db, module.MFA, account.ID))
 	_, _, err = module.Auth.IssueTokensForPasskey(ctx, account.ID, school, "", "")
 	require.NoError(t, err)
 	// The simulator's next password login still needs a genuine new code.

@@ -9,6 +9,7 @@ import { Alert } from "~/components/ui/alert";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {
@@ -40,7 +41,8 @@ interface BlockedChoices {
 /**
  * The dialog that starts a run: one choice from a list, a line that says
  * what the run bills, and the start. `onStart` starts the run; a refusal
- * shows at the top of the form.
+ * shows at the top of the form. `onStarted` closes and opens the run, only
+ * while this dialog is still the one that started it.
  */
 function RunStartModal({
   isOpen,
@@ -53,6 +55,7 @@ function RunStartModal({
   blocked,
   onClose,
   onStart,
+  onStarted,
 }: Readonly<{
   isOpen: boolean;
   title: string;
@@ -75,10 +78,13 @@ function RunStartModal({
   object: string;
   blocked?: BlockedChoices;
   onClose: () => void;
-  onStart: (value: string) => Promise<void>;
+  /** Starts the run; may refresh data, but must not close or navigate. */
+  onStart: (value: string) => Promise<BillingRun>;
+  onStarted: (run: BillingRun) => void;
 }>) {
   const [value, setValue] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -107,24 +113,29 @@ function RunStartModal({
       });
       return;
     }
-    setSaving(true);
-    try {
-      await onStart(value);
-    } catch (err) {
-      logger.error("billing_run_start_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      let run: BillingRun;
+      try {
+        run = await onStart(value);
+      } catch (err) {
+        logger.error("billing_run_start_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object });
+        return;
+      }
+      // A late answer must not close or navigate away from a newer dialog.
+      if (op.isCurrent()) onStarted(run);
+    });
   };
 
   return (
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title={title}
       // Opened from the page head: the title follows the page's h1.
@@ -233,7 +244,8 @@ export function BillingRunStartModal({
       hint="Der Lauf rechnet alle bestätigten Anmeldungen ab, die noch keine Rechnung haben. Sie prüfen zuerst die Vorschau."
       object="der Lauf"
       onClose={onClose}
-      onStart={async (periodId) => onStarted(await startBillingRun(periodId))}
+      onStart={startBillingRun}
+      onStarted={onStarted}
     />
   );
 }

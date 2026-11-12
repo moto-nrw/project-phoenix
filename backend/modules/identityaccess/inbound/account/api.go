@@ -7,12 +7,12 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
-	"github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/tokenprimitives"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
 )
 
 // Constants for permission strings, headers, route patterns, and error messages (S1192 - avoid duplicate string literals)
@@ -57,7 +57,10 @@ type Resource struct {
 	Invitations Invitations
 	// GuardianInvitations is the Identity & Access guardian invitation
 	// capability the public accept page and the admin resend call (#3332).
-	GuardianInvitations        identityaccess.GuardianInvitations
+	GuardianInvitations identityaccess.GuardianInvitations
+	// HolidayParentSetups redeems the setup link of a parent account at a
+	// Träger (ADR 0216); without it the setup routes answer 500.
+	HolidayParentSetups        identityaccess.HolidayParentSetups
 	CaregiverCapabilityService Caregivers
 	SchoolService              SchoolDirectory
 	// SettingsService is required at construction; unreadable shell policy fails the request.
@@ -225,6 +228,8 @@ func (rs *Resource) mountPublicRoutes(r chi.Router, authRateLimiter func(http.Ha
 	r.Post("/invitations/{token}/accept", rs.acceptInvitation)
 	r.Get("/guardian-invitations/{token}", rs.validateGuardianInvitation)
 	r.Post("/guardian-invitations/{token}/accept", rs.acceptGuardianInvitation)
+	r.Get("/holiday-parent-setups/{token}", rs.previewHolidayParentSetup)
+	r.Post("/holiday-parent-setups/{token}", rs.completeHolidayParentSetup)
 	r.Get("/tenant/resolve", rs.resolveTenant)
 	r.Get("/tenants", rs.listTenants)
 }

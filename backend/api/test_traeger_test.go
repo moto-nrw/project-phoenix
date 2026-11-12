@@ -21,15 +21,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	tenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/erasureledger"
-	provisioningAPI "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	tenancyCompose "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/erasureledger"
+	provisioningAPI "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/inbound/operator"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // testTraegerFixture holds the operator routes, sample children included,
@@ -298,8 +298,9 @@ func TestATestTraegerWithSampleChildrenIsErasedCompletely(t *testing.T) {
 	// due erasure order, through the erasure CLI's service.
 	_, err := f.db.ExecContext(f.ctx, `UPDATE platform.organizations SET active = false WHERE id = ?`, organizationID)
 	require.NoError(t, err)
-	_, err = f.db.ExecContext(f.ctx, `INSERT INTO platform.organization_erasure_orders (organization_id, order_reference, confirmed_on, erase_not_before, recorded_by)
-		VALUES (?, 'TEST-TRAEGER', '2026-01-02', '2026-01-03', ?)`, organizationID, f.operatorID)
+	_, err = f.db.ExecContext(f.ctx, `INSERT INTO platform.organization_erasure_orders (organization_id, order_reference, confirmed_on, erase_not_before, recorded_by,
+		records_notice_shown_at, records_choice)
+		VALUES (?, 'TEST-TRAEGER', '2026-01-02', '2026-01-03', ?, clock_timestamp(), 'erasure_chosen')`, organizationID, f.operatorID)
 	require.NoError(t, err)
 	erasure, err := tenancyCompose.NewErasure(f.db, objects.NewLocal(t.TempDir()), erasureledger.New(testErasureLedger(t), securityruntime.Fingerprint))
 	require.NoError(t, err)

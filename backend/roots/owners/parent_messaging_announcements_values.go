@@ -1,8 +1,8 @@
 package owners
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	parentportal "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 func parentMessagingFromOwnerAnnouncementFeedItem(v communication.PortalAnnouncementFeedItem) parentportal.AnnouncementFeedItem {
@@ -35,6 +35,7 @@ func parentMessagingFromOwnerAnnouncementFeedItem(v communication.PortalAnnounce
 		}),
 		Declaration: ParentMessagingPointer(v.Declaration, parentMessagingFromOwnerAnnouncementFeedDeclaration),
 		Poll:        v.Poll,
+		Ended:       v.Ended,
 	}
 }
 

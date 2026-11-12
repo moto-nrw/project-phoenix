@@ -144,6 +144,7 @@ export function enrollmentFormTopic(): HelpTopic {
     result:
       "Eltern füllen in dieser Phase das Basisformular und Ihre zusätzlichen Fragen aus.",
     notes: [
+      "Fragt Ihr Träger nach dem Ferienwunsch, schalten Sie bei `Ferienwunsch (Kind)` den Schalter `Ferienwunsch abfragen` ein. Eltern wählen dann für jedes Kind Ja oder Nein.",
       "Eine Vorlage gilt für alle Phasen, die sie auswählen. Sie brauchen nicht für jede Phase eine eigene.",
       "Mit `Vorschau öffnen` sehen Sie den Entwurf in einem neuen Tab, bevor Sie speichern.",
       "Die Vorschau zeigt nur Ihre Fragen, keine Betreuungsangebote. Unter `Angebote prüfen` öffnen Sie die Vorschau jeder Phase, die die Vorlage nutzt. Dort stehen die Angebote, auch wenn die Phase noch nicht aktiv ist.",

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -71,10 +71,10 @@ func TestTraegerMasterDataFollowsTheTraegerPolicy(t *testing.T) {
 			VALUES (?, 'Fremd', 'Fremd e.V.', 'DE89370400440532013000')`, own)
 		return err
 	})
-	assert.ErrorContains(t, err, "row-level security", "a Träger cannot write a bank account for another Träger")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "a Träger cannot write a bank account for another Träger")
 	err = asRequestRole("app.current_org_id", fmt.Sprint(own), func(tx bun.Tx) error {
 		_, err := tx.ExecContext(ctx, `UPDATE platform.traeger_master_data_audit SET action = 'set' WHERE organization_id = ?`, own)
 		return err
 	})
-	assert.ErrorContains(t, err, "permission denied", "the log takes no update")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "the log takes no update")
 }

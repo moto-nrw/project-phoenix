@@ -17,7 +17,7 @@ import {
 } from "react";
 import { AlertCircle, Check } from "lucide-react";
 import { PencilSimpleIcon } from "@phosphor-icons/react/ssr";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
@@ -69,6 +69,7 @@ import { pickupConcept } from "~/lib/concepts/pickup";
 import { sickConcept } from "~/lib/concepts/sick";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { FormFieldset } from "~/components/ui/form-fieldset";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "ChildMasterData" });
 
@@ -199,7 +200,7 @@ export function useChildMasterData(
   const sharedFeatures = useSharedParentFeatures();
   const hasSharedFeatures = sharedFeatures !== null;
   const [loading, setLoading] = useState(true);
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   const { error, show, clear } = useApiLoadError();
   const childRequests = useChildRequests();
 
@@ -289,8 +290,8 @@ function ChildMasterDataContent({
     next: ChildMasterData,
   ) => void;
 }>) {
-  const t = useTranslations("parentMasterData");
-  const visibilityT = useTranslations("parentVisibility");
+  const t = useCareTermTranslations("parentMasterData");
+  const visibilityT = useCareTermTranslations("parentVisibility");
   const pendingByField = useMemo(() => {
     const map = new Map<string, MasterDataChange>();
     for (const c of data.pending_changes) {
@@ -481,7 +482,7 @@ function IdentitySection({
   pendingByField: Map<string, MasterDataChange>;
   onApplied: (next: ChildMasterData) => void;
 }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   const locale = useLocale();
   const [modalOpen, setModalOpen] = useState(false);
 
@@ -630,7 +631,7 @@ function IdentityFact({
   formatRequested?: (raw: string) => string;
   onEdited?: () => void;
 }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   const requestTitleId = useId();
   const [editing, setEditing] = useState(false);
   // Nur Textwerte lassen sich hier ändern. Die Abholarten sind eine Tabelle
@@ -659,7 +660,7 @@ function IdentityFact({
                 <span className="min-w-0 text-base font-medium break-words text-gray-900">
                   {requestedValue}
                 </span>
-                <StatusBadge label={t("pendingBadge")} tone="orange" />
+                <StatusBadge label={t("pendingBadge")} tone="warning" />
               </div>
             </div>
             {isSelf && (
@@ -717,7 +718,7 @@ function DepartureSection({
   pending?: MasterDataChange;
   onApplied: (next: ChildMasterData) => void;
 }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   const [modes, setModes] = useState(() =>
     normalizeDepartureModes(data.allowed_departure_modes),
   );
@@ -972,7 +973,7 @@ function DepartureSection({
                 // Der Wrapper nimmt die volle Breite der Aktionsspalte auf
                 // dem Handy, das Badge behält seine eigene Breite.
                 <div>
-                  <StatusBadge label={t("pendingBadge")} tone="orange" />
+                  <StatusBadge label={t("pendingBadge")} tone="warning" />
                 </div>
               }
             >
@@ -1010,7 +1011,7 @@ function DepartureDays({
   /** Auf grauem Grund (offene Anfrage) heben sich die Tage weiß ab. */
   nested?: boolean;
 }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   return (
     <ul
       data-parent-tour={tourTarget ? "child-departure" : undefined}
@@ -1063,7 +1064,7 @@ function AutoSaveField({
   disabled?: boolean;
   onSave: (value: string) => Promise<void>;
 }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   const { error: saveError, show: showSaveError, clear } = useApiFormError();
   const [local, setLocal] = useState(value);
   const [status, setStatus] = useState<SaveStatus>("idle");
@@ -1233,7 +1234,7 @@ function AutoSaveSelect({
   disabled?: boolean;
   onSave: (value: string) => Promise<void>;
 }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   const { error: saveError, show: showSaveError, clear } = useApiFormError();
   const [local, setLocal] = useState(value);
   const [status, setStatus] = useState<SaveStatus>("idle");
@@ -1462,7 +1463,7 @@ function SaveIndicator({
   status,
   onRetry,
 }: Readonly<{ status: SaveStatus; onRetry?: () => void }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   if (status === "saving") {
     return (
       <span

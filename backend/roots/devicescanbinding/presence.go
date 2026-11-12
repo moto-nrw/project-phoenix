@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // classifyPresence maps a retained presence service failure to the port
@@ -87,6 +87,10 @@ func (v visits) Current(ctx context.Context, studentID int64) (*ports.CurrentVis
 func (v visits) Record(ctx context.Context, studentID, sessionID int64) (int64, error) {
 	visit := &studentpresence.Visit{StudentID: studentID, ActiveGroupID: sessionID, EntryTime: v.clock.Now()}
 	if err := v.active.CreateVisit(ctx, visit); err != nil {
+		var activityCapacity *studentpresence.ActivityParticipantLimitError
+		if errors.As(err, &activityCapacity) {
+			return 0, activityCapacityExceeded(activityCapacity)
+		}
 		var roomCapacity *studentpresence.RoomCapacityError
 		if errors.As(err, &roomCapacity) {
 			return 0, &ports.RoomCapacityExceeded{
@@ -103,6 +107,13 @@ func (v visits) Record(ctx context.Context, studentID, sessionID int64) (int64, 
 		return 0, err
 	}
 	return visit.ID, nil
+}
+
+func activityCapacityExceeded(limit *studentpresence.ActivityParticipantLimitError) *devicescan.ActivityCapacityExceededError {
+	return &devicescan.ActivityCapacityExceededError{
+		ActivityID: limit.ActivityID, ActivityName: limit.ActivityName,
+		CurrentOccupancy: limit.CurrentOccupancy, MaxCapacity: limit.MaxParticipants,
+	}
 }
 
 // sessions binds the room session transitions to the retained presence
@@ -252,7 +263,13 @@ func (a attendance) Status(ctx context.Context, studentID int64) (*ports.Attenda
 func (a attendance) Toggle(ctx context.Context, studentID, staffID, deviceID int64, skipAuthCheck bool) (string, error) {
 	result, err := a.active.ToggleStudentAttendance(ctx, studentID, staffID, deviceID, skipAuthCheck)
 	if err != nil {
-		return "", classifyPresence(err)
+		classified := classifyPresence(err)
+		// A kiosk without a session gets the 404 the session routes already
+		// answer, not a 500 (#5710).
+		if errors.Is(err, studentpresence.ErrNoActiveSession) {
+			classified = mapError(classified, ports.ErrNoActiveSession)
+		}
+		return "", classified
 	}
 	return result.Action, nil
 }

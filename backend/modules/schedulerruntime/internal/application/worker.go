@@ -3,7 +3,7 @@ package application
 import (
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
 )
 
 // NewWorker constructs and validates the complete embedded worker before the
@@ -45,7 +45,10 @@ func validateWorkerDependencies(deps ports.WorkerDependencies) error {
 		{name: "account retention", value: deps.AccountRetention},
 		{name: "holiday registration retention", value: deps.HolidayRegistrationRetention},
 		{name: "Träger document read retention", value: deps.TraegerDocumentReadRetention},
+		{name: "beleg retention", value: deps.BelegRetention},
+		{name: "SEPA debit download retention", value: deps.SEPADebitDownloadRetention},
 		{name: "feedback cleanup", value: deps.FeedbackCleaner},
+		{name: "retention log", value: deps.RetentionLog},
 		{name: "cleanup run ledger", value: deps.CleanupRuns},
 		{name: "export transfer recovery", value: deps.SettleExpiredTransfers},
 	}
@@ -71,6 +74,8 @@ func requiredWorkerJobIDs() []ports.JobID {
 		"care-contract-conclusion",
 		"staff-qualification-reminders",
 		"care-contract-reminders",
+		"holiday-closure-notifications",
+		"holiday-closure-watchdog",
 		"week-protocols",
 		"payroll-dispatch",
 		"meal-orders",
@@ -119,6 +124,8 @@ func (s *Scheduler) jobDefinitions() []Job {
 	add(s.careContractConclusion != nil, "care-contract-conclusion", s.scheduleCareContractConclusionTask)
 	add(!isNilDependency(s.staffQualificationReminders), "staff-qualification-reminders", s.scheduleStaffQualificationRemindersTask)
 	add(s.careContractReminders != nil, "care-contract-reminders", s.scheduleCareContractRemindersTask)
+	add(s.holidayClosureNotifications.ProcessDue != nil, "holiday-closure-notifications", s.scheduleHolidayClosureNotificationsTask)
+	add(s.holidayClosureNotifications.Overdue != nil, "holiday-closure-watchdog", s.scheduleHolidayClosureWatchdogTask)
 	add(!isNilDependency(s.weekProtocols), "week-protocols", s.scheduleWeekProtocolsTask)
 	add(!isNilDependency(s.payrollDispatch), "payroll-dispatch", s.schedulePayrollDispatchTask)
 	add(!isNilDependency(s.mealOrders), "meal-orders", s.scheduleMealOrdersTask)

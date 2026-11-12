@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -53,9 +53,7 @@ func TestBackfillMensaCategory(t *testing.T) {
 
 	testpkg.EnsureTestTenant(t, db, withoutMensa)
 
-	testpkg.OwnTenantRows(t, db, withoutMensa)
 	testpkg.EnsureTestTenant(t, db, withMensa)
-	testpkg.OwnTenantRows(t, db, withMensa)
 
 	insertMensaTestCategory(t, db, withoutMensa, "Sport")
 	insertMensaTestCategory(t, db, withMensa, "mensa")
@@ -79,7 +77,6 @@ func TestBackfillMensaCategoryDownPreservesPreexistingCategory(t *testing.T) {
 	ctx := context.Background()
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 	insertMensaTestCategory(t, db, tenantID, "Mensa")
 
 	require.NoError(t, backfillMensaCategoryDown(ctx, db))

@@ -911,11 +911,13 @@ class WorkTimeModelService {
 }
 
 // Staff history types (reuses time-tracking-helpers types)
-// One break of a work session. Narrowed to the fields the metric helpers read
-// from the wire (SessionResponse.Breaks); the payload carries more.
+// Metrics can supply only intervals. History also carries the exact identity
+// and recorded minutes used by the correction dialog.
 interface StaffSessionBreak {
+  id?: string;
+  duration_minutes?: number;
   started_at: string;
-  ended_at: string | null;
+  ended_at?: string | null;
 }
 
 export interface StaffHistorySession {
@@ -941,6 +943,10 @@ export interface StaffHistorySession {
   notes?: string;
   edit_count?: number;
   audit_count?: number;
+  // Credit inside `net_minutes` (#6851, #6852): pack-up time of a regular
+  // checkout and the signed change of the rounding. 0 for an open block.
+  pack_up_minutes?: number;
+  rounding_minutes?: number;
 }
 
 /** Die Antwort der Verlaufsroute samt Wochensummen und ArbZG-Hinweisen. */
@@ -1554,6 +1560,17 @@ interface AdminSessionPayload {
   notes: string;
 }
 
+// An update leaves out a time it does not change: the backend keeps the
+// stored value for a missing field (#6293).
+interface AdminSessionUpdatePayload {
+  check_in_time?: string; // ISO 8601
+  check_out_time?: string; // ISO 8601
+  break_minutes: number;
+  breaks?: Array<{ id: string; duration_minutes: number }>;
+  status: "present" | "home_office";
+  notes: string;
+}
+
 class StaffSessionEditsService {
   async getEdits(
     staffId: string,
@@ -1739,7 +1756,7 @@ class StaffSessionService {
   async updateSession(
     staffId: string,
     sessionId: string,
-    payload: AdminSessionPayload,
+    payload: AdminSessionUpdatePayload,
   ): Promise<void> {
     const response = await sessionFetch(
       `/api/staff/${staffId}/time-tracking/sessions/${sessionId}`,

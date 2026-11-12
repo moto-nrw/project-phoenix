@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 const maxCreateBatch = 200
@@ -32,6 +32,7 @@ type Intake struct {
 	modes        carecontract.ConclusionModes
 	mail         carecontract.MailBlocks
 	letterheads  carecontract.Letterheads
+	families     carecontract.FamilyNumbers
 	today        func() calendar.Date
 }
 
@@ -47,17 +48,21 @@ type IntakePorts struct {
 	// Letterheads gives the Träger's address and contact the withdrawal
 	// notice of the enrollment form names (#6105).
 	Letterheads carecontract.Letterheads
+	// Families takes the registration's number of children over with the
+	// contract (#6335).
+	Families carecontract.FamilyNumbers
 }
 
 var _ carecontract.Intake = (*Intake)(nil)
 
 func NewIntake(store Store, ports IntakePorts, today func() calendar.Date) *Intake {
 	if store == nil || ports.Schools == nil || ports.Applications == nil || ports.Bookings == nil || ports.Access == nil ||
-		ports.Runtime == nil || ports.Modes == nil || ports.Mail == nil || ports.Letterheads == nil || today == nil {
-		panic("care contract: the store, the schools, the applications, the bookings, the access log, the runtime, the conclusion modes, the mail blocks, the letterheads and the clock are required")
+		ports.Runtime == nil || ports.Modes == nil || ports.Mail == nil || ports.Letterheads == nil || ports.Families == nil || today == nil {
+		panic("care contract: the store, the schools, the applications, the bookings, the access log, the runtime, the conclusion modes, the mail blocks, the letterheads, the family numbers and the clock are required")
 	}
 	return &Intake{store: store, schools: ports.Schools, applications: ports.Applications, bookings: ports.Bookings,
-		access: ports.Access, runtime: ports.Runtime, modes: ports.Modes, mail: ports.Mail, letterheads: ports.Letterheads, today: today}
+		access: ports.Access, runtime: ports.Runtime, modes: ports.Modes, mail: ports.Mail, letterheads: ports.Letterheads,
+		families: ports.Families, today: today}
 }
 
 // schoolRead is what the intake read in one school's tenant transaction.
@@ -160,6 +165,7 @@ func collectCandidates(reads []schoolRead, existing map[ContractKey]bool, templa
 				Services:      boundServices(booked.services, lastDay(booked.until)),
 				EffectiveFrom: booked.effectiveFrom(application, today),
 				TemplateIssue: issue,
+				Renewal:       application.Renewal,
 				ModulesText:   carecontract.JoinNames(ModuleNames(booked.services)),
 				AcceptanceIssue: acceptanceIssue(NewContract{AcceptedAt: application.AcceptedAt, Acceptances: application.Acceptances,
 					Version: carecontract.Version{Terms: terms}},
@@ -245,6 +251,9 @@ func (in *Intake) create(ctx context.Context, reviewer carecontract.Reviewer, ke
 			map[string]any{"request_child_id": key.RequestChildID, "care_offering_ids": draftOfferings(draft)}); err != nil {
 			return result, err
 		}
+		if err := adoptFamilyChildren(ctx, in.store, in.families, reviewer.OrganizationID, id, draft); err != nil {
+			return result, err
+		}
 		record, err := in.store.Contract(ctx, reviewer.OrganizationID, id, false)
 		if err != nil {
 			return result, err
@@ -301,6 +310,7 @@ func (in *Intake) draft(key carecontract.CandidateKey, reads []schoolRead, templ
 		},
 	}
 	draft.EarlyStart = earlyStartRequested(draft)
+	draft.FamilyChildren = application.FamilyChildren
 	return draft, ""
 }
 

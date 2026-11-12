@@ -10,9 +10,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
-	identityAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	identityAPI "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/operator"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -26,7 +26,7 @@ func TestOperatorMFAAuditsPersistRequestIP(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "audit-request-ip")
 	schoolID := testpkg.Tenant(t)
 	testpkg.EnsureAccountTenant(t, db, account.ID, schoolID)
-	require.NoError(t, identity.EnrollMFA(ctx, account.ID))
+	require.NoError(t, enrollMFA(ctx, t, db, identity, account.ID))
 	resource := &identityAPI.SchoolAccountMFAResource{TenantMFAService: identity}
 	router := chi.NewRouter()
 	router.Use(chimiddleware.ClientIPFromXFFTrustedProxies(1))

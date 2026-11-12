@@ -14,9 +14,11 @@ The groups below explain why each set exists.
 | --- | --- | --- |
 | Frontend runtime | `NEXTAUTH_SECRET` signs portal sessions; `METRICS_BEARER_TOKEN` protects metrics. JWT expiry/refresh timing remains required, without the backend JWT signing key. API URL, portal/domain URLs, log level, public analytics/Sentry settings, proxy trust, timezone, port and hostname complete its allowlist. | `frontend/src/env.js`, `lib/env-validation.js`, `lib/server-runtime-env.ts`, `proxy.ts`, NextAuth host-trust configuration |
 | Frontend build | Public `NEXT_PUBLIC_*` values plus internal `API_URL` and `TENANT_DOMAIN`. CI build arguments supply browser-inlined values. Runtime values cannot replace an already built browser bundle. No authentication, database, SMTP or push private key is a build argument. | `frontend/Dockerfile.prod`, `.github/workflows/build.yml` |
-| Serving backend | Backend JWT key, application-role password, SMTP credentials, VAPID private key, Turnstile keys, the health data key ring `HEALTH_DATA_KEYS` (#4722, #5472), metrics token, analytics settings; pool sizing, public API and portal URLs, auth timing, rate limits, logging, scheduler and checkout configuration. | `backend/cmd/serve.go`, `backend/modules/transactionruntime/internal/adapters/database/database_config.go`, `backend/api/server.go`, `backend/api/base.go`, `backend/modules/schedulerruntime/` |
+| Serving backend | Backend JWT key, application-role password, SMTP credentials, VAPID private key, Turnstile keys, the health data key ring `HEALTH_DATA_KEYS` (#4722, #5472), the independent bank ring `BANK_DATA_KEYS` and explicitly temporary read ring `BANK_DATA_LEGACY_KEYS` (#6252; empty in all deployed environments since #6508), metrics token, analytics settings; pool sizing, public API and portal URLs, auth timing, rate limits, logging, scheduler and checkout configuration. | `backend/cmd/serve.go`, `backend/modules/transactionruntime/internal/adapters/database/database_config.go`, `backend/api/server.go`, `backend/api/base.go`, `backend/modules/schedulerruntime/` |
 | PostgreSQL | `POSTGRES_PASSWORD` and `TZ` only. Database administration stays inside this boundary. | PostgreSQL image startup; existing backup/restore commands |
 | Migration job | Privileged `DB_DSN`, pool sizing, `APP_ENV`, `TZ`, `PHOENIX_AUTH_PASSWORD`, admin/operator bootstrap credentials, and `HEALTH_DATA_KEYS`, with which migration `001015721` seals the existing health information of the holiday registrations and migration `001015730` the children's health field (#5472). No HTTP signing, SMTP, device or push secrets. | `backend/cmd/migrate.go`; migrations `001006002`, `001011003`, `001014001`, `001015721`, `001015730` |
+| Bank rekey job | Privileged `DB_DSN`, pool sizing, `APP_ENV`, `TZ`, `BANK_DATA_KEYS` and explicit `BANK_DATA_LEGACY_KEYS` only. No health, HTTP or bootstrap credentials, ports or mounts. Explicit `maintenance` profile, same pinned image as server. | `backend/cmd/bank_data_rekey.go`; [ADR 0183 rollout](../adr/0183-bankdaten-haben-einen-eigenen-schluesselring-und-einen-wiederholbaren-rekey.md#manueller-rollout-ohne-ausfall) |
+| Tenant export (local, restored copy) | Privileged `DB_DSN`, pool sizing, `BANK_DATA_KEYS` plus, until its rekey is done, `BANK_DATA_LEGACY_KEYS`, and `HEALTH_DATA_KEYS` of the source installation, so the return opens IBAN and account holder of SEPA mandates and debits, the confirmed mandate text, IBAN and account holder of guardians, IBAN, tax ID and social security number of staff, and the health information (#3838, #6328, #6412). Without either ring the export refuses. Keys only through SOPS into the process environment; no HTTP, health or bootstrap credentials. | `backend/cmd/tenant.go`; [runbook](auskunft-und-rueckgabe.md) |
 | Demo sidecar only | Privileged `DB_DSN`, pool sizing, `APP_ENV`, `TZ`, operator bootstrap credentials, device PIN and `SENTRY_DSN` for orders that fail for good. No JWT signing, SMTP or frontend secrets; no filesystem state beyond a tmpfs heartbeat file. The environment and target-host guards reject staging, production and public hosts. | `backend/cmd/devtools/demo.go`, `demo-runtime` in `environments/demo.compose.yml`, [standing demo operations](standing-demo.md) |
 | Backup and restore | `pg_dump`, `pg_dumpall`, `psql`, and `pg_restore` execute inside PostgreSQL over its Unix socket. They need no backend or frontend environment. Globals dumps contain role credentials and remain protected backup artifacts. | `scripts/deploy-remote.sh`, `scripts/restore-db.sh` |
 
@@ -25,8 +27,8 @@ The serving backend receives a credential-free endpoint:
 production and `sslmode=disable` in staging. These match the tracked Compose
 topology and encrypted maintenance DSN endpoints. `GetServeDSN` adds only
 `PHOENIX_AUTH_PASSWORD`, using URL encoding. The privileged SOPS `DB_DSN`
-is passed only to the one-shot `migrate` service. No SOPS key or credential
-changes are needed.
+is passed only to the one-shot `migrate` and `bank-data-rekey` services.
+Bank keys must be provisioned via SOPS before merge; see ADR 0183.
 
 Local development still combines migration and hot reload in its existing
 source-mounted service. This deployment boundary does not claim to isolate
@@ -67,7 +69,9 @@ enabled by the deployment service.
 
 1. Deploy migrations with `docker compose run --rm migrate`. The
    `maintenance` profile excludes the job from normal `up`; explicitly running
-   the service enables it. CI pins both backend service images to the same SHA.
+   the service enables it. CI pins all backend service images to the same SHA. The separate
+   `bank-data-rekey` maintenance job receives the bank rings with the privileged
+   DSN; the exact all-organization invocation is in ADR 0183.
 2. Run `scripts/env-check.sh`. It checks SOPS key parity, example keys, parsed
    Compose allowlists, credential-free serve DSNs, and fail-fast bindings.
    `python3 scripts/check-runtime-env.py --revision HEAD` can test a historical
@@ -121,3 +125,15 @@ reject empty or unreadable values. The root example retains the seed input
 for demo Compose validation and shared SOPS key parity. Removing the unused
 production/staging SOPS key is a human follow-up, with key-parity policy updated
 in the same change. See [3841-b rollout](geraete-zugang-3841.md#pin-auflösung-ohne-env-fallback-slice-3841-b).
+
+### Bankdaten-Rekey (#6252)
+
+`BANK_DATA_KEYS` bleibt Pflicht, auch solange die SOPS-Inventare auf Yannicks
+manuelle Ergänzung warten (`PENDING_SOPS_KEYS`, nur Inventarprüfung, kein
+Runtime-Fallback). `BANK_DATA_LEGACY_KEYS` ist ein expliziter, leer erlaubter
+Wert; leer deaktiviert Legacy-Lesen. Seit #6508 ist er in allen drei
+SOPS-Dateien leer (ADR 0183 Schritt 5); Restore und Rotation setzen ihn wieder. Beide stehen nur dem Backend zur Verfügung,
+nicht Frontend, PostgreSQL oder Standard-Migrationsjob. Der einmalige
+`bank-data-rekey`-Wartungsaufruf benötigt separat den privilegierten DSN und
+diese beiden Ringe, ohne SQL-Debug-Logging. Rollout, Abschluss, Rotation und
+Restore: [ADR 0183](../adr/0183-bankdaten-haben-einen-eigenen-schluesselring-und-einen-wiederholbaren-rekey.md).

@@ -1,7 +1,7 @@
 {
-  "kicker": "Post from the OGS",
+  "kicker": "Post from the {careTerm}",
   "title": "Letters to parents",
-  "description": "Notices, surveys and important information from your OGS.",
+  "description": "Notices, surveys and important information from your {careTerm}.",
   "empty": "There are no new letters to parents right now.",
   "open": "Open",
   "openLabel": "Open, {count}",

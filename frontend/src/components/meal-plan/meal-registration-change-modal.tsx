@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -17,6 +17,7 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { EditActions } from "~/components/ui/edit-actions";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
@@ -28,6 +29,7 @@ import { formatDate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useLocalizedDatePicker } from "~/lib/hooks/use-localized-date-picker";
 import { createLogger } from "~/lib/logger";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 import {
   clearChildMealDay,
   getChildMealSchedule,
@@ -70,7 +72,7 @@ export function MealRegistrationChangeModal({
   others: readonly DailyMealParticipant[];
   initialStudentId?: string;
 }>) {
-  const t = useTranslations("mealParticipantList");
+  const t = useCareTermTranslations("mealParticipantList");
   const locale = useLocale();
   const today = useBerlinToday();
   const datePicker = useLocalizedDatePicker();
@@ -89,7 +91,8 @@ export function MealRegistrationChangeModal({
   const [choice, setChoice] = useState<DayChoice | null>(null);
   const [weekdays, setWeekdays] = useState<number[]>([]);
   const [effectiveFrom, setEffectiveFrom] = useState(date);
-  const [saving, setSaving] = useState(false);
+  const submission = useFormModalPending(isOpen);
+  const saving = submission.pending;
 
   const eating = useMemo(
     () => new Set(participants.map((child) => child.studentId)),
@@ -207,28 +210,30 @@ export function MealRegistrationChangeModal({
 
   async function save() {
     if (!ready) return;
-    setSaving(true);
     clearError();
-    try {
-      if (scope === "day" && choice === "regular") {
-        await clearChildMealDay(studentId, date);
-      } else if (scope === "day") {
-        await setChildMealDay(studentId, date, choice === "eats");
-      } else {
-        await replaceChildMealSchedule(studentId, weekdays, effectiveFrom);
+    await submission.run(async (op) => {
+      try {
+        if (scope === "day" && choice === "regular") {
+          await clearChildMealDay(studentId, date);
+        } else if (scope === "day") {
+          await setChildMealDay(studentId, date, choice === "eats");
+        } else {
+          await replaceChildMealSchedule(studentId, weekdays, effectiveFrom);
+        }
+      } catch (cause) {
+        logger.error("meal_registration_change_failed", {
+          error: cause instanceof Error ? cause.message : String(cause),
+        });
+        if (op.isCurrent()) {
+          void showError(cause, { object: t("errorObjectChange") });
+        }
+        return;
       }
-    } catch (cause) {
-      logger.error("meal_registration_change_failed", {
-        error: cause instanceof Error ? cause.message : String(cause),
-      });
-      void showError(cause, { object: t("errorObjectChange") });
-      setSaving(false);
-      return;
-    }
-    setSaving(false);
-    success(t("changeSaved", { name: childName }));
-    onSaved();
-    onClose();
+      success(t("changeSaved", { name: childName }));
+      onSaved();
+      // Eine späte Antwort schließt keinen inzwischen neuen Dialog (#6533).
+      if (op.isCurrent()) onClose();
+    });
   }
 
   return (
@@ -237,7 +242,7 @@ export function MealRegistrationChangeModal({
       onClose={onClose}
       title={t("changeTitle")}
       size="md"
-      closeDisabled={saving}
+      pending={submission}
       isBackdropDismissDisabled
       error={error}
       footer={

@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // PortalService is the guardian portal as these handlers consume it: the
@@ -47,7 +47,20 @@ type PortalService interface {
 	// schools of a Träger whose relationship grants
 	// parent_portal.enrollment.submit, with the guardian's contact data, and
 	// records each child's read in its school's data access log (#4662).
-	HolidayRegistrationFamily(ctx context.Context, accountID, organizationID int64, schoolIDs []int64) (*parentService.HolidayRegistrationFamily, error)
+	HolidayRegistrationFamily(ctx context.Context, accountID int64, scope parentService.HolidayRegistrationScope) (*parentService.HolidayRegistrationFamily, error)
+
+	// HolidayRegistrationOffers returns the published holiday periods of
+	// the Träger of the account's children whose registration has not
+	// closed, each with the children the account may register (#6671).
+	HolidayRegistrationOffers(ctx context.Context, accountID int64) ([]parentService.HolidayRegistrationOffer, error)
+
+	// HolidayRegistrationEntries reads the holiday registrations linked to
+	// the account, newest first (ADR 0216 point 9).
+	HolidayRegistrationEntries(ctx context.Context, accountID int64) ([]parentService.HolidayRegistrationEntry, error)
+	// ClaimHolidayRegistrationsAfterSignIn links the holiday registrations
+	// of the address a parent signed in with to its account (ADR 0216 point
+	// 3); a failure is logged and never fails the sign-in.
+	ClaimHolidayRegistrationsAfterSignIn(ctx context.Context, email string)
 
 	// ListBillingDocuments lists the documents the Träger of the account's
 	// schools sent to its address, where a relationship grants
@@ -62,6 +75,11 @@ type PortalService interface {
 	ContractNoticeOptions(ctx context.Context, accountID, organizationID, contractID int64) (parentService.ContractNoticeOptions, error)
 	FamilyChildren(ctx context.Context, accountID, organizationID, contractID int64) (parentService.FamilyChildren, error)
 	StateFamilyChildren(ctx context.Context, accountID, organizationID, contractID int64, children int) (parentService.FamilyChildren, error)
+	// The SEPA mandate of the family on that contract (#4696).
+	SEPAMandate(ctx context.Context, accountID, organizationID, contractID int64) (parentService.SEPAMandateView, error)
+	PreviewSEPAMandate(ctx context.Context, accountID, organizationID, contractID int64, input parentService.SEPAMandateInput) (parentService.SEPAMandateText, error)
+	GrantSEPAMandate(ctx context.Context, accountID, organizationID, contractID int64, input parentService.SEPAMandateInput) (parentService.SEPAMandateView, error)
+	RevokeSEPAMandate(ctx context.Context, accountID, organizationID, contractID int64) (parentService.SEPAMandateView, error)
 	DeclareContractNotice(ctx context.Context, accountID, organizationID, contractID int64, input parentService.ContractNoticeInput) (parentService.ContractNoticeOptions, error)
 	// ContractSigningView and SignContract read and sign a care contract
 	// of the inbox (#4679).
@@ -92,6 +110,9 @@ type PortalService interface {
 	// (#4801): parent_portal.access to see the days, and
 	// parent_portal.conference.book when book is set.
 	ParentConferenceChild(ctx context.Context, accountID, studentID int64, book bool) (*parentService.Child, error)
+	// WithParentConferenceBooking runs a booking, move or cancellation in the
+	// child's school unit behind the child write guard.
+	WithParentConferenceBooking(ctx context.Context, accountID, studentID int64, write func(ctx context.Context, child *parentService.Child) error) error
 
 	UpdatePortalLocale(ctx context.Context, accountID int64, locale string) (*parentService.Profile, error)
 
@@ -288,6 +309,15 @@ type PortalService interface {
 	// The audience selects the conversation (#5200); a new leadership
 	// conversation needs the school's leadership option.
 	PostChildReply(ctx context.Context, accountID, studentID int64, body string, groupThreadID int64, audience ...string) (*parentService.MessageThreadView, error)
+
+	// PrepareChildMessageAttachment stores the row of one upload for a
+	// message about the child (#6685); DiscardChildMessageAttachment removes
+	// it when its bytes could not be written. Both need
+	// parent_portal.notes.write. OpenChildMessageAttachment locates a file of
+	// the guardian's own conversations about the child.
+	PrepareChildMessageAttachment(ctx context.Context, accountID, studentID int64, upload parentService.MessageAttachmentUpload) (*parentService.StoredMessageAttachment, error)
+	DiscardChildMessageAttachment(ctx context.Context, accountID, studentID, attachmentID int64) error
+	OpenChildMessageAttachment(ctx context.Context, accountID, studentID, attachmentID int64) (*parentService.StoredMessageAttachment, error)
 
 	// ListGroupThreads returns the group threads that reached the guardian,
 	// newest first (#4784). Cross-tenant.

@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // errSettingsNotConfigured is the configuration error of an intake composed
@@ -111,8 +111,10 @@ func (s *Intake) resolveGradeMax(ctx context.Context) (int, error) {
 	return value, nil
 }
 
-func (s *Intake) resolveStatusTokenExpiry(ctx context.Context) (time.Duration, error) {
-	days, err := s.deps.Settings.StatusTokenTTLDays(ctx)
+func resolveStatusTokenExpiry(ctx context.Context, settings interface {
+	StatusTokenTTLDays(context.Context) (int, error)
+}) (time.Duration, error) {
+	days, err := settings.StatusTokenTTLDays(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("resolve enrollment.status_token_ttl_days: %w", err)
 	}
@@ -135,6 +137,12 @@ func (s *Intake) legalTexts(ctx context.Context) (enrollmentNative.LegalTexts, e
 	if err != nil {
 		return enrollmentNative.LegalTexts{}, err
 	}
+	return tenantLegalTexts(settings), nil
+}
+
+// tenantLegalTexts are the tenant-wide legal texts and the blocks they
+// produce.
+func tenantLegalTexts(settings LegalSettings) enrollmentNative.LegalTexts {
 	texts := enrollmentNative.LegalTexts{
 		AGB:                 strings.TrimSpace(settings.AGB),
 		AGBDocumentURL:      strings.TrimSpace(settings.AGBDocumentURL),
@@ -148,7 +156,7 @@ func (s *Intake) legalTexts(ctx context.Context) (enrollmentNative.LegalTexts, e
 		PhotoEnabled:        settings.PhotoEnabled,
 	}
 	texts.Blocks = buildLegalBlocks(texts)
-	return texts, nil
+	return texts
 }
 
 // LegalTextsForPhaseWithLateInvite returns the legal contract of a phase
@@ -313,6 +321,38 @@ func (s *Intake) loadPhaseForSubmission(ctx context.Context, phaseID int64) (*en
 		return nil, enrollmentNative.ErrEnrollmentDisabled
 	}
 	return phase, nil
+}
+
+// lockedPhaseForSubmission reads the phase with the phase bounds reader and
+// applies the checks of loadPhaseForSubmission. A gate failure stays an
+// error of its own.
+func (s *Intake) lockedPhaseForSubmission(ctx context.Context, phaseID int64) (enrollmentNative.LockedPhase, error) {
+	if s.deps.Catalog == nil {
+		return enrollmentNative.LockedPhase{}, fmt.Errorf("submit: phase repo not wired")
+	}
+	locked, err := s.phaseBounds().LockedPhase(ctx, phaseID)
+	if errors.Is(err, enrollmentNative.ErrPhaseBoundsLock) {
+		return enrollmentNative.LockedPhase{}, err
+	}
+	if err != nil {
+		return enrollmentNative.LockedPhase{}, fmt.Errorf("%w: phase %d not found", enrollmentNative.ErrInvalidSubmission, phaseID)
+	}
+	if !locked.Phase().IsActive {
+		return enrollmentNative.LockedPhase{}, enrollmentNative.ErrEnrollmentDisabled
+	}
+	return locked, nil
+}
+
+// checkEditablePhase applies the checks of loadPhaseForEditableRequest to a
+// phase the caller already read: the enrollment switch and an active phase.
+func (s *Intake) checkEditablePhase(ctx context.Context, phase *enrollmentNative.Phase) error {
+	if !s.isEnrollmentEnabled(ctx) {
+		return enrollmentNative.ErrEnrollmentDisabled
+	}
+	if phase == nil || !phase.IsActive {
+		return enrollmentNative.ErrEnrollmentDisabled
+	}
+	return nil
 }
 
 func (s *Intake) loadPhaseForEditableRequest(ctx context.Context, phaseID int64) (*enrollmentNative.Phase, error) {

@@ -18,6 +18,7 @@ import { traegerPath } from "~/lib/traeger-url";
 export type BillingTab =
   | "laeufe"
   | "monatsbeitraege"
+  | "jahresbescheide"
   | "preise"
   | "mensa"
   | "ermaessigungen"
@@ -25,7 +26,8 @@ export type BillingTab =
   | "kinderzahl"
   | "kostentraeger"
   | "familien"
-  | "lastschrift";
+  | "lastschrift"
+  | "exporte";
 
 type BillingArea = "laeufe" | "familien" | "preise";
 
@@ -47,6 +49,11 @@ const BILLING_AREAS: Record<
         value: "monatsbeitraege",
         label: "Monatsbeiträge",
         path: "/traeger/abrechnung/monatsbeitraege",
+      },
+      {
+        value: "jahresbescheide",
+        label: "Jahresbescheide",
+        path: "/traeger/abrechnung/jahresbescheide",
       },
     ],
   },
@@ -77,6 +84,11 @@ const BILLING_AREAS: Record<
         value: "kostentraeger",
         label: "Kostenübernahmen",
         path: "/traeger/abrechnung/kostentraeger",
+      },
+      {
+        value: "exporte",
+        label: "Exporte",
+        path: "/traeger/abrechnung/exporte",
       },
     ],
   },
@@ -127,11 +139,12 @@ export function billingTabs(
 }
 
 /**
- * What an invoice still asks for, as a pill. An invoice without storno or
- * credit is „Ausgestellt“, not „Offen“: moto does not see payments.
+ * What an invoice still asks for, as a pill. „Forderung offen“ says that
+ * the invoice still asks for money; whether the family paid is checked in
+ * the bookkeeping, not in moto (#6348).
  */
 export const INVOICE_STATUS_LABELS: Record<BillingInvoiceStatus, string> = {
-  open: "Ausgestellt",
+  open: "Forderung offen",
   partly_credited: "Teilgutschrift",
   credited: "Gutgeschrieben",
   cancelled: "Storniert",
@@ -142,7 +155,7 @@ export const INVOICE_STATUS_TONES: Record<
   BillingInvoiceStatus,
   StatusBadgeTone
 > = {
-  open: "orange",
+  open: "warning",
   partly_credited: "blue",
   credited: "gray",
   cancelled: "red",
@@ -187,6 +200,8 @@ export function familyMatches(family: BillingFamily, search: string): boolean {
   return [
     familyName(family),
     family.recipientEmail,
+    family.familyEmail,
+    family.familyDebtorNumber,
     ...family.debtorNumbers,
   ].some((value) => value.toLocaleLowerCase("de").includes(needle));
 }

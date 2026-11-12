@@ -3,8 +3,8 @@ package ports
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // RoleStore is the persistence port over the identity-owned role and
@@ -38,6 +38,8 @@ type RoleStore interface {
 	// ListAccountsHoldingRole maps the supplied accounts that hold roleName at
 	// the tenant in context. Accounts without that role are absent from the map.
 	ListAccountsHoldingRole(ctx context.Context, accountIDs []int64, roleName string) (map[int64]bool, error)
+	// ListRoleHolderAccountIDs returns this school's holders in ascending ID lock order.
+	ListRoleHolderAccountIDs(ctx context.Context, roleID int64) ([]int64, error)
 	ListAccountRoleNames(ctx context.Context, accountIDs []int64) (map[int64]string, error)
 
 	// AccountHoldsRole reports whether the account-role mapping exists.

@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // editReviewStore is a review store with one received registration of one
@@ -83,8 +83,9 @@ func (editCipher) Seal(plaintext, _ []byte) ([]byte, error) { return plaintext, 
 func (editCipher) Open(sealed, _ []byte) ([]byte, error)    { return sealed, nil }
 
 func newEditReview(store *editReviewStore) *HolidayRegistrationReview {
-	return NewHolidayRegistrationReview(store, editPeriodStore{}, editFormStore{}, editCipher{},
-		func() calendar.Date { return calendar.NewDate(2026, 11, 3) })
+	review, _, _, _ := NewHolidayRegistrationReview(store, editPeriodStore{}, editFormStore{}, editCipher{},
+		func() calendar.Date { return calendar.NewDate(2026, 11, 3) }, nil, nil, nil)
+	return review
 }
 
 func editedPhone(phone string) enrollment.HolidayRegistrationEdit {

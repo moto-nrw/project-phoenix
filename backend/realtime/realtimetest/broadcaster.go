@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/realtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -77,11 +77,6 @@ func (b *RecordingBroadcaster) BroadcastToSchoolAccounts(tenantID int64, account
 // BroadcastToTenantAdmins implements realtime.Broadcaster.
 func (b *RecordingBroadcaster) BroadcastToTenantAdmins(tenantID int64, event realtime.Event) error {
 	return b.record(BroadcastCall{Method: "admin", TenantID: tenantID, Event: event})
-}
-
-// BroadcastToAll implements realtime.Broadcaster.
-func (b *RecordingBroadcaster) BroadcastToAll(event realtime.Event) error {
-	return b.record(BroadcastCall{Method: "all", Event: event})
 }
 
 // BroadcastParentMessage implements realtime.Broadcaster.

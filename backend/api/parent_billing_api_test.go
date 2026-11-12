@@ -15,9 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 const contributionRulesPath = "/traeger/contribution-rules"
@@ -67,6 +67,13 @@ type confirmationBody struct {
 
 func holidayContributionPath(periodID, registrationID int64) string {
 	return fmt.Sprintf("/traeger/holiday-contributions/%d/registrations/%d", periodID, registrationID)
+}
+
+// holidayRebookPath rebooks a child: a week it leaves frees its place for
+// the waiting list, so the Elternabrechnung serves it like the
+// cancellation (#4699).
+func holidayRebookPath(periodID, registrationID, childID int64) string {
+	return fmt.Sprintf("%s/children/%d/bookings", holidayContributionPath(periodID, registrationID), childID)
 }
 
 func holidayConfirmPath(periodID, registrationID int64) string {

@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime/userpasstest"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime/userpasstest"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -106,6 +106,7 @@ const studentDirectorySource = `(SELECT p.id, p.tenant_id, p.person_id, p.create
 	p.photo_path, p.photo_consent_given_at, p.photo_consent_given_by,
 	p.agb_accepted_at, p.data_processing_accepted_at, p.email_contact_accepted_at,
 	m.id AS membership_id, m.school_class, m.group_id, m.status, m.enrolled_from, m.enrolled_until, m.first_care_from,
+	m.care_paused_after, m.care_resumed_from,
 	c.health_data, c.pickup_status, c.departure_days,
 	c.allowed_departure_modes, c.departure_companion_note, c.pickup_days, c.bus_days,
 	c.sick, c.sick_since, c.excused, c.excused_since

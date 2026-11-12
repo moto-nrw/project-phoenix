@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func LockStaffAbsenceGate(ctx context.Context, staffID int64, lock func(context.Context, string) error) error {
@@ -15,6 +15,9 @@ func LockStaffAbsenceGate(ctx context.Context, staffID int64, lock func(context.
 	tenantID := tenant.FromContext(ctx)
 	if tenantID <= 0 {
 		return errors.New("workforce compose: tenant id is required")
+	}
+	if err := tenant.OrderLock(ctx, tenant.LockStaffWorkTime, tenant.StaffWorkTimeKey(staffID, true)); err != nil {
+		return fmt.Errorf("lock staff absence writes: %w", err)
 	}
 	if err := lock(ctx, fmt.Sprintf("staff-absence:%d:%d", tenantID, staffID)); err != nil {
 		return fmt.Errorf("lock staff absence writes: %w", err)

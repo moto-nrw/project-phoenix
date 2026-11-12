@@ -3,12 +3,12 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	schedule "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // SessionRecords exposes native values over the same joined rows and commands.
@@ -90,6 +90,13 @@ func (r SessionRecords) CreateMirroredSessionInstance(ctx context.Context, input
 		return 0, err
 	}
 	return row.ID, nil
+}
+
+// LockSessionInstanceStaff takes the staff rows of the mirrored session's
+// people in one ascending batch (#6702); the assignments that follow re-read
+// held rows only, so two mirrors naming the same people never hold one each.
+func (r SessionRecords) LockSessionInstanceStaff(ctx context.Context, staffIDs []int64) error {
+	return lockStaffRows(ctx, r.Staff, staffIDs)
 }
 
 func (r SessionRecords) AddSessionInstanceStaff(ctx context.Context, instanceID, staffID int64) error {

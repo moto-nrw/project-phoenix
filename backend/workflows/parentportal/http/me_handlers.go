@@ -8,12 +8,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // ParentProfileResponse carries the explicit parents-portal locale choice.
@@ -95,9 +95,8 @@ func (rs *Resource) updateMyProfile(w http.ResponseWriter, r *http.Request) {
 
 	profile, err := rs.ParentService.UpdatePortalLocale(r.Context(), int64(claims.ID), req.PortalLocale)
 	if err != nil {
-		// An authenticated parent always has a linked guardian_profiles row, so
-		// a missing one is a permanent state conflict (corruption), not a
-		// transient server fault — surface it as 409 rather than 500. The
+		// A composition without account-locale persistence still requires a
+		// guardian profile. Surface its absence as a state conflict; the
 		// service already logged the account_id.
 		if errors.Is(err, parentService.ErrGuardianProfileNotFound) {
 			common.RenderError(w, r, common.ErrorConflict(err))

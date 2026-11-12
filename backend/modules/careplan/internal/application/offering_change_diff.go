@@ -7,16 +7,20 @@ import (
 	"slices"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/selection"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // offeringDecisionDiff is a request's review diff plus the override
 // bookkeeping a staff approval with exclusions needs.
 type offeringDecisionDiff struct {
-	entries      []careplan.OfferingChangeDiffEntry
+	entries []careplan.OfferingChangeDiffEntry
+	// unchanged are the booked offerings the request keeps with the same
+	// days; the review shows them as "Bleibt gebucht" (#6334). They are not
+	// part of the frozen decision snapshot.
+	unchanged    []careplan.OfferingChangeDiffEntry
 	overridden   []careplan.OfferingOverride
 	current      []*careplan.BookedOffering
 	base         []careplan.OfferingSelection
@@ -59,13 +63,14 @@ type decisionDiffInput struct {
 }
 
 // diffForRequest renders "current → requested" per offering, including the
-// dropped ones, so a reviewer never has to open two screens.
-func (s *OfferingChanges) diffForRequest(ctx context.Context, row careplan.OfferingChangeRequest) ([]careplan.OfferingChangeDiffEntry, error) {
+// dropped ones, so a reviewer never has to open two screens. The second
+// result are the booked offerings the request keeps unchanged.
+func (s *OfferingChanges) diffForRequest(ctx context.Context, row careplan.OfferingChangeRequest) (changed, unchanged []careplan.OfferingChangeDiffEntry, err error) {
 	diff, err := s.decisionDiff(ctx, row, nil, nil)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
-	return diff.entries, nil
+	return diff.entries, diff.unchanged, nil
 }
 
 // decisionDiff builds the "current → requested" diff. With exclusions it
@@ -236,30 +241,38 @@ func materializedDecisionDiffFromSides(
 	offeringByID map[int64]*careplan.CareOffering,
 	overridden []careplan.OfferingOverride,
 ) (*offeringDecisionDiff, error) {
-	entries := offeringDiffEntries(sides, offeringByID)
+	entries, unchanged := offeringDiffEntries(sides, offeringByID)
 	if err := annotateAutomaticShares(entries, in.selected, offeringByID); err != nil {
 		return nil, err
 	}
 	sort.SliceStable(entries, func(i, j int) bool { return entries[i].Label < entries[j].Label })
+	sort.SliceStable(unchanged, func(i, j int) bool { return unchanged[i].Label < unchanged[j].Label })
 	return &offeringDecisionDiff{
-		entries: entries, overridden: overridden, current: in.current, base: in.base,
+		entries: entries, unchanged: unchanged, overridden: overridden, current: in.current, base: in.base,
 		selected: in.selected, offeringByID: offeringByID,
 	}, nil
 }
 
-func offeringDiffEntries(sides decisionSides, offeringByID map[int64]*careplan.CareOffering) []careplan.OfferingChangeDiffEntry {
-	entries := make([]careplan.OfferingChangeDiffEntry, 0, len(sides.ids))
+// offeringDiffEntries splits the offerings of both sides into the changed
+// lines and the booked lines the request keeps as they are. Each offering
+// lands in exactly one of them.
+func offeringDiffEntries(sides decisionSides, offeringByID map[int64]*careplan.CareOffering) (changed, unchanged []careplan.OfferingChangeDiffEntry) {
+	changed = make([]careplan.OfferingChangeDiffEntry, 0, len(sides.ids))
+	unchanged = make([]careplan.OfferingChangeDiffEntry, 0)
 	for _, id := range sides.ids {
 		name := ""
 		if offering := offeringByID[id]; offering != nil {
 			name = offering.Name
 		}
-		entry, changed := offeringDiffEntry(id, name, sides.currentByID[id], sides.requestedByID)
-		if changed {
-			entries = append(entries, entry)
+		entry, differs := offeringDiffEntry(id, name, sides.currentByID[id], sides.requestedByID)
+		switch {
+		case differs:
+			changed = append(changed, entry)
+		case entry.NewState == "booked":
+			unchanged = append(unchanged, entry)
 		}
 	}
-	return entries
+	return changed, unchanged
 }
 
 func offeringChangeSides(
@@ -391,7 +404,7 @@ func (s *OfferingChanges) payloadDecisionDiff(ctx context.Context, row careplan.
 	if err != nil {
 		return nil, fmt.Errorf("list snapshot offerings: %w", err)
 	}
-	entries := offeringDiffEntries(decisionSides{currentByID: currentByID, requestedByID: requestedByID, ids: ids}, offeringsByID(offerings))
+	entries, _ := offeringDiffEntries(decisionSides{currentByID: currentByID, requestedByID: requestedByID, ids: ids}, offeringsByID(offerings))
 	sort.SliceStable(entries, func(i, j int) bool { return entries[i].Label < entries[j].Label })
 	return &offeringDecisionDiff{entries: entries, current: current}, nil
 }

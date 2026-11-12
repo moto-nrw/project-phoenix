@@ -1,5 +1,5 @@
 {
-  "kicker": "Харчування в OGS",
+  "kicker": "Харчування в {careTerm}",
   "title": "Обід",
   "subtitle": "Тут ви бачите, коли ваша дитина обідає і що буде на обід.",
   "subtitleMealsOnly": "Тут ви бачите, що буде на обід.",
@@ -14,7 +14,7 @@
   "loading": "Меню завантажується",
   "emptyThisWeekTitle": "На цей тиждень меню ще не внесено",
   "emptyNextWeekTitle": "На наступний тиждень меню ще не внесено",
-  "emptyWeek": "Щойно OGS внесе меню, ви побачите його тут.",
+  "emptyWeek": "Щойно {careTerm} внесе меню, ви побачите його тут.",
   "weekNavigation": "Змінити тиждень",
   "previousWeek": "Попередній тиждень",
   "calendarWeek": "Тиждень {week}",
@@ -46,7 +46,7 @@
   "notRegistered": "Не записано на обід",
   "cancelledBySickNote": "Скасовано через повідомлення про хворобу",
   "cancelledByAbsence": "Скасовано, бо дитина відсутня",
-  "closedDay": "Цього дня продовжений день не працює",
+  "closedDay": "Цього дня {careTerm} не працює",
   "participationUnavailable": "Запис не завантажено",
   "mealUnavailable": "Обід не завантажено",
   "singleChange": "Змінено лише на цей день",
@@ -76,7 +76,5 @@
   "registerWeekDone": "Записано на весь тиждень.",
   "registerWeekLocked": "Строк запису на ці дні минув, вони залишаються без запису: {days}.",
   "errorObjectWeekCancel": "скасування на тиждень",
-  "errorObjectWeekRegister": "запис на тиждень",
-  "participationCutoffLead": "Ви можете змінити запис до {time} {days, plural, one {за # робочий день до обіду} few {за # робочі дні до обіду} many {за # робочих днів до обіду} other {за # робочого дня до обіду}}.",
-  "participationSicknessLead": "Підтверджене повідомлення про хворобу до {time} {days, plural, one {за # робочий день до обіду} few {за # робочі дні до обіду} many {за # робочих днів до обіду} other {за # робочого дня до обіду}} скасовує обід для вашої дитини. Після цього запис залишається."
+  "errorObjectWeekRegister": "запис на тиждень"
 }

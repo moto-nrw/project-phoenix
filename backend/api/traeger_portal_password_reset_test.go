@@ -13,8 +13,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // traegerResetLink reads the reset link of the newest reset mail to address.
@@ -98,7 +98,7 @@ func TestTraegerPortalPasswordResetLinksMembersToTheTraegerHost(t *testing.T) {
 // requests an hour, then 429 with the Retry-After the dialog counts down.
 func TestTraegerPortalPasswordResetIsRateLimited(t *testing.T) {
 	t.Parallel()
-	db := testpkg.SetupTestDB(t)
+	db := testpkg.SetupIsolatedTestDB(t) // address counters have no tenant
 	portal, _ := traegerPortalOn(t, db, testpkg.TenantRuntime(t, db), WithAuthTestPasswordResetRateLimit(true))
 	organization := traegerOrganization(t, db, "Träger Grenze", true)
 	member := traegerAccount(t, db, testpkg.NewTestPassword())

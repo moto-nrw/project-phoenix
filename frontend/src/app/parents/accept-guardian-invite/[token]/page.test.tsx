@@ -29,10 +29,30 @@ vi.mock("next-intl/server", () => ({
 }));
 
 vi.mock("~/components/auth/auth-shell", () => ({
-  AuthShell: ({ children }: { children: React.ReactNode }) => (
-    <main>{children}</main>
+  AuthShell: ({
+    children,
+    subtitle,
+  }: {
+    children: React.ReactNode;
+    subtitle?: string;
+  }) => (
+    <main>
+      {subtitle ? <p data-testid="auth-subtitle">{subtitle}</p> : null}
+      {children}
+    </main>
   ),
 }));
+
+// The form needs the app router; these tests look at the page around it.
+vi.mock(
+  "~/components/auth/guardian-invitation-accept-form",
+  async (importOriginal) => ({
+    ...(await importOriginal<
+      typeof import("~/components/auth/guardian-invitation-accept-form")
+    >()),
+    GuardianInvitationAcceptForm: () => null,
+  }),
+);
 
 vi.mock("~/components/parent/language-switcher", () => ({
   LanguageSwitcher: () => null,
@@ -57,6 +77,30 @@ describe("AcceptGuardianInvitePage", () => {
     vi.restoreAllMocks();
   });
 
+  it("loads a token through the bounded backend request path", async () => {
+    const fetch = vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      Response.json({
+        data: {
+          email: "eltern@example.test",
+          expires_at: "2026-11-11T12:00:00Z",
+        },
+      }),
+    );
+    render(
+      await AcceptGuardianInvitePage({
+        params: Promise.resolve({ token: "tok en" }),
+      }),
+    );
+    expect(screen.getByTestId("auth-subtitle")).toBeInTheDocument();
+    expect(fetch).toHaveBeenCalledWith(
+      "http://server:8080/auth/guardian-invitations/tok%20en",
+      expect.objectContaining({
+        cache: "no-store",
+        signal: expect.any(AbortSignal),
+      }),
+    );
+  });
+
   it("directs parents to their OGS when initial validation returns 410", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
       new Response(null, { status: 410 }),
@@ -78,6 +122,55 @@ describe("AcceptGuardianInvitePage", () => {
       ),
     );
     expect(screen.queryByText(/moto-(Team|Support)/i)).not.toBeInTheDocument();
+  });
+
+  // A dead link asks for nothing: the subtitle about confirming the
+  // invitation and choosing a password would contradict the error (#6294).
+  it.each([
+    ["the address changed", "identity.guardian_invitation_address_changed"],
+    ["the link expired", "identity.invitation_expired"],
+  ])("drops the password subtitle when %s", async (_case, code) => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(JSON.stringify({ status: 410, code }), {
+        status: 410,
+        headers: { "Content-Type": "application/problem+json" },
+      }),
+    );
+
+    render(
+      await AcceptGuardianInvitePage({
+        params: Promise.resolve({ token: "dead-token" }),
+      }),
+    );
+
+    expect(await screen.findByRole("alert")).toBeInTheDocument();
+    expect(screen.queryByTestId("auth-subtitle")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Passwort/)).not.toBeInTheDocument();
+  });
+
+  it("keeps the password subtitle for a valid invitation", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          data: {
+            email: "eltern@example.test",
+            expires_at: "2026-11-11T12:00:00Z",
+            school_name: "OGS Am Lindenpark",
+          },
+        }),
+        { status: 200, headers: { "Content-Type": "application/json" } },
+      ),
+    );
+
+    render(
+      await AcceptGuardianInvitePage({
+        params: Promise.resolve({ token: "valid-token" }),
+      }),
+    );
+
+    expect(screen.getByTestId("auth-subtitle")).toHaveTextContent(
+      "Bestätige deine Einladung für OGS Am Lindenpark und lege dein persönliches Passwort fest.",
+    );
   });
 
   it("shows the code the backend sends, not its sentence", async () => {

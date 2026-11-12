@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -39,22 +39,24 @@ func TestApplyDashboardAbsencesCountsHomeFromCandidates(t *testing.T) {
 		{
 			name: "at home, present, sick and excused children",
 			// 1, 2 at home; 3 present; 4 sick; 5 excused or on a class trip.
-			counts:   absencerecords.StudentStatusCounts{Sick: 1, Excused: 1, Total: 5, UnaccountedIDs: []int64{1, 2, 3}},
+			counts:   absencerecords.StudentStatusCounts{SickIDs: []int64{4}, ExcusedIDs: []int64{5}, Total: 5, UnaccountedIDs: []int64{1, 2, 3}},
 			present:  map[int64]bool{3: true},
 			wantHome: 2, wantHomeIDs: []int64{1, 2}, wantSick: 1, wantExcused: 1, presentCount: 1,
 		},
 		{
-			name: "a sick child checked in is not subtracted from home twice",
+			// Place before status (#6371): the checked-in child counts once,
+			// as present; its sick day is a hint and leaves the sick tile.
+			name: "a sick child checked in counts as present only",
 			// 1, 2 at home; 3 present; 4 sick AND checked in.
-			counts:   absencerecords.StudentStatusCounts{Sick: 1, Total: 4, UnaccountedIDs: []int64{1, 2, 3}},
+			counts:   absencerecords.StudentStatusCounts{SickIDs: []int64{4}, Total: 4, UnaccountedIDs: []int64{1, 2, 3}},
 			present:  map[int64]bool{3: true, 4: true},
-			wantHome: 2, wantHomeIDs: []int64{1, 2}, wantSick: 1, presentCount: 2,
+			wantHome: 2, wantHomeIDs: []int64{1, 2}, wantSick: 0, presentCount: 2,
 		},
 		{
-			name:     "an excused child checked in is not subtracted from home twice",
-			counts:   absencerecords.StudentStatusCounts{Excused: 1, Total: 3, UnaccountedIDs: []int64{1, 2}},
+			name:     "an excused child checked in counts as present only",
+			counts:   absencerecords.StudentStatusCounts{ExcusedIDs: []int64{3}, Total: 3, UnaccountedIDs: []int64{1, 2}},
 			present:  map[int64]bool{3: true},
-			wantHome: 2, wantHomeIDs: []int64{1, 2}, wantExcused: 1, presentCount: 1,
+			wantHome: 2, wantHomeIDs: []int64{1, 2}, wantExcused: 0, presentCount: 1,
 		},
 		{
 			name:     "everyone present leaves nobody at home",
@@ -84,6 +86,36 @@ func TestApplyDashboardAbsencesCountsHomeFromCandidates(t *testing.T) {
 			assert.Equal(t, tt.wantExcused, analytics.StudentsExcused)
 		})
 	}
+}
+
+// Place before status (#6371): every child of the roster lands in exactly one
+// dashboard figure. A checked-in child counts as present, whatever status its
+// day carries; a child without a check-in keeps its sick or excused status.
+func TestApplyDashboardAbsencesCountsEachChildOnce(t *testing.T) {
+	t.Parallel()
+	const (
+		atHome, presentOnly                  int64 = 1, 2
+		sickHere, excusedHere, classTripHere int64 = 3, 4, 5
+		sickAway, excusedAway                int64 = 6, 7
+	)
+	counts := absencerecords.StudentStatusCounts{
+		SickIDs:        []int64{sickHere, sickAway},
+		ExcusedIDs:     []int64{excusedHere, classTripHere, excusedAway},
+		Total:          7,
+		UnaccountedIDs: []int64{atHome, presentOnly},
+	}
+	present := map[int64]bool{presentOnly: true, sickHere: true, excusedHere: true, classTripHere: true}
+	s := &service{StudentStatusRepo: dashboardCountsRepo{counts: &counts}}
+	analytics := &DashboardAnalytics{StudentsPresent: len(present)}
+
+	s.applyDashboardAbsences(context.Background(), analytics, calendar.NewDate(2026, 11, 10), present)
+
+	assert.Equal(t, 1, analytics.StudentsSick, "only the sick child without a check-in")
+	assert.Equal(t, 1, analytics.StudentsExcused, "only the excused child without a check-in")
+	assert.Equal(t, []int64{atHome}, analytics.HomeCandidateIDs)
+	assert.Equal(t, counts.Total,
+		analytics.StudentsPresent+analytics.StudentsSick+analytics.StudentsExcused+analytics.StudentsHome,
+		"present, sick, excused and home add up to every child, each once")
 }
 
 // The "Schule" split (#3260) only looks at children the "Zuhause" tile

@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -186,7 +186,7 @@ func TestCatererSuppliesSeveralSchools(t *testing.T) {
 		require.NoError(t, beginErr)
 		defer func() { _ = competing.Rollback() }()
 		_, lockErr := competing.ExecContext(context.Background(), `SELECT id FROM auth.accounts WHERE id = ? FOR NO KEY UPDATE NOWAIT`, acceptance.AccountID)
-		require.ErrorContains(t, lockErr, "could not obtain lock", "acceptance holds the existing account until commit")
+		require.Equal(t, "55P03", testpkg.PostgresSQLState(lockErr), "acceptance holds the existing account until commit")
 		return acceptErr
 	})
 	require.NoError(t, err)

@@ -3,10 +3,10 @@ package owners
 import (
 	"context"
 
-	owner0 "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	owner0 "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // careExitEnrollment serves the care lifecycle's Enrollment port: the
@@ -66,14 +66,14 @@ func (e careExitEnrollment) CareExitOfferingSnapshots(ctx context.Context, stude
 	return result, nil
 }
 
-func (e careExitEnrollment) RestoreCareExitOfferingLinks(ctx context.Context, restores []carePlanCompose.CareExitOfferingRestore) (int64, error) {
+func (e careExitEnrollment) RestoreCareExitOfferingLinks(ctx context.Context, restores []carePlanCompose.CareExitOfferingRestore, today owner0.Date) (int64, error) {
 	values := make([]enrollment.CareExitOfferingSnapshotRestore, 0, len(restores))
 	for _, restore := range restores {
 		values = append(values, enrollment.CareExitOfferingSnapshotRestore{
 			SourceRowID: restore.SourceRowID, WasDeleted: restore.WasDeleted, Snapshot: restore.Snapshot,
 		})
 	}
-	return e.projection.RestoreCareExitOfferingLinks(ctx, values)
+	return e.projection.RestoreCareExitOfferingLinks(ctx, values, enrollment.Date(today))
 }
 
 func enrollmentCareExitDay(value *enrollment.Date) *owner0.Date {

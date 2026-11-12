@@ -15,17 +15,17 @@ import (
 	"image/png"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
 func signedConsent() communication.ParentDeclarationSettings {
-	settings := consent(communication.DeclarationSignersAny, false, false)
+	settings := consent(communication.DeclarationSignersAny, false)
 	settings.RequiresSignature = true
 	return settings
 }
@@ -95,7 +95,7 @@ func TestDeclarationSignature_RefusalNeedsNoSignature(t *testing.T) {
 
 func TestDeclarationSignature_UnsignedConsentIgnoresASignature(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
 	submission, _, err := s.submitSigned(s.chain.AccountID, parentportal.DeclarationActionAgreed, drawnSignature(t))
 	require.NoError(t, err)
 	assert.Nil(t, submission.SignatureID)

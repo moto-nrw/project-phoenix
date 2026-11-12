@@ -4,23 +4,23 @@ import (
 	"context"
 	"fmt"
 
-	realtime "github.com/moto-nrw/project-phoenix/realtime"
+	realtime "github.com/moto-ogs/project-phoenix/realtime"
 
-	fileStorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
+	fileStorageCompose "github.com/moto-ogs/project-phoenix/modules/filestorage/compose"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	workforceModule "github.com/moto-ogs/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
 )
 
 // PeopleServices are the People Directory services the roots compose over
@@ -47,18 +47,27 @@ type PeopleServices struct {
 // the guardian rows and Identity & Access's invitation reads, which need
 // only the database: the People Directory module serves it as its guardian
 // provider (#2663), and Identity & Access is composed over the module.
-func BuildGuardianService(db transactionruntime.Database, people PeopleRows, audit AuditOwner) (peoplePorts.GuardianService, error) {
+func BuildGuardianService(db transactionruntime.Database, people PeopleRows, audit AuditOwner, env RootEnvironment) (peoplePorts.GuardianService, error) {
+	if env.BankData == nil {
+		return nil, fmt.Errorf("guardian service: the bank data cipher is required")
+	}
 	invitations, err := identityaccessCompose.NewGuardianInvitationReads(db.Pool())
+	if err != nil {
+		return nil, err
+	}
+	invalidate, err := identityaccessCompose.NewGuardianInvitationInvalidation(db.Pool())
 	if err != nil {
 		return nil, err
 	}
 	return peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{
 		GuardianProfileRepo: people.GuardianProfiles, GuardianPhoneNumberRepo: peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()),
 		StudentGuardianRepo: people.StudentGuardians, GuardianInvitations: NewGuardianInvitationReads(invitations),
-		StudentRepo: people.Students, PersonRepo: people.Persons,
+		InvalidateInvites: invalidate,
+		StudentRepo:       people.Students, PersonRepo: people.Persons,
 		GuardianFinancialRepo:  peopleCompose.NewGuardianFinancialDataRepository(db.Pool()),
 		GuardianFinancialAudit: NewGuardianFinancialAudit(audit.Persistence.GuardianFinancialChange),
 		DataAccessLog:          NewGuardianDataAccessLog(audit.Persistence.DataAccessLog),
+		BankData:               env.BankData,
 		RolePresets: peoplePorts.GuardianRolePresetFuncs{
 			Default: securityruntime.DefaultStudentGuardianRole, Presets: securityruntime.StudentGuardianRolePreset,
 		}}, db.Pool()), nil
@@ -123,7 +132,7 @@ func BuildPeopleServices(
 // the staff and person rows and the trail are bound here.
 func BuildWorkforceStaffAdmin(db transactionruntime.Database, env RootEnvironment, persons peopledirectory.Capability, membership schoolmembership.Capability, people PeopleRows, audit AuditOwner) (*workforceModule.StaffAdmin, error) {
 	admin, err := ComposeStaffAdmin(workforceCompose.StaffAdminDependencies{
-		DB: db.Pool(), Logger: env.Logger.With("service", "staff_documents"), Now: env.Now,
+		DB: db.Pool(), Logger: env.Logger.With("service", "staff_documents"), Now: env.Now, BankData: env.BankData,
 	}, people.Staff, people.Persons, persons, membership,
 		audit.Persistence.StaffMasterDataChange, audit.Persistence.PersonnelNumberChange, audit.Persistence.DataAccessLog)
 	if err != nil {
@@ -138,8 +147,9 @@ func BuildWorkforceStaffAdmin(db transactionruntime.Database, env RootEnvironmen
 // Audit Platform consent trail. None of them needs the directory, so the
 // module receives the runtime at construction.
 func BuildStudentPhotoRuntime(db transactionruntime.Database, env RootEnvironment, settings settingsCompose.SettingsService, hub *realtime.Hub, audit AuditOwner, unlinker peoplePorts.PhotoUnlinker, actor func(context.Context) int64) StudentPhotoRuntime {
+	cleanup := fileStorageCompose.NewUploadCleanup(db.Pool(), "student-photos")
 	return StudentPhotoRuntime{
-		Cleanup:  fileStorageCompose.NewUploadCleanup(db.Pool(), "student-photos").Queue,
+		Cleanup: cleanup.Queue, CleanupBatch: cleanup.QueueAll,
 		Settings: settings, Broadcaster: hub, Unlinker: unlinker,
 		Consents: studentConsentTrail{trail: audit.Persistence.StudentConsentChange},
 		Logger:   env.Logger.With("service", "student-photo"), Actor: actor,

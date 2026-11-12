@@ -10,8 +10,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // mountGroupThreadRoutes adds the group threads (#4784): the OGS writes to a
@@ -41,11 +41,15 @@ type CreateGroupThreadRequest struct {
 	GroupTargetBody
 	Title string `json:"title"`
 	Body  string `json:"body"`
+	// AttachmentIDs names the uploads the message carries (#6685).
+	AttachmentIDs []string `json:"attachment_ids,omitempty"`
 }
 
 type GroupMessageRequest struct {
 	ClientMessageID string `json:"client_message_id,omitempty"`
 	Body            string `json:"body"`
+	// AttachmentIDs names the uploads the message carries (#6685).
+	AttachmentIDs []string `json:"attachment_ids,omitempty"`
 }
 
 type GroupThreadResponse struct {
@@ -87,6 +91,8 @@ type GroupMessageResponse struct {
 	SenderName      string    `json:"sender_name"`
 	Body            string    `json:"body"`
 	CreatedAt       time.Time `json:"created_at"`
+	// Attachments are the photos and files of the message (#6685).
+	Attachments json.RawMessage `json:"attachments,omitempty"`
 }
 
 type GroupChildResponse struct {
@@ -151,12 +157,13 @@ func (rs *Resource) createGroupThread(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
-	if len(req.ClientMessageID) > 128 {
-		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCodeAndDetails("client_message_id exceeds 128 bytes", common.CodeGeneralInput, map[string]any{"max_bytes": 128}))
+	attachmentIDs, ok := common.ParseMessageSend(w, r, req.ClientMessageID, req.AttachmentIDs, communication.MaxMessageAttachments)
+	if !ok {
 		return
 	}
+	sendCtx := communication.WithMessageSend(r.Context(), req.ClientMessageID, attachmentIDs)
 
-	detail, err := rs.Groups.CreateParentGroupThread(communication.WithMessageSendID(r.Context(), req.ClientMessageID), communication.ParentGroupThreadInput{
+	detail, err := rs.Groups.CreateParentGroupThread(sendCtx, communication.ParentGroupThreadInput{
 		Target: target, Title: req.Title, Body: req.Body,
 	})
 	if err != nil {
@@ -189,12 +196,13 @@ func (rs *Resource) postGroupMessage(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
 		return
 	}
-	if len(req.ClientMessageID) > 128 {
-		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCodeAndDetails("client_message_id exceeds 128 bytes", common.CodeGeneralInput, map[string]any{"max_bytes": 128}))
+	attachmentIDs, ok := common.ParseMessageSend(w, r, req.ClientMessageID, req.AttachmentIDs, communication.MaxMessageAttachments)
+	if !ok {
 		return
 	}
+	sendCtx := communication.WithMessageSend(r.Context(), req.ClientMessageID, attachmentIDs)
 
-	detail, err := rs.Groups.PostParentGroupMessage(communication.WithMessageSendID(r.Context(), req.ClientMessageID), threadID, req.Body)
+	detail, err := rs.Groups.PostParentGroupMessage(sendCtx, threadID, req.Body)
 	if err != nil {
 		renderGroupThreadError(w, r, err)
 		return
@@ -242,6 +250,10 @@ func renderGroupThreadError(w http.ResponseWriter, r *http.Request, err error) {
 		return
 	}
 	switch {
+	case errors.Is(err, communication.ErrMessageAttachmentLimit):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeFilesAttachmentLimitReached))
+	case errors.Is(err, communication.ErrMessageAttachmentUnavailable):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, communication.ErrParentGroupThreadNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, communication.ErrParentGroupThreadClosed):
@@ -287,6 +299,7 @@ func toGroupThreadDetail(detail *communication.ParentGroupThreadDetail, viewer .
 		messages = append(messages, GroupMessageResponse{
 			ID: strconv.FormatInt(message.ID, 10), SenderName: message.SenderName,
 			ClientMessageID: clientMessageIDForViewer(message.ClientMessageID, message.SenderAccountID, viewer), Body: message.Body, CreatedAt: message.CreatedAt,
+			Attachments: message.Attachments,
 		})
 	}
 	return GroupThreadDetailResponse{

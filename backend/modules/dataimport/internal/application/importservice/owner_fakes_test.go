@@ -3,11 +3,12 @@ package importpkg
 import (
 	"context"
 	"errors"
+	"slices"
 	"strings"
 	"sync"
 	"sync/atomic"
 
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 )
 
 // In-memory owner fakes for the decision tests of the import package. They
@@ -116,6 +117,17 @@ func newFakePersons(persons ...ports.Person) *fakePersons {
 				result = append(result, person)
 			}
 			return result, nil
+		},
+		ListPersonsByAccountFunc: func(_ context.Context, ids []int64) ([]ports.Person, error) {
+			f.mu.Lock()
+			defer f.mu.Unlock()
+			var result []ports.Person
+			for _, person := range f.persons {
+				if person.AccountID != nil && slices.Contains(ids, *person.AccountID) {
+					result = append(result, person)
+				}
+			}
+			return result, f.err
 		},
 		ListPersonsByIDFunc: func(_ context.Context, ids []int64) ([]ports.Person, error) {
 			f.mu.Lock()

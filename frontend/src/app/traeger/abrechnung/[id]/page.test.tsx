@@ -76,6 +76,7 @@ const PREVIEW: BillingRunDetail = {
   paymentTextMissingDebtorNumbers: 0,
   numberPattern: "FE-{NNNN}",
   numberRangeSet: true,
+  fingerprint: "c0ffee",
   letters: null,
   documents: [
     {

@@ -8,13 +8,13 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // Guardian directory composition (#2663). The People Directory facade owns
@@ -137,9 +137,10 @@ func (p *GuardianDirectory) ListStudentGuardians(ctx context.Context, studentID 
 	result := make([]peopledirectory.GuardianWithLink, 0, len(rows))
 	for _, row := range rows {
 		result = append(result, peopledirectory.GuardianWithLink{
-			Guardian:          toDirectoryGuardian(row.Profile),
-			Link:              toDirectoryLink(row.Relationship, p.permissionGranted),
-			InvitationPending: row.InvitationPending,
+			Guardian:            toDirectoryGuardian(row.Profile),
+			Link:                toDirectoryLink(row.Relationship, p.permissionGranted),
+			InvitationPending:   row.InvitationPending,
+			InvitationLinkEnded: row.InvitationLinkEnded,
 		})
 	}
 	return result, nil

@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 const (
@@ -65,6 +65,7 @@ type SeedOptions struct {
 	// PresenceHistory writes the past attendance and room visits (#5031);
 	// nil seeds the past without presence, unless PresenceHistoryRoute is set.
 	PresenceHistory PresenceHistoryWriter
+	MealHistory     func(context.Context, int64, []PastMealDay) error
 	// PresenceHistoryRoute writes them through the operator route only the
 	// public demo's server mounts (APP_ENV=demo, ADR 0127) when
 	// PresenceHistory is nil.
@@ -92,6 +93,9 @@ type Seeder struct {
 	definition demoProfileDefinition
 
 	localCarePlanAccount *AccountCredentials
+	// holidayParentAccount is the parent account a guest family set up at
+	// the Träger through the offer of its holiday registration (ADR 0216).
+	holidayParentAccount *AccountCredentials
 	schoolTeacherAccount *AccountCredentials
 }
 
@@ -570,13 +574,24 @@ func makeBootstrapSeedState(bootstrap *bootstrapSeedState) SeedStateBootstrap {
 	}
 }
 
+// localAccounts are the review logins only a local seed creates: the
+// care-plan account without planning rights and the parent account a guest
+// family set up at the Träger (ADR 0216).
+func (s *Seeder) localAccounts() []AccountCredentials {
+	var accounts []AccountCredentials
+	for _, account := range []*AccountCredentials{s.localCarePlanAccount, s.holidayParentAccount} {
+		if account != nil {
+			accounts = append(accounts, *account)
+		}
+	}
+	return accounts
+}
+
 func (s *Seeder) populateSeedAccounts(state *SeedState, fs *FixedSeeder) {
 	if s.schoolTeacherAccount != nil {
 		state.Accounts.Lehrkraft = append(state.Accounts.Lehrkraft, *s.schoolTeacherAccount)
 	}
-	if s.localCarePlanAccount != nil {
-		state.Accounts.Local = append(state.Accounts.Local, *s.localCarePlanAccount)
-	}
+	state.Accounts.Local = append(state.Accounts.Local, s.localAccounts()...)
 	groupKeys := []string{
 		"sternengruppe", "bärengruppe", "sonnengruppe", "mondgruppe",
 		"regenbogengruppe", "blumengruppe", "schmetterlingsgruppe",

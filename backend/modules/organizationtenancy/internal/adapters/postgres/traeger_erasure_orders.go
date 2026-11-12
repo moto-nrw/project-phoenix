@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/domain"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -26,6 +26,11 @@ type traegerErasureOrderRow struct {
 	RecordedBy     int64         `bun:"recorded_by"`
 	RecordedAt     time.Time     `bun:"recorded_at"`
 	StartedAt      *time.Time    `bun:"started_at"`
+	// The hint on records subject to retention and the customer's choice (#4720).
+	RecordsNoticeShownAt *time.Time     `bun:"records_notice_shown_at"`
+	RecordsChoice        *string        `bun:"records_choice"`
+	RecordsHandedOverOn  *calendar.Date `bun:"records_handed_over_on,type:date"`
+	RecordsExportSHA256  *string        `bun:"records_export_sha256"`
 }
 
 func (r traegerErasureOrderRow) toDomain() organizationtenancy.TraegerErasureOrder {
@@ -33,10 +38,21 @@ func (r traegerErasureOrderRow) toDomain() organizationtenancy.TraegerErasureOrd
 		ID: r.ID, OrganizationID: r.OrganizationID, OrderReference: r.OrderReference,
 		ConfirmedOn: r.ConfirmedOn, EraseNotBefore: r.EraseNotBefore,
 		RecordedBy: r.RecordedBy, RecordedAt: r.RecordedAt, StartedAt: r.StartedAt,
+		RecordsNoticeShownAt: r.RecordsNoticeShownAt, RecordsHandedOverOn: r.RecordsHandedOverOn,
+		RecordsChoice:       organizationtenancy.RecordsChoice(deref(r.RecordsChoice)),
+		RecordsExportSHA256: deref(r.RecordsExportSHA256),
 	}
 }
 
-const traegerErasureOrderColumns = `id, organization_id, order_reference, confirmed_on, erase_not_before, recorded_by, recorded_at, started_at`
+func deref(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+const traegerErasureOrderColumns = `id, organization_id, order_reference, confirmed_on, erase_not_before, recorded_by, recorded_at, started_at,
+	records_notice_shown_at, records_choice, records_handed_over_on, records_export_sha256`
 
 const findOpenTraegerErasureOrderQuery = `SELECT ` + traegerErasureOrderColumns + `
 	FROM platform.organization_erasure_orders
@@ -69,8 +85,9 @@ func (s *Store) FindOpenTraegerErasureOrder(ctx context.Context, organizationID 
 }
 
 const insertTraegerErasureOrderQuery = `INSERT INTO platform.organization_erasure_orders
-		(organization_id, order_reference, confirmed_on, erase_not_before, recorded_by)
-	VALUES (?, ?, ?, ?, ?)
+		(organization_id, order_reference, confirmed_on, erase_not_before, recorded_by,
+		records_notice_shown_at, records_choice, records_handed_over_on, records_export_sha256)
+	VALUES (?, ?, ?, ?, ?, clock_timestamp(), ?, ?, NULLIF(?, ''))
 	RETURNING ` + traegerErasureOrderColumns
 
 // InsertTraegerErasureOrder records the order. A second open order of the
@@ -83,7 +100,8 @@ func (s *Store) InsertTraegerErasureOrder(ctx context.Context, order organizatio
 	var row traegerErasureOrderRow
 	started := time.Now()
 	err = db.NewRaw(insertTraegerErasureOrderQuery, order.OrganizationID, order.OrderReference,
-		order.ConfirmedOn, order.EraseNotBefore, order.RecordedBy).Scan(ctx, &row)
+		order.ConfirmedOn, order.EraseNotBefore, order.RecordedBy,
+		string(order.Records.Choice), order.Records.HandedOverOn, order.Records.ExportSHA256).Scan(ctx, &row)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: 1}
 	if err != nil {
 		if isIntegrityViolation(err) {
@@ -113,4 +131,29 @@ func (s *Store) WithdrawTraegerErasureOrder(ctx context.Context, orderID, operat
 	}
 	stats.Rows, _ = result.RowsAffected()
 	return stats.Rows == 1, stats, nil
+}
+
+const updateTraegerErasureOrderRecordsQuery = `UPDATE platform.organization_erasure_orders
+	SET records_notice_shown_at = clock_timestamp(), records_choice = ?, records_handed_over_on = ?, records_export_sha256 = NULLIF(?, '')
+	WHERE id = ? AND withdrawn_at IS NULL AND completed_at IS NULL AND records_choice IS NULL
+	RETURNING ` + traegerErasureOrderColumns
+
+// UpdateTraegerErasureOrderRecords records the hint and the customer's
+// choice on an open order without them (#4720); false when it has one.
+func (s *Store) UpdateTraegerErasureOrderRecords(ctx context.Context, orderID int64, records organizationtenancy.RecordsHandover) (organizationtenancy.TraegerErasureOrder, bool, domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return organizationtenancy.TraegerErasureOrder{}, false, domain.OperationStats{}, err
+	}
+	var rows []traegerErasureOrderRow
+	started := time.Now()
+	err = db.NewRaw(updateTraegerErasureOrderRecordsQuery, string(records.Choice), records.HandedOverOn, records.ExportSHA256, orderID).Scan(ctx, &rows)
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(rows))}
+	if err != nil {
+		return organizationtenancy.TraegerErasureOrder{}, false, stats, fmt.Errorf("organization tenancy postgres: record Träger erasure order records: %w", err)
+	}
+	if len(rows) != 1 {
+		return organizationtenancy.TraegerErasureOrder{}, false, stats, nil
+	}
+	return rows[0].toDomain(), true, stats, nil
 }

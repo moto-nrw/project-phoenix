@@ -22,7 +22,12 @@ import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   NOTE_KIND_JOURNAL,
@@ -39,6 +44,7 @@ import {
 } from "~/lib/student-notes-api";
 import { NOTE_SHARED_WITH_SCHOOL_BADGE } from "~/components/students/note-badges";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
+import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { studentKeys } from "~/lib/swr/portal-keys";
 import { InsetPanel } from "~/components/ui/inset-panel";
 
@@ -461,14 +467,49 @@ export function StudentNotizenTab({
     [activityData, educationGroupId, educationGroupName],
   );
   const tenantMutate = useTenantMutate();
+  const discardRefused = useDiscardRefusedEntity();
 
   const revalidateNotes = async (permanentNotesChanged: boolean) => {
-    const revalidations: Promise<unknown>[] = [mutate()];
+    const failedRead = (error: unknown): never => {
+      // Each direct read rejects and keeps SWR's refusal boundary, even if
+      // another concurrent read has already failed.
+      discardRefused(error, {
+        codes:
+          error instanceof ApiError && error.status === 404 && error.code
+            ? [error.code]
+            : ["general.permission"],
+        matches: (key) =>
+          [
+            studentKeys.notes(studentId),
+            studentKeys.permanentNotes(studentId),
+            studentKeys.noteActivities(studentId),
+          ].includes(key),
+        refusedKey: studentKeys.notes(studentId),
+      });
+      throw error;
+    };
+    const revalidations: Promise<unknown>[] = [
+      mutate(studentNotesService.list(studentId), { revalidate: false }).catch(
+        failedRead,
+      ),
+    ];
     if (permanentNotesChanged) {
-      revalidations.push(tenantMutate(studentKeys.permanentNotes(studentId)));
+      revalidations.push(
+        tenantMutate(
+          studentKeys.permanentNotes(studentId),
+          studentNotesService.list(studentId, NOTE_KIND_PERMANENT),
+          { revalidate: false },
+        ).catch(failedRead),
+      );
     }
     await Promise.all(revalidations);
   };
+  // Nachladen nach Speichern oder Löschen: ein Fehler dabei ist ein
+  // Ladefehler über den Notizen, kein Fehler des Formulars (#6652).
+  const notesAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Notizen",
+    revalidateNotes,
+  );
 
   const [composing, setComposing] = useState(false);
   const [draft, setDraft] = useState<StudentNoteDraft>(emptyDraft);
@@ -486,16 +527,41 @@ export function StudentNotizenTab({
 
   const showLoadError = load.show;
   const clearLoadError = load.clear;
+  useLayoutEffect(() => {
+    const noteKeys = [
+      studentKeys.notes(studentId),
+      studentKeys.permanentNotes(studentId),
+      studentKeys.noteActivities(studentId),
+    ];
+    if (
+      discardRefused(error, {
+        codes:
+          error instanceof ApiError && error.status === 404 && error.code
+            ? [error.code]
+            : ["general.permission"],
+        matches: (key) => noteKeys.includes(key),
+      })
+    ) {
+      setComposing(false);
+      setDraft(emptyDraft());
+      setEditing(null);
+      setEditDraft(emptyDraft());
+      setDeleteTarget(null);
+    }
+  }, [discardRefused, error, studentId]);
   useEffect(() => {
     if (error) {
       void showLoadError(error, {
         object: "die Liste der Notizen",
+        // Bestätigte Notizen bleiben stehen; der Hinweis sagt, dass sie
+        // veraltet sein können (#6652).
+        messageSuffix: data === undefined ? undefined : STALE_DATA_SUFFIX,
         retry: () => void mutate(),
       });
     } else {
       clearLoadError();
     }
-  }, [error, mutate, showLoadError, clearLoadError]);
+  }, [data, error, mutate, showLoadError, clearLoadError]);
 
   const notes = useMemo(() => data ?? [], [data]);
   // Dauerhafte Hinweise stehen außerhalb der Chronik: sie beschreiben keinen
@@ -558,7 +624,7 @@ export function StudentNotizenTab({
       });
       setComposing(false);
       setDraft(emptyDraft());
-      await revalidateNotes(draft.kind === NOTE_KIND_PERMANENT);
+      await notesAfterWrite.refresh(draft.kind === NOTE_KIND_PERMANENT);
     } catch (caught) {
       logger.error("student_note_create_failed", {
         error: caught instanceof Error ? caught.message : String(caught),
@@ -584,7 +650,7 @@ export function StudentNotizenTab({
         body: editDraft.body.trim(),
       });
       setEditing(null);
-      await revalidateNotes(
+      await notesAfterWrite.refresh(
         editing.kind === NOTE_KIND_PERMANENT ||
           editDraft.kind === NOTE_KIND_PERMANENT,
       );
@@ -615,7 +681,7 @@ export function StudentNotizenTab({
     try {
       await studentNotesService.remove(studentId, deleteTarget.id);
       setDeleteTarget(null);
-      await revalidateNotes(deleteTarget.kind === NOTE_KIND_PERMANENT);
+      await notesAfterWrite.refresh(deleteTarget.kind === NOTE_KIND_PERMANENT);
     } catch (caught) {
       logger.error("student_note_delete_failed", {
         error: caught instanceof Error ? caught.message : String(caught),
@@ -685,8 +751,8 @@ export function StudentNotizenTab({
     </InsetPanel>
   );
 
-  if (error && !isLoading) {
-    return <LoadErrorAlert error={load.error} />;
+  if (error && !isLoading && data === undefined) {
+    return <LoadErrorAlert error={notesAfterWrite.error ?? load.error} />;
   }
 
   return (
@@ -704,6 +770,8 @@ export function StudentNotizenTab({
       }
     >
       <div ref={formAreaRef} className="space-y-6">
+        {data === undefined ? null : <LoadErrorAlert error={load.error} />}
+        <LoadErrorAlert error={notesAfterWrite.error} />
         <FormErrorAlert message={formErrors.error} />
 
         {composing ? (

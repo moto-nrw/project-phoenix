@@ -241,9 +241,9 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
-      "id": "modules/studentpresence/internal/application/Service.DeleteCompletedVisitsBefore",
-      "reason": "Slice 3844-b: explicit VisitRetentionPolicy replaces the day count. The owner retains its tenant transaction and observation wrapper around the same single store operation (ADR 0075 floor)."
+      "decision": "0177",
+      "id": "modules/studentpresence/internal/application/Service.DeleteExpiredVisits",
+      "reason": "Set-based visit retention of #6455 (ADR 0199) replaces DeleteCompletedVisitsBefore: the owner validates and maps each student's retention onto its cutoff before the single store operation, inside its tenant transaction and observation wrapper (ADR 0075 floor)."
     },
     {
       "decision": "0090",

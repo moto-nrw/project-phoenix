@@ -20,7 +20,7 @@
     "emptyDescription": "Es gibt gerade nichts zu tun.",
     "messageTitleOne": "Neue Nachricht",
     "messageTitleMany": "{count} neue Nachrichten",
-    "messageContext": "OGS · Zu {name}",
+    "messageContext": "{careTerm} · Zu {name}",
     "pollContext": "Umfrage · {school}",
     "declarationContext": "Einverständnis · {school}",
     "newsContext": "Elternbrief · {school}",
@@ -33,7 +33,26 @@
     "loading": "Aufgaben werden geladen",
     "errorObject": "die vollständige Liste „Zu erledigen“"
   },
+  "holiday": {
+    "listTitle": "Ferienbetreuung",
+    "badgeOpen": "Anmeldung offen",
+    "badgeUpcoming": "Anmeldung ab {date}",
+    "care": "Betreuung",
+    "registration": "Anmeldung",
+    "range": "{from} bis {to}",
+    "until": "bis {date}",
+    "lastDay": "Heute ist der letzte Tag",
+    "daysLeft": "noch {days, plural, one {# Tag} other {# Tage}}",
+    "for": "Für",
+    "register": "Jetzt anmelden",
+    "registerLabel": "{name}: Jetzt anmelden",
+    "forChildren": "Für {names}",
+    "offeredByTraeger": "Angebot von {traeger}",
+    "careLine": "Betreuung {from} bis {to}",
+    "registrationLine": "Anmeldung bis {date}",
+    "registrationRangeLine": "Anmeldung {from} bis {to}"
+  },
   "childrenLoading": "Kinder werden geladen",
-  "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Die OGS Ihrer Schule kann das einrichten.",
+  "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Die {careTerm} Ihrer Schule kann das einrichten.",
   "errorObject": "die Übersicht Ihrer Kinder"
 }

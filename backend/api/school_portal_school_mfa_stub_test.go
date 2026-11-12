@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/schoolportal"
 )
 
 // The second factor reaches the school portal as the runtime the composition
@@ -32,12 +32,12 @@ func stubSchoolMFA(runtime schoolportal.MFARuntime) schoolportal.MFARuntime {
 		}
 	}
 	if runtime.StartChallenge == nil {
-		runtime.StartChallenge = func(context.Context, int64, int64, net.IP) (string, error) {
+		runtime.StartChallenge = func(context.Context, int64, int64, net.IP, int64) (string, error) {
 			return "", errStubMFAUnexpectedCall
 		}
 	}
 	if runtime.Enroll == nil {
-		runtime.Enroll = func(context.Context, int64) error { return nil }
+		runtime.Enroll = func(context.Context, schoolportal.VerifiedChallenge) error { return nil }
 	}
 	if runtime.PrepareTrustedDevice == nil {
 		runtime.PrepareTrustedDevice = func(context.Context, int64, int64, string, net.IP) (identityaccess.TrustedDeviceIssue, error) {

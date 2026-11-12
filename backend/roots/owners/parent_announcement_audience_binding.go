@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	parentaudience "github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/contract"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	parentaudience "github.com/moto-ogs/project-phoenix/modules/parentannouncementaudience/contract"
 )
 
 type projectionAnnouncementAudienceReads interface {
@@ -44,7 +44,6 @@ type projectionFeedAudienceReads interface {
 type projectionPollAudienceReads interface {
 	AnswerableChildren(ctx context.Context, accountID int64, announcementIDs []int64) ([]*parentaudience.ParentAnnouncementPollChild, error)
 	AccountMayAnswerForStudent(ctx context.Context, schoolID, announcementID, accountID, studentID int64) (bool, error)
-	HoldAnswerPermission(ctx context.Context, schoolID, announcementID, accountID, studentID int64) (bool, error)
 	PollResults(ctx context.Context, schoolID, announcementID int64) (*parentaudience.ParentAnnouncementPollResults, error)
 	PollChildren(ctx context.Context, schoolID, announcementID int64) ([]*parentaudience.ParentAnnouncementPollChildStatus, error)
 	UnansweredReminderRecipients(ctx context.Context, schoolID, announcementID int64) ([]*parentaudience.ParentAnnouncementReminderRecipient, error)
@@ -133,7 +132,7 @@ func (r communicationAnnouncementAudience) HistoricalDeclarationFeed(ctx context
 			PublishedAt: row.PublishedAt, ExpiresAt: row.ExpiresAt, ResponseType: row.ResponseType,
 			DeliveryMode: row.DeliveryMode, ResponseDeadline: row.ResponseDeadline, SystemKind: row.SystemKind,
 			ReminderSentAt: row.ReminderSentAt, ReminderText: row.ReminderText, ReadAt: row.ReadAt, AcknowledgedAt: row.AcknowledgedAt,
-			SenderName: row.SenderName, SenderSchoolClass: row.SenderSchoolClass,
+			SenderName: row.SenderName, SenderSchoolClass: row.SenderSchoolClass, Ended: row.Ended,
 		}
 	}), err
 }
@@ -182,7 +181,7 @@ func (r communicationAnnouncementAudience) ListFeedForAccount(ctx context.Contex
 			PublishedAt: row.PublishedAt, ExpiresAt: row.ExpiresAt, ResponseType: row.ResponseType,
 			DeliveryMode: row.DeliveryMode, ResponseDeadline: row.ResponseDeadline, SystemKind: row.SystemKind,
 			ReminderSentAt: row.ReminderSentAt, ReminderText: row.ReminderText, ReadAt: row.ReadAt, AcknowledgedAt: row.AcknowledgedAt,
-			SenderName: row.SenderName, SenderSchoolClass: row.SenderSchoolClass,
+			SenderName: row.SenderName, SenderSchoolClass: row.SenderSchoolClass, Ended: row.Ended,
 		}
 	}), err
 }
@@ -201,9 +200,6 @@ func (r communicationAnnouncementAudience) AnswerableChildren(ctx context.Contex
 }
 func (r communicationAnnouncementAudience) AccountMayAnswerForStudent(ctx context.Context, schoolID, announcementID, accountID, studentID int64) (bool, error) {
 	return r.source.AccountMayAnswerForStudent(ctx, schoolID, announcementID, accountID, studentID)
-}
-func (r communicationAnnouncementAudience) HoldAnswerPermission(ctx context.Context, schoolID, announcementID, accountID, studentID int64) (bool, error) {
-	return r.source.HoldAnswerPermission(ctx, schoolID, announcementID, accountID, studentID)
 }
 func (r communicationAnnouncementAudience) PollResults(ctx context.Context, schoolID, announcementID int64) (*communication.PortalAnnouncementPollResults, error) {
 	rows, err := r.source.PollResults(ctx, schoolID, announcementID)

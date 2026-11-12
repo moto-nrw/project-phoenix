@@ -3,12 +3,11 @@ package compose
 import (
 	"context"
 
-	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
+	mealplanModule "github.com/moto-ogs/project-phoenix/modules/mealplan"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/care"
 )
 
-// MealPlanProvider is the Meal Plan capability of the child's school, in the
-// owner's vocabulary.
+// MealPlanProvider is the Meal Plan capability of the child's school.
 type MealPlanProvider interface {
 	Available(context.Context) (bool, error)
 	Week(context.Context, mealplanModule.Date) ([]mealplanModule.Entry, error)

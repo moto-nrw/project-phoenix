@@ -1,10 +1,10 @@
 # Student deletion migration evidence
 
-Issue: [#2710](https://github.com/moto-nrw/project-phoenix/issues/2710).
+Issue: [#2710](https://github.com/moto-ogs/project-phoenix/issues/2710).
 Implementation baseline: `4ee996e92503e21e722c12595edcead1c3ec61d5`.
 Measured locally on 2026-09-15, Go 1.27.0, macOS arm64, PostgreSQL 17.11.
 This flow-specific evidence supplements the accepted checkpoint
-[#3020](https://github.com/moto-nrw/project-phoenix/issues/3020#issuecomment-5591674205).
+[#3020](https://github.com/moto-ogs/project-phoenix/issues/3020#issuecomment-5591674205).
 It is not a staging or production observation window.
 
 ## Cutover and ownership

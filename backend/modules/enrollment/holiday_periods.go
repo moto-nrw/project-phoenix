@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Holiday periods of a Träger (spec #4611 user stories 22 to 25, #4659): the
@@ -70,6 +70,27 @@ func (r *HolidayWeeksBookedTogetherRefusal) Error() string {
 
 func (r *HolidayWeeksBookedTogetherRefusal) Unwrap() error { return ErrHolidayWeeksBookedTogether }
 
+// ErrHolidayWeekDayLimit reports a change of a booked week's dates that
+// would give a child more care days than the period allows (#6506).
+var ErrHolidayWeekDayLimit = errors.New("a booked child would take more care days than the period allows")
+
+// HolidayWeekDayLimitRefusal names the week, by its position in the written
+// period, whose new dates would give a child more care days than the bound,
+// whether it grew by starting earlier (else by ending later), the bound and
+// the days the child would take. It unwraps to ErrHolidayWeekDayLimit.
+type HolidayWeekDayLimitRefusal struct {
+	Week          int
+	StartsEarlier bool
+	Limit         int
+	Days          int
+}
+
+func (r *HolidayWeekDayLimitRefusal) Error() string {
+	return fmt.Sprintf("week %d: %d care days, the period allows %d: %v", r.Week+1, r.Days, r.Limit, ErrHolidayWeekDayLimit)
+}
+
+func (r *HolidayWeekDayLimitRefusal) Unwrap() error { return ErrHolidayWeekDayLimit }
+
 // HolidayTimeModel is a bookable care time of one week, such as "bis
 // 13 Uhr", with its price in cent. Times are wall-clock "HH:MM".
 //
@@ -94,6 +115,19 @@ type HolidayWeek struct {
 	EndsOn       calendar.Date      `json:"ends_on"`
 	HostSchoolID int64              `json:"host_school_id"`
 	TimeModels   []HolidayTimeModel `json:"time_models"`
+	// NoCareDays are the days of the week on which the host school gives
+	// no care (#4702). A week with such a day takes no new booking.
+	NoCareDays []HolidayNoCareDay `json:"no_care_days"`
+	// Capacity is the number of places of the week across its time models;
+	// nil is unlimited (#4699). Only HolidayPlaces changes it. A week by
+	// days has this capacity on each of its days (#4701).
+	Capacity *int `json:"capacity"`
+	// BookingUnit is HolidayBookingUnitWeek or HolidayBookingUnitDay
+	// (#4701); a time model of a week by days prices one day.
+	BookingUnit string `json:"booking_unit"`
+	// CareDays are the bookable days of a week by days, Monday to Friday;
+	// only the public offer fills them (#4701).
+	CareDays []calendar.Date `json:"-"`
 }
 
 // HolidayPeriod is a holiday period of a Träger with its weeks.
@@ -105,10 +139,25 @@ type HolidayPeriod struct {
 	// Binding states that a registration is binding once submitted.
 	Binding bool `json:"binding"`
 	// Notes are the hints for parents, such as lunch or a packed lunch.
-	Notes       string     `json:"notes"`
-	Status      string     `json:"status"`
-	PublishedAt *time.Time `json:"published_at"`
-	UpdatedAt   time.Time  `json:"updated_at"`
+	Notes string `json:"notes"`
+	// AcceptanceMailText is the Träger's text of the acceptance mail
+	// (#6672), plain text; empty sends the fixed part only.
+	AcceptanceMailText string     `json:"acceptance_mail_text"`
+	Status             string     `json:"status"`
+	PublishedAt        *time.Time `json:"published_at"`
+	// MaxDaysPerChild bounds the care days one child books in the period,
+	// nil for no bound (#4701).
+	MaxDaysPerChild *int `json:"max_days_per_child"`
+	// HolidayWishRule takes the holiday care wish of the online
+	// registration into account (#4703); the Träger setting
+	// holiday_registration.wish_mode says how.
+	HolidayWishRule bool `json:"holiday_wish_rule"`
+	// AllocationMode is HolidayAllocationArrival or HolidayAllocationCriteria
+	// (#4700); AllocationModeLocked reports a period with a registration,
+	// whose mode no longer changes.
+	AllocationMode       string    `json:"allocation_mode"`
+	AllocationModeLocked bool      `json:"allocation_mode_locked"`
+	UpdatedAt            time.Time `json:"updated_at"`
 	// PublicToken is the key of the period's one public registration link
 	// for all its schools (#4661, ADR 0110). Only the Träger-Portal reads it.
 	PublicToken string `json:"public_token"`
@@ -140,6 +189,9 @@ type HolidayWeekInput struct {
 	EndsOn       calendar.Date
 	HostSchoolID int64
 	TimeModels   []HolidayTimeModelInput
+	// BookingUnit is HolidayBookingUnitWeek or HolidayBookingUnitDay; empty
+	// is a week (#4701). It changes only while no booking names the week.
+	BookingUnit string
 }
 
 // HolidayPeriodInput is the whole period as the Träger-Büro writes it.
@@ -149,7 +201,35 @@ type HolidayPeriodInput struct {
 	RegistrationClosesOn calendar.Date
 	Binding              bool
 	Notes                string
-	Weeks                []HolidayWeekInput
+	// AcceptanceMailText is the text of the acceptance mail (#6672).
+	AcceptanceMailText string
+	HolidayWishRule    bool
+	// MaxDaysPerChild bounds the care days per child, nil for no bound.
+	MaxDaysPerChild *int
+	// AllocationMode is HolidayAllocationArrival or HolidayAllocationCriteria
+	// (#4700); empty is HolidayAllocationArrival. It changes only while the
+	// period has no registration.
+	AllocationMode string
+	Weeks          []HolidayWeekInput
+}
+
+// HolidayWeekHost is a week of a holiday period with the school that hosts
+// it.
+type HolidayWeekHost struct {
+	WeekID       int64
+	StartsOn     calendar.Date
+	EndsOn       calendar.Date
+	HostSchoolID int64
+}
+
+// HolidayWeekHosts is the narrow read the Elternabrechnung needs to book a
+// holiday position on the KOST1 of its host school (#6624): the weeks of
+// one period of the Träger with their host school, nothing else of the
+// period. It runs in the Träger transaction of organizationID, which the
+// caller opens, and names the Träger in its own filter: a period of
+// another Träger has no weeks, also below row level security.
+type HolidayWeekHosts interface {
+	HolidayWeekHosts(ctx context.Context, organizationID, periodID int64) ([]HolidayWeekHost, error)
 }
 
 // HolidayPeriods lets the Träger-Büro plan holiday periods. Every operation

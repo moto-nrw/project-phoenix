@@ -2,3 +2,7 @@
 # Review them when their change is the point of the pull request.
 *.golden linguist-generated=true
 backend/architecture/composition.json linguist-generated=true
+backend/modules/organizationtenancy/return_register.json linguist-generated=true
+
+# DATEV booking batch goldens (#4694): Windows-1252 bytes with CR/LF, compared byte for byte.
+backend/modules/parentbilling/internal/application/testdata/datev/*.csv -text

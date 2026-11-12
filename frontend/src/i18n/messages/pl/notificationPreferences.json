@@ -18,8 +18,8 @@
       "description": "Gdy szkoła opublikuje nowe ogłoszenie w portalu dla rodziców."
     },
     "parent_message": {
-      "label": "Nowa wiadomość z OGS",
-      "description": "Gdy OGS napisze do Państwa w sprawie dziecka."
+      "label": "Nowa wiadomość z {careTerm}",
+      "description": "Gdy {careTerm} napisze do Państwa w sprawie dziecka."
     },
     "parent_appointment": {
       "label": "Nowy lub zmieniony termin",
@@ -31,11 +31,11 @@
     },
     "parent_request_decided": {
       "label": "Decyzja w sprawie Państwa prośby",
-      "description": "Gdy OGS podejmie decyzję w sprawie jednej z Państwa próśb."
+      "description": "Gdy {careTerm} podejmie decyzję w sprawie jednej z Państwa próśb."
     },
     "parent_care_cancelled": {
       "label": "Opieka odwołana",
-      "description": "Gdy OGS odwoła termin opieki Państwa dziecka."
+      "description": "Gdy {careTerm} odwoła termin opieki Państwa dziecka."
     },
     "parent_billing_document": {
       "label": "Nowy dokument od organizatora",
@@ -45,5 +45,7 @@
   "errorObjectList": "lista powiadomień",
   "errorObjectType": "powiadomienie „{name}”",
   "errorObjectEnableAll": "włączanie wszystkich powiadomień",
-  "errorObjectDisableAll": "wyłączanie wszystkich powiadomień"
+  "errorObjectDisableAll": "wyłączanie wszystkich powiadomień",
+  "enableAllTooltip": "Włącza wszystkie powiadomienia naraz.",
+  "disableAllTooltip": "Od razu wyłącza dla Ciebie wszystkie powiadomienia moto."
 }

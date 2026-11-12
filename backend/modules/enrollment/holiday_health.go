@@ -1,6 +1,7 @@
 package enrollment
 
 import (
+	"encoding/json"
 	"errors"
 	"fmt"
 )
@@ -34,6 +35,13 @@ var ErrHolidayHealthUnreadable = errors.New("holiday health information does not
 type HolidayHealthCipher interface {
 	Seal(plaintext, context []byte) ([]byte, error)
 	Open(sealed, context []byte) ([]byte, error)
+}
+
+// HolidayHealthExportFields opens the sealed health information of the
+// holiday tables for the return export (#3838, #6328). Only the
+// administrative export CLI binds it, never an HTTP route.
+type HolidayHealthExportFields interface {
+	OpenExportField(table, column string, row map[string]json.RawMessage, sealed []byte) (string, error)
 }
 
 // HolidayHealthRecord is what one sealed value holds: for a child the fixed

@@ -8,10 +8,10 @@ import (
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	capability "github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	capability "github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // CareBillingResource serves the monthly contribution of the care contract
@@ -21,18 +21,21 @@ import (
 // the session's Träger, which comes from the session, never the request.
 type CareBillingResource struct {
 	billing        capability.CareBilling
+	discard        capability.CareRunDiscard
 	letters        capability.CareLetterService
 	requireBilling common.Middleware
 }
 
-// NewCareBillingResource builds the resource with the letters of the
-// released runs (#4684, ADR 0165). requireBilling admits only a session with
-// the Träger right "Abrechnung".
-func NewCareBillingResource(billing capability.CareBilling, letters capability.CareLetterService, requireBilling common.Middleware) *CareBillingResource {
-	if billing == nil || letters == nil || requireBilling == nil {
-		panic("parent billing http: the monthly billing, its letters and the right check are required")
+// NewCareBillingResource builds the resource with the discard of an empty
+// open run (#6626) and the letters of the released runs (#4684, ADR 0165).
+// requireBilling admits only a session with the Träger right "Abrechnung".
+func NewCareBillingResource(billing capability.CareBilling, discard capability.CareRunDiscard, letters capability.CareLetterService,
+	requireBilling common.Middleware,
+) *CareBillingResource {
+	if billing == nil || discard == nil || letters == nil || requireBilling == nil {
+		panic("parent billing http: the monthly billing, its discard, its letters and the right check are required")
 	}
-	return &CareBillingResource{billing: billing, letters: letters, requireBilling: requireBilling}
+	return &CareBillingResource{billing: billing, discard: discard, letters: letters, requireBilling: requireBilling}
 }
 
 // TariffRouter returns the routes mounted at /traeger/care-tariffs.
@@ -58,6 +61,7 @@ func (rs *CareBillingResource) RunRouter(protectedTraegerRoutes func(chi.Router,
 		billing.Post("/", rs.start)
 		billing.Get("/{id}", rs.detail)
 		billing.Post("/{id}/release", rs.release)
+		billing.Post("/{id}/discard", rs.discardRun)
 		rs.mountReview(billing)
 		rs.mountLetters(billing)
 	})
@@ -233,6 +237,21 @@ func (rs *CareBillingResource) release(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusOK, detail, "Monthly billing run released successfully")
+}
+
+// discardRun discards an open run that has nothing to issue (#6626).
+func (rs *CareBillingResource) discardRun(w http.ResponseWriter, r *http.Request) {
+	reviewer, runID, ok := runKey(w, r)
+	if !ok {
+		return
+	}
+	detail, err := rs.discard.DiscardCareRun(r.Context(), reviewer, runID)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		renderCareError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, detail, "Monthly billing run discarded successfully")
 }
 
 // renderCareError answers a refused price list or monthly run; the refusals

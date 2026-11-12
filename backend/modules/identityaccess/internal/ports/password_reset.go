@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // PasswordResetStore is the persistence port over the identity-owned rows
@@ -13,6 +13,8 @@ import (
 // auth.accounts. Every statement runs on the connection the caller's context
 // carries. "Redeemable" compares against the now the caller passes.
 type PasswordResetStore interface {
+	// MigratePasswordResetWindow replaces a legacy plaintext key without resetting its quota.
+	MigratePasswordResetWindow(ctx context.Context, address, key string) error
 	// PasswordResetWindow reads the address's window without counting.
 	PasswordResetWindow(ctx context.Context, email string) (domain.PasswordResetWindow, bool, domain.OperationStats, error)
 	// CountPasswordResetRequest counts one request in the rolling window,
@@ -33,9 +35,9 @@ type PasswordResetStore interface {
 	// were used.
 	DeleteSpentPasswordResetTokens(ctx context.Context, now time.Time) (int, domain.OperationStats, error)
 
-	// SetAccountPassword replaces the credential and clears the one-time
-	// password flag; it reports whether the account is live.
-	SetAccountPassword(ctx context.Context, accountID int64, hash string) (bool, domain.OperationStats, error)
+	// WriteAccountCredential is the one credential writer (#6289): it moves
+	// the credential generation on with every write; see the adapter.
+	WriteAccountCredential(ctx context.Context, accountID int64, write domain.CredentialWrite) (bool, domain.OperationStats, error)
 }
 
 // PasswordResetDelivery is the consumer-owned port over the Delivery

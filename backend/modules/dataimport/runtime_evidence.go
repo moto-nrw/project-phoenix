@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"time"
 
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // OpeningBalanceImportFactory builds a request-scoped import service: the
@@ -48,11 +48,14 @@ type ImportObservation struct {
 	Duration         time.Duration
 	BatchesCommitted int
 	BatchesRetried   int
-	CheckpointLag    int
-	Deadlocks        int
-	PoolWait         time.Duration
-	LockWait         time.Duration
-	Commands         []CommandObservation
+	// BatchFallbacks counts chunks whose batch attempt was rolled back and
+	// replayed row by row (ADR 0067 addendum, F5/F7/F8).
+	BatchFallbacks int
+	CheckpointLag  int
+	Deadlocks      int
+	PoolWait       time.Duration
+	LockWait       time.Duration
+	Commands       []CommandObservation
 }
 
 // CommandObservation describes one owner call, including attempts rolled back

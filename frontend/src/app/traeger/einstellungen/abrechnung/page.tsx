@@ -17,8 +17,10 @@ import { NumberRangeCard } from "~/components/traeger/number-range-card";
 import { SepaCreditorCard } from "~/components/traeger/sepa-creditor-card";
 import { TraegerBankAccountsCard } from "~/components/traeger/traeger-bank-accounts-card";
 import { useTraegerMasterData } from "~/components/traeger/use-traeger-master-data";
+import { useTraegerSettingsSchema } from "~/components/traeger/use-traeger-resources";
 import { Alert } from "~/components/ui/alert";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { hasPermission } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
@@ -42,6 +44,9 @@ import { type SepaCreditor, fetchSepaCreditor } from "~/lib/traeger-sepa-api";
 const logger = createLogger({ component: "TraegerAbrechnungsvorgabenPage" });
 
 const BILLING_RIGHT = "traeger_billing:manage";
+
+/** The Träger's switch of the SEPA mandate in the parents portal (#4696). */
+const ONLINE_MANDATE_KEY = "parent_billing.online_mandate";
 const SETTINGS_RIGHT = "traeger_settings:manage";
 
 const INFO = "Hier stehen die Vorgaben für Ihre Abrechnung.";
@@ -65,7 +70,7 @@ function useBillingDefaults(enabled: boolean) {
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
 
-  const load = useCallback(async () => {
+  const read = useCallback(async () => {
     if (!enabledRef.current) return;
     const generation = ++loadGeneration.current;
     try {
@@ -92,6 +97,14 @@ function useBillingDefaults(enabled: boolean) {
     } catch (err) {
       if (!enabledRef.current || generation !== loadGeneration.current) return;
       setFailure(err);
+      throw err;
+    }
+  }, [clearLoadError]);
+
+  const load = useCallback(async () => {
+    try {
+      await read();
+    } catch (err) {
       logger.error("traeger_billing_defaults_load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -100,7 +113,7 @@ function useBillingDefaults(enabled: boolean) {
         retry: () => void load(),
       });
     }
-  }, [clearLoadError, showLoadError]);
+  }, [read, showLoadError]);
 
   useEffect(() => {
     enabledRef.current = enabled;
@@ -116,7 +129,7 @@ function useBillingDefaults(enabled: boolean) {
     clearLoadError();
   }, [enabled, load, clearLoadError]);
 
-  return { data, failure, error: pageLoad.error, load };
+  return { data, failure, error: pageLoad.error, load, read };
 }
 
 export default function TraegerAbrechnungsvorgabenPage() {
@@ -125,11 +138,30 @@ export default function TraegerAbrechnungsvorgabenPage() {
   const canEditBank = hasPermission(session ?? null, SETTINGS_RIGHT);
   const master = useTraegerMasterData("die Liste der Bankverbindungen");
   const billing = useBillingDefaults(canBill);
+  const settings = useTraegerSettingsSchema();
+  const afterBankWrite = useRefreshAfterWrite(
+    "die Anzeige der Bankverbindungen",
+    master.read,
+  );
+  const afterBillingWrite = useRefreshAfterWrite(
+    "die Anzeige der Abrechnungsvorgaben",
+    billing.read,
+  );
+  const onlineMandate = settings.data?.tabs
+    .flatMap((tab) => tab.categories)
+    .flatMap((category) => category.items)
+    .find((item) => item.key === ONLINE_MANDATE_KEY)?.value;
   const error = metadataLoadError(
-    master.error ?? (canBill ? billing.error : null) ?? null,
+    master.error ??
+      afterBankWrite.error ??
+      (canBill
+        ? (billing.error ?? afterBillingWrite.error ?? settings.loadError)
+        : null) ??
+      null,
     master.loaded || (canBill && billing.data !== null),
     master.failure,
     canBill ? billing.failure : undefined,
+    canBill ? settings.error : undefined,
   );
 
   return (
@@ -159,7 +191,7 @@ export default function TraegerAbrechnungsvorgabenPage() {
           <TraegerBankAccountsCard
             accounts={master.masterData.bankAccounts}
             canEdit={canEditBank}
-            onChanged={master.refresh}
+            onChanged={afterBankWrite.refresh}
           />
         </>
       ) : null}
@@ -167,36 +199,39 @@ export default function TraegerAbrechnungsvorgabenPage() {
         <>
           <BillingTermsCard
             data={billing.data.terms}
-            onChanged={billing.load}
+            onChanged={afterBillingWrite.refresh}
           />
           <SepaCreditorCard
             creditor={billing.data.creditor}
-            onChanged={billing.load}
+            onlineMandate={
+              typeof onlineMandate === "boolean" ? onlineMandate : null
+            }
+            onChanged={afterBillingWrite.refresh}
           />
           <NumberRangeCard
             numberRange={billing.data.numberRange}
-            onChanged={billing.load}
+            onChanged={afterBillingWrite.refresh}
           />
           <NumberRangeCard
             service="care"
             numberRange={billing.data.careNumberRange}
-            onChanged={billing.load}
+            onChanged={afterBillingWrite.refresh}
           />
           <ContributionRulesCard
             kind="sibling"
             rules={billing.data.rules.filter((rule) => rule.kind === "sibling")}
-            onChanged={billing.load}
+            onChanged={afterBillingWrite.refresh}
           />
           <ContributionRulesCard
             kind="benefits_exemption"
             rules={billing.data.rules.filter(
               (rule) => rule.kind === "benefits_exemption",
             )}
-            onChanged={billing.load}
+            onChanged={afterBillingWrite.refresh}
           />
           <CostBearersCard
             bearers={billing.data.bearers}
-            onChanged={billing.load}
+            onChanged={afterBillingWrite.refresh}
           />
         </>
       ) : null}

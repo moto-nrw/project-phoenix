@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	activeService "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

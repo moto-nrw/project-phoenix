@@ -131,6 +131,11 @@ export const MOTO_COLOR_PALETTE = {
     light: "#FACC15",
     base: "#EAB308",
     strong: "#92400E",
+    // The "Achtung" pill (#5617). soft/strong read almost exactly like the
+    // orange Schulhof pill (#FFF3E5 / #9B5609), so the pill takes a clearly
+    // yellow tint and a darker label instead: 8.1:1.
+    pill: "#FEF9C3",
+    pillText: "#713F12",
   },
   purple: {
     soft: "#F3E8FF",
@@ -254,8 +259,8 @@ const LOCATION_BADGE_TONES: Record<string, LocationBadgeTone> = {
     textColor: MOTO_COLOR_PALETTE.stone.strong,
   },
   [MOTO_COLOR_PALETTE.amber.base]: {
-    backgroundColor: MOTO_COLOR_PALETTE.amber.soft,
-    textColor: MOTO_COLOR_PALETTE.amber.strong,
+    backgroundColor: MOTO_COLOR_PALETTE.amber.pill,
+    textColor: MOTO_COLOR_PALETTE.amber.pillText,
   },
   [MOTO_COLOR_PALETTE.purple.base]: {
     backgroundColor: MOTO_COLOR_PALETTE.purple.soft,
@@ -859,6 +864,70 @@ const NOT_CHECKED_IN_STATUSES: ReadonlySet<string> = new Set([
 export function isNotCheckedInLocation(location?: string | null): boolean {
   if (!location?.trim()) return true;
   return NOT_CHECKED_IN_STATUSES.has(parseLocation(location).status);
+}
+
+const CHECKED_IN_STATUSES: ReadonlySet<string> = new Set([
+  LOCATION_STATUSES.PRESENT,
+  LOCATION_STATUSES.SCHOOLYARD,
+  LOCATION_STATUSES.TRANSIT,
+]);
+
+/**
+ * Ob das Kind einen offenen Check-in hat: im Raum („Anwesend“), auf dem
+ * Schulhof oder unterwegs. Gegenstück im Backend:
+ * `studentpresence.IsCheckedInLocation`.
+ */
+export function isCheckedInLocation(location?: string | null): boolean {
+  return CHECKED_IN_STATUSES.has(parseLocation(location).status);
+}
+
+export type CountedDayStatus = "sick" | "class_trip" | "excused";
+
+/**
+ * Wie ein Ortsbadge den Tagesstatus (krank, Klassenfahrt, entschuldigt,
+ * „Kommt heute nicht“) zeigt:
+ * - `replace`: Ohne Check-in ersetzt der Status den Ort („Krank“ statt
+ *   „Zuhause“). Das gilt auch für „Schule“, den nur aus dem Tagesplan
+ *   abgeleiteten Ort vor dem ersten Check-in.
+ * - `hint`: Ein eingechecktes Kind behält seinen Ort, der Status steht als
+ *   Hinweis darunter (Ort vor Status, #6371).
+ * - `none`: Hat das Personal das Kind zum Unterricht abgemeldet, zeigt das
+ *   Badge nur „Im Unterricht“, ohne Hinweis (#5710). „Im Unterricht“ entsteht
+ *   nur aus dieser erfassten Abmeldung, nie aus dem Tagesplan.
+ *
+ * Zahlen, Filter und Statusgruppen folgen derselben Regel über
+ * {@link countedDayStatus}.
+ */
+export function dayStatusPresentation(
+  location?: string | null,
+): "replace" | "hint" | "none" {
+  if (isInClassLocation(location)) return "none";
+  return isNotCheckedInLocation(location) ? "replace" : "hint";
+}
+
+/**
+ * Der Tagesstatus, nach dem Zahlen, Statusfilter und Statusgruppen ein Kind
+ * einordnen; krank vor Klassenfahrt vor entschuldigt.
+ *
+ * Ort vor Status (#6371): Ein eingechecktes Kind zählt in jeder Ansicht als
+ * anwesend, genau einmal. Seine Krankmeldung, Entschuldigung oder Klassenfahrt
+ * ist dann nur ein Hinweis am Ortsbadge und zählt nirgends mit. Ein Kind, das
+ * das Personal zum Unterricht abgemeldet hat, zählt ebenso nur „Im Unterricht“
+ * (#5710, {@link dayStatusPresentation}). Ein Kind ohne Check-in behält seinen
+ * Status.
+ */
+export function countedDayStatus(student: {
+  readonly sick?: boolean | null;
+  readonly class_trip?: boolean | null;
+  readonly excused?: boolean | null;
+  readonly current_location?: string | null;
+}): CountedDayStatus | null {
+  if (isCheckedInLocation(student.current_location)) return null;
+  if (isInClassLocation(student.current_location)) return null;
+  if (student.sick) return "sick";
+  if (student.class_trip) return "class_trip";
+  if (student.excused) return "excused";
+  return null;
 }
 
 /**

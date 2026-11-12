@@ -3,8 +3,8 @@ package compose
 import (
 	"context"
 
-	applicationBindings "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	applicationBindings "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
 // The mail seams the legacy composition binds for the invitation, password

@@ -8,10 +8,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -89,6 +90,11 @@ func (s *Store) FindGroup(ctx context.Context, id int64, lock string) (timetable
 	query := db.NewSelect().Model(&row).ModelTableExpr(`activities.groups AS "group"`).ColumnExpr(`"group".*`).
 		Where(`"group".tenant_id = ?`, tenantID).Where(`"group".id = ?`, id)
 	if lock != "" {
+		// An activity's modification check pins its row before the
+		// supervisor writes take their staff rows (#6702).
+		if err := tenant.OrderLock(ctx, tenant.LockReference, "activities.groups"); err != nil {
+			return timetable.Group{}, false, domain.OperationStats{}, err
+		}
 		query = query.For(lock)
 	}
 	found, stats, err := scanOne(ctx, query, "find group")

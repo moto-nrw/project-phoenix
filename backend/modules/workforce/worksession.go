@@ -84,10 +84,14 @@ type WorkSession struct {
 	BreakMinutes   int        `json:"break_minutes"`
 	Notes          string     `json:"notes,omitempty"`
 	AutoCheckedOut bool       `json:"auto_checked_out"`
-	CreatedBy      int64      `json:"created_by"`
-	UpdatedBy      *int64     `json:"updated_by,omitempty"`
-	CreatedAt      time.Time  `json:"created_at"`
-	UpdatedAt      time.Time  `json:"updated_at"`
+	// Credit is the school's credit rule as it stood when the block was
+	// closed (#6851, #6852). The credited time is derived from it and the raw
+	// stamps whenever the block is read; the stamps themselves never change.
+	Credit    WorkSessionCreditRule `json:"-"`
+	CreatedBy int64                 `json:"created_by"`
+	UpdatedBy *int64                `json:"updated_by,omitempty"`
+	CreatedAt time.Time             `json:"created_at"`
+	UpdatedAt time.Time             `json:"updated_at"`
 }
 
 // IsOpen reports whether the block is still running.
@@ -128,9 +132,9 @@ type WorkSessionFilter struct {
 
 // WorkSessionBreak is one break period inside a work block.
 type WorkSessionBreak struct {
-	ID              int64      `json:"id"`
-	TenantID        int64      `json:"tenant_id"`
-	SessionID       int64      `json:"session_id"`
+	ID              int64      `json:"id,string"`
+	TenantID        int64      `json:"tenant_id,string"`
+	SessionID       int64      `json:"session_id,string"`
 	StartedAt       time.Time  `json:"started_at"`
 	EndedAt         *time.Time `json:"ended_at,omitempty"`
 	DurationMinutes int        `json:"duration_minutes"`
@@ -317,9 +321,10 @@ type WorkSessionCommand interface {
 	DeleteWorkSessionsOlderThan(ctx context.Context, column, cutoff string) (int64, error)
 	// SetWorkSessionBreakMinutes rewrites the cached break total of a block.
 	SetWorkSessionBreakMinutes(ctx context.Context, id int64, minutes int) (int64, error)
-	// CloseWorkSession stamps the check-out on a still open block; the
-	// boolean reports whether a row was actually closed.
-	CloseWorkSession(ctx context.Context, id int64, checkOut time.Time, autoCheckedOut bool) (bool, error)
+	// CloseWorkSession stamps the check-out and the credit rule of the
+	// closing on a still open block; the boolean reports whether a row was
+	// actually closed.
+	CloseWorkSession(ctx context.Context, id int64, checkOut time.Time, autoCheckedOut bool, credit WorkSessionCreditRule) (bool, error)
 }
 
 // WorkSessionBreakCommand writes the break periods inside work blocks.

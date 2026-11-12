@@ -3,9 +3,9 @@ package users
 import (
 	"context"
 
-	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	models "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	directory "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	models "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 type nativeGuardianPaymentRepository struct {
@@ -19,13 +19,16 @@ func nativeGuardianPayment(value *models.GuardianFinancialData) *directory.Guard
 	if value == nil {
 		return nil
 	}
-	return &directory.GuardianPayment{ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt, GuardianProfileID: value.GuardianProfileID, IBAN: value.IBAN, AccountHolder: value.AccountHolder}
+	return &directory.GuardianPayment{ID: value.ID, TenantID: value.TenantID, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt, GuardianProfileID: value.GuardianProfileID,
+		IBANSealed: value.IBANSealed, IBANMasked: value.IBANMasked, AccountHolderSealed: value.AccountHolderSealed}
 }
 func guardianPaymentRow(value *directory.GuardianPayment) *models.GuardianFinancialData {
 	if value == nil {
 		return nil
 	}
-	row := &models.GuardianFinancialData{GuardianProfileID: value.GuardianProfileID, IBAN: value.IBAN, AccountHolder: value.AccountHolder}
+	// Only sealed values and the mask are stored (#6332).
+	row := &models.GuardianFinancialData{GuardianProfileID: value.GuardianProfileID,
+		IBANSealed: value.IBANSealed, IBANMasked: value.IBANMasked, AccountHolderSealed: value.AccountHolderSealed}
 	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 	return row
 }

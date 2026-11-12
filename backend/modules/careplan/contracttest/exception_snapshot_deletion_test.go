@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // pickupExceptionsOn stores one ordinary pickup exception per day from the
@@ -29,11 +29,9 @@ func pickupExceptionsOn(t *testing.T, ctx context.Context, service careplan.Pick
 	return ids
 }
 
-// Deleting all exceptions of a child stops at the first one that carries a
-// partial absence. This is the contract a batched deletion (#5901) must keep. The exceptions before it are already deleted when
-// the refusal is returned, the one with the partial absence and the later
-// ones stay: the result of one lock-and-delete per exception in date order.
-func TestDeleteAllPickupExceptionsStopsAtThePartialAbsence(t *testing.T) {
+// Refusing to delete a partial absence keeps the exception snapshot intact,
+// including the child's ordinary exceptions on the surrounding days.
+func TestDeletePickupExceptionWithPartialAbsenceKeepsSnapshot(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	service := setupPickupScheduleService(t, db)
@@ -54,7 +52,7 @@ func TestDeleteAllPickupExceptionsStopsAtThePartialAbsence(t *testing.T) {
 	var deleteErr error
 	var remaining []int64
 	err := testpkg.TenantCommand0(t, ctx, db, func(txCtx context.Context) error {
-		deleteErr = service.DeleteAllStudentPickupExceptions(txCtx, student.ID)
+		deleteErr = service.DeleteStudentPickupException(txCtx, partial.ID, student.ID)
 		rows, readErr := service.GetStudentPickupExceptions(txCtx, student.ID)
 		require.NoError(t, readErr)
 		for _, row := range rows {
@@ -64,14 +62,11 @@ func TestDeleteAllPickupExceptionsStopsAtThePartialAbsence(t *testing.T) {
 	})
 	require.ErrorIs(t, err, rollback)
 	require.ErrorIs(t, deleteErr, careplan.ErrCareExceptionContainsPartialAbsence)
-	assert.Equal(t, []int64{partial.ID, after[0]}, remaining, "the exception before the partial absence is deleted, the rest stays")
-	assert.NotContains(t, remaining, before[0])
+	assert.Equal(t, []int64{before[0], partial.ID, after[0]}, remaining, "the refused single deletion keeps the entire snapshot")
 }
 
-// A storage failure of the deletion ends it with that failure, and the
-// transaction keeps every exception (#5901): one failing delete per row
-// rolled the earlier deletes back the same way.
-func TestDeleteAllPickupExceptionsStorageFailureKeepsEveryException(t *testing.T) {
+// A storage failure of a single deletion keeps every exception in the snapshot.
+func TestDeletePickupExceptionStorageFailureKeepsSnapshot(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	service := setupPickupScheduleService(t, db)
@@ -89,7 +84,7 @@ func TestDeleteAllPickupExceptionsStorageFailureKeepsEveryException(t *testing.T
 			FOR EACH ROW EXECUTE FUNCTION schedule.fail_pickup_delete_5901();`, ids[1]))
 	require.NoError(t, err)
 
-	err = testpkg.TenantCommand1(t, ctx, db, service.DeleteAllStudentPickupExceptions, student.ID)
+	err = testpkg.TenantCommand2(t, ctx, db, service.DeleteStudentPickupException, ids[1], student.ID)
 	require.ErrorContains(t, err, "injected pickup delete failure")
 	var scheduleErr *careplan.ScheduleError
 	require.ErrorAs(t, err, &scheduleErr)

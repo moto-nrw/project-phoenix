@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan/ports"
 )
 
 var _ devicescan.OpenRoomBooking = (*Service)(nil)
@@ -74,7 +74,10 @@ func (s *Service) openRoomStudent(ctx context.Context, device *devicescan.Princi
 	if err != nil {
 		return nil, nil, err
 	}
-	student := s.lookupStudent(ctx, person.ID)
+	student, err := s.lookupStudent(ctx, person.ID)
+	if err != nil {
+		return nil, nil, err
+	}
 	if student == nil {
 		return nil, nil, devicescan.NotFoundWithCode(devicescan.MessagePersonNotStudent, devicescan.CodePersonNotStudent)
 	}

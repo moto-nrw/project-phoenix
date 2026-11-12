@@ -1,9 +1,39 @@
 {
   "sites": [
     {
+      "decision": "0184",
+      "id": "modules/parentbilling/http/BelegRetentionResource.LiftSuspension",
+      "reason": "ADR 0184 (#4720): parses the Träger and the suspension of the route and runs the lift with its operator audit entry in one administrative transaction."
+    },
+    {
+      "decision": "0184",
+      "id": "modules/parentbilling/http/BelegRetentionResource.RecordClarificationReview",
+      "reason": "ADR 0184 (#4720): decodes the review of a clarification entry of the Träger in the route and records it with its operator audit entry in one administrative transaction."
+    },
+    {
+      "decision": "0184",
+      "id": "modules/parentbilling/http/BelegRetentionResource.RecordInstruction",
+      "reason": "ADR 0184 (#4720): decodes the instruction of the Träger in the route and records it with its operator audit entry in one administrative transaction."
+    },
+    {
+      "decision": "0184",
+      "id": "modules/parentbilling/http/BelegRetentionResource.RecordSuspension",
+      "reason": "ADR 0184 (#4720): decodes the suspension of the Träger in the route and records it with its operator audit entry in one administrative transaction."
+    },
+    {
       "decision": "0123",
       "id": "modules/parentbilling/internal/adapters/rendering/Renderer.CombineLetters",
       "reason": "ADR 0123 (#4670): Adapter of the Elternabrechnung onto the letter contract of Document Rendering; it translates a combination without letters into ErrBillingLettersMissing."
+    },
+    {
+      "decision": "0184",
+      "id": "modules/parentbilling/internal/application/BelegRetention.LiftSuspension",
+      "reason": "ADR 0184 (#4720): ends the suspension and evaluates the Träger again at once, so the Operator portal shows the effect; the deletion stays with the hourly job."
+    },
+    {
+      "decision": "0184",
+      "id": "modules/parentbilling/internal/application/BelegRetention.RecordSuspension",
+      "reason": "ADR 0184 (#4720): trims and validates the suspension (type, reason, scope, responsible, review not in the past), stores it and evaluates the Träger again at once."
     },
     {
       "decision": "0119",
@@ -19,6 +49,16 @@
       "decision": "0158",
       "id": "modules/parentbilling/internal/application/CareBilling.ListCareRuns",
       "reason": "ADR 0158 (#4684): lists the monthly runs of the session's Träger after refusing a missing Träger and derives the month a new run bills; the Träger transaction is the caller's."
+    },
+    {
+      "decision": "0182",
+      "id": "modules/parentbilling/internal/application/CareFeeNotices.EffectiveNoticeDues",
+      "reason": "ADR 0182 (#6219): reads the effective change level of a month for the SEPA collection (#4697) after refusing a missing Träger and a month that is not a month start, and keeps the newest notice per contract; the Träger transaction is the caller's."
+    },
+    {
+      "decision": "0206",
+      "id": "modules/parentbilling/internal/application/HolidayContributions.HoldHolidayAllocationInvoices",
+      "reason": "ADR 0206 (#6555): Parent Billing's guarded command that takes only the billing lock B of the period's holiday invoices for the holiday-allocation workflow, after refusing a missing Träger or account and mapping the lock error. The workflow takes Enrollment's period lock P next; no decision callback remains."
     },
     {
       "decision": "0115",

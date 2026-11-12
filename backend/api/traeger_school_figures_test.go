@@ -9,12 +9,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	studentPresenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	schoolMembershipCompose "github.com/moto-ogs/project-phoenix/modules/schoolmembership/compose"
+	studentPresenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // figuresDay is a fixed Berlin day; the owners' reads take the instant.
@@ -115,6 +115,30 @@ func TestSickStudentsReadBothMarks(t *testing.T) {
 	}))
 	_, err = sick.SickFlagMembershipIDsByTenant(testpkg.TenantContext(school), []int64{school})
 	assert.Error(t, err, "outside the administrative transaction it refuses")
+}
+
+// A sick day the 18:00 run archived still stands for its day, as on the
+// school's dashboard (#6291): the Träger counts it until the day ends.
+func TestSickStudentsReadTheDayTheEndOfDayRunArchived(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	school := testpkg.Tenant(t)
+
+	archived := testpkg.CreateTestStudent(t, db, "Arne", "Archiv", "1a")
+	archivedDay := testpkg.CreateTestStudentStatusDay(t, db, archived.ID, figuresDay, "sick")
+	_, err := db.ExecContext(context.Background(), `UPDATE active.student_status_days SET cleared_at = ?, source = 'end_of_day' WHERE id = ?`, figuresNoon().Add(6*time.Hour), archivedDay.ID)
+	require.NoError(t, err)
+	withdrawn := testpkg.CreateTestStudent(t, db, "Wilma", "Zurueck", "1a")
+	withdrawnDay := testpkg.CreateTestStudentStatusDay(t, db, withdrawn.ID, figuresDay, "sick")
+	_, err = db.ExecContext(context.Background(), `UPDATE active.student_status_days SET cleared_at = ?, source = 'manual' WHERE id = ?`, figuresNoon(), withdrawnDay.ID)
+	require.NoError(t, err)
+
+	require.NoError(t, testpkg.WithinAdminContext(t, context.Background(), db, func(adminCtx context.Context) error {
+		days, err := carePlanCompose.NewSickStudents().SickDayStudentIDsByTenant(adminCtx, []int64{school}, figuresNoon())
+		require.NoError(t, err)
+		assert.Equal(t, map[int64][]int64{school: {archived.ID}}, days, "the archived day counts, a withdrawn one does not")
+		return nil
+	}))
 }
 
 func TestOnSiteStaffKeepsOpenSessionsOnSite(t *testing.T) {

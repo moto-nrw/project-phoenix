@@ -15,8 +15,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // countingBody counts the bytes a handler reads from the request body.
@@ -65,7 +65,7 @@ func TestPublicUploadsRefuseUnknownLinksBeforeReadingTheBody(t *testing.T) {
 	require.NoError(t, writer.Close())
 
 	enrollment := &Resource{SchoolService: unknownSchool{}, Uploads: unusedUploadService{}, UploadFiles: func(string) (UploadFileStore, error) { return nil, errors.New("unused") }}
-	holiday := NewHolidayRegistrationResource(unknownHolidayLink{}, unusedProofUploads{}, settingsFailureCaptcha{})
+	holiday := NewHolidayRegistrationResource(unknownHolidayLink{}, unusedProofUploads{}, settingsFailureCaptcha{}, nil, nil)
 	for _, tc := range []struct {
 		name, path, code string
 		router           http.Handler

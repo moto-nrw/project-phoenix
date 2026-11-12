@@ -5,9 +5,9 @@ import (
 	"strings"
 	"testing"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -397,7 +397,6 @@ func TestRemovedFileRetentionRefusesAYoungCutoffAndAnotherSchool(t *testing.T) {
 		"removed file cutoff exceeds retention window")
 	require.Error(t, inSchool(`SELECT documents.delete_removed_files(?, CURRENT_TIMESTAMP - INTERVAL '31 days')`, otherSchool),
 		"the function accepts only the tenant of the calling transaction")
-	require.ErrorContains(t, inSchool(`DELETE FROM documents.files WHERE id = ?`, removed),
-		"permission denied for table files", "the tenant role keeps no direct DELETE on the file rows")
+	require.Equal(t, "42501", testpkg.PostgresSQLState(inSchool(`DELETE FROM documents.files WHERE id = ?`, removed)), "the tenant role keeps no direct DELETE on the file rows")
 	assert.True(t, suite.exists(t, "documents.files", removed))
 }

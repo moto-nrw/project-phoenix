@@ -4,7 +4,7 @@ package delivery
 import (
 	"context"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 )
 
 // Capability enqueues, cancels and reports durable mail and push intents and
@@ -28,4 +28,20 @@ type Capability interface {
 	EmailDeliveryStatuses(context.Context, int64, deliveryContract.RelatedEntity) ([]deliveryContract.EmailDeliveryStatus, error)
 	AttachEmailOutbox(context.Context, int64, int64, int64) error
 	ClaimFailedEmailDelivery(context.Context, int64, int64) (bool, error)
+}
+
+// TraegerMails reads Träger mails back by idempotency key and takes those
+// with a known transport failure up again (ADR 0196). Both run in the
+// caller's Träger transaction of organizationID. A repetition is another
+// attempt of the same mail, never a new one.
+type TraegerMails interface {
+	UnresolvedHolidayClosureEmails(ctx context.Context, organizationID int64) ([]deliveryContract.HolidayClosureMailRecovery, error)
+	TraegerEmailStatusesByKey(ctx context.Context, organizationID int64, idempotencyKeys []string) ([]deliveryContract.Status, error)
+	RetryFailedTraegerEmails(ctx context.Context, organizationID int64, idempotencyKeys []string) (int64, error)
+}
+
+// HolidayRegistrationMailErasure deletes personal mail copies in the existing
+// administrative transaction, independently of transport status or age.
+type HolidayRegistrationMailErasure interface {
+	EraseHolidayRegistrationMails(ctx context.Context, organizationIDs, registrationIDs []int64) (int, error)
 }

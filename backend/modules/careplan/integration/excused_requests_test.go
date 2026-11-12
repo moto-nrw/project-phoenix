@@ -10,12 +10,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/careplantest"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The excused-absence request workflow (#3093) over the real Care Plan
@@ -369,17 +369,39 @@ func TestExcusedRequestPartialAbsenceConflicts(t *testing.T) {
 		require.NoError(t, err)
 		require.Len(t, items, 1)
 		assert.Equal(t, careplan.BulkIneligibleConflict, items[0].BulkIneligibleReason)
+		assert.Equal(t, map[string]string{excusedIn3Days.String(): "13:30"}, items[0].PartialAbsenceFromByDate,
+			"the queue names the partial absence it would replace")
 		return nil
 	}))
 	_, err := f.decide(t, careplan.ExcusedRequestDecideInput{RequestID: pending.ID, Approve: true, ReviewedBy: f.chain.AccountID})
 	assert.ErrorIs(t, err, careplan.ErrExcusedRequestStatusConflict)
 	assert.Empty(t, f.activeStatusDays(t))
 
+	// Since #5698 a family may ask for a day the school holds with a partial
+	// absence: the school decides it. Only the approval needs a confirmation.
 	err = f.inTenant(t, func(ctx context.Context) error {
 		_, err := f.requests.CreateRequest(ctx, f.chain.StudentID, f.chain.AccountID, []careplan.Date{excusedIn4Days}, "Arzttermin")
 		return err
 	})
-	assert.ErrorIs(t, err, careplan.ErrExcusedRequestStatusConflict, "a partial absence blocks the creation too")
+	assert.NoError(t, err, "a partial absence no longer blocks the request")
+}
+
+// A request whose first day has passed can still be approved one by one, so
+// the queue names its partial absence too (#5698).
+func TestExcusedRequestPartlyPastNamesPartialAbsence(t *testing.T) {
+	t.Parallel()
+	f := newExcusedFixture(t)
+	f.createPending(t, []careplan.Date{excusedPast, excusedIn3Days}, "Arzttermin")
+	f.createManualPartialAbsence(t, excusedIn3Days)
+
+	require.NoError(t, f.inTenant(t, func(ctx context.Context) error {
+		items, _, err := f.requests.ListPending(ctx, careplan.RequestQueueFilter{})
+		require.NoError(t, err)
+		require.Len(t, items, 1)
+		assert.Equal(t, careplan.BulkIneligiblePast, items[0].BulkIneligibleReason)
+		assert.Equal(t, map[string]string{excusedIn3Days.String(): "13:30"}, items[0].PartialAbsenceFromByDate)
+		return nil
+	}))
 }
 
 func TestExcusedRequestPastRequestsMarkDoneInsteadOfApprove(t *testing.T) {

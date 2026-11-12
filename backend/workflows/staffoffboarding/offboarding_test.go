@@ -5,18 +5,18 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peoplecompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	membershipcompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	presencecompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetablecompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforcecompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peoplecompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	membershipcompose "github.com/moto-ogs/project-phoenix/modules/schoolmembership/compose"
+	presencecompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetablecompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	workforcecompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/workflows/staffoffboarding"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -77,9 +77,15 @@ func newFixture(t *testing.T) fixture {
 		Authorize: func(context.Context) (staffoffboarding.Actor, error) {
 			return staffoffboarding.Actor{TenantID: testpkg.Tenant(t), AccountID: account.ID, StaffID: actor.ID, Username: "actor"}, nil
 		},
-		Today:      func() string { return "2027-10-02" },
-		FindStaff:  membership.FindStaff,
+		Today:     func() string { return "2027-10-02" },
+		FindStaff: membership.FindStaff, ListStaff: membership.ListStaff,
 		Membership: retirement, Workforce: workOffboarding, Timetable: timetableOffboarding, People: people,
+		LockAccounts: func(_ context.Context, ids []int64) error {
+			if len(ids) == 0 {
+				return nil
+			}
+			return errors.New("fixture subject has no account")
+		},
 		PreviewAccess: func(context.Context, int64) (staffoffboarding.AccessPreview, error) {
 			return staffoffboarding.AccessPreview{}, errors.New("fixture subject has no account")
 		},

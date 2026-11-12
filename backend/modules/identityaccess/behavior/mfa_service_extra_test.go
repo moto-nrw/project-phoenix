@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	api "github.com/moto-nrw/project-phoenix/roots/owners"
+	api "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // newExtraMFAService composes the second factor over the test database and
@@ -56,12 +56,13 @@ func TestMFAService_VerifyCodeForAccount_WrongAccount_ReturnsInvalid(t *testing.
 func TestMFAService_VerifyCodeForAccount_WrongCode_RecordsFailureAndReturnsInvalid(t *testing.T) {
 	t.Parallel()
 
-	svc, _, accID := newExtraMFAService(t)
-	require.NoError(t, svc.EnrollMFA(context.Background(), accID))
+	scenario := newMFATestScenario(t)
+	svc, accID := scenario.MFA, scenario.AccountID
+	require.NoError(t, enrollMFA(context.Background(), t, scenario.DB, svc, accID))
 
 	// Seed an active challenge via the public StartChallenge path so we
 	// have a real CodeHash to mismatch against.
-	_, err := svc.StartMFAChallenge(context.Background(), accID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"))
+	_, err := svc.StartMFAChallenge(context.Background(), accID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"), 0)
 	require.NoError(t, err)
 
 	_, err = svc.VerifyMFACodeForAccount(context.Background(), accID, 0, "000000", identityaccess.MFAChallengeScopeTenant)
@@ -88,12 +89,13 @@ func TestMFAService_ResendChallenge_InvalidToken_ReturnsTokenInvalid(t *testing.
 func TestMFAService_ResendChallenge_HappyPath(t *testing.T) {
 	t.Parallel()
 
-	svc, _, accID := newExtraMFAService(t)
-	require.NoError(t, svc.EnrollMFA(context.Background(), accID))
+	scenario := newMFATestScenario(t)
+	svc, accID := scenario.MFA, scenario.AccountID
+	require.NoError(t, enrollMFA(context.Background(), t, scenario.DB, svc, accID))
 
 	// Mint a real challenge token via StartChallenge so ResendChallenge
 	// can parse it back out.
-	token, err := svc.StartMFAChallenge(context.Background(), accID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"))
+	token, err := svc.StartMFAChallenge(context.Background(), accID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"), 0)
 	require.NoError(t, err)
 	require.NotEmpty(t, token)
 
@@ -131,8 +133,9 @@ func TestMFAService_TrustedDeviceDays_DefaultsWhenSettingsMissing(t *testing.T) 
 func TestMFAService_IssueTrustedDevice_PersistsAndReturnsSignedToken(t *testing.T) {
 	t.Parallel()
 
-	svc, _, accID := newExtraMFAService(t)
-	require.NoError(t, svc.EnrollMFA(context.Background(), accID))
+	scenario := newMFATestScenario(t)
+	svc, accID := scenario.MFA, scenario.AccountID
+	require.NoError(t, enrollMFA(context.Background(), t, scenario.DB, svc, accID))
 
 	db := testpkg.SetupTestDB(t)
 	tenantID := testpkg.UniqueTestTenantID(t)

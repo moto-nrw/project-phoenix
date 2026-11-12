@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/devices"
 )
 
 // BindCommunicationNotificationSender preserves an optional producer and binds
@@ -18,15 +18,30 @@ func BindCommunicationNotificationSender(source devices.NotificationCommands) fu
 	}
 }
 
-// BindCommunicationDurableNotificationSender keeps the original receipt and
-// error together, including partial receipts on failure.
-func BindCommunicationDurableNotificationSender(source devices.NotificationCommands) func(context.Context, communication.NotificationEvent) (int, error) {
+// BindCommunicationNotificationSeries binds the language variants of one push
+// to the same router, with one device read for all of them (#5869, #5876).
+// The durable receipt keeps every accepted variant with the error that ended
+// the series.
+func BindCommunicationNotificationSeries(source devices.NotificationSeriesCommands) communication.NotificationSeries {
 	if source == nil {
-		return nil
+		return communication.NotificationSeries{}
 	}
-	return func(ctx context.Context, event communication.NotificationEvent) (int, error) {
-		return source.NotifyEventDurably(ctx, communicationNotificationToDelivery(event))
+	return communication.NotificationSeries{
+		Notify: func(ctx context.Context, events []communication.NotificationEvent) (int, error) {
+			return source.NotifyEvents(ctx, communicationNotificationsToDelivery(events))
+		},
+		NotifyDurably: func(ctx context.Context, events []communication.NotificationEvent) ([]int, error) {
+			return source.NotifyEventsDurably(ctx, communicationNotificationsToDelivery(events))
+		},
 	}
+}
+
+func communicationNotificationsToDelivery(events []communication.NotificationEvent) []devices.NotificationEvent {
+	out := make([]devices.NotificationEvent, len(events))
+	for i, event := range events {
+		out[i] = communicationNotificationToDelivery(event)
+	}
+	return out
 }
 
 func communicationNotificationToDelivery(event communication.NotificationEvent) devices.NotificationEvent {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // The stores of the module's own tables.
@@ -14,7 +14,8 @@ import (
 type Store interface {
 	ListSchoolRoles(context.Context, int64) ([]*domain.SchoolRole, domain.OperationStats, error)
 	FindSchoolRoleByName(context.Context, string, int64) (*domain.SchoolRole, domain.OperationStats, error)
-	FindRolePermissions(context.Context, int64, int64) ([]string, domain.OperationStats, error)
+	FindRolePermissionsByRoleIDs(context.Context, []int64, int64) (map[int64][]string, domain.OperationStats, error)
+	FindSchoolEmailIdentities(context.Context, []string, int64) (map[string]int64, map[string][]int64, domain.OperationStats, error)
 	FindInvitedPersonIDs(ctx context.Context, email string, tenantID int64) ([]int64, domain.OperationStats, error)
 	CountStudentGuardianInvitations(ctx context.Context, studentID, tenantID int64) (int, domain.OperationStats, error)
 	HasActiveAccountTenant(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)
@@ -52,9 +53,13 @@ type OperatorStore interface {
 	// InsertOperator stores a validated operator and returns the row with its
 	// identity and timestamps.
 	InsertOperator(ctx context.Context, operator domain.Operator) (domain.Operator, domain.OperationStats, error)
-	// UpdateOperator overwrites every mutable column of the operator's row and
-	// reports whether the row existed.
+	// UpdateOperator overwrites every mutable column of the operator's row but
+	// the password and reports whether the row existed.
 	UpdateOperator(ctx context.Context, operator domain.Operator) (bool, domain.OperationStats, error)
+	// WriteOperatorCredential is the one writer of an operator's password
+	// (#6308): it moves the credential generation on in the same statement,
+	// and its expectations make it a compare-and-swap (written=false).
+	WriteOperatorCredential(ctx context.Context, operatorID int64, write domain.CredentialWrite) (bool, domain.OperationStats, error)
 	DeleteOperator(ctx context.Context, id int64) (domain.OperationStats, error)
 	// DeleteDeactivatedOperators removes the accounts whose database-clock
 	// retention window has ended and reports how many went.
@@ -141,6 +146,7 @@ type OperatorTokenStore interface {
 	// concurrent redemptions see exactly one winner.
 	RedeemOperatorEmailChange(ctx context.Context, token string, now time.Time) (domain.OperatorEmailChange, bool, domain.OperationStats, error)
 	RevokeOperatorEmailChanges(ctx context.Context, operatorID int64) (domain.OperationStats, error)
+	RevokeOperatorTrustedDevices(ctx context.Context, operatorID int64, revokedAt time.Time) (domain.OperationStats, error)
 	RecordOperatorEmailChangeDelivery(ctx context.Context, id int64, delivery domain.TokenDelivery) (domain.OperationStats, error)
 	// RevokeExpiredOperatorEmailChanges marks expired, unused rows used so
 	// they stop occupying the one-active-link-per-operator index.
@@ -222,9 +228,16 @@ type AccountSessionStore interface {
 	// ListLiveAccountSessionsForCap returns the account's live, un-rotated
 	// sessions in the cap's portal group, newest expiry first.
 	ListLiveAccountSessionsForCap(ctx context.Context, accountID int64, portalScopes []string, now time.Time) ([]domain.AccountSession, domain.OperationStats, error)
-	DeleteAccountSessionsByID(ctx context.Context, ids []int64) ([]domain.AccountSession, domain.OperationStats, error)
+	// EvictAccountSessions deletes the account's sessions with the given IDs
+	// and every row of the given families, rotated predecessors included, so
+	// no earlier generation of an evicted family stays its latest one.
+	EvictAccountSessions(ctx context.Context, accountID int64, ids []int64, familyIDs []string) ([]domain.AccountSession, domain.OperationStats, error)
 	DeleteAccountSession(ctx context.Context, id int64) (domain.OperationStats, error)
 	DeleteAccountSessionsByFamily(ctx context.Context, familyID string) ([]domain.AccountSession, domain.OperationStats, error)
+	// DeleteAccountSessionsExceptFamily deletes the account's sessions at
+	// every school except the rows of keepFamilyID; an empty keepFamilyID
+	// keeps none.
+	DeleteAccountSessionsExceptFamily(ctx context.Context, accountID int64, keepFamilyID string) ([]domain.AccountSession, domain.OperationStats, error)
 	// DeleteAccountSessionsByAccount deletes the account's sessions: only the
 	// caller's tenant when tenantScoped, every tenant otherwise. A non-zero
 	// cutoff keeps sessions that only started after it.
@@ -283,13 +296,27 @@ type AccountLoginStore interface {
 	// permissions the effective set derives from.
 	LockAccountPermissionSources(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error)
 	TraegerRoleStore
+	TraegerParentAccessStore
+}
+
+// TraegerParentAccessStore persists the parents-portal access of an account
+// at a Träger without a school (ADR 0216). Every method runs on the caller's
+// administrative transaction.
+type TraegerParentAccessStore interface {
+	// ListTraegerParentAccess returns the Träger of the account's access,
+	// oldest access first.
+	ListTraegerParentAccess(ctx context.Context, accountID int64) ([]int64, domain.OperationStats, error)
+	// HasTraegerParentAccess reports one access; forShare pins its row.
+	HasTraegerParentAccess(ctx context.Context, accountID, organizationID int64, forShare bool) (bool, domain.OperationStats, error)
+	// GrantTraegerParentAccess records the access once.
+	GrantTraegerParentAccess(ctx context.Context, accountID, organizationID int64) (domain.OperationStats, error)
 }
 
 // TraegerRoleStore persists the Träger roles (ADR 0084). Every method runs on
 // the caller's administrative transaction.
 type TraegerRoleStore interface {
 	ListTraegerRoles(ctx context.Context, organizationID, accountID int64) ([]string, domain.OperationStats, error)
-	LockLiveTraegerAccount(ctx context.Context, accountID int64) (bool, domain.OperationStats, error)
+	LockLiveTraegerAccount(ctx context.Context, accountID int64) (live, active bool, stats domain.OperationStats, err error)
 	InsertTraegerRole(ctx context.Context, organizationID, accountID int64, role string) (domain.OperationStats, error)
 	ListTraegerAccounts(ctx context.Context, organizationID int64, accountIDs []int64) ([]domain.TraegerAccount, domain.OperationStats, error)
 	DeleteTraegerSessions(ctx context.Context, organizationID int64) (int64, domain.OperationStats, error)
@@ -319,4 +346,21 @@ type AccountAccessStore interface {
 	RemoveAccountRole(ctx context.Context, accountID, roleID, tenantID int64) (domain.OperationStats, error)
 	FindRole(ctx context.Context, roleID int64) (domain.RoleFact, bool, domain.OperationStats, error)
 	ListRoles(ctx context.Context) ([]domain.RoleFact, domain.OperationStats, error)
+}
+
+// SchoolMembershipLockStore locks the account before pinning its active
+// mapping FOR SHARE in the caller's transaction (#6529).
+type SchoolMembershipLockStore interface {
+	LockLiveGuardianAccount(ctx context.Context, accountID int64) (bool, error)
+	LockActiveTenantMappingShared(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error)
+}
+
+// GuardianInvitationLockStore pins the accounts an invitation participates in.
+type GuardianInvitationLockStore interface {
+	LockGuardianInvitationAccounts(ctx context.Context, inviterID int64, email string) error
+}
+
+// StaffOffboardingAccountLocks is the account-only prelock of a planned exit.
+type StaffOffboardingAccountLocks interface {
+	LockLoginAccounts(context.Context, []int64) ([]int64, domain.OperationStats, error)
 }

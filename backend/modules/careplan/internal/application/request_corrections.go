@@ -6,9 +6,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
 )
 
 type RequestCorrections struct {
@@ -16,6 +16,7 @@ type RequestCorrections struct {
 	People  ports.RequestCorrectionPeople
 	Plans   ports.RequestCorrectionPlans
 	Effects ports.RequestCorrectionEffects
+	Excusal ports.RequestCorrectionExcusal
 }
 
 func (s *RequestCorrections) Correct(ctx context.Context, id int64, approve bool, version, reason string, actorID int64) error {
@@ -103,7 +104,7 @@ func (s *RequestCorrections) revertPickup(ctx context.Context, request *carerequ
 	if err != nil {
 		return fmt.Errorf("schedule: read care request ledger: %w", err)
 	}
-	applied, found := decidedPickupRows(events)
+	applied, found := latestPickupRows(events)
 	if !found {
 		return fmt.Errorf("%w: zu dieser Entscheidung ist kein Eintrag gespeichert, der zurückgenommen werden kann. Bitte ändern Sie die Abholung direkt", careplan.ErrParentRequestCorrectionUnsupported)
 	}
@@ -135,6 +136,11 @@ func (s *RequestCorrections) revertPickupException(ctx context.Context, request 
 	if request.ReviewedAt != nil && row.UpdatedAt.After(*request.ReviewedAt) {
 		return fmt.Errorf("%w: die Abholzeit am %s wurde nach der Entscheidung geändert", careplan.ErrParentRequestCorrectionUnsupported, row.ExceptionDate.Format("02.01.2006"))
 	}
+	if row.ExcusedAuto {
+		if err := s.Excusal.ReleaseBeforeDelete(ctx, row); err != nil {
+			return err
+		}
+	}
 	return s.Records.DeleteException(ctx, row.ID)
 }
 
@@ -152,22 +158,21 @@ func (s *RequestCorrections) revertDepartureException(ctx context.Context, reque
 	return s.Records.DeleteDepartureException(ctx, row.ID)
 }
 
-// decidedPickupRows reads the rows the newest decision wrote: a time, a day
-// Abholart (#3945), the day's collector note (#4780), or several of them.
-func decidedPickupRows(events []ports.RequestCorrectionEvent) (carerequests.PickupApplied, bool) {
+// latestPickupRows reads the generation written by the latest decision or
+// correction. A later transition without IDs invalidates the previous generation;
+// falling back would target rows from an approval already taken back.
+func latestPickupRows(events []ports.RequestCorrectionEvent) (carerequests.PickupApplied, bool) {
 	var applied carerequests.PickupApplied
 	var found bool
 	for _, event := range events {
-		if event.Type != "decided" {
+		if event.Type != "decided" && event.Type != "corrected" {
 			continue
 		}
 		pickupID, pickupOK := correctionExceptionID(event.Payload["pickup_exception_id"])
 		departureID, departureOK := correctionExceptionID(event.Payload["departure_exception_id"])
 		noteID, noteOK := correctionExceptionID(event.Payload["pickup_note_id"])
-		if pickupOK || departureOK || noteOK {
-			applied = carerequests.PickupApplied{PickupExceptionID: pickupID, DepartureExceptionID: departureID, PickupNoteID: noteID}
-			found = true
-		}
+		applied = carerequests.PickupApplied{PickupExceptionID: pickupID, DepartureExceptionID: departureID, PickupNoteID: noteID}
+		found = pickupOK || departureOK || noteOK
 	}
 	return applied, found
 }

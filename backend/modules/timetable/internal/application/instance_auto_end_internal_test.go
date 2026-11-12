@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	schedule "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -52,7 +52,7 @@ func TestAutoEnd_RunForTenant_CompletesOnlyDueActivePlannedInstances(t *testing.
 	assert.Equal(t, 1, result.SkippedBeforeDeadline)
 	assert.Equal(t, 1, result.SkippedSpontaneous)
 	assert.Equal(t, 2, result.SkippedNonActive)
-	assert.Equal(t, []int64{101, 102, 107}, completer.completedIDs)
+	assert.Equal(t, []int64{107, 101, 102}, completer.completedIDs, "older days must complete first in the shared transaction")
 }
 
 func TestAutoEnd_RunForTenant_UsesZeroGrace(t *testing.T) {

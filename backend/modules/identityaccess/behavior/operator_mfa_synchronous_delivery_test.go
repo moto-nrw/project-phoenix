@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -46,7 +46,7 @@ func TestOperatorMFAStartChallengeFailsClosedAndInvalidatesCode(t *testing.T) {
 	operator := testpkg.CreateTestOperator(t, db)
 
 	token, err := module.OperatorMFA.StartOperatorMFAChallenge(
-		context.Background(), operator.ID, net.ParseIP("203.0.113.73"))
+		context.Background(), operator.ID, net.ParseIP("203.0.113.73"), nil)
 
 	require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
 	assert.Empty(t, token)

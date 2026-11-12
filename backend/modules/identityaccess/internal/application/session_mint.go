@@ -10,9 +10,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // Every account session of every portal is minted by mintAccountSession and
@@ -20,7 +20,8 @@ import (
 // locks. Inside the write transaction, in this order:
 //
 //  1. the school's MFA policy lock, for portals that follow it;
-//  2. the account row FOR UPDATE (lockLiveAccount);
+//  2. the account row FOR UPDATE (lockLiveAccount), and for a password
+//     sign-in the credential generation it checked (recheckPassword);
 //  3. the proof re-check: a redeemed challenge, a remembered device or the
 //     Träger session an Absprung starts from must still hold;
 //  4. the portal's eligibility, which locks mapping and role rows FOR SHARE
@@ -230,6 +231,9 @@ func (s *AccountAuthentication) persistSessionInTransaction(ctx context.Context,
 			return err
 		}
 		session.TenantID = req.tenantID
+		if err := s.requireLiveSessionSchool(txCtx, req.tenantID); err != nil {
+			return refused(err)
+		}
 		created, err := s.sessions.CreateAccountSession(txCtx, ports.AccountSession(session))
 		if err != nil {
 			return err
@@ -255,6 +259,9 @@ func (s *AccountAuthentication) authorizeMint(ctx context.Context, req mintReque
 	}
 	account, err := s.lockLiveAccount(ctx, req.account.ID)
 	if err != nil {
+		return nil, time.Time{}, refused(err)
+	}
+	if err := recheckPassword(req.account, account); err != nil {
 		return nil, time.Time{}, refused(err)
 	}
 	if err := s.recheckProof(ctx, req, account); err != nil {
@@ -334,6 +341,17 @@ func (s *AccountAuthentication) lockLiveAccount(ctx context.Context, accountID i
 		return domain.LoginAccount{}, failed("check account status", identityaccess.ErrAccountInactive)
 	}
 	return account, nil
+}
+
+// recheckPassword refuses a password sign-in whose credential generation
+// moved on between its check and this mint (#6289): a password write revoked
+// every session that existed, and the old password must not earn a new one.
+// Only a sign-in that checked a password is held to it.
+func recheckPassword(checked, locked domain.LoginAccount) error {
+	if checked.PasswordChecked && checked.MFAResetGeneration != locked.MFAResetGeneration {
+		return failed("login", identityaccess.ErrInvalidCredentials)
+	}
+	return nil
 }
 
 // recheckProof holds the proof to the state MFA reset leaves under the same

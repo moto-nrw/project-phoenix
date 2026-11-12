@@ -6,12 +6,12 @@ status: accepted
 
 Freigegeben von Yannick Wenger am 07.11.2026
 
-Vorschlag vom 07.11.2026 zu [#4682](https://github.com/moto-nrw/project-phoenix/issues/4682),
-Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Vorschlag vom 07.11.2026 zu [#4682](https://github.com/moto-ogs/project-phoenix/issues/4682),
+Etappe 2 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 53, 54 und 55. Er baut auf
 [ADR 0153](0153-betreuungsvertrag-entsteht-im-traeger-buero-aus-der-angenommenen-anmeldung.md)
 (Betreuungsvertrag) auf und führt keinen neuen Owner ein. Rechtsgrundlage:
-[Recherche und Entscheidung in #4679](https://github.com/moto-nrw/project-phoenix/issues/4679#issuecomment-6678923573),
+[Recherche und Entscheidung in #4679](https://github.com/moto-ogs/project-phoenix/issues/4679#issuecomment-6678923573),
 Ergänzung in #4682. Keine Rechtsberatung.
 
 ## Kontext
@@ -74,10 +74,14 @@ Ergänzung in #4682. Keine Rechtsberatung.
 ## Folgen
 
 - Fällt das Ende der Widerrufsfrist auf einen Samstag, Sonntag oder einen
-  bundesweiten Feiertag, endet sie am nächsten Werktag (§ 193 BGB). Regionale
-  Feiertage kennt nur School Calendar; dort endet die Frist einen Tag früher,
-  als sie könnte. Eine späte Belehrung verlängert die Frist nie über 12 Monate
-  und 14 Tage nach dem Abschluss hinaus.
+  gesetzlichen Feiertag des Bundeslands der Schule, endet sie am nächsten
+  Werktag (§ 193 BGB, seit #6390 aus School Calendar). Kommunale Feiertage
+  (etwa das Augsburger Friedensfest, Art. 1 Abs. 2 BayFTG) kennt School
+  Calendar nicht; fällt das Fristende auf einen, endet die Frist einen Tag zu
+  früh. NRW hat keine kommunalen Feiertage. Diese Grenze bleibt bewusst
+  bestehen, bis ein Träger außerhalb NRW startet (#6398); die Hilfe zu den
+  Betreuungsverträgen nennt sie. Eine späte Belehrung verlängert die Frist
+  nie über 12 Monate und 14 Tage nach dem Abschluss hinaus.
 
 - Die Komposition von `modules/carecontract/compose` wächst um die
   Konstruktoren der Erklärungen (+35 LOC) und `workflows/parentportal/compose`

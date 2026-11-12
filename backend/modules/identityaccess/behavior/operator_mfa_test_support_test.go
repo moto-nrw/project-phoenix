@@ -9,10 +9,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The operator second factor lives in Identity & Access since #3331. The
@@ -40,6 +40,17 @@ func newTestOperatorMFAService(t *testing.T, options ...api.AuthTestOption) (ide
 	db := testpkg.SetupTestDB(t)
 	module := newOperatorMFATestModule(t, db, withDeliveringMailer(options)...)
 	return module.OperatorMFA, challengeTokenAuth(t, module), db
+}
+
+// currentOperatorProof is the proof a code redeemed under the operator's
+// current password hands the exchange (#6308): the device it remembers is
+// bound to that credential generation.
+func currentOperatorProof(t *testing.T, db *bun.DB, operatorID int64) identityaccess.OperatorMFAProof {
+	t.Helper()
+	proof := identityaccess.OperatorMFAProof{OperatorID: operatorID}
+	require.NoError(t, db.NewRaw(`SELECT credential_generation FROM platform.operators WHERE id = ?`, operatorID).
+		Scan(context.Background(), &proof.CredentialGeneration))
+	return proof
 }
 
 // operatorChallengeRow is the test's read side of

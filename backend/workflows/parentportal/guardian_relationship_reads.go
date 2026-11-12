@@ -3,7 +3,7 @@ package parentportal
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/care"
 )
 
 type GuardianRelationship care.GuardianRelationship
@@ -13,7 +13,6 @@ type GuardianRelationshipCallbacks struct {
 	ByProfile      func(context.Context, int64) ([]*GuardianRelationship, error)
 	Lock           func(context.Context, int64, int64) (*GuardianRelationship, error)
 	LinkedChildren func(context.Context, []int64) ([]*GuardianLinkedChild, error)
-	Permission     func(context.Context, int64, int64, int64, string) (bool, error)
 }
 type StudentGuardianReads interface{ care.StudentGuardianReads }
 
@@ -53,9 +52,6 @@ func (r studentGuardianReads) ListLinkedChildrenForGuardians(ctx context.Context
 		result[i] = (*care.GuardianLinkedChild)(row)
 	}
 	return result, err
-}
-func (r studentGuardianReads) AccountHasStudentPermission(ctx context.Context, account, student, tenant int64, permission string) (bool, error) {
-	return r.callbacks.Permission(ctx, account, student, tenant, permission)
 }
 func WithGuardianRelationshipStudent(value *GuardianRelationship, student *StudentSnapshot) *GuardianRelationship {
 	if value != nil {

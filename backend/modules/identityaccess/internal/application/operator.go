@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // Operator identity and refresh sessions are platform-wide rows. Every
@@ -235,6 +235,26 @@ func (s *Service) RecordOperatorLogin(ctx context.Context, id int64) error {
 		return fmt.Errorf("identity access: record operator login: %w", MapError(err))
 	}
 	return nil
+}
+
+// writeOperatorCredential writes the operator's password through the one
+// credential writer on the caller's transaction, which holds the operator row
+// lock (#6308), and reports whether the compare-and-swap found the expected
+// state. It opens no unit of its own.
+func (s *Service) writeOperatorCredential(ctx context.Context, id int64, write domain.CredentialWrite) (bool, error) {
+	var written bool
+	inCaller := func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }
+	err := s.run(ctx, inCaller, "write_operator_credential", func(txCtx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		var err error
+		written, queryStats, err = s.operators.WriteOperatorCredential(txCtx, id, write)
+		stats.Add(queryStats)
+		return err
+	})
+	if err != nil {
+		return false, fmt.Errorf("identity access: write operator credential: %w", MapError(err))
+	}
+	return written, nil
 }
 
 func (s *Service) IncrementOperatorMFAAttempts(ctx context.Context, id int64, threshold int, lockout time.Duration) (identityaccess.OperatorMFAAttempts, error) {

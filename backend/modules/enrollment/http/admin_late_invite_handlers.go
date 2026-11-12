@@ -8,13 +8,13 @@ import (
 	"strings"
 	"time"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 type AdminCreateLateInviteRequest struct {
@@ -101,10 +101,28 @@ type AdminManualApprovedEnrollmentRequest struct {
 	ExternalConsentConfirmed bool   `json:"external_consent_confirmed"`
 	Reason                   string `json:"reason"`
 	SendNotification         bool   `json:"send_notification"`
+	// ExistingStudentID and CreateNewStudent answer a refusal with
+	// enrollment.child_possibly_enrolled (#6148): renew that enrolled child,
+	// or create a new one. At most one is set.
+	ExistingStudentID string `json:"existing_student_id,omitempty"`
+	CreateNewStudent  bool   `json:"create_new_student,omitempty"`
 }
 
 func (req *AdminManualApprovedEnrollmentRequest) Bind(r *http.Request) error {
 	return req.SubmitEnrollmentRequest.Bind(r)
+}
+
+// existingChildChoice parses the office's answer, nil when it chose no
+// enrolled child.
+func (req *AdminManualApprovedEnrollmentRequest) existingChildChoice() (*int64, error) {
+	existing, err := parseExistingStudentID(req.ExistingStudentID)
+	if err != nil {
+		return nil, err
+	}
+	if existing != nil && req.CreateNewStudent {
+		return nil, errors.New("existing_student_id and create_new_student exclude each other")
+	}
+	return existing, nil
 }
 
 type AdminManualApprovedEnrollmentResponse struct {
@@ -134,6 +152,11 @@ func (rs *Resource) createManualApprovedEnrollment(w http.ResponseWriter, r *htt
 		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 		return
 	}
+	existingStudentID, err := body.existingChildChoice()
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
 
 	actorID, tenantID, ok := manualEnrollmentActor(w, r)
 	if !ok {
@@ -150,10 +173,12 @@ func (rs *Resource) createManualApprovedEnrollment(w http.ResponseWriter, r *htt
 	var result *ManualApprovedEnrollmentResult
 	err = rs.runInTenantTx(r, func(ctx context.Context) error {
 		out, createErr := rs.RequestService.CreateManualApprovedEnrollment(ctx, ManualApprovedEnrollmentInput{
-			Request:          serviceReq,
-			Reason:           reason,
-			SendNotification: body.SendNotification,
-			ActorID:          actorID,
+			Request:           serviceReq,
+			Reason:            reason,
+			SendNotification:  body.SendNotification,
+			ActorID:           actorID,
+			ExistingStudentID: existingStudentID,
+			CreateNewStudent:  body.CreateNewStudent,
 		})
 		if createErr != nil {
 			return createErr
@@ -291,7 +316,13 @@ func mapLateInviteAdminError(w http.ResponseWriter, r *http.Request, err error) 
 }
 
 func (rs *Resource) mapManualEnrollmentError(w http.ResponseWriter, r *http.Request, err error) {
+	if ended := rs.Failures.requestEnded(r, err); ended != nil {
+		common.RenderError(w, r, ended)
+		return
+	}
 	switch {
+	case rs.Failures.savepointControlFailed(r, err):
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 	case errors.Is(err, capability.ErrDecisionChildNotFound),
 		errors.Is(err, capability.ErrDecisionRequestNotFound):
 		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentRequestNotFound))
@@ -305,11 +336,29 @@ func (rs *Resource) mapManualEnrollmentError(w http.ResponseWriter, r *http.Requ
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentGuardianAccountMismatch))
 	case errors.Is(err, capability.ErrChildPossiblyEnrolled):
 		// The school already cares for a child with this name and birthday
-		// (#6053); the manual form cannot choose it yet (#6148).
-		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentChildPossiblyEnrolled))
+		// (#6053): the refusal names the candidates, so the form asks the
+		// office and sends its choice with the next attempt (#6148).
+		common.RenderError(w, r, common.ErrorConflictWithDetails(err, common.CodeEnrollmentChildPossiblyEnrolled, possiblyEnrolledDetails(err)))
+	case errors.Is(err, capability.ErrExistingChildChoiceInvalid):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentExistingChildChoiceInvalid))
+	case errors.Is(err, capability.ErrExistingStudentAlreadyRequested):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeEnrollmentChildAlreadyRequested))
 	case rs.Failures.Transient(err):
 		common.RenderError(w, r, common.ErrorServiceUnavailable(err))
 	default:
 		mapSubmitError(w, r, err)
 	}
+}
+
+// possiblyEnrolledDetails lists the candidates of a refused approval in the
+// wire shape of the detail read.
+func possiblyEnrolledDetails(err error) map[string]any {
+	candidates := []AdminExistingChildCandidate{}
+	var refusal *capability.ChildPossiblyEnrolledError
+	if errors.As(err, &refusal) {
+		for _, candidate := range refusal.Candidates {
+			candidates = append(candidates, newAdminExistingChildCandidate(candidate))
+		}
+	}
+	return map[string]any{"candidates": candidates}
 }

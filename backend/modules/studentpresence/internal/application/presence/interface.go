@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
 )
 
 // Service defines operations for managing active groups and visits
@@ -119,8 +119,9 @@ type Service interface {
 	ProcessSchoolCheckinBatch(ctx context.Context, studentIDs []int64, staffID int64, action, reason string) (*SchoolCheckinBatchResult, error)
 	// ConfirmDailyCheckout processes a deferred daily-checkout confirmation for
 	// an IoT device: it validates the student has today's attendance record and,
-	// when destination is "zuhause" and the student is still checked in, checks
-	// them out and broadcasts the SSE update. Returns
+	// when destination is "zuhause" or "unterricht" and the student is still
+	// checked in, checks them out ("unterricht" with the class reason, #5656)
+	// and broadcasts the SSE update. Returns
 	// ErrNoAttendanceRecordForCheckout when no attendance record exists today.
 	ConfirmDailyCheckout(ctx context.Context, studentID, deviceID int64, destination string) (*DailyCheckoutResult, error)
 
@@ -178,6 +179,12 @@ type DashboardAnalytics struct {
 	// present, not sick or excused. The caller holding the day plan moves the
 	// ones still in class to "Schule" (#3260). Not serialized.
 	HomeCandidateIDs []int64
+	// SickCandidateIDs and ExcusedCandidateIDs are the students StudentsSick
+	// and StudentsExcused count. The caller holding the care day end moves the
+	// ones staff checked out to class to "Im Unterricht" (#5710). Not
+	// serialized.
+	SickCandidateIDs    []int64
+	ExcusedCandidateIDs []int64
 
 	// Activities & Rooms
 	ActiveActivities    int

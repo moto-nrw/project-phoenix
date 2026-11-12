@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,6 +15,9 @@ import (
 func TestGroupWeekProtocolsMigrationRoundTrip(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	// The message attachments (1.15.936, #6685) extend the erasure functions
+	// this test restores; they go first.
+	require.NoError(t, messageAttachmentsDown(t.Context(), db))
 	ctx := context.Background()
 	exists := func() bool {
 		var found bool
@@ -25,6 +28,8 @@ func TestGroupWeekProtocolsMigrationRoundTrip(t *testing.T) {
 	// #5504), the Nachweisarten (1.15.724, #4808), the school vacations
 	// (1.15.721, #5345) and the Elternsprechtag (1.15.720, #4801) extend this
 	// erasure; they go first.
+	// 1.15.942 (ADR 0196) extends the erasure functions of 1.15.811; it goes first.
+	require.NoError(t, holidayClosureEventsDown(ctx, db))
 	require.NoError(t, emailDeliveryEventsDown(ctx, db))
 	require.NoError(t, payrollWageTypesDown(ctx, db))
 	require.NoError(t, realtimeNotificationsDown(ctx, db))

@@ -24,6 +24,7 @@ import { RoleGuard } from "~/components/auth/role-guard";
 import { OpenCareModeGuard } from "~/components/tenant/open-care-mode-guard";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
 import { CollectionGrid } from "~/components/ui/collection-grid";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -38,7 +39,11 @@ import type {
 } from "~/components/ui/page-header/types";
 import type { Student } from "~/lib/student-helpers";
 import { teacherHintKey, teacherHintText } from "~/lib/student-helpers";
-import { isNotCheckedInLocation } from "~/lib/location-helper";
+import {
+  countedDayStatus,
+  isInClassLocation,
+  isNotCheckedInLocation,
+} from "~/lib/location-helper";
 import {
   countCheckedInStudents,
   formatGroupLabelWithAttendance,
@@ -55,6 +60,7 @@ import type { Substitution } from "~/lib/substitution-helpers";
 import { useApiLoadError, useToast } from "~/contexts/ToastContext";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 
@@ -101,9 +107,19 @@ import {
   phoneDetailMenuEntries,
 } from "~/components/ui/collection-view-switch";
 import { useCollectionView } from "~/lib/hooks/use-collection-view";
-import { BELOW_MD, useMediaQuery } from "~/lib/hooks/use-media-query";
+import {
+  AT_LEAST_LG,
+  BELOW_MD,
+  useMediaQuery,
+} from "~/lib/hooks/use-media-query";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
-import { HOLIDAY_GUEST_SCHOOL_CLASS } from "~/lib/holiday-host-api";
+import {
+  HOLIDAY_GUEST_SCHOOL_CLASS,
+  holidayGuestGroupHintText,
+} from "~/lib/holiday-host-api";
+import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
+import { groupEmptyState } from "./group-empty-state";
+import { useHolidayGuestGroupHint } from "~/lib/hooks/use-holiday-guest-group-hint";
 import { useHolidayGuestLabels } from "~/lib/hooks/use-holiday-guest-labels";
 import { fetchOgsGroupLive } from "~/lib/ogs-group-live-api";
 import type {
@@ -133,7 +149,6 @@ import { OgsGroupsPageSkeleton } from "./page-skeleton";
 import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
 import { berlinTodayISO } from "~/lib/date-helpers";
 import { useEarlyCheckoutDialog } from "~/components/students/early-checkout-note";
-import { childrenConcept } from "~/lib/concepts/children";
 import { groupsConcept } from "~/lib/concepts/groups";
 import { substitutionConcept } from "~/lib/concepts/substitution";
 
@@ -392,6 +407,11 @@ function OGSGroupPageContent() {
 
   // Pre-select group from URL param (?group=<id>)
   const groupParam = searchParams.get("group");
+  const rememberedGroupKey = memory.key("sidebar-last-group");
+  const rememberedGroupId = useLocalStorageValue(
+    rememberedGroupKey ?? "",
+    rememberedGroupKey !== null && !groupParam,
+  );
   // Seed the selection from the URL or the persisted sidebar choice so the
   // very first aggregate request already targets the right group (one
   // request). Without either, the backend resolves the first supervised
@@ -412,7 +432,8 @@ function OGSGroupPageContent() {
   >({});
 
   // State for desktop detection (die Gruppenreiter gibt es nur unterhalb lg)
-  const [isDesktop, setIsDesktop] = useState(false);
+  // Dieselbe Grenze wie die Seitenleiste (`lg:` in rem, folgt der Browserschrift).
+  const isDesktop = useMediaQuery(AT_LEAST_LG);
 
   // State for pickup times (part of the aggregated live response)
   const [pickupTimes, setPickupTimes] = useState<Map<string, OgsPickupInfo>>(
@@ -595,9 +616,8 @@ function OGSGroupPageContent() {
     tenantMutate,
   ]);
 
-  // Sync selected group with URL param.
-  // The sidebar navigates with the correct ?group= param at click-time,
-  // so this effect only needs to react to URL changes.
+  // Sync with the URL selection, or the shared sidebar memory without a param.
+  // The sidebar navigates with the correct ?group= param at click-time.
   // When no param is present (e.g. fresh login), persist the default (first group)
   // so the sidebar memory stays in sync and the sidebar picks it up on next click.
   useEffect(() => {
@@ -611,8 +631,8 @@ function OGSGroupPageContent() {
         switchToGroup(groupParam);
       }
     } else {
-      // No ?group= param (e.g. after login or browser back) — restore from
-      // the sidebar memory so the user returns to their previously selected group.
+      // Without ?group=, follow the same storage events as the sidebar so a
+      // selection in another tab changes both the highlight and the students.
       const savedGroupId = memory.read("sidebar-last-group");
       const savedGroup = savedGroupId
         ? allGroups.find((g) => g.id === savedGroupId)
@@ -635,7 +655,7 @@ function OGSGroupPageContent() {
       // When savedGroup.id === selectedGroupId, do nothing — already in sync
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allGroups, groupParam]);
+  }, [allGroups, groupParam, rememberedGroupId]);
 
   // Handle live-view error. The backend fails the whole aggregate instead of
   // degrading sections to empty arrays, so any error here means the page must
@@ -697,16 +717,6 @@ function OGSGroupPageContent() {
   // When student_checkin/checkout events occur, global SSE invalidates "student*" caches,
   // which triggers SWR refetch for ogs-students-* keys automatically.
 
-  // Handle desktop detection
-  useEffect(() => {
-    const checkViewport = () => {
-      setIsDesktop(window.innerWidth >= 1024);
-    };
-    checkViewport();
-    window.addEventListener("resize", checkViewport);
-    return () => window.removeEventListener("resize", checkViewport);
-  }, []);
-
   // Function to switch between groups (by ID — stable across re-sorts).
   // Changing the selection changes the SWR key; the aggregated fetcher then
   // loads everything (students, room status, pickup times, transfers) in one
@@ -762,6 +772,7 @@ function OGSGroupPageContent() {
           sick: a.sick,
           classTrip: a.class_trip,
           excused: a.excused,
+          currentLocation: a.current_location,
         });
         const statusB = getStudentTimeStatus({
           plannedTime: timeB,
@@ -770,6 +781,7 @@ function OGSGroupPageContent() {
           sick: b.sick,
           classTrip: b.class_trip,
           excused: b.excused,
+          currentLocation: b.current_location,
         });
         const rankA = getTimeStatusSortRank(statusA);
         const rankB = getTimeStatusSortRank(statusB);
@@ -808,6 +820,7 @@ function OGSGroupPageContent() {
           sick: a.sick,
           classTrip: a.class_trip,
           excused: a.excused,
+          currentLocation: a.current_location,
         });
         const statusB = getStudentTimeStatus({
           plannedTime: timeB,
@@ -818,6 +831,7 @@ function OGSGroupPageContent() {
           sick: b.sick,
           classTrip: b.class_trip,
           excused: b.excused,
+          currentLocation: b.current_location,
         });
         const rankA = getTimeStatusSortRank(statusA);
         const rankB = getTimeStatusSortRank(statusB);
@@ -839,9 +853,12 @@ function OGSGroupPageContent() {
 
   const groupAbsenceOverview = useMemo(() => {
     const groupStudents = Array.isArray(students) ? students : [];
-    const sickCount = groupStudents.filter((student) => student.sick).length;
-    const excusedCount = groupStudents.filter(
-      (student) => !student.sick && student.excused,
+    // Ort vor Status (#6371): Ein eingechecktes Kind ist „da“; seine
+    // Krankmeldung oder Entschuldigung erhöht keinen dieser Zähler.
+    const statuses = groupStudents.map(countedDayStatus);
+    const sickCount = statuses.filter((status) => status === "sick").length;
+    const excusedCount = statuses.filter(
+      (status) => status === "excused",
     ).length;
 
     return {
@@ -992,6 +1009,7 @@ function OGSGroupPageContent() {
           sick: student.sick,
           classTrip: student.class_trip,
           excused: student.excused,
+          currentLocation: student.current_location,
         })?.label ?? getDayPlanningNotComingLabel(student);
       return absenceLabel
         ? { ...result, absence: { label: absenceLabel, note: pickupNote } }
@@ -1000,6 +1018,7 @@ function OGSGroupPageContent() {
     [pickupTimes, now],
   );
   const holidayGuestLabel = useHolidayGuestLabels(students);
+  const holidayGroupHint = useHolidayGuestGroupHint(currentGroup?.id);
   const tableColumns = useMemo(
     () =>
       compactColumns<Student>([
@@ -1020,6 +1039,8 @@ function OGSGroupPageContent() {
               isGroupRoom={isStudentInGroupRoom(student, currentGroup)}
               variant="modern"
               size="md"
+              // „seit“ nennt, wann das Kind zum Unterricht ging (#5710).
+              showLocationSince={isInClassLocation(student.current_location)}
             />
           );
         }),
@@ -1167,6 +1188,7 @@ function OGSGroupPageContent() {
                 sick: student.sick,
                 classTrip: student.class_trip,
                 excused: student.excused,
+                currentLocation: student.current_location,
               });
 
               const checkinState = deriveCheckinState(student.current_location);
@@ -1218,6 +1240,9 @@ function OGSGroupPageContent() {
                       isGroupRoom={inGroupRoom}
                       variant="modern"
                       size="md"
+                      showLocationSince={isInClassLocation(
+                        student.current_location,
+                      )}
                     />
                   }
                   extraContent={
@@ -1358,6 +1383,24 @@ function OGSGroupPageContent() {
     );
   };
 
+  // Eine Feriengruppe vor ihrer Woche ist absichtlich leer (#6680): Die
+  // Feriengäste stehen erst ab dem ersten Tag in der Gruppe. Der Hinweis
+  // nennt Zahl und Tag, damit die leere Gruppe nicht wie ein Fehler wirkt.
+  const canOpenHolidayWeeks = hasPermission(session, "config:read");
+  const holidayGroupAction = canOpenHolidayWeeks ? (
+    <Button
+      type="button"
+      variant="outline"
+      size="md"
+      onClick={() => router.push("/ferienwochen")}
+    >
+      Zu den Ferienwochen
+    </Button>
+  ) : undefined;
+  const holidayGroupExplanation = canOpenHolidayWeeks
+    ? "Feriengäste stehen erst ab dem ersten Tag der Ferienwoche in der Gruppe. Wer kommt, steht unter Ferienwochen."
+    : "Feriengäste stehen erst ab dem ersten Tag der Ferienwoche in der Gruppe. Wer kommt, weiß Ihre Leitung.";
+
   // Statuszeile aus den bereits geladenen Gruppendaten. Der Gruppenname
   // steht im Titel und wiederholt sich hier nicht.
   let groupStats: string | null = "Keine Gruppe zugeordnet";
@@ -1456,28 +1499,19 @@ function OGSGroupPageContent() {
         // Der Leerzustand kommt aus dem Gerüst, nicht aus der Liste, und
         // nennt den nächsten Schritt statt nur festzustellen, dass nichts da
         // ist.
-        empty={
-          !showSkeleton && !error && students.length === 0
+        empty={groupEmptyState({
+          visible: !showSkeleton && !error && students.length === 0,
+          groupName: currentGroup?.name,
+          severalGroups: allGroups.length > 1,
+          holidayHint: holidayGroupHint
             ? {
-                icon: <MotoConceptIcon concept={childrenConcept} size={48} />,
-                title: `Keine Kinder in ${currentGroup?.name ?? "dieser Gruppe"}`,
-                description:
-                  allGroups.length > 1
-                    ? "Dieser Gruppe ist noch kein Kind zugeordnet. Ordnen Sie ein Kind in der Kindersuche zu, oder wählen Sie oben eine andere Gruppe."
-                    : "Dieser Gruppe ist noch kein Kind zugeordnet. Ordnen Sie ein Kind in der Kindersuche dieser Gruppe zu.",
-                action: (
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="md"
-                    onClick={() => router.push("/students/search")}
-                  >
-                    Zur Kindersuche
-                  </Button>
-                ),
+                title: holidayGuestGroupHintText(holidayGroupHint),
+                description: holidayGroupExplanation,
+                action: holidayGroupAction,
               }
-            : null
-        }
+            : undefined,
+          onOpenSearch: () => router.push("/students/search"),
+        })}
         overlays={
           <>
             {earlyCheckout.dialog}
@@ -1518,6 +1552,27 @@ function OGSGroupPageContent() {
               pendingCount={schoolCheckin.pendingIds.size}
             />
           </div>
+        )}
+
+        {holidayGroupHint && (
+          <Alert
+            type="info"
+            icon={<MotoConceptIcon concept={holidayWeeksConcept} size={20} />}
+            title={holidayGuestGroupHintText(holidayGroupHint)}
+            message={holidayGroupExplanation}
+            action={
+              canOpenHolidayWeeks ? (
+                <Button
+                  type="button"
+                  variant="ghost_tone"
+                  size="compact"
+                  onClick={() => router.push("/ferienwochen")}
+                >
+                  Zu den Ferienwochen
+                </Button>
+              ) : undefined
+            }
+          />
         )}
 
         {/* Student Grid. Bottom padding reserves room for the mobile

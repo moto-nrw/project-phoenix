@@ -13,18 +13,18 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 // Unread enrollments (#3778), pinned at the HTTP seam: the assembled router
@@ -258,7 +258,28 @@ func TestUnreadEnrollments_RenewalConfirmationResets(t *testing.T) {
 	require.Equal(t, http.StatusNoContent, env.do(t, http.MethodPut, idPath(submitted.Request.ID, "/read"), anna, "").Code)
 	require.Equal(t, 0, env.count(t, anna))
 
-	rec := env.do(t, http.MethodPost, "/requests/"+submitted.Request.StatusToken+"/confirm-renewal", "", "")
+	// A confirmation without the shown form version accepts nothing.
+	rec := env.do(t, http.MethodPost, "/requests/"+submitted.Request.StatusToken+"/confirm-renewal", "", `{"consent_flags":{}}`)
+	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
+	require.Equal(t, 0, env.count(t, anna))
+
+	// The status page shows the terms of the renewal; the confirmation sends
+	// their ticks and the form version back (#6456).
+	rec = env.do(t, http.MethodGet, "/requests/"+submitted.Request.StatusToken, "", "")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	var status struct {
+		Data enrollmentAPI.StatusResponse `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &status))
+	require.NotNil(t, status.Data.RenewalTerms)
+	flags := map[string]bool{}
+	for _, block := range status.Data.RenewalTerms.Blocks {
+		flags[block.Key] = true
+	}
+	body, err := json.Marshal(map[string]any{"consent_flags": flags, "form_schema_id": status.Data.RenewalTerms.FormSchemaID, "terms_fingerprint": status.Data.RenewalTerms.TermsFingerprint})
+	require.NoError(t, err)
+
+	rec = env.do(t, http.MethodPost, "/requests/"+submitted.Request.StatusToken+"/confirm-renewal", "", string(body))
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Equal(t, 1, env.count(t, anna), "a confirmed renewal makes it unread again")
 }

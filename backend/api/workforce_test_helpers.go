@@ -7,27 +7,29 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/spf13/viper"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/realtime"
 
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
-	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	schoolCalendarCompose "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/workflows/shiftplansync"
+	shiftplansyncCompose "github.com/moto-ogs/project-phoenix/workflows/shiftplansync/compose"
 )
 
 // WorkforceTestModule is the Workforce owner's personnel-record
@@ -149,7 +151,7 @@ func NewWorkforceTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	}
 	shiftPlanSyncer, err := shiftplansyncCompose.NewSickCascade(shiftplansyncCompose.SickCascadeDependencies{
 		Planning: planning.Planning(nil), Workforce: repos.StaffAbsenceType, LockStaffShifts: workforceCompose.NewStaffShiftLock(db.Pool()),
-		Deviations: timetable.TimetableData.Deviations, TimetableData: ttRows.OwnerRows().SickCascadeRows(timetableCompose.SubstituteDayLock(db.Pool())),
+		LockStaff: owners.SickReportStaffLock(membership), Deviations: timetable.TimetableData.Deviations, TimetableData: ttRows.OwnerRows().SickCascadeRows(timetableCompose.SubstituteDayLock(db.Pool()), owners.MustNewTimetableRecurrenceLock(db)),
 		InstanceStaff: timetableCompose.NewTimetableInstanceStaffReads(ttRows.InstanceStaff), Broadcaster: realtimeHub, Logger: logger, Today: today,
 	})
 	if err != nil {
@@ -198,8 +200,12 @@ func NewStaffAdmin(db transactionruntime.Database, staff peoplePorts.StaffReposi
 	if err != nil {
 		return nil, err
 	}
+	bankData, err := BankDataCipher(viper.GetString("bank_data_keys"), "")
+	if err != nil {
+		return nil, err
+	}
 	return owners.ComposeStaffAdmin(workforceCompose.StaffAdminDependencies{
-		DB: db.Pool(), Observe: deps.Observe, Logger: deps.Logger, Now: deps.Now,
+		DB: db.Pool(), Observe: deps.Observe, Logger: deps.Logger, Now: deps.Now, BankData: bankData,
 	}, staff, persons, people, membership, deps.MasterDataAudit, deps.PersonnelNumber, deps.DataAccessLog)
 }
 

@@ -10,11 +10,14 @@ import (
 )
 
 // withoutIssuedInvoice removes the invoice leaveVisitorHolidayRegistration
-// issued, with its mailed letter, so the registration waits for its first
-// invoice.
+// issued, with its mailed letter and its push, so the registration waits for
+// its first invoice.
 func withoutIssuedInvoice(t *testing.T, order demoOrder) {
 	t.Helper()
 	for _, statement := range []string{
+		`DELETE FROM platform.push_outbox AS push USING parent_billing.documents AS document
+			WHERE document.number = 'F-' || ?0 AND push.organization_id = document.organization_id
+				AND push.kind = 'parent_billing_document' AND push.related_entity_id = document.id`,
 		`DELETE FROM platform.email_outbox AS outbox USING parent_billing.document_mailings AS mailing, parent_billing.documents AS document
 			WHERE document.number = 'F-' || ?0 AND mailing.organization_id = document.organization_id AND mailing.document_id = document.id
 				AND outbox.organization_id = mailing.organization_id AND outbox.id = mailing.delivery_id`,
@@ -65,20 +68,12 @@ func TestDemoErasureIncludesAConcurrentBillingRelease(t *testing.T) {
 	order := newHiddenDemoOrder(t)
 	withoutIssuedInvoice(t, order)
 	release, documentID := pendingBillingRelease(t, order)
-	type outcome struct {
-		erased int
-		err    error
-	}
-	done := make(chan outcome, 1)
-	go func() {
-		_, erased, err := order.queue.RetireDemoSchools(t.Context(), nil)
-		done <- outcome{erased: erased, err: err}
-	}()
+	order.waitForLocks(t)
 	// Without the period lock the erasure finishes before the release
 	// commits, and the invoice stays without its registration.
-	require.Eventually(t, func() bool {
+	done := order.waitingRun(t, "the erasure waits for the period lock of the release", func() bool {
 		return lockWaits(t, order.db, "retire_expired_demo_schools")
-	}, 5*time.Second, time.Millisecond, "the erasure waits for the period lock of the release")
+	})
 	require.NoError(t, release.Commit())
 	select {
 	case result := <-done:
@@ -100,7 +95,7 @@ func TestDemoErasureDefersABillingReleaseThatKeepsItsLock(t *testing.T) {
 	before := order.snapshot(t)
 	release, documentID := pendingBillingRelease(t, order)
 
-	_, erased := retireNow(t, order.queue, nil)
+	_, erased := retireNow(t, order.db, order.queue, nil)
 	assert.Zero(t, erased)
 	assert.Equal(t, before, order.snapshot(t), "the deferred order is unchanged")
 	assert.Equal(t, 1, visitorTraces(t, order.db, order.schoolID)["enrollment.holiday_registrations"], "the registration stays for the next run")
@@ -126,7 +121,7 @@ func pendingLetterSend(t *testing.T, order demoOrder) (bun.Tx, int64) {
 	require.NoError(t, err)
 	var mailID int64
 	require.NoError(t, tx.NewRaw(`INSERT INTO platform.email_outbox (organization_id, kind, recipient, payload, status)
-		SELECT organization_id, 'billing_letter', jsonb_build_object('address', 'besuch@example.org', 'name', ?),
+		SELECT organization_id, 'parent_billing_letter', jsonb_build_object('address', 'besuch@example.org', 'name', ?),
 			jsonb_build_object('guardian_name', ?), 'pending'
 		FROM parent_billing.documents WHERE number = 'F-' || ? RETURNING id`, visitorFull, visitorFull, order.schoolID).Scan(ctx, &mailID))
 	_, err = tx.NewRaw(`INSERT INTO parent_billing.document_mailings (organization_id, run_id, document_id, delivery_id, recipient_email)
@@ -143,18 +138,10 @@ func TestDemoErasureIncludesAConcurrentLetterSend(t *testing.T) {
 	t.Parallel()
 	order := newHiddenDemoOrder(t)
 	send, mailID := pendingLetterSend(t, order)
-	type outcome struct {
-		erased int
-		err    error
-	}
-	done := make(chan outcome, 1)
-	go func() {
-		_, erased, err := order.queue.RetireDemoSchools(t.Context(), nil)
-		done <- outcome{erased: erased, err: err}
-	}()
-	require.Eventually(t, func() bool {
+	order.waitForLocks(t)
+	done := order.waitingRun(t, "the erasure waits for the send", func() bool {
 		return lockWaits(t, order.db, "retire_expired_demo_schools")
-	}, 5*time.Second, time.Millisecond, "the erasure waits for the send")
+	})
 	require.NoError(t, send.Commit())
 	select {
 	case result := <-done:
@@ -241,19 +228,11 @@ func TestDemoErasureIncludesASendOfAConcurrentRelease(t *testing.T) {
 			SELECT organization_id, id, run_id, 'brief.pdf', '\x255044'::bytea FROM document)
 		SELECT id FROM document`, order.schoolID, visitorFirst, visitorLast, runID).Scan(ctx, &documentID))
 
-	type outcome struct {
-		erased int
-		err    error
-	}
-	erasure := make(chan outcome, 1)
-	go func() {
-		_, erased, err := order.queue.RetireDemoSchools(t.Context(), nil)
-		erasure <- outcome{erased: erased, err: err}
-	}()
+	order.waitForLocks(t)
 	// The first pass found no invoice; the erasure waits for the period.
-	require.Eventually(t, func() bool {
+	erasure := order.waitingRun(t, "the erasure waits for the period lock", func() bool {
 		return waitsOn(t, order, "retire_expired_demo_schools", "advisory")
-	}, 5*time.Second, time.Millisecond, "the erasure waits for the period lock")
+	})
 
 	require.NoError(t, release.Commit())
 	send, err := order.db.BeginTx(ctx, nil)
@@ -267,7 +246,7 @@ func TestDemoErasureIncludesASendOfAConcurrentRelease(t *testing.T) {
 			FROM parent_billing.documents AS document JOIN run ON run.id = document.run_id WHERE document.id = ?2),
 		outbox AS (
 			INSERT INTO platform.email_outbox (organization_id, kind, recipient, payload, status)
-			SELECT organization_id, 'billing_letter', jsonb_build_object('address', 'besuch@example.org', 'name', ?0::text),
+			SELECT organization_id, 'parent_billing_letter', jsonb_build_object('address', 'besuch@example.org', 'name', ?0::text),
 				jsonb_build_object('guardian_name', ?0::text), 'pending' FROM document
 			RETURNING id),
 		push AS (
@@ -339,20 +318,12 @@ func TestDemoErasureWaitsForAConcurrentCorrection(t *testing.T) {
 			-total_cents, 'cancellation', id, 'Storno'
 		FROM parent_billing.documents, period WHERE number = 'F-' || ?0 RETURNING id`, order.schoolID, "holiday", runID).Scan(ctx, &cancellationID))
 
-	type outcome struct {
-		erased int
-		err    error
-	}
-	erasure := make(chan outcome, 1)
-	go func() {
-		_, erased, err := order.queue.RetireDemoSchools(t.Context(), nil)
-		erasure <- outcome{erased: erased, err: err}
-	}()
+	order.waitForLocks(t)
 	// With the period before the run the erasure would wait for the
 	// advisory lock here, never for the run.
-	require.Eventually(t, func() bool {
+	erasure := order.waitingRun(t, "the erasure waits for the run the correction holds, before it asks for the period", func() bool {
 		return waitsOn(t, order, "retire_expired_demo_schools", "transactionid", "tuple")
-	}, 5*time.Second, time.Millisecond, "the erasure waits for the run the correction holds, before it asks for the period")
+	})
 	require.False(t, waitsOn(t, order, "retire_expired_demo_schools", "advisory"), "the erasure does not wait for the period")
 	require.NoError(t, correction.Commit())
 	select {

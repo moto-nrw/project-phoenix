@@ -3,9 +3,9 @@ package activitycontract
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ActivityService defines operations for activity management
@@ -65,7 +65,6 @@ type ScheduleOperations interface {
 	GetSchedule(ctx context.Context, id int64) (*Schedule, error)
 	GetGroupSchedules(ctx context.Context, groupID int64) ([]*Schedule, error)
 	DeleteSchedule(ctx context.Context, id int64) error
-	UpdateSchedule(ctx context.Context, schedule *Schedule) (*Schedule, error)
 }
 
 type SupervisorOperations interface {

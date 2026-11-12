@@ -402,6 +402,8 @@ function staffSessionToHistorySession(
     createdAt: "",
     updatedAt: "",
     netMinutes: session.net_minutes,
+    packUpMinutes: session.pack_up_minutes,
+    roundingMinutes: session.rounding_minutes,
     isOvertime: false,
     isBreakCompliant: true,
     restPeriodWarning: null,
@@ -409,7 +411,7 @@ function staffSessionToHistorySession(
       id: index.toString(),
       sessionId: session.id ?? "",
       startedAt: workBreak.started_at,
-      endedAt: workBreak.ended_at,
+      endedAt: workBreak.ended_at ?? null,
       durationMinutes: 0,
       plannedEndTime: null,
     })),
@@ -668,6 +670,8 @@ export function adaptHistorySessionForMetrics(
     notes: session.notes || undefined,
     edit_count: session.editCount,
     audit_count: session.auditCount,
+    pack_up_minutes: session.packUpMinutes,
+    rounding_minutes: session.roundingMinutes,
   };
 }
 

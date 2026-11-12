@@ -55,6 +55,15 @@ export function isDeclarationItem(
 }
 
 /**
+ * True when the school no longer shows the Einverständnis. It stays in the
+ * feed for the children this guardian answered for, so a consent can still be
+ * revoked (#6290); it asks for nothing and has no live attachments.
+ */
+export function isEndedDeclaration(item: ParentAnnouncement): boolean {
+  return isDeclarationItem(item) && item.declaration.ended;
+}
+
+/**
  * True while one of the guardian's own children still needs THIS guardian's
  * action: allowed to act, nothing given yet, the deadline has not passed, and
  * the child is still open or partly done. With signers "any" a decision by
@@ -72,7 +81,7 @@ export function isOpenDeclaration(item: ParentAnnouncement): boolean {
 }
 
 const STATE_TONE: Record<ParentDeclarationState, StatusBadgeTone> = {
-  open: "orange",
+  open: "warning",
   partial: "blue",
   agreed: "green",
   declined: "red",
@@ -112,8 +121,10 @@ export function declarationErrorOutcome(err: unknown): {
   if (err instanceof ApiError) {
     if (err.status === 429) return { ...keep, clearPassword: false };
     switch (err.code) {
+      // The school may have switched the password on since the card was
+      // loaded (#6494): reload, so the open confirmation shows the field.
       case "care.declaration_password_required":
-        return { ...keep, clearPassword: false };
+        return { ...keep, reload: true, clearPassword: false };
       case "care.declaration_password_incorrect":
         return { ...keep, clearPassword: true };
       case "care.declaration_signature_required":
@@ -169,6 +180,32 @@ const SIGNATURE_FIELD = "declaration-signature";
 interface PendingAction {
   readonly child: ParentDeclarationChild;
   readonly action: ParentDeclarationAction;
+  /** The wording acted on; the current one unless an earlier consent is revoked. */
+  readonly version: { readonly id: string; readonly version_no: number };
+}
+
+/**
+ * The child after this guardian's action. A revocation ends every own consent
+ * to the Einverständnis, also one to an older wording (#6303).
+ */
+function childAfter(
+  declaration: ParentDeclaration,
+  child: ParentDeclarationChild,
+  action: ParentDeclarationAction,
+  submittedAt: string,
+): ParentDeclarationChild {
+  if (action === "revoked" && child.my_action !== "agreed") {
+    return { ...child, earlier_consent: null };
+  }
+  return {
+    ...child,
+    my_action: action,
+    my_submitted_at: submittedAt,
+    state: stateAfter(declaration, child, action),
+    // A consent can always be withdrawn (#6303).
+    allowed_actions: action === "agreed" ? ["revoked"] : [],
+    earlier_consent: action === "revoked" ? null : child.earlier_consent,
+  };
 }
 
 export function DeclarationSection({
@@ -218,13 +255,14 @@ export function DeclarationSection({
   const open = (
     child: ParentDeclarationChild,
     action: ParentDeclarationAction,
+    version: PendingAction["version"] = declaration.version,
   ) => {
     setPassword("");
     setSignature(null);
     dialogError.clear();
     setNotice(null);
     sectionError.clear();
-    setPending({ child, action });
+    setPending({ child, action, version });
   };
 
   const close = () => {
@@ -237,7 +275,7 @@ export function DeclarationSection({
 
   const submit = async () => {
     if (!pending) return;
-    const { child, action } = pending;
+    const { child, action, version } = pending;
     const needsSignature = declarationNeedsSignature(declaration, action);
     if (needsSignature && signature === null) {
       dialogError.invalid(t("errors.signatureRequired"), {
@@ -255,7 +293,7 @@ export function DeclarationSection({
       const result = await submitDeclaration(item.id, {
         studentId: child.student_id,
         action,
-        versionId: declaration.version.id,
+        versionId: version.id,
         password: declaration.requires_password ? password : undefined,
         signature: needsSignature && signature ? signature : undefined,
       });
@@ -266,16 +304,7 @@ export function DeclarationSection({
           ...declaration,
           children: declaration.children.map((candidate) =>
             candidate.student_id === child.student_id
-              ? {
-                  ...candidate,
-                  my_action: action,
-                  my_submitted_at: submittedAt,
-                  state: stateAfter(declaration, candidate, action),
-                  allowed_actions:
-                    action === "agreed" && declaration.revocable
-                      ? ["revoked"]
-                      : [],
-                }
+              ? childAfter(declaration, candidate, action, submittedAt)
               : candidate,
           ),
         },
@@ -343,14 +372,16 @@ export function DeclarationSection({
           {t("sectionTitle")}
         </h4>
         <p className="mt-0.5 text-sm leading-6 text-gray-600">
-          {declaration.signers === "all" ? t("signersAll") : t("signersAny")}{" "}
-          {t("nothingPreselected")}
+          {declaration.ended
+            ? t("endedNote")
+            : `${declaration.signers === "all" ? t("signersAll") : t("signersAny")} ${t("nothingPreselected")}`}
         </p>
         <p className="mt-1 flex flex-wrap gap-x-3 gap-y-1 text-sm text-gray-600">
           <span>
             {t("version", { version: declaration.version.version_no })}
           </span>
-          {declaration.closed ? (
+          {/* An ended request says so in the line above. */}
+          {declaration.ended ? null : declaration.closed ? (
             <span className="text-moto-red-strong font-semibold">
               {t("closed")}
             </span>
@@ -361,7 +392,9 @@ export function DeclarationSection({
               })}
             </span>
           ) : null}
-          {declaration.requires_signature && <span>{t("signatureNote")}</span>}
+          {declaration.requires_signature && !declaration.ended && (
+            <span>{t("signatureNote")}</span>
+          )}
           {declaration.requires_password && <span>{t("passwordNote")}</span>}
         </p>
       </div>
@@ -376,7 +409,7 @@ export function DeclarationSection({
           declaration={declaration}
           child={child}
           busy={saving}
-          onAction={(action) => open(child, action)}
+          onAction={(action, version) => open(child, action, version)}
         />
       ))}
 
@@ -424,7 +457,7 @@ export function DeclarationSection({
                   {t(`done.${pending.action}`)}
                 </DataField>
                 <DataField inline label={t("confirmVersion")}>
-                  {t("version", { version: declaration.version.version_no })}
+                  {t("version", { version: pending.version.version_no })}
                 </DataField>
               </DataGrid>
             </InsetPanel>
@@ -475,7 +508,10 @@ function DeclarationChildCard({
   declaration: ParentDeclaration;
   child: ParentDeclarationChild;
   busy: boolean;
-  onAction: (action: ParentDeclarationAction) => void;
+  onAction: (
+    action: ParentDeclarationAction,
+    version?: PendingAction["version"],
+  ) => void;
 }>) {
   const t = useTranslations("parentDeclaration");
   const locale = useLocale();
@@ -483,6 +519,7 @@ function DeclarationChildCard({
     child.allowed_actions.includes(action),
   );
   const canRevoke = child.allowed_actions.includes("revoked");
+  const earlier = child.earlier_consent ?? null;
   // With "any", one submission settles the child. Another guardian did that
   // already: say so first, and keep the buttons as a quiet second option (a
   // decline still wins over a consent).
@@ -509,7 +546,11 @@ function DeclarationChildCard({
 
       {!child.can_submit && (
         <p className="mt-2 text-sm leading-6 text-gray-600">
-          {t("cannotSubmit", { name: child.first_name })}
+          {/* A guardian who answered before keeps their answer and its
+              withdrawal, even without the right to declare (#6290). */}
+          {child.my_action
+            ? t("cannotSubmitAnymore", { name: child.first_name })
+            : t("cannotSubmit", { name: child.first_name })}
         </p>
       )}
 
@@ -587,6 +628,9 @@ function DeclarationChildCard({
                 {t(`explain.${action}`, { name: child.first_name })}
               </p>
             ))}
+            {/* Art. 7 Abs. 3 DSGVO: say before the consent that it can be
+                withdrawn (#6303). */}
+            {decisions.includes("agreed") && <p>{t("revokeAnytime")}</p>}
           </div>
           <div className="mt-3 flex flex-col gap-2 sm:flex-row">
             {decisions.map((action) => (
@@ -613,6 +657,13 @@ function DeclarationChildCard({
       {canRevoke && (
         <div className="mt-3 border-t border-gray-100 pt-3">
           <p className="text-sm leading-6 text-gray-600">{t("revokeHint")}</p>
+          {earlier && (
+            <p className="text-sm leading-6 text-gray-600">
+              {t("earlierConsent.endsToo", {
+                version: earlier.version.version_no,
+              })}
+            </p>
+          )}
           <Button
             type="button"
             size="md"
@@ -620,6 +671,32 @@ function DeclarationChildCard({
             className="mt-2 w-full sm:w-auto"
             disabled={busy}
             onClick={() => onAction("revoked")}
+          >
+            {t("action.revoked")}
+          </Button>
+        </div>
+      )}
+
+      {earlier && !canRevoke && earlier.allowed_actions.includes("revoked") && (
+        <div className="mt-3 space-y-2 border-t border-gray-100 pt-3">
+          <p className="text-sm leading-6 text-gray-800">
+            {t("earlierConsent.title", {
+              version: earlier.version.version_no,
+              date: formatChatDateTime(earlier.submitted_at, locale),
+            })}{" "}
+            {t("earlierConsent.note")}
+          </p>
+          <InsetPanel padding="md" className="text-sm leading-6 text-gray-800">
+            <p className="font-semibold">{earlier.version.title}</p>
+            <p className="whitespace-pre-line">{earlier.version.body}</p>
+          </InsetPanel>
+          <Button
+            type="button"
+            size="md"
+            variant="outline_danger"
+            className="w-full sm:w-auto"
+            disabled={busy}
+            onClick={() => onAction("revoked", earlier.version)}
           >
             {t("action.revoked")}
           </Button>

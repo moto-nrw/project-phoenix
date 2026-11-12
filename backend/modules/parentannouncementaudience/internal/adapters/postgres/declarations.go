@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/contract"
+	"github.com/moto-ogs/project-phoenix/modules/parentannouncementaudience/contract"
 
 	"github.com/uptrace/bun"
 )
@@ -377,7 +377,8 @@ const historicalDeclarationFeedSQL = `
 			a.reminder_sent_at,
 			CASE WHEN a.reminder_sent_at IS NOT NULL THEN a.reminder_text END AS reminder_text,
 			par.read_at AS read_at,
-			par.acknowledged_at AS acknowledged_at
+			par.acknowledged_at AS acknowledged_at,
+			NOT (TRUE` + liveAnnouncementPredicate + `) AS ended
 		FROM history
 		JOIN users.parent_announcements a ON a.id = history.announcement_id AND a.tenant_id = history.tenant_id
 		LEFT JOIN users.parent_announcement_reads par
@@ -388,13 +389,15 @@ const historicalDeclarationFeedSQL = `
 			AND gp.account_id = ?
 		JOIN auth.account_tenants act ON act.account_id = gp.account_id
 			AND act.tenant_id = gp.tenant_id AND act.status = 'active'
-		WHERE ` + feedScopePredicate + liveAnnouncementPredicate + `
+		WHERE ` + feedScopePredicate + `
 			AND a.delivery_mode = 'declaration'
-		ORDER BY a.published_at DESC, a.id DESC`
+		ORDER BY a.published_at DESC NULLS LAST, a.id DESC`
 
-// HistoricalDeclarationFeed returns the current, portal-accessible declaration
-// announcements the account has previously submitted for but no longer reaches
-// through an activity enrollment.
+// HistoricalDeclarationFeed returns the portal-accessible declaration
+// announcements the account has previously submitted for: those it no longer
+// reaches through an activity enrollment, and those the school no longer shows
+// (withdrawn, deactivated or expired, marked Ended). The guardian must still
+// find an own consent to revoke it (Art. 7 Abs. 3 DSGVO, #6290).
 func (p *Projection) HistoricalDeclarationFeed(ctx context.Context, accountID int64, scope contract.ParentAnnouncementFeedScope, history []contract.DeclarationHistoryLink) ([]*contract.ParentAnnouncementFeedItem, error) {
 	if scope.IsEmpty() || len(history) == 0 {
 		return []*contract.ParentAnnouncementFeedItem{}, nil

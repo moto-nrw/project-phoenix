@@ -64,6 +64,8 @@ export const operatorProvisioningKeys = {
     `operator-school-pwa-usage-${encodeURIComponent(id ?? "")}`,
   orgErasureOrder: (id: string | undefined) =>
     `operator-org-erasure-order-${encodeURIComponent(id ?? "")}`,
+  orgBelegRetention: (id: string | undefined) =>
+    `operator-org-beleg-retention-${encodeURIComponent(id ?? "")}`,
   orgTraegerSettings: (id: string | undefined) =>
     `operator-org-traeger-settings-${encodeURIComponent(id ?? "")}`,
   provisioningStats: () => "operator-provisioning-stats",
@@ -229,6 +231,9 @@ export const timetableKeys = {
     `${timetableKeys.schoolVacationsFamily}${from}-${to}`,
   bookingLeftovers: (periodId: string) =>
     `booking-leftovers-${encodeURIComponent(periodId)}`,
+  // Elternhinweise zu eigenen Schließtagen in Ferienwochen (ADR 0196):
+  // Grund, Tage, Stand und eine Zahl, keine Namen.
+  holidayClosureNotices: () => "timetable-holiday-closure-notices",
 } as const;
 
 // School portal (Lehrkräfte).
@@ -329,10 +334,24 @@ export const traegerKeys = {
   period: (id: string) =>
     `traeger-holiday-period-detail-${encodeURIComponent(id)}`,
   settings: () => "traeger-settings-schema",
+  // Kriterien der Platzvergabe (#4700): Namen und Fragen, keine Antworten.
+  holidayCriteria: () => "traeger-holiday-criteria",
+  // Schließtage und Feiertage eines Jahres (#4702), keine Personendaten.
+  closingDays: (from: string, to: string) =>
+    `traeger-closing-days-${from}-${to}`,
+  // Offene Hinweise an Eltern zu Schließtagen in Ferienwochen (#6434):
+  // Wochen und Zahlen, keine Namen.
+  holidayClosures: () => "traeger-holiday-closures-pending",
   billingRuns: () => "traeger-billing-run-list",
   // Geteilte Dokumente (#4692): Titel, Dateiname und Freigaben, keine Inhalte.
   documents: () => "traeger-document-list",
   documentAudiences: () => "traeger-document-audiences",
+  // Anmeldephasen und Angebote des Trägers (#4704): Entwürfe, Versionen und
+  // das Ergebnis je Schule, keine Personendaten.
+  catalogFamily: "traeger-catalog-phase-",
+  catalogPhases: () => "traeger-catalog-phase-list",
+  catalogPhase: (id: string) =>
+    `traeger-catalog-phase-detail-${encodeURIComponent(id)}`,
   periodPreview(data: unknown, id: string): ListPreview | undefined {
     const row = previewRow(data, id);
     const name = previewText(row?.name);
@@ -395,8 +414,23 @@ export const catererKeys = {
  * Feriengästen der Listen (#5630).
  */
 export const holidayKeys = {
+  /**
+   * Die Wochen, die die Schule ausrichtet: Seite „Ferienwochen“ und die
+   * Markierung in Betreuungs- und Dienstplan teilen sich den Eintrag.
+   */
+  hostedWeeks: () => "holiday-weeks",
   studentHealth: (studentId: string) =>
     `holiday-student-health:${encodeURIComponent(studentId)}`,
+  /** Betreuung, Notfall und Abholung aus der Ferienanmeldung (#6678). */
+  studentRegistration: (studentId: string) =>
+    `holiday-student-registration:${encodeURIComponent(studentId)}`,
+  /** Zuordnung der eigenen Kinder einer Ferienwoche (#6678). */
+  ownChildren: (weekId: string) =>
+    `holiday-own-children:${encodeURIComponent(weekId)}`,
+  /** Feriengruppen, deren Woche noch nicht begonnen hat (#6680). */
+  guestGroupHints: () => "holiday-guest-group-hints",
+  /** Die Feriengruppen der Gruppenverwaltung (ADR 0120, Nachtrag 2026-11-11). */
+  guestGroups: "holiday-guest-groups",
   /** Je Satz von Feriengästen ein Schlüssel: ein neuer Gast fragt neu. */
   guestBadges: (studentIds: readonly string[]) =>
     `holiday-guest-badges:${[...studentIds]

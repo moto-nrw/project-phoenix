@@ -5,8 +5,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // A change request created before ADR 0173 recorded empty answers and consent

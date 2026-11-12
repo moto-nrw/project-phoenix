@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/offeringrequests"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/offeringrequests"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Post-enrollment offering changes (#1665, #3561): a guardian requests a
@@ -135,8 +135,11 @@ type OfferingChangeCatalog struct {
 // OfferingChangeView is the child's open request with its live diff, plus
 // the most recent decision inside the recency window.
 type OfferingChangeView struct {
-	Request      *OfferingChangeRequest
-	Diff         []OfferingChangeDiffEntry
+	Request *OfferingChangeRequest
+	Diff    []OfferingChangeDiffEntry
+	// Unchanged are the booked offerings the request keeps with the same
+	// days, sorted by label; no offering is in Diff and Unchanged (#6334).
+	Unchanged    []OfferingChangeDiffEntry
 	LastDecision *OfferingChangeDecision
 }
 
@@ -183,7 +186,10 @@ type ManualPlanningConflict struct {
 
 // OfferingChangePreview is the complete, non-writing approval projection.
 type OfferingChangePreview struct {
-	Diff                              []OfferingChangeDiffEntry
+	Diff []OfferingChangeDiffEntry
+	// Unchanged are the booked offerings the request keeps at the previewed
+	// date, as in OfferingChangeView.
+	Unchanged                         []OfferingChangeDiffEntry
 	Selections                        []OfferingChangePreviewSelection
 	ManualPlanningConflicts           []ManualPlanningConflict
 	ArrivalExpectationsFollowBookings bool

@@ -13,7 +13,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 var (
@@ -70,8 +70,10 @@ type SchoolView struct {
 //     same rule the operator billing report captures (#4673).
 //   - ChildrenPresent are the children with an open attendance of the day or
 //     an open room visit, as on the school's own dashboard.
-//   - ChildrenSick are the counted children with the live sick flag or an
-//     uncleared sick day, as on the school's own dashboard.
+//   - ChildrenSick are the counted children who are not present and have
+//     the live sick flag or a sick day that stands for the day (active or
+//     archived at its end), as on the school's own dashboard. A present child
+//     counts as present only (place before status, #6371).
 //   - StaffTotal are the staff members without a current external caregiver
 //     record, as on the school's time tracking dashboard.
 //   - StaffPresent are those of them on site. Home office does not count.
@@ -271,6 +273,9 @@ type Ports struct {
 	Alerts      AlertSettings
 	// Occupancy are the reads behind the occupancy of the schools (#4676).
 	Occupancy OccupancyPorts
+	// Known are the reads behind the hint on a known child of a holiday
+	// registration (#6683, ADR 0214).
+	Known KnownChildrenPorts
 }
 
 // Overview answers the Träger-Portal reads.
@@ -292,6 +297,11 @@ type Overview interface {
 	// Occupancy returns the children of every school of the Träger by OGS
 	// group and care form, today (#4676).
 	Occupancy(ctx context.Context, organizationID int64) (Occupancy, error)
+	// KnownHolidayChildren returns the registered children of one holiday
+	// period of the Träger that a school of the Träger knows, or of the one
+	// registration registrationID names (#6683, ADR 0214). It writes no
+	// entry: Enrollment records the comparison in the registrations' trail.
+	KnownHolidayChildren(ctx context.Context, organizationID, periodID, registrationID int64) ([]KnownChild, error)
 	// AccessLog lists one page of the access log, newest first.
 	AccessLog(ctx context.Context, viewer Viewer, filter AccessLogFilter, page int) (AccessLogPage, error)
 	// AccessLogExport lists every entry of the filter, newest first, up to

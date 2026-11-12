@@ -17,6 +17,9 @@ import {
   isNotCheckedInLocation,
   isSchoolyardLocation,
   isTransitLocation,
+  isCheckedInLocation,
+  countedDayStatus,
+  dayStatusPresentation,
   type StudentLocationContext,
 } from "./location-helper";
 
@@ -114,6 +117,8 @@ describe("MOTO_COLOR_PALETTE", () => {
         light: "#FACC15",
         base: "#EAB308",
         strong: "#92400E",
+        pill: "#FEF9C3",
+        pillText: "#713F12",
       },
       purple: {
         soft: "#F3E8FF",
@@ -588,6 +593,109 @@ describe("location check helpers", () => {
       expect(isNotCheckedInLocation("Anwesend - Raum 101")).toBe(false);
       expect(isNotCheckedInLocation("Unterwegs")).toBe(false);
       expect(isNotCheckedInLocation("Schulhof")).toBe(false);
+    });
+  });
+
+  describe("isCheckedInLocation (#6371)", () => {
+    it("is true for every open check-in", () => {
+      expect(isCheckedInLocation("Anwesend")).toBe(true);
+      expect(isCheckedInLocation("Anwesend - Raum 101")).toBe(true);
+      expect(isCheckedInLocation("Unterwegs")).toBe(true);
+      expect(isCheckedInLocation("Schulhof")).toBe(true);
+    });
+
+    it("is false without an open check-in", () => {
+      for (const location of [
+        "Zuhause",
+        "Abwesend",
+        "Schule",
+        "Im Unterricht",
+        "Krank",
+        "Kommt heute nicht",
+        "",
+        null,
+        undefined,
+      ]) {
+        expect(isCheckedInLocation(location)).toBe(false);
+      }
+    });
+  });
+
+  describe("countedDayStatus (#6371): Ort vor Status", () => {
+    const checkedIn = "Anwesend - Raum 101";
+
+    it("ignores the status of a checked-in child", () => {
+      for (const location of [checkedIn, "Schulhof", "Unterwegs"]) {
+        expect(
+          countedDayStatus({ sick: true, current_location: location }),
+        ).toBeNull();
+        expect(
+          countedDayStatus({ excused: true, current_location: location }),
+        ).toBeNull();
+        expect(
+          countedDayStatus({ class_trip: true, current_location: location }),
+        ).toBeNull();
+      }
+    });
+
+    it("keeps the status of a child without a check-in, sick first", () => {
+      expect(
+        countedDayStatus({
+          sick: true,
+          excused: true,
+          class_trip: true,
+          current_location: "Zuhause",
+        }),
+      ).toBe("sick");
+      expect(
+        countedDayStatus({
+          excused: true,
+          class_trip: true,
+          current_location: "",
+        }),
+      ).toBe("class_trip");
+      expect(
+        countedDayStatus({ excused: true, current_location: "Schule" }),
+      ).toBe("excused");
+      expect(countedDayStatus({ current_location: "Zuhause" })).toBeNull();
+    });
+
+    // #5710: Eine erfasste Abmeldung zum Unterricht schlägt den Tagesstatus;
+    // das nur abgeleitete „Schule“ nicht.
+    it("ignores the status of a child staff checked out to class", () => {
+      expect(
+        countedDayStatus({ sick: true, current_location: "Im Unterricht" }),
+      ).toBeNull();
+      expect(
+        countedDayStatus({ excused: true, current_location: "Im Unterricht" }),
+      ).toBeNull();
+      expect(
+        countedDayStatus({
+          class_trip: true,
+          current_location: "Im Unterricht",
+        }),
+      ).toBeNull();
+      expect(countedDayStatus({ sick: true, current_location: "Schule" })).toBe(
+        "sick",
+      );
+    });
+  });
+
+  describe("dayStatusPresentation (#5710)", () => {
+    it("shows only Im Unterricht after a recorded checkout to class", () => {
+      expect(dayStatusPresentation("Im Unterricht")).toBe("none");
+    });
+
+    it("replaces a location without check-in, also the derived Schule", () => {
+      for (const location of ["Zuhause", "Schule", "", null, undefined]) {
+        expect(dayStatusPresentation(location)).toBe("replace");
+      }
+    });
+
+    it("keeps the status as a hint for a checked-in child", () => {
+      for (const location of ["Anwesend - Raum 101", "Schulhof", "Unterwegs"]) {
+        expect(dayStatusPresentation(location)).toBe("hint");
+      }
     });
   });
 

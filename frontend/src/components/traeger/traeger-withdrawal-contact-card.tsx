@@ -5,7 +5,10 @@ import { useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
@@ -15,6 +18,7 @@ import {
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   saveTraegerWithdrawalContact,
@@ -37,7 +41,7 @@ const SOURCE_BADGES: Record<
 > = {
   own: { label: "Eigene Angabe", tone: "green" },
   contact: { label: "Von der Ansprechperson", tone: "gray" },
-  missing: { label: "Fehlt", tone: "orange" },
+  missing: { label: "Fehlt", tone: "warning" },
 };
 
 function sameReach(
@@ -95,6 +99,12 @@ export function TraegerWithdrawalContactCard({
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { success } = useToast();
+  // The reload after saving stands above the card as a load error, never as
+  // an error of the form (#6652).
+  const afterSave = useRefreshAfterWrite(
+    "die Anzeige des Kontakts für Widerrufe",
+    onSaved,
+  );
 
   // A refresh after another change on the page brings a new object; an
   // open draft stays until it is saved or cancelled.
@@ -124,16 +134,19 @@ export function TraegerWithdrawalContactCard({
       shown.current = saved;
       setStored(saved);
       setDraft((current) => (sameReach(current, submitted) ? saved : current));
-      success("Der Kontakt für Widerrufe ist gespeichert.");
-      await onSaved();
     } catch (err) {
       logger.error("traeger_withdrawal_contact_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void formErrors.show(err, { object: "der Kontakt für Widerrufe" });
-    } finally {
+      void formErrors.show(err, {
+        object: "die Änderung des Kontakts für Widerrufe",
+      });
       setSaving(false);
+      return;
     }
+    setSaving(false);
+    success("Der Kontakt für Widerrufe ist gespeichert.");
+    await afterSave.refresh();
   };
 
   return (
@@ -150,6 +163,7 @@ export function TraegerWithdrawalContactCard({
           void submit();
         }}
       >
+        <LoadErrorAlert error={afterSave.error} />
         <FormErrorAlert message={formErrors.error} />
         <div className="grid gap-4 md:grid-cols-2">
           <Input

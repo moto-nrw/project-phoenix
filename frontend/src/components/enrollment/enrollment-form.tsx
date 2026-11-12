@@ -1,6 +1,9 @@
 "use client";
 
-import { DocumentAttachmentList } from "~/components/enrollment/attachment-list";
+import {
+  DocumentAttachmentList,
+  type AttachmentLabels,
+} from "~/components/enrollment/attachment-list";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import {
   EnrollmentUploadScope,
@@ -16,7 +19,7 @@ import {
 } from "react";
 import { useLocale } from "next-intl";
 import { Check, Lock, Plus } from "lucide-react";
-import { Turnstile } from "@marsidev/react-turnstile";
+import { Turnstile, type TurnstileInstance } from "@marsidev/react-turnstile";
 import { DateOfBirthPicker } from "~/components/enrollment/date-of-birth-picker";
 import { Button } from "~/components/ui/button";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
@@ -36,9 +39,11 @@ import {
   type SubmitEnrollmentPayload,
   type SubmitEnrollmentResult,
 } from "~/lib/enrollment-submission-api";
-import type {
-  PublicFormSchema,
-  PublicLegalBlock,
+import {
+  holidayCareWishAsked,
+  type FormField,
+  type PublicFormSchema,
+  type PublicLegalBlock,
 } from "~/lib/enrollment-form-schema-api";
 import {
   EmailContactNotice,
@@ -195,12 +200,11 @@ interface Props {
   readonly lockedGuardianEmail?: boolean;
   readonly lockChildStructure?: boolean;
   /**
-   * Reduced Halbjahreswechsel flow (#2251): render ONLY the per-child
-   * care-offering selection. Guardian data, child identity, custom
-   * fields, and consents stay hidden but travel unchanged in the
-   * submit payload (seeded from initialDraft), so the resulting change
-   * request diffs exactly the offerings. Callers must also lock the
-   * child structure.
+   * Reduced Halbjahreswechsel flow (#2251): render per-child care offerings
+   * and the holiday care question when the target form asks it.
+   * Guardian data, child identity, custom fields and consents stay hidden
+   * and travel unchanged from initialDraft. The change request captures
+   * bookings and the current year's wish. Callers must lock child structure.
    */
   readonly restrictToOfferings?: boolean;
   readonly submitLabel?: string;
@@ -261,6 +265,23 @@ export function EnrollmentForm({
   const tr = useMemo(
     () => makeEnrollmentFormTranslator(intl, localizedCopy, careTerm),
     [intl, localizedCopy, careTerm],
+  );
+  // The staff portal loads no parent messages: the attachment buttons take
+  // their German labels from the form's own translator.
+  const attachmentLabels = useMemo<AttachmentLabels | undefined>(
+    () =>
+      localizedCopy
+        ? undefined
+        : {
+            open: tr("attachments.open"),
+            download: tr("attachments.download"),
+            openLabel: (label) => tr("attachments.openLabel", { label }),
+            downloadLabel: (label) =>
+              tr("attachments.downloadLabel", { label }),
+            popupBlocked: tr("attachments.popupBlocked"),
+            errorObject: tr("attachments.errorObject"),
+          },
+    [localizedCopy, tr],
   );
   const loadErrorObject = tr("errorObject");
   // A template preview without phase offerings shows every weekday; with the
@@ -335,6 +356,22 @@ export function EnrollmentForm({
   const legalBlocks = useMemo(
     () => localizeLegalBlocks(config.legalTexts?.blocks ?? [], contentLocale),
     [config.legalTexts, contentLocale],
+  );
+  // The holiday care question is a fixed field of the form (#4703), not a
+  // custom field: its answer has its own column and counts for the
+  // holiday registration of the Träger once the child is approved.
+  const askHolidayCareWish = holidayCareWishAsked(config.schema);
+  const holidayCareWishField = useMemo<FormField>(
+    () => ({
+      key: "holiday_care_wish",
+      label: tr("fields.holidayCareWish"),
+      help_text: tr("fields.holidayCareWishHint"),
+      type: "boolean",
+      required: true,
+      sort_order: 0,
+      applies_to_child: true,
+    }),
+    [tr],
   );
   // A "new_students" phase rejects any already-enrolled child at submit
   // (#1663), so the prefilled linked children get a notice instead of the
@@ -499,6 +536,7 @@ export function EnrollmentForm({
     showLoadError,
   ]);
 
+  const captchaRef = useRef<TurnstileInstance>(undefined);
   const [captchaToken, setCaptchaToken] = useState("");
   const captchaRequired = !skipCaptcha && captchaConfig?.enabled === true;
   // Which legal block text the parent is currently viewing in the modal.
@@ -758,8 +796,14 @@ export function EnrollmentForm({
       ...prev,
       withRequiredOfferings(blankChild(), offerings, collectGradeLevel),
     ]);
-  const removeChild = (index: number) =>
+  const removeChild = (index: number) => {
     setChildren((prev) => prev.filter((_, i) => i !== index));
+    // Field names and selection marks use child indices. Validate the new
+    // structure on the next submit instead of showing another child's error.
+    setChildOfferingErrors({});
+    setOfferingDayErrors({});
+    formError.clear();
+  };
 
   const addGuardian = () =>
     setAdditionalGuardians((prev) => [...prev, blankGuardian()]);
@@ -862,6 +906,8 @@ export function EnrollmentForm({
           : `${statusURL.pathname}${statusURL.search}${statusURL.hash}`,
       );
     } catch (err) {
+      setCaptchaToken("");
+      captchaRef.current?.reset();
       const code = err instanceof ApiError ? err.code : undefined;
       // A rejected input is expected; only server failures and crashes are
       // errors in the log.
@@ -1127,7 +1173,11 @@ export function EnrollmentForm({
               />
               {visibleGuardianFields.map((f) =>
                 f.type === "information" ? (
-                  <InfoBlock key={f.key} field={f} />
+                  <InfoBlock
+                    key={f.key}
+                    field={f}
+                    attachmentLabels={attachmentLabels}
+                  />
                 ) : (
                   <CustomFieldInput
                     key={f.key}
@@ -1429,6 +1479,23 @@ export function EnrollmentForm({
                     )}
                   </div>
                 )}
+                {askHolidayCareWish && !child.locked && (
+                  <CustomFieldInput
+                    field={holidayCareWishField}
+                    inputName={formFieldName.child(i, "holiday_care_wish")}
+                    value={child.holiday_care_wish}
+                    onChange={(v) =>
+                      updateChild(i, {
+                        holiday_care_wish:
+                          typeof v === "boolean" ? v : undefined,
+                      })
+                    }
+                    error={fieldError(
+                      formFieldName.child(i, "holiday_care_wish"),
+                    )}
+                    tr={tr}
+                  />
+                )}
                 {availabilityNotices[child.clientId] ? (
                   <Alert
                     type="warning"
@@ -1631,7 +1698,13 @@ export function EnrollmentForm({
                     )
                     .map((f) => {
                       if (f.type === "information") {
-                        return <InfoBlock key={f.key} field={f} />;
+                        return (
+                          <InfoBlock
+                            key={f.key}
+                            field={f}
+                            attachmentLabels={attachmentLabels}
+                          />
+                        );
                       }
                       const departure =
                         f.target === "student.allowed_departure_modes";
@@ -1735,7 +1808,10 @@ export function EnrollmentForm({
                     tr={tr}
                   />
                 )}
-                <DocumentAttachmentList attachments={block.attachments} />
+                <DocumentAttachmentList
+                  attachments={block.attachments}
+                  labels={attachmentLabels}
+                />
               </div>
             ))}
           </section>
@@ -1786,6 +1862,7 @@ export function EnrollmentForm({
               Sicherheitsprüfung
             </h2>
             <Turnstile
+              ref={captchaRef}
               siteKey={captchaConfig.site_key}
               options={{ theme: "light" }}
               onSuccess={(token: string) => setCaptchaToken(token)}

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The identity an account needs to be usable as personnel at a school:
@@ -47,6 +47,9 @@ func (l *AccountLifecycle) EnsureSchoolIdentity(ctx context.Context, input ident
 func (l *AccountLifecycle) EnsureSchoolIdentityChain(ctx context.Context, in domain.SchoolIdentityInput) (*domain.SchoolIdentity, error) {
 	if !l.roles.RoleNeedsStaffRecord(in.Role) {
 		return nil, nil
+	}
+	if err := l.staff.LockStaffPersonMerge(ctx); err != nil {
+		return nil, err
 	}
 
 	person, err := l.resolveIdentityPerson(ctx, in)

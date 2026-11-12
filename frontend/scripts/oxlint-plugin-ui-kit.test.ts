@@ -107,15 +107,17 @@ describe.concurrent("ui-kit/no-hand-rolled-portal-nav", () => {
   });
 
   it("allows the kit itself and unrelated sticky headers", async () => {
-    const shell = await lintSource(
-      `const aside = "border-r border-gray-200/70 bg-white/95"; void aside;`,
-      "src/components/ui/probe-nav.tsx",
-    );
+    const [shell, other] = await Promise.all([
+      lintSource(
+        `const aside = "border-r border-gray-200/70 bg-white/95"; void aside;`,
+        "src/components/ui/probe-nav.tsx",
+      ),
+      lintSource(
+        `const head = "sticky top-0 border-r bg-white/95"; void head;`,
+        "src/components/dashboard/probe-nav.tsx",
+      ),
+    ]);
     expect(shell.output).not.toContain(RULE);
-    const other = await lintSource(
-      `const head = "sticky top-0 border-r bg-white/95"; void head;`,
-      "src/components/dashboard/probe-nav.tsx",
-    );
     expect(other.output).not.toContain(RULE);
   });
 });
@@ -188,8 +190,12 @@ describe.concurrent("ui-kit/no-hand-rolled-empty-state", () => {
     }
     void Probe;`;
 
-    for (const probe of [template, split]) {
-      const result = await lintSource(probe, "src/components/probe.tsx");
+    const results = await Promise.all(
+      [template, split].map((probe) =>
+        lintSource(probe, "src/components/probe.tsx"),
+      ),
+    );
+    for (const result of results) {
       expect(result.output).toContain(RULE);
     }
   });
@@ -312,28 +318,30 @@ describe.concurrent("ui-kit/no-hand-rolled-copy-field", () => {
   });
 
   it("allows inline code and only the shared copy primitives", async () => {
-    const inline = await lintSource(
-      `function Probe() {
+    const [inline, hook, copyField, otherUiComponent] = await Promise.all([
+      lintSource(
+        `function Probe() {
         return <code className="shrink-0">wert</code>;
       }
       void Probe;`,
-      "src/components/probe.tsx",
-    );
-    const hook = await lintSource(
-      `export const copy = (text: string) => navigator.clipboard.writeText(text);`,
-      "src/lib/use-clipboard-copy.ts",
-    );
-    const copyField = await lintSource(
-      `function Probe() {
+        "src/components/probe.tsx",
+      ),
+      lintSource(
+        `export const copy = (text: string) => navigator.clipboard.writeText(text);`,
+        "src/lib/use-clipboard-copy.ts",
+      ),
+      lintSource(
+        `function Probe() {
         return <code className="rounded-lg border px-3 py-2">wert</code>;
       }
       void Probe;`,
-      "src/components/ui/copy-field.tsx",
-    );
-    const otherUiComponent = await lintSource(
-      `export const copy = (text: string) => navigator.clipboard.writeText(text);`,
-      "src/components/ui/probe.tsx",
-    );
+        "src/components/ui/copy-field.tsx",
+      ),
+      lintSource(
+        `export const copy = (text: string) => navigator.clipboard.writeText(text);`,
+        "src/components/ui/probe.tsx",
+      ),
+    ]);
 
     expect(inline.output).not.toContain("ui-kit(no-hand-rolled-copy-field)");
     expect(hook.output).not.toContain("ui-kit(no-hand-rolled-copy-field)");
@@ -1339,32 +1347,34 @@ describe.concurrent("ui-kit/no-shadow-kit-name", () => {
   });
 
   it("allows other names, the kit itself and test files", async () => {
-    const other = await lintSource(
-      `function StatusChip() {
+    const [other, kit, testFile, mock] = await Promise.all([
+      lintSource(
+        `function StatusChip() {
         return null;
       }
       void StatusChip;`,
-      "src/components/import/probe.tsx",
-    );
-    const kit = await lintSource(
-      `export function StatCard() {
+        "src/components/import/probe.tsx",
+      ),
+      lintSource(
+        `export function StatCard() {
         return null;
       }`,
-      "src/components/ui/stat-card.tsx",
-    );
-    const testFile = await lintSource(
-      `function StatCard() {
+        "src/components/ui/stat-card.tsx",
+      ),
+      lintSource(
+        `function StatCard() {
         return null;
       }
       void StatCard;`,
-      "src/components/import/probe.test.tsx",
-    );
-    const mock = await lintSource(
-      `export function Drawer() {
+        "src/components/import/probe.test.tsx",
+      ),
+      lintSource(
+        `export function Drawer() {
         return null;
       }`,
-      "src/test/mocks/probe.tsx",
-    );
+        "src/test/mocks/probe.tsx",
+      ),
+    ]);
 
     for (const { output } of [other, kit, testFile, mock]) {
       expect(output).not.toContain("no-shadow-kit-name");
@@ -1680,21 +1690,23 @@ describe.concurrent("ui-kit/no-hand-rolled-toggle-control", () => {
   });
 
   it("allows round status marks and the kit itself", async () => {
-    const outside = await lintSource(
-      `const Check = () => <svg />;
+    const [outside, kit] = await Promise.all([
+      lintSource(
+        `const Check = () => <svg />;
       function Probe() {
         return <span className="flex h-4 w-4 rounded-full border"><Check /></span>;
       }
       void Probe;`,
-      "src/components/probe.tsx",
-    );
-    const kit = await lintSource(
-      `function Probe() {
+        "src/components/probe.tsx",
+      ),
+      lintSource(
+        `function Probe() {
         return <button type="button" role="switch" aria-checked aria-label="An" />;
       }
       void Probe;`,
-      "src/components/ui/probe.tsx",
-    );
+        "src/components/ui/probe.tsx",
+      ),
+    ]);
 
     expect(outside.output).not.toContain(
       "ui-kit(no-hand-rolled-toggle-control)",
@@ -1924,20 +1936,22 @@ describe.concurrent("ui-kit/no-raw-table", () => {
   });
 
   it("accepts DataTable and the kit's own table", async () => {
-    const outside = await lintSource(`
+    const [outside, kit] = await Promise.all([
+      lintSource(`
       import { DataTable } from "~/components/ui/data-table";
       export function Probe() {
         return <DataTable columns={[]} rows={[]} getRowKey={() => 1} />;
       }
-    `);
-    const kit = await lintSource(
-      `
+    `),
+      lintSource(
+        `
       export function Grid() {
         return <table><tbody /></table>;
       }
     `,
-      "src/components/ui/planning/grid.tsx",
-    );
+        "src/components/ui/planning/grid.tsx",
+      ),
+    ]);
 
     expect(outside.output).not.toContain("no-raw-table");
     expect(kit.output).not.toContain("no-raw-table");
@@ -2025,17 +2039,19 @@ describe.concurrent("ui-kit/no-control-height-override", () => {
   });
 
   it("leaves other components and the kit itself alone", async () => {
-    const other = await lintSource(`
+    const [other, kit] = await Promise.all([
+      lintSource(`
       import { Spark } from "~/components/ui/spark";
       export const Probe = () => <Spark className="h-9 !size-7" />;
-    `);
-    const kit = await lintSource(
-      `
+    `),
+      lintSource(
+        `
       import { Input } from "~/components/ui/input";
       export const Probe = () => <Input className="h-9" />;
     `,
-      "src/components/ui/probe.tsx",
-    );
+        "src/components/ui/probe.tsx",
+      ),
+    ]);
 
     expect(other.output).not.toContain("no-control-height-override");
     expect(kit.output).not.toContain("no-control-height-override");
@@ -2943,8 +2959,9 @@ describe.concurrent("ui-kit/no-hand-rolled-dot (#5598)", () => {
   });
 
   it("accepts the kit, skeletons, spinners, tracks and the kit folder", async () => {
-    const accepted = await lintSource(
-      `import { StatusDot } from "~/components/ui/status-dot";
+    const [accepted, kit] = await Promise.all([
+      lintSource(
+        `import { StatusDot } from "~/components/ui/status-dot";
       import { Skeleton } from "~/components/ui/skeleton";
       function Probe() {
         return (
@@ -2957,13 +2974,14 @@ describe.concurrent("ui-kit/no-hand-rolled-dot (#5598)", () => {
         );
       }
       void Probe;`,
-      "src/components/probe.tsx",
-    );
-    const kit = await lintSource(
-      `function Probe() { return <span className="h-2 w-2 rounded-full bg-white" />; }
+        "src/components/probe.tsx",
+      ),
+      lintSource(
+        `function Probe() { return <span className="h-2 w-2 rounded-full bg-white" />; }
       void Probe;`,
-      "src/components/ui/probe.tsx",
-    );
+        "src/components/ui/probe.tsx",
+      ),
+    ]);
 
     expect(accepted.output).not.toContain("no-hand-rolled-dot");
     expect(kit.output).not.toContain("no-hand-rolled-dot");
@@ -3551,12 +3569,14 @@ describe.concurrent("ui-kit surface rules are hard-zero (#5594)", () => {
       '<div className="rounded-lg border border-gray-200 bg-white p-3">A</div>',
     ],
   ])("fails a single %s finding", async (rule, card) => {
-    for (const file of FORMERLY_SURFACE_BASELINED) {
-      const result = await lintSource(
-        `export const Probe = () => ${card};`,
-        file,
-      );
+    const results = await Promise.all(
+      FORMERLY_SURFACE_BASELINED.map((file) =>
+        lintSource(`export const Probe = () => ${card};`, file),
+      ),
+    );
 
+    for (const [index, result] of results.entries()) {
+      const file = FORMERLY_SURFACE_BASELINED[index];
       expect(result.status, file).toBe(1);
       expect(result.output, file).toContain(`ui-kit(${rule})`);
     }
@@ -3664,6 +3684,353 @@ describe.concurrent("ui-kit/no-radix-outside-kit", () => {
   });
 });
 
+describe.concurrent("ui-kit/form-modal-pending", () => {
+  const RULE = /ui-kit\(form-modal-pending\)/g;
+  const PATH = "src/components/probe/probe-modal.tsx";
+
+  it.each([
+    ["without pending", ""],
+    ["with pending={undefined}", " pending={undefined}"],
+    ["with pending={null}", " pending={null}"],
+  ])("reports a saving FormModal %s", async (_label, attribute) => {
+    const result = await lintSource(
+      `import { FormModal } from "~/components/ui/form-modal";
+      export function Probe({ onClose }: { onClose: () => void }) {
+        const save = async () => { await fetch("/x"); onClose(); };
+        return (
+          <FormModal isOpen onClose={onClose} title="Probe"${attribute} footer={<button type="button" onClick={() => void save()}>Speichern</button>}>
+            <p>Inhalt</p>
+          </FormModal>
+        );
+      }`,
+      PATH,
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(RULE)).toHaveLength(1);
+  });
+
+  it("accepts a FormModal that passes the pending contract", async () => {
+    const result = await lintSource(
+      `import { FormModal } from "~/components/ui/form-modal";
+      import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
+      export function Probe({ onClose }: { onClose: () => void }) {
+        const save = useFormModalPending();
+        return (
+          <FormModal isOpen onClose={onClose} title="Probe" pending={save}>
+            <p>Inhalt</p>
+          </FormModal>
+        );
+      }`,
+      PATH,
+    );
+
+    expect(result.output).not.toMatch(RULE);
+    // Gegenprobe: dieselbe Datei ohne pending fällt (Test oben).
+    expect(result.status).toBe(0);
+  });
+
+  it("accepts a dialog without a save that names its reason", async () => {
+    const result = await lintSource(
+      `import { FormModal } from "~/components/ui/form-modal";
+      export function Probe({ onClose }: { onClose: () => void }) {
+        return (
+          // oxlint-disable-next-line ui-kit/form-modal-pending -- übergibt die Auswahl synchron und speichert nichts.
+          <FormModal isOpen onClose={onClose} title="Probe">
+            <p>Inhalt</p>
+          </FormModal>
+        );
+      }`,
+      PATH,
+    );
+
+    expect(result.output).not.toMatch(RULE);
+    expect(result.status).toBe(0);
+  });
+
+  it("leaves the kit and test files alone", async () => {
+    const source = `import { FormModal } from "./form-modal";
+      export const Probe = () => (
+        <FormModal isOpen onClose={() => undefined} title="Probe"><p /></FormModal>
+      );`;
+    const kit = await lintSource(source, "src/components/ui/probe.tsx");
+    const test = await lintSource(
+      source,
+      "src/components/probe/probe.test.tsx",
+    );
+
+    expect(kit.output).not.toMatch(RULE);
+    expect(test.output).not.toMatch(RULE);
+    expect(kit.status).toBe(0);
+  });
+});
+
+describe.concurrent("ui-kit/slide-over-pending", () => {
+  const RULE = /ui-kit\(slide-over-pending\)/g;
+  const PATH = "src/components/probe/probe-panel.tsx";
+
+  it.each([
+    ["without pending", ""],
+    ["with pending={undefined}", " pending={undefined}"],
+    ["with pending={null}", " pending={null}"],
+  ])("reports a saving SlideOver %s", async (_label, attribute) => {
+    const result = await lintSource(
+      `import { SlideOver, SlideOverContent } from "~/components/ui/slide-over";
+      export function Probe({ onClose }: { onClose: () => void }) {
+        const save = async () => { await fetch("/x"); onClose(); };
+        return (
+          <SlideOver open onOpenChange={(o) => !o && onClose()}${attribute}>
+            <SlideOverContent><button type="button" onClick={() => void save()}>Speichern</button></SlideOverContent>
+          </SlideOver>
+        );
+      }`,
+      PATH,
+    );
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(RULE)).toHaveLength(1);
+  });
+
+  it("accepts a SlideOver that passes the pending contract", async () => {
+    const result = await lintSource(
+      `import { SlideOver, SlideOverContent } from "~/components/ui/slide-over";
+      import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
+      export function Probe({ open }: { open: boolean }) {
+        const save = useFormModalPending(open);
+        return (
+          <SlideOver open={open} pending={save}>
+            <SlideOverContent><p>Inhalt</p></SlideOverContent>
+          </SlideOver>
+        );
+      }`,
+      PATH,
+    );
+
+    expect(result.output).not.toMatch(RULE);
+    // Gegenprobe: dieselbe Datei ohne pending fällt (Test oben).
+    expect(result.status).toBe(0);
+  });
+
+  it("accepts a panel without a save that names its reason", async () => {
+    const result = await lintSource(
+      `import { SlideOver, SlideOverContent } from "~/components/ui/slide-over";
+      export function Probe({ open }: { open: boolean }) {
+        return (
+          // oxlint-disable-next-line ui-kit/slide-over-pending -- zeigt nur an, speichert nichts.
+          <SlideOver open={open}>
+            <SlideOverContent><p>Inhalt</p></SlideOverContent>
+          </SlideOver>
+        );
+      }`,
+      PATH,
+    );
+
+    expect(result.output).not.toMatch(RULE);
+    expect(result.status).toBe(0);
+  });
+
+  it("leaves the kit and test files alone", async () => {
+    const source = `import { SlideOver, SlideOverContent } from "./slide-over";
+      export const Probe = () => (
+        <SlideOver open><SlideOverContent><p /></SlideOverContent></SlideOver>
+      );`;
+    const kit = await lintSource(source, "src/components/ui/probe.tsx");
+    const test = await lintSource(
+      source,
+      "src/components/probe/probe.test.tsx",
+    );
+
+    expect(kit.output).not.toMatch(RULE);
+    expect(test.output).not.toMatch(RULE);
+    expect(kit.status).toBe(0);
+  });
+});
+
+describe.concurrent("ui-kit/confirmation-dismiss-lock", () => {
+  const RULE = /ui-kit\(confirmation-dismiss-lock\)/g;
+  const PATH = "src/components/probe/probe-confirm.tsx";
+  const probe = (attribute: string) =>
+    `import { ConfirmationModal } from "~/components/ui/modal";
+      export function Probe({ busy, why }: { busy: boolean; why: string }) {
+        return (
+          <ConfirmationModal isOpen onClose={() => undefined} onConfirm={() => undefined} title="Freigeben?" isConfirmLoading={busy} loadingText="Wird freigegeben …"${attribute}>
+            <p>{why}</p>
+          </ConfirmationModal>
+        );
+      }`;
+
+  it.each([
+    ["as a bare flag", " dismissibleWhileLoading"],
+    ["with an empty reason", ' dismissibleWhileLoading=""'],
+    ["with a blank reason", ' dismissibleWhileLoading={"  "}'],
+    ["with a computed reason", " dismissibleWhileLoading={why}"],
+    ["with a boolean", " dismissibleWhileLoading={true}"],
+    ["with an interpolated template", " dismissibleWhileLoading={`${why}`}"],
+  ])("reports an opt-out %s", async (_label, attribute) => {
+    const result = await lintSource(probe(attribute), PATH);
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(RULE)).toHaveLength(1);
+  });
+
+  it.each([
+    ["without an opt-out (the default lock)", ""],
+    [
+      "with a written reason",
+      ' dismissibleWhileLoading="Lädt nur die Vorschau; nichts wird gespeichert."',
+    ],
+    [
+      "with a reason in braces",
+      ' dismissibleWhileLoading={"Abbrechen verwirft nur die Auswahl."}',
+    ],
+    [
+      "with a reason as a plain template",
+      " dismissibleWhileLoading={`Lädt nur, schreibt nichts.`}",
+    ],
+  ])("accepts a ConfirmationModal %s", async (_label, attribute) => {
+    const result = await lintSource(probe(attribute), PATH);
+
+    expect(result.output).not.toMatch(RULE);
+    // Gegenprobe: dieselbe Datei mit leerem Opt-out fällt (Test oben).
+    expect(result.status).toBe(0);
+  });
+
+  it("leaves the kit and test files alone", async () => {
+    const source = probe(" dismissibleWhileLoading");
+    const kit = await lintSource(source, "src/components/ui/probe.tsx");
+    const test = await lintSource(
+      source,
+      "src/components/probe/probe.test.tsx",
+    );
+
+    expect(kit.output).not.toMatch(RULE);
+    expect(test.output).not.toMatch(RULE);
+  });
+});
+
+describe.concurrent("ui-kit/confirmation-loading-text", () => {
+  const RULE = /ui-kit\(confirmation-loading-text\)/g;
+  const PATH = "src/components/probe/probe-loading-text.tsx";
+  const probe = (confirmText: string, extra = "") =>
+    `import { ConfirmationModal } from "~/components/ui/modal";
+      export function Probe({ busy, state, other }: { busy: boolean; state: { busy: boolean }; other: boolean }) {
+        ${extra}
+        return (
+          <ConfirmationModal isOpen onClose={() => undefined} onConfirm={() => undefined} title="Anmelden?" isConfirmLoading={busy} loadingText="Wird angemeldet …" confirmText={${confirmText}}>
+            <p>{String(state.busy || other)}</p>
+          </ConfirmationModal>
+        );
+      }`;
+
+  it.each([
+    ["switched inline", `busy ? "Wird angemeldet…" : "Anmelden"`, ""],
+    [
+      "switched on the negated flag",
+      `!busy ? "Anmelden" : "Wird angemeldet…"`,
+      "",
+    ],
+    [
+      "switched in a local const",
+      "label",
+      `const label = busy ? "Wird gespeichert…" : "Gesundmelden";`,
+    ],
+    [
+      "switched in a nested branch",
+      `other ? "Aufheben" : busy ? "Wird gespeichert…" : "Entschuldigen"`,
+      "",
+    ],
+  ])("reports a confirmText %s", async (_label, confirmText, extra) => {
+    const result = await lintSource(probe(confirmText, extra), PATH);
+
+    expect(result.status).toBe(1);
+    expect(result.output.match(RULE)).toHaveLength(1);
+  });
+
+  it.each([
+    ["as a plain literal", `"Anmelden"`, ""],
+    ["switched on another value", `other ? "Aufheben" : "Entschuldigen"`, ""],
+    [
+      "in a const switched on another value",
+      "label",
+      `const label = other ? "Aufheben" : "Entschuldigen";`,
+    ],
+  ])("accepts a confirmText %s", async (_label, confirmText, extra) => {
+    const result = await lintSource(probe(confirmText, extra), PATH);
+
+    expect(result.output).not.toMatch(RULE);
+    // Gegenprobe: dieselbe Datei mit umgeschaltetem Text fällt (Test oben).
+    expect(result.status).toBe(0);
+  });
+
+  // #6652: isConfirmLoading without loadingText shows „Wird geladen...“.
+  const bare = (attributes: string, header = "") =>
+    `${header || 'import { ConfirmationModal } from "~/components/ui/modal";'}
+      export function Probe({ busy, rest }: { busy: boolean; rest: object }) {
+        return (
+          <ConfirmationModal isOpen onClose={() => undefined} onConfirm={() => undefined} title="Löschen?" confirmText="Widerrufen" ${attributes}>
+            <p>{String(busy)}{String(rest)}</p>
+          </ConfirmationModal>
+        );
+      }`;
+
+  it.each([
+    ["a flag", "isConfirmLoading={busy}", ""],
+    ["a literal true", "isConfirmLoading", ""],
+    ["a spread that may hide it", "{...rest} isConfirmLoading={busy}", ""],
+  ])(
+    "reports isConfirmLoading without loadingText on %s",
+    async (_l, attrs, header) => {
+      const result = await lintSource(bare(attrs, header), PATH);
+
+      expect(result.status).toBe(1);
+      expect(result.output.match(RULE)).toHaveLength(1);
+      expect(result.output).toContain("ohne `loadingText`");
+    },
+  );
+
+  it("reports an aliased ConfirmationModal by its local name", async () => {
+    const result = await lintSource(
+      `import { ConfirmationModal as Confirm } from "~/components/ui/modal";
+      export function Probe({ busy }: { busy: boolean }) {
+        return <Confirm isOpen onClose={() => undefined} onConfirm={() => undefined} title="Löschen?" isConfirmLoading={busy} />;
+      }`,
+      PATH,
+    );
+
+    expect(result.output.match(RULE)).toHaveLength(1);
+  });
+
+  it.each([
+    [
+      "with its loadingText",
+      `isConfirmLoading={busy} loadingText="Wird widerrufen …"`,
+    ],
+    [
+      "with a computed loadingText",
+      `isConfirmLoading={busy} loadingText={busy ? "Wird widerrufen …" : ""}`,
+    ],
+    ["without isConfirmLoading", ""],
+    ["with a constant false flag", "isConfirmLoading={false}"],
+  ])("accepts a ConfirmationModal %s", async (_l, attrs) => {
+    const result = await lintSource(bare(attrs), PATH);
+
+    expect(result.output).not.toMatch(RULE);
+    expect(result.status).toBe(0);
+  });
+
+  it("leaves the kit and test files alone", async () => {
+    const source = probe(`busy ? "Wird angemeldet…" : "Anmelden"`);
+    const kit = await lintSource(source, "src/components/ui/probe.tsx");
+    const test = await lintSource(
+      source,
+      "src/components/probe/probe.test.tsx",
+    );
+
+    expect(kit.output).not.toMatch(RULE);
+    expect(test.output).not.toMatch(RULE);
+  });
+});
+
 describe.concurrent("ui-kit/no-hand-rolled-page-card in other portals", () => {
   it.each(["src/app/school/probe/page.tsx", "src/app/operator/probe/page.tsx"])(
     "reports a hand-rolled card in %s",
@@ -3748,20 +4115,22 @@ describe.concurrent("ui-kit/no-kit-domain-import", () => {
   });
 
   it("accepts kit-internal imports, lib helpers and files outside the kit", async () => {
-    const inKit = await lintSource(
-      `import { Button } from "./button";
+    const [inKit, outside] = await Promise.all([
+      lintSource(
+        `import { Button } from "./button";
       import { Alert } from "~/components/ui/alert";
       import { Tile } from "../icon-tile";
       import { cn } from "~/lib/utils";
       void Button; void Alert; void Tile; void cn;`,
-      "src/components/ui/planning/probe.tsx",
-    );
-    const outside = await lintSource(
-      `import { Thing } from "~/components/help/thing";
+        "src/components/ui/planning/probe.tsx",
+      ),
+      lintSource(
+        `import { Thing } from "~/components/help/thing";
       void Thing;
       void fetch("/api/x");`,
-      "src/components/parent/probe.tsx",
-    );
+        "src/components/parent/probe.tsx",
+      ),
+    ]);
 
     expect(inKit.output).not.toContain("no-kit-domain-import");
     expect(outside.output).not.toContain("no-kit-domain-import");
@@ -3835,18 +4204,20 @@ describe.concurrent("ui-kit/no-hand-rolled-menu (#5601)", () => {
   });
 
   it("accepts other roles and the kit folder", async () => {
-    const other = await lintSource(
-      `export const Probe = () => <div role="group" />;`,
-      "src/components/probe.tsx",
-    );
-    const kit = await lintSource(
-      `export const Probe = () => <div role="menu" />;`,
-      "src/components/ui/probe.tsx",
-    );
-    const kitDatalist = await lintSource(
-      `export const Probe = () => <datalist id="known" />;`,
-      "src/components/ui/probe.tsx",
-    );
+    const [other, kit, kitDatalist] = await Promise.all([
+      lintSource(
+        `export const Probe = () => <div role="group" />;`,
+        "src/components/probe.tsx",
+      ),
+      lintSource(
+        `export const Probe = () => <div role="menu" />;`,
+        "src/components/ui/probe.tsx",
+      ),
+      lintSource(
+        `export const Probe = () => <datalist id="known" />;`,
+        "src/components/ui/probe.tsx",
+      ),
+    ]);
 
     expect(kitDatalist.output).not.toContain("no-hand-rolled-menu");
     expect(other.output).not.toContain("no-hand-rolled-menu");
@@ -3879,14 +4250,16 @@ describe.concurrent("ui-kit/no-hand-rolled-popover (#5601)", () => {
   });
 
   it("accepts the kit folder and other surfaces", async () => {
-    const kit = await lintSource(
-      `export const Probe = () => <div className="moto-popover-surface rounded-xl border" />;`,
-      "src/components/ui/probe.tsx",
-    );
-    const other = await lintSource(
-      `export const Probe = () => <div className="moto-content-surface rounded-2xl border" />;`,
-      "src/components/probe.tsx",
-    );
+    const [kit, other] = await Promise.all([
+      lintSource(
+        `export const Probe = () => <div className="moto-popover-surface rounded-xl border" />;`,
+        "src/components/ui/probe.tsx",
+      ),
+      lintSource(
+        `export const Probe = () => <div className="moto-content-surface rounded-2xl border" />;`,
+        "src/components/probe.tsx",
+      ),
+    ]);
 
     expect(kit.output).not.toContain("no-hand-rolled-popover");
     expect(other.output).not.toContain("no-hand-rolled-popover");
@@ -4037,8 +4410,9 @@ describe.concurrent("ui-kit/no-own-spinner (#5588)", () => {
   });
 
   it("accepts the kit pieces, other icons and the kit folder", async () => {
-    const accepted = await lintSource(
-      `import { Check } from "lucide-react";
+    const [accepted, kit] = await Promise.all([
+      lintSource(
+        `import { Check } from "lucide-react";
       import { SpinnerIcon } from "~/components/ui/icons";
       import { Loading } from "~/components/ui/loading";
       function Probe() {
@@ -4051,15 +4425,16 @@ describe.concurrent("ui-kit/no-own-spinner (#5588)", () => {
         );
       }
       void Probe;`,
-      "src/components/probe.tsx",
-    );
-    const kit = await lintSource(
-      `function Probe() {
+        "src/components/probe.tsx",
+      ),
+      lintSource(
+        `function Probe() {
         return <svg className="h-4 w-4 animate-spin" />;
       }
       void Probe;`,
-      "src/components/ui/probe.tsx",
-    );
+        "src/components/ui/probe.tsx",
+      ),
+    ]);
 
     expect(accepted.output).not.toContain("no-own-spinner");
     expect(kit.output).not.toContain("no-own-spinner");
@@ -4193,25 +4568,23 @@ describe.concurrent("ui-kit sticky bars and slide-over layout (#5602)", () => {
   });
 
   it("allows a sticky table head and the kit itself", async () => {
-    const head = await outputOf(
-      `<div className="sticky top-0 z-30 border-b bg-white" />`,
-    );
+    const [head, kit] = await Promise.all([
+      outputOf(`<div className="sticky top-0 z-30 border-b bg-white" />`),
+      outputOf(
+        `<div className="sticky bottom-4 rounded-2xl border bg-white/95 shadow-lg" />`,
+        "src/components/ui/probe.tsx",
+      ),
+    ]);
     expect(head).not.toContain("no-hand-rolled-sticky-bar");
-    const kit = await outputOf(
-      `<div className="sticky bottom-4 rounded-2xl border bg-white/95 shadow-lg" />`,
-      "src/components/ui/probe.tsx",
-    );
     expect(kit).not.toContain("no-hand-rolled-sticky-bar");
   });
 
   it("reports a free slide-over width, as prop and as class", async () => {
-    const prop = await outputOf(
-      `<SlideOverContent widthClass="sm:w-[640px]" />`,
-    );
+    const [prop, klass] = await Promise.all([
+      outputOf(`<SlideOverContent widthClass="sm:w-[640px]" />`),
+      outputOf(`<SlideOverContent className="sm:w-[640px]" />`),
+    ]);
     expect(prop).toContain("ui-kit(no-arbitrary-slide-over-width)");
-    const klass = await outputOf(
-      `<SlideOverContent className="sm:w-[640px]" />`,
-    );
     expect(klass).toContain("ui-kit(no-arbitrary-slide-over-width)");
   });
 
@@ -4224,15 +4597,222 @@ describe.concurrent("ui-kit sticky bars and slide-over layout (#5602)", () => {
 
   it("reports flex-row on a slide-over head, allows sm:flex-row on the foot", async () => {
     const importLine = `import { SlideOverFooter, SlideOverHeader } from "~/components/ui/slide-over";`;
-    const bad = await lintSource(
-      `${importLine}\nfunction Probe() { return <SlideOverHeader className="flex-row gap-3" />; }\nvoid Probe;`,
-      "src/probe.tsx",
-    );
+    const [bad, good] = await Promise.all([
+      lintSource(
+        `${importLine}\nfunction Probe() { return <SlideOverHeader className="flex-row gap-3" />; }\nvoid Probe;`,
+        "src/probe.tsx",
+      ),
+      lintSource(
+        `${importLine}\nfunction Probe() { return <SlideOverFooter className="flex-col sm:flex-row" />; }\nvoid Probe;`,
+        "src/probe.tsx",
+      ),
+    ]);
     expect(bad.output).toContain("ui-kit(no-slide-over-row-override)");
-    const good = await lintSource(
-      `${importLine}\nfunction Probe() { return <SlideOverFooter className="flex-col sm:flex-row" />; }\nvoid Probe;`,
-      "src/probe.tsx",
-    );
     expect(good.output).not.toContain("no-slide-over-row-override");
+  });
+});
+
+describe.concurrent("ui-kit/button-needs-tooltip", () => {
+  const RULE = "ui-kit(button-needs-tooltip)";
+  const IN_SCOPE = "src/components/settings/probe.tsx";
+  const probe = (jsx: string, prelude = "") =>
+    `import { Button, ButtonLink, buttonClassName } from "~/components/ui/button";
+    import { ActionHint } from "~/components/ui/action-hint";
+    ${prelude}
+    export function Probe(props: Record<string, unknown>) {
+      void props; void ButtonLink; void buttonClassName; void ActionHint;
+      return ${jsx};
+    }`;
+
+  it.each([
+    [
+      "a string tooltip",
+      `<Button tooltip="Löscht das Bild sofort.">Löschen</Button>`,
+    ],
+    [
+      "a tooltip expression",
+      `<Button tooltip={props.busy ? "Lädt gerade." : "Speichert den Wert."}>Speichern</Button>`,
+    ],
+    [
+      "a tooltip passed through",
+      `<ButtonLink href="/x" tooltip={props.hint as string}>Öffnen</ButtonLink>`,
+    ],
+    ["spread props", `<Button {...props}>Weiter</Button>`],
+    [
+      "spread props before the tooltip",
+      `<Button {...props} tooltip="Öffnet die Akte.">Akte</Button>`,
+    ],
+    [
+      "a tooltip from a spread object literal",
+      `<Button {...{ tooltip: "Öffnet die Akte." }}>Akte</Button>`,
+    ],
+    [
+      "a tooltip after an empty spread object literal",
+      `<Button {...{ tooltip: "" }} tooltip="Öffnet die Akte.">Akte</Button>`,
+    ],
+    [
+      "a tooltip after a computed key in a spread object literal",
+      `<Button {...{ [props.key as string]: "" }} tooltip="Öffnet die Akte.">Akte</Button>`,
+    ],
+    [
+      "noTooltip with a reason",
+      `<Button noTooltip="Abbrechen schließt nur den Dialog.">Abbrechen</Button>`,
+    ],
+    [
+      "a button-looking label inside ActionHint",
+      `<ActionHint text="Lädt eine Datei hoch."><label className={buttonClassName({ variant: "outline", size: "md", className: "" })}>Datei</label></ActionHint>`,
+    ],
+  ])("accepts %s", async (_name, jsx) => {
+    const { output } = await lintSource(probe(jsx), IN_SCOPE);
+    expect(output).not.toContain(RULE);
+  });
+
+  it.each([
+    [
+      "a button without explanation",
+      `<Button>Löschen</Button>`,
+      "Knopf ohne Erklärung",
+    ],
+    [
+      "an empty noTooltip reason",
+      `<Button noTooltip="  ">Abbrechen</Button>`,
+      "braucht einen Grund",
+    ],
+    [
+      "an empty tooltip",
+      `<Button tooltip="">Löschen</Button>`,
+      "Leerer `tooltip`",
+    ],
+    [
+      "title instead of tooltip",
+      `<ButtonLink href="/x" title="Öffnet die Akte.">Akte</ButtonLink>`,
+      "`title` ersetzt keine Erklärung",
+    ],
+    [
+      "a spread object literal without tooltip",
+      `<Button {...{ type: "button" as const }}>Senden</Button>`,
+      "Knopf ohne Erklärung",
+    ],
+    [
+      "an empty tooltip in a spread object literal",
+      `<Button {...{ tooltip: "" }}>Löschen</Button>`,
+      "Leerer `tooltip`",
+    ],
+    [
+      "an undefined tooltip in a spread object literal",
+      `<Button {...{ tooltip: undefined }}>Löschen</Button>`,
+      "Leerer `tooltip`",
+    ],
+    [
+      "an empty noTooltip reason in a spread object literal",
+      `<Button {...{ noTooltip: "" }}>Abbrechen</Button>`,
+      "braucht einen Grund",
+    ],
+    [
+      "an undefined noTooltip reason in a spread object literal",
+      `<Button {...{ noTooltip: undefined }}>Abbrechen</Button>`,
+      "braucht einen Grund",
+    ],
+    [
+      "a tooltip overwritten by an empty spread object literal",
+      `<Button tooltip="Öffnet die Akte." {...{ tooltip: "" }}>Akte</Button>`,
+      "Leerer `tooltip`",
+    ],
+    [
+      "a tooltip overwritten by a later empty spread object literal",
+      `<Button {...{ tooltip: "Öffnet die Akte." }} {...{ tooltip: "" }}>Akte</Button>`,
+      "Leerer `tooltip`",
+    ],
+    [
+      "a noTooltip reason overwritten by an empty spread object literal",
+      `<Button noTooltip="Abbrechen schließt nur den Dialog." {...{ noTooltip: "" }}>Abbrechen</Button>`,
+      "braucht einen Grund",
+    ],
+    [
+      "tooltip and noTooltip from separate spread object literals",
+      `<Button {...{ tooltip: "Öffnet die Akte." }} {...{ noTooltip: "Abbrechen schließt nur den Dialog." }}>Akte</Button>`,
+      "dürfen nicht zusammen",
+    ],
+    [
+      "tooltip and noTooltip from an attribute and a spread object literal",
+      `<Button tooltip="Öffnet die Akte." {...{ noTooltip: "Abbrechen schließt nur den Dialog." }}>Akte</Button>`,
+      "dürfen nicht zusammen",
+    ],
+    [
+      "title in a spread object literal",
+      `<Button {...{ title: "Akte", tooltip: "Öffnet die Akte." }}>Akte</Button>`,
+      "`title` ersetzt keine Erklärung",
+    ],
+    [
+      "a button-looking anchor without ActionHint",
+      `<a href="/x" className={buttonClassName({ variant: "outline", size: "md", className: "" })}>PDF</a>`,
+      "in `ActionHint text=",
+    ],
+    [
+      "a button-looking label through a constant",
+      `<label className={look}>Datei</label>`,
+      "in `ActionHint text=",
+    ],
+    [
+      "an unknown spread after the tooltip",
+      `<Button tooltip="Öffnet die Akte." {...props}>Akte</Button>`,
+      "Spread vor die Erklärung",
+    ],
+    [
+      "a computed key after the tooltip in a spread object literal",
+      `<Button tooltip="Öffnet die Akte." {...{ [props.key as string]: "" }}>Akte</Button>`,
+      "Spread vor die Erklärung",
+    ],
+    [
+      "a noTooltip set to undefined",
+      `<Button noTooltip={undefined}>Abbrechen</Button>`,
+      "braucht einen Grund",
+    ],
+    [
+      "title next to a tooltip",
+      `<Button tooltip="Öffnet die Akte." title="Akte">Akte</Button>`,
+      "`title` ersetzt keine Erklärung",
+    ],
+    [
+      "title on a button-looking anchor inside ActionHint",
+      `<ActionHint text="Lädt die PDF herunter."><a href="/x" title="PDF" className={look}>PDF</a></ActionHint>`,
+      "`title` ersetzt keine Erklärung",
+    ],
+  ])("rejects %s", async (_name, jsx, message) => {
+    const { output } = await lintSource(
+      probe(
+        jsx,
+        `const look = buttonClassName({ variant: "outline", size: "md", className: "" });`,
+      ),
+      IN_SCOPE,
+    );
+    expect(output).toContain(RULE);
+    expect(output).toContain(message);
+  });
+
+  it("follows a class constant declared below the component", async () => {
+    const { output } = await lintSource(
+      `import { buttonClassName } from "~/components/ui/button";
+      export function Probe() {
+        return <a href="/x" className={look}>PDF</a>;
+      }
+      const look = buttonClassName({ variant: "outline", size: "md", className: "" });`,
+      IN_SCOPE,
+    );
+    expect(output).toContain(RULE);
+  });
+
+  it("covers listed folders and files, and nothing outside the list", async () => {
+    const source = probe(`<Button>Löschen</Button>`);
+    const [school, traeger, outside, story] = await Promise.all([
+      lintSource(source, "src/app/[tenant]/(protected)/settings/probe.tsx"),
+      lintSource(source, "src/app/traeger/einstellungen/probe/page.tsx"),
+      lintSource(source, "src/components/students/probe.tsx"),
+      lintSource(source, "src/components/settings/probe.stories.tsx"),
+    ]);
+    expect(school.output).toContain(RULE);
+    expect(traeger.output).toContain(RULE);
+    expect(outside.output).not.toContain(RULE);
+    expect(story.output).not.toContain(RULE);
   });
 });

@@ -7,14 +7,14 @@ import (
 	"strings"
 	"time"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	deliveryRuntime "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // invitationMailType names the mail of a staff invitation in the outbox.
@@ -55,8 +55,9 @@ func InvitationDependencies(wiring *InvitationWiring, owners identityPorts.Invit
 	}
 	backoff := wiring.Backoff
 	return &identityPorts.SchoolInvitationDependencies{
-		Grants: RoleGrantPolicy{},
-		Owners: owners,
+		PermissionGranted: securityruntime.HasPermission,
+		Grants:            RoleGrantPolicy{},
+		Owners:            owners,
 		DeliveryFor: func(invitations identityaccess.SchoolInvitationDeliveryRecorder) identityPorts.SchoolInvitationDelivery {
 			return invitationDelivery{
 				dispatcher: wiring.Dispatcher, durable: wiring.Durable, from: wiring.DefaultFrom, staffURL: wiring.StaffURL, schoolURL: wiring.SchoolURL,

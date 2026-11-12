@@ -5,14 +5,13 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
-	"strconv"
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // sessionUpdateContext holds state during session update to avoid passing many parameters.
@@ -55,6 +54,11 @@ func (s *workSessionService) UpdateSession(ctx context.Context, staffID int64, s
 
 	if err := s.ensureSelfEditJustified(ctx, session, updates); err != nil {
 		return nil, err
+	}
+	// Work cannot have started yet in the future. An open session with such a
+	// check-in could not be closed by the nightly cleanup (#6288).
+	if updates.CheckInTime != nil && !session.CheckInTime.Equal(*updates.CheckInTime) && updates.CheckInTime.After(s.now()) {
+		return nil, workforce.ErrSessionCheckInInFuture
 	}
 
 	return s.applySessionUpdate(ctx, staffID, session, updates)
@@ -155,8 +159,13 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 		notes:     updates.Notes,
 	}
 
+	recordedDay, recordedCheckIn := session.Date, session.CheckInTime
+	wasOpen := session.CheckOutTime == nil
 	s.applyTimeFieldUpdates(uc, updates)
 	s.applySimpleFieldUpdates(uc, updates)
+	if err := s.creditEditThatCloses(ctx, session, wasOpen); err != nil {
+		return nil, err
+	}
 
 	session.UpdatedBy = &editorStaffID
 	session.UpdatedAt = uc.now
@@ -164,15 +173,16 @@ func (s *workSessionService) applySessionUpdate(ctx context.Context, editorStaff
 	if err := session.Validate(); err != nil {
 		return nil, fmt.Errorf(errInvalidSessionData, err)
 	}
+	if err := checkEditedSessionDay(session, recordedDay, recordedCheckIn); err != nil {
+		return nil, err
+	}
 
 	// Edited times must not slide into a sibling block.
 	if err := s.assertNoBlockOverlap(ctx, session.StaffID, session.ID, session.CheckInTime, session.CheckOutTime); err != nil {
 		return nil, err
 	}
 
-	// Individual break edits write their rows immediately. Do that only after
-	// validation and the sibling-block check, so callers without an enclosing
-	// transaction cannot retain a partial break update after a rejected edit.
+	// Validate the proposed session and all pauses together before any write.
 	if err := s.applyBreakUpdates(ctx, uc, updates); err != nil {
 		return nil, err
 	}
@@ -228,6 +238,13 @@ func (s *workSessionService) CreateSessionAsAdmin(ctx context.Context, editorSta
 		UpdatedBy:    &editorStaffID,
 	}
 	session.SetTenantID(tenant.FromContext(ctx))
+	// A Nachtrag records times an admin enters, not a checkout: it gets the
+	// rounding of now and no pack-up minutes (#6851, #6852).
+	credit, err := s.closingCreditRule(ctx, false)
+	if err != nil {
+		return nil, err
+	}
+	session.setCreditRule(credit)
 
 	if err := session.Validate(); err != nil {
 		return nil, fmt.Errorf(errInvalidSessionData, err)
@@ -269,6 +286,29 @@ func validateAdminCreateSession(targetStaffID int64, req *AdminCreateSessionRequ
 	}
 	if req.BreakMinutes < 0 {
 		return workforce.ErrAdminBreakMinutesNegative
+	}
+	return checkInWithinSessionDay(calendar.DateFromTime(req.Date), req.CheckInTime)
+}
+
+// checkEditedSessionDay applies checkInWithinSessionDay only when an edit
+// changed the day or the check-in, so a row an earlier edit already broke can
+// still get its notes and be repaired.
+func checkEditedSessionDay(session *WorkSession, recordedDay calendar.Date, recordedCheckIn time.Time) error {
+	if session.Date == recordedDay && session.CheckInTime.Equal(recordedCheckIn) {
+		return nil
+	}
+	return checkInWithinSessionDay(session.Date, session.CheckInTime)
+}
+
+// checkInWithinSessionDay rejects a session filed on a day before its
+// check-in. The nightly cleanup closes a forgotten session at the end of its
+// day; that close must lie after the check-in (#6288).
+func checkInWithinSessionDay(day calendar.Date, checkIn time.Time) error {
+	// The day ends at the next Berlin midnight, not at 23:59:59: a check-in in
+	// the last second's fractions still belongs to it, on 23- and 25-hour days
+	// as well.
+	if !checkIn.Before(day.AddDays(1).BerlinMidnight()) {
+		return workforce.ErrSessionCheckInAfterDate
 	}
 	return nil
 }
@@ -340,7 +380,13 @@ func (s *workSessionService) assertNoBlockOverlap(ctx context.Context, staffID i
 // clock entirely (#2402); an admin IS the person who repairs it, so there a
 // Nachtrag keeps being refused while an open block is unresolved.
 func (s *workSessionService) closeStaleOpenBlock(ctx context.Context, session *WorkSession, at time.Time) error {
-	if err := s.endActiveBreakIfExists(ctx, session.ID, at); err != nil {
+	usable, err := inBestEffortSavepoint(ctx, func(ctx context.Context) error {
+		return s.endActiveBreakIfExists(ctx, session.ID, at)
+	})
+	if !usable {
+		return fmt.Errorf("failed to end active break of stale work session %d: %w", session.ID, err)
+	}
+	if err != nil {
 		// Mirrors CleanupOpenSessions: a break that cannot be ended must not
 		// keep the block open — that would leave the staff member unable to
 		// stamp, which is the very lockout this repair exists to prevent.
@@ -348,7 +394,11 @@ func (s *workSessionService) closeStaleOpenBlock(ctx context.Context, session *W
 			slog.Int64("session_id", session.ID),
 			slog.String("error", err.Error()))
 	}
-	_, err := s.repo.CloseWorkSession(ctx, session.ID, at, true)
+	credit, err := s.closingCreditRule(ctx, false)
+	if err != nil {
+		return err
+	}
+	_, err = s.repo.CloseWorkSession(ctx, session.ID, at, true, credit)
 	if err = workSessionWriteError("close session", err); err != nil {
 		return fmt.Errorf("failed to close stale work session %d: %w", session.ID, err)
 	}
@@ -464,90 +514,6 @@ func (s *workSessionService) applyTimeFieldUpdates(uc *sessionUpdateContext, upd
 		}
 		uc.session.CheckOutTime = updates.CheckOutTime
 	}
-}
-
-func (s *workSessionService) applyBreakUpdates(ctx context.Context, uc *sessionUpdateContext, updates SessionUpdateRequest) error {
-	strPtr := func(str string) *string { return &str }
-
-	if len(updates.Breaks) > 0 {
-		return s.processIndividualBreakUpdates(ctx, uc, updates.Breaks, strPtr)
-	}
-
-	if updates.BreakMinutes != nil {
-		oldVal := strconv.Itoa(uc.session.BreakMinutes)
-		newVal := strconv.Itoa(*updates.BreakMinutes)
-		if oldVal != newVal {
-			uc.addAuditEdit("break_minutes", strPtr(oldVal), strPtr(newVal))
-		}
-		uc.session.BreakMinutes = *updates.BreakMinutes
-	}
-	return nil
-}
-
-func (s *workSessionService) processIndividualBreakUpdates(ctx context.Context, uc *sessionUpdateContext, breaks []BreakDurationUpdate, strPtr func(string) *string) error {
-	sessionBreaksRecords, err := s.breakRepo.ListWorkSessionBreaks(ctx, workforce.WorkSessionBreakFilter{SessionID: uc.sessionID})
-	sessionBreaks := workSessionBreaksToRecords(sessionBreaksRecords)
-	err = rowReadError("get breaks by session ID", err, nil)
-	if err != nil {
-		return fmt.Errorf("failed to load session breaks: %w", err)
-	}
-
-	breakMap := make(map[int64]*WorkSessionBreak, len(sessionBreaks))
-	for _, b := range sessionBreaks {
-		breakMap[b.ID] = b
-	}
-
-	for _, bu := range breaks {
-		if err := s.updateSingleBreak(ctx, uc, breakMap, bu, strPtr); err != nil {
-			return err
-		}
-	}
-
-	if err := s.recalcBreakMinutes(ctx, uc.sessionID); err != nil {
-		return fmt.Errorf("failed to recalculate break minutes: %w", err)
-	}
-
-	// Keep the in-memory session consistent without reloading it. Reloading
-	// would discard time and status edits already validated above.
-	uc.session.BreakMinutes = 0
-	for _, brk := range sessionBreaks {
-		if brk.EndedAt != nil {
-			uc.session.BreakMinutes += brk.DurationMinutes
-		}
-	}
-	return nil
-}
-
-func (s *workSessionService) updateSingleBreak(ctx context.Context, uc *sessionUpdateContext, breakMap map[int64]*WorkSessionBreak, bu BreakDurationUpdate, strPtr func(string) *string) error {
-	brk, ok := breakMap[bu.ID]
-	if !ok {
-		return &workforce.TimeTrackingError{Kind: workforce.ErrBreakNotOwned, Cause: fmt.Errorf("break %d does not belong to this session", bu.ID)}
-	}
-	if brk.EndedAt == nil {
-		return workforce.ErrActiveBreakDurationEdit
-	}
-
-	if bu.DurationMinutes < 0 {
-		return workforce.ErrBreakDurationNegative
-	}
-
-	if brk.DurationMinutes == bu.DurationMinutes {
-		return nil
-	}
-
-	oldVal := strconv.Itoa(brk.DurationMinutes)
-	newEndedAt := brk.StartedAt.Add(time.Duration(bu.DurationMinutes) * time.Minute)
-	_, err := s.breakRepo.SetWorkSessionBreakDuration(ctx, bu.ID, bu.DurationMinutes, newEndedAt)
-	err = workSessionWriteError("update columns WorkSessionBreak", err)
-	if err != nil {
-		return fmt.Errorf("failed to update break %d: %w", bu.ID, err)
-	}
-	brk.DurationMinutes = bu.DurationMinutes
-	brk.EndedAt = &newEndedAt
-
-	newVal := strconv.Itoa(bu.DurationMinutes)
-	uc.addAuditEdit("break_duration", strPtr(oldVal), strPtr(newVal))
-	return nil
 }
 
 func (s *workSessionService) applySimpleFieldUpdates(uc *sessionUpdateContext, updates SessionUpdateRequest) {

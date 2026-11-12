@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
+	deliveryPorts "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
 
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/realtime"
 )
 
 // This file holds the small shared core of the parent-OGS conversation used
@@ -53,7 +53,7 @@ func AppendMessage(
 	if msg.SendReplayed {
 		return nil
 	}
-	return threadRepo.TouchLastMessage(ctx, msg.ThreadID, msg.CreatedAt, msg.ID, msg.SenderKind, msg.Body)
+	return threadRepo.TouchLastMessage(ctx, msg.ThreadID, msg.CreatedAt, msg.ID, msg.SenderKind, deliveryPorts.MessagePreview(msg.Body, msg.Attachments))
 }
 
 // MarkReadToNewest advances the reader's read cursor to the newest COUNTERPART

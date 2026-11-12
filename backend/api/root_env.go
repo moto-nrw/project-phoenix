@@ -6,11 +6,11 @@ import (
 	"strings"
 	"time"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	securityRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/securityruntime/compose"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	securityRuntimeCompose "github.com/moto-ogs/project-phoenix/modules/securityruntime/compose"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // newRootEnvironment validates the portal links of the configuration and
@@ -27,8 +27,13 @@ func newRootEnvironment(cfg owners.ServiceConfig, logger *slog.Logger, clock fun
 	if err != nil {
 		return owners.RootEnvironment{}, err
 	}
+	bankData, err := BankDataCipher(cfg.BankDataKeys, cfg.BankDataLegacyKeys)
+	if err != nil {
+		return owners.RootEnvironment{}, err
+	}
 	return owners.RootEnvironment{
-		Logger: logger, Config: cfg, Now: clock, Today: timezone.CalendarDateClock(clock),
+		BankData: bankData,
+		Logger:   logger, Config: cfg, Now: clock, Today: timezone.CalendarDateClock(clock),
 		Links: links, Observe: observe, HealthData: healthData,
 	}, nil
 }
@@ -83,4 +88,16 @@ func resolveServiceLinks(cfg owners.ServiceConfig) (owners.ServiceLinks, error) 
 		*link.target = value
 	}
 	return links, nil
+}
+
+// BankDataCipher has no implicit dependency on HEALTH_DATA_KEYS.
+func BankDataCipher(keys, legacyKeys string) (owners.BankDataCipher, error) {
+	if strings.TrimSpace(keys) == "" {
+		return nil, fmt.Errorf("root environment: BANK_DATA_KEYS is required")
+	}
+	cipher, err := securityRuntimeCompose.NewBankDataCipher(keys, legacyKeys)
+	if err != nil {
+		return nil, fmt.Errorf("root environment: BANK_DATA_KEYS / BANK_DATA_LEGACY_KEYS: %w", err)
+	}
+	return cipher, nil
 }

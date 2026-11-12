@@ -16,10 +16,10 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 type Store struct{}
@@ -208,7 +208,7 @@ const moduleNamesSQL = `ARRAY(SELECT s.module_name FROM care_contract.contract_v
 
 // summarySQL reads a contract with its current version (currentVersionOrderSQL) and its first
 // party; the filter follows.
-const summarySQL = `SELECT c.id, c.status, c.school_id, c.created_at, c.sent_at, c.concluded_at, c.conclusion_method,
+const summarySQL = `SELECT c.id, c.status, c.school_id, c.student_id, c.created_at, c.sent_at, c.concluded_at, c.conclusion_method,
 	c.ends_on, c.early_start_requested,
 	v.school_name, v.child_first_name, v.child_last_name, ` + moduleNamesSQL + ` AS module_names, v.effective_from,
 	COALESCE(p.first_name || ' ' || p.last_name, '') AS party_name, COALESCE(p.email, '') AS party_email
@@ -231,6 +231,7 @@ const listContractsSQL = summarySQL + ` AND (? = '' OR c.status = ?) AND (? = 0 
 const contractSQL = summarySQL + ` AND c.id = ?`
 
 type summaryRow struct {
+	StudentID      *int64        `bun:"student_id"`
 	ID             int64         `bun:"id"`
 	Status         string        `bun:"status"`
 	SchoolID       int64         `bun:"school_id"`
@@ -253,7 +254,7 @@ type summaryRow struct {
 
 func (r summaryRow) summary() carecontract.ContractSummary {
 	return carecontract.ContractSummary{
-		ID: r.ID, Status: r.Status, SchoolID: r.SchoolID, SchoolName: r.SchoolName,
+		ID: r.ID, StudentID: r.StudentID, Status: r.Status, SchoolID: r.SchoolID, SchoolName: r.SchoolName,
 		ChildFirstName: r.ChildFirstName, ChildLastName: r.ChildLastName, ModuleNames: nonNil(r.ModuleNames),
 		ModulesText: carecontract.JoinNames(r.ModuleNames),
 		PartyName:   strings.TrimSpace(r.PartyName), PartyEmail: r.PartyEmail, EffectiveFrom: r.EffectiveFrom,

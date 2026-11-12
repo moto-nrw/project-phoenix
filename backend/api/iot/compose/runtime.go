@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	feedbackModule "github.com/moto-ogs/project-phoenix/modules/feedback"
 )
 
 // Middleware is the native transport shape bound by Root.

@@ -9,6 +9,7 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { EditActions } from "~/components/ui/edit-actions";
 import { SectionLabel } from "~/components/ui/section-label";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
@@ -52,7 +53,8 @@ export function CareMealPriceModal({
   const [month, setMonth] = useState(currentMonth);
   const [mode, setMode] = useState<CareMealMode>("per_meal");
   const [amount, setAmount] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(school !== null);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -90,32 +92,31 @@ export function CareMealPriceModal({
       });
       return;
     }
-    setSaving(true);
-    try {
-      onSaved(
-        await saveCareMealTariff({
+    await save.run(async (op) => {
+      try {
+        const result = await saveCareMealTariff({
           schoolId: school.id,
           validFrom: month,
           mode,
           amountCents: cents,
-        }),
-      );
-      success(`Der Mensa-Preis gilt ab ${formatMonth(month)}.`);
-    } catch (err) {
-      logger.error("care_meal_price_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "die Preisangabe für die Mensa" });
-    } finally {
-      setSaving(false);
-    }
+        });
+        if (op.isCurrent()) onSaved(result);
+        success(`Der Mensa-Preis gilt ab ${formatMonth(month)}.`);
+      } catch (err) {
+        logger.error("care_meal_price_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "die Preisangabe für die Mensa" });
+      }
+    });
   };
 
   return (
     <FormModal
       isOpen={school !== null}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title={school ? `Mensa-Preis für ${school.name}` : "Mensa-Preis"}
       size="md"

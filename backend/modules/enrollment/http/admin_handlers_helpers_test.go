@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -23,6 +23,18 @@ func mkRequest(id int64, phaseID int64) *capability.Request {
 func mkChild(id int64) *capability.RequestChild {
 	return &capability.RequestChild{
 		ID: id,
+	}
+}
+
+func TestToAdminRequestSummary_PreservesHolidayCareWish(t *testing.T) {
+	t.Parallel()
+	for _, wish := range []*bool{nil, new(true), new(false)} {
+		out := toAdminRequestSummary(&RequestSummary{
+			Request:  &capability.Request{},
+			Children: []*capability.RequestChild{{HolidayCareWish: wish}},
+		})
+		require.Len(t, out.Children, 1)
+		assert.Equal(t, wish, out.Children[0].HolidayCareWish)
 	}
 }
 

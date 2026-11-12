@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
 )
 
 // childFeatureSettings holds the tenant settings behind ChildFeatureFlags,
@@ -19,6 +19,7 @@ type childFeatureSettings struct {
 	pickupChange       bool
 	pickupChangeMode   bool
 	pickupCutoff       SameDayCutoff
+	careDayEnd         string
 	inviteMode         string
 	canRemove          bool
 	masterEdit         bool
@@ -28,6 +29,7 @@ type childFeatureSettings struct {
 	news               bool
 	guardianManagement bool
 	reasonPolicy       string
+	careTerm           string
 }
 
 // childFeatureSettingKeys lists the settings ChildFeatures batch-resolves.
@@ -41,6 +43,7 @@ func childFeatureSettingKeys() []string {
 		KeyParentNotesEnabled,
 		KeyParentPickupChangeEnabled,
 		KeyParentPickupChangeCutoffTime,
+		KeySessionEndTime,
 		KeyParentCareModeRequestEnabled,
 		KeyGuardianParentInviteMode,
 		KeyGuardianParentCanRemove,
@@ -49,6 +52,7 @@ func childFeatureSettingKeys() []string {
 		KeyParentNewsEnabled,
 		KeyParentGuardianManagementEnabled,
 		KeyParentRequestReasonPolicy,
+		KeyEnrollmentCareFacilityTerm,
 	}
 }
 
@@ -100,6 +104,10 @@ func (s *Service) resolveChildFeatureSettings(ctx context.Context, tenantID int6
 	}
 	if out.pickupChange, out.pickupCutoff, err = s.resolvePickupChangeSettings(r); err != nil {
 		return out, err
+	}
+	// Today's pickup closes for guardians at the school's care day end (#5710).
+	if out.careDayEnd, err = r.resolveString(KeySessionEndTime); err != nil {
+		return out, fmt.Errorf("parent: resolve care day end: %w", err)
 	}
 	// The Abholart of one day (#3945) needs the one-day change and the
 	// school's permission to ask for a different Abholart at all.
@@ -201,6 +209,9 @@ func (r childSettingResolver) resolvePortalSettings(out *childFeatureSettings) e
 	}
 	if out.reasonPolicy, err = r.resolveString(KeyParentRequestReasonPolicy); err != nil {
 		return fmt.Errorf("parent: resolve reason policy: %w", err)
+	}
+	if out.careTerm, err = r.resolveString(KeyEnrollmentCareFacilityTerm); err != nil {
+		return fmt.Errorf("parent: resolve care facility term: %w", err)
 	}
 	return nil
 }

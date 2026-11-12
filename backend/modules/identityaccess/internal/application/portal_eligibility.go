@@ -5,8 +5,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // The readers the portals' session facts and claims share. What an account
@@ -76,15 +76,17 @@ func (s *AccountAuthentication) requireTraegerMember(ctx context.Context, accoun
 // traegerGrantsSchool: an active membership at an active Träger, the right
 // "In OGS wechseln", and a live, active school of that Träger. A school that
 // left the Träger ends the session at its next refresh; a school the Träger
-// gained is reachable without a grant of its own.
-func (s *AccountAuthentication) traegerGrantsSchool(ctx context.Context, accountID, organizationID, schoolID int64) error {
+// gained is reachable without a grant of its own. Mint and refresh hold the
+// school under a share lock after the account lock, so retirement cannot
+// finish while either still mints a session (#6305).
+func (s *AccountAuthentication) traegerGrantsSchool(ctx context.Context, accountID, organizationID, schoolID int64, r factReads) error {
 	if s.traeger == nil {
 		return errTraegerMembershipsUnavailable
 	}
 	if err := s.requireTraegerSchoolSwitch(ctx, accountID, organizationID); err != nil {
 		return err
 	}
-	school, found, err := s.schools.FindSchool(ctx, schoolID)
+	school, found, err := r.school(ctx, s, schoolID)
 	if err != nil {
 		return fmt.Errorf("look up school %d of a Träger school session: %w", schoolID, err)
 	}

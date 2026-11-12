@@ -10,6 +10,7 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { MultiSelect } from "~/components/ui/multi-select";
 import { NumberStepper } from "~/components/ui/number-stepper";
@@ -160,7 +161,8 @@ export function CareRuleModal({
   const [draft, setDraft] = useState<Draft>(() =>
     draftOf(null, kind, currentMonth, data.schools),
   );
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(open !== null);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -272,18 +274,19 @@ export function CareRuleModal({
       capCents: kind === "cap" ? cents : null,
       tariffSiblingPrice: kind === "sibling" && draft.effect === "tariff",
     };
-    setSaving(true);
-    try {
-      onSaved(await saveCareRule(open.rule?.id ?? null, input));
-      success(`Die Regel „${input.name}“ ist gespeichert.`);
-    } catch (err) {
-      logger.error("care_rule_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "die Regel" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        const result = await saveCareRule(open.rule?.id ?? null, input);
+        if (op.isCurrent()) onSaved(result);
+        success(`Die Regel „${input.name}“ ist gespeichert.`);
+      } catch (err) {
+        logger.error("care_rule_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "die Regel" });
+      }
+    });
   };
 
   // The backend names the amount by its parameter; the form shows one field.
@@ -309,7 +312,7 @@ export function CareRuleModal({
     <FormModal
       isOpen={open !== null}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title={
         open?.rule

@@ -8,9 +8,9 @@ import {
   LOCATION_COLORS,
   LOCATION_STATUSES,
   canSeeDetailedLocation,
+  dayStatusPresentation,
   getLocationColor,
   getLocationDisplay,
-  isNotCheckedInLocation,
   parseLocation,
 } from "@/lib/location-helper";
 
@@ -36,69 +36,28 @@ function formatLocationSince(
   }
 }
 
-/**
- * Determines how to display sickness status on the badge.
- * - If sick AND at home: replace "Zuhause" with "Krank"
- * - If sick AND present: show an additional "Krank" hint line
- */
-function getSickDisplayMode(
-  student: StudentLocationContext,
-): "replace" | "additional" | "none" {
-  if (!student.sick) return "none";
-
-  // If at home and sick, replace the badge entirely
-  if (isNotCheckedInLocation(student.current_location)) {
-    return "replace";
-  }
-
-  // If present somewhere but sick, show additional indicator
-  return "additional";
-}
+type DayStatusDisplayMode = "replace" | "additional" | "none";
 
 /**
- * Determines how to display excused status on the badge.
- * Mirrors the sick pattern:
- * - If excused AND at home: replace "Zuhause" with "Entschuldigt"
- * - If excused AND present: show additional "Entschuldigt" indicator
+ * How a day status (sick, class trip, excused, not arriving) shows on the
+ * badge. The rule lives in {@link dayStatusPresentation}: without a check-in
+ * the status replaces the location, a checked-in child keeps its location with
+ * the status as a hint line, and a child staff checked out to class reads
+ * "Im Unterricht" only (#5710).
  */
-function getExcusedDisplayMode(
+function dayStatusDisplayMode(
+  active: boolean | null | undefined,
   student: StudentLocationContext,
-): "replace" | "additional" | "none" {
-  if (!student.excused) return "none";
-
-  if (isNotCheckedInLocation(student.current_location)) {
-    return "replace";
+): DayStatusDisplayMode {
+  if (!active) return "none";
+  switch (dayStatusPresentation(student.current_location)) {
+    case "replace":
+      return "replace";
+    case "hint":
+      return "additional";
+    default:
+      return "none";
   }
-
-  return "additional";
-}
-
-function getClassTripDisplayMode(
-  student: StudentLocationContext,
-): "replace" | "additional" | "none" {
-  if (!student.class_trip) return "none";
-
-  if (isNotCheckedInLocation(student.current_location)) {
-    return "replace";
-  }
-
-  return "additional";
-}
-
-/**
- * Determines how to display "kommt heute nicht" (arrival-schedule exception with null time).
- * Same replace/additional pattern as sick/excused.
- */
-function getNotArrivalDisplayMode(
-  student: StudentLocationContext,
-): "replace" | "additional" | "none" {
-  if (!student.not_arrival_today) return "none";
-
-  if (isNotCheckedInLocation(student.current_location)) {
-    return "replace";
-  }
-
-  return "additional";
 }
 
 interface LocationBadgeProps {
@@ -152,18 +111,23 @@ export function LocationBadge({
 
   // An actual presence that contradicts the plan is the actionable state.
   // At home, the specific absence status keeps its existing precedence.
-  const notArrivalMode = getNotArrivalDisplayMode(student);
+  const notArrivalMode = dayStatusDisplayMode(
+    student.not_arrival_today,
+    student,
+  );
   const sickMode =
-    notArrivalMode === "additional" ? "none" : getSickDisplayMode(student);
+    notArrivalMode === "additional"
+      ? "none"
+      : dayStatusDisplayMode(student.sick, student);
   const classTripMode =
     notArrivalMode !== "additional" && sickMode === "none"
-      ? getClassTripDisplayMode(student)
+      ? dayStatusDisplayMode(student.class_trip, student)
       : "none";
   const excusedMode =
     notArrivalMode !== "additional" &&
     sickMode === "none" &&
     classTripMode === "none"
-      ? getExcusedDisplayMode(student)
+      ? dayStatusDisplayMode(student.excused, student)
       : "none";
 
   // Determine color based on display mode and permissions

@@ -7,18 +7,18 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
-	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
+	parentportalcompose "github.com/moto-ogs/project-phoenix/workflows/parentportal/compose"
 	"github.com/uptrace/bun"
 )
 
@@ -61,23 +61,26 @@ func buildParentServiceWithExcused(t *testing.T, excused careplan.ExcusedAbsence
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	bc := testpkg.NewRecordingBroadcaster()
 	return parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges: owners.ParentGuardianChanges(),
-		DeparturePolicy: owners.ParentDeparturePolicy(),
-		GuardianPolicy:  owners.NewParentGuardianPolicy(),
-		Fingerprints:    owners.SecurityFingerprints{},
-		Declarations:    owners.ParentDeclarationPolicy(),
-		Locales:         owners.ParentPortalLocales(),
-		Runtime:         owners.ParentPortalRuntime{},
-		CarePlan:        owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
-		People:          owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:    careProfiles(t, db),
-		ChildRepo:       repos.ParentChildReads(),
-		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     owners.NewParentStudentReads(reposPeople.Student),
-		Settings:        excusedApprovalSettings{requiresApproval: true},
-		StudentUpdates:  owners.BindParentStudentUpdates(bc),
-		ExcusedRequests: owners.NewParentExcusedAbsenceRequests(excused),
-		Logger:          slog.Default(),
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		GuardianProfileRepo: guardProfiles(t, db),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
+		CarePlan:            owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:              owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:        careProfiles(t, db),
+		ChildRepo:           repos.ParentChildReads(),
+		StatusDayRepo:       repos.StudentStatusDay,
+		StudentRepo:         owners.NewParentStudentReads(reposPeople.Student),
+		Settings:            excusedApprovalSettings{requiresApproval: true},
+		StudentUpdates:      owners.BindParentStudentUpdates(bc),
+		ExcusedRequests:     owners.NewParentExcusedAbsenceRequests(excused),
+		Logger:              slog.Default(),
 
 		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
 

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The Mensa of the monthly run (#4686, ADR 0168). The Träger sets for each
@@ -98,6 +98,8 @@ type CareMealPosition struct {
 	ReleaseVersion int `json:"release_version"`
 	// Key names the position for a change of the review (#6197).
 	Key string `json:"key,omitempty"`
+	// Accounts is where the position books, copied by the release (#4821).
+	Accounts PositionAccounts `json:"-"`
 }
 
 // CareBilledMealPosition is a child's Mensa month an issued invoice bills:
@@ -186,7 +188,7 @@ type CareMealRelease struct {
 // school still keeps; a month that starts before it can no longer be
 // released (the rule of the Mensa-Monatsfreigabe).
 type CareMeals interface {
-	ReleasedMealMonths(ctx context.Context, organizationID int64, until calendar.Date) ([]CareMealRelease, error)
+	ReleasedMealMonths(ctx context.Context, organizationID int64, from, until calendar.Date) ([]CareMealRelease, error)
 	MealAttendanceFrom(ctx context.Context, schoolIDs []int64) (map[int64]calendar.Date, error)
 }
 

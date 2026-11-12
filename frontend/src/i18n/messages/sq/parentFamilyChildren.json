@@ -14,5 +14,10 @@
   "pendingBadge": "Në kontroll",
   "pending": "Përgjigjja juaj nga {date}: {count, plural, one {1 fëmijë} other {# fëmijë}}. Ofruesi po e kontrollon.",
   "noRight": "Numrin e japin prindërit që mund të dërgojnë regjistrime për këtë fëmijë.",
-  "onlyNumber": "Ruajmë vetëm numrin. Emrat e fëmijëve të tjerë nuk na duhen."
+  "onlyNumber": "Ruajmë vetëm numrin. Emrat e fëmijëve të tjerë nuk na duhen.",
+  "enrollmentPending": "Të dhënat tuaja nga {date}: {count, plural, one {1 fëmijë} other {# fëmijë}}. Ofruesi i kontrollon kur të vijë kontrata juaj.",
+  "enrollmentSaved": "U ruajt. Numri do të kalojë në kontratën tuaj të kujdesit.",
+  "enrollmentClosed": "Fëmija juaj është pranuar. Numrin tani e ndryshoni në kontratën e kujdesit.",
+  "linkHint": "Deri në nënshkrim mund ta ndryshoni numrin këtu.",
+  "enrollmentHint": "Derisa fëmija juaj të pranohet, mund ta ndryshoni numrin këtu."
 }

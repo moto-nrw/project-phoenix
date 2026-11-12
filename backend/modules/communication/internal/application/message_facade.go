@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 type parentMessaging[I, T, M, G any] struct {
@@ -352,13 +352,14 @@ func mapParentMessage(row *ParentMessage) (communication.ParentMessage, error) {
 		RequestType: row.RequestType, RequestStatus: row.RequestStatus, Payload: payload,
 		RefTable: row.RefTable, RefID: row.RefID, AppliedAt: row.AppliedAt, AppliedBy: row.AppliedBy,
 		DecisionReason: row.DecisionReason, ReadByStaff: row.ReadByStaff, ReadByGuardian: row.ReadByGuardian,
-		GroupThreadID: row.GroupThreadID, GroupThreadTitle: row.GroupThreadTitle,
+		GroupThreadID: row.GroupThreadID, Attachments: row.Attachments, GroupThreadTitle: row.GroupThreadTitle,
 	}, nil
 }
 func mapStaffMessage(message *StaffMessage) communication.StaffMessage {
 	return communication.StaffMessage{
 		ID: message.ID, SenderAccountID: message.SenderAccountID, SenderName: message.SenderName,
 		ClientMessageID: message.ClientMessageID, SendReplayed: message.SendReplayed, Body: message.Body, CreatedAt: message.CreatedAt,
+		Attachments: message.Attachments,
 	}
 }
 func MapParentMessagingError(err error, kinds ParentMessageErrors) error {

@@ -7,9 +7,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -57,7 +58,7 @@ func buildCalendar(t *testing.T, db *bun.DB, observe func(Observation), federalS
 	gate func(context.Context) error, guard func(context.Context, int64, *schoolcalendar.CalendarPeriodFields) error,
 ) schoolcalendar.Calendar {
 	t.Helper()
-	records, err := NewRecords(RecordsDependencies{DB: db, Observe: observe, FederalState: federalState})
+	records, err := NewRecords(RecordsDependencies{ClosingDayReads: ownSchoolClosingDayReads(db), DB: db, Observe: observe, FederalState: federalState})
 	require.NoError(t, err)
 	module, err := NewAdministration(records, AdministrationDependencies{
 		DB: db, Observe: observe, RecurrenceGate: gate, CareOfferingGuard: guard, Today: func() string { return fixedToday },
@@ -542,4 +543,58 @@ func TestModuleRejectsInvalidHolidayWindowsBeforeTheEngine(t *testing.T) {
 	require.ErrorIs(t, err, schoolcalendar.ErrInvalidHolidayRange)
 	_, err = module.HolidayDates(context.Background(), "DE-NW", "not-a-date", "2026-06-01")
 	require.ErrorIs(t, err, schoolcalendar.ErrInvalidHolidayRange)
+}
+
+// Owner tests supply only their own persisted calendar facts. Cross-owner
+// inheritance is exercised through the typed root in the external suite.
+type ownClosingDayReads struct{ runtime PersistenceRuntime }
+
+func ownSchoolClosingDayReads(db *bun.DB) schoolcalendar.ClosingDayReads {
+	return ownClosingDayReads{runtime: PersistenceRuntimeFor(db)}
+}
+
+type ownClosingDayRow struct {
+	ID        int64
+	StartDate calendar.Date
+	EndDate   calendar.Date
+	Reason    string
+}
+
+func (r ownClosingDayReads) ListClosingDays(ctx context.Context, filter schoolcalendar.ClosingDayFilter) ([]schoolcalendar.ClosingDay, error) {
+	db, err := r.runtime.Database(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var rows []ownClosingDayRow
+	from, to := filter.OverlappingFrom, filter.OverlappingTo
+	if from == "" {
+		from, to = "0001-01-01", "9999-12-31"
+	}
+	if err := db.NewRaw(`SELECT id, start_date, end_date, reason FROM schedule.closing_days
+        WHERE tenant_id = ? AND start_date <= ? AND end_date >= ? ORDER BY start_date, id`, r.runtime.TenantID(ctx), calendar.Date(to), calendar.Date(from)).Scan(ctx, &rows); err != nil {
+		return nil, err
+	}
+	result := make([]schoolcalendar.ClosingDay, 0, len(rows))
+	for _, row := range rows {
+		result = append(result, schoolcalendar.ClosingDay{ID: row.ID, StartDate: row.StartDate.String(), EndDate: row.EndDate.String(), Reason: row.Reason})
+	}
+	return result, nil
+}
+func (r ownClosingDayReads) ListCareCalendarRanges(ctx context.Context, from, to string) ([]schoolcalendar.ClosingDay, []schoolcalendar.ClosingDay, error) {
+	closing, err := r.ListClosingDays(ctx, schoolcalendar.ClosingDayFilter{OverlappingFrom: from, OverlappingTo: to})
+	if err != nil {
+		return nil, nil, err
+	}
+	db, err := r.runtime.Database(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	var rows []ownClosingDayRow
+	err = db.NewRaw(`SELECT id, start_date, end_date, '' AS reason FROM schedule.calendar_periods
+        WHERE tenant_id = ? AND period_type = ? AND is_active AND start_date <= ? AND end_date >= ?`, r.runtime.TenantID(ctx), schoolcalendar.PeriodTypeHoliday, calendar.Date(to), calendar.Date(from)).Scan(ctx, &rows)
+	var holidays []schoolcalendar.ClosingDay
+	for _, row := range rows {
+		holidays = append(holidays, schoolcalendar.ClosingDay{StartDate: row.StartDate.String(), EndDate: row.EndDate.String()})
+	}
+	return closing, holidays, err
 }

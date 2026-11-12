@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/modules/grouplive"
+	"github.com/moto-ogs/project-phoenix/modules/grouplive"
 )
 
 // The People Directory read ports of the room snapshot export and the live
@@ -30,6 +30,25 @@ func GroupRosterPeople(source groupRosterSource) GroupRoster {
 		return nil
 	}
 	return groupRosterPeople{source: source}
+}
+
+// GroupMemberIDs returns the participation candidates of many groups in one
+// read, by group.
+func (p groupRosterPeople) GroupMemberIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error) {
+	members := make(map[int64][]int64, len(groupIDs))
+	if len(groupIDs) == 0 {
+		return members, nil
+	}
+	students, err := p.source.GetParticipationCandidatesByGroupIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, err
+	}
+	for _, student := range students {
+		if student != nil && student.GroupID != nil {
+			members[*student.GroupID] = append(members[*student.GroupID], student.ID)
+		}
+	}
+	return members, nil
 }
 
 // GroupMembers returns the participation candidates of the group with their

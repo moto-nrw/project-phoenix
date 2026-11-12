@@ -7,24 +7,24 @@ import (
 	"log/slog"
 	"time"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
 
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	blockDisplayCompose "github.com/moto-nrw/project-phoenix/modules/timetableblockdisplay/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	careplanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/compose/presenceservice"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	arrivalTimetable "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	blockDisplayCompose "github.com/moto-ogs/project-phoenix/modules/timetableblockdisplay/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // TimetableTestModule is the Timetable owner's instance lifecycle, planning,
@@ -143,9 +143,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		return TimetableTestModule{}, nil, nil, err
 	}
 	rows := r.TimetableTemplateRows()
-	materializationDeps := owners.TimetableMaterializationDependencies(rows, members.Student, calendar, recurrenceLock, hub, logger)
-	materializationDeps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
-	materialization, err := arrivalTimetable.NewMaterialization(materializationDeps)
+	materialization, err := newTimetableTestMaterialization(db, owners.TimetableMaterializationDependencies(rows, members.Student, calendar, recurrenceLock, hub, logger))
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
@@ -169,7 +167,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		IdempotencyRepo: r.InstanceIdempotency, ExceptionRepo: r.ActivityException, CalendarPeriodRepo: r.CalendarPeriod, Database: arrivalTimetable.NewTenantDatabase(db.Pool()),
 		StaffRepo: owners.NewTimetableStaff(members.Staff), ActiveGroupRepo: presence.ActiveGroup, SupervisorRepo: presence.GroupSupervisor,
 		Presence: owners.NewLoggedStudentPresence(db, logger), ActiveService: ender, CareDayLocks: carePlan,
-		Materialization: materialization, RecurrenceLock: recurrenceLock,
+		Materialization: materialization, SickReports: owners.NewTimetableSickReports(owners.MustNewWorkforce(db)), RecurrenceLock: recurrenceLock,
 		StartConflicts: conflicts, SubstituteConflicts: substituteConflicts, Logger: logger, Now: now,
 	}, lifecycleRows, careDay, nil, settings.Settings, hub)
 	if err != nil {
@@ -187,7 +185,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
-	templateDeps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
+	templateDeps = withTimetableTestTemplateRuntime(db, templateDeps)
 	templates, _, err := arrivalTimetable.NewTemplateAdministration(templateDeps)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
@@ -197,7 +195,7 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
 	}
-	deviationDeps.Locks = arrivalTimetable.NewTenantDatabase(db.Pool())
+	deviationDeps.Locks, deviationDeps.SickReports = arrivalTimetable.NewTenantDatabase(db.Pool()), owners.NewTimetableSickReports(owners.MustNewWorkforce(db))
 	deviations, err := arrivalTimetable.NewStaffDeviations(deviationDeps)
 	if err != nil {
 		return TimetableTestModule{}, nil, nil, err
@@ -212,4 +210,22 @@ func NewTimetableTestModule(db transactionruntime.Database, unit tenant.UnitOfWo
 		AttendanceCorrections: corrections, Deviations: deviations,
 	}
 	return TimetableTestModule{Instance: instance, TimetableData: planning, ConflictDetection: conflicts, Materialization: materialization}, calendar, hub, nil
+}
+
+// newTimetableTestMaterialization binds the recurrence engine to db the way
+// the composition root does: its tenant transactions and Workforce's open
+// sick reports (#6292).
+func newTimetableTestMaterialization(db transactionruntime.Database, deps timetablePorts.MaterializationDependencies) (timetable.MaterializationCapability, error) {
+	deps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
+	deps.SickReports = owners.NewTimetableSickReports(owners.MustNewWorkforce(db))
+	return arrivalTimetable.NewMaterialization(deps)
+}
+
+// withTimetableTestTemplateRuntime binds the template writes to db the way
+// the composition root does: tenant transactions and Workforce's open sick
+// reports (#6292).
+func withTimetableTestTemplateRuntime(db transactionruntime.Database, deps timetablePorts.TemplateAdministrationDependencies) timetablePorts.TemplateAdministrationDependencies {
+	deps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
+	deps.SickReports = owners.NewTimetableSickReports(owners.MustNewWorkforce(db))
+	return deps
 }

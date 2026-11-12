@@ -7,14 +7,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 type careOfferingsChildRepoStub struct {
@@ -262,7 +262,9 @@ func careOfferingsService(
 	child *ChildSummary,
 	changes *offeringChangesStub,
 ) *Service {
+	guard := newSummaryGuard(careOfferingsAccountID, child)
 	svc := &Service{Config: Config{CarePlanPolicy: carePlanFixturePolicy{}, Runtime: testpkg.TenantTransactionRuntime{},
+		Memberships: guard.lock, GuardianHold: guard.hold, GuardianProfileRepo: guard.profiles(), StudentGuardianRepo: guard.relationships(), GuardianPolicy: summaryGuardPolicy{},
 		RequestSharing: unconfiguredRequestSharer{},
 		ChildRepo:      careOfferingsChildRepoStub{child: child},
 		StudentRepo:    careOfferingsStudentReads(StudentReads.FindByIDForUpdate),
@@ -276,6 +278,9 @@ func careOfferingsService(
 	}
 	return svc
 }
+
+// careOfferingsAccountID is the guardian account the offering tests act as.
+const careOfferingsAccountID int64 = 11
 
 func TestGetChildCareOfferingsReturnsCompleteSortedView(t *testing.T) {
 	t.Parallel()

@@ -6,8 +6,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
@@ -32,6 +33,9 @@ func (s *Store) FindPlanningTrack(ctx context.Context, id int64, lock string) (t
 	row := planningTrackRow{}
 	query := planningTrackSelect(db, &row, tenantID).Where(`"planning_track".id = ?`, id)
 	if lock != "" {
+		if err := tenant.OrderLock(ctx, tenant.LockReference, "schedule.planning_tracks"); err != nil {
+			return timetable.PlanningTrack{}, false, domain.OperationStats{}, err
+		}
 		query = query.For(lock)
 	}
 	found, stats, err := scanOne(ctx, query, "find planning track")
@@ -142,6 +146,9 @@ func (s *Store) SetPlanningTrackArchivedAt(ctx context.Context, id int64, value 
 func (s *Store) ReorderPlanningTracks(ctx context.Context, ids []int64) (domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil || len(ids) == 0 {
+		return domain.OperationStats{}, err
+	}
+	if err := tenant.OrderLock(ctx, tenant.LockReference, "schedule.planning_tracks"); err != nil {
 		return domain.OperationStats{}, err
 	}
 	activeRows := []struct {

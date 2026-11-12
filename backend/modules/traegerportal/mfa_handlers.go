@@ -9,10 +9,10 @@ import (
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // The second factor of the Träger-Portal (ADR 0084, #4651). The e-mailed code
@@ -35,9 +35,10 @@ type MFARuntime struct {
 	VerifyChallengeForOwner func(ctx context.Context, challengeToken, code string, accountID int64) (VerifiedChallenge, error)
 	// ResendChallenge re-issues the code and answers with the renewed JWT.
 	ResendChallenge func(ctx context.Context, challengeToken string, ip net.IP) (string, error)
-	// StartChallenge mails the enrollment code and names its row.
-	StartChallenge func(ctx context.Context, accountID int64, ip net.IP) (string, error)
-	Enroll         func(ctx context.Context, accountID int64) error
+	// StartChallenge mails the enrollment code and names its row; it is bound
+	// to the credential generation the enrollment token names (#6289).
+	StartChallenge func(ctx context.Context, accountID int64, ip net.IP, credentialGeneration int64) (string, error)
+	Enroll         func(ctx context.Context, proof VerifiedChallenge) error
 }
 
 func (rt *MFARuntime) complete() bool {
@@ -116,7 +117,7 @@ func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	accountID := claims.AccountID
-	challengeToken, err := rs.mfa.StartChallenge(r.Context(), accountID, common.ParseClientIP(r))
+	challengeToken, err := rs.mfa.StartChallenge(r.Context(), accountID, common.ParseClientIP(r), claims.CredentialGeneration)
 	if err != nil {
 		portalauth.Render(w, r, err, portalauth.MFARules)
 		return
@@ -148,7 +149,8 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 		portalauth.Render(w, r, err, portalauth.MFARules)
 		return
 	}
-	if err := rs.mfa.Enroll(r.Context(), accountID); err != nil && !errors.Is(err, identityaccess.ErrMFAAlreadyEnrolled) {
+	// The enrollment holds the redeemed code's credential generation (#6518).
+	if err := rs.mfa.Enroll(r.Context(), verified); err != nil && !errors.Is(err, identityaccess.ErrMFAAlreadyEnrolled) {
 		portalauth.Render(w, r, err, portalauth.MFARules)
 		return
 	}

@@ -7,20 +7,20 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
-	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	careContractCompose "github.com/moto-ogs/project-phoenix/modules/carecontract/compose"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	parentBillingCompose "github.com/moto-ogs/project-phoenix/modules/parentbilling/compose"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
+	parentportalcompose "github.com/moto-ogs/project-phoenix/workflows/parentportal/compose"
 )
 
 // The document inbox of the parents portal (#4671, ADR 0126): the root binds
@@ -91,9 +91,13 @@ type parentContractDocuments struct {
 }
 
 // NewParentContractDocuments binds the inbox's contracts to the
-// Betreuungsvertrag; signing is the signature in the inbox (#4679).
-func NewParentContractDocuments(signing carecontract.InboxSigning) parentportal.ContractDocumentsPort {
-	return parentContractDocuments{inbox: careContractCompose.NewInbox(), billing: careContractCompose.NewContractVersions(), signing: signing}
+// Betreuungsvertrag; signing is the signature in the inbox (#4679), holidays
+// dates the withdrawal period the list offers (#6350).
+func NewParentContractDocuments(signing carecontract.InboxSigning, holidays carecontract.SchoolHolidays) parentportal.ContractDocumentsPort {
+	if holidays == nil {
+		panic("parent contract documents: the school holidays are required")
+	}
+	return parentContractDocuments{inbox: careContractCompose.NewInbox(holidays), billing: careContractCompose.NewContractVersions(), signing: signing}
 }
 
 func (d parentContractDocuments) ListContractDocuments(ctx context.Context, organizationID int64, reader parentportal.BillingDocumentReader) ([]parentportal.BillingDocument, error) {
@@ -174,12 +178,17 @@ func (t parentSchoolTraeger) TraegerOfSchools(ctx context.Context, schoolIDs []i
 
 // parentAccounts binds the address of an account to Identity & Access.
 type parentAccounts struct {
+	identityaccess.AccountPortalLocales
 	accounts identityaccess.GuardianAccessQuery
 }
 
 // NewParentAccounts binds the accounts of the inbox.
 func NewParentAccounts(accounts identityaccess.GuardianAccessQuery) parentportal.ParentAccountsPort {
-	return parentAccounts{accounts: accounts}
+	locales, ok := accounts.(identityaccess.AccountPortalLocales)
+	if !ok {
+		panic("parent accounts: account portal locales are required")
+	}
+	return parentAccounts{accounts: accounts, AccountPortalLocales: locales}
 }
 
 func (a parentAccounts) AccountEmail(ctx context.Context, accountID int64) (string, error) {

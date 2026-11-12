@@ -6,24 +6,24 @@ import (
 	"sync"
 	"testing"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	timetable "github.com/moto-ogs/project-phoenix/modules/timetable"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanTest "github.com/moto-ogs/project-phoenix/modules/careplan/careplantest"
+	enrollmentTest "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The enrollment decision fixture the Care Plan suites drive their bookings
@@ -371,6 +371,7 @@ func composeDecisions(
 		Notifications:  testNotifications(repoFactory.Enrollment(), settings, nil),
 		Bookings:       bookings,
 		GuardianAccess: guardianAccess, GuardianAuthorizer: repoFactoryPeople.StudentGuardian,
+		GuardianHold: owners.NewEnrollmentGuardianHold(testpkg.MustDatabase(db), repoFactoryPeople.StudentGuardian, repoFactoryPeople.Student, repoFactoryPeople.GuardianProfile, nil),
 		People: owners.EnrollmentDecisionPeopleDirectory(
 			repoFactoryPeople.Person, repoFactoryPeople.Staff, repoFactoryPeople.Student, repoFactoryPeople.StudentGuardian, repoFactoryPeople.GuardianProfile, repoFactoryPeople.GuardianPhoneNumber, students,
 		),
@@ -443,7 +444,7 @@ func newChangeRequestServiceWithDecisionForTest(t *testing.T, env *decisionTestE
 		GuardianProfileRepo: env.reposPeople.GuardianProfile,
 		GuardianPhoneRepo:   env.reposPeople.GuardianPhoneNumber,
 		StudentRepo:         env.reposPeople.Student,
-		GuardianAuthorizer:  env.reposPeople.StudentGuardian,
+		GuardianHold:        owners.NewEnrollmentGuardianHold(testpkg.MustDatabase(env.db), env.reposPeople.StudentGuardian, env.reposPeople.Student, env.reposPeople.GuardianProfile, nil),
 		Decisions:           env.decisions,
 		BookingGates:        env.bookings,
 		Settings:            env.settings,

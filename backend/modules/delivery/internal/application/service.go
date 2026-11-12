@@ -10,9 +10,9 @@ import (
 	"strings"
 	"time"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/ports"
 )
 
 // Service is the public durable Delivery capability: it validates and
@@ -269,6 +269,48 @@ func (s *Service) TraegerEmailStatuses(ctx context.Context, organizationID int64
 	return intentStatuses(deliveryContract.TransportEmail, rows)
 }
 
+// TraegerEmailStatusesByKey reports the mails of a Träger by idempotency
+// key (ADR 0196) in the caller's Träger transaction of that Träger.
+func (s *Service) TraegerEmailStatusesByKey(ctx context.Context, organizationID int64, keys []string) (statuses []deliveryContract.Status, err error) {
+	if organizationID <= 0 {
+		return nil, errors.New("delivery: Träger is required")
+	}
+	if len(keys) == 0 {
+		return []deliveryContract.Status{}, nil
+	}
+	started := time.Now()
+	var rows []domain.Intent
+	defer func() {
+		s.observe(domain.Observation{Operation: "status_query", Transport: string(domain.TransportEmail), Duration: time.Since(started), Count: len(rows), Err: err})
+	}()
+	rows, err = s.store.TraegerEmailStatusesByKey(ctx, organizationID, keys)
+	if err != nil {
+		return nil, err
+	}
+	return intentStatuses(deliveryContract.TransportEmail, rows)
+}
+
+// RetryFailedTraegerEmails makes the Träger's dead letters of keys with a
+// known failure due again; it keeps their idempotency keys, so each stays
+// the same mail.
+func (s *Service) RetryFailedTraegerEmails(ctx context.Context, organizationID int64, keys []string) (retried int64, err error) {
+	if organizationID <= 0 {
+		return 0, errors.New("delivery: Träger is required")
+	}
+	if len(keys) == 0 {
+		return 0, nil
+	}
+	started := time.Now()
+	defer func() {
+		s.observe(domain.Observation{Operation: "traeger_retry", Transport: string(domain.TransportEmail), Duration: time.Since(started), Count: int(retried), Err: err})
+	}()
+	retried, err = s.store.RetryFailedTraegerEmails(ctx, organizationID, keys)
+	if err != nil {
+		return 0, fmt.Errorf("delivery: retry failed Träger mails: %w", err)
+	}
+	return retried, nil
+}
+
 // intentStatuses reports stored intents in the public status shape.
 func intentStatuses(transport deliveryContract.Transport, rows []domain.Intent) ([]deliveryContract.Status, error) {
 	statuses := make([]deliveryContract.Status, 0, len(rows))
@@ -432,4 +474,26 @@ func boolCount(value bool) int {
 		return 1
 	}
 	return 0
+}
+
+// UnresolvedHolidayClosureEmails reports recovery metadata without recipients or message content.
+func (s *Service) UnresolvedHolidayClosureEmails(ctx context.Context, organizationID int64) ([]deliveryContract.HolidayClosureMailRecovery, error) {
+	if organizationID <= 0 {
+		return nil, errors.New("delivery: Träger is required")
+	}
+	rows, err := s.store.UnresolvedHolidayClosureEmails(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]deliveryContract.HolidayClosureMailRecovery, 0, len(rows))
+	for _, row := range rows {
+		if row.IdempotencyKey == nil {
+			continue
+		}
+		result = append(result, deliveryContract.HolidayClosureMailRecovery{
+			IdempotencyKey: *row.IdempotencyKey,
+			Unknown:        row.LastError != nil && *row.LastError == deliveryContract.DispatchOutcomeUnknown,
+		})
+	}
+	return result, nil
 }

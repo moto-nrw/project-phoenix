@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -100,5 +100,5 @@ func TestHolidayRegistrationsFollowTheTraegerPolicy(t *testing.T) {
 			VALUES (?, 'holiday_registration_received', '{}'::jsonb, '{}'::jsonb)`, own)
 		return err
 	})
-	assert.ErrorContains(t, err, "row-level security", "a Träger cannot queue a mail for another Träger")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "a Träger cannot queue a mail for another Träger")
 }

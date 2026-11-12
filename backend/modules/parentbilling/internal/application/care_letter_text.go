@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/templates"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/templates"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The letters of a monthly invoice and of its Storno (#4684, ADR 0165). They
@@ -127,6 +127,9 @@ func careLetterFrame(content careLetterContent, title, subject string) Letter {
 func careLetterFacts(content careLetterContent, numbers []LetterFact) []LetterFact {
 	facts := append(numbers, LetterFact{Label: "Kind", Value: fullName(content.invoice.ChildFirstName, content.invoice.ChildLastName)},
 		LetterFact{Label: "Monat", Value: careMonthName(content.run.BillingMonth)})
+	if content.invoice.DebtorNumber != "" {
+		facts = append(facts, LetterFact{Label: "Debitorennummer", Value: content.invoice.DebtorNumber})
+	}
 	switch {
 	case content.cancellation != nil:
 		facts = append(facts, LetterFact{Label: "Datum", Value: germanDate(content.cancellation.IssuedOn)})
@@ -190,10 +193,8 @@ func isMonthEnd(date calendar.Date) bool {
 	return date.IsZero() || date.AddDays(1).Day() == 1
 }
 
-// carePaymentText asks for the transfer. The Träger's own payment text fills
-// in amount, date and number; a monthly invoice has no debtor number yet
-// (#4689), so a text that names one falls back to the built-in sentence,
-// which never prints a gap where the reference belongs.
+// carePaymentText fills the payment text with the issued invoice values.
+// Without a debtor number, a text requiring it falls back to the invoice number.
 func carePaymentText(content careLetterContent) string {
 	invoice := content.invoice
 	if invoice.TotalCents == 0 && len(invoice.CostShares) > 0 {
@@ -206,11 +207,12 @@ func carePaymentText(content careLetterContent) string {
 	if isDirectDebit(invoice.Payment) {
 		return directDebitText(invoice.TotalCents, due, "Rechnungsnummer "+invoice.Number, paymentMandate(invoice.Payment))
 	}
-	if text := strings.TrimSpace(content.letterhead.PaymentText); text != "" && !strings.Contains(text, placeholderDebtorNumber) {
+	if text := strings.TrimSpace(content.letterhead.PaymentText); text != "" && (invoice.DebtorNumber != "" || !strings.Contains(text, placeholderDebtorNumber)) {
 		return strings.NewReplacer(
 			placeholderAmount, formatEuro(invoice.TotalCents),
 			placeholderPaymentDueOn, germanDate(due),
 			placeholderInvoiceNumber, invoice.Number,
+			placeholderDebtorNumber, invoice.DebtorNumber,
 		).Replace(text)
 	}
 	return fmt.Sprintf("Bitte überweisen Sie %s bis zum %s auf das Konto unten. Geben Sie als Verwendungszweck die Rechnungsnummer %s an.",
@@ -289,7 +291,7 @@ func careNoticeLetter(content careLetterContent) Letter {
 }
 
 // careNoticeValues are the values of every placeholder of the fee notice for
-// one monthly invoice. A monthly invoice has no debtor number yet (#4689).
+// one monthly invoice, including its debtor number at issue.
 func careNoticeValues(content careLetterContent) map[string]templates.Value {
 	invoice, head := content.invoice, content.letterhead
 	text := func(value string) templates.Value { return templates.Value{Text: strings.TrimSpace(value)} }
@@ -314,7 +316,7 @@ func careNoticeValues(content careLetterContent) map[string]templates.Value {
 		"rueckfragen":     text(questionText(head)),
 		"zeitraum":        text(careMonthName(content.run.BillingMonth)),
 		"bescheidnummer":  text(invoice.Number),
-		"debitorennummer": {},
+		"debitorennummer": text(invoice.DebtorNumber),
 		"positionen":      {Rows: rows},
 		"summe":           text(formatEuro(invoice.TotalCents)),
 		// The built-in sentence names the number of the notice (#4688).

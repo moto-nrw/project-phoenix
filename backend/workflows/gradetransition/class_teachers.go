@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
 )
 
 // classRenames builds the rename map an apply implies: trimmed from-class to
@@ -58,6 +58,9 @@ func (w *Workflow) remapClassTeacherAssignments(ctx context.Context, transitionI
 	if len(affected) == 0 {
 		return nil
 	}
+	if err := w.lockClassAssignmentStaff(ctx, affected); err != nil {
+		return fmt.Errorf("failed to lock class teacher staff: %w", err)
+	}
 	ledger, err := w.removeTransitionClassAssignments(ctx, transitionID, affected)
 	if err != nil {
 		return err
@@ -87,6 +90,17 @@ func (w *Workflow) remapClassTeacherAssignments(ctx context.Context, transitionI
 		return fmt.Errorf("failed to record class teacher ledger: %w", translateStructureError(err))
 	}
 	return nil
+}
+
+// lockClassAssignmentStaff locks every affected membership in one ascending
+// query before assignment writes, whose class order differs from staff ID order.
+func (w *Workflow) lockClassAssignmentStaff(ctx context.Context, assignments []schoolmembership.ClassAssignment) error {
+	staffIDs := make([]int64, 0, len(assignments))
+	for _, assignment := range assignments {
+		staffIDs = append(staffIDs, assignment.StaffID)
+	}
+	_, err := w.deps.Membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: staffIDs, ForMutation: true, MembershipOnly: true})
+	return err
 }
 
 // revertClassTeacherAssignments replays the ledger backwards: rows the apply
@@ -132,8 +146,8 @@ func (w *Workflow) revertClassTeacherAssignments(ctx context.Context, transition
 	return nil
 }
 
-// liveLedgerStaff resolves which staff members named in the ledger still
-// exist as live rows; an offboarded staff member drops out of the map.
+// liveLedgerStaff locks the ledger's staff in ascending ID order before any
+// assignment is replayed; offboarded staff stay out of the live map.
 func (w *Workflow) liveLedgerStaff(ctx context.Context, ledger []schoolstructure.TransitionClassTeacherEntry) (map[int64]bool, error) {
 	staffIDs := make([]int64, 0, len(ledger))
 	seen := make(map[int64]bool, len(ledger))
@@ -148,7 +162,7 @@ func (w *Workflow) liveLedgerStaff(ctx context.Context, ledger []schoolstructure
 	if len(staffIDs) == 0 {
 		return live, nil
 	}
-	rows, err := w.deps.Membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: staffIDs, MembershipOnly: true})
+	rows, err := w.deps.Membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: staffIDs, ForMutation: true, MembershipOnly: true})
 	if err != nil {
 		return nil, fmt.Errorf("failed to resolve ledger staff: %w", err)
 	}

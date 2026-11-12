@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
 // GuardianStore is the row-level persistence port over
@@ -34,6 +34,7 @@ type GuardianStore interface {
 	ListAccountLinksByStudents(context.Context, []int64) ([]peopledirectory.GuardianLink, domain.OperationStats, error)
 	GuardianPortalWrites
 	GuardianLifecycleWrites
+	GuardianImportWrites
 }
 
 // GuardianLinkOwners are the owners of the other two halves of a
@@ -47,6 +48,28 @@ type GuardianLinkOwners interface {
 	ChangeGuardianPickupPermission(ctx context.Context, tenantID, relationshipID int64, canPickup *bool, setNotes bool, notes *string) (bool, error)
 	GrantGuardianStudentAccess(ctx context.Context, tenantID, relationshipID int64, accountID *int64, permissions json.RawMessage) error
 	SetGuardianStudentPermissions(ctx context.Context, tenantID, relationshipID int64, permissions json.RawMessage) (bool, error)
+	GuardianLinkOwnerBatches
+}
+
+// GuardianImportWrites are the bundled writes of the data import's new
+// guardians (#5552): one statement each, in the caller's transaction.
+type GuardianImportWrites interface {
+	// InsertNewGuardians inserts the profiles and returns their ids
+	// index-aligned with the input.
+	InsertNewGuardians(context.Context, []domain.NewGuardianProfile) ([]int64, domain.OperationStats, error)
+	// InsertNewGuardianPhones inserts the phone rows.
+	InsertNewGuardianPhones(context.Context, []domain.NewGuardianPhone) (domain.OperationStats, error)
+	// LinkNewGuardians clears the retention mark of each linked profile and
+	// inserts the relationships in one statement; the result is index-aligned
+	// with the input and carries the account of the locked profile.
+	LinkNewGuardians(context.Context, []domain.GuardianLinkRecord) ([]domain.NewGuardianLinkResult, domain.OperationStats, error)
+}
+
+// GuardianLinkOwnerBatches write the pickup permissions and portal accesses
+// of many new links at once (#5552).
+type GuardianLinkOwnerBatches interface {
+	CreateGuardianPickupPermissions(ctx context.Context, tenantID int64, links []peopledirectory.NewGuardianLinkHalves) error
+	GrantGuardianStudentAccesses(ctx context.Context, tenantID int64, links []peopledirectory.NewGuardianLinkHalves) error
 }
 
 // GuardianRolePresets is the Security Runtime's role-preset policy of a

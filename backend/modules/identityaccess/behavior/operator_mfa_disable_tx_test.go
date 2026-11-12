@@ -5,12 +5,12 @@ import (
 	"net"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The disable cascade wipes the enrollment, revokes every trusted device and
@@ -31,13 +31,13 @@ func TestOperatorMFAService_Disable_SuccessClearsEverything(t *testing.T) {
 	svc, _, db := newTestOperatorMFAService(t)
 
 	op := testpkg.CreateTestOperator(t, db)
-	require.NoError(t, svc.EnrollOperatorMFA(ctx, op.ID))
+	require.NoError(t, svc.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: op.ID, CredentialGeneration: op.CredentialGeneration}))
 
 	// Build a trusted-device row and drive the lockout counter up so all
 	// three cascade targets have non-trivial state.
-	_, _, err := svc.IssueOperatorTrustedDevice(ctx, op.ID, "ua-test", net.ParseIP("203.0.113.21"))
+	_, _, err := svc.IssueOperatorTrustedDevice(ctx, currentOperatorProof(t, db, op.ID), "ua-test", net.ParseIP("203.0.113.21"))
 	require.NoError(t, err)
-	challenge, err := svc.StartOperatorMFAChallenge(ctx, op.ID, net.ParseIP("203.0.113.21"))
+	challenge, err := svc.StartOperatorMFAChallenge(ctx, op.ID, net.ParseIP("203.0.113.21"), nil)
 	require.NoError(t, err)
 	_, err = svc.VerifyOperatorMFAChallenge(ctx, challenge, "000000")
 	require.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid, "fixture: a wrong code must count an attempt")

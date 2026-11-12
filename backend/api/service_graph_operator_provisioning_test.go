@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -25,13 +25,13 @@ import (
 // capability's own signatures and typed errors are matched by their package
 // and name.
 
-const organizationTenancyPackage = "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+const organizationTenancyPackage = "github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 
 var provisioningTestClientIP = net.IPv4(127, 0, 0, 1)
 
 // buildOperatorProvisioning returns the production composition of the
 // operator provisioning over db.
-func buildOperatorProvisioning(t *testing.T, db *bun.DB) organizationtenancy.Provisioning {
+func buildOperatorProvisioning(t *testing.T, db *bun.DB) organizationtenancy.OperatorProvisioning {
 	t.Helper()
 	provisioning, _ := buildOperatorProvisioningWithIdentity(t, db)
 	return provisioning
@@ -39,7 +39,7 @@ func buildOperatorProvisioning(t *testing.T, db *bun.DB) organizationtenancy.Pro
 
 // buildOperatorProvisioningWithIdentity returns the operator provisioning
 // with the Identity & Access module of the same composition.
-func buildOperatorProvisioningWithIdentity(t *testing.T, db *bun.DB) (organizationtenancy.Provisioning, identityaccess.Owner) {
+func buildOperatorProvisioningWithIdentity(t *testing.T, db *bun.DB) (organizationtenancy.OperatorProvisioning, identityaccess.Owner) {
 	t.Helper()
 	_, _, _, _, _, _, identity, _, _, _, _, _, _, _, _, _, _, _, provisioning, _, _, _, _, _, _, _, _, err := composeTestRoot(testpkg.NewDatabase(t, db), slog.Default(), currentTestServiceConfig())
 	require.NoError(t, err, "Failed to create service graph")

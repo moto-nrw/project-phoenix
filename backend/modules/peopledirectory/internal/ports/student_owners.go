@@ -3,7 +3,8 @@ package ports
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
 // StudentOwners are the reversible membership/care commands coordinated with
@@ -12,4 +13,5 @@ type StudentOwners interface {
 	Enroll(context.Context, domain.StudentRecord) (int64, error)
 	Renew(context.Context, domain.StudentRecord) (int64, error)
 	SaveCare(context.Context, int64, domain.StudentRecord, domain.DeparturePlan, *string, bool) error
+	SaveCareBatch(context.Context, []peopledirectory.StudentCareSave) error
 }

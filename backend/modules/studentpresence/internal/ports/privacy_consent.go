@@ -3,7 +3,7 @@ package ports
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 type PrivacyConsentStore interface {
@@ -14,4 +14,7 @@ type PrivacyConsentStore interface {
 	// RecordPrivacyConsent inserts one consent row and fills the generated
 	// columns on the passed value.
 	RecordPrivacyConsent(context.Context, *studentpresence.PrivacyConsent) (Stats, error)
+	// RecordPrivacyConsents inserts many consent rows in one statement with
+	// the columns RecordPrivacyConsent writes.
+	RecordPrivacyConsents(context.Context, []studentpresence.PrivacyConsent) (Stats, error)
 }

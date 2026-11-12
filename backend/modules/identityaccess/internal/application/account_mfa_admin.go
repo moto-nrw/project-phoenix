@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // The admin side of account MFA (#3331): disabling a user's second factor
@@ -265,7 +265,7 @@ func (f *AccountMFAFlows) GetAdminState(ctx context.Context, actorID, actorTenan
 // ===== Gates and audit =====
 
 func (f *AccountMFAFlows) requireAdminPermission(ctx context.Context, actorPermissions []string, failure adminOverrideFailure) error {
-	if domain.HasPermissionMatch(actorPermissions, adminPermission) {
+	if f.permissionGranted(adminPermission, actorPermissions) {
 		return nil
 	}
 	failure.ErrMsg = "permission denied"

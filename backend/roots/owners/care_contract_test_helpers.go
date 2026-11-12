@@ -6,9 +6,23 @@ import (
 	"context"
 	"sync"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	careContractCompose "github.com/moto-ogs/project-phoenix/modules/carecontract/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
+
+// CareContractTestHolidays answers the same statutory holidays for every
+// school a test composition asks; empty, only Saturday and Sunday move a
+// withdrawal period (#6350).
+type CareContractTestHolidays map[calendar.Date]bool
+
+func (h CareContractTestHolidays) SchoolHolidayDates(_ context.Context, schoolIDs []int64, _, _ calendar.Date) (map[int64]map[calendar.Date]bool, error) {
+	result := make(map[int64]map[calendar.Date]bool, len(schoolIDs))
+	for _, schoolID := range schoolIDs {
+		result[schoolID] = h
+	}
+	return result, nil
+}
 
 // CareContractTestMails records the mails of the Betreuungsvertrag a test
 // composition enqueues, instead of Delivery's outbox.
@@ -63,7 +77,7 @@ func (careContractTestSender) WithdrawalReach(context.Context, int64) (carecontr
 func NewParentContractSigningForTests(mails *CareContractTestMails) carecontract.InboxSigning {
 	return careContractCompose.NewInboxSigning(careContractCompose.SignaturePorts{
 		Ledger: NewCareContractSignatures(), Links: CareContractLinks("http://parents.localhost:3000"),
-		Sender: careContractTestSender{}, Post: mails, Runtime: CareContractRuntime{},
+		Sender: careContractTestSender{}, Post: mails, Runtime: CareContractRuntime{}, Holidays: CareContractTestHolidays{}, Families: NewCareContractFamilyNumbers(),
 	})
 }
 

@@ -8,9 +8,9 @@ import (
 	"unicode/utf8"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ClosingDayRequest represents a create/update request for a closing day
@@ -48,6 +48,9 @@ type ClosingDayResponse struct {
 	Reason    string `json:"reason"`
 	CreatedAt string `json:"created_at"`
 	UpdatedAt string `json:"updated_at"`
+	// Traeger marks a closing day the school's Träger planned (#4702): it
+	// counts like the school's own, but only the Träger-Büro changes it.
+	Traeger bool `json:"traeger"`
 }
 
 func mapClosingDayToResponse(d schoolcalendar.ClosingDay) ClosingDayResponse {
@@ -58,6 +61,7 @@ func mapClosingDayToResponse(d schoolcalendar.ClosingDay) ClosingDayResponse {
 		Reason:    d.Reason,
 		CreatedAt: d.CreatedAt.Format(time.RFC3339),
 		UpdatedAt: d.UpdatedAt.Format(time.RFC3339),
+		Traeger:   d.Traeger,
 	}
 }
 

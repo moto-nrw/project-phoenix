@@ -6,8 +6,7 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // Siblings from separate holiday registrations (#5628, ADR 0115 addendum).
@@ -37,6 +36,10 @@ var _ parentbilling.HolidaySiblingGroups = (*HolidayContributions)(nil)
 type siblingMember struct {
 	registration parentbilling.HolidayRegistration
 	frozen       *parentbilling.HolidayContribution
+	// movedUp marks a confirmed registration whose bookings moved up from
+	// the waiting list (#4699): it ranks with the base prices it froze and
+	// the newly placed weeks at their current price.
+	movedUp bool
 }
 
 func (m siblingMember) id() int64 { return m.registration.ID }
@@ -61,27 +64,49 @@ func (m siblingMember) chainMember() holidayMember {
 	if m.frozen == nil {
 		return holidayMember{children: m.registration.Children, exemption: m.registration.BenefitsDeclared}
 	}
-	birthDates := make(map[int64]calendar.Date, len(m.registration.Children))
+	registered := make(map[int64]parentbilling.HolidayChild, len(m.registration.Children))
 	for _, child := range m.registration.Children {
-		birthDates[child.ID] = child.BirthDate
+		registered[child.ID] = child
 	}
 	children := make([]parentbilling.HolidayChild, len(m.frozen.Children))
 	for i, child := range m.frozen.Children {
-		children[i] = parentbilling.HolidayChild{ID: child.ChildID, Position: child.Position, BirthDate: birthDates[child.ChildID]}
-		for _, line := range child.Lines {
-			if line.Kind != parentbilling.LineBase || line.WeekStartsOn == nil || line.WeekEndsOn == nil {
-				continue
-			}
-			children[i].Bookings = append(children[i].Bookings, parentbilling.HolidayBooking{
-				WeekStartsOn: *line.WeekStartsOn, WeekEndsOn: *line.WeekEndsOn, TimeModelName: line.TimeModelName, PriceCents: line.AmountCents,
-			})
-		}
+		children[i] = parentbilling.HolidayChild{ID: child.ChildID, Position: child.Position, BirthDate: registered[child.ChildID].BirthDate,
+			Bookings: frozenHolidayBookings(child.Lines, registered[child.ChildID].Bookings)}
+	}
+	if m.movedUp {
+		children = withMovedUpBookings(children, m.registration.Children)
 	}
 	member := holidayMember{children: children, exemption: m.frozen.BenefitsExemption}
 	if m.frozen.CostBearerID != nil {
 		member.bearer = &parentbilling.CostBearer{ID: *m.frozen.CostBearerID, Name: m.frozen.CostBearerName}
 	}
 	return member
+}
+
+// frozenHolidayBookings are the bookings the base lines of a frozen
+// contribution price. A line of a week by days takes the days of the
+// current booking of its week, so the rules see the first booked day
+// (#4701).
+func frozenHolidayBookings(lines []parentbilling.HolidayContributionLine, current []parentbilling.HolidayBooking) []parentbilling.HolidayBooking {
+	var bookings []parentbilling.HolidayBooking
+	for _, line := range lines {
+		if line.Kind != parentbilling.LineBase || line.WeekStartsOn == nil || line.WeekEndsOn == nil {
+			continue
+		}
+		booking := parentbilling.HolidayBooking{
+			WeekID: line.WeekID, WeekStartsOn: *line.WeekStartsOn, WeekEndsOn: *line.WeekEndsOn, TimeModelName: line.TimeModelName, PriceCents: line.AmountCents,
+		}
+		if line.BookedDays != nil {
+			booking.BookedDays = *line.BookedDays
+			if i := slices.IndexFunc(current, func(b parentbilling.HolidayBooking) bool {
+				return pricesHolidayWeek(b, booking.WeekID, booking.WeekStartsOn, booking.WeekEndsOn)
+			}); i >= 0 {
+				booking.Days = current[i].Days
+			}
+		}
+		bookings = append(bookings, booking)
+	}
+	return bookings
 }
 
 // ListHolidaySiblingGroups lists the groups of the period. They name only
@@ -148,7 +173,12 @@ func (h *HolidayContributions) MergeHolidaySiblings(ctx context.Context, reviewe
 	if err := h.refreezeSiblings(ctx, reviewer, periodID, members, issued); err != nil {
 		return parentbilling.HolidaySiblingGroup{}, err
 	}
-	if err := h.shareDebtorNumber(ctx, reviewer, periodID, members, groupDebtorNumber(members, 0), issued); err != nil {
+	number := groupDebtorNumber(members, 0)
+	if err := h.shareDebtorNumber(ctx, reviewer, periodID, members, number, issued); err != nil {
+		return parentbilling.HolidaySiblingGroup{}, err
+	}
+	// A merge adopts missing family numbers without replacing remembered ones.
+	if err := h.rememberFamilies(ctx, reviewer, confirmedSharers(members, issued), &number, parentbilling.FamilyDebtorNumberKeep, 0); err != nil {
 		return parentbilling.HolidaySiblingGroup{}, err
 	}
 	if err := h.recordSiblings(ctx, reviewer, periodID, members, parentbilling.HolidaySiblingsMerged); err != nil {
@@ -294,6 +324,7 @@ func (h *HolidayContributions) computeSiblings(ctx context.Context, organization
 	var ranked []siblingMember
 	var chain []holidayMember
 	var children []parentbilling.HolidayChild
+	var requested []parentbilling.HolidayChild
 	for _, member := range sentOrder(slices.Clone(members)) {
 		if member.cancelled() {
 			continue
@@ -305,6 +336,7 @@ func (h *HolidayContributions) computeSiblings(ctx context.Context, organization
 		ranked = append(ranked, member)
 		chain = append(chain, next)
 		children = append(children, next.children...)
+		requested = append(requested, member.registration.Children...)
 	}
 	rules, err := h.store.ListContributionRules(ctx, organizationID, parentbilling.ServiceHoliday)
 	if err != nil {
@@ -314,7 +346,8 @@ func (h *HolidayContributions) computeSiblings(ctx context.Context, organization
 	if err != nil {
 		return nil, err
 	}
-	valid := validHolidayRules(rules, firstHolidayDay(children))
+	valid := validHolidayRules(rules, firstHolidayDay(placedHolidayChildren(children)))
+	valid.exemption = validHolidayRules(rules, firstHolidayDay(requested)).exemption
 	valid.chain = groupChain(ranked, current)
 	results := computeHolidaySiblings(chain, valid)
 	computed := make(map[int64]parentbilling.HolidayContribution, len(ranked))

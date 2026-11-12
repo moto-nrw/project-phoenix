@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // AdminRequestSummary is the wire shape for admin list-style responses.
@@ -110,18 +110,21 @@ type AdminRequestSchemaFieldOption struct {
 // AdminRequestChild is one child within an admin summary/detail
 // payload.
 type AdminRequestChild struct {
-	ID                string     `json:"id"`
-	FirstName         string     `json:"first_name"`
-	LastName          string     `json:"last_name"`
-	DateOfBirth       string     `json:"date_of_birth"`
-	TargetGradeLevel  *int16     `json:"target_grade_level,omitempty"`
-	TargetSchoolClass *string    `json:"target_school_class,omitempty"`
-	Status            string     `json:"status"`
-	StatusReason      *string    `json:"status_reason,omitempty"`
-	ReviewedAt        *time.Time `json:"reviewed_at,omitempty"`
-	ReviewedBy        *int64     `json:"reviewed_by,omitempty"`
-	ActivationMode    string     `json:"activation_mode"`
-	CreatedStudentID  string     `json:"created_student_id,omitempty"`
+	ID                string  `json:"id"`
+	FirstName         string  `json:"first_name"`
+	LastName          string  `json:"last_name"`
+	DateOfBirth       string  `json:"date_of_birth"`
+	TargetGradeLevel  *int16  `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string `json:"target_school_class,omitempty"`
+	// HolidayCareWish is the parents' answer to the holiday care question
+	// when the form asked it (#4703).
+	HolidayCareWish  *bool      `json:"holiday_care_wish,omitempty"`
+	Status           string     `json:"status"`
+	StatusReason     *string    `json:"status_reason,omitempty"`
+	ReviewedAt       *time.Time `json:"reviewed_at,omitempty"`
+	ReviewedBy       *int64     `json:"reviewed_by,omitempty"`
+	ActivationMode   string     `json:"activation_mode"`
+	CreatedStudentID string     `json:"created_student_id,omitempty"`
 	// MatchedStudentID is the enrolled child the approval renews instead of
 	// creating a new one (#1663, #6053).
 	MatchedStudentID string `json:"matched_student_id,omitempty"`
@@ -243,6 +246,7 @@ func toAdminRequestSummary(s *RequestSummary) AdminRequestSummary {
 			DateOfBirth:       string(c.DateOfBirth),
 			TargetGradeLevel:  c.TargetGradeLevel,
 			TargetSchoolClass: c.TargetSchoolClass,
+			HolidayCareWish:   c.HolidayCareWish,
 			Status:            c.Status,
 			StatusReason:      c.StatusReason,
 			ReviewedAt:        c.ReviewedAt,
@@ -462,17 +466,21 @@ func attachExistingChildCandidates(children []AdminRequestChild, summaryChildren
 		_, children[i].ExistingChildChoiceRequired = candidates[summaryChildren[i].ID]
 		children[i].ExistingChildOnly = existingOnly && children[i].ExistingChildChoiceRequired
 		for _, candidate := range candidates[summaryChildren[i].ID] {
-			out := AdminExistingChildCandidate{
-				StudentID: strconv.FormatInt(candidate.StudentID, 10),
-				FirstName: candidate.FirstName, LastName: candidate.LastName, SchoolClass: candidate.SchoolClass,
-			}
-			if candidate.DateOfBirth != nil {
-				dob := string(*candidate.DateOfBirth)
-				out.DateOfBirth = &dob
-			}
-			children[i].PossibleExistingChildren = append(children[i].PossibleExistingChildren, out)
+			children[i].PossibleExistingChildren = append(children[i].PossibleExistingChildren, newAdminExistingChildCandidate(candidate))
 		}
 	}
+}
+
+func newAdminExistingChildCandidate(candidate capability.ExistingChildCandidate) AdminExistingChildCandidate {
+	out := AdminExistingChildCandidate{
+		StudentID: strconv.FormatInt(candidate.StudentID, 10),
+		FirstName: candidate.FirstName, LastName: candidate.LastName, SchoolClass: candidate.SchoolClass,
+	}
+	if candidate.DateOfBirth != nil {
+		dob := string(*candidate.DateOfBirth)
+		out.DateOfBirth = &dob
+	}
+	return out
 }
 
 // attachChildOfferings fills the per-child Offerings slices in place from
@@ -551,7 +559,13 @@ func (req *AdminDecideRequest) Bind(_ *http.Request) error { return nil }
 
 // existingStudentID parses the chosen enrolled child, nil when none is chosen.
 func (req *AdminDecideRequest) existingStudentID() (*int64, error) {
-	raw := strings.TrimSpace(req.ExistingStudentID)
+	return parseExistingStudentID(req.ExistingStudentID)
+}
+
+// parseExistingStudentID reads the office's chosen enrolled child of a
+// decision or a manual enrollment, nil when none is chosen.
+func parseExistingStudentID(value string) (*int64, error) {
+	raw := strings.TrimSpace(value)
 	if raw == "" {
 		return nil, nil
 	}
@@ -645,7 +659,13 @@ func (rs *Resource) restoreAdminRequest(w http.ResponseWriter, r *http.Request) 
 // business guards (inactive phase, active duplicate) surface as 409s with
 // stable codes so the frontend can show specific German messages.
 func (rs *Resource) renderRestoreError(w http.ResponseWriter, r *http.Request, err error) {
+	if ended := rs.Failures.requestEnded(r, err); ended != nil {
+		common.RenderError(w, r, ended)
+		return
+	}
 	switch {
+	case rs.Failures.savepointControlFailed(r, err):
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 	case errors.Is(err, context.Canceled):
 		common.RenderError(w, r, common.ErrorClientClosed(err))
 	case errors.Is(err, context.DeadlineExceeded):
@@ -671,8 +691,9 @@ func (rs *Resource) renderRestoreError(w http.ResponseWriter, r *http.Request, e
 	}
 }
 
-func (rs *Resource) decideErrorRules() []common.ErrorRule {
+func (rs *Resource) decideErrorRules(r *http.Request) []common.ErrorRule {
 	return []common.ErrorRule{
+		{Match: func(err error) bool { return rs.Failures.savepointControlFailed(r, err) }, Render: common.ErrorInternalServer},
 		{Target: context.Canceled, Render: common.ErrorClientClosed},
 		{Target: context.DeadlineExceeded, Render: common.ErrorRequestTimeout},
 		{Target: capability.ErrDecisionChildNotFound, Render: renderRequestNotFound},
@@ -715,7 +736,11 @@ func (rs *Resource) decideErrorRules() []common.ErrorRule {
 // renderDecideError keeps cancellation and retryable database failures distinct
 // so the frontend can tell terminal decisions from requests worth retrying.
 func (rs *Resource) renderDecideError(w http.ResponseWriter, r *http.Request, err error) {
-	common.RenderError(w, r, common.RenderWithRules(err, rs.decideErrorRules(), common.ErrorInternalServer))
+	if ended := rs.Failures.requestEnded(r, err); ended != nil {
+		common.RenderError(w, r, ended)
+		return
+	}
+	common.RenderError(w, r, common.RenderWithRules(err, rs.decideErrorRules(r), common.ErrorInternalServer))
 }
 
 // newAdminRequestChild maps a decided child model onto the wire shape
@@ -729,6 +754,7 @@ func newAdminRequestChild(child *capability.RequestChild) AdminRequestChild {
 		DateOfBirth:       string(child.DateOfBirth),
 		TargetGradeLevel:  child.TargetGradeLevel,
 		TargetSchoolClass: child.TargetSchoolClass,
+		HolidayCareWish:   child.HolidayCareWish,
 		Status:            child.Status,
 		StatusReason:      child.StatusReason,
 		ReviewedAt:        child.ReviewedAt,

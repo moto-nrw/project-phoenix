@@ -4,15 +4,15 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // factorySchools reads the seeded schools through the repository factory's
@@ -95,7 +95,12 @@ type phaseOfferings struct {
 	rows interface {
 		ListByPhase(ctx context.Context, phaseID int64) ([]*offeringContract.CareOfferingRecord, error)
 		CountByPhaseID(ctx context.Context, phaseID int64) (int, error)
+		CareOfferingBookingsForPhase(ctx context.Context, phaseID int64) ([]enrollmentNative.OfferingBooking, error)
 	}
+}
+
+func (o phaseOfferings) CareOfferingBookingsForPhase(ctx context.Context, phaseID int64) ([]enrollmentNative.OfferingBooking, error) {
+	return o.rows.CareOfferingBookingsForPhase(ctx, phaseID)
 }
 
 func (o phaseOfferings) OfferingIDsForPhase(ctx context.Context, phaseID int64) ([]int64, error) {
@@ -222,9 +227,9 @@ func (r requestFixtureRoot) GetByStatusToken(ctx context.Context, token string) 
 func (r requestFixtureRoot) Edit(ctx context.Context, token string, patch enrollmentAPI.EditPatch) error {
 	return fixturePublicTokenRoot(ctx, func(txCtx context.Context) error { return r.RequestService.Edit(txCtx, token, patch) })
 }
-func (r requestFixtureRoot) ConfirmRenewal(ctx context.Context, token string) (value int, err error) {
+func (r requestFixtureRoot) ConfirmRenewal(ctx context.Context, token string, confirmation enrollmentNative.RenewalConfirmation) (value int, err error) {
 	err = fixturePublicTokenRoot(ctx, func(txCtx context.Context) error {
-		value, err = r.RequestService.ConfirmRenewal(txCtx, token)
+		value, err = r.RequestService.ConfirmRenewal(txCtx, token, confirmation)
 		return err
 	})
 	return value, err
@@ -280,4 +285,9 @@ func (r requestFixtureRoot) CreateLateInvite(ctx context.Context, input enrollme
 		return err
 	})
 	return value, err
+}
+
+// This transport fixture represents only school-authored catalog records.
+func (o phaseOfferings) HasTraegerCopiesForPhase(context.Context, int64) (bool, error) {
+	return false, nil
 }

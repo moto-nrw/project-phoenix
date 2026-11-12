@@ -1,5 +1,11 @@
 "use client";
 
+import { useParentAttachmentLabels } from "~/components/parent/messages/attachment-labels";
+import {
+  attachmentIdArgs,
+  guardianMessageAttachments,
+  type MessageAttachment,
+} from "~/lib/message-attachments";
 import { useMessageSendAttempt } from "~/lib/swr/optimistic";
 import { InsetPanel } from "~/components/ui/inset-panel";
 
@@ -7,10 +13,11 @@ import {
   useCallback,
   useEffect,
   useLayoutEffect,
+  useMemo,
   useRef,
   useState,
 } from "react";
-import { XIcon } from "@phosphor-icons/react/ssr";
+import { EyeIcon, XIcon } from "@phosphor-icons/react/ssr";
 import { useLocale, useTranslations } from "next-intl";
 import { ApiError } from "~/lib/api-error";
 import { Button } from "~/components/ui/button";
@@ -66,6 +73,10 @@ import { useOptimisticAction } from "~/lib/swr/optimistic";
 import { parentKeys } from "~/lib/swr/parent-keys";
 import { formatChatTime } from "~/lib/date-helpers";
 import { childrenConcept } from "~/lib/concepts/children";
+import {
+  useCareFacilityTerm,
+  useCareTermTranslations,
+} from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "OgsConversation" });
 
@@ -97,10 +108,17 @@ export function OgsConversation({
   showChild = false,
   audience: audienceProp,
   onAudienceChange,
+  tourAnchor,
 }: {
   readonly studentId: string;
   readonly showBack?: boolean;
   readonly showChild?: boolean;
+  /**
+   * `data-parent-tour` value for the conversation head. The page passes its
+   * own tour anchor when it hides its intro on a small screen, so the tour
+   * still has a visible stop there.
+   */
+  readonly tourAnchor?: string;
   /**
    * The conversation shown (#5200). Given by the per-child route from
    * `?audience=`, which onAudienceChange updates; without it the component
@@ -110,7 +128,8 @@ export function OgsConversation({
   readonly onAudienceChange?: (next: MessageAudience) => void;
 }) {
   const t = useTranslations("parentOgsMessaging");
-  const tm = useTranslations("parentMessages");
+  const tm = useCareTermTranslations("parentMessages");
+  const careTerm = useCareFacilityTerm();
   const locale = useLocale();
   // A child has a team conversation and, once begun, one with the leadership
   // only (#5200). The switch shows one of them and is where the next message
@@ -290,7 +309,7 @@ export function OgsConversation({
   });
 
   const messages = thread?.messages ?? [];
-  const counterpart = thread?.counterpart_name ?? "OGS";
+  const counterpart = thread?.counterpart_name ?? careTerm;
   const leadershipThread = summaries.find(
     (summary) => summary.audience === "leadership",
   );
@@ -342,128 +361,159 @@ export function OgsConversation({
     // view (#5011).
   }, [thread, care.loading, sendError]);
 
+  const attachmentLabels = useParentAttachmentLabels();
+  const attachmentRoutes = useMemo(
+    () => guardianMessageAttachments(studentId),
+    [studentId],
+  );
   const attempt = useMessageSendAttempt(conversationKey);
   const { run: runSend, dismiss: dismissFailedSend } = send;
-  const handleSend = useCallback(async () => {
-    const body = draft.trim();
-    if (!body || sending) return;
-    const clientMessageId = attempt.begin(body);
-    clearSendError();
-    // A new attempt replaces the bubble marked as not sent.
-    dismissFailedSend();
-    setDraft("");
-    const sentDraftRevision = draftRevision.current;
-    let failed = false;
-    const outcome = await runSend({
-      onConfirmed: () => {
-        attempt.complete(clientMessageId);
-        // Only the restored draft belongs to this failed send. User edits,
-        // including retyping identical text, are a separate intent.
-        if (failed && draftRevision.current === sentDraftRevision) {
-          setDraft((current) => (current === body ? "" : current));
-        }
-        clearSendError();
-      },
-      confirmed: (current) =>
-        current.messages.some(
-          (message) =>
-            message.client_message_id === clientMessageId &&
-            message.sender_kind === "guardian",
+  // The files of the last attempt: a retry sends them again.
+  const sentFiles = useRef<readonly MessageAttachment[]>([]);
+  // Ob der letzte Versuch ankam: sonst behält das Eingabefeld die Dateien.
+  const sendArrived = useRef(true);
+  const handleSend = useCallback(
+    async (picked?: readonly MessageAttachment[]) => {
+      const attachments = picked ?? sentFiles.current;
+      const body = draft.trim();
+      if ((!body && attachments.length === 0) || sending) return;
+      sentFiles.current = attachments;
+      sendArrived.current = true;
+      const clientMessageId = attempt.begin(
+        [body, ...attachments.map((attachment) => attachment.id)].join(
+          "\u0000",
         ),
-      optimistic: (current, { id }) => ({
-        ...current,
-        messages: [
-          ...current.messages,
-          {
-            id,
-            kind: "message",
-            sender_kind: "guardian",
-            sender_name: "",
+      );
+      clearSendError();
+      // A new attempt replaces the bubble marked as not sent.
+      dismissFailedSend();
+      setDraft("");
+      const sentDraftRevision = draftRevision.current;
+      let failed = false;
+      const outcome = await runSend({
+        onConfirmed: () => {
+          attempt.complete(clientMessageId);
+          // Only the restored draft belongs to this failed send. User edits,
+          // including retyping identical text, are a separate intent.
+          if (failed && draftRevision.current === sentDraftRevision) {
+            setDraft((current) => (current === body ? "" : current));
+          }
+          clearSendError();
+        },
+        confirmed: (current) =>
+          current.messages.some(
+            (message) =>
+              message.client_message_id === clientMessageId &&
+              message.sender_kind === "guardian",
+          ),
+        optimistic: (current, { id }) => ({
+          ...current,
+          messages: [
+            ...current.messages,
+            {
+              id,
+              kind: "message",
+              sender_kind: "guardian",
+              sender_name: "",
+              body,
+              created_at: "",
+              attachments,
+            },
+          ],
+        }),
+        request: () =>
+          postChildMessage(
+            studentId,
             body,
-            created_at: "",
-          },
-        ],
-      }),
-      request: () =>
-        postChildMessage(studentId, body, undefined, audience, clientMessageId),
-      // Claim the token AFTER the POST resolves so this authoritative result
-      // wins. A successful send means the thread is loadable, so clear any
-      // stale load error left by an earlier failed background refresh. A
-      // result for a conversation no longer on screen (the route changed the
-      // audience meanwhile) claims nothing: the load of the new one must win.
-      commit: (view) => {
-        if (
-          audienceRef.current === audience &&
-          applyThread(++applySeqRef.current, view)
-        ) {
-          clearLoadError();
-        }
-      },
-      keepFailed: true,
-      refusal: {
-        codes: PARENT_PORTAL_SEND_REFUSALS,
-        matches: (key) => key === conversationKey,
-      },
-    });
-    if (outcome.status === "done") {
-      attempt.complete(clientMessageId);
-      // Sending advances the reader's own cursor (any prior staff messages
-      // are now read), so refresh the sidebar badge.
-      nudgeUnreadBadge();
-      return;
-    }
-    if (
-      outcome.status !== "failed" ||
-      (!outcome.refused && !attempt.isActive(clientMessageId))
-    )
-      return;
-    failed = true;
-    const mayRestoreDraft =
-      attempt.isActive(clientMessageId) &&
-      draftRevision.current === sentDraftRevision;
-    const err = outcome.error;
-    // The text goes back into the field unless a new one is there.
-    setDraft((current) => (mayRestoreDraft && current === "" ? body : current));
-    logger.warn("ogs_message_send_failed", {
-      error: err instanceof Error ? err.message : String(err),
-    });
-    void showSendError(err, {
-      object: tm("errorObjectMessage"),
-      retry: () => void sendRef.current(),
-    });
-    if (outcome.refused) {
-      // The school refused this conversation (relationship gone, no
-      // writing right): drop the history, the composer and the overview of
-      // both conversations, then ask again, so only what the server still
-      // grants shows.
-      ++applySeqRef.current;
-      setThread(null);
-      setSummaries([]);
-      void refreshRef.current();
-    } else if (
-      err instanceof ApiError &&
-      err.code === "communication.leadership_messages_unavailable"
-    ) {
-      // The leadership is gone since the chat loaded: reload it, so the
-      // composer gives way to the hint about the team conversation.
-      void refreshRef.current();
-    }
-  }, [
-    draft,
-    sending,
-    studentId,
-    audience,
-    audienceRef,
-    applyThread,
-    clearLoadError,
-    clearSendError,
-    showSendError,
-    tm,
-    runSend,
-    dismissFailedSend,
-    conversationKey,
-    attempt,
-  ]);
+            undefined,
+            audience,
+            clientMessageId,
+            ...attachmentIdArgs(attachments),
+          ),
+        // Claim the token AFTER the POST resolves so this authoritative result
+        // wins. A successful send means the thread is loadable, so clear any
+        // stale load error left by an earlier failed background refresh. A
+        // result for a conversation no longer on screen (the route changed the
+        // audience meanwhile) claims nothing: the load of the new one must win.
+        commit: (view) => {
+          if (
+            audienceRef.current === audience &&
+            applyThread(++applySeqRef.current, view)
+          ) {
+            clearLoadError();
+          }
+        },
+        keepFailed: true,
+        refusal: {
+          codes: PARENT_PORTAL_SEND_REFUSALS,
+          matches: (key) => key === conversationKey,
+        },
+      });
+      sendArrived.current = outcome.status !== "failed";
+      if (outcome.status === "done") {
+        sentFiles.current = [];
+        attempt.complete(clientMessageId);
+        // Sending advances the reader's own cursor (any prior staff messages
+        // are now read), so refresh the sidebar badge.
+        nudgeUnreadBadge();
+        return;
+      }
+      if (
+        outcome.status !== "failed" ||
+        (!outcome.refused && !attempt.isActive(clientMessageId))
+      )
+        return;
+      failed = true;
+      const mayRestoreDraft =
+        attempt.isActive(clientMessageId) &&
+        draftRevision.current === sentDraftRevision;
+      const err = outcome.error;
+      // The text goes back into the field unless a new one is there.
+      setDraft((current) =>
+        mayRestoreDraft && current === "" ? body : current,
+      );
+      logger.warn("ogs_message_send_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      void showSendError(err, {
+        object: tm("errorObjectMessage"),
+        retry: () => void sendRef.current(),
+      });
+      if (outcome.refused) {
+        // The school refused this conversation (relationship gone, no
+        // writing right): drop the history, the composer and the overview of
+        // both conversations, then ask again, so only what the server still
+        // grants shows.
+        ++applySeqRef.current;
+        setThread(null);
+        setSummaries([]);
+        void refreshRef.current();
+      } else if (
+        err instanceof ApiError &&
+        err.code === "communication.leadership_messages_unavailable"
+      ) {
+        // The leadership is gone since the chat loaded: reload it, so the
+        // composer gives way to the hint about the team conversation.
+        void refreshRef.current();
+      }
+    },
+    [
+      draft,
+      sending,
+      studentId,
+      audience,
+      audienceRef,
+      applyThread,
+      clearLoadError,
+      clearSendError,
+      showSendError,
+      tm,
+      runSend,
+      dismissFailedSend,
+      conversationKey,
+      attempt,
+    ],
+  );
   // The retry sends the current draft, not the one of the failed attempt.
   const sendRef = useRef(handleSend);
   useLayoutEffect(() => {
@@ -481,7 +531,10 @@ export function OgsConversation({
         className="flex min-h-0 flex-1 flex-col"
         bodyClassName="flex min-h-0 flex-1 flex-col"
       >
-        <div className="border-b border-gray-100 px-4 py-3 sm:px-5">
+        <div
+          className="border-b border-gray-100 px-4 py-3 sm:px-5"
+          data-parent-tour={tourAnchor}
+        >
           {showBack ? <BackBar /> : null}
           {loading ? (
             <div
@@ -546,8 +599,10 @@ export function OgsConversation({
             />
           ) : null}
           {readersLine && !loading ? (
+            // Auf kleinen Bildschirmen steht die Zeile nur am Schreibfeld:
+            // zweimal derselbe Satz kostete dem Verlauf seinen Platz.
             <p
-              className="mt-2 text-sm text-gray-600"
+              className="mt-2 text-sm text-gray-600 in-data-chat-compact:hidden"
               data-testid="conversation-readers"
             >
               {readersLine}
@@ -557,6 +612,7 @@ export function OgsConversation({
 
         <div
           ref={scrollRef}
+          data-chat-scroll=""
           className="flex-1 space-y-2.5 overflow-y-auto bg-gray-50/60 px-3 py-3 sm:px-5 sm:py-4"
         >
           {/* Keep already-loaded messages on screen even if a later background
@@ -633,6 +689,9 @@ export function OgsConversation({
                       !genericStaffSender && !sameSenderAsPrevious
                     }
                     tone="parent"
+                    attachments={message.attachments}
+                    attachmentUrl={attachmentRoutes.downloadUrl}
+                    attachmentLabels={attachmentLabels.bubble}
                     pending={send.stateOf(message.id)}
                     pendingLabel={
                       send.stateOf(message.id) === "failed"
@@ -729,11 +788,22 @@ export function OgsConversation({
                   die Entscheidung, was man schreibt (#5200). Die volle Liste
                   steht im Kopf; hier bleibt es eine Zeile. */}
               {readersLine ? (
+                // Im kompakten Modus ist das die einzige Leserzeile: dann
+                // ganz, nicht abgeschnitten.
                 <p
-                  className="mb-2 truncate text-xs text-gray-500"
+                  className="mb-2 flex min-w-0 items-start gap-1.5 text-xs leading-4 text-gray-500"
                   title={readersLine}
+                  data-testid="composer-readers"
                 >
-                  {readersLine}
+                  <EyeIcon
+                    size={14}
+                    weight="bold"
+                    aria-hidden="true"
+                    className="mt-px shrink-0"
+                  />
+                  <span className="min-w-0 truncate in-data-chat-compact:whitespace-normal">
+                    {readersLine}
+                  </span>
                 </p>
               ) : null}
               <MessageComposer
@@ -742,8 +812,15 @@ export function OgsConversation({
                   draftRevision.current += 1;
                   setDraft(value);
                 }}
-                onSend={() => void handleSend()}
+                onSend={async (files) => {
+                  await handleSend(files);
+                  return sendArrived.current;
+                }}
                 sending={sending}
+                attachments={{
+                  uploadUrl: attachmentRoutes.uploadUrl,
+                  labels: attachmentLabels.composer,
+                }}
                 placeholder={tm(
                   leadershipView
                     ? "composerPlaceholderLeadership"
@@ -779,6 +856,7 @@ export function OgsConversation({
             }
             sickRequiresApproval={care.features.sick_requires_approval}
             excusedRequiresApproval={care.features.excused_requires_approval}
+            careExceptions={care.careExceptions}
           />
         )}
       {activeModal === "pickup" && (
@@ -803,6 +881,7 @@ export function OgsConversation({
           }}
           cutoffTime={care.features.pickup_change_cutoff_time}
           todayClosed={care.features.pickup_change_today_closed}
+          careDayEnded={care.features.pickup_change_care_day_ended}
           onCutoffPassed={care.refresh}
         />
       )}
@@ -876,8 +955,12 @@ function QuickActions({
     );
   const actions = getOgsActions(features).filter((action) => action.enabled);
   if (actions.length === 0) return null;
+  // Auf dem Telefon in einer Zeile, die sich die Knöpfe teilen: zwei Pillen
+  // brachen auf 360 px sonst in zwei Zeilen um und nahmen dem Verlauf rund
+  // 50 px. Reicht die Breite nicht, bricht die Beschriftung um, nicht die
+  // Zeile.
   return (
-    <div className="mb-3 flex flex-wrap gap-2 in-data-chat-keyboard:hidden">
+    <div className="mb-3 flex gap-2 in-data-chat-keyboard:hidden sm:flex-wrap">
       {actions.map((action) => (
         <QuickActionPill
           key={action.key}
@@ -903,8 +986,8 @@ function QuickActionPill({
   withMode: boolean;
   onPick: (key: OgsActionKey) => void;
 }>) {
-  const careT = useTranslations("parentChildCare");
-  const todayT = useTranslations("parentToday");
+  const careT = useCareTermTranslations("parentChildCare");
+  const todayT = useCareTermTranslations("parentToday");
   const firstName = childName?.trim().split(/\s+/)[0];
   const label = firstName
     ? action.key === "sick"
@@ -920,7 +1003,7 @@ function QuickActionPill({
       size="md"
       onClick={() => onPick(action.key)}
       title={careT(`actions.${action.key}.hint`)}
-      className="shrink-0 gap-1.5"
+      className="min-w-0 grow gap-1.5 sm:grow-0"
     >
       {action.key === "sick" ? (
         <MotoDuotoneIcon icon={XIcon} tone="red" size={20} weight="bold" />
@@ -931,7 +1014,7 @@ function QuickActionPill({
           aria-hidden="true"
         />
       )}
-      <span className="sm:hidden">
+      <span className="min-w-0 text-center leading-5 sm:hidden">
         {todayT(
           action.key === "sick"
             ? "actions.sickCompact"
@@ -951,7 +1034,7 @@ function GroupThreadReference({
   groupThreadId,
   title,
 }: Readonly<{ groupThreadId: string; title?: string }>) {
-  const t = useTranslations("parentGroupThreads");
+  const t = useCareTermTranslations("parentGroupThreads");
   return (
     <div className="mb-1 flex justify-end">
       <NavigationLink
@@ -982,7 +1065,7 @@ function audienceLabel(
 function EmptyThread({
   description,
 }: Readonly<{ description: string | null }>) {
-  const tm = useTranslations("parentMessages");
+  const tm = useCareTermTranslations("parentMessages");
   return (
     <div className="flex h-full flex-col items-center justify-center py-10 text-center">
       <h2 className="text-sm font-semibold text-gray-900">
@@ -998,7 +1081,7 @@ function EmptyThread({
 // Rückweg zum Posteingang der Elternnachrichten, auf jeder Breite. Er sitzt
 // in der Kopfkarte über dem Titel, wie auf jeder anderen Unterseite.
 function BackBar() {
-  const tm = useTranslations("parentMessages");
+  const tm = useCareTermTranslations("parentMessages");
   return (
     <BackLink
       href={parentPath("/parents/messages")}

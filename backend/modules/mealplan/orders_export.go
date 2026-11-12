@@ -7,7 +7,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
 )
 
 // ChildMeals is the number of ordered meals of one child in a window.
@@ -43,14 +44,11 @@ func (w OrderWeek) MealsPerChild() []ChildMeals {
 	}
 	sort.Slice(result, func(i, j int) bool {
 		a, b := result[i].Child, result[j].Child
-		if a.SchoolClass != b.SchoolClass {
-			return a.SchoolClass < b.SchoolClass
+		if order := collation.CompareSchoolClasses(a.SchoolClass, b.SchoolClass); order != 0 {
+			return order < 0
 		}
-		if a.LastName != b.LastName {
-			return a.LastName < b.LastName
-		}
-		if a.FirstName != b.FirstName {
-			return a.FirstName < b.FirstName
+		if order := collation.CompareGermanNames(a.LastName, a.FirstName, b.LastName, b.FirstName); order != 0 {
+			return order < 0
 		}
 		return a.StudentID < b.StudentID
 	})

@@ -3,10 +3,10 @@ package api
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -47,7 +47,7 @@ func TestOperatorAuditFailureRollsBackMFAOverride(t *testing.T) {
 	account := testpkg.CreateTestAccount(t, db, "audit-mfa")
 	testpkg.EnsureAccountTenant(t, db, account.ID, schoolID)
 	require.NoError(t, identity.OperatorSetMFAOverride(ctx, operatorID, schoolID, account.ID, identityaccess.MFAAdminOverrideForceOn, "test transition"))
-	require.NoError(t, identity.EnrollMFA(ctx, account.ID))
+	require.NoError(t, enrollMFA(ctx, t, db, identity, account.ID))
 	require.NoError(t, identity.OperatorSetGlobalMFAOverride(ctx, operatorID, account.ID, identityaccess.MFAAdminOverrideForceOn, "test transition"))
 	_, err := db.ExecContext(ctx, `CREATE FUNCTION platform.reject_operator_audit() RETURNS trigger LANGUAGE plpgsql AS $$
  BEGIN RAISE EXCEPTION 'injected audit failure'; END $$;

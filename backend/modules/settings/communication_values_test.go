@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -13,12 +13,16 @@ import (
 type communicationValueProbe struct {
 	boolean       func(context.Context, string) (bool, error)
 	integer       func(context.Context, string) (int, error)
+	text          func(context.Context, string) (string, error)
 	tenantBoolean func(context.Context, int64, string) (bool, error)
 	image         func(context.Context, int64) (string, error)
 }
 
 func (p communicationValueProbe) ResolveBool(ctx context.Context, key string) (bool, error) {
 	return p.boolean(ctx, key)
+}
+func (p communicationValueProbe) ResolveString(ctx context.Context, key string) (string, error) {
+	return p.text(ctx, key)
 }
 func (p communicationValueProbe) ResolveInt(ctx context.Context, key string) (int, error) {
 	return p.integer(ctx, key)
@@ -146,4 +150,22 @@ func TestCommunicationValuesKeepMissingDependenciesNil(t *testing.T) {
 	assert.Nil(t, NewStaffMessagingValues(nil))
 	assert.Nil(t, NewParentEventValues(nil))
 	assert.Nil(t, NewParentMessageRetentionValues(nil))
+}
+
+// The new-message mail names the school's care term (#6082): the value reads
+// the canonical key in the caller's context and passes errors through.
+func TestParentMessagingValuesResolveCareFacilityTerm(t *testing.T) {
+	t.Parallel()
+	ctx := context.WithValue(context.Background(), communicationContextKey{}, "care term")
+	failure := errors.New("term unavailable")
+	for _, expectedError := range []error{nil, failure} {
+		probe := communicationValueProbe{text: func(actual context.Context, key string) (string, error) {
+			assert.Same(t, ctx, actual)
+			assert.Equal(t, configModel.KeyEnrollmentCareFacilityTerm, key)
+			return "GTS", expectedError
+		}}
+		term, err := NewParentMessagingValues(probe).CareFacilityTerm(ctx)
+		require.ErrorIs(t, err, expectedError)
+		assert.Equal(t, "GTS", term)
+	}
 }

@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +14,6 @@ func TestOptionalActivityCapacity(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	tenantID, _ := testpkg.CreateTestTenant(t, db)
-	testpkg.OwnTenantRows(t, db, tenantID)
 
 	ctx := context.Background()
 	require.NoError(t, optionalActivityCapacityDown(ctx, db))

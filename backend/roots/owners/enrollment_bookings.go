@@ -2,11 +2,15 @@ package owners
 
 import (
 	"context"
+	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // NewEnrollmentBookings is Enrollment's booking projection over Care Plan's
@@ -14,6 +18,18 @@ import (
 // and settings routes, the service graph and the booking audit read it.
 func NewEnrollmentBookings() *enrollment.BookingProjection {
 	return ComposeEnrollmentBookings(enrollmentCompose.New())
+}
+
+// NewEnrollmentPhaseBounds is Enrollment's phase bounds reader (#6657) over
+// the owner's phases and the Timetable recurrence gate the phase edit holds.
+func NewEnrollmentPhaseBounds(db transactionruntime.Database) (enrollment.PhaseBoundsReader, error) {
+	lock, err := timetableCompose.NewRecurrenceWriteLock(timetableCompose.RecurrenceLockDependencies{
+		DB: db.Pool(), GradeTransitionLockKey: schoolstructure.TransitionsLockKey,
+	})
+	if err != nil {
+		return enrollment.PhaseBoundsReader{}, fmt.Errorf("compose enrollment phase bounds: %w", err)
+	}
+	return enrollment.NewPhaseBoundsReader(enrollmentCompose.New(), lock.LockRecurrenceWrites), nil
 }
 
 func ComposeEnrollmentBookings(owner enrollment.Owner) *enrollment.BookingProjection {

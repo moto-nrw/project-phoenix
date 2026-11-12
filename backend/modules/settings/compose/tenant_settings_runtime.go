@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	app "github.com/moto-nrw/project-phoenix/modules/settings/internal/application"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	app "github.com/moto-ogs/project-phoenix/modules/settings/internal/application"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -40,7 +40,7 @@ func (r TenantSettingsRuntime) DB(ctx context.Context) (bun.IDB, error) {
 }
 
 func (r TenantSettingsRuntime) LockStaffBalance(ctx context.Context, staffID int64) error {
-	return app.LockSettingStaffBalance(ctx, staffID, r.TenantID, r.AcquireLock)
+	return app.LockSettingStaffBalance(ctx, staffID, r.TenantID, tenant.AdmitBefore(tenant.LockStaffWorkTime, tenant.StaffWorkTimeKey(staffID, false), r.AcquireLock))
 }
 
 func (TenantSettingsRuntime) TodayTime() time.Time { return timezone.TodayDate().UTCMidnight() }

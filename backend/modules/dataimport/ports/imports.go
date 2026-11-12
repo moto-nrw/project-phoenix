@@ -2,9 +2,12 @@ package ports
 
 import (
 	"context"
+	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/auditlog/consents"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+
+	"github.com/moto-ogs/project-phoenix/modules/auditlog/consents"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
 )
 
 // ImportConfig defines entity-specific import behavior
@@ -54,22 +57,27 @@ type ProcessingOrderer[T any] interface {
 
 // StaffImportDeps contains the dependencies for StaffImportConfig.
 type StaffImportDeps struct {
-	Authorization       importModels.Authorization
-	Transactions        importModels.Transactions
-	Invitations         importModels.StaffInviter
-	FindInvitedPeople   func(context.Context, string) ([]int64, error)
-	FindSchoolAccount   func(context.Context, string) (int64, bool, error)
-	Roles               importModels.SchoolRoleQuery
-	RolePolicy          importModels.SchoolRolePolicy
-	FindRolePermissions func(context.Context, int64) ([]string, error)
-	SchoolName          func(context.Context) (string, error)
+	Authorization                importModels.Authorization
+	Transactions                 importModels.Transactions
+	Invitations                  importModels.StaffInviter
+	FindInvitedPeople            func(context.Context, string) ([]int64, error)
+	FindSchoolEmailIdentities    func(context.Context, []string) (map[string]int64, map[string][]int64, error)
+	FindSchoolAccount            func(context.Context, string) (int64, bool, error)
+	Roles                        importModels.SchoolRoleQuery
+	RolePolicy                   importModels.SchoolRolePolicy
+	FindRolePermissionsByRoleIDs func(context.Context, []int64) (map[int64][]string, error)
+	SchoolName                   func(context.Context) (string, error)
 
 	// Stammdaten owners (#2600, #2708): People Directory files the person,
 	// School Membership the staff and caregiver rows, Workforce the master
 	// data and qualifications.
 	Persons    PersonDirectory
 	Membership StaffMembership
-	Records    StaffRecords
+	// LockStaffPersonMerge shares the school's staff person merge gate before
+	// a row's first person or staff lock (#6702): a staff person merge holds
+	// it exclusively while it locks the school's staff rows. Nil takes none.
+	LockStaffPersonMerge func(context.Context) error
+	Records              StaffRecords
 }
 
 // OpeningBalanceImportDeps contains the request-independent dependencies for
@@ -95,6 +103,74 @@ type ImportRuntime struct {
 	Audit        AuditCommand
 	Observe      func(importModels.ImportObservation)
 	Fingerprint  func([]byte) string
+	// BoundStatements runs a callback with a statement timeout for the
+	// current transaction (tenant.WithStatementTimeout). Without it every
+	// chunk takes the row path: a bundled write runs only as a bounded
+	// attempt (decision E13, ADR 0067 addendum of 2026-11-08).
+	BoundStatements func(context.Context, time.Duration, func(context.Context) error) error
+	// BatchStatementLimit overrides DefaultBatchStatementLimit; tests use it
+	// to scale the bound down with the driver's read timeout.
+	BatchStatementLimit time.Duration
+	// ConnectionLost classifies a broken connection (the root binds the
+	// transaction runtime's classifier): a batch attempt that hits one is
+	// neither replayed nor retried.
+	ConnectionLost func(error) bool
+	// SavepointLost classifies a failed savepoint statement anywhere in a
+	// write, nested savepoints of owner commands included (the root binds
+	// tenant.IsSavepointControlFailure): the transaction can no longer be
+	// trusted, so the upload ends without retry and without replay.
+	SavepointLost func(error) bool
+}
+
+// BatchStatement runs the bundled statements of a batch command as the
+// bounded attempt of decision E13 (ADR 0067 addendum of 2026-11-08). fn
+// issues those statements only, opens no savepoint and returns the error of
+// the statement that failed as it is, wrapped at most with %w: the executor
+// takes E13′ from what fn returns, never from an error a later statement
+// adds (#5552 review of 1bb4bde258).
+type BatchStatement func(ctx context.Context, fn func(context.Context) error) error
+
+// ChunkWriter is the batch form of an import config for the chunk executor
+// (#5827, ADR 0067 addendum of 2026-11-08, point 2). Rows that share a key
+// within a chunk never share a segment.
+type ChunkWriter[T any] interface {
+	// ChunkWriterReady reports whether the batch commands are bound.
+	ChunkWriterReady() bool
+	// ChunkMinRows is the fewest rows a chunk and a segment need for the
+	// batch path to issue fewer statements than the row path; fewer take the
+	// row path. At least 2 (ADR 0067 addendum, point 2).
+	ChunkMinRows() int
+	// ChunkKeys names the input keys of a row; rows sharing a key depend on
+	// each other. Two keys are equal whenever the owners' matching would
+	// treat their inputs as equal.
+	ChunkKeys(T) []string
+	// ChunkRowPath reports a row the batch command must not write: it forms
+	// a segment of its own and takes the row path (ADR 0067 addendum, note
+	// on unique entries of new rows).
+	ChunkRowPath(T) bool
+	// ResolveChunk reads the existing records of a segment's rows in one
+	// protected read and returns a config whose FindExisting answers from it.
+	// When the read fails and its savepoint rolled back, the executor falls
+	// back to FindExisting per row; a failed savepoint statement of the read
+	// ends the upload (E19).
+	ResolveChunk(context.Context, []T) (ImportConfig[T], error)
+	// RefusesChunk reads, before the batch command, whether the row path
+	// would refuse one of the rows (a fachliche refusal, ADR F5); a read
+	// failure is returned as error.
+	RefusesChunk(context.Context, []T) (bool, error)
+	// CreateChunk creates the rows of one segment, all or nothing; it issues
+	// the owner writes only. Bundled statements run through bounded; the
+	// writes of single rows run as on the row path.
+	CreateChunk(ctx context.Context, rows []T, bounded BatchStatement) error
+}
+
+// ConsentTransition is one consent-history transition of a batch.
+type ConsentTransition = consents.ConsentTransition
+
+// ConsentTransitionBatches is the Audit consent-history batch slice of the
+// student chunk executor (#5552).
+type ConsentTransitionBatches interface {
+	RecordTransitionsAll(context.Context, []ConsentTransition) error
 }
 
 // StudentImportDeps are the consumer-owned ports of the student import.
@@ -102,12 +178,29 @@ type ImportRuntime struct {
 // Care Plan; PrivacyConsents is Student Presence; ConsentHistory is the
 // Audit platform recorder of the consent timestamps.
 type StudentImportDeps struct {
-	Transactions    importModels.Transactions
-	Persons         PersonDirectory
+	Transactions importModels.Transactions
+	Persons      PersonDirectory
+	// PersonBatches is the People Directory's batch slice; without it every
+	// chunk takes the row path.
+	PersonBatches   PersonBatches
 	Students        StudentDirectory
 	Guardians       GuardianDirectory
 	Schedules       StudentSchedules
 	PrivacyConsents PrivacyConsents
+	// PrivacyConsentBatches is Student Presence's consent batch slice and
+	// ConsentHistoryBatches the Audit recorder's; without both every chunk
+	// takes the row path.
+	PrivacyConsentBatches PrivacyConsentBatches
+	ConsentHistoryBatches ConsentTransitionBatches
+	// GuardianBatches is the People Directory's new-guardian batch slice;
+	// without it every chunk takes the row path.
+	GuardianBatches NewGuardianBatches
+	// EnrollmentBatches is the People Directory's enrollment batch slice
+	// (#5552 step 7); without it each child is created in place.
+	EnrollmentBatches EnrollmentBatches
+	// Today is the calendar day a new child's status is taken against;
+	// nil is calendar.TodayDate. Tests set a clock that crosses midnight.
+	Today func() calendar.Date
 	// FindRFIDCard resolves the optional RFID column to a card of this school
 	// (#2600). nil disables RFID import (the column is then rejected).
 	FindRFIDCard   func(context.Context, string) (string, bool, error)
@@ -127,9 +220,12 @@ type StudentImportDeps struct {
 type ClassListImportDeps struct {
 	Transactions importModels.Transactions
 	Membership   ClassListMembership
-	Persons      PersonDirectory
-	Students     StudentDirectory
-	Audit        AuditCommand
+	// Batches is School Membership's batch slice; without it every chunk
+	// takes the row path.
+	Batches  ClassListEntryBatches
+	Persons  PersonDirectory
+	Students StudentDirectory
+	Audit    AuditCommand
 }
 
 // RelationshipResolver preloads and resolves the names in an upload.

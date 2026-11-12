@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant/tenanttest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -241,7 +241,7 @@ func TestProcessSessionTimeoutByID_ContinuesWhenSSECollectionFails(t *testing.T)
 	}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 	}
 
-	result, err := svc.ProcessSessionTimeoutByID(ctx, 100)
+	result, err := svc.ProcessSessionTimeoutByID(ctx, 100, nil)
 
 	require.NoError(t, err)
 	require.NotNil(t, result)
@@ -273,7 +273,7 @@ func TestProcessSessionTimeoutByID_ReturnsCheckoutAndEndErrors(t *testing.T) {
 		}},
 		}
 
-		result, err := svc.ProcessSessionTimeoutByID(ctx, 100)
+		result, err := svc.ProcessSessionTimeoutByID(ctx, 100, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, result)
@@ -292,7 +292,7 @@ func TestProcessSessionTimeoutByID_ReturnsCheckoutAndEndErrors(t *testing.T) {
 		}, SupervisorRepo: &mockGroupSupervisorRepository{}},
 		}
 
-		result, err := svc.ProcessSessionTimeoutByID(ctx, 100)
+		result, err := svc.ProcessSessionTimeoutByID(ctx, 100, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, result)
@@ -339,7 +339,7 @@ func TestProcessSessionTimeoutByID_CompletesTimetableMirrorBeforeEndingSession(t
 	t.Run("closes the timetable first", func(t *testing.T) {
 		var order []string
 
-		result, err := newService(&order, nil).ProcessSessionTimeoutByID(ctx, 100)
+		result, err := newService(&order, nil).ProcessSessionTimeoutByID(ctx, 100, nil)
 
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -349,7 +349,7 @@ func TestProcessSessionTimeoutByID_CompletesTimetableMirrorBeforeEndingSession(t
 	t.Run("a failing bridge leaves the session open", func(t *testing.T) {
 		var order []string
 
-		result, err := newService(&order, errors.New("bridge down")).ProcessSessionTimeoutByID(ctx, 100)
+		result, err := newService(&order, errors.New("bridge down")).ProcessSessionTimeoutByID(ctx, 100, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, result)
@@ -401,7 +401,7 @@ func TestProcessSessionTimeoutByID_IsAtomic(t *testing.T) {
 		mock.ExpectBegin()
 		mock.ExpectCommit()
 
-		result, err := newService(db, nil).ProcessSessionTimeoutByID(txCtx, 100)
+		result, err := newService(db, nil).ProcessSessionTimeoutByID(txCtx, 100, nil)
 
 		require.NoError(t, err)
 		require.NotNil(t, result)
@@ -414,7 +414,7 @@ func TestProcessSessionTimeoutByID_IsAtomic(t *testing.T) {
 		mock.ExpectBegin()
 		mock.ExpectRollback()
 
-		result, err := newService(db, errors.New("session end failed")).ProcessSessionTimeoutByID(txCtx, 100)
+		result, err := newService(db, errors.New("session end failed")).ProcessSessionTimeoutByID(txCtx, 100, nil)
 
 		require.Error(t, err)
 		assert.Nil(t, result)
@@ -1711,4 +1711,85 @@ func TestCleanupOrphanedSupervisors_ErrorBranches(t *testing.T) {
 		require.Len(t, result.Errors, 1)
 		assert.Contains(t, result.Errors[0], "stale close failed")
 	})
+}
+
+// The sweep re-judges each candidate under its session lock with the
+// selection itself (#6502): it ends the session only while the selection
+// still returns it and its device is still offline.
+func TestStillAbandonedRejudgesTheLockedSession(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	cutoff := time.Now().Add(-time.Hour)
+	session := &ports.ActiveGroup{ID: 100}
+	recent, stale := time.Now(), time.Now().Add(-2*time.Hour)
+	lookupErr := errors.New("selection failed")
+	candidate := func(id int64, lastSeen *time.Time) *ports.ActiveGroup {
+		return &ports.ActiveGroup{ID: id, Device: &ports.SessionDevice{LastSeen: lastSeen}}
+	}
+
+	for _, tc := range []struct {
+		name       string
+		candidates []*ports.ActiveGroup
+		lookupErr  error
+		want       error
+	}{
+		{name: "still selected with offline device ends", candidates: []*ports.ActiveGroup{candidate(99, nil), candidate(100, &stale)}},
+		{name: "still selected with never seen device ends", candidates: []*ports.ActiveGroup{candidate(100, nil)}},
+		{name: "no longer selected is spared", candidates: []*ports.ActiveGroup{candidate(99, &stale)}, want: errSessionResumed},
+		{name: "device back online is spared", candidates: []*ports.ActiveGroup{candidate(100, &recent)}, want: errSessionResumed},
+		{name: "selection failure skips", lookupErr: lookupErr, want: lookupErr},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			svc := &service{ServiceDependencies: ServiceDependencies{GroupRepo: &mockGroupRepository{
+				findActiveSessionsOlderThanFunc: func(_ context.Context, got time.Time) ([]*ports.ActiveGroup, error) {
+					assert.Equal(t, cutoff, got, "the recheck uses the sweep's cutoff")
+					return tc.candidates, tc.lookupErr
+				},
+			}}}
+
+			err := svc.stillAbandoned(cutoff)(ctx, session)
+
+			if tc.want == nil {
+				require.NoError(t, err)
+				return
+			}
+			require.ErrorIs(t, err, tc.want)
+		})
+	}
+}
+
+// A skipped candidate writes nothing: the check runs before the timetable
+// bridge and the session end.
+func TestProcessSessionTimeoutSkipsBeforeAnyWrite(t *testing.T) {
+	t.Parallel()
+
+	ctx := context.Background()
+	svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal,
+		Logger: slog.Default(),
+		GroupRepo: &mockGroupRepository{
+			findByIDFunc: func(context.Context, interface{}) (*ports.ActiveGroup, error) {
+				return &ports.ActiveGroup{ID: 100}, nil
+			},
+		},
+		SchoolPresence: &mockVisitRepository{
+			endGroupSessionFunc: func(context.Context, int64, time.Time) (studentpresence.EndedGroupSession, error) {
+				t.Fatal("a skipped timeout must not end the session")
+				return studentpresence.EndedGroupSession{}, nil
+			},
+		},
+		SupervisorRepo: &mockGroupSupervisorRepository{},
+		TimetableBridgeCompleter: &timetableBridgeCompleterForSessionUnitTest{
+			completeFunc: func(context.Context, []int64, time.Time) (int64, error) {
+				t.Fatal("a skipped timeout must not complete the timetable mirror")
+				return 0, nil
+			},
+		},
+	}}
+
+	result, err := svc.ProcessSessionTimeoutByID(ctx, 100, func(context.Context, *ports.ActiveGroup) error { return errSessionResumed })
+
+	require.ErrorIs(t, err, errSessionResumed)
+	assert.Nil(t, result)
 }

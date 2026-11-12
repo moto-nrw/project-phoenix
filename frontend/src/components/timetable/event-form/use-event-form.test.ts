@@ -1152,3 +1152,268 @@ describe("useEventForm category loading", () => {
     expect(result.current.form.categoryId).toBe("2");
   });
 });
+
+describe("useEventForm Wochennotiz-only series save (#6141)", () => {
+  const period = {
+    id: "5",
+    tenantId: "1",
+    name: "Schuljahr 2026/27",
+    periodType: "school_year" as const,
+    startDate: "2026-08-01",
+    endDate: "2027-07-31",
+    weekCycleLength: 1,
+    weekCycleAnchor: null,
+    isActive: true,
+    createdAt: "2026-01-01T00:00:00Z",
+    updatedAt: "2026-01-01T00:00:00Z",
+  };
+  const series: TimetableTemplate = {
+    id: "9",
+    name: "Frühbetreuung",
+    type: "care",
+    categoryId: "2",
+    categoryName: "Betreuung",
+    roomId: "7",
+    isOpen: true,
+    maxParticipants: 20,
+    targetGroupType: "none",
+    enrollmentCount: 0,
+    supervisorCount: 0,
+    requiredStaffCount: 0,
+    assignedStaffCount: 0,
+    studentIds: [],
+    staffIds: [],
+    weekdayAssignments: [],
+    notes: "Alt",
+    schedules: [
+      {
+        id: "1",
+        weekday: 1,
+        startTime: "07:00",
+        endTime: "08:00",
+        weekPattern: 0,
+        calendarPeriodId: "5",
+      },
+    ],
+  };
+  const occurrence: EnrichedInstance = {
+    id: "42",
+    date: "2026-09-14",
+    startTime: "07:00",
+    endTime: "08:00",
+    title: "Frühbetreuung",
+    status: "planned",
+    isSpontaneous: false,
+    isLive: false,
+    activityGroupId: "9",
+    activityType: "care",
+    roomId: "7",
+    roomName: "Mensa",
+    seriesNotes: "Alt",
+    staff: [],
+    students: [],
+    studentIds: [],
+    staffCount: 0,
+    absentStaffCount: 0,
+    expectedStudentsCount: 0,
+    notScheduledStudentsCount: 0,
+    presentStudentsCount: 0,
+    requiredStaffCount: 0,
+    assignedStaffCount: 0,
+    conflictWarnings: [],
+  };
+
+  function mockApis(template = series) {
+    vi.spyOn(plannerReferenceApi, "fetchPlannerRooms").mockResolvedValue([]);
+    vi.spyOn(plannerReferenceApi, "fetchPlannerGroups").mockResolvedValue([]);
+    vi.spyOn(
+      plannerReferenceApi,
+      "fetchPlannerActivityCategories",
+    ).mockResolvedValue([]);
+    vi.spyOn(formModel, "fetchAllStudentOptions").mockResolvedValue([]);
+    vi.spyOn(staffService, "getAllStaff").mockResolvedValue([]);
+    vi.spyOn(timetableService, "getTemplate").mockResolvedValue(template);
+    return {
+      countEditedInWindow: vi
+        .spyOn(timetableService, "countEditedInWindow")
+        .mockResolvedValue({ count: 12, occurrences: [] }),
+      updateTemplate: vi
+        .spyOn(timetableService, "updateTemplate")
+        .mockResolvedValue(undefined as never),
+      replanWeek: vi
+        .spyOn(timetableService, "replanWeek")
+        .mockResolvedValue({ warnings: [] } as never),
+    };
+  }
+
+  function renderForm(
+    overrides: Pick<UseEventFormParams, "initialInstance" | "initialSeries">,
+  ) {
+    const onClose = vi.fn();
+    const hook = renderHook(() =>
+      useEventForm({
+        isOpen: true,
+        onClose,
+        onSaved: vi.fn(),
+        defaultDate: "2026-09-14",
+        calendarPeriods: [period],
+        defaultCalendarPeriodId: "5",
+        planningPeriods: null,
+        convertInstance: null,
+        defaultRepeat: "none",
+        variant: "full",
+        canCheckShiftCoverage: false,
+        ...overrides,
+      }),
+    );
+    return { ...hook, onClose };
+  }
+
+  const submitEvent = { preventDefault: vi.fn() } as unknown as Parameters<
+    ReturnType<typeof useEventForm>["handleSubmit"]
+  >[0];
+
+  it("saves only the template when the Regeltermin's Wochennotiz changed", async () => {
+    const apis = mockApis();
+    const { result, onClose } = renderForm({
+      initialInstance: null,
+      initialSeries: series,
+    });
+    await waitFor(() => expect(result.current.form.seriesNotes).toBe("Alt"));
+
+    act(() => result.current.update("seriesNotes", "Neu"));
+    await act(async () => {
+      await result.current.handleSubmit(submitEvent);
+    });
+
+    expect(apis.updateTemplate).toHaveBeenCalledWith(
+      "9",
+      expect.objectContaining({
+        notes: "Neu",
+        propagate_notes_to_predecessors: true,
+      }),
+    );
+    expect(apis.countEditedInWindow).not.toHaveBeenCalled();
+    expect(apis.replanWeek).not.toHaveBeenCalled();
+    expect(result.current.lostEdits).toBeNull();
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("still warns and rebuilds when another series field changed too", async () => {
+    const apis = mockApis();
+    const { result } = renderForm({
+      initialInstance: null,
+      initialSeries: series,
+    });
+    await waitFor(() => expect(result.current.form.seriesNotes).toBe("Alt"));
+
+    act(() => {
+      result.current.update("seriesNotes", "Neu");
+      result.current.update("endTime", "08:30");
+    });
+    await act(async () => {
+      await result.current.handleSubmit(submitEvent);
+    });
+
+    expect(apis.countEditedInWindow).toHaveBeenCalledTimes(1);
+    await waitFor(() => expect(result.current.lostEdits).not.toBeNull());
+    await act(async () => {
+      await result.current.confirmLostEdits();
+    });
+    expect(apis.replanWeek).toHaveBeenCalled();
+  });
+
+  it("still warns when the closing-day answer differs from the stored series flag", async () => {
+    const apis = mockApis();
+    const { result } = renderForm({
+      initialInstance: null,
+      initialSeries: { ...series, includeClosingDays: false },
+    });
+    await waitFor(() => expect(result.current.form.seriesNotes).toBe("Alt"));
+
+    act(() => {
+      result.current.update("seriesNotes", "Neu");
+      result.current.setClosingDayChoice(true);
+    });
+    await act(async () => {
+      await result.current.handleSubmit(submitEvent);
+    });
+
+    expect(apis.countEditedInWindow).toHaveBeenCalledTimes(1);
+    expect(result.current.lostEdits).not.toBeNull();
+  });
+
+  it("still warns for an offering-sourced series", async () => {
+    const apis = mockApis();
+    const { result } = renderForm({
+      initialInstance: null,
+      initialSeries: {
+        ...series,
+        targetGroupType: "angebot",
+        sourceCareOfferingIds: ["3"],
+      },
+    });
+    await waitFor(() => expect(result.current.form.seriesNotes).toBe("Alt"));
+
+    act(() => result.current.update("seriesNotes", "Neu"));
+    await act(async () => {
+      await result.current.handleSubmit(submitEvent);
+    });
+
+    expect(apis.countEditedInWindow).toHaveBeenCalledTimes(1);
+  });
+
+  it("saves only the template for 'Alle Termine' from an occurrence", async () => {
+    const apis = mockApis();
+    const { result, onClose } = renderForm({
+      initialInstance: occurrence,
+      initialSeries: null,
+    });
+    await act(async () => {
+      await result.current.handleInitialScopeSelect("all");
+    });
+    await waitFor(() => expect(result.current.form.seriesNotes).toBe("Alt"));
+
+    act(() => result.current.update("seriesNotes", "Neu"));
+    await act(async () => {
+      await result.current.handleSubmit(submitEvent);
+    });
+
+    expect(apis.updateTemplate).toHaveBeenCalledWith(
+      "9",
+      expect.objectContaining({ notes: "Neu" }),
+    );
+    expect(apis.countEditedInWindow).not.toHaveBeenCalled();
+    expect(apis.replanWeek).not.toHaveBeenCalled();
+    expect(result.current.lostEdits).toBeNull();
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it("propagates a Wochennotiz-only 'Alle Termine' save across a resolved chain", async () => {
+    const apis = mockApis({ ...series, resolvedFromTemplateId: "8" });
+    const { result, onClose } = renderForm({
+      initialInstance: { ...occurrence, activityGroupId: "8" },
+      initialSeries: null,
+    });
+    await act(async () => {
+      await result.current.handleInitialScopeSelect("all");
+    });
+    await waitFor(() => expect(result.current.form.seriesNotes).toBe("Alt"));
+
+    act(() => result.current.update("seriesNotes", "Neu"));
+    await act(async () => {
+      await result.current.handleSubmit(submitEvent);
+    });
+
+    expect(apis.updateTemplate).toHaveBeenCalledWith(
+      "9",
+      expect.objectContaining({
+        notes: "Neu",
+        propagate_notes_to_predecessors: true,
+      }),
+    );
+    expect(apis.countEditedInWindow).not.toHaveBeenCalled();
+    expect(apis.replanWeek).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
+  });
+});

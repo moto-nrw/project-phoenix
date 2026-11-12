@@ -9,9 +9,9 @@ import (
 	"net"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -123,7 +123,7 @@ func TestVerifyCodeForAccount_RefusesForeignPortalChallenge(t *testing.T) {
 	testpkg.EnsureAccountTenant(t, db, accountID, tenantID)
 
 	// One school-portal challenge in flight, nothing else.
-	_, err := svc.StartMFAChallenge(ctx, accountID, tenantID, identityaccess.MFAChallengeScopeSchool, net.ParseIP("203.0.113.7"))
+	_, err := svc.StartMFAChallenge(ctx, accountID, tenantID, identityaccess.MFAChallengeScopeSchool, net.ParseIP("203.0.113.7"), 0)
 	require.NoError(t, err)
 
 	stored, _, err := mfaRecordRows(t, db).FindActiveChallengeInScope(ctx, accountID, tenantID, identityaccess.MFAChallengeScopeSchool)

@@ -13,22 +13,22 @@ import (
 	"testing"
 	"time"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 
 	"github.com/go-chi/chi/v5"
 	chimiddleware "github.com/go-chi/chi/v5/middleware"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
-	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
-	"github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	customMiddleware "github.com/moto-ogs/project-phoenix/middleware"
+	devicefleetCompose "github.com/moto-ogs/project-phoenix/modules/devicefleet/compose"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/realtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -603,7 +603,7 @@ func adminClaimsForCallback() sessiontoken.AppClaims {
 //
 // We register a fake SSE client on the real Hub (the type is concrete and
 // can't be mocked through an interface) and read events off its channel.
-// Empty subscribed-groups slice still receives BroadcastToAll events, which
+// An empty subscribed-groups slice still receives school-scoped events, which
 // is the path the post-commit closure uses.
 func TestOnValueSetCallback_StudentPhotosDisableBroadcastsUpdate(t *testing.T) {
 	t.Parallel()
@@ -611,8 +611,8 @@ func TestOnValueSetCallback_StudentPhotosDisableBroadcastsUpdate(t *testing.T) {
 	route := setupSettingsCallbackRoute(t)
 
 	// Subscribe a fake SSE client to the real Hub so we can observe
-	// BroadcastToAll without mocking. UserID/TenantID are arbitrary —
-	// BroadcastToAll fan-outs ignore both.
+	// school-scoped delivery without mocking. The client and event belong
+	// to the same school.
 	client := &realtime.Client{
 		Channel:          make(chan realtime.Event, 4),
 		UserID:           1,

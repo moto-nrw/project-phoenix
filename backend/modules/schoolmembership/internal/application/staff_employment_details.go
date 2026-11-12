@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/domain"
 )
 
 func (s *Service) UpdateEmploymentDetails(ctx context.Context, input schoolmembership.UpdateEmploymentDetails) (schoolmembership.Staff, error) {
@@ -59,7 +59,7 @@ func (s *Service) LockLiveStaff(ctx context.Context, staffID int64) error {
 // ErrStaffNotFound and nothing is written.
 func (s *Service) updateEmployment(ctx context.Context, operation string, id int64, change func(*domain.StaffEmployment)) (result schoolmembership.Staff, err error) {
 	err = s.runStaffWrite(ctx, operation, func(txCtx context.Context, stats *domain.OperationStats) error {
-		current, found, queryStats, err := s.store.FindStaff(txCtx, id, "UPDATE", false)
+		current, found, queryStats, err := s.findStaffRow(txCtx, id, "UPDATE", false)
 		stats.Add(queryStats)
 		if err != nil {
 			return err

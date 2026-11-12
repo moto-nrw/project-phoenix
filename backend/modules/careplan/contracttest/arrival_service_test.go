@@ -9,15 +9,15 @@ import (
 	"testing"
 	"time"
 
-	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetable "github.com/moto-ogs/project-phoenix/modules/timetable"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant/tenanttest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -688,39 +688,6 @@ func TestArrivalScheduleService_DeleteStudentArrivalException(t *testing.T) {
 		require.NoError(t, err)
 
 		err = testpkg.TenantCommand2(t, ctx, db, service.DeleteStudentArrivalException, exception.ID, exception.StudentID)
-
-		require.NoError(t, err)
-
-		results, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentArrivalExceptions, student.ID)
-		require.NoError(t, err)
-		assert.Empty(t, results)
-	})
-}
-
-func TestArrivalScheduleService_DeleteAllStudentArrivalExceptions(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupArrivalScheduleService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("deletes all exceptions for student", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Test", "ArrStudent", "1a")
-
-		baseDate := calendar.TodayDate()
-		for i := 1; i <= 5; i++ {
-			exception := &careplan.ArrivalException{
-				StudentID:     student.ID,
-				ExceptionDate: careplan.Date(baseDate.AddDays(i)),
-				Reason:        testpkg.StrPtr("Exception"),
-				CreatedBy:     createArrivalServiceTestStaffID(t, db),
-			}
-			err := testpkg.TenantCommand1(t, ctx, db, service.CreateStudentArrivalException, exception)
-			require.NoError(t, err)
-		}
-
-		err := testpkg.TenantCommand1(t, ctx, db, service.DeleteAllStudentArrivalExceptions, student.ID)
 
 		require.NoError(t, err)
 

@@ -8,32 +8,33 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/auditlog"
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	organizationTenancyTraeger "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/traeger"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	studentPresenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/modules/traegerportal"
-	"github.com/moto-nrw/project-phoenix/modules/traegerview"
-	traegerViewCompose "github.com/moto-nrw/project-phoenix/modules/traegerview/compose"
-	traegerViewHTTP "github.com/moto-nrw/project-phoenix/modules/traegerview/http"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/auditlog"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	organizationTenancyCompose "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	organizationTenancyTraeger "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/inbound/traeger"
+	parentBillingCompose "github.com/moto-ogs/project-phoenix/modules/parentbilling/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	schoolMembershipCompose "github.com/moto-ogs/project-phoenix/modules/schoolmembership/compose"
+	settingsHTTP "github.com/moto-ogs/project-phoenix/modules/settings/http"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	studentPresenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-ogs/project-phoenix/modules/traegerportal"
+	"github.com/moto-ogs/project-phoenix/modules/traegerview"
+	traegerViewCompose "github.com/moto-ogs/project-phoenix/modules/traegerview/compose"
+	traegerViewHTTP "github.com/moto-ogs/project-phoenix/modules/traegerview/http"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // TraegerPortalIdentity is what the Träger-Portal serves of Identity &
@@ -82,8 +83,8 @@ type TraegerAudit struct {
 // #4649) at /traeger: the public sign-in and the Träger route group, which
 // accepts only Träger sessions. Token refresh and logout go through the
 // shared scope-preserving /auth/refresh and /auth/logout.
-func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher) error {
-	portal, err := NewTraegerPortalHTTP(identity, organizations, persons, staff, audit, settings, healthData)
+func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher, holidayCalendar enrollment.HolidaySchoolCalendar, holidayMail enrollment.TraegerMailOutbox, holidayTraeger enrollment.HolidayTraegerDirectory) error {
+	portal, err := NewTraegerPortalHTTP(identity, organizations, persons, staff, audit, settings, healthData, holidayCalendar, holidayMail, holidayTraeger)
 	if err != nil {
 		return err
 	}
@@ -96,10 +97,15 @@ func mountTraegerPortalRoutes(root chi.Router, limiters authRateLimiters, identi
 // Enrollment, the Träger settings and the master data of Organisation &
 // Tenancy to the portal's route ports. healthData opens the health
 // information of a holiday registration behind the right
-// "Gesundheitsangaben sehen" (#4722).
-func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher) (*traegerportal.Resource, error) {
-	if identity == nil || organizations == nil || persons == nil || staff == nil || audit.Trail == nil || audit.Log == nil || settings == nil {
-		return nil, errors.New("traeger portal: identity, organizations, persons, staff, the access trail, the access log and the settings are required")
+// "Gesundheitsangaben sehen" (#4722). holidayCalendar names the host
+// schools' days without care, which no holiday week may book (#4702).
+// holidayMail tells the parents the places the Büro decided on by criteria
+// (#4700), in the Träger transaction of the decision; holidayTraeger names
+// the Träger and the host schools in that mail, like the mail of a booking
+// that moved up (#6437).
+func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organizationtenancy.TraegerMembershipQuery, persons TraegerPersons, staff TraegerStaff, audit TraegerAudit, settings TraegerPortalSettings, healthData enrollment.HolidayHealthCipher, holidayCalendar enrollment.HolidaySchoolCalendar, holidayMail enrollment.TraegerMailOutbox, holidayTraeger enrollment.HolidayTraegerDirectory) (*traegerportal.Resource, error) {
+	if identity == nil || organizations == nil || persons == nil || staff == nil || audit.Trail == nil || audit.Log == nil || settings == nil || holidayCalendar == nil || holidayMail == nil || holidayTraeger == nil {
+		return nil, errors.New("traeger portal: identity, organizations, persons, staff, the access trail, the access log, the settings, the host schools' calendar, the holiday mail and the Träger names are required")
 	}
 	overview, err := traegerViewCompose.New(traegerview.Ports{
 		SchoolIDs: traegerSchoolIDs{organizations: organizations}, Trail: traegerAccessTrail{trail: audit.Trail},
@@ -109,30 +115,37 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 		Sick: carePlanCompose.NewSickStudents(), OnSite: workforceCompose.NewOnSiteStaff(),
 		KeyDates:    traegerKeyDateCounts{organizations: organizations},
 		Enrollments: enrollmentCompose.NewOpenEnrollments(), Alerts: traegerAlertSettings{settings: settings},
-		Occupancy: traegerOccupancyPorts(),
+		Occupancy: traegerOccupancyPorts(), Known: traegerKnownChildrenPorts(),
 	})
 	if err != nil {
 		return nil, err
 	}
-	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(nil),
-		enrollmentCompose.NewHolidayRegistrationReview(healthData), holidaySchoolNames{overview: overview},
+	review, places, allocation, records := enrollmentCompose.NewHolidayRegistrationReview(healthData, holidayMail, holidayTraeger, holidayCalendar)
+	_, allocationBilling := parentBillingCompose.NewHolidayContributions(parentBillingHolidayRegistrations{review: review}, parentBillingSettings{settings: settings})
+	decide := newHolidayAllocation(allocationBilling, review, places, allocation)
+	_, wishes := enrollmentCompose.NewHolidayWishes(healthData)
+	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(nil, holidayCalendar), review, records, wishes, places, allocation, decide, holidaySchoolNames{overview: overview},
+		holidayKnownChildren{overview: overview}, enrollmentCompose.NewHolidayKnownChildTrail(),
 		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage), common.RequiresPermission(identityaccess.TraegerRightHealthRead))
 	traegerSettings := settingsHTTP.NewTraegerSettingsResource(settings, identityaccess.TraegerRightOverviewRead,
 		identityaccess.TraegerRightSettingsManage, identityaccess.TraegerRightStaffManage, identityaccess.TraegerRightBillingManage)
 	masterData := organizationTenancyTraeger.NewMasterDataResource(organizationTenancyCompose.NewTraegerMasterData(), organizationTenancyCompose.NewTraegerDocumentTemplates(),
 		common.RequiresPermission(identityaccess.TraegerRightOverviewRead), common.RequiresPermission(identityaccess.TraegerRightSettingsManage))
 	overviewRoutes := traegerViewHTTP.NewResource(overview)
+	// The names of the Träger-Büro (#4693); a route-sized test identity
+	// without them answers 500 on those routes, the serving root refuses it.
+	profiles, _ := identity.(identityaccess.TraegerMemberProfiles)
 	return traegerportal.NewResource(TraegerPortalAuth(identity), TraegerPortalMFA(identity),
 		portalauth.PasswordResetRoutes(identity, identityaccess.PasswordResetScopeTraeger), overviewRoutes, holidayPeriods,
-		traegerViewHTTP.NewAccessLogResource(overview), traegerSettings, masterData, identity, overviewRoutes, identity), nil
+		traegerViewHTTP.NewAccessLogResource(overview), traegerSettings, masterData, identity, profiles, overviewRoutes, identity), nil
 }
 
 // TraegerPortalSettings is the Träger level of the settings system as the
 // portal serves it: the settings routes and the thresholds of the dashboard
 // hints (#4675).
 type TraegerPortalSettings interface {
+	TraegerBrandingSettings
 	settingsHTTP.TraegerOperations
-	TraegerInts(ctx context.Context, organizationID int64, keys []string) (map[string]int, error)
 }
 
 // traegerAlertSettings binds the thresholds of the dashboard hints (#4675) to
@@ -446,9 +459,11 @@ func TraegerPortalMFA(mfa interface {
 		ResendChallenge: func(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
 			return mfa.ResendMFAChallengeForScope(ctx, challengeToken, ip, identityaccess.MFAChallengeScopeOrg)
 		},
-		StartChallenge: func(ctx context.Context, accountID int64, ip net.IP) (string, error) {
-			return mfa.StartMFAChallenge(ctx, accountID, 0, identityaccess.MFAChallengeScopeOrg, ip)
+		StartChallenge: func(ctx context.Context, accountID int64, ip net.IP, credentialGeneration int64) (string, error) {
+			return mfa.StartMFAChallenge(ctx, accountID, 0, identityaccess.MFAChallengeScopeOrg, ip, credentialGeneration)
 		},
-		Enroll: mfa.EnrollMFA,
+		Enroll: func(ctx context.Context, proof traegerportal.VerifiedChallenge) error {
+			return mfa.EnrollMFA(ctx, identityaccess.VerifiedMFAChallenge{AccountID: proof.AccountID, Scope: identityaccess.MFAChallengeScopeOrg, MFAResetGeneration: proof.MFAResetGeneration})
+		},
 	}
 }

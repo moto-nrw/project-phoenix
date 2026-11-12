@@ -5,10 +5,10 @@ import (
 	"context"
 	"slices"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
 
 	"testing"
 	"time"
@@ -17,15 +17,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	enrollmentTest "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Offering-source integration tests (#2137): one Betreuungsangebot feeding
@@ -1344,7 +1344,7 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 
 	period := api.CreateCareOfferingCalendarPeriod(func(err error) { require.NoError(t, err) }, testpkg.NewDatabase(t, env.db), testpkg.Ctx(t), testpkg.Tenant(t), uniqueSchemaName(t.Name()), calendar.Date(env.sourcePhase.ServiceStartDate).AddDays(-31), calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(31))
 	offering := createSourceOffering(t, env, "PhasenLoeschQuelle", nil)
-	studentID, _ := submitAndApproveOfferingChild(t, env, offering.ID, "phase-delete@example.com", "Phia", 2)
+	studentID, requestChildID := submitAndApproveOfferingChild(t, env, offering.ID, "phase-delete@example.com", "Phia", 2)
 	template := createSourcedTemplate(t, env, "PhasenLoeschTermin", offering.ID, nil, period.ID)
 	require.NoError(t, offeringResyncer(t, env).ResyncTemplateOfferingRoster(ctx,
 		timetable.OfferingRosterResyncInput{
@@ -1365,6 +1365,13 @@ func TestPhaseDelete_RetiresSourcedRosterRows(t *testing.T) {
 	testpkg.CreateTestInstanceStudent(t, env.db, planned.ID, studentID, "expected")
 
 	repoFactory := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, env.db))
+	// A phase with effective bookings is not deleted (#6505): the child's
+	// booking ends first, through the booking capability that leaves the
+	// derived roster rows to the delete.
+	_, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), repoFactory.CarePlan().EndCareOfferingBookings,
+		[]int64{requestChildID}, careplan.Date(offeringResyncToday))
+	require.NoError(t, err)
+	require.Len(t, loadTemplateEnrollments(t, env, template.ID), 1, "ending the booking leaves the roster rows to the delete")
 	repoFactoryEnrollment := api.NewEnrollmentSuiteRepositories(testpkg.NewDatabase(t, env.db))
 	timetableRepos := testTimetableRepositories(env.db)
 	sourcedResyncer, ok := env.bookings.(enrollmentTest.SourcedTemplateResyncer)

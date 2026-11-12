@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -38,7 +38,7 @@ func TestTenantExportRequiresFormLegalDocumentOriginal(t *testing.T) {
 	require.NoError(t, err)
 	_, err = db.NewRaw("UPDATE enrollment.form_schemas SET legal_blocks = ?::jsonb WHERE id = ?", string(blocks), form).Exec(t.Context())
 	require.NoError(t, err)
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{}, &exportAuditFake{})
 	require.NoError(t, err)
 	uploads := t.TempDir()
 	// A missing namespace must not silently turn into a completed export.
@@ -50,7 +50,7 @@ func TestTenantExportRequiresFormLegalDocumentOriginal(t *testing.T) {
 	original := []byte("synthetic legal document original")
 	require.NoError(t, os.WriteFile(filepath.Join(dir, filename), original, 0o600))
 	out := filepath.Join(t.TempDir(), "complete")
-	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: school, Output: out, Uploads: uploads}))
+	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: school, OperatorID: 42, Output: out, Uploads: uploads}))
 	manifest := readExportManifest(t, out)
 	assertExportArtifacts(t, out, manifest)
 	data, err := os.ReadFile(filepath.Join(out, "objects.jsonl"))
@@ -67,7 +67,7 @@ func TestTenantExportRequiresEmbeddedFormAttachments(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	school, form, request := legalDocumentExportFixture(t, db)
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{}, &exportAuditFake{})
 	require.NoError(t, err)
 	cases := []struct {
 		name, table, column, payload string
@@ -93,7 +93,7 @@ func TestTenantExportRequiresEmbeddedFormAttachments(t *testing.T) {
 			require.NoError(t, os.Mkdir(dir, 0o700))
 			require.NoError(t, os.WriteFile(filepath.Join(dir, filename), []byte("synthetic attachment original"), 0o600))
 			out := filepath.Join(t.TempDir(), "complete")
-			require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: school, Output: out, Uploads: uploads}))
+			require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: school, OperatorID: 42, Output: out, Uploads: uploads}))
 			assertExportArtifacts(t, out, readExportManifest(t, out))
 		})
 	}
@@ -109,7 +109,7 @@ func TestTenantExportRejectsForeignLegalDocumentReferences(t *testing.T) {
 	dir := filepath.Join(uploads, "enrollment-form-legal-documents")
 	require.NoError(t, os.Mkdir(dir, 0o700))
 	require.NoError(t, os.WriteFile(filepath.Join(dir, filename), []byte("synthetic foreign original"), 0o600))
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{}, &exportAuditFake{})
 	require.NoError(t, err)
 	for _, prefix := range []string{"/uploads/", "/api/public/"} {
 		blocks, err := json.Marshal([]map[string]string{{"document_url": prefix + "enrollment-form-legal-documents/" + filename}})
@@ -124,7 +124,7 @@ func TestTenantExportRejectsForeignLegalDocumentReferences(t *testing.T) {
 	_, err = db.NewRaw("UPDATE enrollment.form_schemas SET legal_blocks = ?::jsonb WHERE id = ?", string(blocks), form).Exec(t.Context())
 	require.NoError(t, err)
 	out := filepath.Join(t.TempDir(), "complete")
-	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: school, Output: out, Uploads: uploads}))
+	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: school, OperatorID: 42, Output: out, Uploads: uploads}))
 	readExportManifest(t, out)
 	data, err := os.ReadFile(filepath.Join(out, "objects.jsonl"))
 	require.NoError(t, err)

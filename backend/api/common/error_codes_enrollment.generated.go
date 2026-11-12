@@ -64,6 +64,8 @@ const CodeEnrollmentDuplicateDetected = "enrollment.duplicate_detected"
 const CodeEnrollmentEditNotAllowed = "enrollment.edit_not_allowed"
 const CodeEnrollmentExistingChildChoiceInvalid = "enrollment.existing_child_choice_invalid"
 const CodeEnrollmentExportTooLarge = "enrollment.export_too_large"
+const CodeEnrollmentFamilyChildrenClosed = "enrollment.family_children_closed"
+const CodeEnrollmentFamilyChildrenInvalid = "enrollment.family_children_invalid"
 const CodeEnrollmentFieldRequired = "enrollment.field_required"
 const CodeEnrollmentFormAttachmentInvalid = "enrollment.form_attachment_invalid"
 const CodeEnrollmentFormFieldAllowedTimesInvalid = "enrollment.form_field_allowed_times_invalid"
@@ -83,6 +85,14 @@ const CodeEnrollmentGuardianAccountMismatch = "enrollment.guardian_account_misma
 const CodeEnrollmentGuardianEmailRequired = "enrollment.guardian_email_required"
 const CodeEnrollmentGuardianNameRequired = "enrollment.guardian_name_required"
 const CodeEnrollmentGuardianPhoneRequired = "enrollment.guardian_phone_required"
+const CodeEnrollmentHolidayAllocationChanged = "enrollment.holiday_allocation_changed"
+const CodeEnrollmentHolidayAllocationFull = "enrollment.holiday_allocation_full"
+const CodeEnrollmentHolidayAllocationModeLocked = "enrollment.holiday_allocation_mode_locked"
+const CodeEnrollmentHolidayAllocationPending = "enrollment.holiday_allocation_pending"
+const CodeEnrollmentHolidayBookingUnitBooked = "enrollment.holiday_booking_unit_booked"
+const CodeEnrollmentHolidayCareWishRequired = "enrollment.holiday_care_wish_required"
+const CodeEnrollmentHolidayChildDayLimit = "enrollment.holiday_child_day_limit"
+const CodeEnrollmentHolidayChildDayLimitPublic = "enrollment.holiday_child_day_limit_public"
 const CodeEnrollmentHolidayFormFieldNotAllowed = "enrollment.holiday_form_field_not_allowed"
 const CodeEnrollmentHolidayGuestGroupInvalid = "enrollment.holiday_guest_group_invalid"
 const CodeEnrollmentHolidayGuestNotFound = "enrollment.holiday_guest_not_found"
@@ -99,7 +109,11 @@ const CodeEnrollmentHolidayRegistrationInvalid = "enrollment.holiday_registratio
 const CodeEnrollmentHolidayRegistrationNotFound = "enrollment.holiday_registration_not_found"
 const CodeEnrollmentHolidayRegistrationStateConflict = "enrollment.holiday_registration_state_conflict"
 const CodeEnrollmentHolidayWeekBooked = "enrollment.holiday_week_booked"
+const CodeEnrollmentHolidayWeekDayLimit = "enrollment.holiday_week_day_limit"
+const CodeEnrollmentHolidayWeekNoCareDay = "enrollment.holiday_week_no_care_day"
+const CodeEnrollmentHolidayWeekNotFound = "enrollment.holiday_week_not_found"
 const CodeEnrollmentHolidayWeeksBookedTogether = "enrollment.holiday_weeks_booked_together"
+const CodeEnrollmentHolidayWishMissing = "enrollment.holiday_wish_missing"
 const CodeEnrollmentHostedHolidayWeekNotFound = "enrollment.hosted_holiday_week_not_found"
 const CodeEnrollmentInvalidEmail = "enrollment.invalid_email"
 const CodeEnrollmentInvalidPhone = "enrollment.invalid_phone"
@@ -111,16 +125,21 @@ const CodeEnrollmentLegalBlockRequiredNotAllowed = "enrollment.legal_block_requi
 const CodeEnrollmentLegalDocumentInvalid = "enrollment.legal_document_invalid"
 const CodeEnrollmentMessageRequired = "enrollment.message_required"
 const CodeEnrollmentOfferingAdjustmentInvalid = "enrollment.offering_adjustment_invalid"
+const CodeEnrollmentPhaseBookingBoundsConflict = "enrollment.phase_booking_bounds_conflict"
 const CodeEnrollmentPhaseCareOfferingConflict = "enrollment.phase_care_offering_conflict"
 const CodeEnrollmentPhaseEligibilitySettingRequired = "enrollment.phase_eligibility_setting_required"
+const CodeEnrollmentPhaseHasEffectiveBookings = "enrollment.phase_has_effective_bookings"
 const CodeEnrollmentPhaseNameExists = "enrollment.phase_name_exists"
 const CodeEnrollmentPhaseNameRequired = "enrollment.phase_name_required"
 const CodeEnrollmentPhaseNotEligible = "enrollment.phase_not_eligible"
 const CodeEnrollmentPhaseNotFound = "enrollment.phase_not_found"
+const CodeEnrollmentPhasePendingChildWindowConflict = "enrollment.phase_pending_child_window_conflict"
 const CodeEnrollmentPhaseSchoolClassesInvalid = "enrollment.phase_school_classes_invalid"
 const CodeEnrollmentPhaseServicePeriodInvalid = "enrollment.phase_service_period_invalid"
 const CodeEnrollmentPhaseWindowInvalid = "enrollment.phase_window_invalid"
 const CodeEnrollmentPickupTimeNotAllowed = "enrollment.pickup_time_not_allowed"
+const CodeEnrollmentRenewalTermsChanged = "enrollment.renewal_terms_changed"
+const CodeEnrollmentRenewalTermsRequired = "enrollment.renewal_terms_required"
 const CodeEnrollmentRequestDuplicate = "enrollment.request_duplicate"
 const CodeEnrollmentRequestNotFound = "enrollment.request_not_found"
 const CodeEnrollmentRequiredCareOfferingMissing = "enrollment.required_care_offering_missing"
@@ -139,7 +158,16 @@ const CodeEnrollmentSignatureNotFound = "enrollment.signature_not_found"
 const CodeEnrollmentSignatureRequired = "enrollment.signature_required"
 const CodeEnrollmentStatusLinkInvalid = "enrollment.status_link_invalid"
 const CodeEnrollmentStudentExists = "enrollment.student_exists"
+const CodeEnrollmentSubmissionEmailRateLimited = "enrollment.submission_email_rate_limited"
 const CodeEnrollmentSubmissionRateLimited = "enrollment.submission_rate_limited"
+const CodeEnrollmentTraegerCatalogInvalid = "enrollment.traeger_catalog_invalid"
+const CodeEnrollmentTraegerCopyDelete = "enrollment.traeger_copy_delete"
+const CodeEnrollmentTraegerCopyRejected = "enrollment.traeger_copy_rejected"
+const CodeEnrollmentTraegerOfferingNotFound = "enrollment.traeger_offering_not_found"
+const CodeEnrollmentTraegerPhaseNotFound = "enrollment.traeger_phase_not_found"
+const CodeEnrollmentTraegerPreviewStale = "enrollment.traeger_preview_stale"
+const CodeEnrollmentTraegerSchoolOutside = "enrollment.traeger_school_outside"
+const CodeEnrollmentTraegerWithdrawn = "enrollment.traeger_withdrawn"
 const CodeEnrollmentUploadContentMismatch = "enrollment.upload_content_mismatch"
 const CodeEnrollmentUploadExpired = "enrollment.upload_expired"
 const CodeEnrollmentUploadInvalid = "enrollment.upload_invalid"
@@ -213,6 +241,8 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentEditNotAllowed, "permission"},
 	{CodeEnrollmentExistingChildChoiceInvalid, "business_rejection"},
 	{CodeEnrollmentExportTooLarge, "input"},
+	{CodeEnrollmentFamilyChildrenClosed, "business_rejection"},
+	{CodeEnrollmentFamilyChildrenInvalid, "input"},
 	{CodeEnrollmentFieldRequired, "input"},
 	{CodeEnrollmentFormAttachmentInvalid, "input"},
 	{CodeEnrollmentFormFieldAllowedTimesInvalid, "input"},
@@ -232,6 +262,14 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentGuardianEmailRequired, "input"},
 	{CodeEnrollmentGuardianNameRequired, "input"},
 	{CodeEnrollmentGuardianPhoneRequired, "input"},
+	{CodeEnrollmentHolidayAllocationChanged, "business_rejection"},
+	{CodeEnrollmentHolidayAllocationFull, "business_rejection"},
+	{CodeEnrollmentHolidayAllocationModeLocked, "business_rejection"},
+	{CodeEnrollmentHolidayAllocationPending, "business_rejection"},
+	{CodeEnrollmentHolidayBookingUnitBooked, "business_rejection"},
+	{CodeEnrollmentHolidayCareWishRequired, "input"},
+	{CodeEnrollmentHolidayChildDayLimit, "input"},
+	{CodeEnrollmentHolidayChildDayLimitPublic, "input"},
 	{CodeEnrollmentHolidayFormFieldNotAllowed, "input"},
 	{CodeEnrollmentHolidayGuestGroupInvalid, "input"},
 	{CodeEnrollmentHolidayGuestNotFound, "business_rejection"},
@@ -248,7 +286,11 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentHolidayRegistrationNotFound, "business_rejection"},
 	{CodeEnrollmentHolidayRegistrationStateConflict, "business_rejection"},
 	{CodeEnrollmentHolidayWeekBooked, "business_rejection"},
+	{CodeEnrollmentHolidayWeekDayLimit, "business_rejection"},
+	{CodeEnrollmentHolidayWeekNoCareDay, "business_rejection"},
+	{CodeEnrollmentHolidayWeekNotFound, "business_rejection"},
 	{CodeEnrollmentHolidayWeeksBookedTogether, "input"},
+	{CodeEnrollmentHolidayWishMissing, "business_rejection"},
 	{CodeEnrollmentHostedHolidayWeekNotFound, "business_rejection"},
 	{CodeEnrollmentInvalidEmail, "input"},
 	{CodeEnrollmentInvalidPhone, "input"},
@@ -260,16 +302,21 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentLegalDocumentInvalid, "input"},
 	{CodeEnrollmentMessageRequired, "input"},
 	{CodeEnrollmentOfferingAdjustmentInvalid, "input"},
+	{CodeEnrollmentPhaseBookingBoundsConflict, "business_rejection"},
 	{CodeEnrollmentPhaseCareOfferingConflict, "business_rejection"},
 	{CodeEnrollmentPhaseEligibilitySettingRequired, "input"},
+	{CodeEnrollmentPhaseHasEffectiveBookings, "business_rejection"},
 	{CodeEnrollmentPhaseNameExists, "business_rejection"},
 	{CodeEnrollmentPhaseNameRequired, "input"},
 	{CodeEnrollmentPhaseNotEligible, "permission"},
 	{CodeEnrollmentPhaseNotFound, "business_rejection"},
+	{CodeEnrollmentPhasePendingChildWindowConflict, "business_rejection"},
 	{CodeEnrollmentPhaseSchoolClassesInvalid, "input"},
 	{CodeEnrollmentPhaseServicePeriodInvalid, "input"},
 	{CodeEnrollmentPhaseWindowInvalid, "input"},
 	{CodeEnrollmentPickupTimeNotAllowed, "input"},
+	{CodeEnrollmentRenewalTermsChanged, "business_rejection"},
+	{CodeEnrollmentRenewalTermsRequired, "input"},
 	{CodeEnrollmentRequestDuplicate, "business_rejection"},
 	{CodeEnrollmentRequestNotFound, "business_rejection"},
 	{CodeEnrollmentRequiredCareOfferingMissing, "input"},
@@ -288,7 +335,16 @@ var errorCodeClassesEnrollment = []errorCodeClass{
 	{CodeEnrollmentSignatureRequired, "input"},
 	{CodeEnrollmentStatusLinkInvalid, "business_rejection"},
 	{CodeEnrollmentStudentExists, "business_rejection"},
+	{CodeEnrollmentSubmissionEmailRateLimited, "unavailable"},
 	{CodeEnrollmentSubmissionRateLimited, "unavailable"},
+	{CodeEnrollmentTraegerCatalogInvalid, "input"},
+	{CodeEnrollmentTraegerCopyDelete, "business_rejection"},
+	{CodeEnrollmentTraegerCopyRejected, "business_rejection"},
+	{CodeEnrollmentTraegerOfferingNotFound, "input"},
+	{CodeEnrollmentTraegerPhaseNotFound, "input"},
+	{CodeEnrollmentTraegerPreviewStale, "business_rejection"},
+	{CodeEnrollmentTraegerSchoolOutside, "input"},
+	{CodeEnrollmentTraegerWithdrawn, "business_rejection"},
 	{CodeEnrollmentUploadContentMismatch, "input"},
 	{CodeEnrollmentUploadExpired, "input"},
 	{CodeEnrollmentUploadInvalid, "input"},

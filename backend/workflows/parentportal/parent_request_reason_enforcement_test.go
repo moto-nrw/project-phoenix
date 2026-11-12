@@ -9,16 +9,16 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
-	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
+	parentportalcompose "github.com/moto-ogs/project-phoenix/workflows/parentportal/compose"
 )
 
 // reasonPolicySettings turns the absence approval gate on and serves one
@@ -57,24 +57,27 @@ func buildReasonPolicyServices(t *testing.T, policy string) (*parentService.Port
 	}, api.ExcusedRequestTestPeople{Students: reposPeople.Student, Persons: reposPeople.Person, Events: reposPeople.ParentRequestEvent}, nil, nil)
 	require.NoError(t, err)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges:    owners.ParentGuardianChanges(),
-		DeparturePolicy:    owners.ParentDeparturePolicy(),
-		GuardianPolicy:     owners.NewParentGuardianPolicy(),
-		Fingerprints:       owners.SecurityFingerprints{},
-		Declarations:       owners.ParentDeclarationPolicy(),
-		Locales:            owners.ParentPortalLocales(),
-		Runtime:            owners.ParentPortalRuntime{},
-		CarePlan:           owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
-		People:             owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:       careProfiles(t, db),
-		ChildRepo:          repos.ParentChildReads(),
-		StatusDayRepo:      repos.StudentStatusDay,
-		StudentRepo:        owners.NewParentStudentReads(reposPeople.Student),
-		CareExceptions:     owners.NewParentCareExceptions(repos.CarePlan()),
-		Settings:           reasonPolicySettings{policy: policy},
-		ExcusedRequests:    owners.NewParentExcusedAbsenceRequests(excused),
-		ExcusedRequestRepo: repos.ExcusedAbsenceRequest,
-		Logger:             slog.Default(),
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		GuardianProfileRepo: guardProfiles(t, db),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
+		CarePlan:            owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:              owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:        careProfiles(t, db),
+		ChildRepo:           repos.ParentChildReads(),
+		StatusDayRepo:       repos.StudentStatusDay,
+		StudentRepo:         owners.NewParentStudentReads(reposPeople.Student),
+		CareExceptions:      owners.NewParentCareExceptions(repos.CarePlan()),
+		Settings:            reasonPolicySettings{policy: policy},
+		ExcusedRequests:     owners.NewParentExcusedAbsenceRequests(excused),
+		ExcusedRequestRepo:  repos.ExcusedAbsenceRequest,
+		Logger:              slog.Default(),
 
 		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
 

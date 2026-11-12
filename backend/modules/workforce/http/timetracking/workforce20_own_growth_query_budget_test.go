@@ -11,9 +11,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce/workforcetest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/workforcetest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
 )
 
@@ -127,7 +127,7 @@ func TestWorkforce20OwnGrowth(t *testing.T) {
 					rows := body.Data.([]any)
 					require.Len(t, rows, n)
 					for i, row := range rows {
-						require.Equal(t, float64(breaks[i]), row.(map[string]any)["id"])
+						require.Equal(t, fmt.Sprintf("%d", breaks[i]), row.(map[string]any)["id"])
 					}
 				case "absences":
 					rows := body.Data.([]any)

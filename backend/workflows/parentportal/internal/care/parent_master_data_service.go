@@ -11,7 +11,7 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Stammdaten sentinel errors mapped to stable HTTP codes by the handler.
@@ -103,22 +103,17 @@ type ChildMasterData struct {
 // GetChildMasterData assembles the Stammdaten view after verifying the account
 // is a guardian of the child.
 func (s *Service) GetChildMasterData(ctx context.Context, accountID, studentID int64) (*ChildMasterData, error) {
-	child, err := s.ResolveOwnedChild(ctx, accountID, studentID)
-	if err != nil {
-		return nil, err
-	}
-
 	var out *ChildMasterData
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err := s.WithPermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess, nil, func(txCtx context.Context, child *Child) error {
 		data, loadErr := s.loadMasterData(txCtx, accountID, child.GuardianProfileID, studentID)
 		if loadErr != nil {
-			return loadErr
+			return fmt.Errorf("parent: get master data: %w", loadErr)
 		}
 		out = data
 		return nil
 	})
-	if txErr != nil {
-		return nil, fmt.Errorf("parent: get master data: %w", txErr)
+	if err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -154,7 +149,8 @@ func (s *Service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 
 	edit := trackAEdit{accountID: accountID, studentID: studentID, target: target, fieldKey: fieldKey, value: newStr}
 	var out *ChildMasterData
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	access := ChildWriteAccess{Permissions: []string{GuardianPermissionMasterDataEdit}, OwnProfile: isTrackAGuardianTarget(target)}
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, access, func(txCtx context.Context) error {
 		data, applyErr := s.applyTrackAInTx(txCtx, child, edit)
 		out = data
 		return applyErr

@@ -8,7 +8,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/uptrace/bun"
 )
 
@@ -42,12 +42,15 @@ type operatorMFAChallengeRow struct {
 	IPAddress     net.IP     `bun:"ip_address,type:inet,nullzero"`
 	CreatedAt     time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 	UpdatedAt     time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	// CredentialGeneration is written explicitly: the column default 0 marks
+	// a code from before the binding (#6308).
+	CredentialGeneration int64 `bun:"credential_generation,notnull"`
 }
 
 func (r operatorMFAChallengeRow) toDomain() domain.OperatorMFAChallenge {
 	return domain.OperatorMFAChallenge{
 		ID: r.ID, OperatorID: r.OperatorID, CodeHash: r.CodeHash, ExpiresAt: r.ExpiresAt, ConsumedAt: r.ConsumedAt,
-		IPAddress: r.IPAddress, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		IPAddress: r.IPAddress, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt, CredentialGeneration: r.CredentialGeneration,
 	}
 }
 
@@ -64,12 +67,16 @@ type operatorTrustedDeviceRow struct {
 	RevokedAt     *time.Time `bun:"revoked_at"`
 	CreatedAt     time.Time  `bun:"created_at,nullzero,notnull,default:current_timestamp"`
 	UpdatedAt     time.Time  `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	// CredentialGeneration is written explicitly: the column default 0 marks
+	// a device from before the binding (#6308).
+	CredentialGeneration int64 `bun:"credential_generation,notnull"`
 }
 
 func (r operatorTrustedDeviceRow) toDomain() domain.OperatorTrustedDevice {
 	return domain.OperatorTrustedDevice{
 		ID: r.ID, OperatorID: r.OperatorID, TokenHash: r.TokenHash, UserAgent: r.UserAgent, IPAddress: r.IPAddress,
 		ExpiresAt: r.ExpiresAt, LastUsedAt: r.LastUsedAt, RevokedAt: r.RevokedAt, CreatedAt: r.CreatedAt, UpdatedAt: r.UpdatedAt,
+		CredentialGeneration: r.CredentialGeneration,
 	}
 }
 
@@ -154,7 +161,7 @@ func (s *Store) InsertOperatorMFAChallenge(ctx context.Context, challenge domain
 	}
 	row := operatorMFAChallengeRow{
 		OperatorID: challenge.OperatorID, CodeHash: challenge.CodeHash, ExpiresAt: challenge.ExpiresAt,
-		ConsumedAt: challenge.ConsumedAt, IPAddress: challenge.IPAddress,
+		ConsumedAt: challenge.ConsumedAt, IPAddress: challenge.IPAddress, CredentialGeneration: challenge.CredentialGeneration,
 	}
 	started := time.Now()
 	result, err := db.NewInsert().Model(&row).Returning("*").Exec(ctx)
@@ -177,6 +184,7 @@ func (s *Store) FindActiveOperatorMFAChallenge(ctx context.Context, operatorID i
 		Where(`"operator_mfa_email_challenge".operator_id = ?`, operatorID).
 		Where(`"operator_mfa_email_challenge".consumed_at IS NULL`).
 		Where(`"operator_mfa_email_challenge".expires_at > ?`, now).
+		Where(`"operator_mfa_email_challenge".` + operatorCurrentCredential).
 		OrderExpr(`"operator_mfa_email_challenge".expires_at DESC`).
 		Limit(1).
 		Scan(ctx)
@@ -236,6 +244,7 @@ func (s *Store) ConsumeOperatorMFAChallenge(ctx context.Context, id int64, consu
 		Set("consumed_at = ?", consumedAt).
 		Where(`"operator_mfa_email_challenge".id = ?`, id).
 		Where(`"operator_mfa_email_challenge".consumed_at IS NULL`).
+		Where(`"operator_mfa_email_challenge".` + operatorCurrentCredential).
 		Exec(ctx)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
 	if err != nil {
@@ -253,6 +262,7 @@ func (s *Store) InsertOperatorTrustedDevice(ctx context.Context, device domain.O
 	row := operatorTrustedDeviceRow{
 		OperatorID: device.OperatorID, TokenHash: device.TokenHash, UserAgent: device.UserAgent, IPAddress: device.IPAddress,
 		ExpiresAt: device.ExpiresAt, LastUsedAt: device.LastUsedAt, RevokedAt: device.RevokedAt,
+		CredentialGeneration: device.CredentialGeneration,
 	}
 	started := time.Now()
 	result, err := db.NewInsert().Model(&row).Returning("*").Exec(ctx)
@@ -276,6 +286,7 @@ func (s *Store) FindActiveOperatorTrustedDevice(ctx context.Context, operatorID 
 		Where(`"operator_mfa_trusted_device".token_hash = ?`, tokenHash).
 		Where(`"operator_mfa_trusted_device".revoked_at IS NULL`).
 		Where(`"operator_mfa_trusted_device".expires_at > ?`, now).
+		Where(`"operator_mfa_trusted_device".` + operatorCurrentCredential).
 		Limit(1).
 		Scan(ctx)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
@@ -299,6 +310,7 @@ func (s *Store) ListActiveOperatorTrustedDevices(ctx context.Context, operatorID
 		Where(`"operator_mfa_trusted_device".operator_id = ?`, operatorID).
 		Where(`"operator_mfa_trusted_device".revoked_at IS NULL`).
 		Where(`"operator_mfa_trusted_device".expires_at > ?`, now).
+		Where(`"operator_mfa_trusted_device".` + operatorCurrentCredential).
 		OrderExpr(`"operator_mfa_trusted_device".last_used_at DESC NULLS LAST`).
 		OrderExpr(`"operator_mfa_trusted_device".created_at DESC`).
 		Scan(ctx)

@@ -11,23 +11,29 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 )
 
 func (r *exportRun) tableModel(ctx context.Context, table organizationtenancy.LifecycleTable) (organizationtenancy.ExportModelTable, error) {
-	model := organizationtenancy.ExportModelTable{Name: table.Name}
-	parts := strings.Split(table.Name, ".")
-	if len(parts) != 2 {
-		return model, exportTableError(table.Name)
-	}
 	if r.schema == nil {
 		schema, err := loadExportSchema(ctx, r.tx, r.catalog)
 		if err != nil {
-			return model, exportTableError(table.Name)
+			return organizationtenancy.ExportModelTable{Name: table.Name}, exportTableError(table.Name)
 		}
 		r.schema = schema
 	}
-	columns := r.schema.columns[table.Name]
+	return exportTableModel(table, r.schema)
+}
+
+// exportTableModel describes one included table as model.json and the
+// register (ADR 0201) describe it: its columns without the excluded ones,
+// the columns its owners write in their place, and its relations.
+func exportTableModel(table organizationtenancy.LifecycleTable, schema *exportSchema) (organizationtenancy.ExportModelTable, error) {
+	model := organizationtenancy.ExportModelTable{Name: table.Name}
+	if len(strings.Split(table.Name, ".")) != 2 {
+		return model, exportTableError(table.Name)
+	}
+	columns := schema.columns[table.Name]
 	if len(columns) == 0 {
 		return model, exportTableError(table.Name)
 	}
@@ -36,8 +42,12 @@ func (r *exportRun) tableModel(ctx context.Context, table organizationtenancy.Li
 			model.Columns = append(model.Columns, organizationtenancy.ExportColumn{Name: col.Name, Type: col.Type, UDT: col.UDT, Nullable: col.Nullable == "YES"})
 		}
 	}
-	relations := r.schema.relations[table.Name]
-	for _, rel := range relations {
+	owned, err := ownerModelColumns(table, columns)
+	if err != nil {
+		return model, err
+	}
+	model.Columns = append(model.Columns, owned...)
+	for _, rel := range schema.relations[table.Name] {
 		if _, excluded := table.ExcludeSecretColumns[rel.Column]; !excluded {
 			model.Relationships = append(model.Relationships, organizationtenancy.ExportRelationship{Column: rel.Column, TargetTable: rel.TargetTable, TargetColumn: rel.TargetColumn})
 		}
@@ -50,15 +60,15 @@ func (r *exportRun) exportTable(ctx context.Context, table organizationtenancy.L
 	if err != nil {
 		return 0, err
 	}
-	columns := make([]string, 0, len(model.Columns))
-	for _, col := range model.Columns {
-		columns = append(columns, "t."+quoteExportIdentifier(col.Name))
+	columns, err := r.exportSelectColumns(table, model)
+	if err != nil {
+		return 0, err
 	}
 	if len(columns) == 0 {
 		return 0, exportTableError(table.Name)
 	}
 	query := "SELECT row_to_json(export_row) FROM (SELECT " + strings.Join(columns, ", ") + " FROM " + quoteExportTable(table.Name) + " AS t WHERE " + where + " ORDER BY t.ctid) AS export_row"
-	rows, err := r.tx.QueryContext(ctx, query, r.options.SchoolID)
+	rows, err := r.tx.QueryContext(ctx, query, r.subjectID())
 	if err != nil {
 		return 0, exportTableError(table.Name)
 	}
@@ -69,11 +79,11 @@ func (r *exportRun) exportTable(ctx context.Context, table organizationtenancy.L
 		return 0, errors.New("tenant export: cannot create table artifact")
 	}
 	defer func() { _ = f.Close() }()
-	count, err := r.streamExportRows(rows, f, table.Name)
+	count, err := r.streamExportRows(rows, f, table)
 	if err != nil {
 		return 0, err
 	}
-	if f.Sync() != nil || f.Close() != nil {
+	if syncFile(f) != nil || f.Close() != nil {
 		return 0, errors.New("tenant export: cannot persist table artifact")
 	}
 	if err := r.recordArtifact(name); err != nil {
@@ -82,18 +92,53 @@ func (r *exportRun) exportTable(ctx context.Context, table organizationtenancy.L
 	return count, nil
 }
 
-func (r *exportRun) streamExportRows(rows *sql.Rows, w io.Writer, table string) (int64, error) {
+// exportSelectColumns selects the model's stored columns and, in place of
+// what owners write, the raw sealed and container values and the bindings
+// they open with.
+func (r *exportRun) exportSelectColumns(table organizationtenancy.LifecycleTable, model organizationtenancy.ExportModelTable) ([]string, error) {
+	opened := make(map[string]bool, len(table.OpenSealedColumns)+len(table.ProjectedColumns))
+	for _, plain := range table.OpenSealedColumns {
+		opened[plain] = true
+	}
+	for _, projection := range table.ProjectedColumns {
+		opened[projection] = true
+	}
+	columns := make([]string, 0, len(model.Columns))
+	for _, col := range model.Columns {
+		if !opened[col.Name] {
+			columns = append(columns, "t."+quoteExportIdentifier(col.Name))
+		}
+	}
+	for _, sealed := range sealedColumnsOf(table) {
+		// Hex, independent of the session's bytea_output.
+		columns = append(columns, "encode(t."+quoteExportIdentifier(sealed)+"::bytea, 'hex') AS "+quoteExportIdentifier(sealed))
+	}
+	for _, container := range projectedColumnsOf(table) {
+		columns = append(columns, "t."+quoteExportIdentifier(container))
+	}
+	bindings, err := r.sealedBindingColumns(table)
+	if err != nil {
+		return nil, err
+	}
+	return append(columns, bindings...), nil
+}
+
+func (r *exportRun) streamExportRows(rows *sql.Rows, w io.Writer, entry organizationtenancy.LifecycleTable) (int64, error) {
+	table := entry.Name
 	var count int64
 	for rows.Next() {
 		var data []byte
 		if err := rows.Scan(&data); err != nil {
 			return 0, exportTableError(table)
 		}
+		data, err := r.applyOwnerColumns(entry, data)
+		if err != nil {
+			return 0, err
+		}
 		if err := r.collectReferences(table, data); err != nil {
 			return 0, err
 		}
-		_, err := w.Write(append(data, '\n'))
-		if err != nil {
+		if _, err := w.Write(append(data, '\n')); err != nil {
 			return 0, errors.New("tenant export: cannot write table artifact")
 		}
 		count++
@@ -107,6 +152,9 @@ func (r *exportRun) streamExportRows(rows *sql.Rows, w io.Writer, table string) 
 func (r *exportRun) scope(table organizationtenancy.LifecycleTable, alias string, depth int) (string, error) {
 	if depth > len(r.catalog.Tables) {
 		return "", errors.New("tenant export: cyclic scope path")
+	}
+	if r.options.OrganizationID > 0 {
+		return r.organizationScope(table, alias, depth)
 	}
 	switch table.Scope {
 	case "tenant":

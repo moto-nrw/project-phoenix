@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // BillingMonthStore keeps the released months of the school in the
@@ -25,7 +25,7 @@ type BillingMonthStore interface {
 	// mealplan.ErrBillingMonthReleased for the first, else
 	// mealplan.ErrBillingMonthChanged.
 	InsertRelease(ctx context.Context, organizationID, accountID int64, month domain.StoredBillingMonth) (time.Time, error)
-	// TraegerMonths reads the released months up to until of the Träger in
+	// TraegerMonths reads the released months within [from, until] of the Träger in
 	// its Träger transaction.
-	TraegerMonths(ctx context.Context, organizationID int64, until calendar.Date) ([]domain.ReleasedMealRow, error)
+	TraegerMonths(ctx context.Context, organizationID int64, from, until calendar.Date) ([]domain.ReleasedMealRow, error)
 }

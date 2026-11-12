@@ -132,11 +132,13 @@ export const ProfileTrigger = forwardRef<
       <span className="sr-only">{ariaLabel}</span>
       <UserAvatar avatarUrl={displayAvatar} userName={displayName} size="sm" />
 
+      {/* Ein langer Name (Träger-Konten: bis 100 Zeichen, #6870) endet mit
+          „…“, statt die Kopfzeile zu sprengen; das Menü zeigt ihn zweizeilig. */}
       <div
         aria-hidden="true"
-        className={`hidden text-left ${compactOnTablet ? "lg:block" : "md:block"}`}
+        className={`hidden max-w-48 min-w-0 text-left ${compactOnTablet ? "lg:block" : "md:block"}`}
       >
-        <div className="text-sm leading-tight font-medium text-gray-900">
+        <div className="truncate text-sm leading-tight font-medium text-gray-900">
           {displayName}
         </div>
         <div className="text-xs leading-tight text-gray-600">{userRole}</div>
@@ -163,10 +165,12 @@ export function ProfileDropdownHeader({
     <div className="flex items-center space-x-3">
       <UserAvatar avatarUrl={displayAvatar} userName={displayName} size="md" />
       <div className="min-w-0 flex-1">
-        {/* An address shown as the name wraps instead of being cut: it is
-            the only line that says which account is signed in. */}
+        {/* Bis zu zwei Zeilen: der Trigger kürzt den Namen, hier steht er
+            lesbar (#6870). An address shown as the name wraps in full
+            instead of being cut: it is the only line that says which
+            account is signed in. */}
         <div
-          className={`font-semibold text-gray-900 ${displayName === userEmail ? "wrap-anywhere" : "truncate"}`}
+          className={`font-semibold wrap-anywhere text-gray-900 ${displayName === userEmail ? "" : "line-clamp-2"}`}
         >
           {displayName}
         </div>

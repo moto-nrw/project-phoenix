@@ -3,10 +3,11 @@ package compose
 import (
 	"context"
 
-	boundaryBinding "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	boundaryBinding "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -29,3 +30,13 @@ func (t guardianTransactions) WithTenantTx(ctx context.Context, fn func(context.
 }
 
 func (guardianTransactions) TenantID(ctx context.Context) int64 { return tenant.FromContext(ctx) }
+
+// NewGuardianBankDataRekey is the maintenance-only bank backfill/rekey (#6332), never HTTP.
+func NewGuardianBankDataRekey(cipher peopledirectory.BankDataRekeyCipher) peopledirectory.GuardianBankDataRekey {
+	return application.NewGuardianBankDataRekey(boundaryBinding.NewGuardianBankRekeyStore(), cipher)
+}
+
+// NewGuardianBankExportFields opens the sealed guardian bank values for the return export of a school (#6412); only the administrative export CLI binds it, never HTTP.
+func NewGuardianBankExportFields(cipher peopledirectory.BankDataCipher) peopledirectory.GuardianBankExportFields {
+	return application.NewGuardianBankExportFields(cipher)
+}

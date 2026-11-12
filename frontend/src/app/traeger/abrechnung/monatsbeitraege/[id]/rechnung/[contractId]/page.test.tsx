@@ -155,6 +155,7 @@ function run(change: Partial<CareRunDetail> = {}): CareRunDetail {
     status: "calculated",
     createdAt: "2026-10-28T08:00:00Z",
     releasedAt: null,
+    discardedAt: null,
     issuedOn: null,
     documentCount: null,
     totalCents: null,
@@ -413,10 +414,13 @@ describe("TraegerCareInvoiceAmendPage", () => {
       });
       fireEvent.click(within(dialog).getByRole("button", { name: action }));
       const control = within(dialog).getByLabelText(label);
-      await vi.waitFor(() =>
-        expect(control).toHaveAttribute("aria-invalid", "true"),
-      );
-      expect(control).toHaveFocus();
+      // The commit that marks the field still leaves the dialog's initial
+      // focus on its close button; useApiFormError moves focus in the effect
+      // after it. Wait for both, not for focus once aria-invalid shows (#6374).
+      await vi.waitFor(() => {
+        expect(control).toHaveAttribute("aria-invalid", "true");
+        expect(control).toHaveFocus();
+      });
     },
   );
 

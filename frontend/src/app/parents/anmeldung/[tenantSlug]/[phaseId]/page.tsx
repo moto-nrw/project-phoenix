@@ -28,6 +28,7 @@ import { resolveTenant, type TenantInfo } from "~/lib/tenant-api";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import {
   normalizeCareFacilityTerm,
+  CareFacilityTermScope,
   useCareTermTranslations,
 } from "~/lib/care-facility-term";
 
@@ -208,17 +209,23 @@ function ParentEnrollFormPageContent({ params }: PageProps) {
         }
       >
         {loaded ? (
-          <EnrollmentForm
-            phaseID={phaseId}
-            gradeLevelMax={loaded.tenant.gradeLevelMax}
-            onSubmitted={handleSubmitted}
-            prefetchedData={loaded.prefetchedData}
-            submitter={submitter}
-            lateInviteToken={lateInviteToken ?? undefined}
-            uploadEndpoint={`/api/parent/enrollments/${encodeURIComponent(tenantSlug)}/uploads`}
-            skipCaptcha
-            localizedCopy
-          />
+          // The form names the care of the school it enrolls at (#6042),
+          // not the account's schools the parents shell names (#6082).
+          <CareFacilityTermScope
+            term={normalizeCareFacilityTerm(loaded.tenant.careFacilityTerm)}
+          >
+            <EnrollmentForm
+              phaseID={phaseId}
+              gradeLevelMax={loaded.tenant.gradeLevelMax}
+              onSubmitted={handleSubmitted}
+              prefetchedData={loaded.prefetchedData}
+              submitter={submitter}
+              lateInviteToken={lateInviteToken ?? undefined}
+              uploadEndpoint={`/api/parent/enrollments/${encodeURIComponent(tenantSlug)}/uploads`}
+              skipCaptcha
+              localizedCopy
+            />
+          </CareFacilityTermScope>
         ) : null}
       </ParentPage>
     </TenantProvider>

@@ -3,9 +3,13 @@ package middleware
 import (
 	"bytes"
 	"context"
+	"io/fs"
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -29,6 +33,14 @@ func TestRedactFeedToken(t *testing.T) {
 		"POST /caterer/invitations/42/secret/accept":        "POST /caterer/invitations/42/[REDACTED]/accept",
 		"/caterer/einladung/42/secret":                      "/caterer/einladung/42/[REDACTED]",
 		"/caterer/invitations/42":                           "/caterer/invitations/42",
+		"PUT /api/enrollment/requests/st4tus-token 200":     "PUT /api/enrollment/requests/[REDACTED] 200",
+		"/auth/invitations/inv1te-token/accept":             "/auth/invitations/[REDACTED]/accept",
+		"/auth/invitations/42/resend":                       "/auth/invitations/42/resend",
+		"/auth/invitations/former-employment":               "/auth/invitations/former-employment",
+		"/auth/invitations/":                                "/auth/invitations/",
+		"/auth/guardian-invitations/gu4rdian?x=1":           "/auth/guardian-invitations/[REDACTED]?x=1",
+		"/traeger/holiday-registrations/f0rm/documents/7":   "/traeger/holiday-registrations/[REDACTED]/documents/7",
+		"/public/payroll-download/l1nk":                     "/public/payroll-download/[REDACTED]",
 	}
 	for in, want := range cases {
 		if got := RedactFeedToken(in); got != want {
@@ -199,5 +211,82 @@ func TestFeedTokenRedactorEnabled(t *testing.T) {
 	h := NewFeedTokenRedactor(slog.NewTextHandler(&bytes.Buffer{}, nil))
 	if !h.Enabled(context.Background(), slog.LevelInfo) {
 		t.Error("expected Info to be enabled")
+	}
+}
+
+// credentialRouteParam matches the chi parameters whose value is the only
+// credential of its route.
+var credentialRouteParam = regexp.MustCompile(`(?i)\{[a-z]*token[a-z]*\}|\{link\}`)
+
+var anyRouteParam = regexp.MustCompile(`\{[^}]+\}`)
+
+// TestRouteCredentialsStayOutOfLogs walks the production route table. A route
+// that carries its credential in the path must lose it in the access log and
+// in Sentry events; every other route must stay readable, IDs included.
+func TestRouteCredentialsStayOutOfLogs(t *testing.T) {
+	t.Parallel()
+	const secret = "s3cret-Credential_value"
+	root := filepath.Join("..", "api", "testdata", "routes")
+	credentialRoutes := 0
+	err := filepath.WalkDir(root, func(path string, entry fs.DirEntry, err error) error {
+		if err != nil || entry.IsDir() || filepath.Ext(path) != ".golden" {
+			return err
+		}
+		content, err := os.ReadFile(path)
+		if err != nil {
+			return err
+		}
+		for _, line := range strings.Split(strings.TrimSpace(string(content)), "\n") {
+			_, pattern, found := strings.Cut(line, " ")
+			if !found {
+				t.Errorf("%s: unexpected route line %q", path, line)
+				continue
+			}
+			carriesCredential := credentialRouteParam.MatchString(pattern)
+			request := credentialRouteParam.ReplaceAllString(pattern, secret)
+			request = anyRouteParam.ReplaceAllString(request, "17")
+			redacted := RedactFeedToken(request)
+			switch {
+			case carriesCredential:
+				credentialRoutes++
+				if strings.Contains(redacted, secret) {
+					t.Errorf("%s leaves its credential in logs: %s", line, redacted)
+				}
+			case redacted != request:
+				t.Errorf("%s has no credential but is logged as %s", line, redacted)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		t.Fatalf("walk route goldens: %v", err)
+	}
+	if credentialRoutes == 0 {
+		t.Fatal("no route with a credential parameter found; the route goldens moved")
+	}
+}
+
+func TestHolidayParentSetupCredentialsStayOutOfLogs(t *testing.T) {
+	t.Parallel()
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		var out bytes.Buffer
+		logger := slog.New(NewFeedTokenRedactor(slog.NewJSONHandler(&out, nil)))
+		router := chi.NewRouter()
+		router.Use(slogchi.NewWithConfig(logger, slogchi.Config{WithRequestHeader: true}))
+		router.HandleFunc("/auth/holiday-parent-setups/{token}", func(w http.ResponseWriter, r *http.Request) { w.WriteHeader(http.StatusOK) })
+		request := httptest.NewRequest(method, "/auth/holiday-parent-setups/setup-credential", nil)
+		request.Header.Set("Referer", "https://parents.example/ferienkonto/setup-credential")
+		router.ServeHTTP(httptest.NewRecorder(), request)
+		if strings.Contains(out.String(), "setup-credential") || !strings.Contains(out.String(), "[REDACTED]") {
+			t.Errorf("setup credential not redacted: %s", out.String())
+		}
+	}
+	for _, path := range []string{
+		"/auth/holiday%2Dparent-setups/setup-credential",
+		"/parents/%66erienkonto/setup-credential?from=mail",
+	} {
+		if got := RedactFeedToken(path); strings.Contains(got, "setup-credential") {
+			t.Errorf("encoded setup credential survived: %s", got)
+		}
 	}
 }

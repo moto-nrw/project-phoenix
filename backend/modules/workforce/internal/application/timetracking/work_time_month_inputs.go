@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // addAdjustments folds the Stundenkonto transactions (#1420) into their
@@ -61,7 +61,7 @@ func (s *workTimeMonthService) addActualMinutes(ctx context.Context, staffID int
 			continue
 		}
 
-		for day, minutes := range netMinutesByDate(session, breaksBySessionID[session.ID], end, first, today) {
+		for day, minutes := range creditedNetMinutesByDate(session, breaksBySessionID[session.ID], end, first, today) {
 			if agg, ok := aggregates[monthOf(day)]; ok {
 				agg.actual += minutes
 			}

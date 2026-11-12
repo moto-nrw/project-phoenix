@@ -424,6 +424,7 @@ export default function TraegerAccessLogPage() {
             ? {
                 label: "Weitere Einträge laden",
                 onClick: () => void loadMore(),
+                tooltip: "Zeigt weitere Einträge unten in der Liste an.",
                 loading: loadingMore,
                 loadingText: "Lädt …",
               }

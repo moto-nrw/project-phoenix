@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // TemplateAdministrationDependencies wires timetable.TemplateAdministration:
@@ -36,6 +36,7 @@ type TemplateAdministrationDependencies struct {
 	CareOfferings        CareOfferingChecks
 	ResyncOfferingRoster func(context.Context, timetable.OfferingRosterResyncInput) error
 	RecurrenceLock       timetable.RecurrenceWriteLock
+	SickReports          SickReportReader // nil: a series roster change marks nobody sick (#6292)
 	SchoolClasses        SchoolClassRules
 	Staffing             StaffingAnnouncer
 	Logger               *slog.Logger

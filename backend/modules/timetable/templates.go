@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The template writes of the Timetable owner (#3424 slice S2): creating,
@@ -166,6 +166,11 @@ type CreateTemplateCommand struct {
 	// GradeLevelMax is the caller's validated snapshot of
 	// enrollment.grade_level_max, used to cap Jahrgang targets.
 	GradeLevelMax int
+	// MaterializeFrom and MaterializeTo name the window the caller
+	// materializes in the same unit after the create; the create locks the
+	// people that run plans together with its roster (#6702).
+	MaterializeFrom *calendar.Date
+	MaterializeTo   *calendar.Date
 }
 
 // CreateTemplateResult reports the new template, its (possibly reused)
@@ -236,7 +241,11 @@ type UpdateTemplateCommand struct {
 	SeriesRosterScopeStaffIDs   []int64
 	SeriesRosterScopeWeekdays   []int
 	SeriesRosterPrimaryChanged  bool
-	StartDate                   *calendar.Date
+	// PropagateNotesToPredecessors applies Fields.Notes to every bounded
+	// predecessor in this split series. It is used only by an "Alle Termine"
+	// Wochennotiz-only save resolved from a capped predecessor (#6141).
+	PropagateNotesToPredecessors bool
+	StartDate                    *calendar.Date
 }
 
 // SplitTemplateCommand is "Dieser und alle folgenden" (WP-B3): the update
@@ -349,6 +358,12 @@ type TemplateAdministration interface {
 	// AlignPlannedInstanceStaff aligns the still-planned occurrences from
 	// date on with the template's supervisors for the given staff.
 	AlignPlannedInstanceStaff(ctx context.Context, templateID int64, staffIDs []int64, from calendar.Date) error
+	// LockSeriesSeed takes, before a series conversion writes anything, the
+	// locks the conversion needs in the lock order (#6583, #6702): the
+	// template's category and planning track, the day locks of the one-off
+	// block's current and new day, then the staff rows of the template's
+	// roster and of the block's current people in one ascending batch.
+	LockSeriesSeed(ctx context.Context, cmd CreateTemplateCommand, seedInstanceID int64, days ...calendar.Date) error
 }
 
 // OfferingRosterResyncInput describes one template's offering-source rule

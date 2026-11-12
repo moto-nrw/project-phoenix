@@ -5,8 +5,8 @@ status: accepted
 # Principle: owners meet through contracts and write together in workflows
 
 Principle ADR of 2026-10-19 under
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), written for
-[#4091](https://github.com/moto-nrw/project-phoenix/issues/4091). It states the
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580), written for
+[#4091](https://github.com/moto-ogs/project-phoenix/issues/4091). It states the
 rules for contracts, workflows and transactions that still hold. The ADRs it
 cites keep their context and history; this ADR changes none of them.
 The [#4538 addendum](#addendum-2026-10-23-command-participation-and-coordination-4538)
@@ -56,7 +56,7 @@ extends exception E3 to batch forms of the data import.
    was committed, also when the caller died before dispatch; each feature
    keeps its own retry policy. An after-commit callback is a
    losable hint, never the authority for durable work (ADR 0013, ADR 0016,
-   [#4087](https://github.com/moto-nrw/project-phoenix/issues/4087)). The
+   [#4087](https://github.com/moto-ogs/project-phoenix/issues/4087)). The
    exact, shrink-only register `backend/test/durable_side_effect_notices.json`
    (`TestDurableSideEffectsRatchet`) names every remaining `go`, `Dispatch` and
    `AfterCommit` in HTTP, application and composition roles with the harmless
@@ -91,7 +91,7 @@ The full rule map is the
 
 ## Addendum 2026-10-23: command participation and coordination (#4538)
 
-Accepted for [#4538](https://github.com/moto-nrw/project-phoenix/issues/4538).
+Accepted for [#4538](https://github.com/moto-ogs/project-phoenix/issues/4538).
 This replaces the unconditional reading of point 4, not ownership, dependency
 directions, the lock order in point 5 or durable effects in point 6. The
 [edge inventory](../architecture/4538-cross-owner-write-inventory.md) records
@@ -316,11 +316,11 @@ lock/end round trip; it did not move `EndCare` or `ResumeCare` into a workflow.
 ## Addendum 2026-11-08: Datenimport schreibt je Chunk gebündelt (#5552, #5827, #5887)
 
 Vorgeschlagen am 08.11.2026 für
-[#5552](https://github.com/moto-nrw/project-phoenix/issues/5552),
-[#5827](https://github.com/moto-nrw/project-phoenix/issues/5827) und
-[#5887](https://github.com/moto-nrw/project-phoenix/issues/5887); gilt mit
+[#5552](https://github.com/moto-ogs/project-phoenix/issues/5552),
+[#5827](https://github.com/moto-ogs/project-phoenix/issues/5827) und
+[#5887](https://github.com/moto-ogs/project-phoenix/issues/5887); gilt mit
 dem Merge. Grundlage ist der Entwurf in
-[#5552](https://github.com/moto-nrw/project-phoenix/issues/5552#issuecomment-6711342905),
+[#5552](https://github.com/moto-ogs/project-phoenix/issues/5552#issuecomment-6711342905),
 geprüft am Code von `development` @ `82fed4f213`. Das Addendum ändert keinen
 Code und kein Register. Es legt fest, in welcher Form der Datenimport die
 Owner-Kommandos eines Chunks gebündelt aufrufen darf und was dabei für IDs,
@@ -452,7 +452,7 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
    `ORDER BY tenant_id IS NULL ASC LIMIT 1` (`:52–53`) legt zwischen ihnen
    keine Ordnung fest. Haben sie verschiedene Rechte, hängen `RoleID` und
    `role_grant_not_permitted` an dieser Wahl. Einen festen Tie-Break legt
-   [#6234](https://github.com/moto-nrw/project-phoenix/issues/6234) fest,
+   [#6234](https://github.com/moto-ogs/project-phoenix/issues/6234) fest,
    nicht dieses Addendum.
 6. **Update-Werte sind nicht mit dem Entwurf vergleichbar.** Der Entwurf
    nennt für das Update 332/3539, ohne die geänderten Spalten festzuhalten.
@@ -764,9 +764,9 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
 
    | Fehlerpunkt | Status, Code heute | neu | committet nach Abbruch |
    |---|---|---|---|
-   | F1 Validierung (Mode, Checkpoints, Vorlast, Zeilen) | Zeilenfehler 200 bzw. 500 | gleich; der Bulk-Read der Rollen (#5887) läuft in einem Savepoint und fällt bei Fehler auf den Read je Zeile zurück, der dieselben `role_lookup_failed` liefert | frühere Chunks; nichts aus der Validierung |
+   | F1 Validierung (Mode, Checkpoints, Vorlast, Zeilen) | Zeilenfehler 200 bzw. 500 | gleich; der Bulk-Read der Rollen (#5887) läuft in einem Savepoint und fällt bei Fehler auf den Read je Zeile zurück, der dieselben `role_lookup_failed` liefert; scheitert ein Savepoint-Statement dieses Reads, 500 (E19, unten) | frühere Chunks; nichts aus der Validierung |
    | F2 Import-Lock, Checkpoint, Vorlast im Chunk | 500 `import.import_batch_failed` | gleich, unverändert vor dem Segment | frühere Chunks |
-   | F3 `ResolveChunk` scheitert | – (gibt es heute nicht) | kein Ausgang: Rollback des Read-Savepoints, dann `FindExisting` je Zeile wie heute | – |
+   | F3 `ResolveChunk` scheitert | – (gibt es heute nicht) | kein Ausgang: Rollback des Read-Savepoints, dann `FindExisting` je Zeile wie heute; scheitert ein Savepoint-Statement des Reads, 500 ohne Retry und Replay (E19, unten) | frühere Chunks |
    | F4 Match-Fehler je Zeile, `already_exists`, `not_found` | Zeilenfehler, Chunk läuft weiter | gleich, gleiche Reihenfolge | wie heute |
    | F5 Batch-Kommando scheitert (SQL-Fehler, `BusinessRejection`, Owner-Fehler) | – | kein Ausgang: `ROLLBACK TO SAVEPOINT chunk`, Ergebniszustand nach der Invariante wiederhergestellt, dann Replay des Chunks | – |
    | F6 Replay scheitert in Zeile k | 500 `import.import_batch_failed`; 409 mit `details.rejection` bei `BusinessRejection` | gleich: dieselbe erste Fehlerzeile, derselbe Zeilenfehler, dieselben Details (etwa `occupied_places`, `requested_places`), dieselben bestätigten Zähler | frühere Chunks; vom Chunk nichts |
@@ -853,6 +853,19 @@ Die Annahmen des Entwurfs gelten mit diesen Abweichungen:
    Erfüllt eine Batch-Form eine Auflage nicht, nimmt ihr Segment den
    Zeilenpfad.
 
+   **Nachtrag (09.11.2026, #5552 Schritt 5a): Unique-Einträge neuer Zeilen.**
+   Auch ein neu angelegter Schlüssel ist eine Sperre: Wer dieselbe Karte
+   anlegt, wartet auf den Unique-Eintrag. Der Zeilenpfad fordert Karten in
+   Verarbeitungsreihenfolge an, zwischen zwei Kindern liegt das exklusive
+   Kontingent. Ein Personen-Batch, der alle Karten eines Segments vorab
+   anlegt, bildet mit einem parallelen Upload derselben Schule, der zwei
+   dieser Karten in anderer Reihenfolge anlegt, ein Deadlock-Paar, das es
+   sequenziell nicht gibt; eine feste Reihenfolge im Batch beseitigt das nur
+   zwischen zwei Batches. Darum nimmt im Student-Create jede Zeile mit Karte
+   den Zeilenpfad (eigenes Segment); der Personen-Batch legt nur Personen
+   ohne Karte und ohne Konto an und wartet damit nur auf den geteilten
+   `staff-person-merge`-Lock, wie eine Einzelanlage.
+
    **Folge für parallele `NOWAIT`-Schreiber.** `NOWAIT` nehmen heute nur die
    Begleiter-Protokolle, und nur für ein Kind mit kleinerer ID als einer schon
    gehaltenen:
@@ -920,13 +933,21 @@ aus der Messung abgeleitet, nicht gemessen.
 | Schritt | Issue | Umfang | Erwartet | Risiko |
 |---|---|---|---|---|
 | 1 | #5552 | Budget-Szenarien N10/N110 für alle Configs und Modi (`test/query-budgets/modules/dataimport/`, `max`, Vorschau `exact`); keine Verhaltensänderung | 0 | gering |
-| 2 | #5887 | Rollen aus `ListSchoolRoles` mit SQL-Schlüssel `LOWER(name)`, Tenant- vor Systemrolle, exakter Name vor Alias; der Batch wählt exakt dieselbe Rolle wie der heutige Einzel-Read `FindSchoolRoleByName`. Hat ein Name mehr als einen Kandidaten gleichen Rangs, löst der Batch ihn mit diesem Einzel-Read auf, denn dessen Wahl ist heute nicht festgelegt (Befund 5); einen festen Tie-Break legt [#6234](https://github.com/moto-nrw/project-phoenix/issues/6234) fest. `FindRolePermissionsByRoleIDs` einmal in `ValidateBatch` | Staff-Vorschau auf etwa 10 je N | gering |
+| 2 | #5887 | Rollen aus `ListSchoolRoles` mit SQL-Schlüssel `LOWER(name)`, Tenant- vor Systemrolle, exakter Name vor Alias; der Batch wählt exakt dieselbe Rolle wie der heutige Einzel-Read `FindSchoolRoleByName`. Hat ein Name mehr als einen Kandidaten gleichen Rangs, löst der Batch ihn mit diesem Einzel-Read auf, denn dessen Wahl ist heute nicht festgelegt (Befund 5); einen festen Tie-Break legt [#6234](https://github.com/moto-ogs/project-phoenix/issues/6234) fest. `FindRolePermissionsByRoleIDs` einmal in `ValidateBatch` | Staff-Vorschau auf etwa 10 je N | gering |
 | 3 | #5552 | kein Zeilen-Savepoint im Batchpfad | −2 je Zeile | gering |
 | 4 | #5827 | Chunk-Executor: Segmente, `ResolveChunk`, Chunk-Savepoint, Replay; erster Nutzer Klassenliste | Klassenliste N110 auf etwa 25 | mittel |
 | 5 | #5552 | Student-Create, Leafs: Personen, Guardians, Telefone, Link, Consent, Schedules, Consent-Verlauf | etwa −8 je Zeile | mittel |
 | 6 | #5552 | Staff-Create und Staff-Update, Leafs | etwa −10 je Zeile | mittel |
 | 7 | #5552 | Ausnahme E3: Kinderanlage und Student-Update gebündelt, Kontingent nach Punkt 8 | Student-Create N110 auf etwa 60 | hoch |
 | 8 | #5552 | Anfangssalden: eigener Workforce-Entwurf (Sperren je Staff sortiert, Guards nach dem Lock mengenbasiert, Einstellungen einmal je Transaktion), danach Umsetzung | etwa −40 je Zeile | mittel |
+
+Der Rechte-Read läuft einmal je Validierung, spätestens bei der ersten Zeile mit Rollenprüfung (lazy), damit Pfade ohne Rollenprüfung keinen Read zahlen.
+
+Sammel-Writes laufen als begrenzter Versuch (Entscheidung E13 vom 09.11.2026, präzisiert als E13′); bei Zeitüberschreitung ist die Chunk-Transaktion verloren (pgdriver schließt die Verbindung bei 57014, pgdriver v1.3.0 `error.go:55–82`), der Chunk läuft in einer neuen Transaktion zeilenweise ohne Grenze, mit vollem Retry-Budget; Ergebnis und Status wie Zeilenpfad.
+
+**Nachtrag E19 (09.11.2026): gescheiterter Savepoint-Rollback.** Scheitert `ROLLBACK TO SAVEPOINT` oder das `RELEASE` danach, ist der Zustand der Transaktion unbekannt. Der Upload endet dann immer mit 500 `import.import_batch_failed`, ohne Retry und ohne Replay, an jedem Savepoint (Chunk, `ResolveChunk`, geschützte Reads in Validierung und Zeilenpfad, Zeilen-Savepoint, innere Savepoints der Owner) und gleich, mit welchem SQLSTATE der Rollback oder der Hauptfehler endet. Ein geschützter Read fällt dann nicht auf den Read je Zeile zurück (F1, F3). Die Ursache steht nur im Text der Antwort. Dasselbe gilt für jedes andere gescheiterte Savepoint-Statement innerhalb eines Writes oder geschützten Reads (`SAVEPOINT`, `RELEASE` nach Erfolg): Kein Retry startet danach, im Batch- wie im Zeilenpfad. Die Statements des Chunk-Savepoints selbst (`SAVEPOINT chunk` und `RELEASE` nach Erfolg) bleiben Fehler eines Statements wie der erste Write des Zeilenpfads. Einzige Ausnahme ist E13′: Endet das gebündelte Statement des Batch-Kommandos selbst mit `57014`, ist die Chunk-Transaktion mit ihrer Verbindung verloren, ihr Rollback scheitert zwangsläufig, und der Chunk läuft in einer neuen Transaktion zeilenweise (#6280). Jede dieser Entscheidungen fällt an der Herkunft des Hauptfehlers: am Ergebnis des jeweiligen Statements, auch durch seine einfachen Hüllen (`%w`) hindurch. Angehängte Cleanup-Diagnosen (gescheiterter Savepoint-Rollback, gescheitertes äußeres `ROLLBACK`) zählen dabei nie, weder für Retry noch für Replay oder E13′ (#6316: `walkOperation` überspringt sie, Marker `tenant.ErrSavepointRollback`).
+
+Ein Chunk und ein Segment nehmen auch dann den Zeilenpfad, wenn sie weniger Zeilen haben, als der Batchpfad braucht, um weniger Statements als der Zeilenpfad auszugeben; die Mindestzahl legt jede Config fest (Klassenliste zwei, Student-Create sechs).
 
 2, 3 und 4 sind unabhängig. 5 und 6 brauchen 4; 7 braucht 5.
 

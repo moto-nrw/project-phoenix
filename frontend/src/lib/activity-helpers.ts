@@ -12,33 +12,6 @@ export interface BackendActivitySupervisor {
   last_name?: string;
 }
 
-export interface ActivitySupervisorSummary {
-  id: string;
-  staff_id: string;
-  is_primary: boolean;
-  name: string;
-}
-
-function mapActivitySupervisorSummaryResponse(
-  supervisor: BackendActivitySupervisor,
-): ActivitySupervisorSummary {
-  return {
-    id: String(supervisor.id),
-    staff_id: String(supervisor.staff_id),
-    is_primary: supervisor.is_primary,
-    name:
-      supervisor.first_name && supervisor.last_name
-        ? `${supervisor.first_name} ${supervisor.last_name}`
-        : `Supervisor ${supervisor.id}`,
-  };
-}
-
-export function mapActivitySupervisorSummariesResponse(
-  supervisors: BackendActivitySupervisor[],
-): ActivitySupervisorSummary[] {
-  return supervisors.map(mapActivitySupervisorSummaryResponse);
-}
-
 // Backend types (from Go structs)
 export interface BackendActivity {
   id: number;
@@ -75,23 +48,6 @@ export interface BackendActivitySchedule {
   weekday: number; // ISO 8601 integers 1-7 (1=Monday, 7=Sunday)
   timeframe_id?: number;
   activity_group_id: number;
-  created_at: string;
-  updated_at: string;
-}
-
-// Added: Backend supervisor type
-export interface BackendSupervisor {
-  id: number;
-  person?: {
-    first_name: string;
-    last_name: string;
-  };
-  // Direct properties for supervisors from activities API
-  first_name?: string;
-  last_name?: string;
-  staff_id?: number;
-  is_primary?: boolean;
-  is_teacher?: boolean;
   created_at: string;
   updated_at: string;
 }
@@ -577,47 +533,6 @@ export function mapTimeframeResponse(
     end_time: backendTimeframe.end_time,
     description: backendTimeframe.description,
     display_name: backendTimeframe.display_name,
-  };
-}
-
-// Prepare frontend types for backend requests
-export function prepareActivityForBackend(
-  activity: Partial<Activity>,
-): Partial<BackendActivity> {
-  const result: Partial<BackendActivity> = {
-    id: activity.id ? Number.parseInt(activity.id, 10) : undefined,
-    name: activity.name,
-    max_participants: activity.max_participant,
-    is_open: activity.is_open_ags,
-    category_id: activity.ag_category_id
-      ? Number.parseInt(activity.ag_category_id, 10)
-      : undefined,
-    planned_room_id: activity.planned_room_id
-      ? Number.parseInt(activity.planned_room_id, 10)
-      : undefined,
-    // Convert single supervisor to array if present
-    supervisor_ids: activity.supervisor_id
-      ? [Number.parseInt(activity.supervisor_id, 10)]
-      : undefined,
-  };
-
-  return result;
-}
-
-export function prepareActivityScheduleForBackend(
-  schedule: Partial<ActivitySchedule>,
-): Partial<BackendActivitySchedule> {
-  return {
-    id: schedule.id ? Number.parseInt(schedule.id, 10) : undefined,
-    activity_group_id: schedule.activity_id
-      ? Number.parseInt(schedule.activity_id, 10)
-      : undefined,
-    weekday: schedule.weekday
-      ? Number.parseInt(schedule.weekday, 10)
-      : undefined,
-    timeframe_id: schedule.timeframe_id
-      ? Number.parseInt(schedule.timeframe_id, 10)
-      : undefined,
   };
 }
 

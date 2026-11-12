@@ -5,8 +5,8 @@ status: accepted
 # Mitgliedschaft merkt sich den frühesten Betreuungstag eines neuen Kindes
 
 Entscheidung vom 07.11.2026 für
-[#6041](https://github.com/moto-nrw/project-phoenix/issues/6041) (Review-Befunde
-zwei und drei in [#6065](https://github.com/moto-nrw/project-phoenix/pull/6065)).
+[#6041](https://github.com/moto-ogs/project-phoenix/issues/6041) (Review-Befunde
+zwei und drei in [#6065](https://github.com/moto-ogs/project-phoenix/pull/6065)).
 Sie fügt School Membership eine Spalte hinzu, reicht sie über die vorhandene
 Schülerprojektion an Care Plan weiter, gibt Care Plan über den vorhandenen
 Port zu Student Presence die datierte Anwesenheit und genehmigt die geänderte
@@ -98,9 +98,9 @@ Basis liegt, genehmigt es keine weitere Diagnose.
 
 ## Folgen
 
-- Offen bleibt die Lücke zwischen früherem Ende und Wiederaufnahme eines
-  zurückkehrenden Kindes
-  ([#6073](https://github.com/moto-nrw/project-phoenix/issues/6073)).
+- Die Lücke zwischen früherem Ende und Wiederaufnahme eines zurückkehrenden
+  Kindes regelt [ADR 0180](0180-mitgliedschaft-merkt-sich-die-betreuungsluecke-eines-zurueckkehrenden-kindes.md)
+  ([#6073](https://github.com/moto-ogs/project-phoenix/issues/6073)).
 - Wird der Beginn eines neuen Kindes nach Erreichen verschoben, bleibt der
   frühere Tag; die Tage dazwischen zählen wie vor diesem ADR.
 - Die Morgenmeldung der Klasse allein belegt keine Betreuung: Sie meldet den

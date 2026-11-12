@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -95,6 +95,18 @@ func (*workerStore) Cancel(context.Context, int64, domain.Transport, string, int
 
 func (*workerStore) TraegerEmailStatuses(context.Context, int64, string, int64) ([]domain.Intent, error) {
 	return nil, nil
+}
+
+func (*workerStore) TraegerEmailStatusesByKey(context.Context, int64, []string) ([]domain.Intent, error) {
+	return nil, nil
+}
+
+func (*workerStore) UnresolvedHolidayClosureEmails(context.Context, int64) ([]domain.Intent, error) {
+	return nil, nil
+}
+
+func (*workerStore) RetryFailedTraegerEmails(context.Context, int64, []string) (int64, error) {
+	return 0, nil
 }
 
 func (*workerStore) Statuses(context.Context, int64, domain.Transport, string, int64) ([]domain.Intent, error) {

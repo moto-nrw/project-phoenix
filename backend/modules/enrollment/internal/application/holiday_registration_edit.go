@@ -10,7 +10,7 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // The Träger-Büro changes the details a family entered (#5629, ADR 0114
@@ -74,6 +74,9 @@ func (h *HolidayRegistrationReview) edit(ctx context.Context, organizationID int
 	fields := holidayEditFields(stored.input, next)
 	if len(fields) == 0 {
 		return nil, nil
+	}
+	if err := h.refuseEditedDayLimits(ctx, organizationID, period, stored, next); err != nil {
+		return nil, err
 	}
 	write, childIDs, schoolChanged := holidayChangedChildren(stored, next)
 	if err := h.store.WriteHolidayRegistrationDetails(ctx, organizationID, current.ID, write, childIDs, schoolChanged); err != nil {
@@ -139,8 +142,12 @@ func holidayStoredFromDetail(detail enrollment.HolidayRegistrationDetail) holida
 			homeSchoolID = *child.HomeSchoolID
 		}
 		stored.childIDs = append(stored.childIDs, child.ID)
+		bookings := make([]enrollment.HolidayBookingInput, len(child.Bookings))
+		for i, booking := range child.Bookings {
+			bookings[i] = enrollment.HolidayBookingInput{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Days: booking.Days}
+		}
 		stored.input.Children = append(stored.input.Children, enrollment.HolidayChildInput{
-			FirstName: child.FirstName, LastName: child.LastName, BirthDate: child.BirthDate,
+			FirstName: child.FirstName, LastName: child.LastName, BirthDate: child.BirthDate, Bookings: bookings,
 			HomeSchoolID: homeSchoolID, GuestSchoolName: child.GuestSchoolName, CustomData: childAnswers[child.ID],
 		})
 	}
@@ -185,7 +192,7 @@ func applyHolidayEdit(stored holidayStoredDetails, edit enrollment.HolidayRegist
 		}
 		scope.children[i], scope.childAnswers[i] = true, child.CustomData
 		next.Children[i] = enrollment.HolidayChildInput{
-			FirstName: child.FirstName, LastName: child.LastName, BirthDate: child.BirthDate,
+			FirstName: child.FirstName, LastName: child.LastName, BirthDate: child.BirthDate, Bookings: stored.input.Children[i].Bookings,
 			HomeSchoolID: child.HomeSchoolID, GuestSchoolName: child.GuestSchoolName, CustomData: child.CustomData,
 		}
 	}

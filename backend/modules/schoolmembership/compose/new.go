@@ -6,12 +6,12 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -56,6 +56,15 @@ func New(dependencies Dependencies) (schoolmembership.Owner, error) {
 		return nil, err
 	}
 	return service, nil
+}
+
+func NewStaffPersonMerge() schoolmembership.StaffPersonMerge {
+	return application.StaffPersonMerge{StaffPersonMerge: postgres.New(postgres.NewContextDatabase(tenant.TenantFromContext, tenant.TransactionFromContext, tenant.IsAdminTx))}
+}
+
+// NewPendingWindows composes the pending-window command of a phase edit.
+func NewPendingWindows(dependencies Dependencies) (schoolmembership.PendingWindows, error) {
+	return newApplication(dependencies)
 }
 
 func newApplication(dependencies Dependencies) (*application.Service, error) {

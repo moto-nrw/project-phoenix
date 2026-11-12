@@ -137,10 +137,14 @@ describe("DeliveryStatusBadge", () => {
   it("should apply amber styling for pending", () => {
     render(<DeliveryStatusBadge status="pending" />);
 
-    expect(screen.getByText("Ausstehend")).toHaveStyle({
-      backgroundColor: "#FEF3C7",
-      color: "#92400E",
+    // #5617: the attention pill is yellow with a warning icon, so it never
+    // reads as the orange Schulhof pill.
+    const pill = screen.getByText("Ausstehend");
+    expect(pill).toHaveStyle({
+      backgroundColor: "#FEF9C3",
+      color: "#713F12",
     });
+    expect(pill.querySelector("svg")).toHaveAttribute("aria-hidden", "true");
   });
 
   it("should apply red styling for failed", () => {

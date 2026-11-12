@@ -5,14 +5,14 @@ import (
 	"context"
 	"net/http"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
 )
 
 // GuardianProfiles loads the guardian profile an account holds in one school,
@@ -49,6 +49,10 @@ type Resource struct {
 	Uploads     UploadService
 	UploadList  UploadListing
 	UploadFiles UploadFileStorage
+	// FamilyChildren serves the number of children of the family on the
+	// status page (#6335). Set as a field after construction; without it the
+	// routes answer 500.
+	FamilyChildren capability.IntakeFamilyChildren
 	// transactions is set by NewResource: the route steps then run in the
 	// tenant and administrative transactions of the shared tenant runtime.
 	// The bare Resource a route unit test builds runs runInTenantTx on the
@@ -146,6 +150,8 @@ func (rs *Resource) mountPublicRoutes(r chi.Router) {
 	r.Post("/requests/{statusToken}/change-requests/{changeRequestId}/messages", rs.replyToChangeRequest)
 	r.Post("/requests/{statusToken}/withdraw", rs.withdrawStatus)
 	r.Post("/requests/{statusToken}/confirm-renewal", rs.confirmRenewal)
+	r.Get("/requests/{statusToken}/family-children", rs.getFamilyChildren)
+	r.Put("/requests/{statusToken}/family-children", rs.putFamilyChildren)
 }
 
 // mountConfigRoutes registers the form schemas, the legal documents and the

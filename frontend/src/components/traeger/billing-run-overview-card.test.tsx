@@ -14,6 +14,10 @@ import type {
   BillingFile,
   BillingRunDetail,
 } from "~/lib/traeger-billing-api";
+import type {
+  ExportProtocolEntry,
+  InvoiceHistory,
+} from "~/lib/traeger-finance-exports-api";
 
 const { api } = vi.hoisted(() => ({
   api: {
@@ -22,7 +26,11 @@ const { api } = vi.hoisted(() => ({
   },
 }));
 const { downloadBlob } = vi.hoisted(() => ({ downloadBlob: vi.fn() }));
+const { exportsApi } = vi.hoisted(() => ({
+  exportsApi: { fetchInvoiceHistory: vi.fn() },
+}));
 vi.mock("~/lib/traeger-billing-api", () => api);
+vi.mock("~/lib/traeger-finance-exports-api", () => exportsApi);
 vi.mock("~/lib/file-download", () => ({ downloadBlob }));
 vi.mock("~/lib/traeger-url", () => ({
   traegerPath: (path: string) => path,
@@ -99,6 +107,7 @@ const RUN: BillingRunDetail = {
   paymentTextMissingDebtorNumbers: 0,
   numberPattern: "FE-{NNNN}",
   numberRangeSet: true,
+  fingerprint: "",
   letters: {
     paymentDueOn: "2026-09-23",
     notes: "",
@@ -467,5 +476,194 @@ describe("BillingRunOverviewCard letter preview (#5692)", () => {
     expect(api.downloadBillingLetter).not.toHaveBeenCalled();
     expect(row("Muster, Eva")).not.toHaveAttribute("aria-current");
     expect(screen.getByText("Rechnungen")).toBeInTheDocument();
+  });
+});
+
+const DATEV_FILE: ExportProtocolEntry = {
+  id: "f-3",
+  fileNumber: 3,
+  format: "datev",
+  runKind: "holiday",
+  runId: "9",
+  runLabel: "Winterferien 2027",
+  fileName: "EXTF_Buchungsstapel_3.csv",
+  invoiceCount: 2,
+  totalCents: 20000,
+  reference: "",
+  repeatOf: null,
+  datevAll: false,
+  resolvedPositions: 0,
+  costCenterFallbacks: [],
+  exportedByYou: false,
+  exportedByAccount: true,
+  exportedByName: "",
+  exportedAt: "2026-09-10T07:15:00Z",
+  submittedAt: null,
+};
+
+const HISTORY: InvoiceHistory = {
+  number: "FE-0002",
+  steps: [
+    {
+      kind: "issued",
+      at: "2026-09-09T08:00:00Z",
+      byYou: true,
+      byAccount: true,
+      accountName: "",
+      positions: 3,
+      note: "",
+      file: null,
+    },
+    {
+      kind: "mail_requested",
+      at: "2026-09-09T10:30:00Z",
+      byYou: false,
+      byAccount: true,
+      accountName: "",
+      positions: 0,
+      note: "invoice",
+      file: null,
+    },
+    {
+      kind: "exported",
+      at: "2026-09-10T07:15:00Z",
+      byYou: false,
+      byAccount: true,
+      accountName: "",
+      positions: 0,
+      note: "",
+      file: DATEV_FILE,
+    },
+  ],
+};
+
+async function openRowMenu(name: string) {
+  fireEvent.click(
+    within(row(name)).getByRole("button", {
+      name: `Aktionen für die Rechnung an ${name.split(", ").reverse().join(" ")}`,
+    }),
+  );
+  // Anker: das Menü der Zeile ist offen.
+  expect(
+    await screen.findByRole("menuitem", { name: "Aufschlüsselung zeigen" }),
+  ).toBeInTheDocument();
+}
+
+describe("BillingRunOverviewCard history of an invoice (#4693)", () => {
+  it("reads the history of exactly the chosen invoice when it opens", async () => {
+    exportsApi.fetchInvoiceHistory.mockResolvedValue(HISTORY);
+    renderCard();
+    // Nothing is read for the rows of the list.
+    expect(exportsApi.fetchInvoiceHistory).not.toHaveBeenCalled();
+
+    await openRowMenu("Beispiel, Jonas");
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Versand und Exporte ansehen" }),
+    );
+
+    const panel = await screen.findByRole("dialog", {
+      name: "Ausstellung, Versand und Exporte",
+    });
+    expect(
+      within(panel).getByText("Rechnung FE-0002 an Jonas Beispiel"),
+    ).toBeInTheDocument();
+    expect(
+      await within(panel).findByText("Ausgestellt mit 3 Positionen"),
+    ).toBeInTheDocument();
+    expect(within(panel).getByText("Versand beauftragt")).toBeInTheDocument();
+    expect(within(panel).getByText("DATEV Nr. 3")).toBeInTheDocument();
+    expect(
+      within(panel).getByText("EXTF_Buchungsstapel_3.csv"),
+    ).toBeInTheDocument();
+    expect(
+      within(panel).getByText(
+        "Was mit der Rechnung geschah. Sie war in einer Datei für Kämmerei, Steuerbüro oder Bank.",
+      ),
+    ).toBeInTheDocument();
+    expect(exportsApi.fetchInvoiceHistory).toHaveBeenCalledTimes(1);
+    expect(exportsApi.fetchInvoiceHistory).toHaveBeenCalledWith(
+      "holiday-documents",
+      "52",
+    );
+  });
+
+  it("offers no history while the run is a preview", async () => {
+    const drafts = RUN.documents.map((document) => ({
+      ...document,
+      id: "",
+      number: "",
+      issuedOn: "",
+    }));
+    renderCard({
+      ...RUN,
+      status: "calculated",
+      releasedAt: null,
+      issuedOn: null,
+      letters: null,
+      documents: drafts,
+    });
+
+    await openRowMenu("Muster, Eva");
+    expect(
+      screen.queryByRole("menuitem", { name: "Versand und Exporte ansehen" }),
+    ).not.toBeInTheDocument();
+    expect(exportsApi.fetchInvoiceHistory).not.toHaveBeenCalled();
+  });
+
+  it("offers no own history for a Storno, which stands in its invoice", async () => {
+    const original = RUN.documents[0]!;
+    renderCard({
+      ...RUN,
+      documents: [
+        original,
+        {
+          ...original,
+          id: "53",
+          kind: "cancellation",
+          number: "FE-0003",
+          referenceNumber: original.number,
+          totalCents: -original.totalCents,
+        },
+      ],
+    });
+
+    fireEvent.click(
+      within(row("FE-0003")).getByRole("button", {
+        name: "Aktionen für die Rechnung an Eva Muster",
+      }),
+    );
+    // Anker: das Menü der Storno-Zeile ist offen.
+    expect(
+      await screen.findByRole("menuitem", { name: "Aufschlüsselung zeigen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Versand und Exporte ansehen" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("names a history that fails to load and reads it again", async () => {
+    exportsApi.fetchInvoiceHistory
+      .mockRejectedValueOnce(new ApiError("Request failed (500)", 500))
+      .mockResolvedValueOnce(HISTORY);
+    renderCard();
+
+    await openRowMenu("Beispiel, Jonas");
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Versand und Exporte ansehen" }),
+    );
+    const panel = await screen.findByRole("dialog", {
+      name: "Ausstellung, Versand und Exporte",
+    });
+    fireEvent.click(
+      await within(panel).findByRole("button", { name: "Wiederholen" }),
+    );
+    expect(
+      await within(panel).findByText("Ausgestellt mit 3 Positionen"),
+    ).toBeInTheDocument();
+    expect(exportsApi.fetchInvoiceHistory).toHaveBeenCalledTimes(2);
+    expect(exportsApi.fetchInvoiceHistory).toHaveBeenLastCalledWith(
+      "holiday-documents",
+      "52",
+    );
   });
 });

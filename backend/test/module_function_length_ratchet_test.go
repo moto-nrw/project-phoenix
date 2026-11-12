@@ -79,7 +79,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"api/calendar_test_helpers.go:NewCalendarTestModule":                 63,
 	"api/guardian_invitation_test_helpers.go:lifecycleTestModule":        61,
 	"api/guardians_composition.go:NewGuardiansResource":                  106,
-	"api/import_test_helpers.go:NewImportTestModuleWithOwners":           82,
+	"api/import_test_helpers.go:NewImportTestModuleWithOwners":           80,
 	"api/iot/compose/compose.go:(*Resource).Router":                      105,
 	"api/reminders_test_helpers.go:NewRemindersTestModule":               64,
 	"api/root_serve.go:composeServeRoot":                                 511,
@@ -92,7 +92,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	"api/student_test_helpers.go:newStudentTestModule":                   315,
 	"api/timetable_http_test_helpers.go:NewTimetableHTTPTestModule":      85,
 	"api/timetable_http_test_helpers.go:newTimetableHTTPTestReads":       78,
-	"api/timetable_test_helpers.go:NewTimetableTestModule":               169,
+	"api/timetable_test_helpers.go:NewTimetableTestModule":               167,
 	"api/workforce_test_helpers.go:NewWorkforceTestModule":               102,
 	"cmd/devtools/command_adapter.go:(*Adapter).LoginOperator":           65,
 	"cmd/gendoc.go:getSettingsSchemas":                                   79,
@@ -469,11 +469,9 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"database/migrations/00_migrations.go:DetectVersionCollisions": 76,
 	// ADR 0087.
-	"database/migrations/00_migrations.go:ValidateMigrations": 61,
 	// ADR 0087.
-	"database/migrations/guardian_owner_backfill.go:(*guardianOwnerTenantRun).copyBatch": 75,
+	"database/migrations/guardian_owner_backfill.go:(*guardianOwnerTenantRun).copyBatch": 68,
 	// ADR 0087.
-	"database/migrations/guardian_owner_backfill.go:(*guardianOwnerTenantRun).tryCopyBatch": 74,
 	// ADR 0087.
 	"database/migrations/guardian_owner_backfill_verify.go:(*guardianOwnerTenantRun).verifySnapshot": 78,
 	// ADR 0087.
@@ -499,9 +497,8 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"database/migrations/reset.go:resetDatabase": 71,
 	// ADR 0087.
-	"database/migrations/staff_owner_backfill.go:(*staffOwnerTenantRun).copyBatch": 75,
+	"database/migrations/staff_owner_backfill.go:(*staffOwnerTenantRun).copyBatch": 68,
 	// ADR 0087.
-	"database/migrations/staff_owner_backfill.go:(*staffOwnerTenantRun).tryCopyBatch": 74,
 	// ADR 0087.
 	"database/migrations/staff_owner_backfill.go:(*staffOwnerTenantRun).verifySnapshot": 72,
 	// ADR 0087.
@@ -511,9 +508,8 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"database/migrations/staff_owner_contract.go:staffOwnerContractDataPreflight": 76,
 	// ADR 0087.
-	"database/migrations/student_owner_backfill.go:(*studentOwnerTenantRun).copyBatch": 75,
+	"database/migrations/student_owner_backfill.go:(*studentOwnerTenantRun).copyBatch": 68,
 	// ADR 0087.
-	"database/migrations/student_owner_backfill.go:(*studentOwnerTenantRun).tryCopyBatch": 74,
 	// ADR 0087.
 	"database/migrations/student_owner_backfill_verify.go:(*studentOwnerTenantRun).verifySnapshot": 85,
 	// ADR 0087.
@@ -578,7 +574,7 @@ var moduleFuncLenAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/simulate/demo_day.go:(*demoDay).sync": 64,
 	// ADR 0087.
-	"internal/devtools/simulate/fullday.go:(seedStaffFeedTombstoneAction).Run": 73,
+	"internal/devtools/simulate/fullday.go:(seedStaffFeedTombstoneAction).Run": 70,
 	// ADR 0087.
 	"internal/devtools/simulate/live.go:RunLive": 101,
 	// ADR 0087.

@@ -229,6 +229,7 @@ export function PersonalizationTab() {
                 size="compact"
                 onClick={handleDelete}
                 disabled={isDeleting}
+                tooltip="Löscht das Bild sofort. Dann zeigt die Login-Seite das moto-Logo."
               >
                 {isDeleting ? "Wird entfernt…" : "Bild entfernen"}
               </Button>

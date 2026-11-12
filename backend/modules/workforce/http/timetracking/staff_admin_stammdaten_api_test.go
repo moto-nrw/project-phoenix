@@ -15,8 +15,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -80,6 +80,38 @@ func TestStammdatenAPI_PermissionSplit(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), `"iban":"DE89370400440532013000"`)
 	assert.Contains(t, rec.Body.String(), `"social_security_number":"65170839J003"`)
+}
+
+func TestStammdatenAPI_FinancialAccessAuditSurvivesDecryptionFailure(t *testing.T) {
+	t.Parallel()
+	c := setupOverviewAPI(t)
+	db := c.tc.db
+	ctx := testpkg.Ctx(t)
+	target := testpkg.CreateTestStaff(t, db, "Financial", "Unreadable")
+	base := fmt.Sprintf("/staff/%d/stammdaten/bank-steuer", target.ID)
+	rec := c.put(base, `{"iban":"DE89370400440532013000","tax_id":"12345678911","social_security_number":"65170839J003"}`, "staff:financial")
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+
+	for _, field := range []string{"iban_sealed", "tax_id_sealed", "social_security_number_sealed"} {
+		t.Run(field, func(t *testing.T) {
+			var original []byte
+			require.NoError(t, db.NewRaw(`SELECT `+field+` FROM users.staff_financial_data WHERE staff_id = ?`, target.ID).Scan(ctx, &original))
+			_, err := db.NewRaw(`UPDATE users.staff_financial_data SET `+field+` = ? WHERE staff_id = ?`, []byte("damaged value"), target.ID).Exec(ctx)
+			require.NoError(t, err)
+			rec := c.post(base+"/reveal", `{}`, "staff:financial")
+			require.Equal(t, http.StatusInternalServerError, rec.Code, rec.Body.String())
+			for _, value := range []string{"DE89370400440532013000", "12345678911", "65170839J003"} {
+				assert.NotContains(t, rec.Body.String(), value)
+			}
+			_, err = db.NewRaw(`UPDATE users.staff_financial_data SET `+field+` = ? WHERE staff_id = ?`, original, target.ID).Exec(ctx)
+			require.NoError(t, err)
+		})
+	}
+	var count int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM audit.data_access_log
+WHERE tenant_id = ? AND resource_type = 'staff_financial_reveal' AND metadata->>'staff_id' = ?`,
+		testpkg.Tenant(t), fmt.Sprint(target.ID)).Scan(ctx, &count))
+	assert.Equal(t, 3, count, "every failed reveal must leave a committed access attempt")
 }
 
 func TestStammdatenAPI_FinancialWriteAllowsAccountWithoutStaffMapping(t *testing.T) {

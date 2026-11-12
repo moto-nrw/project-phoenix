@@ -4,30 +4,40 @@ import (
 	"context"
 	"fmt"
 	"testing"
+	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
+
+// yardBudgetClock pins the scan to a school Monday at noon. The scan reads
+// the day's pickup plan only on a care weekday, so a wall clock would measure
+// a different statement count on weekends (#6266).
+func yardBudgetClock() time.Time {
+	return calendar.NewDate(2026, time.August, 24).BerlinMidnight().Add(12 * time.Hour)
+}
 
 // Exercise the public scan capability through the typed root, with real
 // Timetable activities and rosters. No HTTP server or fake query source.
 func TestYardScanQueryBudgetDistinctActivities(t *testing.T) {
 	t.Parallel()
 	isolated := testpkg.SetupIsolatedTestDB(t)
-	db, module := setupCheckinModule(t)
+	db, module := setupCheckinModule(t, yardBudgetClock)
 	require.Same(t, isolated, db)
 	yard := testpkg.CreateTestSystemRoom(t, db, "Schulhof", true)
 	device := testpkg.CreateTestDevice(t, db, "yard-budget")
 	staff := testpkg.CreateTestStaff(t, db, "Yard", "Budget")
 	first := testpkg.CreateTestStudent(t, db, "First", "Yard", "1a")
 	second := testpkg.CreateTestStudent(t, db, "Second", "Yard", "1a")
-	block := testpkg.CreateTestRunningBlock(t, db, yard.ID, "Yard budget first", first.ID, second.ID)
+	blockStart := yardBudgetClock().Add(-time.Hour)
+	block := testpkg.CreateTestRunningBlockAt(t, db, blockStart, yard.ID, "Yard budget first", first.ID, second.ID)
 	presence, err := api.NewCheckinTestPresence(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	counter := testpkg.CaptureQueries(t, db)
@@ -55,7 +65,7 @@ func TestYardScanQueryBudgetDistinctActivities(t *testing.T) {
 	}
 	small := scan(first)
 	for i := 1; i < 8; i++ {
-		testpkg.CreateTestRunningBlock(t, db, yard.ID, fmt.Sprintf("Yard budget %d", i))
+		testpkg.CreateTestRunningBlockAt(t, db, blockStart.Add(time.Duration(i)*time.Minute), yard.ID, fmt.Sprintf("Yard budget %d", i))
 	}
 	large := scan(second)
 	t.Logf("distinct activities N=1: %d statements; N=8: %d statements", len(small), len(large))

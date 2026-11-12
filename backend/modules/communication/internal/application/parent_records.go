@@ -1,9 +1,10 @@
 package application
 
 import (
+	"encoding/json"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // Native application values are distinct from retained ORM models.
@@ -51,34 +52,35 @@ func (t InboxThread) Readers() communication.ParentMessageReaders {
 
 type MessageableGuardian communication.ParentGuardianRecipient
 type ParentMessage struct {
-	ClientMessageID  string         `json:"client_message_id,omitempty"`
-	SendReplayed     bool           `json:"-"`
-	ID               int64          `json:"id"`
-	CreatedAt        time.Time      `json:"created_at"`
-	UpdatedAt        time.Time      `json:"updated_at"`
-	TenantID         int64          `json:"tenant_id"`
-	ThreadID         int64          `json:"thread_id"`
-	StudentID        int64          `json:"student_id"`
-	SenderAccountID  int64          `json:"sender_account_id"`
-	SenderKind       string         `json:"sender_kind"`
-	SenderName       string         `json:"sender_name"`
-	StaffNameVisible bool           `json:"staff_name_visible"`
-	Body             string         `json:"body"`
-	Kind             string         `json:"kind"`
-	EventType        string         `json:"event_type,omitempty"`
-	EventActorKind   string         `json:"event_actor_kind,omitempty"`
-	RequestType      string         `json:"request_type,omitempty"`
-	RequestStatus    string         `json:"request_status,omitempty"`
-	Payload          map[string]any `json:"payload,omitempty"`
-	RefTable         string         `json:"ref_table,omitempty"`
-	RefID            *int64         `json:"ref_id,omitempty"`
-	AppliedAt        *time.Time     `json:"applied_at,omitempty"`
-	AppliedBy        *int64         `json:"applied_by,omitempty"`
-	DecisionReason   string         `json:"decision_reason,omitempty"`
-	GroupThreadID    *int64         `json:"group_thread_id,omitempty"`
-	GroupThreadTitle string         `json:"group_thread_title,omitempty"`
-	ReadByStaff      bool           `json:"read_by_staff,omitempty"`
-	ReadByGuardian   bool           `json:"read_by_guardian,omitempty"`
+	ClientMessageID  string          `json:"client_message_id,omitempty"`
+	SendReplayed     bool            `json:"-"`
+	ID               int64           `json:"id"`
+	CreatedAt        time.Time       `json:"created_at"`
+	UpdatedAt        time.Time       `json:"updated_at"`
+	TenantID         int64           `json:"tenant_id"`
+	ThreadID         int64           `json:"thread_id"`
+	StudentID        int64           `json:"student_id"`
+	SenderAccountID  int64           `json:"sender_account_id"`
+	SenderKind       string          `json:"sender_kind"`
+	SenderName       string          `json:"sender_name"`
+	StaffNameVisible bool            `json:"staff_name_visible"`
+	Body             string          `json:"body"`
+	Kind             string          `json:"kind"`
+	EventType        string          `json:"event_type,omitempty"`
+	EventActorKind   string          `json:"event_actor_kind,omitempty"`
+	RequestType      string          `json:"request_type,omitempty"`
+	RequestStatus    string          `json:"request_status,omitempty"`
+	Payload          map[string]any  `json:"payload,omitempty"`
+	RefTable         string          `json:"ref_table,omitempty"`
+	RefID            *int64          `json:"ref_id,omitempty"`
+	AppliedAt        *time.Time      `json:"applied_at,omitempty"`
+	AppliedBy        *int64          `json:"applied_by,omitempty"`
+	DecisionReason   string          `json:"decision_reason,omitempty"`
+	GroupThreadID    *int64          `json:"group_thread_id,omitempty"`
+	GroupThreadTitle string          `json:"group_thread_title,omitempty"`
+	Attachments      json.RawMessage `json:"attachments,omitempty"`
+	ReadByStaff      bool            `json:"read_by_staff,omitempty"`
+	ReadByGuardian   bool            `json:"read_by_guardian,omitempty"`
 }
 type ParentMessageThread communication.PortalParentMessageThread
 type ReadCursor communication.ParentReadCursorRecord

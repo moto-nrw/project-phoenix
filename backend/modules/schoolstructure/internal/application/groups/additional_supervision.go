@@ -5,9 +5,9 @@ import (
 	"errors"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 const additionalSupervisorRole = "additional_supervisor"
@@ -197,7 +197,8 @@ func (s *substitutionModule) assignAdditionalSupervision(
 	request *AdditionalSupervisionAssignment,
 ) (*AssignmentResult, error) {
 	if request.ActiveGroupID <= 0 || request.TargetStaffID <= 0 ||
-		s.deps.ActiveGroups == nil || s.deps.ActiveSupervisors == nil || s.deps.ActiveSupervisorCreator == nil {
+		s.deps.ActiveGroups == nil || s.deps.ActiveSupervisors == nil || s.deps.ActiveSupervisorCreator == nil ||
+		s.deps.StaffBalance == nil {
 		return nil, ErrInvalidTarget
 	}
 	if request.HandOver {
@@ -246,6 +247,11 @@ func (s *substitutionModule) assignAdditionalSupervisionLocked(
 	broad bool,
 	request *AdditionalSupervisionAssignment,
 ) (*studentpresence.GroupSupervision, *domain.Caregiver, error) {
+	// Balance gate, then session, then staff row: the order offboarding and
+	// the supervisor write share (#6702).
+	if err := s.deps.StaffBalance(ctx, request.TargetStaffID); err != nil {
+		return nil, nil, err
+	}
 	group, supervisors, err := s.lockAssignableSupervision(ctx, caller, access, broad, request)
 	if err != nil {
 		return nil, nil, err

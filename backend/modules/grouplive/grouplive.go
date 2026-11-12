@@ -15,7 +15,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
 )
 
 // ErrForbiddenGroup indicates that the requested group is outside the
@@ -57,6 +57,9 @@ type Dependencies struct {
 	ExcusedRequests PendingExcusedReader
 	TeacherHints    TeacherHintReader
 	Handovers       HandoverReader
+	// HolidayGroups keeps a Feriengruppe out of the group lists before its
+	// week (ADR 0120, Nachtrag 2026-11-11); nil keeps every group.
+	HolidayGroups HolidayGroups
 	// Collate orders two group names in German dictionary order (DIN 5007-1),
 	// the order the group selection and the response rely on.
 	Collate func(a, b string) int

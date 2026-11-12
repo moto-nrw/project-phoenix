@@ -7,39 +7,39 @@ import (
 	"log/slog"
 	"time"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 
-	appointmentsModule "github.com/moto-nrw/project-phoenix/modules/appointments"
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
-	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	enrollmentModule "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
-	fileStorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
-	fileStorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
-	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
-	schoolcalendarModule "github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
-	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
+	appointmentsModule "github.com/moto-ogs/project-phoenix/modules/appointments"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	carePlanModule "github.com/moto-ogs/project-phoenix/modules/careplan"
+	communicationModule "github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	enrollmentModule "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	exportTransferModule "github.com/moto-ogs/project-phoenix/modules/exporttransfer"
+	fileStorageModule "github.com/moto-ogs/project-phoenix/modules/filestorage"
+	fileStorageCompose "github.com/moto-ogs/project-phoenix/modules/filestorage/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	schedulerRuntimeCompose "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/compose"
+	schedulerPorts "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
+	schoolcalendarModule "github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	schoolMembershipCompose "github.com/moto-ogs/project-phoenix/modules/schoolmembership/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	schoolStructureCompose "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	settingsModule "github.com/moto-ogs/project-phoenix/modules/settings"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	workforceModule "github.com/moto-ogs/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/workflows/staffoffboarding"
+	"github.com/moto-ogs/project-phoenix/workflows/studentdeletion"
 )
 
 // workerRetention is the retention capability of the nightly cleanup (#3950):
@@ -108,12 +108,32 @@ func openGuardianInvitations(identity interface {
 		if err != nil {
 			return nil, err
 		}
+		// The list also carries legacy links that ran out without a recorded
+		// recipient (#6294); only a link that has not run out keeps a contact.
+		now := time.Now()
 		invited := make(map[int64]bool, len(invitations))
 		for _, invitation := range invitations {
-			invited[invitation.GuardianProfileID] = true
+			if invitation.ExpiresAt.After(now) {
+				invited[invitation.GuardianProfileID] = true
+			}
 		}
 		return invited, nil
 	}
+}
+
+// gateRetentionSteps splits off the steps that take a tenant-wide gate. They
+// run after the child deletion, which takes the class-write gate first, and
+// before the staff deletion (#6702): a staff deletion leaves leaf row locks
+// behind, and the unit of work's lock order admits no gate after them.
+func gateRetentionSteps(steps []schedulerPorts.RetentionStep) (gated, rest []schedulerPorts.RetentionStep) {
+	for _, step := range steps {
+		if step.Kind == auditModels.DeletionTypeGradeTransitionRetention {
+			gated = append(gated, step)
+			continue
+		}
+		rest = append(rest, step)
+	}
+	return gated, rest
 }
 
 // newWorkerRetention composes the nightly cleanup over the deletion log, the
@@ -134,9 +154,11 @@ func newWorkerRetention(
 		return workerRetention{}, fmt.Errorf("compose worker retention: %w", err)
 	}
 	deletions := deletionLog
+	gated, data := gateRetentionSteps(steps)
 	return workerRetention{
-		steps: schedulerPorts.RetentionPlan(studentRetentionStep(students), staffRetentionStep(staff),
-			append(append(steps, attendanceRetentionSteps(attendance, settings)...), guardianRetentionSteps(guardians, settings)...)),
+		steps: append(schedulerPorts.RetentionPlan(studentRetentionStep(students), schedulerPorts.SubjectRetention{}, gated),
+			schedulerPorts.RetentionPlan(schedulerPorts.SubjectRetention{}, staffRetentionStep(staff),
+				append(append(data, attendanceRetentionSteps(attendance, settings)...), guardianRetentionSteps(guardians, settings)...))...),
 		log: func(ctx context.Context, kind string, outcome schedulerPorts.RetentionOutcome) error {
 			return deletions.LogRetention(ctx, kind, outcome.Deleted, outcome.RetentionDays)
 		},
@@ -274,6 +296,57 @@ func guardianRetentionSteps(guardians guardianRetention, settings settingsModule
 			return schedulerPorts.RetentionOutcome{Deleted: deleted, RetentionDays: days}, err
 		},
 	}}
+}
+
+// studentPhotoCareEndStep ends the photo data of the children whose care is
+// over (#6650): the photo, the photo consent and who recorded it go in the
+// first nightly run after the last care day or the graduation, without a
+// further period. It runs after the deletion of whole children, writes one
+// deletion-log entry per ended child itself and one log line per candidate.
+func studentPhotoCareEndStep(photos peopleModule.StudentPhotoCareEndRetention, audit auditModels.Command, logger *slog.Logger) schedulerPorts.RetentionStep {
+	return schedulerPorts.RetentionStep{
+		Kind:         auditModels.DeletionTypeStudentPhotoRetention,
+		LogsSubjects: true,
+		Run: func(ctx context.Context) (schedulerPorts.RetentionOutcome, error) {
+			result, err := photos.EndStudentPhotosAfterCare(ctx, calendar.TodayDate(), func(ctx context.Context, ended []peopleModule.StudentPhotoCareEnd) error {
+				batch, ok := audit.(interface {
+					AppendAll(context.Context, []any) error
+				})
+				if !ok {
+					return errors.New("student photo retention requires batch audit append")
+				}
+				events := make([]any, 0, len(ended))
+				for _, child := range ended {
+					events = append(events, auditModels.NewStudentPhotoRetentionDeletion(child.TenantID, child.StudentID, child.LastCareDay, child.Graduated, child.PhotoRemoved, child.ConsentEnded))
+				}
+				return batch.AppendAll(ctx, events)
+			})
+			for _, child := range result.Children {
+				outcome := child.Outcome
+				if err != nil {
+					// The step's savepoint rolls back: nothing of this run stays.
+					outcome = "rolled_back"
+				}
+				logger.Info("student photo care end",
+					"tenant_id", tenant.FromContext(ctx),
+					"student_id", child.StudentID,
+					"outcome", outcome,
+				)
+			}
+			return schedulerPorts.RetentionOutcome{Deleted: result.Ended}, err
+		},
+	}
+}
+
+// StudentPhotoCareEndOf is People Directory's nightly end of the photos of
+// children whose care is over (#6650), from the directory owner the root
+// built with its photo runtime.
+func StudentPhotoCareEndOf(people peopleModule.Owner) (peopleModule.StudentPhotoCareEndRetention, error) {
+	end, ok := people.(peopleModule.StudentPhotoCareEndRetention)
+	if !ok {
+		return nil, fmt.Errorf("compose student photo care end: people directory %T lacks it", people)
+	}
+	return end, nil
 }
 
 // studentRetentionStep is the automatic deletion of children (#3962). It

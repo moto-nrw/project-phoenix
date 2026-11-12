@@ -14,7 +14,7 @@ import (
 	"testing"
 	"time"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -130,7 +130,6 @@ func TestFormSchemasMigrateLegacyDeparture_PublishesConvertedVersionAndRepointsP
 
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("departure-migration-%d@test.local", tenantID))
 
 	legacyFields := `[
@@ -192,7 +191,6 @@ func TestFormSchemasMigrateLegacyDeparture_DropsLegacyWhenModernFieldExists(t *t
 
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("departure-migration-%d@test.local", tenantID))
 
 	mixedFields := `[
@@ -223,7 +221,6 @@ func TestFormSchemasMigrateLegacyDeparture_ExistingModernFieldInheritsRequiredne
 
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("departure-migration-%d@test.local", tenantID))
 
 	mixedFields := `[
@@ -255,7 +252,6 @@ func TestFormSchemasMigrateLegacyDeparture_PreservesSharedVisibilityWhenModernFi
 
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("departure-migration-%d@test.local", tenantID))
 
 	mixedFields := `[
@@ -290,7 +286,6 @@ func TestFormSchemasMigrateLegacyDeparture_DeduplicatesModernDepartureFieldsBefo
 
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("departure-migration-%d@test.local", tenantID))
 
 	legacyDuplicateFields := `[
@@ -327,7 +322,6 @@ func TestFormSchemasMigrateLegacyDeparture_ClearsDifferingLegacyVisibilityOnRepl
 
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("departure-migration-%d@test.local", tenantID))
 
 	legacyFields := `[
@@ -361,7 +355,6 @@ func TestFormSchemasMigrateLegacyDeparture_ClearsDanglingVisibilityDependencies(
 
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("departure-migration-%d@test.local", tenantID))
 
 	legacyFields := `[
@@ -396,7 +389,6 @@ func TestFormSchemasMigrateLegacyDeparture_RepointsLegacyPhaseToCleanLatest(t *t
 
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("departure-migration-%d@test.local", tenantID))
 
 	legacyFields := `[
@@ -434,7 +426,6 @@ func TestFormSchemasMigrateLegacyDeparture_SkipsCleanLineages(t *testing.T) {
 
 	tenantID := time.Now().UnixNano()
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 	account := testpkg.CreateTestAccount(t, db, fmt.Sprintf("departure-migration-%d@test.local", tenantID))
 
 	cleanFields := `[

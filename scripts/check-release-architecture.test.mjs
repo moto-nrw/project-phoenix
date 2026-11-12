@@ -9,8 +9,8 @@ import { join } from 'node:path';
 import { checkRelease } from './check-release-architecture.mjs';
 
 const context = {
-  event: 'pull_request', baseRef: 'main', headRef: 'development', repository: 'moto-nrw/project-phoenix',
-  headRepository: 'moto-nrw/project-phoenix', baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40),
+  event: 'pull_request', baseRef: 'main', headRef: 'development', repository: 'moto-ogs/project-phoenix',
+  headRepository: 'moto-ogs/project-phoenix', baseSha: 'a'.repeat(40), headSha: 'b'.repeat(40),
 };
 // development has no push run; the release pull request's own run carries the
 // full suites, so the gate must not wait for development CI.

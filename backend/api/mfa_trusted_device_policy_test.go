@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	accountHTTP "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
-	settings "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	accountHTTP "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
+	settings "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // A valid code must buy a session even when remembering the device is
@@ -38,7 +38,7 @@ func TestMFASecurityPolicyFailuresBothPortals(t *testing.T) {
 				mail := testpkg.NewCapturingMailer()
 				module, err := NewAuthTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db), WithAuthTestMailer(mail))
 				require.NoError(t, err)
-				token, err := module.MFA.StartMFAChallenge(context.Background(), account.ID, tenantID, scope, nil)
+				token, err := module.MFA.StartMFAChallenge(context.Background(), account.ID, tenantID, scope, nil, 0)
 				require.NoError(t, err)
 				messages := mail.Messages()
 				require.Len(t, messages, 1)

@@ -7,17 +7,23 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage/internal/ports"
 )
 
 type UploadCleanup struct {
 	kind   string
 	prefix string
-	store  ports.CleanupStore
+	store  uploadCleanupStore
 	tx     ports.Transaction
 }
 
-func NewUploadCleanup(store ports.CleanupStore, tx ports.Transaction, kind string) *UploadCleanup {
+type uploadCleanupStore interface {
+	ports.CleanupStore
+	QueueAll(context.Context, int64, []string, time.Time) (domain.OperationStats, error)
+}
+
+func NewUploadCleanup(store uploadCleanupStore, tx ports.Transaction, kind string) *UploadCleanup {
 	if kind != "student-photos" && kind != "enrollment-legal-documents" {
 		panic("unsupported upload cleanup namespace")
 	}
@@ -41,6 +47,32 @@ func (c *UploadCleanup) Queue(ctx context.Context, url string) error {
 		_, err := c.store.Queue(txCtx, c.tx.TenantID(txCtx), name, time.Now())
 		return err
 	})
+}
+
+// QueueAll validates every URL before recording the unique managed names in
+// one statement in the required ambient tenant transaction. Invalid legacy
+// URLs remain outside the managed upload family.
+func (c *UploadCleanup) QueueAll(ctx context.Context, urls []string) error {
+	names := make([]string, 0, len(urls))
+	seen := make(map[string]bool, len(urls))
+	for _, url := range urls {
+		name, ok := strings.CutPrefix(url, c.prefix)
+		if !ok || name == "" || strings.ContainsAny(name, "/\\") || strings.Contains(name, "..") {
+			continue
+		}
+		if c.kind == "enrollment-legal-documents" && !strings.HasPrefix(name, fmt.Sprintf("%d_", c.tx.TenantID(ctx))) {
+			return fmt.Errorf("legal document cleanup requires the owning tenant")
+		}
+		if !seen[name] {
+			names = append(names, name)
+			seen[name] = true
+		}
+	}
+	if len(names) == 0 {
+		return nil
+	}
+	_, err := c.store.QueueAll(ctx, c.tx.TenantID(ctx), names, time.Now())
+	return err
 }
 
 func (c *UploadCleanup) Sweep(ctx context.Context, remove func(context.Context, string) error) (int, error) {

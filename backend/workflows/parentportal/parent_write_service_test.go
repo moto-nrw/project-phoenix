@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -12,17 +13,17 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
-	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/communication/communicationtest"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/compose/presenceservice"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
+	parentportalcompose "github.com/moto-ogs/project-phoenix/workflows/parentportal/compose"
 )
 
 // tenantBroadcastIDs extracts the tenant IDs from every BroadcastToTenant call
@@ -48,16 +49,24 @@ type studentReads[T any] interface {
 	FindByIDForUpdate(ctx context.Context, id int64) (*T, error)
 }
 
+// pausingStudentRepository parks the write once it holds the student lock.
+// The write's later re-locks of the same row in its transaction pass through.
 type pausingStudentRepository[T any] struct {
 	studentReads[T]
 	locked  chan<- struct{}
 	release <-chan struct{}
+	once    sync.Once
 }
 
 func (r *pausingStudentRepository[T]) FindByIDForUpdate(ctx context.Context, id int64) (*T, error) {
 	student, err := r.studentReads.FindByIDForUpdate(ctx, id)
 	if err != nil {
 		return nil, err
+	}
+	first := false
+	r.once.Do(func() { first = true })
+	if !first {
+		return student, nil
 	}
 	close(r.locked)
 	select {
@@ -119,20 +128,23 @@ func writeServiceConfig(t *testing.T, sickEnabled, notesEnabled bool, reportFlag
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	bc := testpkg.NewRecordingBroadcaster()
 	cfg := parentportalcompose.Dependencies{
-		GuardianChanges: owners.ParentGuardianChanges(),
-		DeparturePolicy: owners.ParentDeparturePolicy(),
-		GuardianPolicy:  owners.NewParentGuardianPolicy(),
-		Fingerprints:    owners.SecurityFingerprints{},
-		Declarations:    owners.ParentDeclarationPolicy(),
-		Locales:         owners.ParentPortalLocales(),
-		Runtime:         owners.ParentPortalRuntime{},
-		CarePlan:        owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
-		People:          owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:    careProfiles(t, db),
-		ChildRepo:       repos.ParentChildReads(),
-		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     owners.NewParentStudentReads(reposPeople.Student),
-		CareExceptions:  owners.NewParentCareExceptions(repos.CarePlan()),
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		GuardianProfileRepo: guardProfiles(t, db),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
+		CarePlan:            owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:              owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:        careProfiles(t, db),
+		ChildRepo:           repos.ParentChildReads(),
+		StatusDayRepo:       repos.StudentStatusDay,
+		StudentRepo:         owners.NewParentStudentReads(reposPeople.Student),
+		CareExceptions:      owners.NewParentCareExceptions(repos.CarePlan()),
 		Settings: parentSettingsStub{
 			boolValues: values,
 			stringValues: map[string]string{
@@ -171,6 +183,9 @@ func buildMessagingWriteService(t *testing.T, sickEnabled, notesEnabled bool, no
 		},
 	}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Memberships:           parentMemberships(t, db),
+		StudentGuardianRepo:   guardStudentGuardians(t, db),
+		GuardianProfileRepo:   guardProfiles(t, db),
 		GuardianChanges:       owners.ParentGuardianChanges(),
 		DeparturePolicy:       owners.ParentDeparturePolicy(),
 		GuardianPolicy:        owners.NewParentGuardianPolicy(),
@@ -408,10 +423,14 @@ func TestSubmitSickNote_FutureDateDoesNotFlipLiveFlag(t *testing.T) {
 	assert.False(t, sick, "a future-only sick note must not flip today's live flag")
 }
 
-func TestSubmitSickNote_RefusesPartialAbsenceConflict(t *testing.T) {
+// A staff-entered partial absence stays when a family reports the whole day:
+// the report for that day becomes a request the school decides, and a free
+// day in the same report is written directly (#5698). This replaced the
+// earlier contract that refused the whole report with care_exception_conflict.
+func TestSubmitSickNote_PartialAbsenceDayBecomesRequest(t *testing.T) {
 	t.Parallel()
 
-	svc, _, db := buildWriteService(t, true, true)
+	svc, _, _, db := buildAbsenceApprovalServices(t, false, false)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	staff := testpkg.CreateTestStaff(t, db, "Partial", "Author")
@@ -432,18 +451,29 @@ func TestSubmitSickNote_RefusesPartialAbsenceConflict(t *testing.T) {
 	pickup.TenantID = chain.TenantID
 	require.NoError(t, api.CreateParentPickupExceptionFixture(testpkg.TenantContext(chain.TenantID), repos.CarePlan(), pickup))
 
-	_, err := svc.SubmitSickNote(
+	free := date.AddDays(1)
+	result, err := svc.SubmitSickNote(
 		testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID,
-		[]calendar.Date{date}, "Fieber", absencerecords.StudentStatusDaySick,
+		[]calendar.Date{date, free}, "Fieber", absencerecords.StudentStatusDaySick,
 		nil,
 	)
-	require.ErrorIs(t, err, parentService.ErrCareExceptionConflict)
+	require.NoError(t, err)
+	require.Len(t, result.StatusDays, 1)
+	assert.Equal(t, free, result.StatusDays[0].Date)
+	require.NotNil(t, result.PendingRequest)
+	assert.Equal(t, []calendar.Date{date}, result.PendingRequest.Dates)
 
 	rows, findErr := repos.StudentStatusDay.FindActiveByStudentAndDateRange(
 		testpkg.TenantContext(chain.TenantID), chain.StudentID, date, date,
 	)
 	require.NoError(t, findErr)
-	assert.Empty(t, rows)
+	assert.Empty(t, rows, "the school's day keeps its partial absence until the school decides")
+	partial, findErr := repos.CarePlan().ListPickupExceptions(testpkg.TenantContext(chain.TenantID), careplan.StudentScheduleFilter{
+		StudentIDs: []int64{chain.StudentID}, From: careplan.Date(date), To: careplan.Date(date),
+	})
+	require.NoError(t, findErr)
+	require.Len(t, partial, 1)
+	assert.True(t, partial[0].HasManualPartialAbsence())
 }
 
 func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T) {
@@ -457,20 +487,23 @@ func TestSubmitSickNote_FutureWriteSerializesWithStaffConflictCheck(t *testing.T
 	parentLocked := make(chan struct{})
 	releaseParent := make(chan struct{})
 	parentSvc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges: owners.ParentGuardianChanges(),
-		DeparturePolicy: owners.ParentDeparturePolicy(),
-		GuardianPolicy:  owners.NewParentGuardianPolicy(),
-		Fingerprints:    owners.SecurityFingerprints{},
-		Declarations:    owners.ParentDeclarationPolicy(),
-		Locales:         owners.ParentPortalLocales(),
-		Runtime:         owners.ParentPortalRuntime{},
-		CarePlan:        owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
-		People:          owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:    careProfiles(t, db),
-		ChildRepo:       repos.ParentChildReads(),
-		StatusDayRepo:   repos.StudentStatusDay,
-		CareExceptions:  owners.NewParentCareExceptions(repos.CarePlan()),
-		StudentRepo:     newPausingStudentRepository(owners.NewParentStudentReads(reposPeople.Student), parentLocked, releaseParent),
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		GuardianProfileRepo: guardProfiles(t, db),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
+		CarePlan:            owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:              owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:        careProfiles(t, db),
+		ChildRepo:           repos.ParentChildReads(),
+		StatusDayRepo:       repos.StudentStatusDay,
+		CareExceptions:      owners.NewParentCareExceptions(repos.CarePlan()),
+		StudentRepo:         newPausingStudentRepository(owners.NewParentStudentReads(reposPeople.Student), parentLocked, releaseParent),
 		Settings: parentSettingsStub{
 			boolValues: map[string]bool{
 				parentService.KeyParentSickNoteEnabled: true,
@@ -618,10 +651,13 @@ func TestSubmitSickNote_EmptyReasonRejected(t *testing.T) {
 	require.ErrorIs(t, err, parentService.ErrEmptyNote)
 }
 
-func TestSubmitSickNote_ClearsClassTripForSubmittedDate(t *testing.T) {
+// A class trip the school planned stays when a family reports the child sick
+// for that day: the report becomes a request the school decides (#5698). This
+// replaced the earlier contract in which the family's report cleared the trip.
+func TestSubmitSickNote_SchoolClassTripBecomesRequest(t *testing.T) {
 	t.Parallel()
 
-	svc, _, db := buildWriteService(t, true, true)
+	svc, _, _, db := buildAbsenceApprovalServices(t, false, false)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 
 	statusRepo := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db)).StudentStatusDay
@@ -637,13 +673,14 @@ func TestSubmitSickNote_ClearsClassTripForSubmittedDate(t *testing.T) {
 
 	sickResult, err := svc.SubmitSickNote(testpkg.WithPackageTenantRuntime(context.Background()), chain.AccountID, chain.StudentID, []calendar.Date{date}, "Krank", absencerecords.StudentStatusDaySick, nil)
 	require.NoError(t, err)
-	require.Len(t, sickResult.StatusDays, 1)
-	assert.Equal(t, absencerecords.StudentStatusDaySick, sickResult.StatusDays[0].Status)
+	assert.Empty(t, sickResult.StatusDays)
+	require.NotNil(t, sickResult.PendingRequest)
+	assert.Equal(t, absencerecords.StudentStatusDaySick, sickResult.PendingRequest.AbsenceStatus)
 
 	activeRows, err := statusRepo.FindActiveByStudentAndDateRange(ctx, chain.StudentID, date, date)
 	require.NoError(t, err)
 	require.Len(t, activeRows, 1)
-	assert.Equal(t, absencerecords.StudentStatusDaySick, activeRows[0].Status)
+	assert.Equal(t, absencerecords.StudentStatusDayClassTrip, activeRows[0].Status)
 }
 
 // --- ListSickDays ---

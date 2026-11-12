@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/roots/communicationtest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/roots/communicationtest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // fakeAnnouncementRepo embeds the repository interface and overrides only what
@@ -165,6 +165,19 @@ func (f *fakeNotifier) NotifyDurably(_ context.Context, event communication.Noti
 		return f.durableAccepted, nil
 	}
 	return len(event.Audience.GuardianAccountIDs), nil
+}
+
+// NotifyEachDurably answers a series as consecutive NotifyDurably calls.
+func (f *fakeNotifier) NotifyEachDurably(ctx context.Context, events []communication.NotificationEvent) ([]int, error) {
+	receipts := make([]int, 0, len(events))
+	for _, event := range events {
+		count, err := f.NotifyDurably(ctx, event)
+		if err != nil {
+			return receipts, err
+		}
+		receipts = append(receipts, count)
+	}
+	return receipts, nil
 }
 
 func (f *fakeOutbox) Enqueue(_ context.Context, req communication.MailEnqueueInput) (*communication.MailEnqueued, error) {

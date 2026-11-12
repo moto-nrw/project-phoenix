@@ -1,8 +1,13 @@
 {
   "access_log_export_too_large": "Der Export hat mehr als {limit} Einträge. Bitte wählen Sie einen kürzeren Zeitraum oder weitere Filter.",
+  "account_inactive": "Das Konto dieser Person ist ausgeschaltet. Deshalb können Sie die Person nicht dem Träger-Büro zuordnen.",
   "already_member": "Diese Person gehört schon zum Träger-Büro.",
   "bank_account_label_taken": "Diese Bezeichnung hat schon eine andere Bankverbindung. Bitte wählen Sie eine andere Bezeichnung.",
   "bank_account_not_found": "Diese Bankverbindung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+  "closing_day_bookings_changed": "Die gebuchten Ferientage haben sich gerade geändert. Bitte prüfen Sie die betroffenen Buchungen noch einmal.",
+  "closing_day_invalid": "Der Schließtag ist nicht vollständig. Bitte prüfen Sie Datum, Grund und Schulen.",
+  "closing_day_not_found": "Diesen Schließtag gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+  "closing_day_school_outside": "Eine gewählte Schule gehört nicht zu Ihrem Träger. Bitte wählen Sie die Schulen aus der Liste.",
   "document_already_released": "Das Dokument ist für diese Menschen schon freigegeben.",
   "document_audience_invalid": "Diese Schule oder Gruppe gehört nicht zu Ihrem Träger. Bitte wählen Sie neu.",
   "document_invalid": "Bitte geben Sie einen Titel ein, höchstens 120 Zeichen.",

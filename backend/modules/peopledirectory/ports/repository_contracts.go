@@ -3,12 +3,12 @@ package ports
 import (
 	"context"
 
-	peopleBirthday "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	peopleBirthday "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
 
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The repository contracts of the retained People Directory persistence
@@ -122,6 +122,10 @@ type StudentRepository interface {
 	// approval never renews an arbitrary student. Same explicit-tenant,
 	// active+pending scope as ExistsEnrolledByNameAndBirthday.
 	FindEnrolledStudentIDByNameAndBirthday(ctx context.Context, tenantID int64, firstName, lastName string, birthday calendar.Date) (*int64, error)
+
+	// FindEnrolledStudentIDsByIdentities returns all matching enrolled ids
+	// per submitted identity, in the same order, with one database query.
+	FindEnrolledStudentIDsByIdentities(context.Context, int64, []peopledirectory.StudentIdentity) ([][]int64, error)
 
 	// ListSchoolClasses retrieves all distinct non-empty school classes.
 	ListSchoolClasses(ctx context.Context) ([]string, error)

@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -100,7 +101,13 @@ vi.mock("~/lib/student-api", () => ({
 
 import { AdminEnrollmentPhaseDetail } from "./admin-enrollment-phase-detail";
 import { ApiError } from "~/lib/api-error";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 const phase = {
   id: "1",
@@ -680,6 +687,138 @@ describe("AdminEnrollmentPhaseDetail", () => {
     });
     expect(screen.getByRole("button", { name: "Bestätigen" })).toBeVisible();
   });
+
+  // #6652: the decision holds once the write is through; a failed reload
+  // keeps the table and says the change is saved, and only reloads.
+  it("loads the page anew after a refused decision reload", async () => {
+    resetPageReloads();
+    await renderPhase();
+    mocks.listAdminRequests.mockRejectedValueOnce(new ApiError("refused", 403));
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+    // #6801: the page loads anew; its first load shows the refusal.
+    await expectPageReloadedAfterRefusal();
+    expect(mocks.decideAdminChild).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([403, 503])(
+    "handles a %s report reload after a successful decision and data reload",
+    async (status) => {
+      await renderPhase();
+      resetPageReloads();
+      mocks.getCareUsageReport.mockRejectedValueOnce(
+        new ApiError("failed", status),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+      expect(mocks.decideAdminChild).toHaveBeenCalledTimes(1);
+      if (status === 403) {
+        // #6801: the page loads anew; its first load shows the refusal.
+        await expectPageReloadedAfterRefusal();
+        return;
+      }
+      expect(
+        await screen.findByText(
+          `${catalogText("general.unavailable", "die Anzeige der Anmeldephase")} ${SAVED_BUT_STALE_SUFFIX}`,
+        ),
+      ).toBeVisible();
+      expect(screen.getByRole("table")).toBeVisible();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(await screen.findByRole("table")).toBeVisible();
+      expect(mocks.decideAdminChild).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("keeps the table after a quick decision whose reload fails", async () => {
+    await renderPhase();
+    const loads = mocks.listAdminRequests.mock.calls.length;
+    mocks.listAdminRequests.mockRejectedValueOnce(
+      new ApiError("down", 503, { code: "general.unavailable" }),
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige der Anmeldephase")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeInTheDocument();
+    // Anker: die Tabelle bleibt stehen.
+    expect(screen.getByRole("button", { name: "Bestätigen" })).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() =>
+      expect(mocks.listAdminRequests).toHaveBeenCalledTimes(loads + 2),
+    );
+    expect(mocks.decideAdminChild).toHaveBeenCalledTimes(1);
+  });
+
+  it("retries a decision reload with the current report filters", async () => {
+    await renderPhase();
+    mocks.listAdminRequests.mockRejectedValueOnce(
+      new ApiError("down", 503, { code: "general.unavailable" }),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+    await screen.findByText(
+      `${catalogText("general.unavailable", "die Anzeige der Anmeldephase")} ${SAVED_BUT_STALE_SUFFIX}`,
+    );
+    fireEvent.click(
+      screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
+    );
+    fireEvent.click(screen.getByRole("option", { name: /OGS Ganztag/ }));
+    await waitFor(() =>
+      expect(mocks.getCareUsageReport).toHaveBeenLastCalledWith(
+        expect.objectContaining({ care_offering_ids: ["1"] }),
+      ),
+    );
+    const calls = mocks.getCareUsageReport.mock.calls.length;
+
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+    await waitFor(() =>
+      expect(mocks.getCareUsageReport).toHaveBeenCalledTimes(calls + 1),
+    );
+    expect(mocks.getCareUsageReport).toHaveBeenLastCalledWith(
+      expect.objectContaining({ care_offering_ids: ["1"] }),
+    );
+    expect(mocks.decideAdminChild).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([false, true])(
+    "ignores a superseded decision report response (failure: %s)",
+    async (failure) => {
+      await renderPhase();
+      const pending = deferred<ReturnType<typeof report>>();
+      mocks.getCareUsageReport.mockReturnValueOnce(pending.promise);
+      const calls = mocks.getCareUsageReport.mock.calls.length;
+      fireEvent.click(screen.getByRole("button", { name: "Bestätigen" }));
+      await waitFor(() =>
+        expect(mocks.getCareUsageReport).toHaveBeenCalledTimes(calls + 1),
+      );
+      mocks.getCareUsageReport.mockResolvedValueOnce(
+        report({
+          rows: [{ ...report().rows[0]!, child_first_name: "Aktuell" }],
+        }),
+      );
+      fireEvent.click(
+        screen.getByRole("combobox", { name: /Berücksichtigte Angebote/ }),
+      );
+      fireEvent.click(screen.getByRole("option", { name: /OGS Ganztag/ }));
+      expect(await screen.findByText("Aktuell Muster")).toBeInTheDocument();
+
+      await act(async () => {
+        if (failure) {
+          pending.reject(
+            new ApiError("down", 503, { code: "general.unavailable" }),
+          );
+        } else {
+          pending.resolve(report());
+        }
+      });
+
+      expect(screen.getByText("Aktuell Muster")).toBeInTheDocument();
+      expect(
+        screen.queryByText(SAVED_BUT_STALE_SUFFIX, { exact: false }),
+      ).not.toBeInTheDocument();
+    },
+  );
 
   it("reports a failed report export through the toast path", async () => {
     const failed = new ApiError("export failed", 500, {

@@ -8,7 +8,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // presenceHistoryDays is how far the presence history reaches back: the
@@ -371,7 +371,10 @@ func presenceHistoryInputFor(rt *Runtime, definition demoProfileDefinition) (pre
 // days of the school and its children. The feedback history (#5029) needs
 // no more; the presence history adds the kiosk and the rooms.
 func pastCareInputFor(rt *Runtime, definition demoProfileDefinition) (presenceHistoryInput, error) {
-	today := calendar.TodayDate()
+	today, err := rt.historyToday()
+	if err != nil {
+		return presenceHistoryInput{}, err
+	}
 	return pastCareInputFrom(rt, definition, today, today.AddDays(-presenceHistoryDays))
 }
 

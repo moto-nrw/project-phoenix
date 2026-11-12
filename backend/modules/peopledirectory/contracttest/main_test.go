@@ -3,7 +3,7 @@ package contracttest_test
 import (
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Guardian account creation and staff PIN flows hash on most paths; cheap

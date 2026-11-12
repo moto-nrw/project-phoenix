@@ -70,3 +70,31 @@ func stripMarks(r rune) string {
 	}
 	return base.String()
 }
+
+// Badge is the short text of a 48 px logo stand-in, such as the care term
+// in a mail header (#6042, #6082): a term of up to four characters as it
+// is, else at most three initials, or the first three characters of a
+// single word. The full term stays in the header text, which wraps.
+func Badge(term string) string {
+	term = strings.TrimSpace(term)
+	if utf8.RuneCountInString(term) <= 4 {
+		return term
+	}
+	words := strings.Fields(term)
+	if len(words) == 1 {
+		return string([]rune(term)[:3])
+	}
+	initials := make([]rune, 0, 3)
+	for _, word := range words {
+		for _, r := range word {
+			if unicode.IsLetter(r) || unicode.IsDigit(r) {
+				initials = append(initials, unicode.ToUpper(r))
+				break
+			}
+		}
+		if len(initials) == 3 {
+			break
+		}
+	}
+	return string(initials)
+}

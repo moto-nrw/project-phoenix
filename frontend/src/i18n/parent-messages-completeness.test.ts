@@ -54,11 +54,14 @@ describe("parent message catalog completeness", () => {
 // "{careTerm}" alone is the school's own name for its care (#6042), the same
 // word in every language, like "OGS" before it.
 const fullCatalogInvariants = new Set([
-  "OGS",
-  "OGS: {text}",
+  "{careTerm}: {text}",
   "{careTerm}",
   "PDF",
   "Excel",
+  // SEPA terms and the IBAN example are the same in every language (#4696).
+  "IBAN",
+  "BIC",
+  "DE00 0000 0000 0000 0000 00",
 ]);
 
 describe("complete catalogs for pl, tr and uk", () => {
@@ -86,8 +89,6 @@ describe("complete catalogs for pl, tr and uk", () => {
 // by key so a new German leftover cannot hide behind them.
 const sameWordByLocale: Record<"en" | "ru" | "sq", ReadonlySet<string>> = {
   en: new Set([
-    "parentNav.feedback",
-    "parentFeedback.title",
     "parentDeclaration.confirmVersion",
     "enrollmentForm.actions.details",
     "enrollmentStatus.nameLabel",

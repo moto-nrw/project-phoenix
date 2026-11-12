@@ -2,15 +2,16 @@ package timetracking
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"math"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func (s *workSessionService) GetTodayPresenceMap(ctx context.Context) (map[int64]string, error) {
@@ -41,34 +42,60 @@ func (s *workSessionService) CleanupOpenSessions(ctx context.Context) (int, erro
 
 	// One read finds the running break of every stale session (#5855).
 	activeBreaks, breakErr := s.firstActiveBreaksBySession(ctx, openSessions)
+	credit, err := s.closingCreditRule(ctx, false)
+	if err != nil {
+		return 0, err
+	}
 
 	count := 0
 	for _, session := range openSessions {
-		// Set check-out time to 23:59:59 of the session date in Berlin timezone.
-		endOfDay := session.Date.EndOfDay()
+		closeAt := cleanupCloseAt(session, activeBreaks[session.ID])
+		if !closeAt.Equal(session.Date.EndOfDay()) {
+			s.getLogger().WarnContext(ctx, "closing open work session after the end of its day",
+				slog.Int64("session_id", session.ID),
+				slog.Time("check_in_time", session.CheckInTime),
+				slog.Time("closed_at", closeAt))
+		}
 
 		// End any active break before closing the session
-		if err := s.endCleanupBreak(ctx, session.ID, activeBreaks[session.ID], breakErr, endOfDay); err != nil {
+		if err := s.endCleanupBreak(ctx, session.ID, activeBreaks[session.ID], breakErr, closeAt); err != nil {
+			if errors.Is(err, tenant.ErrSavepointControl) {
+				return count, err
+			}
 			s.getLogger().WarnContext(ctx, "failed to end active break during cleanup",
 				slog.Int64("session_id", session.ID),
 				slog.String("error", err.Error()))
 			// Continue cleanup even if break ending fails
 		}
 
-		closed, err := s.repo.CloseWorkSession(ctx, session.ID, endOfDay, true)
-		err = workSessionWriteError("close session", err)
+		closed, err := s.closeForgottenSession(ctx, session.ID, closeAt, credit)
 		if err != nil {
-			return count, fmt.Errorf("failed to close session %d: %w", session.ID, err)
+			return count, err
 		}
-		if closed {
-			count++
-		}
+		count += closed
 	}
 
 	if count > 0 {
 		s.broadcastTimeTrackingChanged(ctx)
 	}
 	return count, nil
+}
+
+// cleanupCloseAt is the instant the nightly cleanup closes a forgotten
+// session at: 23:59:59 Berlin of its date. A session whose check-in or
+// running break lies after that end (rows written before #6288 validated
+// self-edits) closes at the earliest instant the work_sessions check
+// constraint and its break allow instead, so one such row cannot fail the
+// school's whole nightly cleanup again and again.
+func cleanupCloseAt(session *WorkSession, activeBreak *WorkSessionBreak) time.Time {
+	closeAt := session.Date.EndOfDay()
+	if floor := session.CheckInTime.Add(time.Second); closeAt.Before(floor) {
+		closeAt = floor
+	}
+	if activeBreak != nil && closeAt.Before(activeBreak.StartedAt) {
+		closeAt = activeBreak.StartedAt
+	}
+	return closeAt
 }
 
 // firstActiveBreaksBySession returns each session's first running break, in
@@ -107,7 +134,13 @@ func (s *workSessionService) endCleanupBreak(ctx context.Context, sessionID int6
 	if activeBreak == nil {
 		return nil
 	}
-	return s.endFoundActiveBreak(ctx, sessionID, activeBreak, endAt)
+	// The savepoint keeps a failed break end from aborting the session close
+	// and the rest of the nightly cleanup (#6288); only a failed savepoint
+	// itself comes back as tenant.ErrSavepointControl.
+	_, err := inBestEffortSavepoint(ctx, func(ctx context.Context) error {
+		return s.endFoundActiveBreak(ctx, sessionID, activeBreak, endAt)
+	})
+	return err
 }
 
 func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace time.Duration) (int, error) {
@@ -150,6 +183,9 @@ func (s *workSessionService) AutoCheckoutDueSessions(ctx context.Context, grace 
 	if run.latestEndByDate, err = s.latestShiftEndsByDate(ctx, candidates); err != nil {
 		return 0, err
 	}
+	if run.credit, err = s.closingCreditRule(ctx, false); err != nil {
+		return 0, err
+	}
 
 	count := 0
 	for _, listedSession := range candidates {
@@ -176,6 +212,9 @@ type autoCheckoutRun struct {
 	grace           time.Duration
 	latestEndByDate map[calendar.Date]map[int64]*TimeTrackingShift
 	tenantID        int64
+	// credit is the rounding an automatic checkout closes with; it earns no
+	// pack-up minutes (#6852).
+	credit workforce.WorkSessionCreditRule
 }
 
 // dueSessions keeps the listed sessions whose checkout is due, in list order.
@@ -259,7 +298,7 @@ func (s *workSessionService) autoCheckoutSession(ctx context.Context, run autoCh
 		return false, nil
 	}
 
-	closed, err := s.repo.CloseWorkSession(ctx, session.ID, closeAt, true)
+	closed, err := s.repo.CloseWorkSession(ctx, session.ID, closeAt, true, run.credit)
 	err = workSessionWriteError("close session", err)
 	if err != nil {
 		return false, fmt.Errorf("failed to auto-checkout session %d: %w", session.ID, err)
@@ -347,7 +386,9 @@ func (s *workSessionService) finishAutoCheckout(ctx context.Context, session *Wo
 	}
 
 	// End open supervisions, exactly like manual checkout does.
-	s.endActiveSupervisionsOnCheckout(ctx, session.StaffID)
+	if err := s.endActiveSupervisionsOnCheckout(ctx, session.StaffID); err != nil {
+		return err
+	}
 
 	newVal := closeAt.Format(time.RFC3339)
 	note := "Automatische Ausstempelung zum geplanten Schichtende"

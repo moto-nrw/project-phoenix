@@ -10,12 +10,20 @@ var (
 	ErrEnrollmentWindowClosed = errors.New("enrollment window is closed")
 	ErrLateInviteInvalid      = errors.New("late invite is invalid")
 	ErrCareOfferingFull       = errors.New("one or more selected care offerings are at capacity")
-	ErrRateLimited            = errors.New("too many submission attempts; please retry later")
-	ErrRequestNotFound        = errors.New("enrollment request not found")
-	ErrInvalidGuardianPhone   = errors.New("guardian phone number has an invalid format")
-	ErrEditNotAllowed         = errors.New("request can no longer be edited")
-	ErrWithdrawNotAllowed     = errors.New("child cannot be withdrawn in its current state")
-	ErrDuplicateEnrollment    = errors.New("an active enrollment already exists for this parent and child in this phase")
+	ErrRateLimited            = errors.New("too many submissions from this address; please retry later")
+	// ErrEmailRateLimited refuses the submission over the daily limit of
+	// its e-mail address (#6726).
+	ErrEmailRateLimited     = errors.New("too many submissions for this e-mail address; please retry tomorrow")
+	ErrRequestNotFound      = errors.New("enrollment request not found")
+	ErrInvalidGuardianPhone = errors.New("guardian phone number has an invalid format")
+	ErrEditNotAllowed       = errors.New("request can no longer be edited")
+	ErrWithdrawNotAllowed   = errors.New("child cannot be withdrawn in its current state")
+	ErrDuplicateEnrollment  = errors.New("an active enrollment already exists for this parent and child in this phase")
+	// ErrRenewalTermsRequired refuses a renewal confirmation without the tick
+	// of a required block; ErrRenewalTermsChanged one whose page showed a
+	// form version no longer in force (#6456).
+	ErrRenewalTermsRequired = errors.New("renewal terms must be accepted")
+	ErrRenewalTermsChanged  = errors.New("renewal terms changed since the page was loaded")
 	// ErrRequestChildNotFound refuses a child ID that does not belong to the
 	// request the status token resolves to.
 	ErrRequestChildNotFound = errors.New("child does not belong to this enrollment request")

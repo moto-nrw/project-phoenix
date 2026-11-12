@@ -167,3 +167,29 @@ export const Sizes: Story = {
     </div>
   ),
 };
+
+/** One sentence on what a click does: mouse hover and keyboard focus (#6643). */
+export const WithTooltip: Story = {
+  args: {
+    variant: "outline",
+    size: "md",
+    children: "Speichern",
+    tooltip: "Übernimmt Ihre Auswahl für die Startseite aller Mitarbeitenden.",
+  },
+};
+
+/**
+ * Blocked with a reason (#6743): stays focusable and shows the reason on
+ * hover, keyboard focus and tap instead of `tooltip`.
+ */
+export const DisabledWithReason: Story = {
+  args: {
+    variant: "primary",
+    size: "md",
+    type: "button",
+    children: "Krank melden",
+    tooltip: "Meldet die ausgewählten Kinder für heute krank.",
+    disabled: true,
+    disabledReason: "Wählen Sie zuerst mindestens ein Kind aus.",
+  },
+};

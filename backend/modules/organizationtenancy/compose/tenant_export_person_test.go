@@ -8,11 +8,12 @@ import (
 	"strconv"
 	"strings"
 	"testing"
+	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -22,6 +23,7 @@ type personExportFixture struct {
 	school, otherSchool          int64
 	child, sibling, foreignChild int64
 	guardian, staff, otherStaff  int64
+	staffAccount                 int64
 	uploads                      string
 }
 
@@ -65,6 +67,10 @@ func newPersonExportFixture(t *testing.T) personExportFixture {
 	_, err = db.NewRaw(`INSERT INTO audit.data_access_log (tenant_id, actor_account_id, actor_role, resource_type, range_start, range_end, metadata)
 		VALUES (?, ?, 'admin', 'staff_financial_view', NOW(), NOW(), jsonb_build_object('staff_id', ?::bigint))`, a, guardianAccount.ID, s.ID).Exec(t.Context())
 	require.NoError(t, err)
+	// The bank and tax record of the staff member (#6412); only its mask, so
+	// the stand-in opener has nothing to open.
+	_, err = db.NewRaw(`INSERT INTO users.staff_financial_data (tenant_id, staff_id, iban_masked) VALUES (?, ?, '****2051')`, a, s.ID).Exec(t.Context())
+	require.NoError(t, err)
 	group := testpkg.CreateTestEducationGroup(t, db, "SyntheticSubstitution")
 	today := calendar.TodayDate()
 	substitution := testpkg.CreateTestGroupSubstitution(t, db, group.ID, nil, s.ID, today, today)
@@ -80,15 +86,15 @@ func newPersonExportFixture(t *testing.T) personExportFixture {
 		_, err := db.NewRaw("UPDATE users.student_profiles SET photo_path = ? WHERE id = ?", "/uploads/"+key, student.id).Exec(t.Context())
 		require.NoError(t, err)
 	}
-	return personExportFixture{db: db, school: a, otherSchool: b, child: x.ID, sibling: y.ID, foreignChild: z.ID, guardian: g.ID, staff: s.ID, otherStaff: sb.ID, uploads: root}
+	return personExportFixture{db: db, school: a, otherSchool: b, child: x.ID, sibling: y.ID, foreignChild: z.ID, guardian: g.ID, staff: s.ID, staffAccount: account.ID, otherStaff: sb.ID, uploads: root}
 }
 
 func personExport(t *testing.T, fixture personExportFixture, subject string) string {
 	t.Helper()
-	exporter, err := compose.NewTenantExporter(fixture.db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(fixture.db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{}, &exportAuditFake{})
 	require.NoError(t, err)
 	out := filepath.Join(t.TempDir(), "person")
-	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: fixture.school, Person: subject, Output: out, Uploads: fixture.uploads}))
+	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: fixture.school, OperatorID: 42, Person: subject, Output: out, Uploads: fixture.uploads}))
 	manifest := readExportManifest(t, out)
 	require.True(t, manifest.ReviewRequired)
 	assertExportArtifacts(t, out, manifest)
@@ -151,6 +157,7 @@ func TestPersonExportGuardianAndSharedStaffStayInSchool(t *testing.T) {
 	require.Len(t, personTable(t, staff, "audit.staff_master_data_changes"), 1)
 	require.Len(t, personTable(t, staff, "audit.substitution_changes"), 1)
 	require.Len(t, personTable(t, staff, "audit.data_access_log"), 1)
+	require.Len(t, personTable(t, staff, "users.staff_financial_data"), 1)
 	for _, out := range []string{guardian, staff} {
 		for _, table := range readExportManifest(t, out).Tables {
 			if table.Classification != "include" {
@@ -191,8 +198,18 @@ func assertPersonReview(t *testing.T, out string, hasUnassigned bool) {
 	}
 	require.NotEmpty(t, review.Items)
 	marked := map[string]map[int64]bool{}
+	require.Contains(t, review.Checks, "article-9-health-data-only-for-the-requesting-subject-and-recipient")
+	require.Contains(t, review.Checks, "tax-and-social-security-ids-only-for-the-staff-member-concerned")
 	for _, item := range review.Items {
 		require.Contains(t, item.Rules, "third-party-review")
+		switch item.Table {
+		case "users.student_care_profiles", "enrollment.holiday_guests", "enrollment.holiday_registrations", "enrollment.holiday_registration_children":
+			// Opened health information is marked as a special category (#6328).
+			require.Contains(t, item.Rules, "special-category-health-data", item.Table)
+		case "users.staff_financial_data":
+			// Opened tax ID and social security number are marked (#6412).
+			require.Contains(t, item.Rules, "especially-sensitive-tax-and-social-security-ids", item.Table)
+		}
 		if marked[item.Table] == nil {
 			marked[item.Table] = map[int64]bool{}
 		}
@@ -210,17 +227,17 @@ func assertPersonReview(t *testing.T, out string, hasUnassigned bool) {
 func TestPersonExportRejectsForeignSubjectAndMissingOriginal(t *testing.T) {
 	t.Parallel()
 	f := newPersonExportFixture(t)
-	exporter, err := compose.NewTenantExporter(f.db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(f.db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{}, &exportAuditFake{})
 	require.NoError(t, err)
 	for _, subject := range []string{"kind:" + strconv.FormatInt(f.foreignChild, 10), "staff:" + strconv.FormatInt(f.otherStaff, 10), "student:1", "kind:0", "kind:01"} {
 		out := filepath.Join(t.TempDir(), "failed")
-		err := exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: f.school, Person: subject, Output: out, Uploads: f.uploads})
+		err := exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: f.school, OperatorID: 42, Person: subject, Output: out, Uploads: f.uploads})
 		require.Error(t, err)
 		require.NoFileExists(t, filepath.Join(out, "COMPLETE"))
 	}
 	require.NoError(t, os.Remove(filepath.Join(f.uploads, fmt.Sprintf("student-photos/%d_%d.bin", f.school, f.child))))
 	out := filepath.Join(t.TempDir(), "missing")
-	err = exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: f.school, Person: "kind:" + strconv.FormatInt(f.child, 10), Output: out, Uploads: f.uploads})
+	err = exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: f.school, OperatorID: 42, Person: "kind:" + strconv.FormatInt(f.child, 10), Output: out, Uploads: f.uploads})
 	require.Error(t, err)
 	require.NoFileExists(t, filepath.Join(out, "COMPLETE"))
 	require.NotContains(t, err.Error(), f.uploads)
@@ -266,4 +283,66 @@ func TestPersonExportIncludesDocumentsAndOnlySelectedEnrollmentChild(t *testing.
 	require.JSONEq(t, strconv.Quote(fmt.Sprintf("synthetic-change-%d", f.child)), string(messages[0]["body"]))
 	require.Len(t, personTable(t, out, "objects"), 2, "only the selected child's photo and document")
 	assertPersonReview(t, out, true)
+}
+
+// A record the staff member only handled (created_by, checked_in_by) stays in
+// the package as one marked row. It is not the staff member's own data, so
+// neither its dependent rows nor the children it names follow (#3838).
+func TestPersonExportStaffHandledRecordsBringNoForeignChildren(t *testing.T) {
+	t.Parallel()
+	f := newPersonExportFixture(t)
+	// A child the staff member never wrote about: only handled records name it.
+	other := testpkg.CreateTestStudent(t, f.db, "SyntheticHandled", "Fixture", "X").ID
+	group := testpkg.CreateTestActivityGroup(t, f.db, "SyntheticHandled")
+	_, err := f.db.NewRaw("UPDATE activities.groups SET created_by = ? WHERE id = ?", f.staff, group.ID).Exec(t.Context())
+	require.NoError(t, err)
+	_, err = f.db.NewRaw(`INSERT INTO activities.student_enrollments (tenant_id, student_id, activity_group_id, valid_from)
+		VALUES (?, ?, ?, '2026-01-12')`, f.school, other, group.ID).Exec(t.Context())
+	require.NoError(t, err)
+	day := calendar.NewDate(2026, time.January, 12)
+	device := testpkg.CreateTestDevice(t, f.db, fmt.Sprintf("synthetic-handled-%d", f.school))
+	testpkg.CreateTestAttendanceForDate(t, f.db, other, f.staff, device.ID, day, day.BerlinMidnight().Add(8*time.Hour), nil)
+	letter := testpkg.CreateTestParentAnnouncement(t, f.db, f.staffAccount, "SyntheticLetter")
+	_, err = f.db.NewRaw(`INSERT INTO users.parent_announcement_options (tenant_id, announcement_id, label, position)
+		VALUES (?, ?, 'synthetic-option', 1)`, f.school, letter.ID).Exec(t.Context())
+	require.NoError(t, err)
+
+	out := personExport(t, f, "staff:"+strconv.FormatInt(f.staff, 10))
+	require.Len(t, personTable(t, out, "activities.groups"), 1, "the group the staff member created")
+	require.Len(t, personTable(t, out, "active.attendance"), 1, "the check-in the staff member recorded")
+	require.Empty(t, personTable(t, out, "activities.student_enrollments"), "children of a created group are not the creator's data")
+	for _, profile := range personTable(t, out, "users.student_profiles") {
+		require.NotEqual(t, strconv.FormatInt(other, 10), string(profile["id"]), "a handled record names a child, it does not bring the child's profile")
+	}
+	// Notes the staff member wrote are their own statements and stay.
+	require.Len(t, personTable(t, out, "users.student_notes"), 2)
+	require.Len(t, personTable(t, out, "users.parent_announcements"), 1)
+	require.Len(t, personTable(t, out, "users.parent_announcement_options"), 1, "a letter the staff member wrote keeps its content")
+
+	rules := personReviewRulesByTable(t, out)
+	for _, table := range []string{"activities.groups", "active.attendance"} {
+		require.Contains(t, rules[table], "handled-by-subject-not-about-subject", table)
+	}
+	require.NotContains(t, rules["users.staff_school_memberships"], "handled-by-subject-not-about-subject")
+	require.NotContains(t, rules["audit.staff_master_data_changes"], "handled-by-subject-not-about-subject",
+		"a row about the staff member stays theirs even when they also handled it")
+	assertPersonReview(t, out, false)
+}
+
+func personReviewRulesByTable(t *testing.T, out string) map[string][]string {
+	t.Helper()
+	data, err := os.ReadFile(filepath.Join(out, "review.json"))
+	require.NoError(t, err)
+	var review struct {
+		Items []struct {
+			Table string   `json:"table"`
+			Rules []string `json:"rules"`
+		} `json:"items"`
+	}
+	require.NoError(t, json.Unmarshal(data, &review))
+	rules := map[string][]string{}
+	for _, item := range review.Items {
+		rules[item.Table] = append(rules[item.Table], item.Rules...)
+	}
+	return rules
 }

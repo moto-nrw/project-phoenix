@@ -2,16 +2,17 @@ package timetracking_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/application/timetracking"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -54,6 +55,9 @@ func (snapshotSessionSettings) RequireDeviationReason(context.Context) (bool, er
 }
 func (snapshotSessionSettings) DeviationToleranceMinutes(context.Context) (int, error) { return 0, nil }
 func (snapshotSessionSettings) TimeTrackingRetentionDays(context.Context) (int, error) { return 0, nil }
+func (snapshotSessionSettings) WorkTimeCredit(context.Context) (int, int, string, error) {
+	return 0, 0, "", nil
+}
 
 // newAdminSessionService builds the admin correction path used to mutate a
 // closed month, wired exactly as services/factory.go does.
@@ -398,4 +402,59 @@ func TestMonthClose_ReopenUnclosedMonthIsNotFound(t *testing.T) {
 
 	err := f.closeSvc.ReopenMonth(f.ctx, f.staff, f.admin, snapshotYear, snapshotMonth, "Korrektur")
 	require.ErrorIs(t, err, timetracking.ErrMonthNotClosed)
+}
+
+// Corrections retain one persisted pause total across the session, its audit
+// trail and the month calculation, for both callers of the shared command.
+func TestSessionCorrections_PersistConsistentState(t *testing.T) {
+	t.Parallel()
+	for _, admin := range []bool{false, true} {
+		t.Run(fmt.Sprintf("admin=%t", admin), func(t *testing.T) {
+			t.Parallel()
+			f := newSnapshotFixture(t)
+			svc := f.newAdminSessionService()
+			end := f.session.CheckInTime.Add(4*time.Hour + 30*time.Minute)
+			brk, err := f.workforce.CreateWorkSessionBreak(f.ctx, workforce.WorkSessionBreak{TenantID: f.tenantID, SessionID: f.session.ID, StartedAt: f.session.CheckInTime.Add(4 * time.Hour), EndedAt: &end, DurationMinutes: 30})
+			require.NoError(t, err)
+			_, err = f.workforce.SetWorkSessionBreakMinutes(f.ctx, f.session.ID, 99)
+			require.NoError(t, err)
+			correct := func(ctx context.Context, update timetracking.SessionUpdateRequest) error {
+				if admin {
+					_, err := svc.UpdateSessionAsAdmin(ctx, f.admin, f.staff, f.session.ID, update)
+					return err
+				}
+				_, err := svc.UpdateSession(ctx, f.staff, f.session.ID, update)
+				return err
+			}
+			notes := "Pausen abgleichen"
+			require.NoError(t, testpkg.RunInTenantTransaction(f.ctx, func(ctx context.Context) error { return correct(ctx, timetracking.SessionUpdateRequest{Notes: &notes}) }))
+			stored, err := f.workforce.FindWorkSession(f.ctx, f.session.ID)
+			require.NoError(t, err)
+			assert.Equal(t, 30, stored.BreakMinutes, "a successful correction reconciles a stale cache")
+			before, err := svc.GetSessionEdits(f.ctx, f.staff, f.session.ID)
+			require.NoError(t, err)
+			wrong := 60
+			require.Error(t, testpkg.RunInTenantTransaction(f.ctx, func(ctx context.Context) error {
+				return correct(ctx, timetracking.SessionUpdateRequest{Notes: &notes, BreakMinutes: &wrong})
+			}))
+			after, err := svc.GetSessionEdits(f.ctx, f.staff, f.session.ID)
+			require.NoError(t, err)
+			assert.Equal(t, before, after, "rejected scalar correction leaves audit unchanged")
+			minutes := 45
+			require.NoError(t, testpkg.RunInTenantTransaction(f.ctx, func(ctx context.Context) error {
+				return correct(ctx, timetracking.SessionUpdateRequest{Notes: &notes, BreakMinutes: &minutes, Breaks: []timetracking.BreakDurationUpdate{{ID: brk.ID, DurationMinutes: minutes}}})
+			}))
+			stored, err = f.workforce.FindWorkSession(f.ctx, f.session.ID)
+			require.NoError(t, err)
+			pauses, err := f.workforce.ListWorkSessionBreaks(f.ctx, workforce.WorkSessionBreakFilter{SessionID: f.session.ID})
+			require.NoError(t, err)
+			require.Len(t, pauses, 1)
+			assert.Equal(t, 45, stored.BreakMinutes)
+			assert.Equal(t, stored.BreakMinutes, pauses[0].DurationMinutes)
+			assert.Equal(t, pauses[0].StartedAt.Add(45*time.Minute), *pauses[0].EndedAt)
+			month, err := f.monthSvc.GetMonthSummary(f.ctx, f.staff, snapshotYear, snapshotMonth)
+			require.NoError(t, err)
+			assert.Equal(t, 435, month.ActualMinutes)
+		})
+	}
 }

@@ -15,17 +15,17 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
-	"github.com/moto-nrw/project-phoenix/modules/settings"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
-	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
-	parent "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
+	parentportalcompose "github.com/moto-ogs/project-phoenix/workflows/parentportal/compose"
+	parent "github.com/moto-ogs/project-phoenix/workflows/parentportal/http"
 )
 
 // alwaysOnSettings enables the parent-portal features for the handler E2E
@@ -80,23 +80,26 @@ func newWriteRouterWithSettings(t *testing.T, db *bun.DB, settings parentService
 	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), members)
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges: owners.ParentGuardianChanges(),
-		DeparturePolicy: owners.ParentDeparturePolicy(),
-		GuardianPolicy:  owners.NewParentGuardianPolicy(),
-		Fingerprints:    owners.SecurityFingerprints{},
-		Declarations:    owners.ParentDeclarationPolicy(),
-		Locales:         owners.ParentPortalLocales(),
-		Runtime:         owners.ParentPortalRuntime{},
-		CarePlan:        owners.NewParentCarePlanCommands(repos.CareExceptions, nil),
-		People:          owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
-		CareProfiles:    careProfiles(t, db),
-		ChildRepo:       repos.ParentChildReads(),
-		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     owners.NewParentStudentReads(members.Student),
-		CareExceptions:  owners.NewParentCareExceptions(repos.CareExceptions),
-		Settings:        settings,
-		ExcusedRequests: owners.NewParentExcusedAbsenceRequests(repos.ExcusedRequests),
-		Logger:          slog.Default(),
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		GuardianProfileRepo: guardProfiles(t, db),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
+		CarePlan:            owners.NewParentCarePlanCommands(repos.CareExceptions, nil),
+		People:              owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
+		CareProfiles:        careProfiles(t, db),
+		ChildRepo:           repos.ParentChildReads(),
+		StatusDayRepo:       repos.StudentStatusDay,
+		StudentRepo:         owners.NewParentStudentReads(members.Student),
+		CareExceptions:      owners.NewParentCareExceptions(repos.CareExceptions),
+		Settings:            settings,
+		ExcusedRequests:     owners.NewParentExcusedAbsenceRequests(repos.ExcusedRequests),
+		Logger:              slog.Default(),
 
 		DataRequests: owners.NewParentDataRequestCommands(repos.CareExceptions),
 
@@ -238,20 +241,23 @@ func newDisabledWriteRouter(t *testing.T, db *bun.DB) http.Handler {
 	repos, repoErr := api.NewParentRouteTestRepositories(testpkg.NewDatabase(t, db), members)
 	require.NoError(t, repoErr)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges: owners.ParentGuardianChanges(),
-		DeparturePolicy: owners.ParentDeparturePolicy(),
-		GuardianPolicy:  owners.NewParentGuardianPolicy(),
-		Fingerprints:    owners.SecurityFingerprints{},
-		Declarations:    owners.ParentDeclarationPolicy(),
-		Locales:         owners.ParentPortalLocales(),
-		Runtime:         owners.ParentPortalRuntime{},
-		CarePlan:        owners.NewParentCarePlanCommands(repos.CareExceptions, nil),
-		People:          owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
-		ChildRepo:       repos.ParentChildReads(),
-		StatusDayRepo:   repos.StudentStatusDay,
-		StudentRepo:     owners.NewParentStudentReads(members.Student),
-		Settings:        disabledSettings{},
-		Logger:          slog.Default(),
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		GuardianProfileRepo: guardProfiles(t, db),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
+		CarePlan:            owners.NewParentCarePlanCommands(repos.CareExceptions, nil),
+		People:              owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
+		ChildRepo:           repos.ParentChildReads(),
+		StatusDayRepo:       repos.StudentStatusDay,
+		StudentRepo:         owners.NewParentStudentReads(members.Student),
+		Settings:            disabledSettings{},
+		Logger:              slog.Default(),
 
 		DataRequests: owners.NewParentDataRequestCommands(repos.CareExceptions),
 
@@ -505,4 +511,21 @@ func careProfiles(t *testing.T, db *bun.DB) careplan.StudentProfileCommands {
 	commands, err := api.NewParentPortalCareProfiles(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	return commands
+}
+
+// parentMemberships, guardStudentGuardians and guardProfiles
+// bind the real ports the child write guard locks through, as the root does.
+func parentMemberships(t testing.TB, db *bun.DB) parentService.SchoolMembershipLock {
+	t.Helper()
+	return owners.NewParentSchoolMembershipLock(testpkg.NewDatabase(t, db))
+}
+
+func guardStudentGuardians(t testing.TB, db *bun.DB) parentService.StudentGuardianReads {
+	t.Helper()
+	return owners.NewParentStudentGuardianReads(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).StudentGuardian)
+}
+
+func guardProfiles(t testing.TB, db *bun.DB) parentService.GuardianProfiles {
+	t.Helper()
+	return owners.NewParentGuardianProfileReads(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile)
 }

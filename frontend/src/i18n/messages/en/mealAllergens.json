@@ -4,7 +4,7 @@
   "marksShort": "Allergens: {letters}",
   "marksLabel": "Contains: {names}",
   "noneThisWeek": "No allergens are listed for this week.",
-  "source": "This information comes from the school or the caterer. A dish without a letter is not guaranteed to be free of allergens. If you have questions, please ask the OGS.",
+  "source": "This information comes from the school or the caterer. A dish without a letter is not guaranteed to be free of allergens. If you have questions, please ask the {careTerm}.",
   "names": {
     "gluten": "Cereals containing gluten",
     "crustaceans": "Crustaceans",

@@ -34,6 +34,8 @@ import { parentPath } from "~/lib/parent-url";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { ListSkeleton } from "~/components/ui/page-skeletons";
 import { messagesConcept } from "~/lib/concepts/messages";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
+import { ParentChildCareTermScope } from "~/lib/parent-care-term";
 
 /**
  * Nachrichten mit der OGS.
@@ -123,8 +125,8 @@ function buildRows(
 }
 
 export function ParentMessagesPage() {
-  const t = useTranslations("parentMessages");
-  const tGroupThreads = useTranslations("parentGroupThreads");
+  const t = useCareTermTranslations("parentMessages");
+  const tGroupThreads = useCareTermTranslations("parentGroupThreads");
   const childResource = useParentChildren();
   const children = childResource.data ?? EMPTY_CHILDREN;
   const threads = useSWRAuth(
@@ -186,9 +188,12 @@ export function ParentMessagesPage() {
     return (
       <ParentPage>
         {/* Bei offener Handy-Tastatur braucht der Chat den Platz, sonst liegt
-            das Schreibfeld unter der Tastatur (#3664). */}
+            das Schreibfeld unter der Tastatur (#3664). Auf kleinen Handys
+            ebenso: Die Navigation zeigt schon „Nachrichten“, und der Kopf des
+            Gesprächs sagt, mit wem man schreibt. Das Tourziel steht dann
+            dort (`tourAnchor`). */}
         <div
-          className="in-data-chat-keyboard:hidden"
+          className="in-data-chat-compact:hidden in-data-chat-keyboard:hidden"
           data-parent-tour="messages"
         >
           <ParentPageHeader
@@ -209,7 +214,11 @@ export function ParentMessagesPage() {
           </div>
         )}
         <SharedParentFeaturesProvider linkedChildren={children}>
-          <OgsConversation studentId={children[0]!.student_id} showChild />
+          <OgsConversation
+            studentId={children[0]!.student_id}
+            showChild
+            tourAnchor="messages"
+          />
         </SharedParentFeaturesProvider>
       </ParentPage>
     );
@@ -221,7 +230,9 @@ export function ParentMessagesPage() {
         <ul className="divide-y divide-gray-200">
           {rows.map((row) => (
             <li key={`${row.studentId}:${row.audience}`}>
-              <ConversationRow row={row} />
+              <ParentChildCareTermScope studentId={row.studentId}>
+                <ConversationRow row={row} />
+              </ParentChildCareTermScope>
             </li>
           ))}
         </ul>
@@ -232,7 +243,7 @@ export function ParentMessagesPage() {
 }
 
 function ConversationRow({ row }: Readonly<{ row: ChildConversation }>) {
-  const t = useTranslations("parentMessages");
+  const t = useCareTermTranslations("parentMessages");
   const tMsg = useTranslations("parentOgsMessaging");
   const locale = useLocale();
   const timestamp = formatChatDateTime(row.lastMessageAt, locale);

@@ -7,17 +7,20 @@ import (
 	"log/slog"
 	"time"
 
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	schedulerCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
-	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	securityRuntimeCompose "github.com/moto-ogs/project-phoenix/modules/securityruntime/compose"
+	"github.com/spf13/viper"
+
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	schedulerCompose "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/compose"
+	schedulerPorts "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/compose/presenceservice"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // NewSchedulerCleanupTestDependencies binds the same directory, settings,
@@ -47,6 +50,10 @@ func NewSchedulerCleanupTestDependencies(db transactionruntime.Database, unit te
 	if err != nil {
 		return schedulerPorts.WorkerDependencies{}, err
 	}
+	command, err := auditCompose.NewCommand(NewTestAuditStore(db), func(auditCompose.AppendObservation) {})
+	if err != nil {
+		return schedulerPorts.WorkerDependencies{}, err
+	}
 	runtime, err := schedulerCompose.NewTenantRuntime(unit)
 	if err != nil {
 		return schedulerPorts.WorkerDependencies{}, err
@@ -58,6 +65,9 @@ func NewSchedulerCleanupTestDependencies(db transactionruntime.Database, unit te
 		SchoolRepo: schedulerTenantDirectory{schools: schools}, Settings: resolver,
 		TenantRuntime: runtime, CleanupRuns: schedulerCompose.NewCleanupRunLedger(),
 		ActiveCleanup: newSchedulerPresenceCleanup(cleanup),
+		RetentionLog: func(ctx context.Context, kind string, outcome schedulerPorts.RetentionOutcome) error {
+			return command.LogRetention(ctx, kind, outcome.Deleted, outcome.RetentionDays)
+		},
 	}, nil
 }
 
@@ -82,8 +92,13 @@ func NewSchedulerFileRetentionTestDependencies(db transactionruntime.Database, u
 	}
 	// Recovery reads Workforce records and offboarded membership IDs; it does
 	// not invoke personnel edits or their audit trail.
+	bankData, err := securityRuntimeCompose.NewBankDataCipher(viper.GetString("bank_data_keys"), "")
+	if err != nil {
+		return deps, err
+	}
 	documents, err := workforceCompose.NewStaffAdmin(workforceCompose.StaffAdminDependencies{
 		DB: db.Pool(), Subjects: staffAdminSubjects{membership: membership}, Audit: staffAdminAudit{}, Allows: securityruntime.HasPermission,
+		BankData: bankData,
 	})
 	if err != nil {
 		return deps, err

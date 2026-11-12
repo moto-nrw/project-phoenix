@@ -8,9 +8,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -22,7 +22,7 @@ func TestTimetableCheckpointReportsOnlyItsWorkerQueries(t *testing.T) {
 	t.Parallel()
 	fixtureDB := testpkg.SetupIsolatedTestDB(t)
 	// A private pool on this test's same isolated clone keeps fixture resets
-	// and the concurrent lock sampler out of the unscoped reference capture.
+	// out of the unscoped reference capture. Live lock sampling is evidence-only.
 	runtimeDB := testpkg.SetupClosableTestDB(t)
 	t.Cleanup(func() { require.NoError(t, runtimeDB.Close()) })
 	database := testpkg.NewDatabase(t, runtimeDB)
@@ -73,7 +73,7 @@ func TestTimetableCheckpointReportsOnlyItsWorkerQueries(t *testing.T) {
 		return fmt.Sprintf("checkpoint_scope_metric %d\n", metric)
 	}
 
-	results := testpkg.MeasureTimetableCheckpoint(t, runtimeDB, fixtureDB, database.UnitOfWork(), counter, templateID, run, metrics)
+	results := testpkg.MeasureTimetableCheckpoint(t, runtimeDB, fixtureDB, database.UnitOfWork(), counter, templateID, run, metrics, false)
 	counter.Stop()
 	reference.Stop()
 	require.Len(t, results, 2)

@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func TestOperatorMFAAuditSharesTriggeringTransaction(t *testing.T) {
@@ -25,7 +25,7 @@ func TestOperatorMFAAuditSharesTriggeringTransaction(t *testing.T) {
 			require.NoError(t, err)
 			operator := testpkg.CreateTestOperator(t, db)
 			if action == "mfa_disabled" {
-				require.NoError(t, module.OperatorMFA.EnrollOperatorMFA(ctx, operator.ID))
+				require.NoError(t, module.OperatorMFA.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: operator.ID, CredentialGeneration: operator.CredentialGeneration}))
 			}
 			var targetID int64
 			if action == "mfa_admin_override" {
@@ -34,9 +34,11 @@ func TestOperatorMFAAuditSharesTriggeringTransaction(t *testing.T) {
 			if action == "mfa_verified" || action == "mfa_failed" || action == "mfa_locked" {
 				hash, err := securityruntime.HashPassword("123456")
 				require.NoError(t, err)
-				// An active, delivered code; the e-mail step is not under test.
-				_, err = db.NewRaw(`INSERT INTO platform.operator_mfa_email_challenges (operator_id, code_hash, expires_at) VALUES (?, ?, ?)`,
-					operator.ID, hash, time.Now().Add(time.Hour)).Exec(ctx)
+				// An active, delivered code of the operator's current password
+				// (#6308); the e-mail step is not under test.
+				_, err = db.NewRaw(`INSERT INTO platform.operator_mfa_email_challenges (operator_id, code_hash, expires_at, credential_generation)
+					VALUES (?, ?, ?, (SELECT credential_generation FROM platform.operators WHERE id = ?))`,
+					operator.ID, hash, time.Now().Add(time.Hour), operator.ID).Exec(ctx)
 				require.NoError(t, err)
 				if action == "mfa_locked" {
 					_, err = db.NewRaw(`UPDATE platform.operators SET mfa_attempts=? WHERE id=?`, identityaccess.MFALockoutThreshold-1, operator.ID).Exec(ctx)
@@ -55,15 +57,15 @@ func TestOperatorMFAAuditSharesTriggeringTransaction(t *testing.T) {
 					var err error
 					switch action {
 					case "mfa_enrolled":
-						err = module.OperatorMFA.EnrollOperatorMFA(txCtx, operator.ID)
+						err = module.OperatorMFA.EnrollOperatorMFA(txCtx, identityaccess.OperatorMFAProof{OperatorID: operator.ID, CredentialGeneration: operator.CredentialGeneration})
 					case "mfa_disabled":
 						err = module.OperatorMFA.DisableOperatorMFA(txCtx, operator.ID)
 					case "mfa_admin_override":
 						err = module.MFA.OperatorSetGlobalMFAOverride(txCtx, operator.ID, targetID, identityaccess.MFAAdminOverrideForceOn, "atomic audit test")
 					case "mfa_verified":
-						err = module.OperatorMFA.VerifyOperatorMFACode(txCtx, operator.ID, "123456")
+						err = module.OperatorMFA.VerifyOperatorMFACode(txCtx, operator.ID, "123456", nil)
 					default:
-						require.ErrorIs(t, module.OperatorMFA.VerifyOperatorMFACode(txCtx, operator.ID, "000000"), identityaccess.ErrMFACodeInvalid)
+						require.ErrorIs(t, module.OperatorMFA.VerifyOperatorMFACode(txCtx, operator.ID, "000000", nil), identityaccess.ErrMFACodeInvalid)
 					}
 					if err != nil {
 						return err
@@ -92,7 +94,7 @@ func TestOperatorMFAAuditFailureRollsBackEnrollment(t *testing.T) {
 	operator := testpkg.CreateTestOperator(t, db)
 	_, err = db.NewRaw(`ALTER TABLE platform.operator_audit_log ADD CONSTRAINT reject_mfa_audit_test CHECK (action <> 'mfa_enrolled')`).Exec(ctx)
 	require.NoError(t, err)
-	require.Error(t, module.OperatorMFA.EnrollOperatorMFA(ctx, operator.ID))
+	require.Error(t, module.OperatorMFA.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: operator.ID, CredentialGeneration: operator.CredentialGeneration}))
 	var n int64
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.operator_mfa_credentials WHERE operator_id = ?`, operator.ID).Scan(ctx, &n))
 	assert.Zero(t, n, "the credential cannot commit without its audit evidence")

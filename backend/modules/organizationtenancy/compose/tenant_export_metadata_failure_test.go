@@ -9,9 +9,9 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -30,7 +30,7 @@ func TestTenantExportMetadataFailureBoundary(t *testing.T) {
 			uploads := fixtureUploads(t, db, catalog, school, otherSchool)
 			exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{
 				Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint,
-			})
+			}, openedSealedFields{}, projectedFields{}, &exportAuditFake{})
 			require.NoError(t, err)
 			const target = "platform.organizations"
 			var prefix []string
@@ -49,7 +49,7 @@ func TestTenantExportMetadataFailureBoundary(t *testing.T) {
 			require.NotEmpty(t, prefix, "the failure must have a non-vacuous completed artifact prefix")
 
 			complete := filepath.Join(t.TempDir(), "positive")
-			positiveErr := exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: school, Output: complete, Uploads: uploads})
+			positiveErr := exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: school, OperatorID: 42, Output: complete, Uploads: uploads})
 			positivePrefix, positivePrefixErr := metadataFailureReadPrefix(complete, prefix)
 			t.Logf("metadata-failure positive_error=%v positive_prefix_read_error=%v prefix_files=%d positive_prefix=%v", positiveErr, positivePrefixErr, len(positivePrefix), metadataFailureDigests(positivePrefix))
 			require.NoError(t, positiveErr)
@@ -76,7 +76,7 @@ func TestTenantExportMetadataFailureBoundary(t *testing.T) {
 
 			partial := filepath.Join(t.TempDir(), "partial")
 			counter := testpkg.CaptureQueriesForContext(t, db)
-			operationErr := exporter.Export(counter.Context(t.Context()), organizationtenancy.TenantExportOptions{SchoolID: school, Output: partial, Uploads: uploads})
+			operationErr := exporter.Export(counter.Context(t.Context()), organizationtenancy.TenantExportOptions{SchoolID: school, OperatorID: 42, Output: partial, Uploads: uploads})
 			counter.Stop()
 			actualPrefix, partialReadErr := metadataFailureReadDirectory(partial)
 			queries := counter.Queries()

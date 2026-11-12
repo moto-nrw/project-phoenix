@@ -15,10 +15,10 @@ import (
 
 	"github.com/getsentry/sentry-go"
 	"github.com/go-chi/chi/v5"
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	emailWebhooksHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/webhooks"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	customMiddleware "github.com/moto-ogs/project-phoenix/middleware"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	emailWebhooksHTTP "github.com/moto-ogs/project-phoenix/modules/delivery/http/webhooks"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -152,7 +152,7 @@ func TestEmailWebhookRouteAnswersAnInterruptedBodyWithARetry(t *testing.T) {
 			t.Parallel()
 			calls := 0
 			router := chi.NewRouter()
-			mountEmailWebhooks(router, noWebhookIngest{calls: &calls})
+			mountEmailWebhooks(router, noWebhookIngest{calls: &calls}, false)
 			capture := apiCommon.NewServerErrorCapture()
 			request := httptest.NewRequest(http.MethodPost, emailWebhookPath+"/email/delivery/lettermint", test.body)
 			recorder := httptest.NewRecorder()

@@ -1,13 +1,21 @@
 # Interne Auskunft und Datenrückgabe
 
-Stand: 24.10.2026, Slices 3838-a/b/c, Refs #3838, Teil von #3846.
+Stand: 10.11.2026, Refs #3838, #6412, Teil von #3846.
 Grundlage: [ADR 0092](../adr/0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md),
-[ADR 0097](../adr/0097-mandantenrueckgabe-hat-einen-eigenen-leseadapter.md)
-und [Datenkatalog](../reference/datenkatalog.md).
+[ADR 0097](../adr/0097-mandantenrueckgabe-hat-einen-eigenen-leseadapter.md),
+[ADR 0192](../adr/0192-mandantenrueckgabe-oeffnet-feldverschluesselte-bankdaten.md),
+[ADR 0193](../adr/0193-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md),
+[ADR 0197](../adr/0197-mandantenrueckgabe-oeffnet-bankdaten-von-eltern-und-personal-und-den-mandatstext.md)
+und [Datenkatalog](../reference/datenkatalog.md). Öffentliche Beschreibung für
+Kunden: [Datenexport und Anbieterwechsel](https://moto-ogs.de/rechtliches/datenexport)
+und [Infrastruktur und technische Anbieter](https://moto-ogs.de/rechtliches/infrastruktur)
+(Website-Repo, `src/app/(de)/rechtliches/`). Wer Format, Ablauf oder Grenzen
+hier ändert, gleicht diese Seiten im selben Zug an.
 
 ## Stand und Grenzen
 
-**Im Code umgesetzt:** `tenant export` erstellt für genau eine Schule einen
+**Im Code umgesetzt:** `tenant export` erstellt für genau eine Schule
+(`--school`) oder genau einen Träger (`--organization`) einen
 lokalen, maschinenlesbaren Export aus dem gemeinsamen Katalog. Er liefert
 JSON Lines, Originaldateien, eine Datenmodellbeschreibung, Ausschlussgründe,
 Zeilenzahlen und SHA-256-Prüfsummen. Die Datenbank wird in einer einzigen
@@ -24,11 +32,40 @@ automatisch vollständige oder freigegebene Art.-15-Antwort. Die zuständige
 Person muss die Ergänzungs- und Drittpersonenprüfung in Abschnitt 6 abschließen.
 Weder Gesamtexport noch internes Prüfpaket unverändert an Betroffene geben.
 
-**Weiter offen:** geprüfte Projektionen nicht geheimer Werte aus den bewusst
-ausgeschlossenen Settings-/Zustellcontainern, erforderlicher Kontext aus
-internen Protokollen sowie der gesonderte Data-Act-Schnittstellen- und
-Wechselabgleich. Das Verfahren belegt die technische Rückgabe des aktuell
-freigegebenen Katalogumfangs, nicht die Erfüllung aller AKs von #3838.
+**Register (Art. 26 Data Act, [ADR 0201](../adr/0201-mandantenrueckgabe-hat-ein-register-und-einen-abrufweg.md)):**
+`GET /public/data-return/register` der API liefert ohne Anmeldung die
+Schemabeschreibung des Pakets: jede Tabelle mit Feldern, Typen, Nullbarkeit,
+Beziehungen und den Paketen, die sie tragen, die ausgeschlossenen Tabellen,
+Spalten und Dateiarten mit Grund, Formatversion, Standards und eine
+unverbindliche Zeitschätzung. Keine Kundendaten. Die Datei
+`backend/modules/organizationtenancy/return_register.json` ist im Binary
+eingebettet und entsteht mit demselben Code wie `model.json`;
+`TestReturnRegisterMatchesMigratedSchema` erzwingt, dass sie zum Schema passt.
+`formatVersion` und `catalogSHA256` im Manifest eines Pakets nennen den
+Registerstand, zu dem es gehört. Kunden und Zielanbieter auf diese Adresse
+verweisen, nicht auf eine Kopie.
+
+**Abruf über HTTPS (Art. 30 Abs. 2 Data Act, [ADR 0203](../adr/0203-mandantenrueckgabe-wird-per-https-mit-kurzlebigem-token-abgerufen.md)):** Ein geprüftes Paket
+gibt `tenant return release` für den Abruf frei (Abschnitt 8). Kunde und ein
+vom Kunden benannter neuer Anbieter laden es mit einem kurzlebigen Token über
+`GET /public/data-return/package/archive` selbst herunter; die Schnittstelle
+beschreibt `/public/data-return/openapi.json`. Wir erstellen und prüfen das
+Paket weiter selbst; es gibt keinen Selbstbedienungs-Export.
+
+**Geöffnet und projiziert:** IBAN und Kontoinhaber der SEPA-Daten, der
+bestätigte Text eines Online-Mandats, IBAN und Kontoinhaber der Eltern sowie
+IBAN, Steuer-ID und Sozialversicherungsnummer des Personals (alle Bankring)
+und alle Gesundheitsangaben (Gesundheitsring) stehen geöffnet im Paket, nie
+als Chiffrat. Einstellungen gehen ohne Geheimnisse mit:
+`password`-Definitionen und unbekannte Schlüssel als `null`. Zustellprotokolle
+(Sperrliste, Zustellereignisse, Push-Inhalte) gehen mit. Ein Wert, der nicht
+öffnet, oder ein Container ohne Besitzer bricht den Export ab.
+
+**Weiter offen:** Der Mail-Payload bleibt ausgeschlossen (Sicherheitsmails
+tragen dort Link oder Code); der Inhalt einer Mail ist der verknüpfte
+Datensatz. Die anwaltliche Bestätigung, dass Register und Abrufweg Art. 26 und
+Art. 30 Abs. 2 Data Act genügen (Abschnitt 7), und die menschlichen Nachweise
+unten.
 
 **Produktiv nachzuweisen:** benannte Zuständigkeit, Migration und wirksame
 Berechtigungen, vollständiger DB-/Upload-Bestand, Schreibpause, Probelauf,
@@ -40,7 +77,8 @@ Sicherungen sind nicht Bestandteil dieses PostgreSQL-/Upload-Exports.
 
 1. Dokumentierte Weisung des Kunden, Zweck, berechtigten Auftraggeber,
    Schul-ID und Empfänger prüfen. Bei einem Träger jede Schule einzeln
-   autorisieren. Keine Auswahl allein anhand einer E-Mail-Adresse oder
+   autorisieren; die Rückgabe eines Trägers besteht aus dem Trägerpaket und je
+   Schule einem Schulpaket (Abschnitt 3). Keine Auswahl allein anhand einer E-Mail-Adresse oder
    eines Plattform-Tokens. Die HTTP-Middleware wird nicht verwendet.
 2. Vor Beginn eine verantwortliche Person und Vertretung im geschützten
    Auftrag benennen. Diese organisatorische Zuordnung ist noch offen und
@@ -91,7 +129,18 @@ Sicherungen sind nicht Bestandteil dieses PostgreSQL-/Upload-Exports.
    ein fehlendes referenziertes Original oder ein Symlink ist ein Fehler.
    Bereits abgeschlossene Dateilöschungen erfordern kein Original;
    Cleanup-Intents können auch nie geschriebene Dateien beschreiben.
-5. Privates, lokal verschlüsseltes Arbeitsmedium mit genug freiem Platz
+5. Bankring der Herkunftsinstallation bereitstellen: `BANK_DATA_KEYS` und,
+   solange deren Rekey nicht abgeschlossen ist, `BANK_DATA_LEGACY_KEYS`
+   ([ADR 0183](../adr/0183-bankdaten-haben-einen-eigenen-schluesselring-und-einen-wiederholbaren-rekey.md)).
+   und den Gesundheitsring `HEALTH_DATA_KEYS` derselben Installation
+   ([ADR 0193](../adr/0193-mandantenrueckgabe-gibt-gesundheit-einstellungen-und-traegerpaket-zurueck.md)).
+   Der Export öffnet damit IBAN und Kontoinhaber der SEPA-Mandate und
+   -Lastschriften, den Mandatstext, die Bankdaten der Eltern, Bank- und
+   Steuerdaten des Personals sowie die Gesundheitsangaben; ohne passende Ringe bricht er
+   ab, statt Chiffrat oder eine Lücke zu übergeben, auch für Schulen ohne
+   solche Daten. Die Werte nur per SOPS in die Umgebung des Exportprozesses
+   geben, nie als Datei, Shell-Literal oder CLI-Argument.
+6. Privates, lokal verschlüsseltes Arbeitsmedium mit genug freiem Platz
    und einem vorhandenen privaten Elternverzeichnis verwenden. Ziel und
    Uploads dürfen nicht ineinander liegen. Dateinamen und Inhalte nicht
    in Tickets, Shell-Traces, Bildschirmaufnahmen oder Logs ausgeben.
@@ -99,13 +148,103 @@ Sicherungen sind nicht Bestandteil dieses PostgreSQL-/Upload-Exports.
 ## 3. Ausführen und prüfen
 
 Aus dem Repository-Root im vorbereiteten lokalen Dev-Loop, Variablen vorab
-auf die autorisierte Schul-ID und lokale Verzeichnisse setzen:
+auf die autorisierte Schul-ID, die eigene Operator-ID und lokale
+Verzeichnisse setzen:
 
 ```bash
 umask 077
 scripts/dev-native.sh backend go run . tenant export \
-  --school "$SCHOOL_ID" --uploads "$UPLOADS_SNAPSHOT" --out "$EXPORT_DIR"
+  --school "$SCHOOL_ID" --operator "$OPERATOR_ID" \
+  --uploads "$UPLOADS_SNAPSHOT" --out "$EXPORT_DIR"
 ```
+
+Jeder Lauf verlangt `--operator` und steht im Operator-Protokoll, beim
+Schulpaket mit Ressource `school` statt `organization` (#6326, siehe
+**Operator-Protokoll** unten).
+
+Für das Trägerpaket statt `--school "$SCHOOL_ID"` den Parameter
+`--organization "$ORGANIZATION_ID"` setzen. Es enthält die Trägertabellen
+(Verträge, Elternabrechnung, SEPA, Ferienanmeldungen, Trägereinstellungen), die
+Stammzeilen der Schulen des Trägers und die Konten der Träger-Geschäftsstelle
+samt Avataren. Was eine Schule hält, steht im Manifest als `schoolPackage`
+ohne Zeilen und kommt mit dem Schulpaket. Ein Schulpaket trägt weiter den
+Trägerbestand; bei einer Trägerrückgabe ist das Trägerpaket desselben Auftrags
+für diese Tabellen maßgeblich. Wechselt nur eine Schule, enthält ihr Schulpaket
+die Trägerdaten aller Schulen des Trägers: Umfang mit dem Träger abstimmen.
+
+Das Trägerpaket legt zusätzlich die gespeicherten Dokumente und die
+PAIN.008-Dateien als Dateien bei (ADR 0187):
+
+```bash
+umask 077
+scripts/dev-native.sh backend go run . tenant export \
+  --organization "$ORGANIZATION_ID" --operator "$OPERATOR_ID" \
+  --uploads "$UPLOADS_SNAPSHOT" --out "$EXPORT_DIR"
+```
+
+- **Offline:** Nur mit gestoppten Schreibern ausführen (API, Worker, Uploads,
+  Importe und geplante Läufe aus, wie beim Löschverfahren mit
+  `--writers-stopped`). Die PAIN.008-Dateien liest die Elternabrechnung in
+  einer eigenen Transaktion **nach** dem Katalog-Snapshot; nur ohne Schreiber
+  passen Tabellen-Dateien und Dateien zusammen. Der deaktivierte Träger allein
+  reicht nicht.
+- **Operator-Protokoll (Schul- und Trägerpaket):** `--operator` muss ein
+  bestehender, **aktiver** Operator sein (wie beim Löschverfahren); sonst
+  liest und schreibt der Lauf nichts. Jeder Lauf steht zweimal in
+  `platform.operator_audit_log` (Aktion `export`, Ressource `school` mit der
+  Schul-ID bzw. `organization` mit der Träger-ID), ohne Personendaten und
+  ohne lokalen Pfad: vor dem ersten Lesen der Versuch (`outcome: started`,
+  `operator_id`, `school_id` bzw. `organization_id`, `started_at`), danach
+  das Ergebnis. `completed` nennt die Prüfsumme aus `COMPLETE`
+  (`manifest_sha256`), `exported_at`, die Anzahl der Tabellen und Dateien,
+  beim Trägerpaket zusätzlich die Dokumente je Spalte und die Herkunft jeder
+  PAIN.008-Datei, beim internen Prüfpaket `person_review: true` ohne die
+  Person; erst danach entsteht `COMPLETE`. Schlägt dieser Eintrag fehl,
+  entsteht kein `COMPLETE`.
+  `failed` nennt die Fehlerklasse (`snapshot`, `filesystem`,
+  `document_files`, `sepa_debit_files`, `manifest`, `audit`,
+  `complete_marker`). Das Trägerpaket löscht sein unvollständiges
+  Verzeichnis und meldet das in `partial_files_removed`; steht dort `false`,
+  das Verzeichnis von Hand löschen. Ein fehlgeschlagenes Schulpaket lässt
+  seine Teilstände liegen (kein `partial_files_removed`): sperren und nach
+  Abschnitt 4 entfernen.
+- **Dokumente:** `DOKUMENTE/<Tabelle>/<Zeilen-ID>-<Spalte>.<Endung>` je
+  gespeichertem Dokument der Trägertabellen: Schreiben und Bestätigungen,
+  Bescheide, alle Vertragsfassungen, Papierverträge, Unterschriftsbilder,
+  hochgeladene Nachweise, Dokumente und Formulare des Trägers, Logo. Welche
+  Spalten Dokumente sind, folgt aus dem Katalog: jede exportierte
+  Binärspalte einer Trägertabelle; eine neue kommt ohne Codeänderung mit.
+  Die Zeilen-ID ist der Primärschlüssel, die Endung folgt aus dem
+  gespeicherten Medientyp, sonst aus dem Inhalt (`.bin`, wenn unbekannt).
+  `DOKUMENTE/index.jsonl` nennt je Datei `table`, `row_id`, `row_key`,
+  `column`, `media_type`, `sha256` und `bytes`; `LIESMICH.txt` erklärt den
+  Ordner. `manifest.json` zählt sie unter `documentFiles` je Spalte und prüft
+  jede Datei mit Prüfsumme. Die Tabellen-Dateien behalten das Dokument als
+  Hex-Wert unverändert. Lässt sich ein Dokument nicht schreiben (etwa ohne
+  Primärschlüssel), scheitert der Lauf mit `document_files`.
+- **PAIN.008-Dateien:** `SEPA-LASTSCHRIFTDATEIEN/<Nachrichten-ID>.xml` je
+  eingereichte Lastschriftnachricht, mit `LIESMICH.txt`; `manifest.json`
+  nennt sie unter `sepaDebitFiles` mit Herkunft und prüft jede mit Prüfsumme.
+  IBAN und Kontoinhaber je Mandat und Lastschrift stehen nicht dort, sondern
+  geöffnet in den Tabellen-Dateien (siehe Exportformat).
+  - **Original:** Seit Migration `1.15.880` speichert moto beim Download die
+    Datei bytegenau, versiegelt mit dem Bank-Schlüssel, mit SHA-256 und dem
+    Gläubigerkonto darin (`parent_billing.sepa_debit_files`); ein späterer
+    Download derselben Nachricht ersetzt sie bis zur Bestätigung der
+    Einreichung. Ein nicht eingereichter Download geht nach 30 Tagen; eine
+    eingereichte Datei bleibt, solange eine ihrer Lastschriften oder einer
+    ihrer Ratenbescheide bleibt. Das Paket enthält diese Datei unverändert
+    und prüft die Prüfsumme, auch wenn keine ihrer Lastschriften mehr da ist.
+    Ein späterer Wechsel des Standardkontos ändert sie nicht.
+  - **Rekonstruiert:** Fehlt das Original, erzeugt der Export die Datei mit
+    demselben Generator neu aus den gespeicherten Lastschriften
+    (Nachrichten-ID, eingereichte Beträge, Sequenz, Einzugstag, Konto zur
+    Freigabe, Gläubiger-ID). Die Erstellzeit ist dann die Bestätigung der
+    Einreichung. Das Gläubigerkonto ist das bei der Einreichung gespeicherte,
+    für Nachrichten von vor `1.15.880` das heutige Standardkonto des Trägers;
+    ohne Standardkonto scheitert der Export.
+- Den Wert aus `COMPLETE` beim Löschauftrag im Operator-Portal als Prüfsumme
+  eintragen; so belegt der Auftrag, welche Rückgabe übergeben wurde.
 
 `EXPORT_DIR` darf noch nicht existieren. Die CLI erzeugt Verzeichnisse mit
 0700 und Dateien mit 0600. Sie schreibt keine Datenzeilen oder Originalnamen
@@ -118,6 +257,19 @@ Exportformat, Version 1:
 
 - `schema.tabelle.jsonl`: eine JSON-Zeile je freigegebenem Datensatz,
   einschließlich vorhandener Soft-Delete-Daten; keine Roh-Geheimnisspalten.
+  Feldverschlüsselte Werte, die der Katalog unter `openSealedColumns` führt,
+  stehen geöffnet in eigenen Spalten (`iban`, `account_holder` bei SEPA-
+  Mandaten und -Lastschriften, `text` beim bestätigten Mandatstext,
+  `iban_opened`, `account_holder_opened` bei Bankdaten der Eltern,
+  `iban_opened`, `tax_id_opened`, `social_security_number_opened` bei Bank-
+  und Steuerdaten des Personals, `health_info` bei Betreuungsprofilen,
+  `health` als JSON-Text bei Ferienanmeldungen, -kindern und -gästen), ihr
+  Chiffrat nicht. Bei Eltern und Personal tragen `iban`, `account_holder`,
+  `tax_id` und `social_security_number` nur noch Klartext von Zeilen, die der
+  Backfill (#6332) nicht versiegelt hat; maßgeblich ist der geöffnete Wert,
+  sonst dieser Klartext. Container unter `projectedColumns` stehen projiziert in eigenen
+  Spalten (`exported_value`, `exported_old_value`/`exported_new_value` bei
+  Einstellungen, `exported_settings` bei Schulen), ihr Rohwert nicht.
   PostgreSQL-JSON stellt Zahlen numerisch dar. Empfänger müssen `bigint`
   ohne Rundung lesen; Zeit-/Datumsbedeutungen ergeben sich aus `model.json`.
 - `model.json`: exportierte Spalten mit `information_schema`-Typen,
@@ -128,7 +280,8 @@ Exportformat, Version 1:
   `objects.jsonl` ordnet diese Dateien den ursprünglichen Speicherschlüsseln
   zu. Diese Zuordnung gehört in den geschützten Datenexport, nicht ins
   Durchführungsprotokoll.
-- `manifest.json`: Format-/Katalogversion, SHA-256 des eingebetteten
+- `manifest.json`: Paketart (`package: organization` beim Trägerpaket),
+  Format-/Katalogversion, SHA-256 des eingebetteten
   Katalogs, Snapshot-Zeitpunkt in UTC, Tabellen mit Zeilenzahlen und
   Ausschlüssen sowie Pfad, Größe und SHA-256 jedes Daten-/Modellartefakts.
   Keine Datensätze, Personennamen oder ursprünglichen Dateinamen.
@@ -189,16 +342,20 @@ Es gibt keinen Modus zum stillen Überspringen.
    Sicherungen genügt Überschreiben einzelner Dateien nicht als sicherer
    Löschbeleg. Geschütztes temporäres Medium und dessen Lebenszyklus nutzen;
    keine dauerhaften unkontrollierten Kopien erstellen.
-4. Ein Wechselauftrag folgt zusätzlich dem **Wechselprozess nach AGB 10.3**
-   und dem noch offenen Data-Act-Abgleich. Dieser CLI-Lauf legt weder
-   Abruf-/Wechselfristen noch offene Schnittstellen abschließend fest.
+4. Statt der Übergabe nach 1. und 2. kann das Paket über die
+   HTTPS-Schnittstelle abgerufen werden (Abschnitt 8); bei einem Wechsel ist das
+   der vorgesehene Weg, auch für den neuen Anbieter.
+5. Ein Wechselauftrag folgt zusätzlich dem Wechselprozess mit seinen Fristen
+   in Abschnitt 7. Bei einem Wechsel bleibt das verschlüsselte Paket bis zum
+   Ende des Abrufzeitraums erhalten; erst danach die lokalen Kopien entfernen.
 
 ## 5. Datensparsamer Durchführungsnachweis
 
 Im zugriffsbeschränkten Auftrag festhalten: Auftragsreferenz, geprüfte
 Berechtigung, interne Schulreferenz, verantwortliche Person/Vertretung,
 Commit, Verfahrens-/Katalogversion, Zeitpunkte, Prüfschritte mit Anzahlen,
-Manifest-Prüfsumme, Fehler/Wiederholungen, begründete Ausschlüsse und offene
+Manifest-Prüfsumme, Fehler/Wiederholungen, Verweis auf die Einträge im
+Operator-Protokoll (Aktion `export`, Ressource `school` bzw. `organization`), begründete Ausschlüsse und offene
 Ergänzungen, bestätigten Übergabekanal/Empfang sowie Entfernung lokaler Kopien.
 Keine Namen aus dem Export, Inhalte, Originaldateinamen, Passwörter, Tokens
 oder Schlüssel aufnehmen. Nachweisfristen und Zugriff organisatorisch
@@ -236,7 +393,8 @@ Gesamterfolg erhalten.
 ```bash
 umask 077
 scripts/dev-native.sh backend go run . tenant export \
-  --school "$SCHOOL_ID" --person "${PERSON_SELECTOR:?Personenauswahl erforderlich}" \
+  --school "$SCHOOL_ID" --operator "$OPERATOR_ID" \
+  --person "${PERSON_SELECTOR:?Personenauswahl erforderlich}" \
   --uploads "$UPLOADS_SNAPSHOT" --out "$PERSON_REVIEW_DIR"
 ```
 
@@ -259,6 +417,14 @@ Nur Schlüssel/Beziehungen bleiben im Arbeitsspeicher, Inhalte werden gestreamt.
    die Startpunkte. Davon abhängige Schulzeilen sind personenbezogene Treffer.
    Bei zusammengesetzten FKs ist `tenant_id` keine Personenkante. Die
    vorhandene Exportauswahl hat die Schulgrenze bereits angewandt.
+   Eine Zeile, die die Person nur bearbeitet hat (Spalten `…_by…` und
+   `actor_…`, etwa `created_by`, `reviewed_by`, `checked_in_by`), bleibt als
+   einzelne Zeile mit `handled-by-subject-not-about-subject` im Paket. Ihre
+   abhängigen Zeilen und die dort genannten Kinder folgen nicht: Eine von
+   einer Fachkraft angelegte AG bringt nicht die Anmeldungen der Kinder mit.
+   Eigene Äußerungen (Verfasser, Absender, Unterzeichner) bleiben Treffer,
+   ebenso selbst angelegte Elternbriefe, Gesprächsverläufe, Aushänge und
+   Umfragen. Die Ausnahmen stehen in `personActorColumn`.
 2. Benötigte Elternzeilen liefern Kontext, begründen aber **keinen** weiteren
    Personenexport. Gemeinsame Erziehungsberechtigte führen deshalb nicht zu
    Geschwisterakten. Ein Beschäftigtenkonto an zwei Schulen führt nicht zum
@@ -285,8 +451,11 @@ im gefilterten JSONL) mit `third-party-review`. Zusätzlich gelten:
 | Regel | Verbindliche Prüfung |
 |---|---|
 | `context-not-subject` | Gehört der Kontext zur Anfrage? Andere Erziehungsberechtigte, Geschwister, Beschäftigte und deren Kennungen entfernen oder begründet freigeben. |
+| `handled-by-subject-not-about-subject` | Die Person hat diese Zeile nur bearbeitet (angelegt, geprüft, erfasst); sie handelt von jemand anderem. Nur weitergeben, was die Bearbeitung durch die Person zeigt; Angaben zu Kindern, Erziehungsberechtigten und anderen Beschäftigten entfernen. |
 | `free-text-snapshots-and-embedded-persons` | Freitexte, Nachrichten, frühere/neue Werte, JSON und Formulare auf eingebettete Drittpersonen und Geheimnisse prüfen. Keine bloße Suche nach Spaltennamen. |
 | `audit-actors-and-historical-values` | Akteure und historische Werte prüfen; den erforderlichen Auskunftskontext nicht pauschal als „intern“ zurückhalten. |
+| `special-category-health-data` | Geöffnete Gesundheitsangaben (Art. 9 DSGVO): nur die der betroffenen Person und nur an den von der Schule bestätigten Empfänger. Zeilen von Geschwistern oder anderen Gästen entfernen. |
+| `especially-sensitive-tax-and-social-security-ids` | Geöffnete Steuer-ID und Sozialversicherungsnummer: lebenslange Kennungen mit hohem Missbrauchsrisiko. Nur die der betroffenen Beschäftigten, nur an den von der Schule bestätigten Empfänger, verschlüsselt übergeben; Zeilen anderer Beschäftigter entfernen. |
 | `original-content-and-group-photos` | Jede markierte Originaldatei ansehen. Gruppenfotos und Mehrpersonen-Dokumente redigieren oder begründet zurückhalten; das Original bleibt nur im internen Paket. |
 
 Die Markierungen sind bewusst konservativ, keine automatische juristische
@@ -345,8 +514,153 @@ keine Vollständigkeit. `COMPLETE` bestätigt nur den technischen Lauf.
    Aufbewahrung, Sicherungszyklus und Wiederholung nach Restore nachweisen.
    Die CLI-Nachweise allein bedeuten nicht „vollständig gelöscht“.
 
-**AK6 offen, Recht 3838-e:** Data-Act-Schnittstellen, Wechselunterstützung,
-Wechsel-/Abruffristen und Abrufmöglichkeiten gesondert rechtlich und technisch
-abgleichen. Dieses Runbook und die interne Export-CLI setzen diese offenen
-Verträge nicht fest. Kein jederzeitiger Selbstdownload und keine vollständige
-Data-Act-Erfüllung zugesagt.
+### Wechselprozess und Fristen (AGB Ziff. 10, AVV Ziff. 8.2)
+
+Technisch steht das Verfahren dieses Runbooks bereit: vollständiger
+Schul- und Trägerbestand in offenem, dokumentiertem Format (JSON Lines,
+`model.json`, Originaldateien, Prüfsummen), ohne Wechselentgelt. Das Register
+unter `/public/data-return/register` beschreibt das Paket schon vor dem
+Wechsel; bei der Wechselanfrage dem Kunden und dem Zielanbieter nennen.
+Die Fristen laufen ab dem Eingang der Wechselanfrage:
+
+| Schritt | Frist nach AGB | Wer |
+|---|---|---|
+| Wechselanfrage bestätigen, Umfang (Schulen, Träger, Ziel) festhalten | unverzüglich; Ankündigungsfrist höchstens 2 Monate (10.1) | zuständige Person |
+| Ist der Übergang in 30 Tagen nicht machbar: begründen, Ersatzzeitraum ≤ 7 Monate nennen | 14 Arbeitstage nach der Anfrage (10.3) | zuständige Person |
+| Pakete erstellen, prüfen, verschlüsselt übergeben; Dienst läuft weiter | Übergangszeitraum ≤ 30 Kalendertage nach der Ankündigungsfrist, einmal verlängerbar (10.3) | zuständige Person, zweite Person prüft |
+| Pakete nach Abschnitt 8 freigeben (`--keep-until` = Ende des Abrufzeitraums), Tokens bei Bedarf neu ausstellen | ab Freigabe bis 30 Kalendertage nach dem Übergangszeitraum (10.3) | zuständige Person |
+| Löschung nach [tenant-erasure.md](tenant-erasure.md), Nachweis auf Anfrage | danach (10.4, AVV 8.2) | zuständige Person |
+
+Bekannte Wechselrisiken, die dem Kunden mitzuteilen sind: Daten ändern sich
+während des Übergangs weiter, also vor der letzten Übergabe eine Schreibpause
+vereinbaren und neu exportieren; Kennwörter, Passkeys, MFA-Faktoren, Tokens und
+`password`-Einstellungen (Geräte-PIN, SFTP-Passwort) kommen nicht mit und
+müssen im Zielsystem neu gesetzt werden; der Import braucht eine Feldzuordnung.
+
+**Offen (Recht):** Die Gründer haben am 10.11.2026 Option B gewählt
+(ADR 0201, ADR 0203): Register nach Art. 26 und HTTPS-Abruf des geprüften Pakets mit
+kurzlebiger Berechtigung nach Art. 30 Abs. 2. Ob das genügt, bestätigt die
+anwaltliche Prüfung. Ein jederzeitiger Selbstbedienungs-Export ist nicht
+zugesagt.
+
+## 8. Paket zum Abruf freigeben (Art. 30 Abs. 2 Data Act)
+
+Grundlage: [ADR 0203](../adr/0203-mandantenrueckgabe-wird-per-https-mit-kurzlebigem-token-abgerufen.md).
+Das Paket enthält vollständige Bankdaten und Gesundheitsangaben. Wer ein Token
+hat, kann es laden.
+
+1. **Freigabezugang.** Die Befehle `tenant return …` laufen als Gruppenrolle
+   `phoenix_data_return` (Migration 1.15.917). Sie hat keine Tabellenrechte,
+   nur `EXECUTE` auf die Datenbankfunktionen der Freigabe; diese prüfen den
+   aktiven Operator und schreiben Freigabe und Operator-Protokoll in einer
+   Transaktion. Wie beim [Löschzugang](tenant-erasure.md#1-auftrag-und-wartungsfenster-freigeben-mensch)
+   einen dedizierten Login mit `NOINHERIT` und ausschließlicher Mitgliedschaft
+   in `phoenix_data_return` (mit SET-Option) einrichten, **ohne**
+   Tabellenrechte, Superuser, `BYPASSRLS` oder weitere Mitgliedschaften. Der
+   bestehende `DB_DSN` muss für diesen Lauf diesen Zugang verwenden;
+   Zugangsdaten nur über den freigegebenen Secret-Prozess, nie in Argumente,
+   Shell-History, Ausgabe oder dieses Runbook. Kein neues Env-Schema. Nach
+   einem Restore ist der Login NOLOGIN (`restore_data_return_disabled`); ihn
+   bewusst neu freischalten wie den Löschzugang und nach dem Lauf wieder auf
+   NOLOGIN setzen. Der Webzugang `phoenix_auth` kann nicht freigeben, auch
+   nicht über `phoenix_admin`. `--operator` ordnet die Aktion zu; die
+   Anmeldung ist dieser Login.
+2. **Geheimnisse nie auf die Ausgabe.** Die Container-Ausgabe von `server`
+   landet in journald und Loki. Token und Paketschlüssel schreibt die CLI
+   deshalb nur in eine **neue** Datei mit Modus 0600 (`--secrets-out`); sie
+   verweigert die Standardausgabe, eine vorhandene Datei und ein Verzeichnis,
+   das andere lesen können. Auf dem Host ein privates Verzeichnis anlegen,
+   das UID 1001 gehört und Modus 0700 hat, und als Bind-Mount einhängen. Die
+   Ausgabe nennt nur `grant_id`, `archive`, Prüfsumme, Größe, Ablauf und den
+   Pfad der Datei.
+3. Paket nach Abschnitt 3 erstellen und prüfen. Freigegeben wird nur ein Paket
+   mit passendem `COMPLETE`, unveränderten Dateien laut Manifest, ohne
+   zusätzliche Datei oder Link, ohne Personen-Prüfpaket und mit genau der
+   angegebenen Schule bzw. dem angegebenen Träger. Die CLI prüft das, hasht
+   jede Datei beim Packen erneut und bricht bei jeder Abweichung ab.
+4. Das geprüfte Paketverzeichnis auf den Server der Installation bringen
+   (verschlüsselter Kanal, geschützte temporäre Ablage, für UID 1001 lesbar)
+   und mit derselben Binary wie `server` freigeben. Der Einmal-Container nutzt
+   die Volumes von `server`, also auch `phoenix-<env>-data-return`:
+
+   ```sh
+   docker compose run --rm --no-deps \
+     -v "$PACKAGE_DIR":/package:ro -v "$SECRETS_DIR":/secrets server \
+     /app/main tenant return release --package /package \
+     --school "$SCHOOL_ID" --operator "$OPERATOR_ID" \
+     --keep-until "$LETZTER_ABRUFTAG" \
+     --recipient customer --recipient-name "$KUNDE" \
+     --valid-for 168h --max-downloads 5 --secrets-out /secrets/release.json
+   ```
+
+   Für einen Träger `--organization` statt `--school`. Lokal gilt
+   `scripts/dev-native.sh backend go run . tenant return …`.
+   `--keep-until` ist der letzte Tag des Abrufzeitraums (YYYY-MM-DD).
+   `release.json` enthält `token` und `archive_key`, nur einmal erzeugt. Das
+   Token über einen bestätigten zweiten Kanal an die Empfängerorganisation
+   geben, nie in das Ticket oder eine unverschlüsselte Mail. Den `archive_key`
+   im geschützten Auftrag (Passwortmanager) bis zum Ende des Abrufzeitraums
+   aufbewahren. Danach die Datei und die Paketkopie auf dem Server löschen.
+5. Token für den benannten neuen Anbieter oder ein neues Token nach Ablauf:
+
+   ```sh
+   docker compose run --rm --no-deps -v "$SECRETS_DIR":/secrets server \
+     /app/main tenant return grant --archive "$ARCHIVE" --operator "$OPERATOR_ID" \
+     --archive-key-file /secrets/release.json \
+     --recipient target_provider --recipient-name "$ZIELANBIETER" \
+     --secrets-out /secrets/grant-zielanbieter.json
+   ```
+
+   Ohne `--archive-key-file` liest der Befehl den Schlüssel von stdin
+   (`docker compose run -T …`), nie aus einem Argument. Ein Token gilt
+   höchstens 30 Tage und nie über `--keep-until` hinaus.
+6. Abruf durch den Empfänger, beschrieben in `/public/data-return/openapi.json`:
+
+   ```sh
+   curl -fsS -H "Authorization: Bearer $TOKEN" \
+     "$API_URL/public/data-return/package"
+   curl -fsS -H "Authorization: Bearer $TOKEN" -o paket.zip \
+     "$API_URL/public/data-return/package/archive"
+   ```
+
+   `$API_URL` ist die API-Adresse der Installation; Agents verwenden nur
+   localhost. Nach dem Download die SHA-256 der ZIP mit `archiveSHA256`
+   vergleichen, dann `COMPLETE` und `manifest.json`. Jeder Download zählt; ein
+   abgebrochener Download liefert weniger Bytes als `Content-Length`.
+7. Überblick ohne Tokens: `tenant return list --operator "$OPERATOR_ID"`;
+   `archive_stored` zeigt, ob das Archiv eines offenen Tokens in der Ablage
+   liegt. Abrufe stehen in `platform.data_return_downloads`, Freigaben,
+   Tokens, Widerrufe und Bereinigungen im Operator-Protokoll (Aktion
+   `data_return_*`, je Archiv bzw. Token ein Eintrag).
+8. Tokens beenden, jeweils mit `--operator`: ein Token
+   `tenant return revoke --grant "$GRANT_ID"`, alle Tokens eines Pakets
+   `--archive "$ARCHIVE"`, alle Tokens der Installation `--all` (nach jedem
+   Restore der Datenbank, siehe [Sicherung](daily-backup.md)). Ein Widerruf
+   wirkt für neue Anfragen sofort; ein laufender Download bricht nach
+   höchstens 8 MiB ab, weil der Abruf den Token währenddessen erneut prüft.
+9. Nach dem Abrufzeitraum, **vor jeder Löschung** nach
+   [tenant-erasure.md](tenant-erasure.md) und regelmäßig:
+   `tenant return purge --operator "$OPERATOR_ID"`. Das löscht Archive nach
+   `--keep-until` oder mit nur widerrufenen Tokens und leert deren Schlüssel,
+   entfernt Dateien der Ablage, die kein offenes Token mehr nennt
+   (abgebrochene Freigaben), und Nachweiszeilen drei Jahre nach dem
+   Abrufzeitraum. `tenant erase` verweigert eine Schule oder einen Träger,
+   solange ein Paket davon nicht bereinigt ist: vorher
+   `tenant return revoke --archive` und `tenant return purge`. Auch der
+   Probelauf (`--dry-run`) verweigert dann. Eine gleichzeitige Freigabe kann
+   nicht durchrutschen: Der Löschbefehl prüft in derselben Transaktion erneut,
+   und eine gelöschte Schule nimmt keine Freigabe mehr an. Ein Paket
+   des Trägers sperrt die Löschung einer seiner Schulen bewusst nicht; es
+   bleibt abrufbar, bis es bereinigt oder der Träger gelöscht wird. Seine
+   Unterlagen gehören dem Träger und bleiben auch nach der Schullöschung in
+   der Datenbank (ADR 0203,
+   [#6644](https://github.com/moto-ogs/project-phoenix/issues/6644)). Eine
+   Freigabe für eine Schule oder einen Träger, deren Löschung begonnen hat,
+   verweigert die CLI.
+
+Die Ablage `phoenix-<env>-data-return` ist nicht Teil der täglichen
+Sicherung. Jeder Restore der Datenbank, aus der täglichen Sicherung wie beim
+Rollback eines Releases ([release-backup-rollback.md](release-backup-rollback.md)),
+widerruft alle Tokens mit Archiv selbst (`restore_data_return_revoked=<Anzahl>`,
+`revoked_by = 'restore'` an der Tokenzeile); danach `purge` ausführen,
+laufende Wechsel neu exportieren und freigeben.

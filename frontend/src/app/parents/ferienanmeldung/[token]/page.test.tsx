@@ -14,6 +14,7 @@ const offer: HolidayRegistrationOffer = {
   registrationOpensOn: "2026-09-01",
   registrationClosesOn: "2026-12-04",
   binding: true,
+  holidayWishMode: "off",
   notes: "",
   open: true,
   weeks: [],
@@ -23,8 +24,15 @@ const offer: HolidayRegistrationOffer = {
   form: { version: 1, fields: [] },
 };
 
+const session = vi.hoisted(() => ({
+  current: { data: null, status: "unauthenticated" } as {
+    data: { user: { scope: string } } | null;
+    status: "authenticated" | "unauthenticated";
+  },
+}));
+
 vi.mock("next-auth/react", () => ({
-  useSession: () => ({ data: null, status: "unauthenticated" }),
+  useSession: () => session.current,
 }));
 
 vi.mock("~/components/parent/language-switcher", () => ({
@@ -35,19 +43,29 @@ vi.mock("~/lib/hooks/use-analytics-school-policy", () => ({
   useAnalyticsSchoolPolicy: () => undefined,
 }));
 
+const familyLoad = vi.hoisted(() => ({
+  current: (): Promise<unknown> => Promise.resolve(null),
+}));
+
 vi.mock("~/lib/holiday-registration-api", () => ({
   fetchHolidayRegistrationOffer: () => Promise.resolve(offer),
-  fetchHolidayRegistrationFamily: () => Promise.resolve(null),
+  fetchHolidayRegistrationFamily: () => familyLoad.current(),
 }));
 
 // The form itself is covered by its own tests; here it only reports its step.
 vi.mock("~/components/holiday-registration/holiday-registration-form", () => ({
   HolidayRegistrationForm: ({
     onStepChange,
+    parentAccount,
+    family,
   }: {
     onStepChange?: (step: HolidayRegistrationStep) => void;
+    parentAccount?: string;
+    family?: { accountProof: string } | null;
   }) => (
     <div>
+      <p>{`Elternkonto: ${parentAccount ?? "keins"}`}</p>
+      <p>{`Nachweis: ${family?.accountProof ?? "keiner"}`}</p>
       {(["form", "summary", "done"] as const).map((step) => (
         <button key={step} type="button" onClick={() => onStepChange?.(step)}>
           {`Schritt ${step}`}
@@ -95,5 +113,77 @@ describe("HolidayRegistrationPage", () => {
 
     fireEvent.click(screen.getByRole("button", { name: "Schritt form" }));
     expect(screen.getByText(HINT)).toBeInTheDocument();
+  });
+
+  it("offers the login of the parents app at the start to a visitor without a session (#6671)", async () => {
+    session.current = { data: null, status: "unauthenticated" };
+    await renderPage();
+
+    expect(
+      screen.getByText("Sie haben schon die Eltern-App?"),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("link", { name: "Anmelden" })).toHaveAttribute(
+      "href",
+      "/login?next=%2Fferienanmeldung%2Flink-key",
+    );
+    // A visitor without a session did not come from the app.
+    expect(
+      screen.queryByRole("link", { name: "Zurück zur Eltern-App" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Schritt summary" }));
+    // Anker: the offer header is still rendered; the hint belongs to the form.
+    expect(screen.getByText("Winterferien 2027")).toBeInTheDocument();
+    expect(
+      screen.queryByText("Sie haben schon die Eltern-App?"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("shows a signed-in parent the way back to the app instead of the login hint (#6671)", async () => {
+    session.current = {
+      data: { user: { scope: "parent" } },
+      status: "authenticated",
+    };
+    await renderPage();
+
+    expect(
+      screen.getByRole("link", { name: "Zurück zur Eltern-App" }),
+    ).toHaveAttribute("href", "/");
+    expect(
+      screen.queryByText("Sie haben schon die Eltern-App?"),
+    ).not.toBeInTheDocument();
+  });
+
+  it("lets the form ask for an account only without a parent session (#6673)", async () => {
+    session.current = { data: null, status: "unauthenticated" };
+    await renderPage();
+    expect(screen.getByText("Elternkonto: ask")).toBeInTheDocument();
+  });
+
+  it("tells the form that a parent is signed in (#6673)", async () => {
+    session.current = {
+      data: { user: { scope: "parent" } },
+      status: "authenticated",
+    };
+    await renderPage();
+    expect(screen.getByText("Elternkonto: signed-in")).toBeInTheDocument();
+  });
+
+  // Fallback of #6673: a signed-in parent whose prefill fails gets no account
+  // proof and no account question; the next sign-in claims the registration
+  // by its address.
+  it("keeps the form without proof and without question when the prefill of a signed-in parent fails (#6673)", async () => {
+    session.current = {
+      data: { user: { scope: "parent" } },
+      status: "authenticated",
+    };
+    familyLoad.current = () => Promise.reject(new Error("prefill down"));
+    try {
+      await renderPage();
+      expect(screen.getByText("Elternkonto: signed-in")).toBeInTheDocument();
+      expect(screen.getByText("Nachweis: keiner")).toBeInTheDocument();
+    } finally {
+      familyLoad.current = () => Promise.resolve(null);
+    }
   });
 });

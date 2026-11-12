@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Account lifecycle facts and decisions (#3225): the admin staff-view preview,
@@ -263,6 +263,9 @@ type GuardianInvitation struct {
 	ProfileCreatedForInvitation bool
 	RoleUpgrade                 bool
 	CreatedAt                   time.Time
+	// Email is the address the current link was issued for, normalized
+	// (#6294). The link redeems only while the guardian still has it.
+	Email string
 }
 
 func (i GuardianInvitation) IsPendingApproval() bool {

@@ -22,6 +22,7 @@ const DEBIT_GAP_LABELS = {
   mandate_missing: "Kein gültiges Mandat",
   creditor_missing: "Gläubiger-ID fehlt",
   creditor_changed: "Mandat für eine frühere Gläubiger-ID",
+  mandate_expired: "Mandat verfallen: 36 Monate ohne Abbuchung",
 } as const;
 
 /** A family's invoice as the hints need it, from a care or a holiday run. */

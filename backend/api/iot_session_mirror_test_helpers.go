@@ -6,11 +6,11 @@ import (
 	"context"
 	"time"
 
-	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	deviceScan "github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	devicescanCompose "github.com/moto-ogs/project-phoenix/modules/devicescan/compose"
+	deviceScan "github.com/moto-ogs/project-phoenix/modules/devicescan/ports"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // KioskSessionMirror binds the kiosk session mirror to the
@@ -26,6 +26,6 @@ func (TimetableTestModule) KioskSessionMirror(db transactionruntime.Database, ac
 
 // mirrorKioskSessionAt supplies a captured session instant without changing
 // the process clock or exposing a consumer port to the root's test role.
-func mirrorKioskSessionAt(ctx context.Context, mirror devicescanCompose.SessionMirror, groupID, roomID int64, at time.Time) {
-	mirror.MirrorSession(ctx, deviceScan.LifecycleSession{ID: groupID, RoomID: roomID, StartTime: at}, nil)
+func mirrorKioskSessionAt(ctx context.Context, mirror devicescanCompose.SessionMirror, groupID, roomID int64, at time.Time, supervisorIDs ...int64) {
+	mirror.MirrorSession(ctx, deviceScan.LifecycleSession{ID: groupID, RoomID: roomID, StartTime: at}, supervisorIDs)
 }

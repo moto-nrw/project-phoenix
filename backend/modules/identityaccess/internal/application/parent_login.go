@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // LoginParentWithAudit authenticates a parent and issues a parent-scope JWT
@@ -18,7 +18,7 @@ func (s *AccountAuthentication) loginParentWithAudit(ctx context.Context, email,
 	if err != nil {
 		return "", "", err
 	}
-	return s.issueParentTokens(ctx, account, email, ipAddress, userAgent)
+	return s.issueParentTokens(ctx, account, email, ipAddress, userAgent, true)
 }
 
 // IssueDemoParentTokens mints the parent-scope session the demo access
@@ -30,28 +30,39 @@ func (s *AccountAuthentication) IssueDemoParentTokens(ctx context.Context, accou
 	if err != nil {
 		return "", "", err
 	}
-	return s.issueParentTokens(ctx, account, account.Email, ipAddress, userAgent)
+	return s.issueParentTokens(ctx, account, account.Email, ipAddress, userAgent, false)
 }
 
-// issueParentTokens refuses an account without a guardian role on an active
-// mapping at a live school and mints the parent-scope session.
-func (s *AccountAuthentication) issueParentTokens(ctx context.Context, account domain.LoginAccount, email, ipAddress, userAgent string) (string, string, error) {
+// issueParentTokens mints the parent-scope session at the first guardian
+// school that books Eltern-App. An account that is a guardian at no live
+// school opens, on a sign-in (traegerFallback), the parent session at a
+// Träger it holds access at (ADR 0216). A guardian whose schools do not
+// book Eltern-App stays refused: a Träger session would reach the children
+// of those schools past the booking lock (#4895).
+func (s *AccountAuthentication) issueParentTokens(ctx context.Context, account domain.LoginAccount, email, ipAddress, userAgent string, traegerFallback bool) (string, string, error) {
 	guardianTenantIDs, err := s.findGuardianTenantForAccount(ctx, account.ID)
 	if err != nil {
 		return "", "", failed("parent login: enumerate tenants", err)
 	}
-	if len(guardianTenantIDs) == 0 {
-		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Not a guardian at any live school")
-		return "", "", failed("parent login", identityaccess.ErrAccountNoGuardianRole)
-	}
-	// The parents portal opens while at least one guardian school booked
-	// Eltern-App (#4895).
-	bookedTenantIDs, err := s.bookedGuardianSchools(ctx, "parent login", account.ID, guardianTenantIDs)
-	if err != nil {
-		if _, notBooked := identityaccess.PortalNotBooked(err); notBooked {
-			s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Parents portal not booked at any guardian school")
+	refusal, reason := failed("parent login", identityaccess.ErrAccountNoGuardianRole), "Not a guardian at any live school"
+	var bookedTenantIDs []int64
+	if len(guardianTenantIDs) > 0 {
+		// The parents portal opens while at least one guardian school booked
+		// Eltern-App (#4895).
+		bookedTenantIDs, err = s.bookedGuardianSchools(ctx, "parent login", account.ID, guardianTenantIDs)
+		if _, notBooked := identityaccess.PortalNotBooked(err); !notBooked && err != nil {
+			return "", "", err
 		}
-		return "", "", err
+		refusal, reason = err, "Parents portal not booked at any guardian school"
+	}
+	if len(bookedTenantIDs) == 0 {
+		if traegerFallback && len(guardianTenantIDs) == 0 {
+			if access, refresh, found, err := s.issueTraegerParentTokens(ctx, account, email, ipAddress, userAgent); found || err != nil {
+				return access, refresh, err
+			}
+		}
+		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, reason)
+		return "", "", refusal
 	}
 	// The refresh session row is pinned to the first guardian tenant with
 	// the portal for the foreign key and RLS; the token itself is

@@ -366,31 +366,64 @@ const MAX_STATS_ITEMS = 3;
 export function TenantPageStats({
   items,
 }: Readonly<{
-  items: readonly { readonly value: ReactNode; readonly label: string }[];
+  items: readonly {
+    readonly value: ReactNode;
+    readonly label: string;
+    /**
+     * Filtert die Seite auf genau diese Zahl („0 ohne Debitorennummer“).
+     * Nur, wo die Seite den passenden Filter hat; das Paar wird dann ein
+     * Textknopf, der Rest der Zeile bleibt Anzeige.
+     */
+    readonly onSelect?: () => void;
+    /** Was der Knopf tut, etwa „Familien ohne Debitorennummer zeigen“. */
+    readonly selectLabel?: string;
+  }[];
 }>) {
   const shown = items.slice(0, MAX_STATS_ITEMS);
   return (
     <span className="inline-flex flex-wrap items-center gap-x-1.5 gap-y-1">
-      {shown.map((item, index) => (
-        // Paare ohne Label (nur ein Wert) teilen sich das leere Label; erst
-        // die Position macht den Schlüssel eindeutig.
-        <span
-          key={`${index}-${item.label}`}
-          className="inline-flex items-center gap-1.5"
-        >
-          <span className="font-medium text-gray-900 tabular-nums">
-            {item.value}
-          </span>
-          <span>{item.label}</span>
-          {/* Der Punkt hängt am Paar davor: bricht die Zeile um, endet sie
-              mit dem Punkt, statt die nächste damit zu beginnen. */}
-          {index < shown.length - 1 && (
-            <span aria-hidden="true" className="text-gray-300">
-              ·
+      {shown.map((item, index) => {
+        const pair = (
+          <>
+            <span className="font-medium text-gray-900 tabular-nums">
+              {item.value}
             </span>
-          )}
-        </span>
-      ))}
+            <span>{item.label}</span>
+          </>
+        );
+        return (
+          // Paare ohne Label (nur ein Wert) teilen sich das leere Label; erst
+          // die Position macht den Schlüssel eindeutig.
+          <span
+            key={`${index}-${item.label}`}
+            className="inline-flex items-center gap-1.5"
+          >
+            {item.onSelect ? (
+              <Button
+                type="button"
+                variant="link"
+                size="md"
+                // Unterstrichen auch ohne Maus: sonst liest sich der Knopf
+                // wie die übrigen Zahlen der Zeile, die nur Anzeige sind.
+                className="gap-1.5 underline decoration-gray-300 underline-offset-4"
+                aria-label={item.selectLabel}
+                onClick={item.onSelect}
+              >
+                {pair}
+              </Button>
+            ) : (
+              pair
+            )}
+            {/* Der Punkt hängt am Paar davor: bricht die Zeile um, endet sie
+                mit dem Punkt, statt die nächste damit zu beginnen. */}
+            {index < shown.length - 1 && (
+              <span aria-hidden="true" className="text-gray-300">
+                ·
+              </span>
+            )}
+          </span>
+        );
+      })}
     </span>
   );
 }

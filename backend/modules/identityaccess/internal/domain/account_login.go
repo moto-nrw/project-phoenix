@@ -35,13 +35,18 @@ const MaxActiveSessionsPerPortal = 5
 const RefreshTokenIdentifier = "Service login"
 
 // LoginAccount is the platform account a login authenticates. PasswordHash is
-// empty for accounts without a password.
+// empty for accounts without a password. MFAResetGeneration is the account's
+// credential generation: every password write and every MFA reset moves it
+// on, and the artifacts of a sign-in are bound to it (#6289).
+// PasswordChecked is no column: a password sign-in sets it, and the session
+// mint then refuses when the generation moved on since the check.
 type LoginAccount struct {
 	MFAResetGeneration int64
 	ID                 int64
 	Email              string
 	Username           string
 	PasswordHash       string
+	PasswordChecked    bool
 	Active             bool
 	UpdatedAt          time.Time
 }
@@ -102,7 +107,8 @@ type SessionClaims struct {
 }
 
 // RefreshClaims is the parsed content of a refresh JWT. A Träger session
-// (scope org) names its Träger in OrgID and no school.
+// (scope org) and a parent session at a Träger name their Träger in OrgID
+// and no school.
 type RefreshClaims struct {
 	AccountID int64
 	Token     string
@@ -351,11 +357,40 @@ func (c RefreshClaims) SessionKind() (SessionKind, bool) {
 	return SessionKindOf(portal, c.OrgID > 0), true
 }
 
-// SessionKind is the rules the access token's session follows.
+// SessionKind is the rules the access token's session follows. A staff
+// token names the Träger of its school, so only via_traeger marks the Träger
+// school; a parent token names a Träger only at a Träger.
 func (c SessionClaims) SessionKind() (SessionKind, bool) {
 	portal, ok := PortalOfClaim(c.Scope)
 	if !ok || !portal.Persisted {
 		return "", false
 	}
-	return SessionKindOf(portal, c.ViaTraeger), true
+	namesTraeger := c.ViaTraeger
+	if portal.Name == PortalParent.Name {
+		namesTraeger = c.OrgID > 0
+	}
+	return SessionKindOf(portal, namesTraeger), true
+}
+
+// CredentialWrite is one write of an account's credential (#6289). Every
+// write but the initial one moves the credential generation on. PasswordHash replaces the
+// password; empty keeps it (an MFA reset). ExpectedPasswordHash and
+// ExpectedGeneration, when set, make the write a compare-and-swap on the
+// state the caller's proof was checked against.
+type CredentialWrite struct {
+	// Initial sets the first credential of an account just created: it
+	// lands only on a row without a password and keeps its generation.
+	Initial              bool
+	PasswordHash         string
+	ExpectedPasswordHash string
+	ExpectedGeneration   *int64
+}
+
+// CredentialStillHolds reports whether an artifact bound to the credential
+// generation checked still belongs to the credential state current: a
+// password write since the check moved current on (#6289, #6308). An artifact
+// no password check led to (checked nil) is bound to nothing. Accounts and
+// operators compare their generation with it under their row lock.
+func CredentialStillHolds(checked *int64, current int64) bool {
+	return checked == nil || *checked == current
 }

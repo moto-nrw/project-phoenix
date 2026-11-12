@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"log/slog"
 
-	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	classdayCompose "github.com/moto-ogs/project-phoenix/modules/classday/compose"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	devicescanCompose "github.com/moto-ogs/project-phoenix/modules/devicescan/compose"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // The bindings below read the Settings Platform's keys for owners whose

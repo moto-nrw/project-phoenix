@@ -3,7 +3,7 @@ package authorize
 import (
 	"testing"
 
-	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
+	securitycontract "github.com/moto-ogs/project-phoenix/modules/securityruntime/ports"
 
 	"github.com/stretchr/testify/assert"
 )

@@ -10,10 +10,10 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -336,6 +336,7 @@ func TestStaffShiftsRouteFailureCodes(t *testing.T) {
 		{err: &workforce.ConflictError{Kind: workforce.ErrStaffShiftDuplicate}, status: http.StatusConflict, code: "workforce.shift_duplicate"},
 		{err: workforce.ErrShiftTypeInactive, status: http.StatusBadRequest, code: "workforce.shift_type_inactive"},
 		{err: invalidShift(workforce.ErrReplacementOutsideOrigin), status: http.StatusBadRequest, code: "workforce.replacement_outside_origin"},
+		{err: invalidShift(workforce.ErrReplacementStaffAbsent), status: http.StatusBadRequest, code: "workforce.replacement_staff_absent"},
 		{err: invalidShift(workforce.ErrShiftHasReplacements), status: http.StatusBadRequest, code: "workforce.shift_has_replacements"},
 		{err: invalidSeries(workforce.ErrShiftSeriesNoOccurrences), status: http.StatusBadRequest, code: "workforce.shift_series_no_occurrences"},
 		{err: invalidSeries(workforce.ErrShiftSeriesOutsidePeriod), status: http.StatusBadRequest, code: "workforce.shift_series_outside_period"},

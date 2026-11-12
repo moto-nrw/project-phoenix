@@ -12,6 +12,8 @@ import {
   within,
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
+import { DESKTOP_WIDTH, setViewportWidth } from "~/test/helpers/viewport";
+import { groupKeys } from "~/lib/swr/groups-keys";
 
 function createLocalStorageMock() {
   const store: Record<string, string> = {};
@@ -409,6 +411,8 @@ vi.mock("~/components/students/student-card", () => ({
 
 // Mock lucide-react icons
 vi.mock("lucide-react", () => ({
+  // Die Gruppenreiter (TenantPage-Reiterleiste) zeichnen den Pfeil des Menüs.
+  ChevronDown: () => null,
   Clock: ({ className }: { className?: string }) => (
     <span data-testid="lucide-clock" className={className}>
       clock
@@ -499,6 +503,15 @@ vi.mock("~/lib/hooks/use-holiday-guest-labels", () => ({
   useHolidayGuestLabels: () => holidayGuestLabelMock,
 }));
 
+// The hint of a holiday group before its week (#6680) loads in its own hook.
+const { holidayGroupHintMock } = vi.hoisted(() => ({
+  holidayGroupHintMock: vi.fn(),
+}));
+vi.mock("~/lib/hooks/use-holiday-guest-group-hint", () => ({
+  useHolidayGuestGroupHint: (groupId: string | null | undefined) =>
+    holidayGroupHintMock(groupId) as unknown,
+}));
+
 // Mock SWR hook
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
@@ -564,6 +577,7 @@ function wireStudent(
 
 beforeEach(() => {
   holidayGuestLabelMock.mockReset();
+  holidayGroupHintMock.mockReset();
   // The sidebar memory belongs to the signed-in account (#5000).
   localStorage.setItem("moto:personal-storage-owner", "1:7");
   vi.mocked(useSession)
@@ -818,6 +832,111 @@ describe("OGSGroupPage", () => {
       ).toBeInTheDocument();
       expect(screen.queryByText("3 Kinder")).not.toBeInTheDocument();
     });
+  });
+
+  // Ort vor Status (#6371): Ein eingechecktes Kind ist „da“, seine
+  // Krankmeldung oder Entschuldigung erhöht keinen Zähler.
+  it("does not count a checked-in child as sick or excused", async () => {
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({
+        students: [
+          wireStudent({
+            id: 1,
+            first_name: "Max",
+            last_name: "Mustermann",
+            current_location: "Anwesend - Raum 101",
+            sick: true,
+          }),
+          wireStudent({
+            id: 2,
+            first_name: "Mia",
+            last_name: "Musterfrau",
+            current_location: "Schulhof",
+            excused: true,
+          }),
+          wireStudent({
+            id: 3,
+            first_name: "Ben",
+            last_name: "Beispiel",
+            current_location: "Zuhause",
+            sick: true,
+          }),
+        ],
+        roomStatus: {
+          "1": { in_group_room: true },
+          "2": { in_group_room: false },
+          "3": { in_group_room: false },
+        },
+      }),
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    expect(
+      await screen.findByText(/von 3 da · 1 krank · 0 entschuldigt$/),
+    ).toBeInTheDocument();
+  });
+
+  // Ort vor Status, Entscheidung A (#6407): Ein eingechecktes, krank
+  // gemeldetes Kind behält seine geplante Gehzeit samt Verspätungsmarkierung.
+  // Ein krank gemeldetes Kind zu Hause bleibt „Kommt heute nicht“.
+  it("keeps the planned pickup of a checked-in child despite a sick note", async () => {
+    const pickup = { pickupTime: "11:00", isException: false, dayNotes: [] };
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({
+        students: [
+          wireStudent({
+            id: 1,
+            first_name: "Max",
+            last_name: "Mustermann",
+            current_location: "Anwesend - Raum 101",
+            actual_arrival_time: "08:00",
+            sick: true,
+          }),
+          wireStudent({
+            id: 3,
+            first_name: "Ben",
+            last_name: "Beispiel",
+            current_location: "Zuhause",
+            sick: true,
+          }),
+        ],
+        roomStatus: {
+          "1": { in_group_room: true },
+          "3": { in_group_room: false },
+        },
+        pickupTimes: new Map([
+          ["1", pickup],
+          ["3", pickup],
+        ]),
+      }),
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    // Die Zeilen sind hier gemockt; die Überfälligkeit selbst prüft
+    // student-time-status.test.ts.
+    const cards = await screen.findAllByTestId("student-card");
+    const max = cards.find((card) => card.textContent?.includes("Max"));
+    const ben = cards.find((card) => card.textContent?.includes("Ben"));
+    expect(within(max!).getByTestId("pickup-time-row")).toHaveAttribute(
+      "data-pickup-time",
+      "11:00",
+    );
+    expect(
+      within(max!).queryByTestId("student-absence-row"),
+    ).not.toBeInTheDocument();
+    expect(within(ben!).getByTestId("student-absence-row")).toHaveTextContent(
+      "Kommt heute nicht (krank gemeldet)",
+    );
   });
 
   it("renders the student card with pickup time from the aggregated pickupTimes Map", async () => {
@@ -1086,6 +1205,35 @@ describe("OGSGroupPage additional scenarios", () => {
     await waitFor(() => {
       expect(screen.getByText(/Keine Kinder in/)).toBeInTheDocument();
     });
+  });
+
+  it("explains an empty holiday group before its week instead of sending to the child search (#6680)", async () => {
+    holidayGroupHintMock.mockReturnValue({
+      groupId: "1",
+      weekId: "51",
+      startsOn: "2027-01-04",
+      endsOn: "2027-01-08",
+      guests: 3,
+    });
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({ students: [] }),
+      isLoading: false,
+      error: null,
+      mutate: mockMutate,
+      isValidating: false,
+    } as never);
+
+    render(<OGSGroupPage />);
+
+    expect(
+      await screen.findByText(
+        /Feriengruppe: 3 Kinder kommen ab 04\.01\.2027 dazu\./,
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Keine Kinder in/)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Zur Kindersuche" }),
+    ).not.toBeInTheDocument();
   });
 
   it("keeps the table view when no children match", async () => {
@@ -2316,6 +2464,61 @@ describe("OGSGroupPage ID-based selection: Stale selection reset", () => {
     },
   ];
 
+  it.each([null, "1"])(
+    "syncs another tab's group choice unless the URL selects %s",
+    async (groupParam) => {
+      localStorage.setItem(memoryKey("sidebar-last-group"), "1");
+      mockSearchParamsGet.mockImplementation((key) =>
+        key === "group" ? groupParam : null,
+      );
+      const response = {
+        data: liveData({
+          groups: groupsAB,
+          groupId: "1",
+          students: [
+            wireStudent({ id: 1, first_name: "Max", last_name: "Mustermann" }),
+          ],
+        }),
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      };
+      vi.mocked(useSWRAuth).mockReturnValue(response as never);
+      const { rerender } = render(<OGSGroupPage />);
+      expect(await screen.findByText(/Max Mustermann/)).toBeInTheDocument();
+
+      act(() => {
+        const key = memoryKey("sidebar-last-group");
+        localStorage.setItem(key, "2");
+        window.dispatchEvent(
+          new StorageEvent("storage", { key, oldValue: "1", newValue: "2" }),
+        );
+      });
+
+      const expectedGroup = groupParam ?? "2";
+      expect(vi.mocked(useSWRAuth).mock.lastCall?.[0]).toBe(
+        groupKeys.live(expectedGroup),
+      );
+      if (!groupParam) {
+        vi.mocked(useSWRAuth).mockReturnValue({
+          ...response,
+          data: liveData({
+            groups: groupsAB,
+            groupId: "2",
+            students: [
+              wireStudent({ id: 2, first_name: "Erika", last_name: "Schmidt" }),
+            ],
+          }),
+        } as never);
+        rerender(<OGSGroupPage />);
+        expect(await screen.findByText(/Erika Schmidt/)).toBeInTheDocument();
+      } else {
+        expect(screen.getByText(/Max Mustermann/)).toBeInTheDocument();
+      }
+    },
+  );
+
   it("resets to first group when previously selected group disappears from list", async () => {
     // Initial render: User has Group A (id=1) and Group B (id=2), Group A selected
     vi.mocked(useSWRAuth).mockReturnValue({
@@ -3157,6 +3360,85 @@ describe("OGSGroupPage ID-based selection: tab change handler", () => {
         expect(localStorage.getItem(memoryKey("sidebar-last-group"))).toBe("2");
       });
     }
+  });
+});
+
+describe("OGSGroupPage group tabs follow the lg breakpoint (#6336)", () => {
+  const twoGroups = () =>
+    vi.mocked(useSWRAuth).mockReturnValue({
+      data: liveData({
+        groups: [
+          {
+            id: "1",
+            name: "Group A",
+            roomId: "10",
+            roomName: "Raum 101",
+            viaSubstitution: false,
+            isPersonal: true,
+          },
+          {
+            id: "2",
+            name: "Group B",
+            roomId: "20",
+            roomName: "Raum 202",
+            viaSubstitution: false,
+            isPersonal: true,
+          },
+        ],
+        students: [
+          wireStudent({
+            id: 1,
+            first_name: "Max",
+            last_name: "Mustermann",
+            current_location: "Raum 101",
+          }),
+        ],
+        roomStatus: { "1": { in_group_room: true } },
+      }),
+      isLoading: false,
+      error: null,
+      mutate: vi.fn(),
+      isValidating: false,
+    } as never);
+
+  beforeEach(() => {
+    vi.clearAllMocks();
+    mockSearchParamsGet.mockReturnValue(null);
+    global.fetch = vi.fn();
+  });
+
+  afterEach(() => {
+    cleanup();
+    document.documentElement.style.fontSize = "";
+    setViewportWidth(DESKTOP_WIDTH);
+  });
+
+  // 20 px Browserschrift: `lg` (64rem) beginnt erst bei 1280 px, bei 1100 px
+  // ist die Seitenleiste per CSS ausgeblendet. Ohne Reiter gäbe es dann
+  // keinen Gruppenwechsel.
+  it("shows the group tabs at 1100 px with a 20 px browser font", async () => {
+    document.documentElement.style.fontSize = "20px";
+    setViewportWidth(1100);
+    twoGroups();
+
+    render(<OGSGroupPage />);
+
+    expect(
+      await screen.findByRole("tab", { name: /Group B/ }),
+    ).toBeInTheDocument();
+  });
+
+  it("leaves group switching to the sidebar at 1100 px with a 16 px browser font", async () => {
+    setViewportWidth(1100);
+    twoGroups();
+
+    render(<OGSGroupPage />);
+
+    // Anker: die Gruppenseite ist geladen.
+    expect(await screen.findByTestId("student-card")).toBeInTheDocument();
+    expect(
+      screen.queryByRole("tab", { name: /Group B/ }),
+    ).not.toBeInTheDocument();
   });
 });
 

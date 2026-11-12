@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // GuardianInvitationReads are the invitation lists other owners read: the
@@ -88,4 +88,17 @@ func (l *AccountLifecycle) ListRedeemableGuardianInvitations(ctx context.Context
 		return nil, errAccountLifecycleUnavailable
 	}
 	return NewGuardianInvitationReads(l.invitations, l.sessions.tx.RunRead).ListRedeemableGuardianInvitations(bindRuntime(l.auth.attach, ctx))
+}
+
+// NewGuardianInvitationInvalidation binds the guarded command independently of
+// the full lifecycle, so contact edits need neither late binding nor a cycle.
+func NewGuardianInvitationInvalidation(invitations ports.GuardianInvitationStore) identityaccess.GuardianInvitationInvalidation {
+	return func(ctx context.Context, profileID int64) error {
+		if profileID <= 0 {
+			return failed("invalidate guardian invitations", identityaccess.ErrGuardianInvitationNotFound)
+		}
+		// The store refuses a missing school or transaction. This leaf command
+		// never starts an independent unit or switches the caller's scope.
+		return invitationError(invitations.InvalidateGuardianInvitations(ctx, profileID, time.Now(), true))
+	}
 }

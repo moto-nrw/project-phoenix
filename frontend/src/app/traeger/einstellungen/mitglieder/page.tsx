@@ -1,16 +1,19 @@
 "use client";
 
 // Personen des Träger-Büros (#4650): wer im Träger-Portal arbeitet, mit
-// welcher Rolle, wer eingeladen ist und der Verlauf der Änderungen (#5474).
+// Namen (#4693) und Rolle, wer eingeladen ist und der Verlauf der Änderungen
+// (#5474).
 // Nur mit dem Recht „Konten verwalten“ (Rolle Leitung, #5471).
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
-import { Pencil, Trash2, Undo2, UserPlus, Users } from "lucide-react";
+import { Pencil, Trash2, Undo2, UserPen, UserPlus, Users } from "lucide-react";
 import {
+  ChangeTraegerMemberNameModal,
   ChangeTraegerRolesModal,
   InviteTraegerAccountModal,
 } from "~/components/traeger/traeger-account-modals";
+import { isRefusal } from "~/components/traeger/use-traeger-confirmed-resource";
 import { TraegerAccountHistory } from "~/components/traeger/traeger-account-history";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
@@ -18,6 +21,7 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import {
   useApiFormError,
@@ -25,6 +29,10 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { formatDate, formatTime } from "~/lib/date-helpers";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   fetchTraegerBuero,
@@ -55,8 +63,14 @@ export default function TraegerAccountsPage() {
     invitations: [],
   });
   const [loading, setLoading] = useState(true);
+  // Confirmed data stays visible when a later load fails (#6652).
+  const [loaded, setLoaded] = useState(false);
+  const loadedRef = useRef(false);
+  const latestRead = useRef(0);
+  const [accessRefused, setAccessRefused] = useState(false);
   const [inviting, setInviting] = useState(false);
   const [editing, setEditing] = useState<TraegerMember | null>(null);
+  const [naming, setNaming] = useState<TraegerMember | null>(null);
   const [pending, setPending] = useState<Pending | null>(null);
   const [confirming, setConfirming] = useState(false);
   // Every change on the page reads the history again.
@@ -66,32 +80,63 @@ export default function TraegerAccountsPage() {
   const confirmErrors = useApiFormError();
   const { success } = useToast();
 
+  const fetchBuero = useCallback(async () => {
+    const request = ++latestRead.current;
+    try {
+      const next = await fetchTraegerBuero();
+      if (request !== latestRead.current) return;
+      setBuero(next);
+      setLoaded(true);
+      loadedRef.current = true;
+      setAccessRefused(false);
+      clearLoadError();
+    } catch (error) {
+      if (request !== latestRead.current) return;
+      if (isRefusal(error)) {
+        setBuero({ members: [], invitations: [] });
+        setLoaded(false);
+        loadedRef.current = false;
+        setAccessRefused(true);
+        setInviting(false);
+        setEditing(null);
+        setNaming(null);
+        setPending(null);
+      }
+      throw error;
+    }
+  }, [clearLoadError]);
+
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setBuero(await fetchTraegerBuero());
-      clearLoadError();
+      await fetchBuero();
     } catch (err) {
       logger.error("traeger_accounts_load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
         object: "die Liste der Personen",
+        messageSuffix: loadedRef.current ? STALE_DATA_SUFFIX : undefined,
         retry: () => void load(),
       });
     } finally {
       setLoading(false);
     }
-  }, [clearLoadError, showLoadError]);
+  }, [fetchBuero, showLoadError]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  const reloadAfterChange = useCallback(async () => {
-    setHistoryVersion((version) => version + 1);
-    await load();
-  }, [load]);
+  // A write's reload runs after the write; its failure stands above the list
+  // as a load error, never as an error of the closed dialog (#6652).
+  const afterWrite = useRefreshAfterWrite(
+    "die Anzeige des Träger-Büros",
+    async () => {
+      setHistoryVersion((version) => version + 1);
+      await fetchBuero();
+    },
+  );
 
   const closeConfirm = () => {
     setPending(null);
@@ -116,8 +161,6 @@ export default function TraegerAccountsPage() {
         await revokeTraegerInvitation(pending.invitation.id);
         success("Die Einladung ist zurückgenommen.");
       }
-      setPending(null);
-      await reloadAfterChange();
     } catch (err) {
       logger.error("traeger_account_change_failed", {
         kind: pending.kind,
@@ -127,9 +170,12 @@ export default function TraegerAccountsPage() {
         object:
           pending.kind === "remove" ? "das Entfernen" : "das Zurücknehmen",
       });
-    } finally {
       setConfirming(false);
+      return;
     }
+    setPending(null);
+    setConfirming(false);
+    await afterWrite.refresh();
   };
 
   // The Träger-Büro keeps at least one Leitung; the server refuses to remove
@@ -139,21 +185,41 @@ export default function TraegerAccountsPage() {
   ).length;
   const isLastLeader = (member: TraegerMember) =>
     leaders === 1 && member.roles.includes("leadership");
+  // The saved name shows at once, also when the reload after it fails.
+  const showSavedMember = (saved: TraegerMember) =>
+    setBuero((current) => ({
+      ...current,
+      members: current.members.map((member) =>
+        member.accountId === saved.accountId ? saved : member,
+      ),
+    }));
 
   const memberColumns: DataTableColumn<TraegerMember>[] = [
     {
-      key: "email",
-      header: "E-Mail",
+      key: "name",
+      header: "Name",
       render: (member) => (
-        <span className="font-medium wrap-anywhere text-gray-900">
-          {member.email}
+        <span className="wrap-anywhere">
+          {member.name ? (
+            <span className="font-medium text-gray-900">{member.name}</span>
+          ) : (
+            <span className="text-gray-500">Kein Name</span>
+          )}
           {member.email === ownEmail ? (
-            <span className="ml-1 font-normal text-gray-500">(Sie)</span>
+            <span className="ml-1 text-gray-500">(Sie)</span>
           ) : null}
         </span>
       ),
-      sortValue: (member) => member.email,
+      // Persons without a name come last.
+      sortValue: (member) => member.name.toLocaleLowerCase("de") || null,
       stacked: "title",
+    },
+    {
+      key: "email",
+      header: "E-Mail",
+      render: (member) => <span className="wrap-anywhere">{member.email}</span>,
+      sortValue: (member) => member.email,
+      stacked: "field",
     },
     {
       key: "roles",
@@ -179,6 +245,11 @@ export default function TraegerAccountsPage() {
         <OverflowMenu
           ariaLabel={`Aktionen für ${member.email}`}
           items={[
+            {
+              icon: <UserPen className="size-4" aria-hidden />,
+              label: member.name ? "Namen ändern" : "Namen eintragen",
+              onClick: () => setNaming(member),
+            },
             {
               icon: <Pencil className="size-4" aria-hidden />,
               label: "Rollen ändern",
@@ -254,7 +325,7 @@ export default function TraegerAccountsPage() {
   return (
     <TenantPage
       title="Mitglieder und Rollen"
-      info="Wer im Träger-Büro arbeitet und welche Rolle die Person hat."
+      info="Wer im Träger-Büro arbeitet, mit Namen und Rolle."
       stats={
         memberCount > 0 ? (
           <TenantPageStats
@@ -279,30 +350,40 @@ export default function TraegerAccountsPage() {
         ) : null
       }
       statsLoading={loading}
+      loading={accessRefused && !bueroLoad.error && !afterWrite.error}
       actions={
-        <Button
-          type="button"
-          variant="primary"
-          size="md"
-          onClick={() => setInviting(true)}
-        >
-          <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
-          Person einladen
-        </Button>
+        accessRefused ? undefined : (
+          <Button
+            type="button"
+            variant="primary"
+            size="md"
+            tooltip="Öffnet ein Fenster, um eine Person ins Träger-Büro einzuladen."
+            onClick={() => setInviting(true)}
+          >
+            <UserPlus className="mr-2 h-4 w-4" aria-hidden="true" />
+            Person einladen
+          </Button>
+        )
       }
-      error={bueroLoad.error}
+      error={loaded ? null : (afterWrite.error ?? bueroLoad.error)}
       overlays={
         <>
           <InviteTraegerAccountModal
             isOpen={inviting}
             onClose={() => setInviting(false)}
-            onInvited={reloadAfterChange}
+            onInvited={afterWrite.refresh}
           />
           <ChangeTraegerRolesModal
             member={editing}
             members={buero.members}
             onClose={() => setEditing(null)}
-            onChanged={reloadAfterChange}
+            onChanged={afterWrite.refresh}
+          />
+          <ChangeTraegerMemberNameModal
+            member={naming}
+            onClose={() => setNaming(null)}
+            onSaved={showSavedMember}
+            onChanged={afterWrite.refresh}
           />
           <ConfirmDeleteModal
             isOpen={pending !== null}
@@ -353,6 +434,8 @@ export default function TraegerAccountsPage() {
         </>
       }
     >
+      {loaded ? <LoadErrorAlert error={bueroLoad.error} /> : null}
+      <LoadErrorAlert error={afterWrite.error} />
       <DataTable
         columns={memberColumns}
         rows={[...buero.members]}
@@ -360,7 +443,7 @@ export default function TraegerAccountsPage() {
         rowHasInteractiveControls
         isLoading={loading}
         loadingRowCount={3}
-        defaultSortKey="email"
+        defaultSortKey="name"
         stackedOnMobile
         emptyState={
           <EmptyState
@@ -384,7 +467,7 @@ export default function TraegerAccountsPage() {
           />
         </SectionCard>
       ) : null}
-      {bueroLoad.error ? null : (
+      {accessRefused || bueroLoad.error ? null : (
         <TraegerAccountHistory version={historyVersion} />
       )}
     </TenantPage>

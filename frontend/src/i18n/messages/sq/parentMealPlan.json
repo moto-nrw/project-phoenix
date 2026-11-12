@@ -1,5 +1,5 @@
 {
-  "kicker": "Ushqimi në kujdesin pas shkollës",
+  "kicker": "Ushqimi në {careTerm}",
   "title": "Dreka",
   "subtitle": "Këtu shihni kur ha fëmija juaj dhe çfarë ka për të ngrënë.",
   "subtitleMealsOnly": "Këtu shihni çfarë ka për të ngrënë.",
@@ -14,7 +14,7 @@
   "loading": "Plani i vakteve po ngarkohet",
   "emptyThisWeekTitle": "Për këtë javë ende nuk është futur asnjë plan ushqimi",
   "emptyNextWeekTitle": "Për javën tjetër ende nuk është futur asnjë plan ushqimi",
-  "emptyWeek": "Sapo OGS-ja të vendosë një plan, do ta shihni këtu.",
+  "emptyWeek": "Sapo {careTerm}-ja të vendosë një plan, do ta shihni këtu.",
   "weekNavigation": "Ndrysho javën kalendarike",
   "previousWeek": "Java e mëparshme",
   "calendarWeek": "Java {week}",
@@ -46,7 +46,7 @@
   "notRegistered": "I paregjistruar për drekë",
   "cancelledBySickNote": "U çregjistrua nga njoftimi i sëmundjes",
   "cancelledByAbsence": "Anuluar, sepse fëmija mungon",
-  "closedDay": "Në këtë ditë OGS është e mbyllur",
+  "closedDay": "Në këtë ditë {careTerm} është e mbyllur",
   "participationUnavailable": "Regjistrimi nuk u ngarkua",
   "mealUnavailable": "Ushqimi nuk u ngarkua",
   "singleChange": "Ndryshuar vetëm për këtë ditë",
@@ -76,7 +76,5 @@
   "registerWeekDone": "Java është regjistruar.",
   "registerWeekLocked": "Afati i regjistrimit për këto ditë ka kaluar, ato mbeten të paregjistruara: {days}.",
   "errorObjectWeekCancel": "anulimin për javën",
-  "errorObjectWeekRegister": "regjistrimin për javën",
-  "participationCutoffLead": "Mund ta ndryshoni regjistrimin deri në orën {time} {days, plural, one {një ditë pune para drekës} other {# ditë pune para drekës}}.",
-  "participationSicknessLead": "Një njoftim i konfirmuar për sëmundje deri në orën {time} {days, plural, one {një ditë pune para drekës} other {# ditë pune para drekës}} e anulon drekën. Pas kësaj, regjistrimi mbetet i pandryshuar."
+  "errorObjectWeekRegister": "regjistrimin për javën"
 }

@@ -13,9 +13,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	devices "github.com/moto-nrw/project-phoenix/roots/communicationtest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	devices "github.com/moto-ogs/project-phoenix/roots/communicationtest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -86,14 +86,14 @@ func newReminderHarness(repo *reminderRepo) *reminderHarness {
 		settings: &fakeSettings{enabled: true},
 	}
 	h.svc = NewService(ServiceConfig{
-		Repo:             repo,
-		Settings:         h.settings,
-		Notifier:         h.notifier,
-		ReminderNotifier: h.notifier,
-		Outbox:           h.outbox,
-		ParentsURL:       "https://parents.example.test",
-		Logger:           slog.Default(),
-		Attachments:      &stubPurger{},
+		Repo:        repo,
+		Settings:    h.settings,
+		Notifier:    h.notifier,
+		Series:      communication.NotificationSeries{NotifyDurably: h.notifier.NotifyEachDurably},
+		Outbox:      h.outbox,
+		ParentsURL:  "https://parents.example.test",
+		Logger:      slog.Default(),
+		Attachments: &stubPurger{},
 	}, testpkg.TenantTransactionRuntime{}, devices.NewParentDeliveryPolicy())
 	return h
 }

@@ -1,7 +1,7 @@
 {
   "schema_version": 5,
-  "policy_epoch": 98,
-  "module_path": "github.com/moto-nrw/project-phoenix",
+  "policy_epoch": 103,
+  "module_path": "github.com/moto-ogs/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
     "Date",
@@ -194,11 +194,19 @@
       "kind": "workflow"
     },
     {
+      "id": "holiday-closure-notification",
+      "kind": "workflow"
+    },
+    {
       "id": "session-end",
       "kind": "workflow"
     },
     {
       "id": "open-room-move",
+      "kind": "workflow"
+    },
+    {
+      "id": "holiday-allocation",
       "kind": "workflow"
     },
     {
@@ -306,7 +314,15 @@
       "kind": "workflow"
     },
     {
+      "id": "traeger-catalog-rollout",
+      "kind": "workflow"
+    },
+    {
       "id": "traeger-view",
+      "kind": "projection"
+    },
+    {
+      "id": "school-closing-days-view",
       "kind": "projection"
     }
   ],
@@ -885,398 +901,402 @@
     {
       "from": "api/absence-types",
       "to": "modules/workforce/http/absencetypes",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4078"
     },
     {
       "from": "api/iot/checkin",
       "to": "modules/devicescan/http/checkin",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4078"
     },
     {
       "from": "api/iot/data",
       "to": "modules/devicescan/http/data",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4078"
     },
     {
       "from": "api/iot/devices",
       "to": "modules/devicefleet/http/devices",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4078"
     },
     {
       "from": "api/iot/sessions",
       "to": "modules/devicescan/http/sessions",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4078"
     },
     {
       "from": "api/iot/staffclock",
       "to": "modules/devicescan/http/staffclock",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4078"
     },
     {
       "from": "api/shift-types",
       "to": "modules/workforce/http/shifttypes",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4078"
     },
     {
       "from": "api/staff-shifts",
       "to": "modules/workforce/http/staffshifts",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4078"
     },
     {
       "from": "api/substitutions",
       "to": "modules/workforce/http/substitutions",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4078"
     },
     {
       "from": "api/work-time-models",
       "to": "modules/workforce/http/worktimemodels",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4078"
     },
     {
       "from": "applog",
       "to": "observability/internal/adapters/applog",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "auth/authorize",
       "to": "modules/securityruntime/internal/application/authorize",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "auth/device",
       "to": "modules/devicefleet/internal/adapters/deviceauth",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "auth/device/devicetest",
       "to": "modules/devicefleet/devicetest",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "auth/rotation",
       "to": "modules/identityaccess/internal/application/rotation",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "auth/userpass",
       "to": "modules/securityruntime/internal/domain/userpass",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "auth/userpass/userpasstest",
       "to": "modules/securityruntime/userpasstest",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "database",
       "to": "modules/transactionruntime/internal/adapters/database",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "database/repositories/audit",
       "to": "modules/auditlog/internal/adapters/auditpostgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "database/repositories/audit/integration",
       "to": "modules/auditlog/internal/adapters/auditpostgres/integration",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "database/repositories/config",
       "to": "modules/settings/internal/adapters/configpostgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "database/repositories/delivery",
       "to": "modules/delivery/internal/adapters/deliverypostgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "database/repositories/education",
       "to": "modules/schoolstructure/internal/adapters/postgres/groups",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/3555"
     },
     {
       "from": "database/repositories/parent",
       "to": "modules/careplan/internal/adapters/parentpostgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "database/repositories/pwausage",
       "to": "observability/internal/adapters/pwausage",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "database/repositories/workforce",
       "to": "modules/workforce/internal/adapters/workforcepostgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "email",
       "to": "modules/delivery/internal/adapters/email",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "email/emailtest",
       "to": "modules/delivery/emailtest",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "localization",
       "to": "modules/delivery/internal/adapters/localization",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/careplan/inbound/parent",
       "to": "workflows/parentportal/http",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4078"
     },
     {
       "from": "modules/communication/internal/adapters/audience",
       "to": "modules/staffannouncementaudience/internal/adapters/postgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/communication/internal/adapters/parentaudience",
       "to": "modules/parentannouncementaudience/internal/adapters/postgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/communication/internal/adapters/parentinbox",
       "to": "modules/parentmessageinbox/internal/adapters/postgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/communication/internal/adapters/staffinbox",
       "to": "modules/staffmessageinbox/internal/adapters/postgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/communication/projections/parentannouncementaudience",
       "to": "modules/parentannouncementaudience",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/communication/projections/parentmessageinbox",
       "to": "modules/parentmessageinbox",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/communication/projections/staffannouncementaudience",
       "to": "modules/staffannouncementaudience",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/communication/projections/staffmessageinbox",
       "to": "modules/staffmessageinbox",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/dataimport/compose/retained",
       "to": "modules/dataimport/compose/imports",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/dataimport/fileformat",
       "to": "modules/dataimport/internal/adapters/fileformat",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/dataimport/inbound",
       "to": "modules/dataimport/http",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4078"
     },
     {
       "from": "modules/delivery/application/emailbranding",
       "to": "modules/delivery/internal/application/emailbranding",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/delivery/application/emailoutbox",
       "to": "modules/delivery/internal/emailoutbox",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/delivery/application/locales",
       "to": "modules/delivery/internal/application/locales",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/delivery/application/notifications",
       "to": "modules/delivery/internal/notifications",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/delivery/application/pwa",
       "to": "modules/delivery/internal/pwa",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/delivery/application/realtimeevents",
       "to": "modules/delivery/internal/application/realtimeevents",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/emergencysnapshot/legacy",
       "to": "modules/emergencysnapshot/internal/adapters/nameorder",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/filestorage/documents",
       "to": "modules/filestorage/internal/adapters/documents",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/grouplive/legacy",
       "to": "modules/grouplive/internal/adapters/nameorder",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/guardianlinkview",
       "to": "modules/guardianlinkview/internal/adapters/postgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/identityaccess/legacy/jwt",
       "to": "modules/identityaccess/sessiontoken",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3487"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/3487"
     },
     {
       "from": "modules/organizationtenancy/internal/adapters/operatordashboard",
       "to": "modules/operatordashboard/internal/adapters/postgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/organizationtenancy/projections/operatordashboard",
       "to": "modules/operatordashboard",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/parentrequestfeedprojection",
       "to": "modules/parentrequestfeedprojection/internal/adapters/postgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/peopledirectory/userscontract",
       "to": "modules/peopledirectory/internal/domain/userscontract",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/presenceprojection",
       "to": "modules/presenceprojection/internal/adapters/postgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/schedulerruntime/cleanupruns",
       "to": "modules/schedulerruntime/internal/adapters/cleanupruns",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/schedulerruntime/jobruntime",
       "to": "modules/schedulerruntime/internal/adapters/jobruntime",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/schedulerruntime/workerlease",
       "to": "modules/schedulerruntime/internal/adapters/workerlease",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/schoolsetupview",
       "to": "modules/schoolsetup/internal/adapters/schoolsetupview",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/studentdirectoryview",
       "to": "modules/studentdirectoryview/internal/adapters/postgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/supervisiondashboard/legacy",
       "to": "modules/supervisiondashboard/internal/adapters/nameorder",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/timetableblockdisplay",
       "to": "modules/timetableblockdisplay/internal/adapters/postgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/timetableenrollmentprovenance",
       "to": "modules/timetableenrollmentprovenance/internal/adapters/postgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/timetableprojection",
       "to": "modules/timetableprojection/internal/adapters/postgres",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "modules/workforce/inbound/timetracking",
       "to": "modules/workforce/http/timetracking",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4078"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4078"
     },
     {
       "from": "modules/workforce/legacy",
       "to": "modules/workforce/internal/adapters/substitutions",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "seed/api",
       "to": "internal/devtools/seedapi",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "services/config/settingstest",
       "to": "modules/settings/settingstest",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "services/config/sideeffects",
       "to": "modules/settings/internal/application/sideeffects",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "services/education",
       "to": "modules/schoolstructure/internal/application/groups",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/3555"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/3555"
     },
     {
       "from": "services/facilities",
       "to": "modules/facilities/internal/application/roomservice",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "services/iot",
       "to": "modules/devicefleet/internal/application/deviceservice",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "services/parentmessaging",
       "to": "modules/communication/internal/application/parentmessaging",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "services/scheduler",
       "to": "modules/schedulerruntime/internal/application",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "simulate",
       "to": "internal/devtools/simulate",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "workflows/parentportal/care",
       "to": "workflows/parentportal/internal/care",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     },
     {
       "from": "workflows/parentportal/messaging",
       "to": "workflows/parentportal/internal/messaging",
-      "issue": "https://github.com/moto-nrw/project-phoenix/issues/4086"
+      "issue": "https://github.com/moto-ogs/project-phoenix/issues/4086"
     }
   ],
+  "module_rename": {
+    "from": "github.com/moto-nrw/project-phoenix",
+    "approval_adr": "0217"
+  },
   "storage": "owner-fragments-v1"
 }

@@ -7,14 +7,14 @@ import (
 	"log/slog"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	provisioningHTTP "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
-	settingsOperatorHTTP "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	provisioningHTTP "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/inbound/operator"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	settingsHTTP "github.com/moto-ogs/project-phoenix/modules/settings/http"
+	settingsOperatorHTTP "github.com/moto-ogs/project-phoenix/modules/settings/inbound/operator"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
 	"github.com/spf13/viper"
 )
 
@@ -33,7 +33,7 @@ func NewSettingsBudgetRouterForTest(ctx context.Context, db transactionruntime.D
 	if err != nil {
 		return nil, "", err
 	}
-	token, _, err := identity.IssueTokensForAuthenticatedOperator(ctx, operatorID, "127.0.0.1", "settings-budget-test")
+	token, _, err := identity.IssueTokensForAuthenticatedOperator(ctx, operatorID, nil, "127.0.0.1", "settings-budget-test")
 	if err != nil {
 		return nil, "", err
 	}

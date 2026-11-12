@@ -7,42 +7,43 @@ import (
 	"net/http"
 	"time"
 
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	emailWebhooksHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/webhooks"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	emailWebhooksHTTP "github.com/moto-ogs/project-phoenix/modules/delivery/http/webhooks"
 
 	"github.com/go-chi/chi/v5"
-	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
-	requestFeedHTTP "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/http"
-	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
-	announcementAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements"
-	messagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentmessages"
-	platformAnnouncementsHTTP "github.com/moto-nrw/project-phoenix/modules/communication/http/platformannouncements"
-	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/modules/emergencysnapshot"
-	emergencyAPI "github.com/moto-nrw/project-phoenix/modules/emergencysnapshot/http"
-	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
-	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
-	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	meAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
-	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	birthdaysAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/birthdays"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	schoolSetupCompose "github.com/moto-nrw/project-phoenix/modules/schoolsetup/compose"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	statisticsAPI "github.com/moto-nrw/project-phoenix/modules/statistics/http"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
-	remindersHTTP "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/http"
+	requestFeedCompose "github.com/moto-ogs/project-phoenix/modules/careplan/requestfeed/compose"
+	requestFeedHTTP "github.com/moto-ogs/project-phoenix/modules/careplan/requestfeed/http"
+	communicationModule "github.com/moto-ogs/project-phoenix/modules/communication"
+	announcementAPI "github.com/moto-ogs/project-phoenix/modules/communication/http/parentannouncements"
+	messagingAPI "github.com/moto-ogs/project-phoenix/modules/communication/http/parentmessages"
+	platformAnnouncementsHTTP "github.com/moto-ogs/project-phoenix/modules/communication/http/platformannouncements"
+	sseAPI "github.com/moto-ogs/project-phoenix/modules/delivery/http/sse"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-ogs/project-phoenix/modules/emergencysnapshot"
+	emergencyAPI "github.com/moto-ogs/project-phoenix/modules/emergencysnapshot/http"
+	feedbackModule "github.com/moto-ogs/project-phoenix/modules/feedback"
+	filestorageModule "github.com/moto-ogs/project-phoenix/modules/filestorage"
+	filestoreAPI "github.com/moto-ogs/project-phoenix/modules/filestorage/http/files"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	meAPI "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/me"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/tokenprimitives"
+	mealplanModule "github.com/moto-ogs/project-phoenix/modules/mealplan"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	birthdaysAPI "github.com/moto-ogs/project-phoenix/modules/peopledirectory/inbound/birthdays"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	schoolSetupCompose "github.com/moto-ogs/project-phoenix/modules/schoolsetup/compose"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	statisticsAPI "github.com/moto-ogs/project-phoenix/modules/statistics/http"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
+	reminder "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery"
+	remindersHTTP "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery/http"
 	"github.com/spf13/viper"
 )
 
@@ -73,8 +74,8 @@ func mountRequestFeed(root, tenant chi.Router, db transactionruntime.Database, l
 // is the credential and the school comes from the matched mail.
 const emailWebhookPath = "/webhooks"
 
-func mountEmailWebhooks(root chi.Router, ingest emailWebhooksHTTP.Ingest) {
-	root.Mount(emailWebhookPath, emailWebhooksHTTP.NewResource(ingest, renderEmailWebhookFailure, emailWebhookRateLimit()).Router())
+func mountEmailWebhooks(root chi.Router, ingest emailWebhooksHTTP.Ingest, rateLimitEnabled bool) {
+	root.Mount(emailWebhookPath, emailWebhooksHTTP.NewResource(ingest, renderEmailWebhookFailure, emailWebhookRateLimit(rateLimitEnabled)).Router())
 }
 
 // emailWebhookFailureRules answer by what the provider should do next: it
@@ -149,14 +150,16 @@ func mountPeopleRoutes(
 // mountCommunicationRoutes serves parent messages, announcements and surveys,
 // staff reminders, the PWA usage report and the platform announcements under /api.
 func mountCommunicationRoutes(
-	tenant chi.Router, chat owners.CommunicationMessaging, announcements communicationModule.ParentAnnouncementCapability,
+	tenant chi.Router, logger *slog.Logger, chat owners.CommunicationMessaging, announcements communicationModule.ParentAnnouncementCapability,
 	reminders reminder.Capability, devices owners.DeliveryDevices, communication communicationModule.Capability,
 ) error {
 	surveys, err := communicationModule.SurveysOf(announcements)
 	if err != nil {
 		return err
 	}
-	tenant.Mount("/messages", messagingAPI.NewResource(chat.Messaging, chat.GroupThreads).Router(ProtectedTenantRoutes))
+	// Fotos und Dateien in den Nachrichten an Eltern (#6685), hinter demselben Recht wie die Nachrichten.
+	attachments := newMessageAttachmentRoutes(chat.ParentAttachments, logger.With("handler", "message-attachments"), apiCommon.RequiresPermission(permissions.UsersRead))
+	tenant.Mount("/messages", messagingAPI.NewResource(chat.Messaging, chat.GroupThreads).Router(ProtectedTenantRoutesWith(attachments.Register)))
 	tenant.Mount("/parent-announcements", announcementAPI.NewResource(announcements, newDeclarationReports()).Router(ProtectedTenantRoutes))
 	// Umfragen an Eltern oder Mitarbeitende (#4781).
 	tenant.Mount("/surveys", announcementAPI.NewSurveyResource(surveys, newDeclarationReports()).Router(ProtectedTenantRoutes))

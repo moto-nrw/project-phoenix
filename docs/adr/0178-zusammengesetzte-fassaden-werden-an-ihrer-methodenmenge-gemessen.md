@@ -1,11 +1,13 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Zusammengesetzte Fassaden werden an ihrer Methodenmenge gemessen
 
+Freigegeben von Yannick Wenger am 10.11.2026 (#6468).
+
 Entscheidung vom 08.11.2026 für Punkt 3 von
-[#6178](https://github.com/moto-nrw/project-phoenix/issues/6178), unter
+[#6178](https://github.com/moto-ogs/project-phoenix/issues/6178), unter
 [ADR 0057](0057-only-the-target-is-a-rule.md) Punkt 5. Kein Runtime-Code,
 keine Policy-Regel, kein Port und kein bestehendes Budget ändert sich. Neu ist
 ein Ratchet-Register.
@@ -21,7 +23,7 @@ Hälften schon tragen. Die Folge: Ein Interface, das nur einbettet, misst fast
 Methodenmenge umfasst 262 Methoden. Wächst ein solches Interface um eine
 weitere Einbettung, schlägt kein Ratchet an. Das ist auch tatsächlich passiert: Zwischen
 development `e59b3f93cd` und `b474b11a27` hat
-[#6161](https://github.com/moto-nrw/project-phoenix/pull/6161)
+[#6161](https://github.com/moto-ogs/project-phoenix/pull/6161)
 `enrollment.Owner` von 139 auf 140 Methoden vergrößert, unbemerkt. Während dieser PR offen war, wuchsen ebenso
 `parentbilling.CareBilling` (13 → 14, #6216), `enrollment.Owner` (140 → 141, #6249) sowie
 `schoolcalendar/portal.FullService` (40 → 41) und `Service` (21 → 22, beide #6241). Das Register des bestehenden
@@ -49,7 +51,8 @@ deklariert.
    größten sind `identityaccess.Owner` (262), `careplan.Owner` (159),
    `careplan.Capability` (158), `peopledirectory.Owner` (146),
    `peopledirectory.Capability` (143) und `enrollment.Owner` (141). Diese Zahlen
-   sind Schulden, kein Ziel.
+   sind Schulden, kein Ziel. Das ist der historische Startwert. Das Register
+   darf seitdem nur schrumpfen (Punkt 4); den aktuellen Stand führt der Test.
 4. **Es gilt die Ratchet-Semantik des bestehenden Registers.** Ein Eintrag darf
    fallen und muss dann gesenkt oder gelöscht werden. Steigen darf er nicht.
    Eine neue Composite über 12 Methoden schlägt fehl. Erhöhen oder ergänzen

@@ -12,7 +12,7 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/realtime"
 )
 
 // fakeGuardianAccess records the delivery-time access question and answers it
@@ -61,7 +61,7 @@ func (b *recordingGuardianBroadcaster) BroadcastToTenant(int64, realtime.Event) 
 func (b *recordingGuardianBroadcaster) BroadcastToTenantAdmins(int64, realtime.Event) error {
 	return nil
 }
-func (b *recordingGuardianBroadcaster) BroadcastToAll(realtime.Event) error { return nil }
+
 func (b *recordingGuardianBroadcaster) BroadcastParentMessage(int64, int64, realtime.Event) error {
 	return nil
 }

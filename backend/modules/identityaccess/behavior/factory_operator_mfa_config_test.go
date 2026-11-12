@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,6 +31,7 @@ func TestFactoryOperatorMFARefusesChallengeWithoutSMTP(t *testing.T) {
 		TenantDomain:     "localhost",
 		OperatorHostname: "operator.localhost:3000",
 		HealthDataKeys:   testpkg.TestHealthDataKeys,
+		BankDataKeys:     testpkg.TestBankDataKeys,
 	}
 
 	identityModule, err := api.NewTestIdentityAccessWithConfig(testpkg.NewDatabase(t, db), slog.Default(), cfg)
@@ -41,6 +42,6 @@ func TestFactoryOperatorMFARefusesChallengeWithoutSMTP(t *testing.T) {
 		_, err := db.NewDelete().TableExpr("platform.email_outbox").Where("tenant_id IS NULL AND related_entity_type = ? AND related_entity_id = ?", "operator_mfa_email_code", operator.ID).Exec(context.Background())
 		require.NoError(t, err)
 	})
-	_, err = identityModule.StartOperatorMFAChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.1"))
+	_, err = identityModule.StartOperatorMFAChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.1"), nil)
 	require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
 }

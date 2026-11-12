@@ -330,6 +330,48 @@ describe("GuardianList", () => {
     ).toBeInTheDocument();
   });
 
+  // #6294: a link that no longer works must not read as an open invitation.
+  it("marks a dead invitation link and offers a new invitation", () => {
+    const onInvite = vi.fn();
+    const guardian = {
+      ...mockGuardians[1]!,
+      accountStatus: "link_invalid" as const,
+    };
+    render(
+      <GuardianList
+        guardians={[guardian]}
+        onInvite={onInvite}
+        onEdit={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Link gilt nicht mehr")).toBeInTheDocument();
+    expect(screen.queryByText("Einladung offen")).not.toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Der Einladungslink gilt nicht mehr. Mit „Einladung neu senden“ bekommt die Person einen neuen Link.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(rowMenuTriggers()[0]!);
+    fireEvent.click(
+      screen.getByRole("menuitem", { name: "Einladung neu senden" }),
+    );
+    expect(onInvite).toHaveBeenCalledWith(guardian);
+  });
+
+  it("explains a dead invitation link without an action when read-only", () => {
+    const guardian = {
+      ...mockGuardians[1]!,
+      accountStatus: "link_invalid" as const,
+    };
+    render(<GuardianList guardians={[guardian]} readOnly />);
+
+    expect(screen.getByText("Link gilt nicht mehr")).toBeInTheDocument();
+    expect(
+      screen.getByText("Der Einladungslink gilt nicht mehr."),
+    ).toBeInTheDocument();
+  });
+
   it("shows a disabled sending state in the row menu while inviting", () => {
     const onInvite = vi.fn();
     const guardian = {

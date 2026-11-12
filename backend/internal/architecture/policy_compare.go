@@ -91,7 +91,7 @@ func ownershipLoosenings(base, candidate *Policy, createdDataObjects map[string]
 	for id, owner := range candidateOwners {
 		if _, exists := baseOwners[id]; !exists {
 			candidateOnlyOwner := ownerPackagesAreCandidateCreated(candidate, id, createdPackages)
-			approvedCanonicalAddition := candidate.ModulePath == "github.com/moto-nrw/project-phoenix" &&
+			approvedCanonicalAddition := candidate.ModulePath == "github.com/moto-ogs/project-phoenix" &&
 				candidate.PolicyEpoch > base.PolicyEpoch && candidateOnlyOwner &&
 				(owner.Kind == "domain" || owner.Kind == "platform")
 			// Workflows are non-owning coordinators. A reviewed epoch may add
@@ -297,7 +297,7 @@ func ruleLoosenings(base, candidate *Policy, candidateOnlyPoints map[string]stru
 		if candidate.PolicyEpoch > base.PolicyEpoch &&
 			(reviewedTestInfrastructureRule(rule) || reviewedSharedFixtureRule(rule) || reviewedOwnerSuiteRule(rule) || reviewedSharedKernelRule(rule) || reviewedParentHTTPRule(rule) ||
 				reviewedCompositionReachRule(rule, candidateOwners) || reviewedHTTPHostRule(rule) || reviewedInternalReachRule(rule, base, candidateOwners) || reviewedProjectionPublicRule(rule, candidateOwners) || reviewedOwnerHTTPRule(rule, base, candidate) ||
-				reviewedSameOwnerContractRule(rule) || reviewedDemoUploadsRule(rule) || reviewedDocumentTemplatesRule(rule)) {
+				reviewedSameOwnerContractRule(rule) || reviewedDemoUploadsRule(rule) || reviewedSeedMealHistoryRule(rule) || reviewedDocumentTemplatesRule(rule)) {
 			continue
 		}
 		if problem := uncoveredRulePermission(rule, baseEvaluator, candidateEvaluator, owners, roles); problem != "" {
@@ -768,7 +768,7 @@ func firstPartyAllowedByReviewedRule(base, candidate *Policy, rule Rule) bool {
 	}
 	if reviewedSharedFixtureRule(rule) || reviewedOwnerSuiteRule(rule) ||
 		reviewedSharedKernelRule(rule) || reviewedParentHTTPRule(rule) ||
-		reviewedSameOwnerContractRule(rule) || reviewedDemoUploadsRule(rule) ||
+		reviewedSameOwnerContractRule(rule) || reviewedDemoUploadsRule(rule) || reviewedSeedMealHistoryRule(rule) ||
 		reviewedDocumentTemplatesRule(rule) {
 		return true
 	}

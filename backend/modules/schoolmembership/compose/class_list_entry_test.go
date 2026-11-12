@@ -5,9 +5,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -48,6 +48,17 @@ func TestModuleClassListLookupMatchesCanonicalUnicodeForms(t *testing.T) {
 				ids = append(ids, entry.ID)
 			}
 			assert.ElementsMatch(t, []int64{current.ID, legacy.ID}, ids)
+
+			batched, err := module.(schoolmembership.ClassListEntryBatches).MatchClassListEntries(ctx, []schoolmembership.ClassListEntryFields{{
+				FirstName: first, LastName: last, SchoolClass: " 1A ",
+			}})
+			require.NoError(t, err)
+			require.Len(t, batched, 1)
+			batchIDs := make([]int64, 0, len(batched[0]))
+			for _, entry := range batched[0] {
+				batchIDs = append(batchIDs, entry.ID)
+			}
+			assert.ElementsMatch(t, []int64{current.ID, legacy.ID}, batchIDs)
 		}
 	}
 }

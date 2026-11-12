@@ -9,14 +9,14 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -88,13 +88,12 @@ func newHolidayGrowthFixture(t *testing.T, db *bun.DB, n int) holidayGrowthFixtu
 	require.NoError(t, err)
 	care, err := owners.NewUnobservedCarePlan(database, owners.MustNewUnobservedTimetable(database), people)
 	require.NoError(t, err)
-	staff, err := api.NewRFIDTestPeople(database)
-	require.NoError(t, err)
 	cipher, err := api.HealthDataCipher(testpkg.TestHealthDataKeys)
 	require.NoError(t, err)
 	audit := owners.NewTestAuditPersistence(database, nil).DataAccessLog
 	today := func() calendar.Date { return calendar.NewDate(2099, 7, 6) }
-	guests := owners.NewHolidayGuests(people, organizations, care, staff, audit, cipher, today)
+	students := owners.MustNewMembershipTestRepositories(database).Student
+	guests := owners.NewHolidayGuests(people, students, organizations, care, audit, cipher, today)
 	unit := testpkg.TenantRuntime(t, db)
 	schoolID, err := tenant.NewTenantID(school)
 	require.NoError(t, err)

@@ -15,8 +15,11 @@ type transactionFingerprint func(key string, before bool) (string, error)
 func transactionScopeSubset(current, previous map[string]string, moves map[string]string, fingerprint transactionFingerprint, receiverRemoved func(string, string, string) (bool, error)) error {
 	current = withoutReviewedSessionMintTransactions(withoutReviewedEmailDeliveryEventTransactions(withoutReviewedRealtimeNotificationTransactions(current)))
 	current = withoutReviewedEnrollmentDecisionCommandTransaction(current)
+	current = withoutReviewedAccountMFAEnrollmentTransaction(current)
 	current = withoutReviewedTransactionFrameBundles(current)
-	current = withoutReviewedEnrollmentFormLabelsTransactions(withoutReviewedSchoolVacationTransactions(withoutReviewedPayrollDispatchTransactions(withoutReviewedParentDocumentInboxTransactions(withoutReviewedHolidayContributionTransactions(withoutReviewedHolidayRegistrationPrefillTransactions(withoutReviewedHolidayRegistrationTransactions(withoutReviewedTraegerTransactions(withoutReviewedTraegerViewTransactions(withoutReviewedTenantExportTransaction(withoutReviewedCaregiverDisableTransaction(withoutReviewedBillingKeyDateTransactions(current))))))))))))
+	current = withoutReviewedBelegRetentionTransactions(current)
+	current = withoutReviewedVisitRetentionTransaction(current)
+	current = withoutReviewedHolidayClosureNotificationTransactions(withoutReviewedEnrollmentFamilyChildrenTransactions(withoutReviewedEnrollmentFormLabelsTransactions(withoutReviewedSchoolVacationTransactions(withoutReviewedPayrollDispatchTransactions(withoutReviewedParentDocumentInboxTransactions(withoutReviewedHolidayContributionTransactions(withoutReviewedHolidayRegistrationPrefillTransactions(withoutReviewedHolidayParentSetupTransactions(withoutReviewedHolidayParentRegistrationTransactions(withoutReviewedHolidayRegistrationTransactions(withoutReviewedTraegerTransactions(withoutReviewedTraegerViewTransactions(withoutReviewedTenantExportTransaction(withoutReviewedCaregiverDisableTransaction(withoutReviewedBillingKeyDateTransactions(current))))))))))))))))
 	for key, reason := range current {
 		if old, retained := previous[key]; retained {
 			if old == reason {
@@ -24,7 +27,7 @@ func transactionScopeSubset(current, previous map[string]string, moves map[strin
 			}
 			return fmt.Errorf("transaction register changed reason: %s", key)
 		}
-		oldKey, err := originalReceiverTransactionKey(key, current, previous, receiverRemoved)
+		oldKey, err := originalCommandTransactionKey(key, current, previous, receiverRemoved)
 		if err != nil {
 			return err
 		}
@@ -50,6 +53,14 @@ func transactionScopeSubset(current, previous map[string]string, moves map[strin
 		}
 	}
 	return nil
+}
+
+func originalCommandTransactionKey(key string, current, previous map[string]string, receiverRemoved func(string, string, string) (bool, error)) (string, error) {
+	original, err := originalReceiverTransactionKey(key, current, previous, receiverRemoved)
+	if original != "" || err != nil {
+		return original, err
+	}
+	return originalSeedMealTransactionKey(key, current, previous), nil
 }
 
 func originalTransactionKey(key string, moves map[string]string) string {

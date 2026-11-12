@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The documents of the families of a Träger (#4691). A family is the mail
@@ -52,7 +52,7 @@ const familyDocumentsSQL = `WITH family_rows AS (
 	SELECT 'care', invoice.id, invoice.run_id, 'invoice', invoice.number, invoice.issued_on, invoice.issued_at, '',
 		invoice.billing_month, (invoice.billing_month + INTERVAL '1 month' - INTERVAL '1 day')::date, NULL, NULL, '',
 		invoice.recipient_first_name, invoice.recipient_last_name, invoice.recipient_email, invoice.recipient_kind,
-		invoice.recipient_second_name, NULL, invoice.total_cents, COALESCE(invoice.family_email, LOWER(invoice.recipient_email)),
+		invoice.recipient_second_name, invoice.debtor_number, invoice.total_cents, COALESCE(invoice.family_email, LOWER(invoice.recipient_email)),
 		invoice.payment_method, invoice.due_on, json_build_array(invoice.child_first_name), '[]'::json, false
 	FROM parent_billing.care_invoices AS invoice
 	WHERE invoice.organization_id = ?0
@@ -60,7 +60,7 @@ const familyDocumentsSQL = `WITH family_rows AS (
 	SELECT 'care', cancellation.id, cancellation.run_id, 'cancellation', cancellation.number, cancellation.issued_on,
 		cancellation.issued_at, '', invoice.billing_month, (invoice.billing_month + INTERVAL '1 month' - INTERVAL '1 day')::date,
 		invoice.id, invoice.number, cancellation.reason, invoice.recipient_first_name, invoice.recipient_last_name,
-		invoice.recipient_email, invoice.recipient_kind, invoice.recipient_second_name, NULL, cancellation.total_cents,
+		invoice.recipient_email, invoice.recipient_kind, invoice.recipient_second_name, invoice.debtor_number, cancellation.total_cents,
 		COALESCE(invoice.family_email, LOWER(invoice.recipient_email)), NULL, NULL, json_build_array(invoice.child_first_name),
 		'[]'::json, false
 	FROM parent_billing.care_invoice_cancellations AS cancellation
@@ -75,32 +75,32 @@ WHERE ?1::bigint = 0 OR family_key = (
 ORDER BY issued_at, service DESC, id`
 
 type familyDocumentRow struct {
-	Service             string         `bun:"service"`
-	IssuedAt            time.Time      `bun:"issued_at"`
-	RecipientKind       *string        `bun:"recipient_kind"`
-	RecipientSecondName *string        `bun:"recipient_second_name"`
-	ID                  int64          `bun:"id"`
-	RunID               int64          `bun:"run_id"`
-	Kind                string         `bun:"kind"`
-	Number              string         `bun:"number"`
-	IssuedOn            calendar.Date  `bun:"issued_on,type:date"`
-	PeriodName          string         `bun:"period_name"`
-	ServiceFrom         calendar.Date  `bun:"service_from,type:date"`
-	ServiceUntil        calendar.Date  `bun:"service_until,type:date"`
-	ReferenceDocumentID *int64         `bun:"reference_document_id"`
-	ReferenceNumber     *string        `bun:"reference_number"`
-	Reason              string         `bun:"reason"`
-	RecipientFirstName  string         `bun:"recipient_first_name"`
-	RecipientLastName   string         `bun:"recipient_last_name"`
-	RecipientEmail      string         `bun:"recipient_email"`
-	DebtorNumber        *string        `bun:"debtor_number"`
-	TotalCents          int64          `bun:"total_cents"`
-	FamilyKey           string         `bun:"family_key"`
-	PaymentMethod       *string        `bun:"payment_method"`
-	DueOn               *calendar.Date `bun:"due_on,type:date"`
-	ChildNames          []string       `bun:"child_names,type:json"`
-	CostBearerNames     []string       `bun:"cost_bearer_names,type:json"`
-	Exempt              bool           `bun:"exempt"`
+	Service             string         `bun:"service" json:"service"`
+	IssuedAt            time.Time      `bun:"issued_at" json:"issued_at"`
+	RecipientKind       *string        `bun:"recipient_kind" json:"recipient_kind"`
+	RecipientSecondName *string        `bun:"recipient_second_name" json:"recipient_second_name"`
+	ID                  int64          `bun:"id" json:"id"`
+	RunID               int64          `bun:"run_id" json:"run_id"`
+	Kind                string         `bun:"kind" json:"kind"`
+	Number              string         `bun:"number" json:"number"`
+	IssuedOn            calendar.Date  `bun:"issued_on,type:date" json:"issued_on"`
+	PeriodName          string         `bun:"period_name" json:"period_name"`
+	ServiceFrom         calendar.Date  `bun:"service_from,type:date" json:"service_from"`
+	ServiceUntil        calendar.Date  `bun:"service_until,type:date" json:"service_until"`
+	ReferenceDocumentID *int64         `bun:"reference_document_id" json:"reference_document_id"`
+	ReferenceNumber     *string        `bun:"reference_number" json:"reference_number"`
+	Reason              string         `bun:"reason" json:"reason"`
+	RecipientFirstName  string         `bun:"recipient_first_name" json:"recipient_first_name"`
+	RecipientLastName   string         `bun:"recipient_last_name" json:"recipient_last_name"`
+	RecipientEmail      string         `bun:"recipient_email" json:"recipient_email"`
+	DebtorNumber        *string        `bun:"debtor_number" json:"debtor_number"`
+	TotalCents          int64          `bun:"total_cents" json:"total_cents"`
+	FamilyKey           string         `bun:"family_key" json:"family_key"`
+	PaymentMethod       *string        `bun:"payment_method" json:"payment_method"`
+	DueOn               *calendar.Date `bun:"due_on,type:date" json:"due_on"`
+	ChildNames          []string       `bun:"child_names,type:json" json:"child_names"`
+	CostBearerNames     []string       `bun:"cost_bearer_names,type:json" json:"cost_bearer_names"`
+	Exempt              bool           `bun:"exempt" json:"exempt"`
 }
 
 // FamilyDocuments reads the issued documents of the family of the document
@@ -157,25 +157,11 @@ func (s *Store) InsertRunEvents(ctx context.Context, organizationID, accountID i
 	if err != nil {
 		return err
 	}
-	type entry struct {
-		RunID   int64          `json:"run_id"`
-		Details map[string]any `json:"details"`
-	}
-	entries := func(details map[int64]map[string]any) ([]byte, error) {
-		list := make([]entry, 0, len(details))
-		for runID, detail := range details {
-			if detail == nil {
-				detail = map[string]any{}
-			}
-			list = append(list, entry{RunID: runID, Details: detail})
-		}
-		return json.Marshal(list)
-	}
-	holidayEntries, err := entries(holiday)
+	holidayEntries, err := runEventEntries(holiday)
 	if err != nil {
 		return err
 	}
-	careEntries, err := entries(care)
+	careEntries, err := runEventEntries(care)
 	if err != nil {
 		return err
 	}
@@ -188,4 +174,21 @@ func (s *Store) InsertRunEvents(ctx context.Context, organizationID, accountID i
 		FROM jsonb_to_recordset(?4::jsonb) AS entry(run_id bigint, details jsonb)`,
 		organizationID, action, accountID, string(holidayEntries), string(careEntries))
 	return err
+}
+
+// runEventEntries is the JSON of trail entries by run that the statements
+// above insert with jsonb_to_recordset.
+func runEventEntries(details map[int64]map[string]any) ([]byte, error) {
+	type entry struct {
+		RunID   int64          `json:"run_id"`
+		Details map[string]any `json:"details"`
+	}
+	list := make([]entry, 0, len(details))
+	for runID, detail := range details {
+		if detail == nil {
+			detail = map[string]any{}
+		}
+		list = append(list, entry{RunID: runID, Details: detail})
+	}
+	return json.Marshal(list)
 }

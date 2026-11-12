@@ -10,11 +10,11 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	scheduleModel "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // Staff deviations (Vertretungsplan, #1840/#1886, #3424 slice S3) behind
@@ -64,7 +64,7 @@ func (s *staffDeviations) getLogger() *slog.Logger {
 // Take it before instance/participant row locks; if recurrence is needed,
 // take recurrence first (see InstanceLifecycleService.LockDeviationDays).
 func (s *staffDeviations) acquireSubstituteDayLock(ctx context.Context, date calendar.Date) error {
-	return s.deps.Locks.AcquireTransactionLock(ctx, timetable.SubstituteDayLockKey(tenant.FromContext(ctx), date))
+	return lockScheduleDays(ctx, s.deps.Locks.AcquireTransactionLock, tenant.FromContext(ctx), date)
 }
 
 // QueueActivityUpdates queues one activity update per touched running block

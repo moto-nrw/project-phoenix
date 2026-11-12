@@ -1,8 +1,8 @@
 package care
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // CarePlanError identifies only the owner's refusals this workflow consumes.
@@ -12,6 +12,7 @@ const (
 	CarePlanCourseRequestsDisabled         CarePlanError = "CourseRequestsDisabled"
 	CarePlanOfferingChangeDisabled         CarePlanError = "OfferingChangeDisabled"
 	CarePlanManualPartialAbsenceConflict   CarePlanError = "ManualPartialAbsenceConflict"
+	CarePlanSchoolStatusDayConflict        CarePlanError = "SchoolStatusDayConflict"
 	CarePlanGuardianPickupExceptionRaced   CarePlanError = "GuardianPickupExceptionRaced"
 	CarePlanPickupExceptionStaffOwned      CarePlanError = "PickupExceptionStaffOwned"
 	CarePlanStudentDataRequestFieldPending CarePlanError = "StudentDataRequestFieldPending"

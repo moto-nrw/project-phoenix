@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.finance_export_invoice_history",
+  "max": 4,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/finance-exports/invoice-history/{kind}/{id} (#4693):\nthe selects: the Träger binding of the Träger transaction, the invoice, its steps (issue, sends, Storno,\nsubmitted debit) in one statement and the export files that hold it in one statement. Flat in the number of exports.",
+  "route": "GET /traeger/finance-exports/invoice-history/{kind}/{id}"
+}

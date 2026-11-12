@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // The second factor must never fail open. These tests break one statement of
@@ -214,7 +214,7 @@ type accountMFAFixture struct {
 func newAccountMFAFixture(t *testing.T, records ports.AccountMFARecords) accountMFAFixture {
 	t.Helper()
 	codec := &fakeMFAChallengeCodec{parse: map[string]domain.MFAChallengeClaims{}}
-	flows, err := NewAccountMFAFlows(AccountMFAFlowDependencies{
+	flows, err := NewAccountMFAFlows(AccountMFAFlowDependencies{PermissionGranted: func(string, []string) bool { return false },
 		Records: records, Settings: optionalMFASettings{}, Codec: codec, Codes: fakeShortCodes{},
 		Mail: &fakeMFAMail{}, Audit: &fakeMFAAudit{}, Runtime: &fakeRuntime{}, Secret: []byte("trusted-device-secret"),
 	})
@@ -237,7 +237,7 @@ func TestAccountMFA_StartChallenge_RateLimitLookupFails_IssuesNoCode(t *testing.
 	}).capability
 
 	challengeToken, err := svc.StartMFAChallenge(
-		context.Background(), 1, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"),
+		context.Background(), 1, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"), 0,
 	)
 
 	require.Error(t, err)
@@ -277,7 +277,7 @@ func TestAccountMFA_VerifyChallenge_RaceLoserRejected(t *testing.T) {
 	fixture := newAccountMFAFixture(t, failingMFARecords{AccountMFARecords: native, consumeChallenge: stub.consume})
 	svc := fixture.capability
 
-	require.NoError(t, svc.EnrollMFA(ctx, 1))
+	require.NoError(t, svc.EnrollMFA(ctx, identityaccess.VerifiedMFAChallenge{AccountID: 1}))
 
 	// The test writes its own challenge with a known hash so VerifyShortCode
 	// succeeds and the flow reaches MarkConsumed.

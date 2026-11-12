@@ -1,6 +1,9 @@
 "use client";
 
-import { DocumentAttachmentList } from "~/components/enrollment/attachment-list";
+import {
+  DocumentAttachmentList,
+  type AttachmentLabels,
+} from "~/components/enrollment/attachment-list";
 import { Alert } from "~/components/ui/alert";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { ChoiceTile } from "~/components/ui/choice-tile";
@@ -9,7 +12,7 @@ import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { Radio } from "~/components/ui/radio";
 import { Textarea } from "~/components/ui/textarea";
-import type { ReactNode } from "react";
+import type { ReactNode, Ref } from "react";
 import type { FormField } from "~/lib/enrollment-form-schema-api";
 
 type FieldInputTranslator = (key: string) => string;
@@ -19,9 +22,20 @@ type FieldInputTranslator = (key: string) => string;
  * preserved via `whitespace-pre-line`. Content is plain text by design (no
  * HTML/markdown), so it is safe to render directly.
  */
-export function InfoBlock({ field }: { readonly field: FormField }) {
+export function InfoBlock({
+  field,
+  attachmentLabels,
+}: {
+  readonly field: FormField;
+  /** Labels of the attachment buttons where the parent messages are not
+   *  loaded, such as the staff's German form. */
+  readonly attachmentLabels?: AttachmentLabels;
+}) {
   const attachments = (
-    <DocumentAttachmentList attachments={field.attachments} />
+    <DocumentAttachmentList
+      attachments={field.attachments}
+      labels={attachmentLabels}
+    />
   );
   // Mit Titel und Text steht das Symbol oben am Titel (Alert mit `details`),
   // sonst trägt die Meldung allein den Titel oder den Text.
@@ -76,6 +90,11 @@ export interface CustomFieldInputProps {
   readonly tr: FieldInputTranslator;
   /** The id of a date control; unique per child where a form repeats it. */
   readonly controlId?: string;
+  /** A surrounding card already names the boolean question. */
+  readonly labelHidden?: boolean;
+  readonly fieldsetRef?: Ref<HTMLFieldSetElement>;
+  /** Additional explanation for a boolean answer. */
+  readonly children?: ReactNode;
   /**
    * Renders a date or a structured type (phone list, weekdays, contacts,
    * file) the shared renderer does not know. Without it such a field
@@ -100,6 +119,9 @@ export function CustomFieldInput({
   error,
   tr,
   controlId: suppliedControlId,
+  labelHidden = false,
+  fieldsetRef,
+  children,
   renderStructured,
 }: CustomFieldInputProps) {
   if (!SIMPLE_TYPES.has(field.type)) return renderStructured?.() ?? null;
@@ -110,10 +132,19 @@ export function CustomFieldInput({
     const selectedValue = value === true ? "yes" : value === false ? "no" : "";
     return (
       <fieldset
+        ref={fieldsetRef}
+        tabIndex={-1}
+        className="min-w-0 outline-none"
         aria-invalid={error ? "true" : undefined}
         aria-describedby={error ? errorId : undefined}
       >
-        <legend className="mb-2 block text-sm font-medium text-gray-700">
+        <legend
+          className={
+            labelHidden
+              ? "sr-only"
+              : "mb-2 block text-sm font-medium text-gray-700"
+          }
+        >
           {field.label}
           {field.required && <RequiredMark />}
         </legend>
@@ -131,6 +162,7 @@ export function CustomFieldInput({
               <Radio
                 name={inputName}
                 value={option.value}
+                required={field.required}
                 checked={selectedValue === option.value}
                 onChange={() => onChange(option.raw)}
               />
@@ -139,6 +171,7 @@ export function CustomFieldInput({
           ))}
         </div>
         <FieldErrorHint id={errorId} message={error} />
+        {children}
       </fieldset>
     );
   }

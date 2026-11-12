@@ -4,13 +4,13 @@ import (
 	"context"
 	"net/http"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	timetableModule "github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 // CallerContext is the slice of the Identity & Access caller context the
@@ -73,13 +73,9 @@ func (rs *Resource) Router(protectedTenantRoutes func(chi.Router, func(chi.Route
 		r.With(withTx).Put("/{id}", rs.updateActivity)
 		r.With(withTx).Delete("/{id}", rs.deleteActivity)
 
-		// Schedule Management - All authenticated users can manage schedules
+		// Legacy schedule reads; schedule writes go through the guarded activity update.
 		r.With(withTx).Get("/{id}/schedules", rs.getActivitySchedules)
 		r.With(withTx).Get(routeScheduleByID, rs.getActivitySchedule)
-		r.With(withTx).Get("/schedules/available", rs.getAvailableTimeSlots)
-		r.With(withTx).Post("/{id}/schedules", rs.createActivitySchedule)
-		r.With(withTx).Put(routeScheduleByID, rs.updateActivitySchedule)
-		r.With(withTx).Delete(routeScheduleByID, rs.deleteActivitySchedule)
 
 		// Supervisor Assignment
 		r.With(common.RequiresPermission(permissions.ActivitiesRead), withTx).

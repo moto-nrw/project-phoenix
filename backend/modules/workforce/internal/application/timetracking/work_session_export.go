@@ -6,11 +6,12 @@ import (
 	"fmt"
 	"sort"
 	"strconv"
+	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // German weekday names for export
@@ -280,11 +281,11 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 	datum := sess.Date.Format("02.01.2006")
 	wochentag := germanWeekdays[sess.Date.Weekday()]
 
-	start := sess.CheckInTime.Format("15:04")
+	start := sess.CheckInTime.In(calendar.Berlin).Format("15:04")
 
 	ende := ""
 	if sess.CheckOutTime != nil {
-		ende = sess.CheckOutTime.Format("15:04")
+		ende = sess.CheckOutTime.In(calendar.Berlin).Format("15:04")
 	}
 
 	// Read the pause from the response-level total, not the model cache: for an
@@ -323,7 +324,23 @@ func (s *workSessionService) sessionToRow(sr *SessionResponse) []string {
 		quelle = "Manuell korrigiert"
 	}
 
-	return []string{datum, wochentag, start, ende, pauseMin, netto, status, quelle, sess.Notes}
+	return []string{datum, wochentag, start, ende, pauseMin, netto, status, quelle, exportRowNotes(sess.Notes, sr)}
+}
+
+// exportRowNotes appends the credit inside Netto to the row's notes, so a
+// reader can trace Netto back to the stamped Start and Ende (#6851, #6852).
+func exportRowNotes(notes string, sr *SessionResponse) string {
+	parts := make([]string, 0, 3)
+	if notes != "" {
+		parts = append(parts, notes)
+	}
+	if sr.PackUpMinutes != 0 {
+		parts = append(parts, fmt.Sprintf("Wegpackzeit +%d Min.", sr.PackUpMinutes))
+	}
+	if sr.RoundingMinutes != 0 {
+		parts = append(parts, fmt.Sprintf("Rundung %+d Min.", sr.RoundingMinutes))
+	}
+	return strings.Join(parts, "; ")
 }
 
 // quelleLabel renders the export "Quelle" cell from the persisted source.

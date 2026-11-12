@@ -4,15 +4,15 @@ import (
 	"context"
 	"log/slog"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // excusedRequestReviewPolicy is the one method of the parent-request review
@@ -33,6 +33,7 @@ func NewExcusedAbsenceRequestService(
 	scope carePlanCompose.ReviewScopeResolver, emitter eventContract.Emitter,
 	broadcaster realtime.Broadcaster, events peopledirectory.ParentRequestEvents, notifier deliveryCompose.AbsenceNotifier,
 	shares carePlanCompose.ShareVisibility, observe CarePlanObserver, logger *slog.Logger, today func() timezone.Date,
+	partialAbsences careplan.PartialAbsenceService,
 ) (*carePlanCompose.ExcusedAbsenceRequests, error) {
 	var messenger carePlanCompose.RequestMessenger
 	if emitter != nil {
@@ -58,7 +59,7 @@ func NewExcusedAbsenceRequestService(
 		CarePlan: carePlan, Students: students, Persons: persons,
 		Scope: scope, Today: day, Logger: logger, Observe: observe,
 		Messenger: messenger, Broadcaster: staff, Ledger: ledger,
-		Notifier: absences, Shares: shares,
+		Notifier: absences, Shares: shares, PartialAbsences: partialAbsences,
 	})
 }
 

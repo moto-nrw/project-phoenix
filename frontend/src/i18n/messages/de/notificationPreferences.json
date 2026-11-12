@@ -18,8 +18,8 @@
       "description": "Wenn die Schule eine neue Mitteilung im Elternportal veröffentlicht."
     },
     "parent_message": {
-      "label": "Neue Nachricht der OGS",
-      "description": "Wenn die OGS Ihnen zu einem Kind schreibt."
+      "label": "Neue Nachricht der {careTerm}",
+      "description": "Wenn die {careTerm} Ihnen zu einem Kind schreibt."
     },
     "parent_appointment": {
       "label": "Neuer oder geänderter Termin",
@@ -31,11 +31,11 @@
     },
     "parent_request_decided": {
       "label": "Entscheidung über Ihre Anfrage",
-      "description": "Wenn die OGS über eine Ihrer Anfragen entschieden hat."
+      "description": "Wenn die {careTerm} über eine Ihrer Anfragen entschieden hat."
     },
     "parent_care_cancelled": {
       "label": "Betreuung fällt aus",
-      "description": "Wenn die OGS einen Betreuungstermin Ihres Kindes absagt."
+      "description": "Wenn die {careTerm} einen Betreuungstermin Ihres Kindes absagt."
     },
     "parent_billing_document": {
       "label": "Neues Dokument vom Träger",
@@ -45,5 +45,7 @@
   "errorObjectList": "die Liste der Benachrichtigungen",
   "errorObjectType": "die Benachrichtigung „{name}“",
   "errorObjectEnableAll": "das Einschalten aller Benachrichtigungen",
-  "errorObjectDisableAll": "das Ausschalten aller Benachrichtigungen"
+  "errorObjectDisableAll": "das Ausschalten aller Benachrichtigungen",
+  "enableAllTooltip": "Schaltet alle Benachrichtigungen auf einmal ein.",
+  "disableAllTooltip": "Schaltet sofort alle Benachrichtigungen von moto für Sie aus."
 }

@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/domain"
 )
 
 type Store interface {
@@ -42,17 +42,21 @@ type TraegerErasureOrderStore interface {
 	FindOpenTraegerErasureOrder(ctx context.Context, organizationID int64, lock string) (organizationtenancy.TraegerErasureOrder, bool, domain.OperationStats, error)
 	InsertTraegerErasureOrder(ctx context.Context, order organizationtenancy.NewTraegerErasureOrder) (organizationtenancy.TraegerErasureOrder, domain.OperationStats, error)
 	WithdrawTraegerErasureOrder(ctx context.Context, orderID, operatorID int64) (bool, domain.OperationStats, error)
+	UpdateTraegerErasureOrderRecords(ctx context.Context, orderID int64, records organizationtenancy.RecordsHandover) (organizationtenancy.TraegerErasureOrder, bool, domain.OperationStats, error)
 }
 
 // TraegerMembershipStore persists platform.organization_accounts (ADR 0084).
 // Every method runs on the caller's administrative transaction.
 type TraegerMembershipStore interface {
+	HasRetainedTraegerMembership(ctx context.Context, accountID int64) (bool, domain.OperationStats, error)
 	ListActiveAccountTraegerIDs(ctx context.Context, accountID int64) ([]int64, domain.OperationStats, error)
 	ListTraegerSchoolIDs(ctx context.Context, organizationID int64) ([]int64, domain.OperationStats, error)
 	ListTraegerBillingKeyDateCounts(ctx context.Context, organizationID int64) ([]domain.BillingKeyDateCount, domain.OperationStats, error)
 	ListTraegerMemberships(ctx context.Context, organizationID int64) ([]organizationtenancy.TraegerMembership, domain.OperationStats, error)
 	UpsertActiveTraegerMembership(ctx context.Context, organizationID, accountID int64) (organizationtenancy.TraegerMembership, domain.OperationStats, error)
 	DeactivateTraegerMembership(ctx context.Context, organizationID, accountID int64) (bool, domain.OperationStats, error)
+	ListTraegerMemberNames(ctx context.Context, organizationID int64, accountIDs []int64) ([]organizationtenancy.TraegerMemberName, domain.OperationStats, error)
+	SetTraegerMemberName(ctx context.Context, organizationID, accountID int64, name string) (bool, domain.OperationStats, error)
 }
 
 type Transaction interface {

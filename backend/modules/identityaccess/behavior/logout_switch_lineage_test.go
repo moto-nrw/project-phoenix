@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -28,7 +28,11 @@ type switchLineageFixture struct {
 
 func newSwitchLineageFixture(t *testing.T, prefix string) switchLineageFixture {
 	t.Helper()
-	db := testpkg.SetupTestDB(t)
+	return newSwitchLineageFixtureOn(t, prefix, testpkg.SetupTestDB(t))
+}
+
+func newSwitchLineageFixtureOn(t *testing.T, prefix string, db *bun.DB) switchLineageFixture {
+	t.Helper()
 	module := setupAuthFactory(t, db)
 	service := newFixtureAuthService(t, db, module)
 	homeTenantID := testpkg.Tenant(t)
@@ -136,7 +140,7 @@ func newOtherDeviceSession(t *testing.T, f switchLineageFixture) identityaccess.
 // committed would leave the switched family alive.
 func TestLogoutWaitsForAConcurrentSwitch(t *testing.T) {
 	t.Parallel()
-	f := newSwitchLineageFixture(t, "logout-switch-race")
+	f := newSwitchLineageFixtureOn(t, "logout-switch-race", lockRacePool(t))
 	ctx := testpkg.Ctx(t)
 	source := accessSessionOf(t, f.access)
 

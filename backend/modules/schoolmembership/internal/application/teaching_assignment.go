@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/domain"
 )
 
 func (s *Service) ListClassAssignments(ctx context.Context, filter schoolmembership.ClassAssignmentFilter) (result []schoolmembership.ClassAssignment, err error) {
@@ -150,6 +150,9 @@ func (s *Service) DeleteGroupAssignment(ctx context.Context, id int64) error {
 // released with it.
 func (s *Service) LockGroupAssignments(ctx context.Context) error {
 	return s.runWrite(ctx, "lock_group_assignments", func(txCtx context.Context, stats *domain.OperationStats) error {
+		if err := admitLeaf(txCtx, true, "education.group_teacher"); err != nil {
+			return err
+		}
 		queryStats, err := s.store.LockGroupAssignments(txCtx)
 		stats.Add(queryStats)
 		return err
@@ -178,6 +181,9 @@ func (s *Service) deleteGroupAssignments(ctx context.Context, operation string, 
 // Assignment writers and retirement serialize on the teacher row. A foreign
 // key alone cannot reject the retained tombstone after retirement commits.
 func (s *Service) requireTeacherForAssignment(ctx context.Context, teacherID int64, stats *domain.OperationStats) error {
+	if err := admitLeaf(ctx, true, "users.teachers"); err != nil {
+		return err
+	}
 	_, found, queryStats, err := s.store.FindTeacher(ctx, teacherID, "SHARE")
 	stats.Add(queryStats)
 	if err != nil {

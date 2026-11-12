@@ -12,15 +12,16 @@ import (
 	"strings"
 	"testing"
 
-	api "github.com/moto-nrw/project-phoenix/api"
+	api "github.com/moto-ogs/project-phoenix/api"
 
-	enrollment "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	enrollment "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 // Real Intake fixture shared by the fault schedules below. The trusted school
@@ -94,7 +95,7 @@ func restoreMatchFailureFixture(t *testing.T) (*decisionTestEnv, int64, []int64,
 	requestSvc := newTestRequestService(owners.EnrollmentIntakeSources{
 		Bookings: requestTestBookingCommands(), Requests: env.repos.Enrollment(), Children: env.repos.Enrollment(),
 		Guardians: env.repos.Enrollment(), CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
-		Catalog: env.repos.Enrollment(), StudentRepo: env.repos.Student, GuardianAuthorizer: env.repos.StudentGuardian,
+		Catalog: env.repos.Enrollment(), StudentRepo: env.repos.Student, GuardianHold: testGuardianHold(env.db, env.repos),
 		SchoolRepo: factorySchools{repos: env.reposSchools}, RateLimitRepo: env.repos.Enrollment(),
 		LateInviteRepo: env.repos.Enrollment(), Uploads: env.repos.Enrollment(), OutboxEnqueuer: env.outbox,
 		Settings: env.settings, FrontendURL: "http://localhost:3000", ParentsURL: "http://parents.localhost:3000", Logger: slog.Default(),
@@ -295,20 +296,20 @@ func TestRestoreMatchedStudentFailureAttribution(t *testing.T) {
 				require.EqualError(t, operationErr, prefix+"failed to check active request for matched student: "+sql.ErrTxDone.Error())
 			case "terminated_connection_after_first_exists":
 				require.NoError(t, callbackErr)
-				var state interface{ Field(byte) string }
+				var state pgdriver.Error
 				require.ErrorAs(t, callErr, &state)
 				require.Equal(t, "57P01", state.Field('C'))
-				require.EqualError(t, operationErr, prefix+"failed to check active request for matched student: FATAL: terminating connection due to administrator command (SQLSTATE=57P01)")
+				require.EqualError(t, operationErr, prefix+"failed to check active request for matched student: "+state.Error())
 			default:
 				require.Error(t, callbackErr)
-				var state interface{ Field(byte) string }
+				var state pgdriver.Error
 				require.ErrorAs(t, callErr, &state)
 				require.Equal(t, "25P02", state.Field('C'))
 				detail := "failed to check active request for matched student: "
 				if mode == "first_lock_failure" {
 					detail = "failed to acquire existing-student match lock: "
 				}
-				require.EqualError(t, operationErr, prefix+detail+"ERROR: current transaction is aborted, commands ignored until end of transaction block (SQLSTATE=25P02)")
+				require.EqualError(t, operationErr, prefix+detail+state.Error())
 			}
 			require.NotNil(t, request.WithdrawnAt)
 			require.Empty(t, audit)

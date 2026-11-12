@@ -8,6 +8,8 @@ import (
 	"log/slog"
 	"strings"
 	"time"
+
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // This file holds the poll (Umfrage, #1371) half of the staff announcement
@@ -211,13 +213,11 @@ func (s *service) pushPollReminder(ctx context.Context, a *StaffParentAnnounceme
 			return nil, nil
 		}
 	}
-	groups := make(map[string][]int64)
-	for _, accountID := range accountIDs {
-		groups[localeByAccount[accountID]] = append(groups[localeByAccount[accountID]], accountID)
-	}
-	for locale, group := range groups {
+	locales, groups := localeGroups(accountIDs, localeByAccount)
+	events := make([]communication.NotificationEvent, 0, len(locales))
+	for _, locale := range locales {
 		title, body := s.deliveryPolicy.ParentAnnouncementCopy(locale, ParentPollReminder)
-		err := s.notifier.Notify(ctx, NotificationEvent{
+		events = append(events, NotificationEvent{
 			Type:           parentAnnouncementNotificationType,
 			IdempotencyKey: fmt.Sprintf("parent-poll-reminder:%d:%d", a.ID, a.UpdatedAt.UTC().UnixNano()),
 			RelatedType:    relatedEntityTypePollReminder, RelatedID: a.ID,
@@ -228,19 +228,20 @@ func (s *service) pushPollReminder(ctx context.Context, a *StaffParentAnnounceme
 			Audience: NotificationAudience{
 				TenantID:           a.GetTenantID(),
 				Scope:              ScopeGuardian,
-				GuardianAccountIDs: group,
+				GuardianAccountIDs: groups[locale],
 			},
 		}.Public())
-		if s.deliveryPolicy.IsNotificationsDisabled(err) || s.deliveryPolicy.IsOutsideActiveWindow(err) {
-			s.logger.Info("parent poll reminder push suppressed by tenant notification gate",
-				slog.Int64("announcement_id", a.ID),
-				slog.String("reason", err.Error()),
-			)
-			return nil, nil
-		}
-		if err != nil {
-			return nil, fmt.Errorf("announcement: notify poll reminder audience: %w", err)
-		}
+	}
+	_, err := s.notifyEach(ctx, events)
+	if s.deliveryPolicy.IsNotificationsDisabled(err) || s.deliveryPolicy.IsOutsideActiveWindow(err) {
+		s.logger.Info("parent poll reminder push suppressed by tenant notification gate",
+			slog.Int64("announcement_id", a.ID),
+			slog.String("reason", err.Error()),
+		)
+		return nil, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("announcement: notify poll reminder audience: %w", err)
 	}
 	return accountIDs, nil
 }

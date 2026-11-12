@@ -21,18 +21,19 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/modules/traegerview"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-ogs/project-phoenix/modules/traegerview"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 // traegerPortalHandler is the /traeger router with the mailbox its second
@@ -63,9 +64,26 @@ func traegerPortalOn(t *testing.T, db *bun.DB, unit tenant.UnitOfWork, options .
 	return &traegerPortalHandler{Handler: traegerPortalRouter(t, db, auth.Auth, unit), mail: mail}, auth.Auth
 }
 
+// traegerPortalWithDays is traegerPortalOn whose host schools give no care
+// on days (#6447).
+func traegerPortalWithDays(t *testing.T, db *bun.DB, unit tenant.UnitOfWork, days owners.HolidayTestSchoolCalendar) *traegerPortalHandler {
+	t.Helper()
+	mail := testpkg.NewCapturingMailer()
+	auth, err := NewAuthTestModule(testpkg.NewDatabase(t, db), unit, WithAuthTestMailer(mail))
+	require.NoError(t, err)
+	return &traegerPortalHandler{Handler: traegerPortalRouterWithDays(t, db, auth.Auth, unit, days), mail: mail}
+}
+
 // traegerPortalRouter builds the /traeger router over identity, with the
 // Elternabrechnung's routes the serving root mounts beside it (#4664).
 func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentity, unit tenant.UnitOfWork) http.Handler {
+	t.Helper()
+	return traegerPortalRouterWithDays(t, db, identity, unit, owners.HolidayTestSchoolCalendar{})
+}
+
+// traegerPortalRouterWithDays builds the /traeger router whose host schools
+// give no care on days.
+func traegerPortalRouterWithDays(t *testing.T, db *bun.DB, identity TraegerPortalIdentity, unit tenant.UnitOfWork, days owners.HolidayTestSchoolCalendar) http.Handler {
 	t.Helper()
 	database := testpkg.NewDatabase(t, db)
 	organizations, err := owners.NewOrganizationTenancy(database)
@@ -76,8 +94,13 @@ func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentit
 	require.NoError(t, err)
 	settings, err := owners.BuildTraegerSettings(database, unit, slog.Default(), organizations, nil)
 	require.NoError(t, err)
+	delivery, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
+		DB: db, People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
+	})
+	require.NoError(t, err)
 	portal, err := NewTraegerPortalHTTP(identity, organizations, owners.MustNewPeopleDirectory(database), membership,
-		TraegerAudit{Trail: audit.AccessTrail, Log: audit.DataAccessLog}, settings, testHealthCipher())
+		TraegerAudit{Trail: audit.AccessTrail, Log: audit.DataAccessLog}, settings, testHealthCipher(), days,
+		holidayTraegerMail{delivery: delivery.Module}, newHolidayOfficeTraeger(organizations))
 	require.NoError(t, err)
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
@@ -86,17 +109,19 @@ func traegerPortalRouter(t *testing.T, db *bun.DB, identity TraegerPortalIdentit
 		})
 	})
 	router.Mount("/traeger", portal.RouterWithAuthRateLimiter(nil, ProtectedTraegerRoutes))
-	delivery, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
-		DB: db, People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
-	})
-	require.NoError(t, err)
 	schoolSettings, err := owners.NewSettingsTestModule(database, unit)
 	require.NoError(t, err)
 	presence, err := presenceCompose.New(presenceCompose.Dependencies{DB: db, Observe: func(presenceCompose.Observation) {}})
 	require.NoError(t, err)
-	mountParentBillingRoutes(router, organizations, settings, schoolSettings.Settings, presence, delivery.Module, providerBlockOutcomes{delivery.EmailOutcomes}, testHealthCipher(), slog.Default())
+	bankCipher, err := BankDataCipher(testpkg.TestBankDataKeys, "")
+	require.NoError(t, err)
+	mountParentBillingRoutes(router, router, organizations, settings, schoolSettings.Settings, presence, delivery.Module, providerBlockOutcomes{delivery.EmailOutcomes}, testHealthCipher(), bankCipher, days, slog.Default())
+	mountTraegerClosingDayRoutes(router, owners.NewTraegerCalendarSchools(organizations, schoolSettings.Settings), organizations,
+		owners.HolidayClosureMail{Delivery: delivery.Module, TraegerMails: delivery.TraegerMails}, days, closureTestHolidays{})
+	mountHolidayClosureNotificationRoutes(router, router, organizations,
+		owners.HolidayClosureMail{Delivery: delivery.Module, TraegerMails: delivery.TraegerMails}, days, closureTestHolidays{}, slog.Default())
 	mountCareContractRoutes(router, organizations, settings, schoolSettings.Settings, delivery.Module, providerBlockOutcomes{delivery.EmailOutcomes}, audit.DataAccessLog,
-		owners.NewCareContractNoticeAddressees(owners.MustNewPeopleDirectory(database), identity), "http://parents.localhost:3000")
+		owners.NewCareContractNoticeAddressees(owners.MustNewPeopleDirectory(database), identity), owners.CareContractTestHolidays{}, "http://parents.localhost:3000")
 	return testpkg.SessionVerifier(router)
 }
 
@@ -475,13 +500,16 @@ func TestTraegerSchoolViewRefusesAnotherTraegersSchoolAndAMissingRight(t *testin
 	code, answer := traegerSignIn(t, router, account.Email, password, 0)
 	require.Equal(t, http.StatusOK, code)
 
+	// A foreign and an unknown school answer 404 traeger.school_not_found,
+	// like the Absprung (#6461), so the route reveals no school.
 	foreignAnswer := traegerSchoolView(t, router, answer.AccessToken, foreignSchool)
-	assert.Equal(t, http.StatusForbidden, foreignAnswer.Code, foreignAnswer.Body.String())
+	assert.Equal(t, http.StatusNotFound, foreignAnswer.Code, foreignAnswer.Body.String())
 	assert.NotContains(t, foreignAnswer.Body.String(), "OGS Fremd")
 	assert.Contains(t, foreignAnswer.Body.String(), "traeger.school_not_found")
 
 	missing := traegerSchoolView(t, router, answer.AccessToken, foreignSchool+1_000_000)
-	assert.Equal(t, http.StatusForbidden, missing.Code, "an unknown school answers like a foreign one, so the route reveals no school")
+	assert.Equal(t, http.StatusNotFound, missing.Code, "an unknown school answers like a foreign one, so the route reveals no school")
+	assert.Contains(t, missing.Body.String(), "traeger.school_not_found")
 
 	withoutRole := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, own, withoutRole.ID)
@@ -489,6 +517,7 @@ func TestTraegerSchoolViewRefusesAnotherTraegersSchoolAndAMissingRight(t *testin
 	require.Equal(t, http.StatusOK, code)
 	withoutRight := traegerSchoolView(t, router, answer.AccessToken, ownSchool)
 	assert.Equal(t, http.StatusForbidden, withoutRight.Code, withoutRight.Body.String())
+	assert.NotContains(t, withoutRight.Body.String(), "traeger.school_not_found", "a missing right is no missing school")
 }
 
 func TestTraegerSchoolListQueryBudgetIsFlat(t *testing.T) {
@@ -517,4 +546,13 @@ func TestTraegerSchoolListQueryBudgetIsFlat(t *testing.T) {
 	testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Fünf")
 	assert.Len(t, list().Statements, len(three.Statements), "the school list reads the same statements for any number of schools")
 	querybudgets.AssertQueryBudget(t, "api.traeger.schools", three)
+}
+
+// closureTestHolidays knows every federal state and no statutory holiday.
+type closureTestHolidays struct{}
+
+func (closureTestHolidays) ValidHolidayRegion(string) bool { return true }
+
+func (closureTestHolidays) ListHolidays(context.Context, string, string, string) ([]schoolcalendar.Holiday, error) {
+	return nil, nil
 }

@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The numbers of the families keep to their Träger below row level security
@@ -89,7 +89,7 @@ func TestFamilyChildrenFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 		_, err = store.DeleteFamilyChildren(ctx, own.organization, family)
 		assert.ErrorIs(t, err, parentbilling.ErrFamilyChildrenNotFound, "the other Träger's family is not the own")
 
-		_, err = store.StateFamilyChildren(ctx, own.organization, 0, family, contracts[own.organization], 2)
+		_, _, err = store.StateFamilyChildren(ctx, own.organization, 0, family, contracts[own.organization], 2, nil)
 		require.NoError(t, err)
 		counts, err = store.FamilyChildCounts(ctx, own.organization)
 		require.NoError(t, err)
@@ -129,7 +129,7 @@ func TestFamilyChildrenStatementAfterConfirmationIsNewer(t *testing.T) {
 		_, err = store.ConfirmFamilyChildren(ctx, own.organization, 0, family,
 			parentbilling.FamilyChildrenInput{ContractID: contract, Children: 2, ValidFrom: calendar.NewDate(2029, 9, 1)})
 		require.NoError(t, err)
-		_, err = store.StateFamilyChildren(ctx, own.organization, 0, family, contract, 3)
+		_, _, err = store.StateFamilyChildren(ctx, own.organization, 0, family, contract, 3, nil)
 		require.NoError(t, err)
 		count, found, err := store.FamilyChildCount(ctx, own.organization, family)
 		require.NoError(t, err)

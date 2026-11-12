@@ -4,11 +4,11 @@ import (
 	"context"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/compose/presenceservice"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 type dataAccessAudit struct {
@@ -76,11 +76,16 @@ type parentChildDataAccess struct {
 
 func (a parentChildDataAccess) RecordHolidayRegistrationPrefill(ctx context.Context, access parentportal.ChildDataAccess) error {
 	studentID := access.StudentID
+	metadata := map[string]any{"organization_id": access.OrganizationID}
+	if access.HolidayWish {
+		// The prefill also read the holiday care wish (#4703).
+		metadata["holiday_wish"] = true
+	}
 	return a.writer.Create(ctx, &auditModels.DataAccessLog{
 		ActorAccountID: access.ActorAccountID, ActorRole: "guardian",
 		ResourceType: auditModels.ResourceTypeHolidayPrefill, StudentID: &studentID,
 		RangeStart: access.AccessedAt, RangeEnd: access.AccessedAt, AccessedAt: access.AccessedAt,
-		Metadata: map[string]any{"organization_id": access.OrganizationID},
+		Metadata: metadata,
 	})
 }
 
@@ -152,6 +157,10 @@ func (a holidayGuestAccessLog) RecordHolidayGuestAccess(ctx context.Context, acc
 	case enrollmentOwner.HolidayGuestAccessSheet:
 		studentID := access.StudentID
 		entry.ResourceType, entry.StudentID = auditModels.ResourceTypeHolidayGuestSheet, &studentID
+	case enrollmentOwner.HolidayGuestAccessOwnChild:
+		studentID := access.StudentID
+		entry.ResourceType, entry.StudentID = auditModels.ResourceTypeHolidayStudentRegistration, &studentID
+		entry.Metadata = map[string]any{"week_ids": access.WeekIDs}
 	default:
 		entry.ResourceType = auditModels.ResourceTypeHolidayGuestTransfer
 		entry.Metadata["guests"] = access.Guests

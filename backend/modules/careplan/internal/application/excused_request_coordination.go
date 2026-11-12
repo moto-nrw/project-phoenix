@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 )
 
 // GetExcusedBulkCandidate reads the named requests of a bulk approval
@@ -54,11 +54,11 @@ func (w *ExcusedRequests) GetExcusedBulkCandidate(ctx context.Context, requestID
 		if err != nil {
 			return nil, err
 		}
-		eligible, _, _, err := w.excusedBulkEligibility(ctx, &req, students[req.StudentID], view, today, facts)
+		eligibility, err := w.excusedBulkEligibility(ctx, &req, students[req.StudentID], view, today, facts)
 		if err != nil {
 			return nil, err
 		}
-		candidates[id] = careplan.ExcusedBulkCandidate{ID: req.ID, StudentID: req.StudentID, UpdatedAt: req.UpdatedAt, Eligible: eligible}
+		candidates[id] = careplan.ExcusedBulkCandidate{ID: req.ID, StudentID: req.StudentID, UpdatedAt: req.UpdatedAt, Eligible: eligibility.eligible}
 	}
 	return candidates, nil
 }

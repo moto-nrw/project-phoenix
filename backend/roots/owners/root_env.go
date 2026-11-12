@@ -4,11 +4,11 @@ import (
 	"log/slog"
 	"time"
 
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	communicationCompose "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	filestorageCompose "github.com/moto-ogs/project-phoenix/modules/filestorage/compose"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // RootEnvironment is the process configuration every typed root builds its
@@ -26,11 +26,22 @@ type RootEnvironment struct {
 	// HealthData seals and opens the health information of the holiday
 	// registrations (#4722); the root builds it from HEALTH_DATA_KEYS.
 	HealthData HealthDataCipher
+	// BankData uses only BANK_DATA_KEYS and the explicit temporary legacy ring.
+	BankData BankDataCipher
 }
 
 // HealthDataCipher seals and opens single database values bound to their
 // context. The roots bind Security Runtime's field cipher (#4722).
 type HealthDataCipher interface {
+	Seal(plaintext, context []byte) ([]byte, error)
+	Open(sealed, context []byte) ([]byte, error)
+}
+
+// BankDataCipher is the root's owner-neutral bank-value port, kept nominally
+// separate from HealthDataCipher so their bindings cannot be conflated.
+type BankDataCipher interface {
+	// BankDataRing prevents health-only ciphers from satisfying this port.
+	BankDataRing()
 	Seal(plaintext, context []byte) ([]byte, error)
 	Open(sealed, context []byte) ([]byte, error)
 }

@@ -6,8 +6,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The Mensa of the monthly run (#4686, ADR 0168), computed by hand. The
@@ -74,6 +74,66 @@ func TestCareMealsMatchOnlyAnUnambiguousChild(t *testing.T) {
 			assert.Equal(t, wantContract, month.invoices[0].ContractID)
 		})
 	}
+}
+
+// The April run bills May 2025 through April 2026, including both ends.
+// An older namesake cannot block Mia; one at the lower boundary must.
+func TestCareMealsResolveNamesWithinTheTwelveMonthWindow(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		name      string
+		month     calendar.Date
+		ambiguous bool
+	}{
+		{"immediately outside", calendar.NewDate(2025, 4, 1), false},
+		{"first month inside", calendar.NewDate(2025, 5, 1), true},
+		{"after the run", calendar.NewDate(2026, 5, 1), false},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+			month, versions := mealMonth(t)
+			versions[0].StudentID = nil
+			other := mia(3)
+			other.StudentID++
+			billMeals(&month, careMealInput{month: calendar.NewDate(2026, 4, 1), today: calendar.NewDate(2026, 4, 2),
+				tariffs: []parentbilling.CareMealTariff{mealTariff(t, parentbilling.MealModePerMeal, "2025-05-01", 480)},
+				releases: []parentbilling.CareMealRelease{mealRelease(t, "2026-03-01", mia(2)),
+					{SchoolID: schoolIspringen, Month: tc.month, Children: []parentbilling.CareMealChild{other}}}, versions: versions})
+			if tc.ambiguous {
+				assert.Empty(t, month.invoices)
+				require.Len(t, month.mealUnbilled, 2)
+				for _, child := range month.mealUnbilled {
+					assert.Equal(t, parentbilling.MealUnbilledNoContract, child.Reason)
+				}
+				return
+			}
+			require.Len(t, month.invoices, 1)
+			assert.Equal(t, int64(contractMia), month.invoices[0].ContractID)
+			require.Len(t, month.invoices[0].MealPositions, 1)
+			assert.Equal(t, calendar.NewDate(2026, 3, 1), month.invoices[0].MealPositions[0].MealMonth)
+			assert.Equal(t, int64(960), month.invoices[0].TotalCents)
+			assert.Empty(t, month.mealUnbilled)
+		})
+	}
+}
+
+func TestCareReviewFingerprintChangesWhenAMensaNamesakeEntersTheWindow(t *testing.T) {
+	t.Parallel()
+	run := parentbilling.CareRun{ID: 7, SchoolIDs: []int64{schoolIspringen}}
+	review := func(namesakeMonth calendar.Date) reviewedMonth {
+		month, versions := mealMonth(t)
+		versions[0].StudentID = nil
+		other := mia(3)
+		other.StudentID++
+		billMeals(&month, careMealInput{month: calendar.NewDate(2026, 4, 1), today: calendar.NewDate(2026, 4, 2),
+			tariffs: []parentbilling.CareMealTariff{mealTariff(t, parentbilling.MealModePerMeal, "2025-05-01", 480)},
+			releases: []parentbilling.CareMealRelease{mealRelease(t, "2026-03-01", mia(2)),
+				{SchoolID: schoolIspringen, Month: namesakeMonth, Children: []parentbilling.CareMealChild{other}}}, versions: versions})
+		return reviewedMonth{careMonth: month}
+	}
+	before := previewFingerprint(run, parentbilling.MonthRuleVersionOnFirst, review(calendar.NewDate(2025, 4, 1)))
+	assert.NotEqual(t, before, previewFingerprint(run, parentbilling.MonthRuleVersionOnFirst, review(calendar.NewDate(2025, 5, 1))))
+	assert.Equal(t, before, previewFingerprint(run, parentbilling.MonthRuleVersionOnFirst, review(calendar.NewDate(2025, 3, 1))))
 }
 
 func TestCareMealOnlyInvoiceKeepsTheContractsStudentLink(t *testing.T) {

@@ -2,13 +2,12 @@ package fileformat
 
 import (
 	"bytes"
-	"encoding/csv"
 	"fmt"
 	"io"
 
 	"github.com/xuri/excelize/v2"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
 )
 
 // MapOpeningBalanceRow maps column values to an OpeningBalanceImportRow.
@@ -44,7 +43,10 @@ func missingOpeningBalanceColumns(mapping map[string]int) []string {
 
 // ParseOpeningBalanceCSV parses a CSV file into opening balance import rows.
 func ParseOpeningBalanceCSV(reader io.Reader) ([]importModels.OpeningBalanceImportRow, error) {
-	csvReader := csv.NewReader(reader)
+	csvReader, err := newCSVReader(reader)
+	if err != nil {
+		return nil, err
+	}
 	csvReader.FieldsPerRecord = -1
 	csvReader.TrimLeadingSpace = true
 	csvReader.LazyQuotes = true

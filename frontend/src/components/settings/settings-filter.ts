@@ -29,6 +29,8 @@ export const TAB_LABELS: Record<string, string> = {
   vertraege: "Betreuungsverträge",
   // Grenzen der Auffälligkeiten im Dashboard (#4675); nur im Träger-Portal.
   dashboard: "Dashboard",
+  // DATEV-Buchungsstapel der Elternabrechnung (#4694); nur im Träger-Portal.
+  datev: "DATEV",
 };
 
 export function displayTabLabel(tab: SchemaTab): string {
@@ -63,17 +65,20 @@ export const categoryLabels: Record<string, string> = {
   dateien: "Dateien",
   datenbereinigung: "Automatisch löschen",
   datev_mandant: "DATEV-Mandant",
+  "datev-buchungen": "Buchungen",
   "e-mail": "E-Mail",
   einladungen: "Einladungen",
   elternmeldungen: "Meldungen von Eltern",
   elternportal: "Elternportal",
   essensplan: "Speiseplan",
   feedback: "Feedback der Kinder",
+  "ferien-anmeldung": "Ferienanmeldung",
   "ferien-beitrag": "Ferienbeitrag",
   "ferien-bestaetigung": "Bestätigen einer Ferienanmeldung",
   "ferien-schreiben": "Schreiben an die Familien",
   "monatsbeitrag-lauf": "Monatslauf",
   "monatsbeitrag-pruefung": "Rechnungen vor dem Ausstellen ändern",
+  "monatsbeitrag-lastschrift": "Lastschrift",
   "vertraege-unterschrift": "Unterschrift der Eltern",
   formular: "Anmeldeformular",
   "fristen-essen": "Fristen",

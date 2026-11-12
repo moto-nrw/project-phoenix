@@ -4,9 +4,9 @@ import (
 	"context"
 	"net"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	schoolPortal "github.com/moto-nrw/project-phoenix/modules/schoolportal"
-	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	schoolPortal "github.com/moto-ogs/project-phoenix/modules/schoolportal"
+	parentAPI "github.com/moto-ogs/project-phoenix/workflows/parentportal/http"
 )
 
 // The root binds the portals' sign-in runtimes to Identity & Access and fixes
@@ -55,10 +55,12 @@ func SchoolPortalMFA(mfa identityaccess.AccountMFA) schoolPortal.MFARuntime {
 		ResendChallenge: func(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
 			return mfa.ResendMFAChallengeForScope(ctx, challengeToken, ip, identityaccess.MFAChallengeScopeSchool)
 		},
-		StartChallenge: func(ctx context.Context, accountID, tenantID int64, ip net.IP) (string, error) {
-			return mfa.StartMFAChallenge(ctx, accountID, tenantID, identityaccess.MFAChallengeScopeSchool, ip)
+		StartChallenge: func(ctx context.Context, accountID, tenantID int64, ip net.IP, credentialGeneration int64) (string, error) {
+			return mfa.StartMFAChallenge(ctx, accountID, tenantID, identityaccess.MFAChallengeScopeSchool, ip, credentialGeneration)
 		},
-		Enroll:               mfa.EnrollMFA,
+		Enroll: func(ctx context.Context, proof schoolPortal.VerifiedChallenge) error {
+			return mfa.EnrollMFA(ctx, identityaccess.VerifiedMFAChallenge{AccountID: proof.AccountID, TenantID: proof.TenantID, Scope: identityaccess.MFAChallengeScopeSchool, MFAResetGeneration: proof.MFAResetGeneration})
+		},
 		PrepareTrustedDevice: mfa.PrepareTrustedDevice,
 	}
 }

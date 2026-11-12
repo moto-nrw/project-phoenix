@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // gatedFutureRenewal is setupFutureRenewal with the tenant recurrence gate
@@ -65,7 +65,7 @@ func whilePhaseStartMoves(
 	}
 	done := make(chan error, 1)
 	editErr = testpkg.WithTenantTx(t, ctx, r.env.db, testpkg.Tenant(t), func(editCtx context.Context, tx bun.Tx) error {
-		if err := phases.UpdatePhase(editCtx, first); err != nil {
+		if err := phaseEdit(phases)(editCtx, first); err != nil {
 			return err
 		}
 		var pid int
@@ -79,7 +79,7 @@ func whilePhaseStartMoves(
 		if !moveAfterBlock {
 			return nil
 		}
-		return phases.UpdatePhase(editCtx, moved)
+		return phaseEdit(phases)(editCtx, moved)
 	})
 	select {
 	case writeErr = <-done:

@@ -2,6 +2,7 @@
 
 import { expandClosingDaysToMap } from "~/lib/closing-day-helpers";
 import {
+  berlinClockFromISO,
   berlinTodayISO,
   endOfBerlinDayISO,
   parseISODate,
@@ -33,8 +34,8 @@ export interface BackendWorkSession {
 }
 
 export interface BackendWorkSessionBreak {
-  id: number;
-  session_id: number;
+  id: number | string;
+  session_id: number | string;
   started_at: string;
   ended_at: string | null;
   duration_minutes: number;
@@ -51,6 +52,8 @@ export interface BackendWorkSessionHistory extends BackendWorkSession {
   breaks: BackendWorkSessionBreak[] | null;
   edit_count: number;
   audit_count?: number;
+  pack_up_minutes?: number;
+  rounding_minutes?: number;
 }
 
 export interface BackendWeeklySummary {
@@ -257,6 +260,10 @@ export interface WorkSessionHistory extends WorkSession {
   breaks: WorkSessionBreak[];
   editCount: number;
   auditCount?: number;
+  /** Pack-up minutes credited for a regular checkout (#6852). */
+  packUpMinutes?: number;
+  /** Signed change the rounding made to the block's duration (#6851). */
+  roundingMinutes?: number;
 }
 
 export interface WorkSessionDayMinutes {
@@ -345,8 +352,11 @@ export function indexWorkSessionMinutesByBerlinDate(
       const nextMidnight =
         new Date(endOfBerlinDayISO(parseISODate(date))).getTime() + 1_000;
       const segmentEnd = Math.min(end.getTime(), nextMidnight);
-      const minutes = Math.floor((segmentEnd - cursor.getTime()) / 60_000);
-      if (minutes > 0) grossByDate.set(date, minutes);
+      // Allocate differences of cumulative minutes, as the backend does.
+      const minutes =
+        Math.floor((segmentEnd - start.getTime()) / 60_000) -
+        Math.floor((cursor.getTime() - start.getTime()) / 60_000);
+      grossByDate.set(date, minutes);
       cursor = new Date(segmentEnd);
     }
 
@@ -363,12 +373,25 @@ export function indexWorkSessionMinutesByBerlinDate(
         const nextMidnight =
           new Date(endOfBerlinDayISO(parseISODate(date))).getTime() + 1_000;
         const segmentEnd = Math.min(clippedEnd, nextMidnight);
-        const minutes = Math.floor((segmentEnd - cursor) / 60_000);
+        const round = workBreak.endedAt == null ? Math.floor : Math.round;
+        const minutes =
+          round((segmentEnd - breakStart.getTime()) / 60_000) -
+          round((cursor - breakStart.getTime()) / 60_000);
         if (minutes > 0) {
           breakByDate.set(date, (breakByDate.get(date) ?? 0) + minutes);
         }
         cursor = segmentEnd;
       }
+    }
+
+    // A rounded pause may exceed a day's full gross minutes. Carry the
+    // deduction forward, matching netMinutesByDate on the backend.
+    let pendingBreakMinutes = 0;
+    for (const [date, gross] of grossByDate) {
+      pendingBreakMinutes += breakByDate.get(date) ?? 0;
+      const deducted = Math.min(gross, pendingBreakMinutes);
+      breakByDate.set(date, deducted);
+      pendingBreakMinutes -= deducted;
     }
 
     // Legacy rows only retain the total. The server assigns it to the earliest
@@ -386,27 +409,54 @@ export function indexWorkSessionMinutesByBerlinDate(
     // The server's live net_minutes already deducts a currently running
     // break. Recomputing it from the ended-break cache would make the chart
     // continue to count work during that break.
-    const netTotal = session.netMinutes;
+    const credit =
+      checkOut !== null && end.getTime() === checkOut.getTime()
+        ? (session.packUpMinutes ?? 0) + (session.roundingMinutes ?? 0)
+        : 0;
+    // Split stamped net minutes first. Credit is a checkout booking, not a
+    // proportional increase or decrease of every day in a night block.
+    const netTotal = Math.max(0, session.netMinutes - credit);
     const grossTotal = [...grossByDate.values()].reduce(
       (sum, value) => sum + value,
       0,
     );
     let allocated = 0;
-    const portions = [...grossByDate.entries()].map(([date, gross]) => {
-      const net = Math.floor(
-        (netTotal * Math.max(0, gross - (breakByDate.get(date) ?? 0))) /
-          Math.max(
-            1,
-            grossTotal -
-              [...breakByDate.values()].reduce((sum, value) => sum + value, 0),
-          ),
-      );
-      allocated += net;
-      return { date, net, gross };
-    });
+    const portions = [...grossByDate.entries()]
+      .filter(
+        ([date, gross]) =>
+          gross > 0 ||
+          (credit !== 0 &&
+            date === berlinTodayISO(new Date(end.getTime() - 1))),
+      )
+      .map(([date, gross]) => {
+        const net = Math.floor(
+          (netTotal * Math.max(0, gross - (breakByDate.get(date) ?? 0))) /
+            Math.max(
+              1,
+              grossTotal -
+                [...breakByDate.values()].reduce(
+                  (sum, value) => sum + value,
+                  0,
+                ),
+            ),
+        );
+        allocated += net;
+        return { date, net, gross };
+      });
     // Keep integer totals exact; the final minute belongs to the latest segment.
     if (portions.length > 0)
       portions[portions.length - 1]!.net += netTotal - allocated;
+
+    // The final floor may have consumed some credit through excess breaks.
+    // Reconcile to the authoritative total only after all deductions, carrying
+    // rounding deductions backwards rather than discarding them at midnight.
+    let adjustment = session.netMinutes - netTotal;
+    for (let i = portions.length - 1; i >= 0 && adjustment !== 0; i--) {
+      const portion = portions[i]!;
+      const applied = Math.max(-portion.net, adjustment);
+      portion.net += applied;
+      adjustment -= applied;
+    }
 
     for (const { date, net } of portions) {
       const existing = result.get(date) ?? { netMinutes: 0, breakMinutes: 0 };
@@ -516,6 +566,8 @@ export function mapWorkSessionHistoryResponse(
     breaks: (data.breaks ?? []).map(mapWorkSessionBreakResponse),
     editCount: data.edit_count ?? 0,
     auditCount: data.audit_count ?? 0,
+    packUpMinutes: data.pack_up_minutes ?? 0,
+    roundingMinutes: data.rounding_minutes ?? 0,
   };
 }
 
@@ -630,8 +682,18 @@ export function formatDuration(minutes: number | null | undefined): string {
   return `${hours}h ${mins}min`;
 }
 
+/** A time field the person emptied (#6293). */
+export const TIME_REQUIRED_HINT = "Bitte eine Uhrzeit eintragen.";
+
 /**
- * Formats ISO timestamp to time string
+ * An emptied end of a stored block: the backend keeps a stored end when the
+ * field is left out and has no way to remove it (#6293).
+ */
+export const STORED_END_NOT_CLEARABLE_HINT =
+  "Ein gespeichertes Ende lässt sich nicht löschen. Bitte eine Uhrzeit eintragen.";
+
+/**
+ * Formats ISO timestamp as Berlin wall-clock time, whatever the browser's zone
  * @param isoString - ISO 8601 timestamp
  * @returns Formatted time like "08:15" or "--:--"
  */
@@ -639,19 +701,8 @@ export function formatTime(isoString: string | null | undefined): string {
   if (!isoString) {
     return "--:--";
   }
-
-  try {
-    const date = new Date(isoString);
-    if (Number.isNaN(date.getTime())) {
-      return "--:--";
-    }
-
-    const hours = date.getHours().toString().padStart(2, "0");
-    const minutes = date.getMinutes().toString().padStart(2, "0");
-    return `${hours}:${minutes}`;
-  } catch {
-    return "--:--";
-  }
+  // School time, not the browser's zone (#6293).
+  return berlinClockFromISO(isoString) || "--:--";
 }
 
 /**

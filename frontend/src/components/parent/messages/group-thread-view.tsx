@@ -1,5 +1,11 @@
 "use client";
 
+import { useParentAttachmentLabels } from "~/components/parent/messages/attachment-labels";
+import {
+  attachmentIdArgs,
+  guardianMessageAttachments,
+  type MessageAttachment,
+} from "~/lib/message-attachments";
 import { useMessageSendAttempt } from "~/lib/swr/optimistic";
 import { InsetPanel } from "~/components/ui/inset-panel";
 
@@ -10,7 +16,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { ChatBubble } from "~/components/messaging/chat-bubble";
 import { MessageComposer } from "~/components/messaging/message-composer";
 import {
@@ -40,6 +46,8 @@ import {
   parentReadersLine,
 } from "~/lib/messaging-status";
 import { parentPath } from "~/lib/parent-url";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
+import { useParentCareTerms } from "~/lib/parent-care-term";
 
 const logger = createLogger({ component: "ParentGroupThreadView" });
 
@@ -63,10 +71,14 @@ function childName(child: GroupThreadChild): string {
 export function ParentGroupThreadView({
   groupThreadId,
 }: Readonly<{ groupThreadId: string }>) {
-  const t = useTranslations("parentGroupThreads");
-  const tm = useTranslations("parentMessages");
-  const locale = useLocale();
   const [thread, setThread] = useState<GroupThreadData | null>(null);
+  // Eine Gruppennachricht kommt von einer Schule: ihre Texte nennen die
+  // Betreuung so, wie diese Schule sie nennt (#6082).
+  const { termOfSchool } = useParentCareTerms();
+  const threadTerm = termOfSchool(thread?.school_name);
+  const t = useCareTermTranslations("parentGroupThreads", threadTerm);
+  const tm = useCareTermTranslations("parentMessages", threadTerm);
+  const locale = useLocale();
   const [loading, setLoading] = useState(true);
   // Children of the thread the guardian may write for (notes.write).
   const [writable, setWritable] = useState<GroupThreadChild[] | null>(null);
@@ -152,48 +164,66 @@ export function ParentGroupThreadView({
     return () => window.removeEventListener("focus", refresh);
   }, []);
 
+  const attachmentLabels = useParentAttachmentLabels();
   const attempt = useMessageSendAttempt(
     `parent-group-reply:${groupThreadId}:${selected ?? ""}`,
   );
-  const handleSend = useCallback(async () => {
-    const body = draft.trim();
-    if (!body || sending || !selected) return;
-    const clientMessageId = attempt.begin(body);
-    setSending(true);
-    clearSendError();
-    try {
-      await postChildMessage(
-        selected,
-        body,
-        groupThreadId,
-        "team",
-        clientMessageId,
+  // The files of the last attempt: a retry sends them again.
+  const sentFiles = useRef<readonly MessageAttachment[]>([]);
+  // Whether the last attempt arrived: otherwise the composer keeps the files.
+  const sendArrived = useRef(true);
+  const handleSend = useCallback(
+    async (picked?: readonly MessageAttachment[]) => {
+      const attachments = picked ?? sentFiles.current;
+      const body = draft.trim();
+      if ((!body && attachments.length === 0) || sending || !selected) return;
+      sentFiles.current = attachments;
+      sendArrived.current = true;
+      const clientMessageId = attempt.begin(
+        [body, ...attachments.map((attachment) => attachment.id)].join(
+          "\u0000",
+        ),
       );
-      attempt.complete(clientMessageId);
-      if (!mountedRef.current) return;
-      setDraft("");
-      setSentFor(selected);
-    } catch (err) {
-      logger.warn("group_thread_answer_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void showSendError(err, {
-        object: t("errorObjectAnswer"),
-        retry: () => void sendRef.current(),
-      });
-    } finally {
-      if (mountedRef.current) setSending(false);
-    }
-  }, [
-    draft,
-    sending,
-    selected,
-    groupThreadId,
-    attempt,
-    clearSendError,
-    showSendError,
-    t,
-  ]);
+      setSending(true);
+      clearSendError();
+      try {
+        await postChildMessage(
+          selected,
+          body,
+          groupThreadId,
+          "team",
+          clientMessageId,
+          ...attachmentIdArgs(attachments),
+        );
+        attempt.complete(clientMessageId);
+        sentFiles.current = [];
+        if (!mountedRef.current) return;
+        setDraft("");
+        setSentFor(selected);
+      } catch (err) {
+        sendArrived.current = false;
+        logger.warn("group_thread_answer_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        void showSendError(err, {
+          object: t("errorObjectAnswer"),
+          retry: () => void sendRef.current(),
+        });
+      } finally {
+        if (mountedRef.current) setSending(false);
+      }
+    },
+    [
+      draft,
+      sending,
+      selected,
+      groupThreadId,
+      attempt,
+      clearSendError,
+      showSendError,
+      t,
+    ],
+  );
   const sendRef = useRef(handleSend);
   useLayoutEffect(() => {
     sendRef.current = handleSend;
@@ -223,6 +253,8 @@ export function ParentGroupThreadView({
     ? parentReadersLine(thread.readers, tm)
     : null;
   const chatChild = sentFor ?? selected ?? thread.children[0]?.student_id;
+  // Any of the guardian's children the thread reached opens its files.
+  const firstChild = thread.children[0]?.student_id;
   const chatLink = chatChild ? (
     <NavigationLink
       href={parentPath(childConversationPath(chatChild))}
@@ -256,6 +288,13 @@ export function ParentGroupThreadView({
               createdAt={message.created_at}
               locale={locale}
               tone="parent"
+              attachments={message.attachments}
+              attachmentUrl={
+                firstChild
+                  ? guardianMessageAttachments(firstChild).downloadUrl
+                  : undefined
+              }
+              attachmentLabels={attachmentLabels.bubble}
             />
           ))}
         </div>
@@ -308,8 +347,19 @@ export function ParentGroupThreadView({
             <MessageComposer
               value={draft}
               onChange={setDraft}
-              onSend={() => void handleSend()}
+              onSend={async (files) => {
+                await handleSend(files);
+                return sendArrived.current;
+              }}
               sending={sending}
+              attachments={
+                selected
+                  ? {
+                      uploadUrl: guardianMessageAttachments(selected).uploadUrl,
+                      labels: attachmentLabels.composer,
+                    }
+                  : undefined
+              }
               placeholder={t("replyPlaceholder")}
               tone="parent"
               sendLabel={tm("send")}

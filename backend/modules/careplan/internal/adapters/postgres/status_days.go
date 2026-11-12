@@ -8,8 +8,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
@@ -190,12 +190,15 @@ func (s *statusDayStore) CountStudentStatusDays(ctx context.Context, options *ca
 	return int(count), stats, nil
 }
 
+// CountEffectiveStudentAbsences counts the day's status from the rows that
+// stand for it, active or archived at its end, as the day log, the group
+// view and the class day read them (#6291).
 func (s *statusDayStore) CountEffectiveStudentAbsences(ctx context.Context, date careplan.Date) (careplan.StudentStatusCounts, carePlanCompose.RequestStoreStats, error) {
 	students, err := s.students.ListEnrolledStudents(ctx)
 	if err != nil {
 		return careplan.StudentStatusCounts{}, carePlanCompose.RequestStoreStats{}, err
 	}
-	rows, stats, err := s.ListStudentStatusDays(ctx, careplan.StudentStatusDayFilter{Date: date, ActiveOnly: true})
+	rows, stats, err := s.ListStudentStatusDays(ctx, careplan.StudentStatusDayFilter{Date: date, IncludeEndOfDay: true})
 	if err != nil {
 		return careplan.StudentStatusCounts{}, stats, err
 	}
@@ -235,9 +238,9 @@ func countEffectiveStudentAbsences(students []StatusStudent, byStudent map[int64
 		day := byStudent[student.ID]
 		switch {
 		case (student.Sick != nil && *student.Sick) || day.sick:
-			counts.Sick++
+			counts.SickIDs = append(counts.SickIDs, student.ID)
 		case (student.Excused != nil && *student.Excused) || day.excused || day.classTrip:
-			counts.Excused++
+			counts.ExcusedIDs = append(counts.ExcusedIDs, student.ID)
 		default:
 			counts.UnaccountedIDs = append(counts.UnaccountedIDs, student.ID)
 		}
@@ -373,14 +376,18 @@ func (s *statusDayStore) ClearStudentStatusDays(ctx context.Context, studentID i
 	if err := s.lockStudentDates(ctx, db, tenantID, studentID, rowDates); err != nil {
 		return carePlanCompose.RequestStoreStats{}, err
 	}
-	ids, stats, err := s.activeStatusDayIDs(ctx, studentID, status, rowDates)
+	ids, stats, err := s.standingStatusDayIDs(ctx, studentID, status, rowDates)
 	if err != nil {
 		return stats, err
 	}
+	// An end-of-day archive still stands for its day. Withdrawing it replaces
+	// that source so the day's readers no longer show it; an explicit prior
+	// withdrawal stays untouched. The same rows release their timetable slots.
 	query := withTenant(db.NewUpdate().Model((*studentStatusDayRow)(nil)).
 		ModelTableExpr(`active.student_status_days AS "student_status_day"`).Set("cleared_at = ?", clearedAt).Set("source = ?", source).
 		Where(`"student_status_day".student_id = ?`, studentID).Where(`"student_status_day".status = ?`, status).
-		Where(`"student_status_day".date IN (?)`, bun.List(rowDates)).Where(`"student_status_day".cleared_at IS NULL`), "student_status_day", tenantID)
+		Where(`"student_status_day".date IN (?)`, bun.List(rowDates)).
+		Where(`("student_status_day".cleared_at IS NULL OR "student_status_day".source = ?)`, statusSourceEndDay), "student_status_day", tenantID)
 	writeStats, err := execRequest(ctx, query, "mark student status days cleared", errors.New("student status day was already cleared"))
 	stats.Queries += writeStats.Queries
 	stats.Rows += writeStats.Rows
@@ -400,7 +407,7 @@ func (s *statusDayStore) ClearStudentStatusDays(ctx context.Context, studentID i
 	return stats, nil
 }
 
-func (s *statusDayStore) activeStatusDayIDs(ctx context.Context, studentID int64, status string, dates []calendarDate) ([]int64, carePlanCompose.RequestStoreStats, error) {
+func (s *statusDayStore) standingStatusDayIDs(ctx context.Context, studentID int64, status string, dates []calendarDate) ([]int64, carePlanCompose.RequestStoreStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
 		return nil, carePlanCompose.RequestStoreStats{}, err
@@ -409,12 +416,12 @@ func (s *statusDayStore) activeStatusDayIDs(ctx context.Context, studentID int64
 	query := withTenant(db.NewSelect().TableExpr(`active.student_status_days AS "student_status_day"`).
 		ColumnExpr(`"student_status_day".id`).Where(`"student_status_day".student_id = ?`, studentID).
 		Where(`"student_status_day".status = ?`, status).Where(`"student_status_day".date IN (?)`, bun.List(dates)).
-		Where(`"student_status_day".cleared_at IS NULL`), "student_status_day", tenantID)
+		Where(`("student_status_day".cleared_at IS NULL OR "student_status_day".source = ?)`, statusSourceEndDay), "student_status_day", tenantID)
 	started := time.Now()
 	err = query.Scan(ctx, &ids)
 	stats := requestStats(started, int64(len(ids)))
 	if err != nil {
-		return nil, stats, requestDBError("find active student status day ids", err)
+		return nil, stats, requestDBError("find standing student status day ids", err)
 	}
 	return ids, stats, nil
 }
@@ -465,97 +472,6 @@ func (s *statusDayStore) lockStudentDates(ctx context.Context, db bun.IDB, tenan
 		}
 	}
 	return nil
-}
-
-func (s *statusDayStore) ArchiveStudentStatusFlags(ctx context.Context, value careplan.StatusFlagArchive) (int64, carePlanCompose.RequestStoreStats, error) {
-	if !statusFlagColumnsMatch(value) {
-		return 0, carePlanCompose.RequestStoreStats{}, fmt.Errorf("status flag columns do not match status %q", value.Status)
-	}
-	students, err := s.lockedStatusFlagStudents(ctx, value.Status)
-	if err != nil {
-		return 0, carePlanCompose.RequestStoreStats{}, err
-	}
-	rows, ids := statusFlagArchiveRows(value, students)
-	if len(rows) == 0 {
-		return 0, carePlanCompose.RequestStoreStats{}, nil
-	}
-	db, _, err := s.databaseForWrite(ctx, "archive student status flags")
-	if err != nil {
-		return 0, carePlanCompose.RequestStoreStats{}, err
-	}
-	started := time.Now()
-	_, err = db.NewInsert().Model(&rows).ModelTableExpr("active.student_status_days").
-		On("CONFLICT (tenant_id, student_id, date, status) DO UPDATE").Set("reported_at = EXCLUDED.reported_at").
-		Set("cleared_at = EXCLUDED.cleared_at").Set("source = EXCLUDED.source").Exec(ctx)
-	stats := requestStats(started, int64(len(rows)))
-	if err != nil {
-		return 0, stats, requestDBError("archive status flag", err)
-	}
-	affected, err := s.students.ClearStudentStatusFlags(ctx, ids, value.Status)
-	return affected, stats, err
-}
-
-// statusFlagColumnsMatch rejects an archive whose flag and since columns do
-// not belong to its status.
-func statusFlagColumnsMatch(value careplan.StatusFlagArchive) bool {
-	switch value.Status {
-	case statusSick:
-		return value.FlagColumn == "sick" && value.SinceColumn == "sick_since"
-	case statusExcused:
-		return value.FlagColumn == "excused" && value.SinceColumn == "excused_since"
-	}
-	return true
-}
-
-// lockedStatusFlagStudents locks every student carrying the status flag in ID
-// order, then re-reads the flagged students and keeps only those it locked.
-// It returns nil without locking when no student carries the flag.
-func (s *statusDayStore) lockedStatusFlagStudents(ctx context.Context, status string) ([]StatusStudent, error) {
-	candidates, err := s.students.ListStudentsWithStatusFlag(ctx, status)
-	if err != nil || len(candidates) == 0 {
-		return nil, err
-	}
-	ids := make([]int64, 0, len(candidates))
-	locked := make(map[int64]struct{}, len(candidates))
-	for _, student := range candidates {
-		ids = append(ids, student.ID)
-		locked[student.ID] = struct{}{}
-	}
-	slices.Sort(ids)
-	for _, studentID := range slices.Compact(ids) {
-		if err := s.students.LockStudent(ctx, studentID); err != nil {
-			return nil, err
-		}
-	}
-	students, err := s.students.ListStudentsWithStatusFlag(ctx, status)
-	if err != nil {
-		return nil, err
-	}
-	return slices.DeleteFunc(students, func(student StatusStudent) bool { _, ok := locked[student.ID]; return !ok }), nil
-}
-
-// statusFlagArchiveRows builds one cleared status day per flagged student and
-// returns the student IDs whose flags the archive clears.
-func statusFlagArchiveRows(value careplan.StatusFlagArchive, students []StatusStudent) ([]studentStatusDayRow, []int64) {
-	rows := make([]studentStatusDayRow, 0, len(students))
-	ids := make([]int64, 0, len(students))
-	for _, student := range students {
-		row := studentStatusDayRow{TenantID: student.TenantID, StudentID: student.ID, Date: calendarDate(value.Date), Status: value.Status, ReportedAt: statusFlagReportedAt(value, student), ClearedAt: &value.ReportedFallback, Source: value.Source}
-		rows = append(rows, row)
-		ids = append(ids, student.ID)
-	}
-	return rows, ids
-}
-
-func statusFlagReportedAt(value careplan.StatusFlagArchive, student StatusStudent) time.Time {
-	reportedAt := value.ReportedFallback
-	if value.Status == statusSick && student.SickSince != nil {
-		reportedAt = *student.SickSince
-	}
-	if value.Status == statusExcused && student.ExcusedSince != nil {
-		reportedAt = *student.ExcusedSince
-	}
-	return reportedAt
 }
 
 func statusDayFromPublic(value careplan.StudentStatusDay) *studentStatusDayRow {

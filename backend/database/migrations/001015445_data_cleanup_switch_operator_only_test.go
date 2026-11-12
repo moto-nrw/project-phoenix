@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -15,7 +15,6 @@ func TestDataCleanupSwitchMigrationResetsStoredSwitchOffs(t *testing.T) {
 	ctx := context.Background()
 	switchedOff := testpkg.Tenant(t)
 	switchedOn, _ := testpkg.CreateTestTenant(t, db)
-	testpkg.OwnTenantRows(t, db, switchedOn)
 
 	_, err := db.ExecContext(ctx, `
 		INSERT INTO config.setting_values (tenant_id, setting_key, value)

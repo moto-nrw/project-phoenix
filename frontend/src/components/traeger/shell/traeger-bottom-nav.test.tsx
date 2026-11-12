@@ -46,9 +46,9 @@ describe("TraegerBottomNav", () => {
   });
 
   it("follows the sidebar: main navigation, the rest behind Mehr (#5685)", async () => {
-    // Ohne Dashboard (#4674): die Reihenfolge der Seitenleiste; die drei
-    // Abrechnungsbereiche füllen die Leiste, Preise, Hilfe und
-    // Einstellungen stehen hinter „Mehr“.
+    // Ohne Dashboard (#4674): die Reihenfolge der Seitenleiste; was nicht in
+    // die Leiste passt, steht hinter „Mehr“. „Anmeldung verwalten“ öffnet
+    // seit #4704 zwei Ziele.
     sessionUser.permissions = [
       "traeger_enrollment:manage",
       "traeger_billing:manage",
@@ -63,8 +63,8 @@ describe("TraegerBottomNav", () => {
     ).toEqual([
       "Schulen",
       "Ferienbetreuung",
+      "Anmeldephasen",
       "Abrechnungsläufe",
-      "Familien und Zahlung",
     ]);
     expect(bar().getByRole("link", { name: "Schulen" })).toHaveAttribute(
       "aria-current",

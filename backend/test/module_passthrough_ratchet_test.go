@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/passthrough"
+	"github.com/moto-ogs/project-phoenix/internal/passthrough"
 )
 
 // TestModulePassthroughRatchet enforces .claude/rules/backend-conventions.md
@@ -259,6 +259,15 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Raised by ADR 0168: the first complete attendance day of
 // modules/studentpresence (+1).
 // Raised by ADR 0172: the document contact read of modules/organizationtenancy (+1).
+// Raised by ADR 0182: the effective notice dues read of modules/parentbilling (+1).
+// Raised by ADR 0184: the suspensions of the Beleg retention of
+// modules/parentbilling, which validate and evaluate the Träger again (+2).
+// ADR 0198: the transaction-bound account-retention read adds one floor hit.
+// Lowered by #6583: offboarding locks the whole roster in two phases (-1).
+// Raised by ADR 0209: the billing lock command of the holiday allocation
+// workflow of modules/parentbilling (+1).
+// Lowered by ADR 0196: the holiday closure notices leave School Calendar two
+// pass-throughs fewer (-2).
 const modulePassthroughOwnerBudgetTotal = 1403
 
 // modulePassthroughOwnerBudgets is the register: module directory →
@@ -282,13 +291,13 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	// Raised by ADR 0079: the facade observes the reachable-children read.
 	"modules/communication": 55,
 	"modules/dataimport":    1,
-	"modules/delivery":      5,
+	"modules/delivery":      4,
 	"modules/devicefleet":   33,
 	"modules/devicescan":    35,
 	// Raised by ADR 0105: the holiday period reads of the Träger-Portal; by
 	// ADR 0110: the retention of the public holiday registrations; by
 	// ADR 0116: the weeks the hosting school sees.
-	"modules/enrollment":     27,
+	"modules/enrollment":     26,
 	"modules/exporttransfer": 1,
 	"modules/facilities":     13,
 	"modules/feedback":       2,
@@ -298,17 +307,24 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/mealplan":       1,
 	// Raised by ADR 0112: the Träger logo read of the Träger-Portal.
 	// Raised by ADR 0172: the document contact read without an account (+1).
-	"modules/organizationtenancy": 13,
+	// ADR 0198: the transaction-bound account-retention read (+1).
+	"modules/organizationtenancy": 14,
 	// Added by ADR 0115: the rule checks and the link check of the new owner
 	// Elternabrechnung. Raised by ADR 0119: the billing run list (+1).
 	// Raised by ADR 0158: the monthly run list (+1).
 	// Raised by ADR 0167: the payment terms read (+1).
-	"modules/parentbilling":    8,
+	// Raised by ADR 0182: the effective notice dues read, which validates the
+	// month and resolves the change level onto the public contract (+1).
+	// Raised by ADR 0184: recording and lifting a suspension of the Beleg
+	// retention, which validate and evaluate the Träger again (+2).
+	// Raised by ADR 0209: the billing lock B of the holiday allocation
+	// workflow, which validates the Träger and maps the lock error (+1).
+	"modules/parentbilling":    12,
 	"modules/peopledirectory":  205,
 	"modules/requestreview":    15,
 	"modules/schedulerruntime": 4,
 	// Raised by ADR 0073: the feed cleanup keeps only the staff feed tombstones.
-	"modules/schoolcalendar":   16,
+	"modules/schoolcalendar":   14,
 	"modules/schoolmembership": 15,
 	"modules/schoolsetup":      1,
 	"modules/schoolstructure":  43,
@@ -321,7 +337,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/studentpresence": 123,
 	"modules/timetable":       203,
 	// Raised by ADR 0141: the payroll dispatch overview (+1).
-	"modules/workforce":      140,
+	"modules/workforce":      139,
 	"workflows/openroommove": 1,
 	// Raised by ADR 0078: the week change of the meal plan adapter.
 	"workflows/parentportal": 18,

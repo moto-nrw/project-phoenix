@@ -64,14 +64,26 @@ const FIELD_LABELS: Record<string, string> = {
   sequence: "Lastschriftart",
 };
 
-/** The state of a mandate as a badge. */
-export function mandateState(mandate: SepaMandate): {
+/** A mandate whose 36 months without a collection ran out on the school
+ * day today (#4697). */
+export function mandateExpired(mandate: SepaMandate, today: string): boolean {
+  return mandate.expiresOn !== null && mandate.expiresOn <= today;
+}
+
+/** The state of a mandate as a badge on the school day today. */
+export function mandateState(
+  mandate: SepaMandate,
+  today: string,
+): {
   readonly label: string;
   readonly tone: StatusBadgeTone;
 } {
   if (mandate.revokedOn) return { label: "Widerrufen", tone: "gray" };
   if (!mandate.creditorCurrent) {
-    return { label: "Neues Mandat nötig", tone: "orange" };
+    return { label: "Neues Mandat nötig", tone: "warning" };
+  }
+  if (mandateExpired(mandate, today)) {
+    return { label: "Verfallen", tone: "red" };
   }
   return { label: "Gültig", tone: "green" };
 }
@@ -109,40 +121,11 @@ export function mandateFamily(mandate: SepaMandate): string {
   return name || mandate.familyEmail;
 }
 
-/** Removes white space and upper-cases what people type. */
-export function compactCode(value: string): string {
-  return value.replace(/\s+/g, "").toUpperCase();
-}
-
-/** ISO 7064 MOD 97-10 remainder; letters count as two digits (A = 10). */
-function mod97(value: string): number {
-  let remainder = 0;
-  for (const char of value) {
-    const digit = /\d/.test(char)
-      ? Number(char)
-      : char.charCodeAt(0) - "A".charCodeAt(0) + 10;
-    remainder = Number(`${remainder}${digit}`) % 97;
-  }
-  return remainder;
-}
-
-/** Shape and check digits of an IBAN; the backend also checks the length. */
-export function ibanLooksValid(raw: string): boolean {
-  const iban = compactCode(raw);
-  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{11,30}$/.test(iban)) return false;
-  if (iban.startsWith("DE") && !/^DE\d{20}$/.test(iban)) return false;
-  return mod97(iban.slice(4) + iban.slice(0, 4)) === 1;
-}
-
-/** Shape and check digits of a SEPA creditor identifier. */
-export function creditorIdLooksValid(raw: string): boolean {
-  const id = compactCode(raw);
-  if (!/^[A-Z]{2}\d{2}[A-Z0-9]{3}[A-Z0-9]{1,28}$/.test(id)) return false;
-  if (id.startsWith("DE") && !/^DE\d{2}[A-Z0-9]{3}\d{11}$/.test(id)) {
-    return false;
-  }
-  return mod97(id.slice(7) + id.slice(0, 4)) === 1;
-}
+export {
+  compactCode,
+  creditorIdLooksValid,
+  ibanLooksValid,
+} from "~/lib/sepa-checks";
 
 /** The SEPA character set of a mandate reference. */
 export function referenceLooksValid(raw: string): boolean {

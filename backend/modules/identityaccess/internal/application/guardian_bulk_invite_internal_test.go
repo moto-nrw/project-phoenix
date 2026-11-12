@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -27,10 +27,13 @@ func (f *lifecycleFixture) bulkGuardian(email, role string, studentIDs ...int64)
 	return profile
 }
 
+// openInvitation plants a link issued for the profile's current address, as
+// every link is since #6294.
 func (f *lifecycleFixture) openInvitation(profileID, studentID int64, status string, expires time.Time) domain.GuardianInvitation {
 	return f.invitations.add(domain.GuardianInvitation{
 		TenantID: lifecycleTenant, GuardianProfileID: profileID, StudentID: &studentID,
 		ApprovalStatus: status, ExpiresAt: expires, Token: "open-token",
+		Email: domain.GuardianInvitationAddress(f.guardians.profiles[profileID].Email),
 	})
 }
 

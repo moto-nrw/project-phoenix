@@ -9,16 +9,16 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/api"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
 
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant/tenanttest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -266,6 +266,7 @@ func TestUpdateGuardian_NonUniqueUpdateErrorIsReturned(t *testing.T) {
 
 	email := "edited@example.com"
 	svc := peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{
+		InvalidateInvites: func(context.Context, int64) error { return nil },
 
 		// UpdateGuardian now locks the profile row FOR UPDATE before reading
 		// it (serializes with the parents-portal contact path — #1667 review);
@@ -285,11 +286,11 @@ func TestUpdateGuardian_NonUniqueUpdateErrorIsReturned(t *testing.T) {
 			},
 		}}, nil)
 
-	err := svc.UpdateGuardian(context.Background(), 1, peoplePorts.GuardianCreateRequest{
+	err := svc.UpdateGuardian(guardianAmbientTxContext(), 1, peoplePorts.GuardianCreateRequest{
 		FirstName: "Edited", LastName: "Name", Email: &email,
 	})
 
-	require.Error(t, err)
+	require.ErrorContains(t, err, "connection refused")
 	var validationErr *userscontract.ValidationError
 	assert.False(t, errors.As(err, &validationErr),
 		"a non-unique update failure must not be classified as a 400")
@@ -300,7 +301,9 @@ func TestDeleteGuardianWithLinks_LockError(t *testing.T) {
 
 	svc := peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{GuardianProfileRepo: &fakeProfileRepo{
 		lockFn: func(_ context.Context, _ int64) error { return errors.New("lock timeout") },
-	}}, nil)
+	}, StudentGuardianRepo: &fakeStudentGuardianRepo{
+		findByGuardianFn: func(context.Context, int64) ([]*peopleValues.GuardianRelationshipSnapshot, error) { return nil, nil },
+	}, StudentRepo: &fakeStudentRepo{}}, nil)
 	err := svc.DeleteGuardianWithLinks(guardianAmbientTxContext(), 1, []int64{1}, 1)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to lock guardian profile")
@@ -314,7 +317,9 @@ func TestDeleteGuardian_WithoutFinancialRepoRefuses(t *testing.T) {
 
 	svc := peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{GuardianProfileRepo: &fakeProfileRepo{
 		lockFn: func(_ context.Context, _ int64) error { return nil },
-	}}, nil)
+	}, StudentGuardianRepo: &fakeStudentGuardianRepo{
+		findByGuardianFn: func(context.Context, int64) ([]*peopleValues.GuardianRelationshipSnapshot, error) { return nil, nil },
+	}, StudentRepo: &fakeStudentRepo{}}, nil)
 	for name, run := range map[string]func() error{
 		"DeleteGuardian":          func() error { return svc.DeleteGuardian(guardianAmbientTxContext(), 1, 1) },
 		"DeleteGuardianWithLinks": func() error { return svc.DeleteGuardianWithLinks(guardianAmbientTxContext(), 1, []int64{1}, 1) },

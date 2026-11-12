@@ -5,6 +5,8 @@ import (
 	"fmt"
 	"log/slog"
 	"time"
+
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
 )
 
 // scheduleTimeTrackingCleanupTask registers the daily time-tracking cleanup
@@ -173,6 +175,9 @@ func (s *Scheduler) checkAndRunPWAUsageCleanup(ctx context.Context, task *Schedu
 		}
 
 		if result.RowsDeleted > 0 {
+			if err := s.logCleanupDeletion(cleanupCtx, "pwa_usage_retention", result.RowsDeleted, result.RetentionDays); err != nil {
+				return err
+			}
 			s.getLogger().Info("pwa usage cleanup completed for tenant",
 				slog.Int64("tenant_id", tenantID),
 				slog.String("cleanup_time", cleanupTime),
@@ -231,6 +236,9 @@ func (s *Scheduler) checkAndRunStaffMessageCleanup(ctx context.Context, task *Sc
 		}
 
 		if result.MessagesDeleted > 0 || result.ThreadsDeleted > 0 {
+			if err := s.logCleanupDeletion(cleanupCtx, "staff_message_retention", result.MessagesDeleted+result.ThreadsDeleted, result.RetentionDays); err != nil {
+				return err
+			}
 			s.getLogger().Info("staff message cleanup completed for tenant",
 				slog.Int64("tenant_id", tenantID),
 				slog.String("cleanup_time", cleanupTime),
@@ -241,4 +249,22 @@ func (s *Scheduler) checkAndRunStaffMessageCleanup(ctx context.Context, task *Sc
 		}
 		return nil
 	})
+}
+
+// retentionCleanupJobs binds the independently scheduled data deletions to
+// the deletion log they share with the per-school retention plan.
+type retentionCleanupJobs struct {
+	feedbackCleaner     ports.FeedbackCleaner
+	pwaUsageCleanup     ports.PWAUsageCleanup
+	staffMessageCleanup ports.StaffMessageCleanup
+	retentionLog        ports.RetentionLog
+}
+
+func newRetentionCleanupJobs(deps ports.WorkerDependencies) retentionCleanupJobs {
+	return retentionCleanupJobs{
+		feedbackCleaner:     deps.FeedbackCleaner,
+		pwaUsageCleanup:     deps.PWAUsageCleanup,
+		staffMessageCleanup: deps.StaffMessageCleanup,
+		retentionLog:        deps.RetentionLog,
+	}
 }

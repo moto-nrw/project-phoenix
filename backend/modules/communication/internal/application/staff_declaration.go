@@ -10,7 +10,7 @@ import (
 	"strings"
 	"time"
 
-	declarations "github.com/moto-nrw/project-phoenix/modules/communication"
+	declarations "github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // Erklärungen (#3430): the staff side. An Erklärung is an announcement in
@@ -128,7 +128,7 @@ func normalizeDeclaration(in *Input) error {
 	}
 	d := in.Declaration
 	if err := declarations.ValidateDeclarationSettings(d.Kind, d.Signers); err != nil {
-		return fmt.Errorf("%w: declaration settings (kind %q, signers %q, revocable %t)", ErrValidation, d.Kind, d.Signers, d.Revocable)
+		return fmt.Errorf("%w: declaration settings (kind %q, signers %q)", ErrValidation, d.Kind, d.Signers)
 	}
 	// A declaration is answered per child by guardians who may declare; it is
 	// neither a poll nor a read confirmation, and an applicant without a
@@ -255,8 +255,8 @@ func (s *service) guardDeclarationModeChange(ctx context.Context, a *StaffParent
 
 // guardDeclarationSettingsChange keeps the rules a parent acted under stable
 // once a declaration has a submission. Wording changes still create a new
-// version after retracting, but changing the signer rule, revocability,
-// password confirmation or deadline would otherwise reinterpret stored proof.
+// version after retracting, but changing the signer rule, password
+// confirmation or deadline would otherwise reinterpret stored proof.
 func (s *service) guardDeclarationSettingsChange(ctx context.Context, a *StaffParentAnnouncement, in *Input) error {
 	if !a.IsDeclaration() || in.DeliveryMode != StaffParentAnnouncementDeliveryDeclaration ||
 		(a.Declaration == in.Declaration && sameDeclarationDeadline(a.ResponseDeadline, in.ResponseDeadline)) {
@@ -291,8 +291,7 @@ func (s *service) DeclarationFrozen(ctx context.Context, a *StaffParentAnnouncem
 
 func declarationRules(a *StaffParentAnnouncement) declarations.DeclarationRules {
 	return declarations.DeclarationRules{
-		Kind: a.Declaration.Kind, Signers: a.Declaration.Signers,
-		Revocable: a.Declaration.Revocable, Deadline: a.ResponseDeadline,
+		Kind: a.Declaration.Kind, Signers: a.Declaration.Signers, Deadline: a.ResponseDeadline,
 	}
 }
 

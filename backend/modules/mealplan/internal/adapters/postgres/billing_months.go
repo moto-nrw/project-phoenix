@@ -10,9 +10,9 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan"
-	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The Mensa-Monatsfreigabe (#4686, migration 1.15.811). A release carries
@@ -194,16 +194,18 @@ type traegerMealRow struct {
 	MealDays     sql.NullInt64  `bun:"meal_days"`
 }
 
-// TraegerMonths reads the released months of the Träger up to until. The
+// TraegerMonths reads the released months of the Träger within [from, until]. The
 // function answers only in the Träger transaction of the Träger it names.
-func (s *BillingMonthStore) TraegerMonths(ctx context.Context, organizationID int64, until calendar.Date) ([]domain.ReleasedMealRow, error) {
+func (s *BillingMonthStore) TraegerMonths(ctx context.Context, organizationID int64, from, until calendar.Date) ([]domain.ReleasedMealRow, error) {
 	db, err := s.traeger(ctx, organizationID)
 	if err != nil {
 		return nil, err
 	}
 	var rows []traegerMealRow
 	if err := db.NewRaw(`SELECT school_id, billing_month, released_at, version, student_id, first_name, last_name, meal_days
-		FROM schedule.traeger_meal_billing_children(?)`, until).Scan(ctx, &rows); err != nil {
+		FROM schedule.traeger_meal_billing_children(?)
+		WHERE billing_month >= ?
+		ORDER BY school_id, billing_month, student_id`, until, from).Scan(ctx, &rows); err != nil {
 		return nil, fmt.Errorf("read the released meal months of the Träger: %w", err)
 	}
 	result := make([]domain.ReleasedMealRow, len(rows))

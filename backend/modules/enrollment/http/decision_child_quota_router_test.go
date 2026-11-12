@@ -14,23 +14,23 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func requireChildQuotaRefusal(t *testing.T, rec *httptest.ResponseRecorder, booked, occupied int) {
@@ -240,7 +240,16 @@ func setupManualEnrollmentRouter(t *testing.T) manualEnrollmentRouter {
 // postManualEnrollment posts one manual enrollment of the child.
 func (m manualEnrollmentRouter) postManualEnrollment(t *testing.T, child enrollmentAPI.SubmitChildRequest) *httptest.ResponseRecorder {
 	t.Helper()
+	return m.postManualEnrollmentChoosing(t, child, "", false)
+}
+
+// postManualEnrollmentChoosing posts one manual enrollment of the child with
+// the office's answer to an already enrolled child (#6148).
+func (m manualEnrollmentRouter) postManualEnrollmentChoosing(t *testing.T, child enrollmentAPI.SubmitChildRequest, existingStudentID string, createNewStudent bool) *httptest.ResponseRecorder {
+	t.Helper()
 	payload, err := json.Marshal(enrollmentAPI.AdminManualApprovedEnrollmentRequest{
+		ExistingStudentID: existingStudentID,
+		CreateNewStudent:  createNewStudent,
 		SubmitEnrollmentRequest: enrollmentAPI.SubmitEnrollmentRequest{
 			GuardianFirstName: "Anna", GuardianLastName: "Beispiel",
 			GuardianEmail: fmt.Sprintf("manuell-%d@example.test", testpkg.Tenant(t)),
@@ -281,7 +290,8 @@ func TestCreateManualApprovedEnrollment_RefusedByAFullKinderkontingent(t *testin
 // A manual enrollment of a child the school already cares for is refused
 // with the actionable conflict, not a server error, and leaves nothing
 // behind: staff entry never renews or duplicates an enrolled child on name
-// and birthday alone (#6053; the choice in the manual flow is #6148).
+// and birthday alone (#6053). The office's choice is in
+// manual_existing_child_router_test.go (#6148).
 func TestCreateManualApprovedEnrollment_PossiblyEnrolledChildIsAConflict(t *testing.T) {
 	t.Parallel()
 	m := setupManualEnrollmentRouter(t)

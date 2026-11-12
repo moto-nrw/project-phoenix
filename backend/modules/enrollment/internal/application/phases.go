@@ -7,11 +7,11 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // PhaseDependencies bind the phase administration to its owners.
@@ -27,6 +27,18 @@ type PhaseDependencies struct {
 	// Resyncer keeps the rosters of the templates sourcing the phase's
 	// offerings in step with a window change or a delete.
 	Resyncer enrollment.SourcedTemplateResyncer
+	// Students moves the enrollment window of still pending students with
+	// a phase-start edit (#6505). Optional: nil leaves the students alone
+	// (focused tests); the root always binds it.
+	Students enrollment.PhaseStudents
+	// Bookings carries the bounds the phase set on its offerings' bookings
+	// with a service-window edit (#6597). Optional like Students; the root
+	// always binds it.
+	Bookings enrollment.PhaseBookings
+	// CareStudents reads the care end of the phase's confirmed children, so
+	// an edit that shortens the phase can name those whose care now runs
+	// past it (#6598). Optional like Students; the root always binds it.
+	CareStudents enrollment.PhaseCareStudents
 	// Settings resolves the concrete-class collection toggles used to
 	// reject unsatisfiable eligibility configs. Optional: nil skips the
 	// guard (focused tests; the CHECK/model rules still apply).
@@ -36,7 +48,10 @@ type PhaseDependencies struct {
 	// ErrPhaseResponseOverviewUnavailable.
 	Responses *PhaseResponseSources
 	Runtime   Runtime
-	Logger    *slog.Logger
+	// TraegerCopies links the copies of Träger phases (ADR 0195). Optional:
+	// without it TraegerCopies reports no copy commands.
+	TraegerCopies TraegerPhaseCopyStore
+	Logger        *slog.Logger
 	// Today returns the current calendar day; tests inject a fixed date so
 	// resync/detach boundaries stay deterministic. Nil falls back to
 	// calendar.TodayDate.
@@ -70,6 +85,15 @@ func newPhases(deps PhaseDependencies) *Phases {
 		logger = slog.Default()
 	}
 	return &Phases{PhaseList: deps.Records, deps: deps, logger: logger}
+}
+
+// TraegerCopies returns the copy commands of Träger phases, which write
+// through this phase administration, or nil without their store.
+func (s *Phases) TraegerCopies() enrollment.TraegerPhaseCopies {
+	if s.deps.TraegerCopies == nil {
+		return nil
+	}
+	return &TraegerPhaseCopies{phases: s, store: s.deps.TraegerCopies}
 }
 
 // NewResyncingPhases builds the phase administration over the
@@ -217,63 +241,87 @@ func (s *Phases) create(ctx context.Context, phase *enrollment.Phase) (*enrollme
 
 // UpdatePhase validates and writes a phase and resyncs the templates sourcing its
 // offerings when the service window changed.
-func (s *Phases) UpdatePhase(ctx context.Context, phase *enrollment.Phase) error {
-	return s.runInTx(ctx, func(txCtx context.Context) error {
-		return s.update(txCtx, phase)
+//
+// It reports the confirmed children whose care runs past a shortened end
+// (#6598) and changes none of them.
+func (s *Phases) UpdatePhase(ctx context.Context, phase *enrollment.Phase) (enrollment.PhaseUpdateReport, error) {
+	var report enrollment.PhaseUpdateReport
+	err := s.runInTx(ctx, func(txCtx context.Context) error {
+		var err error
+		report, err = s.update(txCtx, phase)
+		return err
 	})
+	if err != nil {
+		return enrollment.PhaseUpdateReport{}, err
+	}
+	return report, nil
 }
 
-func (s *Phases) update(ctx context.Context, phase *enrollment.Phase) error {
+func (s *Phases) update(ctx context.Context, phase *enrollment.Phase) (enrollment.PhaseUpdateReport, error) {
+	var report enrollment.PhaseUpdateReport
 	if phase == nil || phase.ID <= 0 {
-		return fmt.Errorf("%w: phase with valid id is required", enrollment.ErrInvalidPhase)
+		return report, fmt.Errorf("%w: phase with valid id is required", enrollment.ErrInvalidPhase)
 	}
 	if err := s.validatePhaseWrite(ctx, phase); err != nil {
-		return err
+		return report, err
 	}
-	serviceWindowChanged, err := s.validateCareOfferingPhaseUpdate(ctx, phase)
+	existing, serviceWindowChanged, err := s.validateCareOfferingPhaseUpdate(ctx, phase)
 	if err != nil {
-		return err
+		return report, err
 	}
 	if err := s.deps.Records.UpdatePhase(ctx, phase); err != nil {
-		return s.translatePhaseWriteError(err)
+		return report, s.translatePhaseWriteError(err)
 	}
 	if serviceWindowChanged {
+		if err := s.followBookingBounds(ctx, existing, phase); err != nil {
+			return report, err
+		}
+		if err := s.followPendingActivations(ctx, existing, phase); err != nil {
+			return report, err
+		}
 		if err := s.resyncPhaseSourcedTemplates(ctx, phase.ID); err != nil {
-			return err
+			return report, err
+		}
+		if report.CareBeyondEnd, err = s.careBeyondShortenedEnd(ctx, existing, phase); err != nil {
+			return report, err
 		}
 	}
-	s.logger.Info("phase updated", slog.Int64("phase_id", phase.ID))
-	return nil
+	s.logger.Info("phase updated",
+		slog.Int64("phase_id", phase.ID),
+		slog.Int("care_beyond_end", len(report.CareBeyondEnd)))
+	return report, nil
 }
 
 // validateCareOfferingPhaseUpdate guards a service-window change against the
 // legacy-linked care offerings and reports whether the window actually
 // changed, so Update can resync offering-sourced templates after the write
 // (#2147 review). The recurrence lock is taken before the existing row is
-// read and stays held for the whole update transaction.
-func (s *Phases) validateCareOfferingPhaseUpdate(ctx context.Context, phase *enrollment.Phase) (bool, error) {
-	if err := s.deps.LockTemplateRecurrence(ctx); err != nil {
-		return false, fmt.Errorf("lock template recurrence for phase update: %w", err)
+// read and stays held for the whole update transaction. It returns the
+// stored phase, so the update can tell where its window was.
+func (s *Phases) validateCareOfferingPhaseUpdate(ctx context.Context, phase *enrollment.Phase) (*enrollment.Phase, bool, error) {
+	locked, err := enrollment.NewPhaseBoundsReader(s.deps.Records, s.deps.LockTemplateRecurrence).LockedPhase(ctx, phase.ID)
+	if errors.Is(err, enrollment.ErrPhaseBoundsLock) {
+		return nil, false, fmt.Errorf("lock template recurrence for phase update: %w", err)
 	}
-	existing, err := s.deps.Records.Phase(ctx, phase.ID)
+	existing := locked.Phase()
 	if err != nil {
 		if s.notFound(err) {
-			return false, fmt.Errorf("%w: phase %d", enrollment.ErrPhaseNotFound, phase.ID)
+			return nil, false, fmt.Errorf("%w: phase %d", enrollment.ErrPhaseNotFound, phase.ID)
 		}
-		return false, fmt.Errorf("load phase for care-offering validation: %w", err)
+		return nil, false, fmt.Errorf("load phase for care-offering validation: %w", err)
 	}
 	if existing.ServiceStartDate == phase.ServiceStartDate && existing.ServiceEndDate == phase.ServiceEndDate {
-		return false, nil
+		return existing, false, nil
 	}
 	if s.deps.ValidateCareOfferingPhaseChange != nil {
 		if err := s.deps.ValidateCareOfferingPhaseChange(ctx, phase.ID, phase); err != nil {
 			if errors.Is(err, careplan.ErrCareOfferingConfigInvalid) {
-				return false, fmt.Errorf("%w: %v", enrollment.ErrPhaseCareOfferingConflict, err)
+				return nil, false, fmt.Errorf("%w: %v", enrollment.ErrPhaseCareOfferingConflict, err)
 			}
-			return false, fmt.Errorf("validate care offerings for phase update: %w", err)
+			return nil, false, fmt.Errorf("validate care offerings for phase update: %w", err)
 		}
 	}
-	return true, nil
+	return existing, true, nil
 }
 
 // resyncPhaseSourcedTemplates re-reconciles every template sourcing one of
@@ -292,20 +340,26 @@ func (s *Phases) resyncPhaseSourcedTemplates(ctx context.Context, phaseID int64)
 	if err != nil {
 		return fmt.Errorf("phase update: list care offerings for sourced-template resync: %w", err)
 	}
-	today := s.todayDate()
-	for _, offeringID := range offeringIDs {
-		if err := s.deps.Resyncer.ResyncTemplatesSourcedFromOffering(ctx, offeringID, today); err != nil {
-			if errors.Is(err, timetable.ErrOfferingSourceInvalid) {
-				// The tenant transaction commits ordinary 4xx responses.
-				// Mark the ambient transaction so the already-written phase
-				// update is discarded together with the rejection.
-				if s.deps.Runtime.MarkRollback != nil {
-					s.deps.Runtime.MarkRollback(ctx)
-				}
-				return fmt.Errorf("%w: %w", enrollment.ErrPhaseCareOfferingConflict, err)
+	if len(offeringIDs) == 0 {
+		return nil
+	}
+	resyncer, ok := s.deps.Resyncer.(interface {
+		ResyncTemplatesSourcedFromOfferings(context.Context, []int64, calendar.Date) error
+	})
+	if !ok {
+		return errors.New("phase update: batch sourced-template resync is required")
+	}
+	if err := resyncer.ResyncTemplatesSourcedFromOfferings(ctx, offeringIDs, s.todayDate()); err != nil {
+		if errors.Is(err, timetable.ErrOfferingSourceInvalid) {
+			// The tenant transaction commits ordinary 4xx responses.
+			// Mark the ambient transaction so the already-written phase
+			// update is discarded together with the rejection.
+			if s.deps.Runtime.MarkRollback != nil {
+				s.deps.Runtime.MarkRollback(ctx)
 			}
-			return fmt.Errorf("phase update: resync templates sourcing offering %d: %w", offeringID, err)
+			return fmt.Errorf("%w: %w", enrollment.ErrPhaseCareOfferingConflict, err)
 		}
+		return fmt.Errorf("phase update: resync templates sourcing offerings %v: %w", offeringIDs, err)
 	}
 	return nil
 }
@@ -363,9 +417,11 @@ func (s *Phases) DeleteImpact(ctx context.Context, id int64) (*enrollment.PhaseD
 }
 
 // DeletePhase permanently removes the phase and every enrollment record that
-// hangs off it. There is intentionally no reference guard: admins may
-// delete a phase at any lifecycle stage. To merely hide a phase from
-// parents, use Update(is_active=false) instead.
+// hangs off it. A phase whose care offering bookings still apply today or
+// later is refused before any write (#6505): the delete would end a child's
+// care without the care-end or booking process. An ended phase or one
+// without such bookings may be deleted at any lifecycle stage. To merely
+// hide a phase from parents, use Update(is_active=false) instead.
 //
 // Ordering matters. The care_offering_id FKs of care_offering_bookings and
 // request_child_offering_selections are ON DELETE RESTRICT, so a single
@@ -386,15 +442,32 @@ func (s *Phases) DeletePhase(ctx context.Context, id int64) error {
 	if s.deps.Records == nil {
 		return errors.New("phase delete requires the enrollment capability")
 	}
-	if _, err := s.deps.Records.Phase(ctx, id); err != nil {
+	phase, err := s.deps.Records.Phase(ctx, id)
+	if err != nil {
 		if s.notFound(err) {
 			return enrollment.ErrPhaseNotFound
 		}
 		return fmt.Errorf("phase delete: find phase: %w", err)
 	}
+	// Only the Träger office withdraws a copy (ADR 0195 section 7); the
+	// next rollout would otherwise create it again.
+	if phase.Traeger != nil {
+		return enrollment.ErrTraegerCopyDelete
+	}
 
 	deletedRequests := 0
-	err := s.runInTx(ctx, func(txCtx context.Context) error {
+	err = s.runInTx(ctx, func(txCtx context.Context) error {
+		// The recurrence gate serializes the check with the approvals and
+		// booking changes that write bookings under it.
+		if err := s.deps.LockTemplateRecurrence(txCtx); err != nil {
+			return fmt.Errorf("lock template recurrence for phase delete: %w", err)
+		}
+		if err := s.refuseTraegerOfferings(txCtx, id); err != nil {
+			return err
+		}
+		if err := s.refuseEffectiveBookings(txCtx, id); err != nil {
+			return err
+		}
 		// Retire sourced rosters FIRST, while request children and offering
 		// links still exist: the phase cascade SET-NULLs the templates'
 		// source and the rows' provenance, which would leave bounded
@@ -414,5 +487,26 @@ func (s *Phases) DeletePhase(ctx context.Context, id int64) error {
 	s.logger.Info("phase deleted",
 		slog.Int64("phase_id", id),
 		slog.Int("deleted_requests", deletedRequests))
+	return nil
+}
+
+func (s *Phases) refuseTraegerOfferings(ctx context.Context, id int64) error {
+	phase, err := s.deps.Records.Phase(ctx, id)
+	if err != nil {
+		return err
+	}
+	if phase.Traeger != nil {
+		return enrollment.ErrTraegerCopyDelete
+	}
+	if s.deps.Offerings == nil {
+		return errors.New("phase delete requires the offering guard")
+	}
+	copies, err := s.deps.Offerings.HasTraegerCopiesForPhase(ctx, id)
+	if err != nil {
+		return err
+	}
+	if copies {
+		return enrollment.ErrTraegerCopyDelete
+	}
 	return nil
 }

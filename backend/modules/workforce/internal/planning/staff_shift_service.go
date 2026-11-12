@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // maxShiftRangeDays caps date-range queries so a malformed request cannot
@@ -86,6 +86,9 @@ func WithStaffShiftBroadcaster(broadcaster realtime.Broadcaster) StaffShiftOptio
 }
 
 type StaffShiftUpdateOptions struct {
+	// PreserveSeriesOverride keeps sick-state changes separate from deliberate
+	// one-occurrence edits, even though both detach the row from replanning.
+	PreserveSeriesOverride bool
 	// SuppressTimeTrackingBroadcast lets a larger operation send one shared
 	// invalidation after all of its shift writes have completed.
 	SuppressTimeTrackingBroadcast bool
@@ -103,6 +106,8 @@ type StaffShiftUpdateOptions struct {
 	// request omitted the cancelled key entirely, so a stale client or an
 	// unrelated field edit does not silently reactivate a cancelled shift
 	// (#1841). Cancellation/reactivation flows an explicit value through instead.
+	// It marks an ordinary edit, not ApplyCancellation: such an edit that
+	// changes nothing keeps a sick report's stamp (#6302).
 	PreserveExistingCancelled bool
 }
 
@@ -127,6 +132,10 @@ type staffShiftService struct {
 	// which staff members an operation serializes on (e.g. that a dropped cover's
 	// staff is folded into the cancellation lock set, #1841). Nil in production.
 	lockObserver func(staffIDs []int64)
+	// sickReports and today give a created or moved shift the sick state of
+	// its day (#6302). A nil reader plans everybody healthy.
+	sickReports SickReportReader
+	today       func() calendar.Date
 }
 
 // NewStaffShiftService creates a new staff shift service. lockStaffShifts is
@@ -293,8 +302,13 @@ func (s *staffShiftService) attachShiftTypes(ctx context.Context, shifts []*work
 // shift does not take place, so it neither blocks other shifts nor is blocked
 // by them (#1841): a replacement or a shortened return can reuse the freed
 // window.
+//
+// A shift cancelled by a sick report is checked as planned, against planned
+// shifts and other shifts a sick report cancelled: deleting or shortening the
+// report reactivates them all, which must not collide (#6302).
 func (s *staffShiftService) checkOverlap(ctx context.Context, shift *workforce.ShiftRecord) error {
-	if shift.Cancelled {
+	sickCancelled := shift.Cancelled && shift.SickAbsenceID != nil
+	if shift.Cancelled && !sickCancelled {
 		return nil
 	}
 	existing, err := s.repo.ReadShifts(ctx, workforce.StaffShiftFilter{StaffID: shift.StaffID, From: shift.Date.String(), To: shift.Date.String(), Order: shiftOrder(workforce.StaffShiftOrderDate, workforce.StaffShiftOrderStartTime)})
@@ -303,7 +317,7 @@ func (s *staffShiftService) checkOverlap(ctx context.Context, shift *workforce.S
 		return err
 	}
 	for _, other := range existing {
-		if other.ID == shift.ID || other.Cancelled {
+		if other.ID == shift.ID || (other.Cancelled && (!sickCancelled || other.SickAbsenceID == nil)) {
 			continue
 		}
 		if shift.Overlaps(other) {
@@ -475,6 +489,9 @@ func (s *staffShiftService) createShift(ctx context.Context, shift *workforce.Sh
 	if err := s.validateOriginLink(ctx, shift); err != nil {
 		return nil, err
 	}
+	if err := s.applySickStateOfDay(ctx, shift); err != nil {
+		return nil, err
+	}
 	if err := s.checkOverlap(ctx, shift); err != nil {
 		return nil, err
 	}
@@ -543,6 +560,9 @@ func (s *staffShiftService) updateShiftWithOptions(ctx context.Context, shift *w
 	if err := s.ensureCoversFitEditedOrigin(ctx, shift, existing); err != nil {
 		return nil, err
 	}
+	if err := s.applyEditedSickState(ctx, shift, existing, opts.PreserveExistingCancelled); err != nil {
+		return nil, err
+	}
 	if err := s.checkOverlap(ctx, shift); err != nil {
 		return nil, err
 	}
@@ -587,7 +607,8 @@ func mergeStoredShiftState(shift, existing *workforce.ShiftRecord, opts StaffShi
 	// set at creation and never re-pointed by a plain edit (#1841).
 	shift.OriginShiftID = existing.OriginShiftID
 	// Sick provenance is written only by the #1843 cascade via UpdateColumns
-	// after ApplyCancellation. Any ordinary edit takes ownership of the shift,
+	// after ApplyCancellation, and by the shift writes that place a shift on a
+	// sick day (#6302). Any ordinary edit takes ownership of the shift,
 	// including keeping an already-cancelled shift cancelled with a new reason;
 	// deleting the sick report must never undo that administrator decision.
 	shift.SickAbsenceID = nil
@@ -611,9 +632,11 @@ func mergeStoredShiftState(shift, existing *workforce.ShiftRecord, opts StaffShi
 	// alone (#1889). Standalone rows stay untouched by this.
 	shift.SeriesID = existing.SeriesID
 	shift.Detached = existing.Detached
+	shift.SeriesOverride = existing.SeriesOverride
 	shift.SeriesOccurrenceDate = existing.SeriesOccurrenceDate
 	if existing.SeriesID != nil {
 		shift.Detached = true
+		shift.SeriesOverride = existing.SeriesOverride || !opts.PreserveSeriesOverride
 	}
 }
 

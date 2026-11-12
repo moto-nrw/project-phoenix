@@ -2,6 +2,8 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ApiError } from "./api-error";
 import {
   changeHolidayRegistration,
+  downloadHolidayRegistrationPdf,
+  downloadHolidayRegistrationPdfs,
   downloadHolidayRegistrations,
   EMPTY_HOLIDAY_REGISTRATION_FILTER,
   fetchHolidayRegistration,
@@ -204,6 +206,7 @@ describe("traeger-holiday-registrations-api", () => {
         debtorNumber: null,
         fields: [],
         siblings: [],
+        wish: "",
       },
       {
         action: "confirm",
@@ -215,6 +218,7 @@ describe("traeger-holiday-registrations-api", () => {
         debtorNumber: null,
         fields: [],
         siblings: [],
+        wish: "",
       },
     ]);
   });
@@ -455,6 +459,92 @@ describe("traeger-holiday-registrations-api", () => {
     );
     expect(file.filename).toBe("ferienanmeldungen-winterferien.csv");
     expect(await file.blob.text()).toBe("Status;Eingefroren\n");
+  });
+
+  it("downloads one registration as a PDF, with health information only when asked (#6691)", async () => {
+    const pdf = () =>
+      new Response("%PDF-", {
+        status: 200,
+        headers: {
+          "Content-Type": "application/pdf",
+          "Content-Disposition":
+            'attachment; filename="ferienanmeldung-7-muster.pdf"',
+        },
+      });
+    fetchMock.mockResolvedValueOnce(pdf()).mockResolvedValueOnce(pdf());
+
+    const file = await downloadHolidayRegistrationPdf("5", "7", false);
+    await downloadHolidayRegistrationPdf("5", "7", true);
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "/api/traeger/holiday-periods/5/registrations/7/pdf",
+    );
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      "/api/traeger/holiday-periods/5/registrations/7/pdf?health=true",
+    );
+    expect(file.filename).toBe("ferienanmeldung-7-muster.pdf");
+  });
+
+  it("downloads the registrations of the filter as a ZIP of PDFs (#6691)", async () => {
+    const zip = () =>
+      new Response("PK", {
+        status: 200,
+        headers: {
+          "Content-Type": "application/zip",
+          "Content-Disposition":
+            'attachment; filename="ferienanmeldungen-winterferien.zip"',
+        },
+      });
+    fetchMock.mockResolvedValueOnce(zip()).mockResolvedValueOnce(zip());
+    const filter = {
+      ...EMPTY_HOLIDAY_REGISTRATION_FILTER,
+      status: "confirmed" as const,
+    };
+
+    const file = await downloadHolidayRegistrationPdfs("5", filter, false);
+    await downloadHolidayRegistrationPdfs("5", filter, true);
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "/api/traeger/holiday-periods/5/registrations/pdf?status=confirmed",
+    );
+    expect(fetchMock.mock.calls[1]?.[0]).toBe(
+      "/api/traeger/holiday-periods/5/registrations/pdf?status=confirmed&health=true",
+    );
+    expect(file.filename).toBe("ferienanmeldungen-winterferien.zip");
+  });
+
+  it("names the day moto deletes a registration and its health information (#6691)", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        data: {
+          registrations: [
+            {
+              id: 7,
+              status: "received",
+              frozen: false,
+              submitted_at: "2026-09-03T08:00:00Z",
+              guardian_first_name: "Eva",
+              guardian_last_name: "Muster",
+              guardian_email: "eva@example.org",
+              guardian_phone: "0151",
+              deletes_on: "2028-01-09",
+              health_deletes_on: "2027-04-11",
+              children: [],
+            },
+          ],
+          total: 1,
+          status_counts: { received: 1 },
+        },
+      }),
+    );
+
+    const list = await fetchHolidayRegistrations(
+      "5",
+      EMPTY_HOLIDAY_REGISTRATION_FILTER,
+    );
+
+    expect(list.registrations[0]?.deletesOn).toBe("2028-01-09");
+    expect(list.registrations[0]?.healthDeletesOn).toBe("2027-04-11");
   });
 
   it("keeps the code of a refused export", async () => {

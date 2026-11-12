@@ -105,6 +105,12 @@
   "api/parent/me/documents": [
     "GET parent /parent/me/documents"
   ],
+  "api/parent/me/documents/[organizationId]/contracts/[contractId]/sepa-mandate/preview": [
+    "POST parent /parent/me/documents/organizationId%2F1/contracts/contractId%2F1/sepa-mandate/preview"
+  ],
+  "api/parent/me/documents/[organizationId]/contracts/[contractId]/sepa-mandate/revoke": [
+    "POST parent /parent/me/documents/organizationId%2F1/contracts/contractId%2F1/sepa-mandate/revoke"
+  ],
   "api/parent/me/documents/[organizationId]/contracts/[contractId]/sign": [
     "POST parent /parent/me/documents/organizationId%2F1/contracts/contractId%2F1/sign"
   ],
@@ -119,9 +125,6 @@
   ],
   "api/parent/me/enrollable-schools": [
     "GET parent /parent/me/enrollable-schools"
-  ],
-  "api/parent/me/enrollments": [
-    "GET parent /parent/me/enrollments"
   ],
   "api/parent/me/messages": [
     "GET parent /parent/me/messages"
@@ -175,5 +178,11 @@
   ],
   "api/parent/me/pwa-usage": [
     "POST parent /parent/me/pwa-usage"
+  ],
+  "api/parent/me/holiday-registrations": [
+    "GET parent /parent/me/holiday-registrations"
+  ],
+  "api/parent/me/holiday-registration-entries": [
+    "GET parent /parent/me/holiday-registration-entries"
   ]
 }

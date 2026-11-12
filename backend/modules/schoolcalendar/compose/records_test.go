@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -23,9 +23,10 @@ func TestNewRecordsRequiresEveryDependency(t *testing.T) {
 	observe := func(Observation) {}
 
 	for name, dependencies := range map[string]RecordsDependencies{
-		"database":      {Observe: observe, FederalState: federalState},
-		"observer":      {DB: db, FederalState: federalState},
-		"federal state": {DB: db, Observe: observe},
+		"database":          {Observe: observe, FederalState: federalState, ClosingDayReads: ownSchoolClosingDayReads(db)},
+		"observer":          {DB: db, FederalState: federalState, ClosingDayReads: ownSchoolClosingDayReads(db)},
+		"federal state":     {DB: db, Observe: observe, ClosingDayReads: ownSchoolClosingDayReads(db)},
+		"closing-day reads": {DB: db, Observe: observe, FederalState: federalState},
 	} {
 		_, err := NewRecords(dependencies)
 		require.EqualError(t, err, "school calendar compose: all dependencies are required", name)
@@ -36,7 +37,7 @@ func TestNewAdministrationRequiresEveryDependency(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
 	observe := func(Observation) {}
-	records, err := NewRecords(RecordsDependencies{DB: db, Observe: observe, FederalState: federalState})
+	records, err := NewRecords(RecordsDependencies{ClosingDayReads: ownSchoolClosingDayReads(db), DB: db, Observe: observe, FederalState: federalState})
 	require.NoError(t, err)
 	gate := func(context.Context) error { return nil }
 	guard := func(context.Context, int64, *schoolcalendar.CalendarPeriodFields) error { return nil }
@@ -62,7 +63,7 @@ func TestRecordsServeTheCalendarAndTheAdministrationGuardsItLater(t *testing.T) 
 	db := testpkg.SetupTestDB(t)
 	ctx := testpkg.Ctx(t)
 	log := &observationLog{}
-	records, err := NewRecords(RecordsDependencies{DB: db, Observe: log.record, FederalState: federalState})
+	records, err := NewRecords(RecordsDependencies{ClosingDayReads: ownSchoolClosingDayReads(db), DB: db, Observe: log.record, FederalState: federalState})
 	require.NoError(t, err)
 
 	createdDay, err := records.CreateClosingDay(ctx, schoolcalendar.CreateClosingDay{ClosingDayFields: schoolcalendar.ClosingDayFields{

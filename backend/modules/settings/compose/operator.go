@@ -6,10 +6,10 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/settings"
-	configSvc "github.com/moto-nrw/project-phoenix/modules/settings/internal/application"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
+	configSvc "github.com/moto-ogs/project-phoenix/modules/settings/internal/application"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -61,3 +61,6 @@ func (operatorSettingsRuntime) AfterCommit(ctx context.Context, fn func()) {
 func (operatorSettingsRuntime) Today() configModel.CalendarDate {
 	return configSvc.OperatorSettingToday()
 }
+
+// NewExportFields projects setting values for the return export (#3838); only the administrative export CLI binds it, never HTTP.
+func NewExportFields() settings.ExportFields { return configSvc.SettingExportFields{} }

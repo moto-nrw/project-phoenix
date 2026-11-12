@@ -5,11 +5,11 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
 )
 
 // Consumer-owned ports of the excused-absence workflow, re-exported so the
@@ -31,27 +31,26 @@ type (
 	ShareVisibility        = ports.ShareVisibility
 )
 
-// ExcusedAbsenceRequests is the composed workflow behind the public
-// careplan.ExcusedAbsenceRequests contract. Every dependency is bound at
-// construction; a root whose effect sinks exist later hands in a port that
-// resolves them lazily.
+// ExcusedAbsenceRequests is the workflow behind careplan.ExcusedAbsenceRequests; every dependency is bound
+// at construction, and a root whose effect sinks exist later hands in a port that resolves them lazily.
 type ExcusedAbsenceRequests = application.ExcusedRequests
 
 // ExcusedRequestDependencies wires the workflow. CarePlan, Students, Scope,
 // and Today are required. Effect ports may be nil; the workflow then skips
 // that effect, exactly like the legacy service tolerated unwired effects.
 type ExcusedRequestDependencies struct {
-	CarePlan    careplan.Capability
-	Students    ExcusedRequestStudents
-	Scope       ReviewScopeResolver
-	Today       func() careplan.Date
-	Observe     func(Observation)
-	Logger      *slog.Logger
-	Messenger   RequestMessenger
-	Broadcaster StaffBroadcaster
-	Notifier    AbsenceNotifier
-	Ledger      RequestLedger
-	Shares      ShareVisibility
+	CarePlan        careplan.Capability
+	Students        ExcusedRequestStudents
+	Scope           ReviewScopeResolver
+	Today           func() careplan.Date
+	Observe         func(Observation)
+	Logger          *slog.Logger
+	Messenger       RequestMessenger
+	Broadcaster     StaffBroadcaster
+	Notifier        AbsenceNotifier
+	Ledger          RequestLedger
+	Shares          ShareVisibility
+	PartialAbsences careplan.PartialAbsenceService
 }
 
 // NewExcusedAbsenceRequests composes the excused-absence workflow over the
@@ -66,9 +65,8 @@ func NewExcusedAbsenceRequests(deps ExcusedRequestDependencies) (*ExcusedAbsence
 	}
 	return application.NewExcusedRequests(application.ExcusedRequestDependencies{
 		CarePlan: deps.CarePlan, Students: deps.Students, Scope: deps.Scope, Hooks: TenantHooks{},
-		Today: deps.Today, Observe: observe, Logger: deps.Logger,
-		Messenger: deps.Messenger, Broadcaster: deps.Broadcaster, Notifier: deps.Notifier,
-		Ledger: deps.Ledger, Shares: deps.Shares,
+		Today: deps.Today, Observe: observe, Logger: deps.Logger, Messenger: deps.Messenger, Broadcaster: deps.Broadcaster, Notifier: deps.Notifier,
+		Ledger: deps.Ledger, Shares: deps.Shares, PartialAbsences: deps.PartialAbsences,
 	})
 }
 

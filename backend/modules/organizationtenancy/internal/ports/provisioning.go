@@ -3,8 +3,8 @@ package ports
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/domain"
 )
 
 // The operator provisioning flows (#3253) reach the owners they touch
@@ -42,7 +42,8 @@ type ProvisioningIdentity interface {
 // the invitation, the Träger sessions and the reset of the second factor.
 // The role, invitation, session and reset commands join the caller's
 // administrative transaction; an unknown role is
-// organizationtenancy.ErrInvalidTraegerRole.
+// organizationtenancy.ErrInvalidTraegerRole, a deactivated account
+// organizationtenancy.ErrTraegerAccountInactive.
 type ProvisioningTraegerIdentity interface {
 	FindAccountIDByEmail(ctx context.Context, email string) (int64, bool, error)
 	AssignTraegerRole(ctx context.Context, organizationID, accountID int64, role string) error

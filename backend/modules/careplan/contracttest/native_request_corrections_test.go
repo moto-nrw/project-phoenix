@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/careplantest"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -21,6 +21,10 @@ type correctionBoundary struct {
 	allowed bool
 	history []compose.RequestCorrectionEvent
 	payload map[string]any
+}
+
+func (b *correctionBoundary) ReleaseBeforeDelete(context.Context, *careplan.PickupException) error {
+	return nil
 }
 
 func (b *correctionBoundary) CanReview(context.Context, compose.ReviewStudent) (bool, error) {
@@ -63,7 +67,12 @@ func TestNativeCorrectionReauthorizesAndRollsBackExactExceptionDeletion(t *testi
 	request, err = owner.FindCareScheduleRequest(ctx, request.ID, false)
 	require.NoError(t, err)
 	b := &correctionBoundary{decisionBoundary: decisionBoundary{student: compose.ReviewStudent{ID: student.ID}}}
-	service, err := compose.NewRequestCorrections(compose.RequestCorrectionDependencies{Records: owner, People: b, Plans: b, Effects: b})
+	deps := compose.RequestCorrectionDependencies{Records: owner, People: b, Plans: b, Effects: b}
+	service, err := compose.NewRequestCorrections(deps)
+	require.ErrorContains(t, err, "excusal")
+	require.Nil(t, service)
+	deps.Excusal = b
+	service, err = compose.NewRequestCorrections(deps)
 	require.NoError(t, err)
 	correct := func(version string) error {
 		return testpkg.WithTenantTx(t, ctx, db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
@@ -79,7 +88,7 @@ func TestNativeCorrectionReauthorizesAndRollsBackExactExceptionDeletion(t *testi
 	require.ErrorIs(t, correct(version), careplan.ErrParentRequestCorrectionUnsupported)
 	b.history = []compose.RequestCorrectionEvent{
 		{Type: "decided", Payload: map[string]any{"pickup_exception_id": float64(exception.ID)}},
-		{Type: "corrected", Payload: map[string]any{"pickup_exception_id": parent.ID}},
+		{Type: "corrected", Payload: map[string]any{"pickup_exception_id": exception.ID}},
 	}
 	for _, failNotice := range []bool{false, true} {
 		failure := errors.New("correction effect unavailable")

@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -50,10 +50,12 @@ type statusDayResponseFailure struct {
 	err error
 }
 
-func (s statusDayResponseFailure) FindActiveByStudentAndDateRange(
+// FindSignedOffByStudentIDsAndDate is the read the response verifies the
+// day's status with: the rows that stand for the day (#6291).
+func (s statusDayResponseFailure) FindSignedOffByStudentIDsAndDate(
 	_ context.Context,
-	_ int64,
-	_, _ calendar.Date,
+	_ []int64,
+	_ calendar.Date,
 ) ([]*absencerecords.StudentStatusDay, error) {
 	return nil, s.err
 }

@@ -3,10 +3,12 @@ package ports
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 type AccountProfileStore interface {
+	FindAccountPortalLocale(context.Context, int64) (*string, bool, domain.OperationStats, error)
+	SetAccountPortalLocale(context.Context, int64, string) (bool, domain.OperationStats, error)
 	FindAccountMetadata(context.Context, int64) (domain.AccountMetadata, bool, domain.OperationStats, error)
 	SetAccountUsername(context.Context, int64, string) (bool, domain.OperationStats, error)
 	SetAccountAvatar(context.Context, int64, string) (bool, domain.OperationStats, error)

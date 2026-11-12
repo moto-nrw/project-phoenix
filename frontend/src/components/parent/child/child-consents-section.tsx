@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef, useState } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { ParentSection } from "~/components/parent/shell/parent-section";
 import { ParentSectionSkeleton } from "~/components/parent/parent-page";
 import { Alert } from "~/components/ui/alert";
@@ -25,13 +25,14 @@ import {
   type ChildConsentState,
 } from "~/lib/parent-api";
 import { confirmationsConcept } from "~/lib/concepts/confirmations";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 type PhotoConsentAction = "withdraw" | "grant";
 
 export function ChildConsentsSection({
   studentId,
 }: Readonly<{ studentId: string }>) {
-  const t = useTranslations("parentChild.consents");
+  const t = useCareTermTranslations("parentChild.consents");
   const locale = useLocale();
   const [consents, setConsents] = useState<ChildConsent[] | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
@@ -120,16 +121,26 @@ export function ChildConsentsSection({
     (consent) =>
       consent.key === "photo" && (consent.can_withdraw || consent.can_grant),
   );
+  // Ohne Recht zur Foto-Einwilligung bleibt der Widerruf über die OGS
+  // (#6650): Die Zeile sagt, wer ihn einträgt, statt eine Sackgasse zu zeigen.
+  const photoGrantedElsewhere = visibleConsents.some(
+    (consent) =>
+      consent.key === "photo" &&
+      consent.state === "granted" &&
+      !consent.can_withdraw,
+  );
+  let description = t("description");
+  if (canChangePhotoConsent) {
+    description = `${description} ${t("photoDescription")}`;
+  } else if (photoGrantedElsewhere) {
+    description = `${description} ${t("photoViaCareDescription")}`;
+  }
 
   return (
     <>
       <ParentSection
         title={t("title")}
-        description={
-          canChangePhotoConsent
-            ? `${t("description")} ${t("photoDescription")}`
-            : t("description")
-        }
+        description={description}
         concept={confirmationsConcept}
       >
         {successfulAction === "withdraw" ? (

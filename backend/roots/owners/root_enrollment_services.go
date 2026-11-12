@@ -2,27 +2,29 @@ package owners
 
 import (
 	"context"
+	"errors"
 	"fmt"
 
-	realtime "github.com/moto-nrw/project-phoenix/realtime"
+	realtime "github.com/moto-ogs/project-phoenix/realtime"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	deliveryModule "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	education "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	arrivalTimetable "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // EnrollmentNotices are Enrollment's mail branding and decision notices over
@@ -62,12 +64,19 @@ func BuildEnrollmentNotices(
 func BuildEnrollmentPhases(
 	env RootEnvironment, enrollment EnrollmentRows, carePlan careplan.Capability, persons peopledirectory.Capability,
 	calendar enrollmentCompose.CalendarPeriods, owner TimetableOwner, offerings CarePlanOfferings, settings settingsCompose.BatchSettingsService,
+	db transactionruntime.Database,
 ) (*enrollmentCompose.Phases, error) {
+	pendingWindows, err := ComposePendingWindows(db)
+	if err != nil {
+		return nil, fmt.Errorf("compose enrollment phases: %w", err)
+	}
 	phases, err := enrollmentCompose.NewResyncingPhases(enrollmentCompose.PhaseDependencies{
 		Records: enrollment.Bookings, Offerings: enrollmentPhaseOfferings{carePlan: carePlan}, Calendar: calendar,
 		LockTemplateRecurrence: owner.RecurrenceLock.LockRecurrenceWrites, ValidateCareOfferingPhaseChange: careOfferingPhaseGuard(offerings.Catalog),
-		Resyncer: offerings.Bookings, Settings: EnrollmentCollectionSettings{Settings: settings},
-		Roster: phaseResponseRoster{query: persons}, CareExits: phaseResponseCareExits{query: carePlan},
+		Resyncer: offerings.Bookings, Students: NewEnrollmentPhaseStudents(pendingWindows),
+		Bookings: NewEnrollmentPhaseBookings(carePlanCompose.NewOfferingBookings()), Settings: EnrollmentCollectionSettings{Settings: settings},
+		CareStudents: NewEnrollmentPhaseCareStudents(persons),
+		Roster:       phaseResponseRoster{query: persons}, CareExits: phaseResponseCareExits{query: carePlan},
 		PortalAccounts: persons, Logger: env.Logger.With("service", "enrollment-phase"),
 	})
 	if err != nil {
@@ -101,6 +110,7 @@ func BuildEnrollmentDecisions(
 		PickupSchedules:   arrivalTimetable.NewEnrollmentPickupSchedules(careRows.PickupSchedules),
 		ArrivalSchedules:  arrivalTimetable.NewEnrollmentArrivalSchedules(careRows.ArrivalSchedules),
 		Bookings:          offerings.Bookings, GuardianAccess: identity, GuardianInvitations: identity, GuardianAuthorizer: people.StudentGuardians,
+		GuardianHold:           NewEnrollmentGuardianHold(db, people.StudentGuardians, people.Students, people.GuardianProfiles, nil),
 		StudentAudit:           EnrollmentDecisionStudentAudit(services.StudentAudit),
 		StudentConsents:        EnrollmentDecisionStudentConsents(services.StudentConsents),
 		CareWithdrawal:         schedules.Lifecycle,
@@ -108,6 +118,7 @@ func BuildEnrollmentDecisions(
 		ParentsURL:             EnrollmentDecisionParentsURL(env.Links.ParentsURL, env.Links.FrontendURL),
 		Settings:               EnrollmentDecisionSettingValues(settings),
 		IsTransient:            transactionFailures.IsTransientDatabaseError,
+		IsSavepointRollback:    func(err error) bool { return errors.Is(err, tenant.ErrSavepointRollback) },
 		LockTemplateRecurrence: owner.RecurrenceLock.LockRecurrenceWrites,
 		Pickups:                weeklyPickupHooks(schedules.AutoExcusal, carePlanRows.PickupStudentLocks),
 		Logger:                 env.Logger.With("service", "enrollment-decision"), Today: env.Today,
@@ -148,7 +159,7 @@ type EnrollmentFlows struct {
 // the rollover over the decision flow.
 func BuildEnrollmentFlows(
 	db transactionruntime.Database, env RootEnvironment, enrollment EnrollmentRows, notices EnrollmentNotices,
-	decisions *enrollmentCompose.Decisions, phases *enrollmentCompose.Phases, offerings CarePlanOfferings,
+	decisions *enrollmentCompose.Decisions, phases *enrollmentCompose.Phases, offerings CarePlanOfferings, owner TimetableOwner,
 	consent communication.NotificationConsentCapability, identity identityaccess.Owner, people PeopleRows,
 	structure StructureRows, carePlan careplan.Capability, carePlanRows CarePlanRows, schedules CarePlanSchedules,
 	membership schoolmembership.Capability, organizations organizationtenancy.Query, audit AuditOwner,
@@ -162,10 +173,13 @@ func BuildEnrollmentFlows(
 			Requests: records, ParentChanges: records, Children: records, Bookings: enrollment.CareBookings,
 			Guardians: records, LateInviteRepo: records, CareOfferingRepo: notices.CareOfferings,
 			Capacity: capacity, Catalog: records, SchoolRepo: EnrollmentSchoolDirectory{Schools: organizations},
-			Notifications: notices.Notifications, StudentRepo: people.Students, GuardianAuthorizer: people.StudentGuardians,
+			Notifications: notices.Notifications, StudentRepo: people.Students,
+			GuardianHold:  NewEnrollmentGuardianHold(db, people.StudentGuardians, people.Students, people.GuardianProfiles, nil),
 			RateLimitRepo: records, Uploads: records, OutboxEnqueuer: intakeMailOutbox(outbox), Settings: settings,
 			AdminSubscribers: NewEnrollmentAdminSubscribers(consent, identity), ManualDecider: decisions,
 			FrontendURL: links.FrontendURL, ParentsURL: links.ParentsURL, Logger: env.Logger.With("service", "enrollment-request"),
+			FamilyChildrenPurpose:  NewEnrollmentFamilyChildrenPurpose(organizations),
+			LockTemplateRecurrence: owner.RecurrenceLock.LockRecurrenceWrites,
 		}),
 		Reports: NewEnrollmentReports(EnrollmentReportSources{
 			Owner: records, Offerings: notices.CareOfferings, AccessLog: audit.Persistence.DataAccessLog,
@@ -178,12 +192,14 @@ func BuildEnrollmentFlows(
 			Bookings: enrollment.CareBookings, Requests: records, Children: records, Guardians: records,
 			LateInviteRepo: records, CareOfferingRepo: notices.CareOfferings, Capacity: capacity,
 			Catalog: records, Notifications: notices.Notifications, GuardianProfileRepo: people.GuardianProfiles,
-			GuardianPhoneRepo: peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()), GuardianInvitations: enrollmentGuardianInvitationAvailability{invitations: identity},
-			PersonRepo: people.Persons, StudentRepo: people.Students, GuardianAuthorizer: people.StudentGuardians,
-			Decisions: decisions, BookingGates: offerings.Bookings,
+			GuardianPhoneRepo: peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()), GuardianInvitations: enrollmentGuardianInvitationAvailability{invitations: identity, profiles: people.GuardianProfiles},
+			PersonRepo: people.Persons, StudentRepo: people.Students,
+			GuardianHold: NewEnrollmentGuardianHold(db, people.StudentGuardians, people.Students, people.GuardianProfiles, carePlanRows.Companions),
+			Decisions:    decisions, BookingGates: offerings.Bookings,
 			CompanionGraphLocker: companionGraphCoordinator{CompanionLocks: carePlanRows.Companions, strandings: people.Students},
 			Settings:             settings, OutboxEnqueuer: intakeMailOutbox(outbox), FrontendURL: links.FrontendURL, ParentsURL: links.ParentsURL,
-			Logger: env.Logger.With("service", "enrollment-change-request"),
+			Logger:                 env.Logger.With("service", "enrollment-change-request"),
+			LockTemplateRecurrence: owner.RecurrenceLock.LockRecurrenceWrites,
 		}),
 		Uploads: NewEnrollmentRequestUploads(records, audit.Persistence.DataAccessLog, settings, env.Logger.With("service", "enrollment-uploads")),
 		Rollovers: NewEnrollmentRollovers(EnrollmentRolloverSources{

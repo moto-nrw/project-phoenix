@@ -1,8 +1,17 @@
-import { describe, expect, it } from "vitest";
+import { render, screen } from "@testing-library/react";
+import { describe, expect, it, vi } from "vitest";
 import { renderToString } from "react-dom/server";
 
 import type { HomeBlockPlacement } from "~/lib/home-blocks";
 import { HomeBoard } from "./home-board";
+
+// Merkt sich, ob irgendein Modul framer-motion lädt; die Bibliothek selbst
+// bleibt echt.
+const motionLibrary = vi.hoisted(() => ({ loaded: false }));
+vi.mock("framer-motion", async (importOriginal) => {
+  motionLibrary.loaded = true;
+  return importOriginal();
+});
 
 /**
  * Das Brett muss schon im Server-HTML bei jeder Bildschirmbreite richtig
@@ -19,13 +28,13 @@ const placements: readonly HomeBlockPlacement[] = [
   { key: "tile.students_home", span: 1, col: 3, row: 2 },
 ];
 
-function renderBoard(): string {
-  return renderToString(
+function board(editing: boolean) {
+  return (
     <HomeBoard
       placements={placements}
       addable={[]}
       requiredKeys={new Set()}
-      editing={false}
+      editing={editing}
       onMove={() => {}}
       onMoveBy={() => {}}
       onSpanChange={() => {}}
@@ -35,8 +44,12 @@ function renderBoard(): string {
       restoring={false}
     >
       {(placement) => <span>{placement.key}</span>}
-    </HomeBoard>,
+    </HomeBoard>
   );
+}
+
+function renderBoard(): string {
+  return renderToString(board(false));
 }
 
 function itemTag(html: string, key: string): string {
@@ -87,5 +100,29 @@ describe("HomeBoard im Server-HTML", () => {
     const html = renderBoard();
     expect(itemTag(html, "section.recent_activity")).toContain("col-span-2");
     expect(itemTag(html, "tile.students_present")).toContain("col-span-1");
+  });
+});
+
+/**
+ * Gelesen wird die Startseite bei jedem Aufruf, angepasst selten (#6469).
+ * Die Animationsbibliothek braucht nur das Ziehen im Anpassen-Modus; die
+ * Leseansicht darf sie deshalb nicht mitladen.
+ */
+describe("HomeBoard lädt das Anpassen erst bei Bedarf", () => {
+  it("zeichnet die Leseansicht ohne framer-motion und lädt es zum Anpassen nach", async () => {
+    const { rerender } = render(board(false));
+
+    expect(screen.getByText("tile.students_present")).toBeInTheDocument();
+    expect(motionLibrary.loaded).toBe(false);
+
+    rerender(board(true));
+
+    // Bis das Anpassen geladen ist, steht die Leseansicht weiter da.
+    expect(screen.getByText("tile.students_present")).toBeInTheDocument();
+    expect(
+      await screen.findByRole("button", { name: /^Kinder anwesend auswählen/ }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText("tile.students_present")).not.toBeInTheDocument();
+    expect(motionLibrary.loaded).toBe(true);
   });
 });

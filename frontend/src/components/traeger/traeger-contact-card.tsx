@@ -6,6 +6,8 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { saveTraegerContact, type TraegerContact } from "~/lib/traeger-api";
 
@@ -33,6 +35,12 @@ export function TraegerContactCard({
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { success } = useToast();
+  // The reload after saving stands above the card as a load error, never as
+  // an error of the form (#6652).
+  const afterSave = useRefreshAfterWrite(
+    "die Anzeige der Ansprechperson",
+    onSaved,
+  );
 
   // A refresh after another change on the page brings a new contact
   // object; an open draft stays until it is saved or cancelled.
@@ -60,16 +68,19 @@ export function TraegerContactCard({
       setDraft((current) =>
         sameContact(current, submitted) ? saved : current,
       );
-      success("Die Ansprechperson ist gespeichert.");
-      await onSaved();
     } catch (err) {
       logger.error("traeger_contact_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void formErrors.show(err, { object: "die Ansprechperson" });
-    } finally {
+      void formErrors.show(err, {
+        object: "die Änderung der Ansprechperson",
+      });
       setSaving(false);
+      return;
     }
+    setSaving(false);
+    success("Die Ansprechperson ist gespeichert.");
+    await afterSave.refresh();
   };
 
   return (
@@ -86,6 +97,7 @@ export function TraegerContactCard({
           void submit();
         }}
       >
+        <LoadErrorAlert error={afterSave.error} />
         <FormErrorAlert message={formErrors.error} />
         <div className="grid gap-4 md:grid-cols-3">
           <Input

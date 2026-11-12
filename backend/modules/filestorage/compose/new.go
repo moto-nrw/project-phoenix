@@ -14,12 +14,12 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/filestorage"
-	apiDocuments "github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/documents"
-	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage"
+	apiDocuments "github.com/moto-ogs/project-phoenix/modules/filestorage/internal/adapters/documents"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage/internal/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -155,7 +155,7 @@ func NewDocumentCoordinator(kind string, backend apiDocuments.Objects, store api
 // NewUploadCleanup uses the existing file cleanup outbox, partitioned by kind.
 func NewUploadCleanup(db *bun.DB, kind filestorage.UploadCleanupKind) *filestorage.UploadCleanup {
 	cleanup := application.NewUploadCleanup(postgres.NewUploadCleanupStore(postgres.DatabaseRuntime(db), string(kind)), transaction{}, string(kind))
-	return filestorage.NewUploadCleanup(cleanup.Queue, cleanup.Sweep)
+	return filestorage.NewUploadCleanup(cleanup.Queue, cleanup.QueueAll, cleanup.Sweep)
 }
 
 type transaction struct{}

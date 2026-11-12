@@ -27,7 +27,10 @@ const traegerBueroOnly = "Träger-Büro of the shared demo Träger: the seed ass
 
 // demoErasureExceptions are the tables in scope the erasure leaves on
 // purpose, each with its reason. A new table with personal data gets an
-// erasure path, not an entry.
+// erasure path, not an entry. ADR 0187 adds parent_billing.sepa_debit_files,
+// which drops by trigger with its debits. ADR 0212 adds
+// users.message_attachments and users.message_attachment_cleanup, which stay
+// with the messages of the school.
 var demoErasureExceptions = map[string]string{
 	"active.activity_session_attendance":             schoolContentUntil5559,
 	"active.activity_sessions":                       schoolContentUntil5559,
@@ -130,8 +133,7 @@ var demoErasureExceptions = map[string]string{
 	"meta.meal_participation_permission_grants":      schoolContentUntil5559,
 	"meta.parent_student_consent_permission_grants":  schoolContentUntil5559,
 	"parent_billing.holiday_sibling_groups":          "a sibling group of the Träger-Büro names no person itself; its members go with their registrations, and a group left alone drops by trigger (drop_lone_holiday_sibling_group)",
-	"parent_billing.run_events":                      "trail of a billing run of the demo Träger: action, time and the Träger-Büro account, names no family",
-	"parent_billing.run_letters":                     "payment text and emergency numbers of the confirmation letters of a run of the demo Träger, written by the Träger-Büro, no family",
+	"parent_billing.sepa_debit_files":                "ADR 0187: the stored PAIN.008 file of a message drops by trigger (drop_sepa_debit_files_with_their_members), an unsubmitted download with the first of its debits, installment notices or mandates, a submitted original with the last of its debits and notices, and those go with the demo visitor's contracts",
 	"platform.billing_key_date_counts":               "school name and counts of an invoice key date, no person",
 	"platform.email_suppressions":                    schoolContentUntil5559,
 	"platform.organization_accounts":                 traegerBueroOnly,
@@ -171,6 +173,8 @@ var demoErasureExceptions = map[string]string{
 	"users.external_caregivers":                      schoolContentUntil5559,
 	"users.guardian_financial_data":                  schoolContentUntil5559,
 	"users.guardian_phone_numbers":                   schoolContentUntil5559,
+	"users.message_attachment_cleanup":               schoolContentUntil5559,
+	"users.message_attachments":                      schoolContentUntil5559,
 	"users.parent_announcement_declaration_versions": schoolContentUntil5559,
 	"users.parent_announcement_responses":            schoolContentUntil5559,
 	"users.parent_announcements":                     schoolContentUntil5559,
@@ -221,7 +225,10 @@ var demoErasureExceptions = map[string]string{
 
 // demoErasureExceptionBudget is the recorded size of demoErasureExceptions.
 // It only falls: lower it when an entry leaves.
-const demoErasureExceptionBudget = 188
+// ADR 0187: the stored PAIN.008 files of the Träger-Rückgabe (+1).
+// ADR 0212: the photos and files of chat messages and their cleanup intents
+// stay with the messages they belong to (+2).
+const demoErasureExceptionBudget = 189
 
 func TestDemoErasureExceptionsKeepTheirBudget(t *testing.T) {
 	t.Parallel()
@@ -231,6 +238,32 @@ func TestDemoErasureExceptionsKeepTheirBudget(t *testing.T) {
 	for table, reason := range demoErasureExceptions {
 		if reason == "" {
 			t.Errorf("%s needs a reason", table)
+		}
+	}
+}
+
+// demoErasureOutboxKindExceptions are the kinds of a Träger in an outbox
+// table the erasure leaves on purpose, keyed "<table> <kind>", each with its
+// reason (#6342). A row of the Träger outlives the school it is about, so
+// the erasure has to name its kind; the kinds are declared in the schema
+// (chk_email_outbox_traeger_kind, chk_push_outbox_traeger_kind), and
+// TestDemoErasureCoversEveryOutboxKind (database/migrations) reads both. A
+// new kind gets an erasure path, not an entry.
+var demoErasureOutboxKindExceptions = map[string]string{}
+
+// demoErasureOutboxKindExceptionBudget is the recorded size of
+// demoErasureOutboxKindExceptions. It only falls.
+const demoErasureOutboxKindExceptionBudget = 0
+
+func TestDemoErasureOutboxKindExceptionsKeepTheirBudget(t *testing.T) {
+	t.Parallel()
+	if len(demoErasureOutboxKindExceptions) != demoErasureOutboxKindExceptionBudget {
+		t.Fatalf("%d outbox kind exceptions, but the budget records %d; lower the budget with the register",
+			len(demoErasureOutboxKindExceptions), demoErasureOutboxKindExceptionBudget)
+	}
+	for kind, reason := range demoErasureOutboxKindExceptions {
+		if reason == "" {
+			t.Errorf("%s needs a reason", kind)
 		}
 	}
 }

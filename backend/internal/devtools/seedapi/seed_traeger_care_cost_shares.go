@@ -3,8 +3,9 @@ package api
 import (
 	"encoding/json"
 	"fmt"
+	"slices"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The cost bearer shares of the monthly contribution (#4687): the Jugendamt
@@ -16,11 +17,14 @@ import (
 
 const seedCareCostShareOverlap = "parent_billing.care_cost_share_overlap"
 
+type seedCareCostShareContract struct {
+	ContractID int64             `json:"contract_id"`
+	SchoolID   int64             `json:"school_id"`
+	Shares     []json.RawMessage `json:"shares"`
+}
+
 type seedCareCostShareSet struct {
-	Contracts []struct {
-		ContractID int64             `json:"contract_id"`
-		Shares     []json.RawMessage `json:"shares"`
-	} `json:"contracts"`
+	Contracts   []seedCareCostShareContract `json:"contracts"`
 	CostBearers []struct {
 		ID     int64  `json:"id"`
 		Name   string `json:"name"`
@@ -29,16 +33,21 @@ type seedCareCostShareSet struct {
 }
 
 // seedCareCostShares keeps a cost bearer for Bildung und Teilhabe and gives
-// the third and fourth contract without a share one share each. A Träger
-// whose contracts already have shares keeps them.
-func seedCareCostShares(client *Client, auth AuthRef, month calendar.Date) error {
+// the third and fourth contract of the seeded school one share each. A
+// school whose contracts already have shares keeps them; the contracts of
+// the Träger's other schools stay untouched.
+func seedCareCostShares(client *Client, auth AuthRef, school int64, month calendar.Date) error {
 	raw, err := client.GetWithAuth(auth, "/traeger/care-cost-shares/")
 	if err != nil {
 		return fmt.Errorf("read the care cost shares: %w", err)
 	}
 	set, err := seedReadData[seedCareCostShareSet](raw, "care cost shares")
-	if err != nil || len(set.Contracts) < 4 {
+	if err != nil {
 		return err
+	}
+	set.Contracts = slices.DeleteFunc(set.Contracts, func(contract seedCareCostShareContract) bool { return contract.SchoolID != school })
+	if len(set.Contracts) < 4 {
+		return nil
 	}
 	for _, contract := range set.Contracts {
 		if len(contract.Shares) > 0 {

@@ -3,9 +3,9 @@ package operator
 import (
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 )
 
 // AuditReadAccess records one bounded access attempt before invoking the reader.
@@ -50,7 +50,7 @@ func operatorReadTarget(w http.ResponseWriter, r *http.Request, access *organiza
 		}
 	case organizationtenancy.ReadOrganizationAccounts, organizationtenancy.ReadOrganizationPersons,
 		organizationtenancy.ReadOrganizationSchools, organizationtenancy.ReadTraegerMembers,
-		organizationtenancy.ReadTraegerSettings,
+		organizationtenancy.ReadTraegerSettings, organizationtenancy.ReadBelegRetention,
 		organizationtenancy.ReadTraegerInvitations:
 		access.OrganizationID, ok = common.ParseInt64IDWithError(w, r, "id", "invalid organization ID")
 		if !ok {

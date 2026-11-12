@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // CreateInvitation stores the invitation and its mail in the same transaction.
@@ -228,6 +228,7 @@ var invitationSentinels = []struct {
 	{domain.ErrCatererAccountJoinsNoSchool, identityaccess.ErrEmailAlreadyExists},
 	{domain.ErrRoleNotFound, identityaccess.ErrRoleNotAssignable},
 	{domain.ErrTransactionUnusable, identityaccess.ErrTransactionUnusable},
+	{domain.ErrGuardianInvitationAddressChanged, identityaccess.ErrGuardianInvitationAddressChanged},
 }
 
 // invitationError translates a flow error to the public contract: the

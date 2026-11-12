@@ -51,6 +51,14 @@ var (
 // ErrInvalidMembership so callers can classify it with errors.Is.
 type InvalidMembershipError struct{ Reason string }
 
+// PendingWindowConflictError refuses a pending-window move that would end the
+// child's window before it starts (#6505). Nothing was written.
+type PendingWindowConflictError struct{ StudentID int64 }
+
+func (e *PendingWindowConflictError) Error() string {
+	return "school membership: the moved window of a pending child would end before it starts"
+}
+
 func (e *InvalidMembershipError) Error() string { return e.Reason }
 func (e *InvalidMembershipError) Unwrap() error { return ErrInvalidMembership }
 
@@ -179,8 +187,11 @@ type UpdateExternalCaregiverRecord struct {
 // StaffFilter narrows a staff listing. Every field is optional; an empty
 // filter lists every live staff member visible in the caller's transaction.
 type StaffFilter struct {
-	IDs       []int64
-	PersonIDs []int64
+	// ForMutation locks the requested IDs in ascending order in the caller's
+	// transaction. An explicit, nonempty ID set is required.
+	ForMutation bool
+	IDs         []int64
+	PersonIDs   []int64
 	// TenantIDs bounds the listing to the given schools. A cross-tenant
 	// reader (admin transaction) that knows its schools up front passes them
 	// here, so the query stays bounded to those schools instead of scanning

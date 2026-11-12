@@ -10,10 +10,10 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/go-ozzo/ozzo-validation/is"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // LoginRequest is the body shape for POST /school/auth/login. TenantSlug is
@@ -148,7 +148,7 @@ func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	challengeToken, err := rs.MFAService.StartChallenge(r.Context(), claims.AccountID, claims.TenantID, common.ParseClientIP(r))
+	challengeToken, err := rs.MFAService.StartChallenge(r.Context(), claims.AccountID, claims.TenantID, common.ParseClientIP(r), claims.CredentialGeneration)
 	if err != nil {
 		portalauth.Render(w, r, err, portalauth.MFARules)
 		return
@@ -193,8 +193,9 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	// A retried confirm must still produce a session.
-	if err := rs.MFAService.Enroll(ctx, claims.AccountID); err != nil && !errors.Is(err, identityaccess.ErrMFAAlreadyEnrolled) {
+	// A retried confirm must still produce a session. The enrollment holds
+	// the redeemed code's credential generation (#6518).
+	if err := rs.MFAService.Enroll(ctx, verified); err != nil && !errors.Is(err, identityaccess.ErrMFAAlreadyEnrolled) {
 		portalauth.Render(w, r, err, portalauth.MFARules)
 		return
 	}

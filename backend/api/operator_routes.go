@@ -6,14 +6,16 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	customMiddleware "github.com/moto-nrw/project-phoenix/middleware"
-	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/communication/http/operatorannouncements"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityOperatorAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	provisioningOperatorAPI "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
-	settingsOperatorAPI "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
+	customMiddleware "github.com/moto-ogs/project-phoenix/middleware"
+	communicationModule "github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication/http/operatorannouncements"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityOperatorAPI "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/operator"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	provisioningOperatorAPI "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/inbound/operator"
+	parentBillingHTTP "github.com/moto-ogs/project-phoenix/modules/parentbilling/http"
+	settingsOperatorAPI "github.com/moto-ogs/project-phoenix/modules/settings/inbound/operator"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // The operator router mounts the operator routes of Identity & Access,
@@ -119,6 +121,10 @@ func operatorRouter(
 	if staffPersonMerge == nil {
 		panic("operator api: staff person merge routes are required")
 	}
+	erasureOrderRecords, err := provisioningOperatorAPI.NewTraegerErasureOrderRecordsResource(provisioning.ErasureOrderRecords)
+	if err != nil {
+		panic("operator api: " + err.Error())
+	}
 	identityRoutes := identity.routes()
 	provisioningRoutes := provisioningOperatorAPI.NewProvisioningResource(provisioning)
 	announcementRoutes := operatorannouncements.NewAnnouncementsResource(announcements)
@@ -134,6 +140,7 @@ func operatorRouter(
 
 		identityRoutes.mountPasskeyRoutes(r)
 		mountOperatorProvisioningRoutes(r, provisioningRoutes, sampleChildren)
+		mountOperatorErasureOrderRecordsRoute(r, erasureOrderRecords)
 		if schoolSettings != nil && schoolSettings.traegerValues != nil {
 			mountOperatorTraegerSettingsRoutes(r, provisioningRoutes, schoolSettings.traegerValues)
 		}
@@ -150,6 +157,7 @@ func operatorRouter(
 		identityRoutes.mountInvitationRoutes(r)
 		mountOperatorAnnouncementRoutes(r, announcementRoutes, provisioningRoutes)
 		mountOperatorBillingRoutes(r, billing)
+		mountOperatorBelegRetentionRoutes(r, provisioningRoutes)
 	})
 
 	return r
@@ -317,6 +325,12 @@ func mountOperatorProvisioningRoutes(r chi.Router, provisioning *provisioningOpe
 	})
 }
 
+// mountOperatorErasureOrderRecordsRoute registers the hint and the
+// customer's choice recorded on an older open erasure order (#4720).
+func mountOperatorErasureOrderRecordsRoute(r chi.Router, records *provisioningOperatorAPI.TraegerErasureOrderRecordsResource) {
+	r.Put("/organizations/{id}/erasure-order/records", records.RecordTraegerErasureOrderRecords)
+}
+
 // mountOperatorTraegerSettingsRoutes registers the settings of a Träger
 // (#5748) below /organizations/{id}. Reading records an operator read. A
 // change records its operator audit entry after the registry's checks and
@@ -327,6 +341,20 @@ func mountOperatorTraegerSettingsRoutes(r chi.Router, provisioning *provisioning
 	r.Get("/organizations/{id}/traeger-settings/schema", provisioning.AuditReadAccess(organizationtenancy.ReadTraegerSettings, traeger.GetTraegerSettingsSchema))
 	r.Put("/organizations/{id}/traeger-settings/values/{key}", traeger.SetTraegerSettingValue)
 	r.Delete("/organizations/{id}/traeger-settings/values/{key}", traeger.ResetTraegerSettingValue)
+}
+
+// mountOperatorBelegRetentionRoutes serves the retention of the Belege of a
+// Träger to the moto team (#4720, ADR 0184): the instructions, suspensions,
+// clarification list and deletion log under the operator read audit, and
+// the writes (Weisung, suspension and its lift, review of a clarification
+// entry) with their operator audit entry.
+func mountOperatorBelegRetentionRoutes(r chi.Router, provisioning *provisioningOperatorAPI.ProvisioningResource) {
+	retention := parentBillingHTTP.NewBelegRetentionResource(owners.NewBelegRetention(nil), provisioning.RecordBelegRetentionChange, operatorIDFromSession)
+	r.Get("/organizations/{id}/beleg-retention", provisioning.AuditReadAccess(organizationtenancy.ReadBelegRetention, retention.Overview))
+	r.Post("/organizations/{id}/beleg-retention/instructions", retention.RecordInstruction)
+	r.Post("/organizations/{id}/beleg-retention/suspensions", retention.RecordSuspension)
+	r.Delete("/organizations/{id}/beleg-retention/suspensions/{suspensionId}", retention.LiftSuspension)
+	r.Post("/organizations/{id}/beleg-retention/clarification-reviews", retention.RecordClarificationReview)
 }
 
 // mountOperatorSchoolRoutes registers the /schools subtree, including the

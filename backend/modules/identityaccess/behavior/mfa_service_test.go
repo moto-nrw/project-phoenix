@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func TestMFAService_EnrollDisableLifecycle(t *testing.T) {
@@ -26,12 +26,12 @@ func TestMFAService_EnrollDisableLifecycle(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, enrolled, "fresh account must not be enrolled")
 
-	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
+	require.NoError(t, enrollMFA(ctx, t, db, svc, acc.ID))
 	enrolled, err = svc.HasMFAEnrollment(ctx, acc.ID)
 	require.NoError(t, err)
 	assert.True(t, enrolled, "after Enroll, must report enrolled")
 
-	require.ErrorIs(t, svc.EnrollMFA(ctx, acc.ID), identityaccess.ErrMFAAlreadyEnrolled)
+	require.ErrorIs(t, enrollMFA(ctx, t, db, svc, acc.ID), identityaccess.ErrMFAAlreadyEnrolled)
 
 	require.NoError(t, svc.DisableMFA(ctx, acc.ID))
 	enrolled, err = svc.HasMFAEnrollment(ctx, acc.ID)
@@ -54,7 +54,7 @@ func TestMFAService_TrustedDeviceFlow(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
+	require.NoError(t, enrollMFA(ctx, t, db, svc, acc.ID))
 
 	cookie, expiresAt, err := svc.IssueTrustedDevice(ctx, acc.ID, tenantID, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
 	require.NoError(t, err)
@@ -80,9 +80,9 @@ func TestMFAService_StartAndVerifyChallenge(t *testing.T) {
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-challenge")
 
-	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
+	require.NoError(t, enrollMFA(ctx, t, db, svc, acc.ID))
 
-	tokenString, err := svc.StartMFAChallenge(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("203.0.113.42"))
+	tokenString, err := svc.StartMFAChallenge(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("203.0.113.42"), 0)
 	require.NoError(t, err)
 	require.NotEmpty(t, tokenString)
 
@@ -116,9 +116,16 @@ func TestMFAService_AdminOverride_PermissionGate(t *testing.T) {
 	// No permissions -> denied (permission gate, runs before membership).
 	err := svc.AdminDisableMFA(ctx, actorID, actorTenantID, target.ID, "lost mailbox", nil)
 	assert.ErrorIs(t, err, identityaccess.ErrMFAPermissionDenied)
+	require.ErrorIs(t, svc.AdminDisableMFA(ctx, actorID, actorTenantID, target.ID, "lost mailbox", []string{"users:read"}), identityaccess.ErrMFAPermissionDenied)
 
 	// Wildcard admin permission + matching tenant -> allowed.
 	require.NoError(t, svc.AdminDisableMFA(ctx, actorID, actorTenantID, target.ID, "lost mailbox", []string{"admin:*"}))
+
+	// The same component and prefix wildcards the route authorizer accepts
+	// must also pass the capability's permission gate.
+	for _, permission := range []string{"users:*", "*:*", "*:manage", "user*:man*"} {
+		require.NoError(t, svc.AdminDisableMFA(ctx, actorID, actorTenantID, target.ID, "lost mailbox", []string{permission}))
+	}
 
 	// Explicit users:manage permission also works.
 	require.NoError(t, svc.AdminDisableMFA(ctx, actorID, actorTenantID, target.ID, "user lost device", []string{"users:manage"}))

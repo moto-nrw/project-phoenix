@@ -4,7 +4,7 @@ import (
 	"sort"
 	"testing"
 
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -41,11 +41,25 @@ func TestTraegerLevelKeysOfVersionOne(t *testing.T) {
 		// The reminder of an unsigned care contract (#4679).
 		config.KeyCareContractSignatureReminderDays,
 		config.KeyCareContractTerminationConfirmation, config.KeyCareContractWithdrawalConfirmation,
+		// How long the Träger keeps its holiday registrations (#6691).
+		config.KeyHolidayRegistrationRetentionDays,
+		// What the holiday care wish does in a holiday period (#4703).
+		config.KeyHolidayRegistrationWishMode,
 		config.KeyParentBillingCareMonthChange,
 		// The changes of a single invoice the review allows (#6197).
 		config.KeyParentBillingCareReviewAddress, config.KeyParentBillingCareReviewAmount,
 		config.KeyParentBillingCareReviewPositions, config.KeyParentBillingCareReviewRecipient,
-		config.KeyParentBillingCostTakeoverOrder, config.KeyParentBillingDebtorNumberOnConfirm,
+		config.KeyParentBillingCostTakeoverOrder,
+		// The DATEV booking batch (#4694).
+		config.KeyParentBillingDatevAccountLength, config.KeyParentBillingDatevChartOfAccounts,
+		config.KeyParentBillingDatevClientNumber, config.KeyParentBillingDatevConsultantNumber,
+		config.KeyParentBillingDatevCostCenterRequired, config.KeyParentBillingDatevFiscalYearStart, config.KeyParentBillingDatevLocked,
+		config.KeyParentBillingDatevRevenueAccount,
+		// The format of a debtor number (#6675).
+		config.KeyParentBillingDebtorNumberDigitsOnly, config.KeyParentBillingDebtorNumberMaxDigits,
+		config.KeyParentBillingDebtorNumberMinDigits, config.KeyParentBillingDebtorNumberOnConfirm,
+		// The SEPA mandate in the parents portal (#4696).
+		config.KeyParentBillingOnlineMandate,
 		config.KeyParentBillingPaymentText, config.KeyParentBillingSiblingRank,
 		config.KeyTraegerAlertChildrenPerStaff, config.KeyTraegerAlertOpenEnrollments, config.KeyTraegerAlertSickPercent,
 	}

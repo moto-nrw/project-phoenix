@@ -12,11 +12,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // schoolDouble is one school of the Träger with one accepted child who
@@ -191,7 +191,7 @@ func TestPublicCareContractBooksModulesPerWeekdayInOneDraftAndFreezesItsPDFAtThe
 	accesses := 0
 	school := schoolDouble{school: carecontract.School{ID: testpkg.UniqueTestTenantID(t), Name: "OGS Am Lindenhof"},
 		child: testpkg.UniqueTestTenantID(t), offering: testpkg.UniqueTestTenantID(t), accesses: &accesses}
-	intake := compose.NewIntake(compose.IntakePorts{Schools: school, Applications: school, Bookings: school, Access: school, Runtime: runtimeDouble{}, Modes: school, Mail: noMailBlocks{}, Letterheads: letterheadDouble{}})
+	intake := compose.NewIntake(compose.IntakePorts{Schools: school, Applications: school, Bookings: school, Access: school, Runtime: runtimeDouble{}, Modes: school, Mail: noMailBlocks{}, Letterheads: letterheadDouble{}, Families: familyNumbersDouble{}})
 
 	shortLast := calendar.NewDate(2028, 1, 31)
 	candidates, err := intake.Candidates(ctx, reviewer, 0)
@@ -243,7 +243,7 @@ func TestPublicCareContractBooksModulesPerWeekdayInOneDraftAndFreezesItsPDFAtThe
 	post := &postDouble{next: testpkg.UniqueTestTenantID(t)}
 	reads := []carecontract.SchoolAccess{}
 	school.reads = &reads
-	ports := compose.ContractPorts{Letterheads: letterheadDouble{}, Post: post, Runtime: runtimeDouble{}, Access: school,
+	ports := compose.ContractPorts{Holidays: holidaysDouble{}, Letterheads: letterheadDouble{}, Post: post, Runtime: runtimeDouble{}, Access: school,
 		Ledger: ledgerDouble{}, Links: carecontract.SigningLinks{Tokens: &tokenDouble{}, ParentsURL: "http://parents.localhost", Fingerprint: sha256Hex}}
 	contracts := compose.NewContracts(ports)
 	id := created.Created[0].ID
@@ -312,4 +312,16 @@ type noMailBlocks struct{}
 
 func (noMailBlocks) ContractMailBlocks(context.Context, int64, []string) (map[string]string, error) {
 	return nil, nil
+}
+
+// holidaysDouble answers no statutory holidays for any school: only
+// Saturday and Sunday move a withdrawal period (#6350).
+type holidaysDouble struct{}
+
+func (holidaysDouble) SchoolHolidayDates(_ context.Context, schoolIDs []int64, _, _ calendar.Date) (map[int64]map[calendar.Date]bool, error) {
+	result := make(map[int64]map[calendar.Date]bool, len(schoolIDs))
+	for _, schoolID := range schoolIDs {
+		result[schoolID] = map[calendar.Date]bool{}
+	}
+	return result, nil
 }

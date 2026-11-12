@@ -5,11 +5,11 @@ import (
 	"errors"
 	"time"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type templateAdministrationQueries interface {
@@ -45,6 +45,7 @@ func NewTemplateAdministration(deps ports.TemplateAdministrationDependencies) (t
 		SupervisorRepo:       deps.Supervisors,
 		Directories:          deps.Directories,
 		InstanceRepo:         deps.Instances,
+		InstanceStaff:        deps.InstanceStaff,
 		TimeframeRepo:        deps.Timeframes,
 		Materialization:      deps.Materialization,
 		Deviations:           deps.Deviations,
@@ -84,6 +85,50 @@ func (a *templateAdministration) UpdateTemplate(ctx context.Context, cmd timetab
 
 func (a *templateAdministration) SplitTemplate(ctx context.Context, cmd timetable.SplitTemplateCommand) (*timetable.SplitTemplateResult, error) {
 	return a.split.Split(ctx, templateSplitInput(cmd))
+}
+
+// LockSeriesSeed pins the conversion's catalogue rows, takes the seed's day
+// locks and then the staff rows of the template roster and of the seed's
+// current people (#6583, #6702): catalogue rows before days, days before
+// staff rows, and every person in one ascending batch. The seed edit
+// re-locks the seed's people only while its new date is still operational,
+// so a past seed's people are left out, as the edit leaves them.
+func (a *templateAdministration) LockSeriesSeed(ctx context.Context, cmd timetable.CreateTemplateCommand, seedInstanceID int64, days ...calendar.Date) error {
+	const op = "convert instance to series: lock"
+	in := createTemplateInput(cmd)
+	deps := a.templates.deps
+	if err := validateAssignableCategory(ctx, deps.ActivityCategoryRepo, in.CategoryID, op+" category"); err != nil {
+		return err
+	}
+	if err := validateAssignablePlanningTrack(ctx, deps.PlanningTracks, in.PlanningTrackID, nil); err != nil {
+		return err
+	}
+	if len(days) > 0 {
+		if err := lockTemplateDays(ctx, deps.Deviations, op+" days", days); err != nil {
+			return err
+		}
+	}
+	roster, err := resolveTemplateRoster(in.Weekdays, in.StudentIDs, in.StaffIDs, in.PrimaryStaffID, in.WeekdayAssignments)
+	if err != nil {
+		return &ports.ScheduleError{Op: op + " staff", Err: err}
+	}
+	staffIDs := make([]int64, 0, len(roster.Staff))
+	for _, row := range roster.Staff {
+		staffIDs = append(staffIDs, row.PersonID)
+	}
+	if in.ScheduleValidFrom != nil && !in.ScheduleValidFrom.Before(calendar.TodayDate()) {
+		seedStaff, err := staffOfInstance(ctx, deps.InstanceStaffRepo, seedInstanceID)
+		if err != nil {
+			return &ports.ScheduleError{Op: op + " staff", Err: err}
+		}
+		for _, row := range seedStaff {
+			staffIDs = append(staffIDs, row.StaffID)
+		}
+	}
+	if err := lockStaffRows(ctx, deps.InstanceStaffRepo, staffIDs); err != nil {
+		return &ports.ScheduleError{Op: op + " staff", Err: err}
+	}
+	return nil
 }
 
 func (a *templateAdministration) AlignPlannedInstanceStaff(ctx context.Context, templateID int64, staffIDs []int64, from calendar.Date) error {
@@ -217,30 +262,33 @@ func createTemplateInput(cmd timetable.CreateTemplateCommand) CreateTemplateInpu
 		RosterValidFrom:       cmd.RosterValidFrom,
 		ScheduleValidFrom:     cmd.ScheduleValidFrom,
 		GradeLevelMax:         cmd.GradeLevelMax,
+		MaterializeFrom:       cmd.MaterializeFrom,
+		MaterializeTo:         cmd.MaterializeTo,
 	}
 }
 
 func templateUpdateInput(cmd timetable.UpdateTemplateCommand) TemplateUpdateInput {
 	return TemplateUpdateInput{
-		TemplateID:                  cmd.TemplateID,
-		Fields:                      templateFieldsUpdate(cmd.Fields),
-		Weekdays:                    cmd.Weekdays,
-		TimeframeID:                 cmd.TimeframeID,
-		WeekPattern:                 cmd.WeekPattern,
-		CalendarPeriodID:            cmd.CalendarPeriodID,
-		RosterValidFrom:             cmd.RosterValidFrom,
-		StudentIDs:                  cmd.StudentIDs,
-		StaffIDs:                    cmd.StaffIDs,
-		PrimaryStaffID:              cmd.PrimaryStaffID,
-		Targets:                     groupTargetModels(cmd.Targets),
-		WeekdayAssignments:          cmd.WeekdayAssignments,
-		GradeLevelMax:               cmd.GradeLevelMax,
-		SeriesRosterFrom:            cmd.SeriesRosterFrom,
-		SeriesRosterScopeStudentIDs: cmd.SeriesRosterScopeStudentIDs,
-		SeriesRosterScopeStaffIDs:   cmd.SeriesRosterScopeStaffIDs,
-		SeriesRosterScopeWeekdays:   cmd.SeriesRosterScopeWeekdays,
-		SeriesRosterPrimaryChanged:  cmd.SeriesRosterPrimaryChanged,
-		StartDate:                   cmd.StartDate,
+		TemplateID:                   cmd.TemplateID,
+		Fields:                       templateFieldsUpdate(cmd.Fields),
+		Weekdays:                     cmd.Weekdays,
+		TimeframeID:                  cmd.TimeframeID,
+		WeekPattern:                  cmd.WeekPattern,
+		CalendarPeriodID:             cmd.CalendarPeriodID,
+		RosterValidFrom:              cmd.RosterValidFrom,
+		StudentIDs:                   cmd.StudentIDs,
+		StaffIDs:                     cmd.StaffIDs,
+		PrimaryStaffID:               cmd.PrimaryStaffID,
+		Targets:                      groupTargetModels(cmd.Targets),
+		WeekdayAssignments:           cmd.WeekdayAssignments,
+		GradeLevelMax:                cmd.GradeLevelMax,
+		SeriesRosterFrom:             cmd.SeriesRosterFrom,
+		SeriesRosterScopeStudentIDs:  cmd.SeriesRosterScopeStudentIDs,
+		SeriesRosterScopeStaffIDs:    cmd.SeriesRosterScopeStaffIDs,
+		SeriesRosterScopeWeekdays:    cmd.SeriesRosterScopeWeekdays,
+		SeriesRosterPrimaryChanged:   cmd.SeriesRosterPrimaryChanged,
+		PropagateNotesToPredecessors: cmd.PropagateNotesToPredecessors,
+		StartDate:                    cmd.StartDate,
 	}
 }
 
@@ -311,11 +359,14 @@ func newTemplateAdministrationService(deps ports.TemplateAdministrationDependenc
 		CareOfferings:          deps.CareOfferings,
 		ResyncOfferingRoster:   deps.ResyncOfferingRoster,
 		RecurrenceLock:         deps.RecurrenceLock,
+		SickReports:            deps.SickReports,
+		Deviations:             deps.Deviations,
 		SchoolClasses:          deps.SchoolClasses,
 		Staffing:               deps.Staffing,
 		Logger:                 deps.Logger,
 		Transactions:           deps.Transactions,
 		Today:                  deps.Today,
+		Materialization:        deps.Materialization,
 	})
 }
 

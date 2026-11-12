@@ -48,7 +48,6 @@ vi.mock("swr", () => ({
 vi.mock("~/lib/swr", () => ({
   useSWRAuth: vi.fn(),
   useImmutableSWR: vi.fn(),
-  useSWRWithId: vi.fn(),
   mutate: vi.fn(),
   useTenantMutate: vi.fn(() => vi.fn()),
 }));

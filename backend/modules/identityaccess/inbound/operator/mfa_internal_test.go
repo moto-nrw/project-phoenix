@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // TestOperatorMFAVerifyRequest_BindRejectsBadInputs covers the request-binding
@@ -122,6 +122,8 @@ func TestMapOperatorMFAError_StatusCodes(t *testing.T) {
 		{identityaccess.ErrMFARateLimited, http.StatusTooManyRequests},
 		{identityaccess.ErrMFANotEnrolled, http.StatusForbidden},
 		{identityaccess.ErrMFAAlreadyEnrolled, http.StatusConflict},
+		// A resend or enrollment start after a password change (#6308).
+		{identityaccess.ErrOperatorInvalidCredentials, http.StatusUnauthorized},
 	}
 	for _, tc := range cases {
 		t.Run(tc.err.Error(), func(t *testing.T) {

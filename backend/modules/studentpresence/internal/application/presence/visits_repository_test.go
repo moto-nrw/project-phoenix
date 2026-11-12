@@ -4,9 +4,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/internal/ptrtest"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -565,9 +565,9 @@ func TestVisitRepository_DeleteExpiredVisits(t *testing.T) {
 		require.NoError(t, err)
 
 		// Delete visits older than 30 days
-		deleted, err := repo.DeleteCompletedVisitsBefore(ctx, data.Student1ID, studentpresence.VisitRetentionPolicy{}, now.AddDate(0, 0, -30))
+		deleted, err := repo.DeleteExpiredVisits(ctx, []studentpresence.VisitRetentionCount{{StudentID: data.Student1ID, RetentionDays: 30}}, now)
 		require.NoError(t, err)
-		assert.GreaterOrEqual(t, deleted, int64(1))
+		assert.GreaterOrEqual(t, deleted[data.Student1ID], int64(1))
 	})
 
 	t.Run("does not delete active visits", func(t *testing.T) {
@@ -582,7 +582,7 @@ func TestVisitRepository_DeleteExpiredVisits(t *testing.T) {
 		require.NoError(t, err)
 
 		// Try to delete - should not delete active visits
-		_, err = repo.DeleteCompletedVisitsBefore(ctx, data.Student1ID, studentpresence.VisitRetentionPolicy{}, now.AddDate(0, 0, -30))
+		_, err = repo.DeleteExpiredVisits(ctx, []studentpresence.VisitRetentionCount{{StudentID: data.Student1ID, RetentionDays: 30}}, now)
 		require.NoError(t, err)
 
 		// Visit should still exist

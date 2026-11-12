@@ -1,6 +1,6 @@
 package application
 
-import "github.com/moto-nrw/project-phoenix/modules/communication"
+import "github.com/moto-ogs/project-phoenix/modules/communication"
 
 // Native workflow values have their own identity, without aliases or ORM data.
 type StaffMessage communication.StaffMessageRecord

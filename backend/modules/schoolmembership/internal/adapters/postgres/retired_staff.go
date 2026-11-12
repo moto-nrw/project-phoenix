@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/domain"
 )
 
 // MarkNextRetiredStaffErased marks the next tombstone of the school in
@@ -25,7 +25,7 @@ func (s *Store) MarkNextRetiredStaffErased(ctx context.Context, before time.Time
 		Where(`"due".deleted_at IS NOT NULL`).
 		Where(`"due".deleted_at < ?`, before).
 		Where(`"due".personal_data_erased_at IS NULL`).
-		OrderExpr(`"due".id ASC`).Limit(1).For("UPDATE SKIP LOCKED"), "due", scope)
+		OrderExpr(`"due".id ASC`).Limit(1).For(staffRowLock+" SKIP LOCKED"), "due", scope)
 	var rows []schoolmembership.RetiredStaffErasure
 	query := withTenant(db.NewUpdate().Model((*staffRow)(nil)).
 		ModelTableExpr(`users.staff_school_memberships AS "staff"`).

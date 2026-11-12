@@ -3,11 +3,11 @@ package application
 import (
 	"context"
 
-	owner0 "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	owner0 "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // StudentRecords binds the retained boundary vocabulary directly to the native
@@ -312,4 +312,22 @@ func studentRecordsByID(records []domain.StudentRecord) map[int64]*peopleModule.
 		result[record.ID] = peopleModule.StudentStateFromRecord(peopleModule.StudentRecord(record))
 	}
 	return result
+}
+
+// FindEnrolledStudentIDsByIdentities keeps zero, one and ambiguous matches
+// distinct without querying once per submitted child.
+func (r *StudentRecords) FindEnrolledStudentIDsByIdentities(ctx context.Context, tenantID int64, identities []peopleModule.StudentIdentity) ([][]int64, error) {
+	if len(identities) == 0 {
+		return [][]int64{}, nil
+	}
+	for _, identity := range identities {
+		if err := peopleModule.ValidateStudentMatch(tenantID, identity.FirstName, identity.LastName, identity.Birthday.String()); err != nil {
+			return nil, RetainedStudentReadError("find enrolled students by identities", err)
+		}
+	}
+	ids, err := r.directory.ListEnrolledIDsByIdentities(ctx, tenantID, identities)
+	if err != nil {
+		return nil, RetainedStudentReadError("find enrolled students by identities", MapError(err))
+	}
+	return ids, nil
 }

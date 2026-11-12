@@ -12,13 +12,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // --- Self-service trusted devices ---
@@ -36,7 +36,7 @@ func TestMFAService_ListAndRevokeTrustedDevices(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
+	require.NoError(t, enrollMFA(ctx, t, db, svc, acc.ID))
 
 	// Fresh account has zero devices.
 	devices, err := svc.ListTrustedDevices(ctx, acc.ID, tenantID)
@@ -75,7 +75,7 @@ func TestMFAService_RevokeTrustedDevice_OwnershipCheck(t *testing.T) {
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
 
-	require.NoError(t, svc.EnrollMFA(ctx, owner.ID))
+	require.NoError(t, enrollMFA(ctx, t, db, svc, owner.ID))
 	_, _, err := svc.IssueTrustedDevice(ctx, owner.ID, tenantID, "UA", net.ParseIP("203.0.113.10"))
 	require.NoError(t, err)
 
@@ -168,7 +168,7 @@ func TestMFAService_SetMFAOverride_ForceOff_RevokesTrustedDevices(t *testing.T) 
 	svc, _, db := newTestMFAService(t)
 	acc, actorTenantID := tenantMappedAccount(t, db, "mfa-svc-override-revoke")
 
-	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
+	require.NoError(t, enrollMFA(ctx, t, db, svc, acc.ID))
 	// Issue the trusted-device row in the same tenant the admin acts from.
 	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, actorTenantID, "UA", net.ParseIP("203.0.113.20"))
 	require.NoError(t, err)
@@ -303,7 +303,7 @@ func TestMFAService_SetMFAOverride_RejectionDoesNotPartialWrite(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 	acc, actorTenantID := tenantMappedAccount(t, db, "mfa-svc-override-noPartial")
 
-	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
+	require.NoError(t, enrollMFA(ctx, t, db, svc, acc.ID))
 	_, _, err := svc.IssueTrustedDevice(ctx, acc.ID, actorTenantID, "UA", net.ParseIP("203.0.113.55"))
 	require.NoError(t, err)
 
@@ -341,7 +341,7 @@ func TestMFAService_AdminDisable_RejectsCrossTenant(t *testing.T) {
 	tenantA := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureAccountTenant(t, db, target.ID, tenantA)
 
-	require.NoError(t, svc.EnrollMFA(ctx, target.ID))
+	require.NoError(t, enrollMFA(ctx, t, db, svc, target.ID))
 
 	// Actor lives in tenant B and tries to disable target's MFA. Even with
 	// users:manage, the membership check must refuse the call.
@@ -455,7 +455,7 @@ func TestMFAService_OperatorAdminDisable_RejectsCrossSchool(t *testing.T) {
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-op-disable-cross")
 
-	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
+	require.NoError(t, enrollMFA(ctx, t, db, svc, acc.ID))
 
 	err := svc.OperatorDisableMFA(ctx, 1, 999, acc.ID, "test")
 	assert.ErrorIs(t, err, identityaccess.ErrMFAPermissionDenied)
@@ -476,17 +476,17 @@ func TestMFAService_StartChallenge_RateLimitAfter3Codes(t *testing.T) {
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-rate-limit")
 
-	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
+	require.NoError(t, enrollMFA(ctx, t, db, svc, acc.ID))
 	ip := net.ParseIP("203.0.113.30")
 
 	// 3 codes within the 15-minute window are allowed.
 	for i := 0; i < 3; i++ {
-		_, err := svc.StartMFAChallenge(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant, ip)
+		_, err := svc.StartMFAChallenge(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant, ip, 0)
 		require.NoErrorf(t, err, "code %d should still be permitted", i+1)
 	}
 
 	// 4th must trip the rate-limit guard.
-	_, err := svc.StartMFAChallenge(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant, ip)
+	_, err := svc.StartMFAChallenge(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant, ip, 0)
 	assert.ErrorIs(t, err, identityaccess.ErrMFARateLimited)
 }
 
@@ -498,8 +498,8 @@ func TestMFAService_VerifyChallenge_LocksAccountAfter5Failures(t *testing.T) {
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-lockout")
 
-	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
-	challenge, err := svc.StartMFAChallenge(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("203.0.113.40"))
+	require.NoError(t, enrollMFA(ctx, t, db, svc, acc.ID))
+	challenge, err := svc.StartMFAChallenge(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("203.0.113.40"), 0)
 	require.NoError(t, err)
 
 	// Five wrong codes — none should lock until the 5th hits the threshold.
@@ -521,8 +521,8 @@ func TestMFAService_VerifyChallenge_ExpiredChallengeRejected(t *testing.T) {
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-svc-expired")
 
-	require.NoError(t, svc.EnrollMFA(ctx, acc.ID))
-	challenge, err := svc.StartMFAChallenge(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("203.0.113.50"))
+	require.NoError(t, enrollMFA(ctx, t, db, svc, acc.ID))
+	challenge, err := svc.StartMFAChallenge(ctx, acc.ID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("203.0.113.50"), 0)
 	require.NoError(t, err)
 
 	// Consume the active challenge so the next VerifyChallenge has no row

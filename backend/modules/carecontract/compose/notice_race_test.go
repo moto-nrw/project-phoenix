@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // holdingRuntime keeps the Träger transaction of the termination open
@@ -65,9 +65,9 @@ func TestTerminationHoldsTheLockAndTheAmendmentAddsNoVersion(t *testing.T) {
 
 	runtime := holdingRuntime{held: make(chan struct{}), release: make(chan struct{})}
 	school := changedSchool{school: carecontract.School{ID: 0, Name: "OGS Am Lindenhof"}}
-	notices := compose.NewNotices(compose.ContractPorts{Letterheads: letterheadDouble{}, Post: &postDouble{}, Runtime: runtime, Access: school,
+	notices := compose.NewNotices(compose.ContractPorts{Holidays: holidaysDouble{}, Letterheads: letterheadDouble{}, Post: &postDouble{}, Runtime: runtime, Access: school,
 		Ledger: ledgerDouble{}, Links: testSigningLinks()},
-		compose.NoticePorts{Templates: noticeTemplatesDouble{}, Post: &noticePostDouble{}})
+		compose.NoticePorts{Holidays: holidaysDouble{}, Templates: noticeTemplatesDouble{}, Post: &noticePostDouble{}})
 	terminated := make(chan error, 1)
 	go func() {
 		_, err := notices.DeclareNotice(f.ctx, carecontract.Reviewer{OrganizationID: f.organization, AccountID: account}, f.contract,

@@ -32,11 +32,11 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/go-ozzo/ozzo-validation/is"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 // Organization is a Träger the person may choose at sign-in.
@@ -83,6 +83,7 @@ type Resource struct {
 	settings       TraegerRouter
 	masterData     TraegerRouter
 	accounts       identityaccess.TraegerAccountManagement
+	profiles       identityaccess.TraegerMemberProfiles
 	organization   TraegerOrganizationRouter
 	schoolSessions identityaccess.TraegerSchoolSessions
 }
@@ -91,14 +92,15 @@ type Resource struct {
 // holiday periods, the access log (#4655), the Träger settings of the
 // Settings Platform (ADR 0086), the master data of Organisation & Tenancy
 // (#4653) and the Träger of the session (#4658).
-// accounts serves the Träger-Büro account routes (#4650) and
+// accounts serves the Träger-Büro account routes (#4650), profiles the
+// names of its people (#4693) and
 // schoolSessions the Absprung into a school (#4654), resets the password
 // reset (#5149); without them those routes answer 500.
-func NewResource(auth AuthRuntime, mfa MFARuntime, resets common.PasswordResetRoutes, schools, holidayPeriods, accessLog, settings, masterData TraegerRouter, accounts identityaccess.TraegerAccountManagement, organization TraegerOrganizationRouter, schoolSessions identityaccess.TraegerSchoolSessions) *Resource {
+func NewResource(auth AuthRuntime, mfa MFARuntime, resets common.PasswordResetRoutes, schools, holidayPeriods, accessLog, settings, masterData TraegerRouter, accounts identityaccess.TraegerAccountManagement, profiles identityaccess.TraegerMemberProfiles, organization TraegerOrganizationRouter, schoolSessions identityaccess.TraegerSchoolSessions) *Resource {
 	if schools == nil || holidayPeriods == nil || accessLog == nil || settings == nil || masterData == nil || organization == nil {
 		panic("traeger portal: the school list, holiday period, access log, settings, master data and Träger routes are required")
 	}
-	return &Resource{auth: auth, mfa: mfa, resets: resets, schools: schools, holidayPeriods: holidayPeriods, accessLog: accessLog, settings: settings, masterData: masterData, accounts: accounts, organization: organization, schoolSessions: schoolSessions}
+	return &Resource{auth: auth, mfa: mfa, resets: resets, schools: schools, holidayPeriods: holidayPeriods, accessLog: accessLog, settings: settings, masterData: masterData, accounts: accounts, profiles: profiles, organization: organization, schoolSessions: schoolSessions}
 }
 
 var errLoginUnavailable = errors.New("the Träger sessions are not composed")
@@ -135,6 +137,7 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 	r.Mount("/settings", rs.settings.TraegerRouter(protectedTraegerRoutes))
 	r.Mount("/master-data", rs.masterData.TraegerRouter(protectedTraegerRoutes))
 	r.Mount("/accounts", rs.accountRouter(protectedTraegerRoutes))
+	r.Mount("/profile", rs.profileRouter(protectedTraegerRoutes))
 	r.Mount("/access-log", rs.accessLog.TraegerRouter(protectedTraegerRoutes))
 	r.Mount("/organization", rs.organization.TraegerOrganizationRouter(protectedTraegerRoutes))
 	r.Mount("/school-sessions", rs.schoolSessionRouter(protectedTraegerRoutes))

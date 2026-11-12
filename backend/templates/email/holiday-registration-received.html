@@ -11,18 +11,51 @@
     {{range .Children}}
     <div class="highlight-box">
         <p style="margin: 0 0 8px 0; font-size: 14px;"><strong>{{.Name}}</strong>{{if .Guest}} (Feriengast){{end}}</p>
+        {{if .WaitlistWeeks}}{{if .Weeks}}<p style="margin: 0 0 4px 0; font-size: 14px;">Platz reserviert:</p>{{end}}{{end}}
+        {{if .Weeks}}
         <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
             {{range .Weeks}}
             <li>{{.}}</li>
             {{end}}
         </ul>
+        {{end}}
+        {{if .WaitlistWeeks}}
+        <p style="margin: 8px 0 4px 0; font-size: 14px;">Auf der Warteliste:</p>
+        <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
+            {{range .WaitlistWeeks}}
+            <li>{{.}}</li>
+            {{end}}
+        </ul>
+        {{end}}
+        {{if .PendingWeeks}}
+        <p style="margin: 8px 0 4px 0; font-size: 14px;">Gewünscht:</p>
+        <ul style="margin: 0; padding-left: 20px; font-size: 14px;">
+            {{range .PendingWeeks}}
+            <li>{{.}}</li>
+            {{end}}
+        </ul>
+        {{end}}
+    </div>
+    {{end}}
+
+    {{if .Pending}}
+    <div class="highlight-box" style="margin-top: 24px;">
+        <p style="margin: 0; font-size: 14px;"><strong>Wer bekommt einen Platz?</strong></p>
+        <p style="margin: 8px 0 0 0; font-size: 14px;">Die Plätze vergibt das Büro des Trägers nach festen Regeln. Dabei helfen Ihre Angaben im Formular. Wann Sie sich angemeldet haben, entscheidet nicht allein. Sie bekommen eine E-Mail, sobald das Büro entschieden hat.</p>
+    </div>
+    {{end}}
+
+    {{if .Waitlisted}}
+    <div class="highlight-box" style="margin-top: 24px;">
+        <p style="margin: 0; font-size: 14px;"><strong>Warteliste</strong></p>
+        <p style="margin: 8px 0 0 0; font-size: 14px;">In manchen Wochen sind alle Plätze vergeben. Dort steht Ihr Kind auf der Warteliste. Wird ein Platz frei, bekommt Ihr Kind ihn automatisch. Wir schreiben Ihnen dann eine E-Mail.</p>
     </div>
     {{end}}
 
     <div class="highlight-box" style="margin-top: 24px;">
         <p style="margin: 0; font-size: 14px;"><strong>Wie geht es weiter?</strong></p>
         <p style="margin: 8px 0 0 0; font-size: 14px;">Das ist noch keine Zusage. Der Träger prüft Ihre Anmeldung und schreibt Ihnen, ob Ihr Kind einen Platz bekommt.</p>
-        {{if .Binding}}<p style="margin: 8px 0 0 0; font-size: 14px;">Die Anmeldung ist verbindlich.</p>{{end}}
+        {{if .Binding}}<p style="margin: 8px 0 0 0; font-size: 14px;">Die Anmeldung ist verbindlich.{{if .Waitlisted}} Das gilt auch für einen Platz von der Warteliste.{{end}}</p>{{end}}
     </div>
 
     {{with .Declaration}}

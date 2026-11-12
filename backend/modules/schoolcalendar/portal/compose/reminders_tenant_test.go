@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/appointments"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/appointments"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -78,7 +78,7 @@ func TestReminderNamedTablesIsolateTwoTenants(t *testing.T) {
 			_, err := tx.NewSelect().TableExpr("calendar.appointment_reminder_push_deliveries").Count(txCtx)
 			return err
 		})
-		require.ErrorContains(t, err, "permission denied")
+		require.Equal(t, "42501", testpkg.PostgresSQLState(err))
 		other := claims[otherTenant]
 		require.NoError(t, module.ReleaseReminderPushDelivery(ctx, other.appointmentID, other.revision, date, other.guardianID))
 		_, err = module.ClaimReminderPushDelivery(ctx, other.appointmentID, other.revision, date, other.guardianID)

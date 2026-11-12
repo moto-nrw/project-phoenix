@@ -2,13 +2,12 @@ package fileformat
 
 import (
 	"bytes"
-	"encoding/csv"
 	"fmt"
 	"io"
 
 	"github.com/xuri/excelize/v2"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
 )
 
 // staffRequiredColumns are the normalized header keys a staff import file must
@@ -61,7 +60,10 @@ func missingStaffColumns(mapping map[string]int) []string {
 
 // ParseStaffCSV parses a CSV file into staff import rows.
 func ParseStaffCSV(reader io.Reader) ([]importModels.StaffImportRow, error) {
-	csvReader := csv.NewReader(reader)
+	csvReader, err := newCSVReader(reader)
+	if err != nil {
+		return nil, err
+	}
 	csvReader.FieldsPerRecord = -1
 	csvReader.TrimLeadingSpace = true
 	csvReader.LazyQuotes = true

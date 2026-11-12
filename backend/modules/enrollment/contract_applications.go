@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ContractApplication is an accepted application child of one school with
@@ -28,6 +28,14 @@ type ContractApplication struct {
 	PhaseName         string
 	ServiceStartDate  *calendar.Date
 	ActivateOn        *calendar.Date
+	// FamilyChildren is the number of children of the family the parents
+	// stated on the registration, with the time; nil when none (#6335).
+	FamilyChildren         *int
+	FamilyChildrenStatedAt *time.Time
+	// Renewal tells that a rollover carried the child into its phase: the
+	// acceptance of the new phase comes only from the parents' confirmation
+	// of its terms (#6456).
+	Renewal bool
 }
 
 // ContractPhase is an offering phase's name and inclusive service window.

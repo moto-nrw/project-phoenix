@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/workflows/gradetransition"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

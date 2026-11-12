@@ -5,14 +5,16 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // SickReports is the entry of the absence writes that may cascade a sick
 // report (#1843, #4825). Each write runs Workforce's absence command and the
-// plan it returns in one tenant transaction: the absence lock comes first,
-// then the cascade's shift and day locks, and a failed plan step aborts the
-// absence write, so a half-cascaded sick report never commits.
+// plan it returns in one tenant transaction, and a failed plan step aborts
+// the absence write, so a half-cascaded sick report never commits. Before
+// the write the entry takes every lock the write and its cascade need, in
+// the canonical order (SickCascade.LockSickReportWrite, #6232): the absence
+// gate, the staff-shift gates, the days; Workforce's staff row comes after.
 type SickReports struct {
 	absences workforce.SickReportWrites
 	cascade  SickCascade
@@ -31,7 +33,7 @@ func NewSickReports(absences workforce.SickReportWrites, cascade SickCascade, ru
 
 // CreateOwnAbsence files the staff member's own absence.
 func (r *SickReports) CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {
-	return r.absence(ctx, func(ctx context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
+	return r.absence(ctx, r.lockFor(staffID, 0, request.DateStart, request.DateEnd), func(ctx context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
 		return r.absences.CreateOwnAbsence(ctx, staffID, actorAccountID, request)
 	})
 }
@@ -40,7 +42,7 @@ func (r *SickReports) CreateOwnAbsence(ctx context.Context, staffID int64, actor
 // behalf; the merge path cascades over the merged range of the primary row,
 // which the cascade's idempotency guards make safe to re-run.
 func (r *SickReports) CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {
-	return r.absence(ctx, func(ctx context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
+	return r.absence(ctx, r.lockFor(subjectStaffID, 0, request.DateStart, request.DateEnd), func(ctx context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
 		return r.absences.CreateAbsenceFor(ctx, subjectStaffID, createdByStaffID, actorAccountID, request)
 	})
 }
@@ -48,7 +50,7 @@ func (r *SickReports) CreateAbsenceFor(ctx context.Context, subjectStaffID, crea
 // UpdateAbsence edits the staff member's absence; a sick report's range edit
 // reconciles its plan-day difference.
 func (r *SickReports) UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request workforce.UpdateAbsenceRequest) (*workforce.StaffAbsenceResponse, error) {
-	return r.absence(ctx, func(ctx context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
+	return r.absence(ctx, r.lockFor(staffID, absenceID, optionalDate(request.DateStart), optionalDate(request.DateEnd)), func(ctx context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
 		return r.absences.UpdateAbsence(ctx, staffID, actorAccountID, absenceID, request)
 	})
 }
@@ -56,7 +58,7 @@ func (r *SickReports) UpdateAbsence(ctx context.Context, staffID int64, actorAcc
 // DeleteOwnAbsence deletes the staff member's own absence and reverses its
 // plan cascade.
 func (r *SickReports) DeleteOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64) error {
-	return r.deletion(ctx, func(ctx context.Context) (workforce.SickCascadePlan, error) {
+	return r.deletion(ctx, r.lockFor(staffID, absenceID, "", ""), func(ctx context.Context) (workforce.SickCascadePlan, error) {
 		return r.absences.DeleteOwnAbsence(ctx, staffID, actorAccountID, absenceID)
 	})
 }
@@ -64,14 +66,31 @@ func (r *SickReports) DeleteOwnAbsence(ctx context.Context, staffID int64, actor
 // DeleteAbsenceFor deletes subjectStaffID's absence on actorStaffID's behalf
 // and reverses its plan cascade.
 func (r *SickReports) DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error {
-	return r.deletion(ctx, func(ctx context.Context) (workforce.SickCascadePlan, error) {
+	return r.deletion(ctx, r.lockFor(subjectStaffID, absenceID, "", ""), func(ctx context.Context) (workforce.SickCascadePlan, error) {
 		return r.absences.DeleteAbsenceFor(ctx, subjectStaffID, actorStaffID, actorAccountID, absenceID)
 	})
 }
 
-func (r *SickReports) absence(ctx context.Context, write func(context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error)) (*workforce.StaffAbsenceResponse, error) {
+// lockFor takes the write's locks before Workforce writes (#6232).
+func (r *SickReports) lockFor(staffID, absenceID int64, dateStart, dateEnd string) func(context.Context) error {
+	return func(ctx context.Context) error {
+		return r.cascade.LockSickReportWrite(ctx, staffID, absenceID, dateStart, dateEnd)
+	}
+}
+
+func optionalDate(value *string) string {
+	if value == nil {
+		return ""
+	}
+	return *value
+}
+
+func (r *SickReports) absence(ctx context.Context, lock func(context.Context) error, write func(context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error)) (*workforce.StaffAbsenceResponse, error) {
 	var result *workforce.StaffAbsenceResponse
 	err := r.runInTx(ctx, func(ctx context.Context) error {
+		if err := lock(ctx); err != nil {
+			return err
+		}
 		value, plan, err := write(ctx)
 		if err != nil {
 			return err
@@ -88,8 +107,11 @@ func (r *SickReports) absence(ctx context.Context, write func(context.Context) (
 	return result, nil
 }
 
-func (r *SickReports) deletion(ctx context.Context, write func(context.Context) (workforce.SickCascadePlan, error)) error {
+func (r *SickReports) deletion(ctx context.Context, lock func(context.Context) error, write func(context.Context) (workforce.SickCascadePlan, error)) error {
 	return r.runInTx(ctx, func(ctx context.Context) error {
+		if err := lock(ctx); err != nil {
+			return err
+		}
 		plan, err := write(ctx)
 		if err != nil {
 			return err

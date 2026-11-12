@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 type VisitLocation struct {
@@ -20,6 +20,12 @@ type VisitLocation struct {
 	TemplateID     *int64
 	DeviceID       *int64
 	TimeoutMinutes int
+}
+
+// VisitAdmission is read after locking the target session and the child.
+type VisitAdmission struct {
+	HasOpenVisit   bool
+	GroupOccupancy int
 }
 
 type VisitLocationStore interface {

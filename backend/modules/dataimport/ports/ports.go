@@ -12,13 +12,13 @@ package ports
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce/openingbalance"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/openingbalance"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // People Directory contract: persons, students and guardians.
@@ -41,6 +41,10 @@ type (
 	GuardianWithLink         = peopledirectory.GuardianWithLink
 	GuardianLink             = peopledirectory.GuardianLink
 	LinkGuardian             = peopledirectory.LinkGuardian
+	NewStudentGuardianLink   = peopledirectory.NewStudentGuardianLink
+	EnrollmentCare           = peopledirectory.EnrollmentCare
+	NewStudentGuardian       = peopledirectory.NewStudentGuardian
+	NewGuardianPhone         = peopledirectory.NewGuardianPhone
 	GuardianLinkUpdate       = peopledirectory.GuardianLinkUpdate
 )
 
@@ -62,6 +66,7 @@ type PersonDirectory interface {
 	FindPersonByAccount(context.Context, int64) (Person, error)
 	SearchPersons(context.Context, PersonFilter) ([]Person, error)
 	ListPersonsByID(context.Context, []int64) ([]Person, error)
+	ListPersonsByAccount(context.Context, []int64) ([]Person, error)
 }
 
 // StudentDirectory is the bounded student owner seam: the same enrollment
@@ -163,6 +168,44 @@ type StaffMembership interface {
 type ClassListMembership interface {
 	ListClassListEntries(context.Context, ClassListEntryFilter) ([]ClassListEntry, error)
 	CreateClassListEntry(context.Context, CreateClassListEntry) (ClassListEntry, error)
+}
+
+// ClassListEntryBatches is the School Membership batch slice of the
+// class-list chunk executor (#5827).
+type ClassListEntryBatches interface {
+	CreateClassListEntries(context.Context, []CreateClassListEntry) ([]ClassListEntry, error)
+	MatchClassListEntries(context.Context, []ClassListEntryFields) ([][]ClassListEntry, error)
+}
+
+// PrivacyConsentBatches is the Student Presence consent batch slice of the
+// student chunk executor (#5552).
+type PrivacyConsentBatches interface {
+	RecordPrivacyConsents(context.Context, []PrivacyConsent) error
+}
+
+// PersonBatches is the People Directory batch slice of the student chunk
+// executor (#5552).
+type PersonBatches interface {
+	CreatePersons(context.Context, []CreatePerson) ([]Person, error)
+}
+
+// NewGuardianBatches is the People Directory new-guardian batch slice of the
+// student chunk executor (#5552, step 5c).
+type NewGuardianBatches interface {
+	CreateNewStudentGuardians(context.Context, []NewStudentGuardianLink) error
+}
+
+// EnrollmentBatches is the People Directory enrollment batch slice of the
+// student chunk executor (#5552, step 7).
+type EnrollmentBatches interface {
+	CreateEnrollmentProfiles(context.Context, []EnrollmentStudent) ([]CreatedEnrollmentStudent, error)
+	EnrollCreatedStudent(context.Context, CreatedEnrollmentStudent, EnrollmentStudent) (int64, error)
+	SaveEnrollmentCares(context.Context, []EnrollmentCare) error
+}
+
+// AuditBatchCommand appends many events at once, all or nothing.
+type AuditBatchCommand interface {
+	AppendAll(context.Context, []any) error
 }
 
 // Workforce contract: the personnel record.

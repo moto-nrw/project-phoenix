@@ -5,8 +5,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/domain"
 )
 
 // Träger memberships (ADR 0084, #4649). A membership only counts while the
@@ -152,6 +152,55 @@ func (s *Service) DeactivateTraegerMembership(ctx context.Context, organizationI
 	return deactivated, err
 }
 
+// ListTraegerMemberNames returns the set names of the accounts at the
+// Träger in one statement (#4693); an empty set reads nothing.
+func (s *Service) ListTraegerMemberNames(ctx context.Context, organizationID int64, accountIDs []int64) ([]organizationtenancy.TraegerMemberName, error) {
+	names := []organizationtenancy.TraegerMemberName{}
+	if organizationID <= 0 {
+		return nil, organizationtenancy.ErrInvalidOrganization
+	}
+	ids := make([]int64, 0, len(accountIDs))
+	for _, id := range accountIDs {
+		if id > 0 && !slices.Contains(ids, id) {
+			ids = append(ids, id)
+		}
+	}
+	if len(ids) == 0 {
+		return names, nil
+	}
+	err := s.runRead(ctx, "list_traeger_member_names", func(txCtx context.Context, stats *domain.OperationStats) error {
+		rows, queryStats, err := s.store.ListTraegerMemberNames(txCtx, organizationID, ids)
+		stats.Add(queryStats)
+		names = rows
+		return err
+	})
+	return names, err
+}
+
+// SetTraegerMemberName sets the name of an active membership on the
+// caller's administrative transaction (#4693). Like the deactivation it
+// share-locks the Träger row, so the change cannot race its deletion.
+func (s *Service) SetTraegerMemberName(ctx context.Context, organizationID, accountID int64, name string) (set bool, err error) {
+	if organizationID <= 0 || accountID <= 0 {
+		return false, organizationtenancy.ErrInvalidOrganization
+	}
+	err = s.run(ctx, "set_traeger_member_name", func(txCtx context.Context, stats *domain.OperationStats) error {
+		_, found, findStats, findErr := s.store.FindByID(txCtx, organizationID, "SHARE")
+		stats.Add(findStats)
+		if findErr != nil {
+			return findErr
+		}
+		if !found {
+			return organizationtenancy.ErrOrganizationNotFound
+		}
+		var queryStats domain.OperationStats
+		set, queryStats, err = s.store.SetTraegerMemberName(txCtx, organizationID, accountID, name)
+		stats.Add(queryStats)
+		return err
+	})
+	return set, err
+}
+
 // liveTraeger fails for an unknown, deleted or deactivated Träger.
 func liveTraeger(organization organizationtenancy.Organization, found bool, err error) error {
 	switch {
@@ -163,4 +212,20 @@ func liveTraeger(organization organizationtenancy.Organization, found bool, err 
 		return organizationtenancy.ErrOrganizationInactive
 	}
 	return nil
+}
+
+// HasRetainedTraegerMembership keeps account retention separate from login
+// eligibility: pending/active membership survives a disabled or deleted Träger.
+// The read joins the caller's tenant or administrative transaction.
+func (s *Service) HasRetainedTraegerMembership(ctx context.Context, accountID int64) (retained bool, err error) {
+	if accountID <= 0 {
+		return false, organizationtenancy.ErrInvalidOrganization
+	}
+	err = s.runRead(ctx, "has_retained_traeger_membership", func(txCtx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		retained, queryStats, err = s.store.HasRetainedTraegerMembership(txCtx, accountID)
+		stats.Add(queryStats)
+		return err
+	})
+	return retained, err
 }

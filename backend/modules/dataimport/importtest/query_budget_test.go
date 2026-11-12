@@ -6,10 +6,10 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/api"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 // TestStudentImportBatchQueryBudget pins the statements and driver-reported
@@ -55,9 +55,10 @@ func TestStudentImportBatchQueryBudget(t *testing.T) {
 	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.import", counter.Measurement(counter.Queries()))
 	require.Empty(t, counter.Selects("users.guardian_phone_numbers"), "new-profile create proves the phone list is empty")
 	// BUN labels RawQuery as SELECT, including the three owner INSERTs of each
-	// guardian link; this is the driver-reported DML counter, not physical
-	// table writes.
-	require.EqualValues(t, 51, counter.WriteRows())
+	// guardian link and, since the student chunk executor (#5552), the one
+	// statement that creates the ten persons; this is the driver-reported DML
+	// counter, not physical table writes.
+	require.EqualValues(t, 41, counter.WriteRows())
 	smallImport := counter.Total()
 
 	// A second point, eleven times the file: one more statement per row in
@@ -69,6 +70,46 @@ func TestStudentImportBatchQueryBudget(t *testing.T) {
 	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.import_110", counter.Measurement(counter.Queries()))
 	require.Empty(t, counter.Selects("users.guardian_phone_numbers"), "each new profile carries its fact only within its write transaction")
 	t.Logf("import statements: %d rows -> %d, %d rows -> %d", studentBatchRows, smallImport, len(large), counter.Total())
+}
+
+// TestStudentImportWithoutGuardianEmailQueryBudget pins the statements of a
+// ten- and a 110-row create import whose guardians carry no e-mail, after
+// the warmups of TestStudentImportBatchQueryBudget: the chunk executor
+// bundles those guardians per segment (#5552 step 5c).
+func TestStudentImportWithoutGuardianEmailQueryBudget(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	module, err := api.NewImportTestModule(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
+	require.NoError(t, err)
+	actor := newImporter(t, db)
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	ctx := counter.Context(testpkg.Ctx(t))
+	run := func(rows []importModels.StudentImportRow, dryRun bool) {
+		t.Helper()
+		counter.Reset()
+		result, err := module.Import.ImportBatches(ctx, importModels.ImportRequest[importModels.StudentImportRow]{
+			Rows: rows, Mode: importModels.ImportModeCreate, DryRun: dryRun, UserID: actor.staffID, SkipInvalidRows: true,
+		}, importModels.BatchAudit{EntityType: "student", Filename: "budget.csv", AccountID: actor.accountID})
+		require.NoError(t, err)
+		require.Zero(t, result.ErrorCount)
+	}
+	withoutEmail := func(iteration, n int) []importModels.StudentImportRow {
+		rows := studentBatch(iteration, n)
+		for i := range rows {
+			rows[i].Guardians[0].Email = ""
+		}
+		return rows
+	}
+	for iteration := range 2 {
+		rows := withoutEmail(iteration, studentBatchRows)
+		run(rows, true)
+		run(rows, false)
+	}
+	run(withoutEmail(2, studentBatchRows), false)
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.import_without_guardian_email", counter.Measurement(counter.Queries()))
+	require.Empty(t, counter.Selects("users.guardian_phone_numbers"), "new profiles need no phone read")
+	run(withoutEmail(3, 11*studentBatchRows), false)
+	querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.import_without_guardian_email_110", counter.Measurement(counter.Queries()))
 }
 
 // studentBatchRows is the size of the budgeted and measured import file.

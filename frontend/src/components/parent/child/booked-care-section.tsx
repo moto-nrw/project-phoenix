@@ -9,7 +9,7 @@ import {
   useState,
 } from "react";
 import { CalendarCheckIcon, CalendarXIcon } from "@phosphor-icons/react/ssr";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { InsetPanel } from "~/components/ui/inset-panel";
@@ -37,6 +37,7 @@ import {
 } from "~/lib/parent-api";
 import { calendarConcept } from "~/lib/concepts/calendar";
 import { carePlanConcept } from "~/lib/concepts/carePlan";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "BookedCareSection" });
 
@@ -77,8 +78,8 @@ export function BookedCareSection({
   /** Ob die OGS einen Grund verlangt (requiresGuardianReason). */
   reasonRequired?: boolean;
 }>) {
-  const t = useTranslations("parentMasterData");
-  const tc = useTranslations("parentChild");
+  const t = useCareTermTranslations("parentMasterData");
+  const tc = useCareTermTranslations("parentChild");
   const locale = useLocale();
   const [offerings, setOfferings] = useState<ChildCareOfferings | null>(null);
   const [schedule, setSchedule] = useState<ChildCareSchedule | null>(null);
@@ -351,7 +352,7 @@ export function BookedCareSection({
               actions={
                 <StatusBadge
                   label={t("careOfferings.pendingBadge")}
-                  tone="orange"
+                  tone="warning"
                 />
               }
             >

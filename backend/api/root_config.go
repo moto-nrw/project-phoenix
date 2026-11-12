@@ -3,15 +3,14 @@ package api
 import (
 	"context"
 	"errors"
-	"os"
 
-	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	classdayCompose "github.com/moto-ogs/project-phoenix/modules/classday/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	education "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	securitycontract "github.com/moto-ogs/project-phoenix/modules/securityruntime/ports"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 	"github.com/spf13/viper"
 )
 
@@ -87,8 +86,6 @@ func CurrentServiceConfig() owners.ServiceConfig {
 		AppEnv:                     viper.GetString("app_env"),
 		InvitationTokenExpiryHours: viper.GetInt("invitation_token_expiry_hours"),
 		PasswordResetExpiryMinutes: viper.GetInt("password_reset_token_expiry_minutes"),
-		PostHogAPIKey:              viper.GetString("posthog_api_key"),
-		PostHogHost:                viper.GetString("posthog_host"),
 		RateLimitEnabled:           viper.GetBool("rate_limit_enabled"),
 		JWTSecret:                  viper.GetString("auth_jwt_secret"),
 		JWTExpiry:                  viper.GetDuration("auth_jwt_expiry"),
@@ -98,8 +95,8 @@ func CurrentServiceConfig() owners.ServiceConfig {
 		VAPIDPublicKey:             viper.GetString("vapid_public_key"),
 		VAPIDPrivateKey:            viper.GetString("vapid_private_key"),
 		VAPIDSubscriber:            viper.GetString("vapid_subscriber"),
-		StudentDailyCheckoutTime:   os.Getenv("STUDENT_DAILY_CHECKOUT_TIME"),
 		HealthDataKeys:             viper.GetString("health_data_keys"),
+		BankDataKeys:               viper.GetString("bank_data_keys"), BankDataLegacyKeys: viper.GetString("bank_data_legacy_keys"),
 	}
 }
 

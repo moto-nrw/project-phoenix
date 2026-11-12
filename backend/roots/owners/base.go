@@ -4,28 +4,28 @@ import (
 	"context"
 	"time"
 
-	mealInputs "github.com/moto-nrw/project-phoenix/modules/mealplan"
+	mealInputs "github.com/moto-ogs/project-phoenix/modules/mealplan"
 
-	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
-	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
-	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
-	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	enrollmentProvenanceView "github.com/moto-nrw/project-phoenix/modules/timetableenrollmentprovenance/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/observability"
+	carePlanModule "github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	carePlanPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	feedbackModule "github.com/moto-ogs/project-phoenix/modules/feedback"
+	feedbackCompose "github.com/moto-ogs/project-phoenix/modules/feedback/compose"
+	guardianLinkView "github.com/moto-ogs/project-phoenix/modules/guardianlinkview/compose"
+	organizationCompose "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	schoolMembershipModule "github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	schoolMembershipCompose "github.com/moto-ogs/project-phoenix/modules/schoolmembership/compose"
+	timetableModule "github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	enrollmentProvenanceView "github.com/moto-ogs/project-phoenix/modules/timetableenrollmentprovenance/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	workforceModule "github.com/moto-ogs/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/observability"
 )
 
 func NewCleanupTimetable(db transactionruntime.Database) (timetableModule.Capability, error) {
@@ -42,9 +42,8 @@ func NewCleanupTimetable(db transactionruntime.Database) (timetableModule.Capabi
 
 func newTimetable(db transactionruntime.Database, students peopleModule.StudentQuery, rooms facilitiesModule.Query, membership schoolMembershipModule.Capability, observe func(timetableCompose.Observation)) (timetableModule.Owner, error) {
 	return timetableCompose.New(timetableCompose.Dependencies{
-		LockStaffAssignment: func(ctx context.Context, staffID int64) error {
-			_, err := membership.FindStaffForMutation(ctx, staffID)
-			return err
+		LockStaffAssignments: func(ctx context.Context, staffIDs []int64) error {
+			return schoolMembershipModule.LockStaffAssignments(ctx, membership, staffIDs)
 		},
 		DB: db.Pool(), Students: timetableStudents(students), Rooms: timetableRooms(rooms), Sessions: NewPresenceFacts(db),
 		Observe: observe, Provenance: enrollmentProvenanceView.NewReader(),
@@ -60,6 +59,16 @@ func ComposeSchoolMembership(db transactionruntime.Database) (schoolMembershipMo
 		return nil, err
 	}
 	return schoolMembershipCompose.New(dependencies)
+}
+
+// ComposePendingWindows composes School Membership's pending-window command
+// a phase edit moves still pending children with (#6505, ADR 0202).
+func ComposePendingWindows(db transactionruntime.Database) (schoolMembershipModule.PendingWindows, error) {
+	dependencies, err := SchoolMembershipDependencies(db)
+	if err != nil {
+		return nil, err
+	}
+	return schoolMembershipCompose.NewPendingWindows(dependencies)
 }
 
 // ComposeStaffReinstatement composes School Membership's observed staff

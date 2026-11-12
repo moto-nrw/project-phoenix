@@ -13,17 +13,17 @@ import (
 	"testing"
 	"time"
 
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	schoolstructurehttp "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	schoolstructurehttp "github.com/moto-ogs/project-phoenix/modules/schoolstructure/http"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // init seeds JWT viper defaults so jwt.MustNewTokenAuth (called by
@@ -48,6 +48,12 @@ func newReq(t *testing.T, method, target string, body interface{}, claims testut
 	return testutil.NewAuthenticatedRequest(t, method, target, body, testutil.WithJWTBearer(token))
 }
 
+// inClassAllDay keeps "Im Unterricht" for the whole day, as a school without a
+// configured care day end does.
+type inClassAllDay struct{}
+
+func (inClassAllDay) InClassStillHolds(context.Context) (bool, error) { return true, nil }
+
 // testContext holds shared test resources
 type testContext struct {
 	db       *bun.DB
@@ -65,7 +71,7 @@ func setupGroupsRoute(t *testing.T, publishers ...*testpkg.RecordingBroadcaster)
 		svc.Education,
 		presence.Active,
 		people.People,
-		caller, transactionFailures.IsConstraintViolation)
+		caller, inClassAllDay{}, transactionFailures.IsConstraintViolation)
 
 	return &testContext{
 		db:       db,

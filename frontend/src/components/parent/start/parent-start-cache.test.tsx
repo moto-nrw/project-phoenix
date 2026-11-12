@@ -34,7 +34,10 @@ vi.mock("next-auth/react", () => ({
       : null,
   }),
 }));
-vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => null,
+  useTenantSafe: () => null,
+}));
 vi.mock("~/lib/shell-auth-context", () => ({
   useShellAuth: () => ({ profile: { firstName: "Eltern" } }),
   useShellAuthSafe: () => undefined,
@@ -56,6 +59,7 @@ vi.mock("~/lib/parent-api", async (original) => ({
   fetchParentProfile: vi.fn(async () => ({ first_name: "Eltern" })),
   listAnnouncements: vi.fn(async () => []),
   listMessageThreads: vi.fn(async () => []),
+  listHolidayRegistrationEntries: vi.fn(async () => []),
 }));
 vi.mock("~/lib/personal-calendar-api", () => ({
   getParentCalendar: vi.fn(async () => ({ events: [] })),

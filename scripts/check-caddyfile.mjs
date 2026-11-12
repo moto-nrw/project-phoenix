@@ -18,10 +18,25 @@ export const defaultCaddyfile = fileURLToPath(new URL('../deploy/caddy/Caddyfile
 export const cloudflareLists = ['https://www.cloudflare.com/ips-v4', 'https://www.cloudflare.com/ips-v6'];
 const cidr = /^(?:\d{1,3}(?:\.\d{1,3}){3}\/\d{1,2}|[0-9a-f:]+:[0-9a-f:]*\/\d{1,3})$/i;
 
-// Quoted strings (the maintenance page holds CSS braces) and comments carry
-// no Caddyfile structure.
+// Quoted strings and comments carry no Caddyfile structure.
 function structural(line) {
   return line.replace(/`[^`]*`|"(?:[^"\\]|\\.)*"/g, '""').replace(/(^|\s)#.*$/, '$1').trim();
+}
+
+// One entry per source line, so line numbers stay. A heredoc body (the
+// maintenance page, with CSS and script braces) is text, not structure.
+function structuralLines(source) {
+  let marker = null;
+  return source.split(/\r?\n/).map(raw => {
+    if (marker) {
+      const end = raw.trim().split(/\s/)[0] === marker;
+      if (end) marker = null;
+      return end ? '""' : '';
+    }
+    const line = structural(raw);
+    marker = /<<(\w+)$/.exec(line)?.[1] ?? null;
+    return line;
+  });
 }
 
 // Behind trusted Cloudflare, Caddy passes client-sent forwarding headers
@@ -33,7 +48,7 @@ export const upstreamHeaders = [
 ];
 
 export function checkReverseProxies(source) {
-  const lines = source.split(/\r?\n/).map(structural);
+  const lines = structuralLines(source);
   const errors = [];
   let count = 0;
   lines.forEach((line, index) => {
@@ -68,7 +83,7 @@ export function checkReverseProxies(source) {
 }
 
 export function trustedProxies(source) {
-  const line = source.split(/\r?\n/).map(structural).find(l => /^trusted_proxies\s+static(\s|$)/.test(l));
+  const line = structuralLines(source).find(l => /^trusted_proxies\s+static(\s|$)/.test(l));
   if (!line) throw new Error('No "trusted_proxies static" line found.');
   return line.split(/\s+/).slice(2);
 }

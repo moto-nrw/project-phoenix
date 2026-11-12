@@ -238,8 +238,8 @@ export default function TraegerMonatsbeitraegePage() {
             months={startMonths(data.list.suggestedMonth)}
             initialMonth={data.list.suggestedMonth}
             onClose={() => setStarting(false)}
-            onStart={async (input) => {
-              const run = await startCareRun(input);
+            onStart={startCareRun}
+            onStarted={(run) => {
               setStarting(false);
               openRun(run);
             }}

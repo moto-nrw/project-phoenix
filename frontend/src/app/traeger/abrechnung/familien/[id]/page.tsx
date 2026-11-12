@@ -1,7 +1,8 @@
 "use client";
 
 // Eine Familie in der Abrechnung (#4691): ihre Summen ausgestellt,
-// storniert, gutgeschrieben und offen, wer ihre Rechnungen zahlt, und jedes
+// storniert, gutgeschrieben und die offene Forderung vor Zahlungseingang
+// (#6348), wer ihre Rechnungen zahlt, und jedes
 // Dokument mit Ferienzeitraum, Kindern, Betrag und Stand, das neueste
 // zuerst. Ein Klick auf ein Dokument öffnet seinen Abrechnungslauf, wo
 // Storno, Gutschrift und Schreiben liegen. Nur zum Lesen.
@@ -161,7 +162,7 @@ const COLUMNS: DataTableColumn<BillingFamilyDocument>[] = [
   },
   {
     key: "open",
-    header: "Berechnet",
+    header: "Offene Forderung",
     align: "right",
     sortValue: (document) => document.openCents,
     render: (document) =>
@@ -233,7 +234,7 @@ export default function TraegerBillingFamilyPage() {
               // after Storno and credit (as the families list counts).
               {
                 value: family.openInvoiceCount,
-                label: "mit berechnetem Betrag",
+                label: "mit offener Forderung",
               },
               {
                 value: family.documentCount - family.invoiceCount,

@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,7 +62,7 @@ func TestAccountMFARejectsUnreadableSecuritySettings(t *testing.T) {
 		t.Run(key, func(t *testing.T) {
 			records := &securitySettingsRecords{memoryMFARecords: newMemoryMFARecords(domain.AccountIdentity{ID: 1, Email: "mfa@example.test", Active: true})}
 			codec := &fakeMFAChallengeCodec{parse: map[string]domain.MFAChallengeClaims{}}
-			flows, err := NewAccountMFAFlows(AccountMFAFlowDependencies{Records: records, Settings: failingSecuritySettings{key: key}, Codec: codec, Codes: fakeShortCodes{}, Mail: &fakeMFAMail{}, Audit: &fakeMFAAudit{}, Runtime: &fakeRuntime{}, Secret: []byte("test-only-secret")})
+			flows, err := NewAccountMFAFlows(AccountMFAFlowDependencies{PermissionGranted: func(string, []string) bool { return false }, Records: records, Settings: failingSecuritySettings{key: key}, Codec: codec, Codes: fakeShortCodes{}, Mail: &fakeMFAMail{}, Audit: &fakeMFAAudit{}, Runtime: &fakeRuntime{}, Secret: []byte("test-only-secret")})
 			require.NoError(t, err)
 			if key == "days" || key == "enabled" {
 				token, expires, err := flows.IssueTrustedDevice(context.Background(), 1, 10, "ua", nil)
@@ -101,7 +101,7 @@ func TestAccountMFAPrepareTrustedDeviceDefersWritesAndFreezesPolicy(t *testing.T
 	t.Parallel()
 	records := &securitySettingsRecords{memoryMFARecords: newMemoryMFARecords(domain.AccountIdentity{ID: 1, Email: "mfa@example.test", Active: true})}
 	mail, audit, runtime := &fakeMFAMail{}, &fakeMFAAudit{}, &fakeRuntime{}
-	flows, err := NewAccountMFAFlows(AccountMFAFlowDependencies{
+	flows, err := NewAccountMFAFlows(AccountMFAFlowDependencies{PermissionGranted: func(string, []string) bool { return false },
 		Records: records, Settings: optionalMFASettings{}, Codec: &fakeMFAChallengeCodec{}, Codes: fakeShortCodes{},
 		Mail: mail, Audit: audit, Runtime: runtime, Secret: []byte("test-only-secret"),
 	})

@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/domain"
 )
 
 // ReinstateStaff continues a retired staff membership, the Wiederaufnahme of
@@ -47,7 +47,7 @@ func (s *Service) ReinstateStaff(ctx context.Context, id int64) (result schoolme
 
 // lockRetiredStaff locks a retired membership and composes its employment.
 func (s *Service) lockRetiredStaff(ctx context.Context, id int64, stats *domain.OperationStats) (schoolmembership.Staff, error) {
-	retired, found, queryStats, err := s.store.FindStaff(ctx, id, "UPDATE", true)
+	retired, found, queryStats, err := s.findStaffRow(ctx, id, "UPDATE", true)
 	stats.Add(queryStats)
 	if err != nil {
 		return schoolmembership.Staff{}, err

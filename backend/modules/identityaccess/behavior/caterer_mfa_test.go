@@ -11,9 +11,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The caterer's second factor (#4497, ADR 0077 point 7): voluntary, bound
@@ -34,7 +34,11 @@ type catererMFAScenario struct {
 
 func newCatererMFAScenario(t *testing.T) catererMFAScenario {
 	t.Helper()
-	db := testpkg.SetupTestDB(t)
+	return newCatererMFAScenarioOn(t, testpkg.SetupTestDB(t))
+}
+
+func newCatererMFAScenarioOn(t *testing.T, db *bun.DB) catererMFAScenario {
+	t.Helper()
 	inviting := setupAuthFactory(t, db).Caterers()
 	school := testpkg.Tenant(t)
 	staff := testpkg.CreateTestAccount(t, db, "caterer-mfa-inviter")

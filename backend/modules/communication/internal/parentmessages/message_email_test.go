@@ -8,12 +8,12 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	"github.com/moto-ogs/project-phoenix/modules/communication/communicationtest"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -24,14 +24,14 @@ import (
 	// gemeldete Fall. Getestet wird gegen die echte Datenbank und den echten
 	// Dispatcher, nur der Mailer ist der geteilte test.CapturingMailer.
 
-	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+	messaging "github.com/moto-ogs/project-phoenix/modules/communication/internal/parentmessages"
 
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 
-	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
+	settingsValues "github.com/moto-ogs/project-phoenix/modules/settings"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 const testParentsURL = "https://eltern.example"
@@ -179,6 +179,27 @@ func TestStartThread_LocalizesGuardianEmail(t *testing.T) {
 	assert.Equal(t, "Powered by", content["PoweredByLabel"])
 	assert.Contains(t, content["FooterText"], "This email was sent")
 	assert.NotContains(t, content["FooterText"], "Diese E-Mail")
+}
+
+// A school that calls its care GTS (#6082): the guardian's mail says GTS in
+// subject, intro and the logo stand-in, never OGS.
+func TestStartThread_GuardianEmailNamesTheSchoolsCareTerm(t *testing.T) {
+	t.Parallel()
+
+	f := newEmailFixture(t, nil)
+	f.svc.Settings = settingsValues.NewParentMessagingValues(stubSettings{messagingEnabled: true, careTerm: "GTS"})
+
+	_, err := testpkg.TenantQuery4(t, adminCtx(t, f.staff), f.db, f.svc.StartThread, f.chain.StudentID, f.chain.AccountID, "Guten Tag", "")
+	require.NoError(t, err)
+
+	rows := f.outbox.Requests()
+	require.Len(t, rows, 1)
+	msg := renderMessageRow(t, rows[0].Kind, rows[0].Payload)
+	assert.Equal(t, "Neue Nachricht von der GTS", msg.Subject)
+	assert.Contains(t, msg.Content["IntroText"], "Die GTS")
+	assert.Equal(t, "GTS", msg.Content["CareFacilityTerm"])
+	assert.Equal(t, "GTS", msg.Content["CareFacilityBadge"])
+	assert.NotContains(t, fmt.Sprint(msg.Content), "OGS")
 }
 
 func TestPostMessage_QueuesAnotherDataMinimalEmail(t *testing.T) {

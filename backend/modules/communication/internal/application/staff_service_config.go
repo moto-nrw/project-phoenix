@@ -2,6 +2,8 @@ package application
 
 import (
 	"log/slog"
+
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // ServiceConfig is the dependency bundle. Outbox, Notifier and ParentsURL are
@@ -12,10 +14,11 @@ type ServiceConfig struct {
 	Outbox     OutboxEnqueuer
 	PushOutbox PushOutboxCanceller
 	Notifier   NotificationSender
-	// ReminderNotifier provides an outbox receipt for a claimed scheduled
-	// reminder. It is intentionally separate from Notifier: publication keeps
-	// its fire-and-forget notification semantics.
-	ReminderNotifier DurableNotificationSender
+	// Series sends the language variants of one push with one device read
+	// (#5869). Its NotifyDurably provides the outbox receipt of a claimed
+	// scheduled reminder; publication keeps the fire-and-forget Notify. A
+	// Series without Notify sends each variant through Notifier.
+	Series communication.NotificationSeries
 	// Preferences gates the push by the guardian's own consent. Optional; when
 	// absent no guardian is notified at all, which is the safe direction.
 	Preferences NotificationPreferences

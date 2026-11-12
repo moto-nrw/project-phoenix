@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // A challenge token names the exact auth.mfa_email_challenges row it was
@@ -44,9 +44,9 @@ func TestStartChallenge_TokenCarriesItsChallengeID(t *testing.T) {
 	scenario := newMFATestScenario(t)
 	svc, accID := scenario.MFA, scenario.AccountID
 	ctx := context.Background()
-	require.NoError(t, svc.EnrollMFA(ctx, accID))
+	require.NoError(t, enrollMFA(ctx, t, scenario.DB, svc, accID))
 
-	token, err := svc.StartMFAChallenge(ctx, accID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"))
+	token, err := svc.StartMFAChallenge(ctx, accID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"), 0)
 	require.NoError(t, err)
 
 	tokenAuth := scenario.TokenAuth
@@ -134,9 +134,9 @@ func TestResendChallengeForScope_ForeignScope_Refused(t *testing.T) {
 	scenario := newMFATestScenario(t)
 	svc, accID := scenario.MFA, scenario.AccountID
 	ctx := context.Background()
-	require.NoError(t, svc.EnrollMFA(ctx, accID))
+	require.NoError(t, enrollMFA(ctx, t, scenario.DB, svc, accID))
 
-	schoolToken, err := svc.StartMFAChallenge(ctx, accID, 0, identityaccess.MFAChallengeScopeSchool, net.ParseIP("127.0.0.1"))
+	schoolToken, err := svc.StartMFAChallenge(ctx, accID, 0, identityaccess.MFAChallengeScopeSchool, net.ParseIP("127.0.0.1"), 0)
 	require.NoError(t, err)
 
 	renewed, err := svc.ResendMFAChallengeForScope(ctx, schoolToken, net.ParseIP("127.0.0.1"), identityaccess.MFAChallengeScopeTenant)

@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // MessageResponse is one message in a conversation. IDs stringified per the
@@ -39,6 +39,8 @@ type MessageResponse struct {
 	// refers to (#4784).
 	GroupThreadID    string `json:"group_thread_id,omitempty"`
 	GroupThreadTitle string `json:"group_thread_title,omitempty"`
+	// Attachments are the photos and files of the message (#6685).
+	Attachments json.RawMessage `json:"attachments,omitempty"`
 }
 
 // ThreadSummaryResponse is one row on the parent thread list. counterpart_name
@@ -186,6 +188,8 @@ type ThreadViewResponse struct {
 type PostMessageRequest struct {
 	ClientMessageID string `json:"client_message_id,omitempty"`
 	Body            string `json:"body"`
+	// AttachmentIDs names the uploads the message carries (#6685).
+	AttachmentIDs []string `json:"attachment_ids,omitempty"`
 	// GroupThreadID names the group thread this message answers (#4784).
 	GroupThreadID string `json:"group_thread_id,omitempty"`
 	// Audience is "team" (default) or "leadership" (#5200). An answer to a
@@ -260,6 +264,7 @@ func toMessageResponses(messages []*parentService.ParentMessage, counterpart str
 			ReadByStaff:      m.ReadByStaff,
 			GroupThreadID:    groupThreadIDString(m.GroupThreadID),
 			GroupThreadTitle: m.GroupThreadTitle,
+			Attachments:      m.Attachments,
 		})
 	}
 	return out
@@ -406,13 +411,19 @@ func (rs *Resource) postChildMessage(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	view, err := rs.ParentService.PostChildReply(parentService.WithMessageSendID(r.Context(), req.ClientMessageID), accountID, studentID, req.Body, groupThreadID, req.Audience)
+	attachmentIDs, ok := parseMessageAttachmentIDs(w, r, req.AttachmentIDs)
+	if !ok {
+		return
+	}
+
+	sendCtx := parentService.WithMessageAttachmentIDs(parentService.WithMessageSendID(r.Context(), req.ClientMessageID), attachmentIDs)
+	view, err := rs.ParentService.PostChildReply(sendCtx, accountID, studentID, req.Body, groupThreadID, req.Audience)
 	if errors.Is(err, parentService.ErrMessageSendConflict) {
 		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCommunicationMessageSendConflict))
 		return
 	}
 	if err != nil {
-		renderParentWriteError(w, r, err)
+		renderMessageAttachmentError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, toThreadView(view, accountID), "Message sent")

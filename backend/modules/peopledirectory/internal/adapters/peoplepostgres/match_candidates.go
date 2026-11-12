@@ -6,9 +6,9 @@ import (
 
 	"github.com/uptrace/bun"
 
-	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	directory "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	ports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // matchCandidateLimit bounds the candidate list: the office reviews them by
@@ -52,8 +52,8 @@ func (r *studentRepository) FindEnrolledMatchCandidates(
 		Where(`"student".tenant_id = ?`, tenantID).
 		Where(`"student".status IN (?)`, bun.List([]string{directory.StudentStatusActive, directory.StudentStatusPending})).
 		Where(`"person".deleted_at IS NULL`).
-		Where(`LOWER(NORMALIZE(TRIM("person".first_name), NFC)) = LOWER(NORMALIZE(TRIM(?), NFC))`, strings.TrimSpace(firstName)).
-		Where(`LOWER(NORMALIZE(TRIM("person".last_name), NFC)) = LOWER(NORMALIZE(TRIM(?), NFC))`, strings.TrimSpace(lastName)).
+		Where(`LOWER(NORMALIZE(TRIM("person".first_name), NFC) COLLATE public.german_name) = LOWER(NORMALIZE(TRIM(?), NFC) COLLATE public.german_name)`, strings.TrimSpace(firstName)).
+		Where(`LOWER(NORMALIZE(TRIM("person".last_name), NFC) COLLATE public.german_name) = LOWER(NORMALIZE(TRIM(?), NFC) COLLATE public.german_name)`, strings.TrimSpace(lastName)).
 		Where(`"person".birthday = ?`, birthday).
 		OrderExpr(`"student".id ASC`).
 		Limit(matchCandidateLimit)

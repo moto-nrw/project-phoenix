@@ -1,8 +1,8 @@
 package owners
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	parentportal "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 func NewParentCarePlanPolicy() parentportal.CarePlanPolicy {
@@ -16,6 +16,8 @@ func NewParentCarePlanPolicy() parentportal.CarePlanPolicy {
 				return careplan.ErrOfferingChangeDisabled
 			case parentportal.CarePlanManualPartialAbsenceConflict:
 				return careplan.ErrManualPartialAbsenceConflict
+			case parentportal.CarePlanSchoolStatusDayConflict:
+				return careplan.ErrSchoolStatusDayConflict
 			case parentportal.CarePlanGuardianPickupExceptionRaced:
 				return careplan.ErrGuardianPickupExceptionRaced
 			case parentportal.CarePlanPickupExceptionStaffOwned:

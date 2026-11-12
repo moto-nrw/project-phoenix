@@ -15,13 +15,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	shifttypesHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/shifttypes"
-	staffshiftsHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/staffshifts"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	shifttypesHTTP "github.com/moto-ogs/project-phoenix/modules/workforce/http/shifttypes"
+	staffshiftsHTTP "github.com/moto-ogs/project-phoenix/modules/workforce/http/staffshifts"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // staffShiftsDependencies are the collaborators the staff-shift route
@@ -80,6 +80,7 @@ var staffShiftErrorCodes = []struct {
 	code   string
 }{
 	{workforce.ErrReplacementOutsideOrigin, common.CodeWorkforceReplacementOutsideOrigin},
+	{workforce.ErrReplacementStaffAbsent, common.CodeWorkforceReplacementStaffAbsent},
 	{workforce.ErrShiftHasReplacements, common.CodeWorkforceShiftHasReplacements},
 	{workforce.ErrShiftSeriesNoOccurrences, common.CodeWorkforceShiftSeriesNoOccurrences},
 	{workforce.ErrShiftSeriesOutsidePeriod, common.CodeWorkforceShiftSeriesOutsidePeriod},

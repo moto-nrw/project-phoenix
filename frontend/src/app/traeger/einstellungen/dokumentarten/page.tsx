@@ -132,6 +132,11 @@ export default function TraegerDocumentKindsPage() {
                     : "primary"
                 }
                 size="md"
+                tooltip={
+                  overview.legalRemedySet || !canEditTemplates
+                    ? "Öffnet die Vorlage der Rechtsbehelfsbelehrung für die Bescheide."
+                    : "Öffnet die Vorlage, damit Sie die Rechtsbehelfsbelehrung eintragen."
+                }
               >
                 {overview.legalRemedySet || !canEditTemplates
                   ? "Vorlage ansehen"

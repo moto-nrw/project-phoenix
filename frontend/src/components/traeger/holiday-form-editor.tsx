@@ -27,7 +27,7 @@ import {
 } from "~/components/enrollment/draft-documents";
 import { Button, buttonClassName } from "~/components/ui/button";
 import { EditActions } from "~/components/ui/edit-actions";
-import { useMediaQuery } from "~/lib/hooks/use-media-query";
+import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { EmptyState } from "~/components/ui/empty-state";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
@@ -135,7 +135,7 @@ export function HolidayFormEditor({
   // On a phone a question folds to its head, so the long form stays
   // walkable; from tablet width on every question starts open, all fields
   // in view. A new question opens, and so does one the check marks.
-  const isPhone = useMediaQuery("(max-width: 639px)");
+  const isPhone = useMediaQuery(BELOW_SM);
   const foldByDefault = isPhone;
   const [foldChoice, setFoldChoice] = useState<ReadonlyMap<string, boolean>>(
     () => new Map(),

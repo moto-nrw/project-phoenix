@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // CreateForDates records the reported status for one student across the given
@@ -42,7 +42,15 @@ func (s *StudentStatusDayService) createForDatesLocked(ctx context.Context, wc S
 	if err != nil {
 		return err
 	}
-	if err := s.lockAndCheckStatusDates(ctx, studentID, dates); err != nil {
+	if err := s.lockStudentStatusDates(ctx, studentID, dates); err != nil {
+		return err
+	}
+	if wc.ReplacePartialAbsences != nil {
+		if err := wc.ReplacePartialAbsences(ctx, studentID); err != nil {
+			return err
+		}
+	}
+	if err := s.ensureNoPartialAbsenceConflicts(ctx, studentID, dates); err != nil {
 		return err
 	}
 

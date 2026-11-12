@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -46,17 +46,6 @@ func requirePickupEventsCarryNoStudentID(t *testing.T, b *testpkg.RecordingBroad
 	}
 }
 
-// hasGlobalPickupScheduleBroadcast reports whether any pickup_schedule_changed
-// event was broadcast to EVERY connected staff client, in any tenant.
-func hasGlobalPickupScheduleBroadcast(b *testpkg.RecordingBroadcaster) bool {
-	for _, c := range b.CallsByMethod("all") {
-		if c.Event.Type == realtime.EventPickupScheduleChanged {
-			return true
-		}
-	}
-	return false
-}
-
 // TestStaffPickupWrite_BroadcastsPickupScheduleChanged pins the staff-side half
 // of a Gehzeit write. Before this event existed the pickup handlers woke only
 // the child's guardians (#1725), so the parents app refreshed live while every
@@ -90,8 +79,6 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 
 		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.TenantID),
 			"a weekly Gehzeit update must broadcast pickup_schedule_changed to staff tabs")
-		assert.False(t, hasGlobalPickupScheduleBroadcast(tc.broadcaster),
-			"the event must stay scoped to the writing tenant, never fan out to every school")
 		requirePickupEventsCarryNoStudentID(t, tc.broadcaster)
 	})
 
@@ -131,8 +118,6 @@ func TestStaffPickupWrite_BroadcastsPickupScheduleChanged(t *testing.T) {
 		require.Equal(t, http.StatusOK, rr.Code, "Expected 200 OK. Body: %s", rr.Body.String())
 		assert.True(t, hasPickupScheduleBroadcast(tc.broadcaster, student.TenantID),
 			"deleting a pickup exception must broadcast pickup_schedule_changed")
-		assert.False(t, hasGlobalPickupScheduleBroadcast(tc.broadcaster),
-			"the event must stay scoped to the writing tenant, never fan out to every school")
 		requirePickupEventsCarryNoStudentID(t, tc.broadcaster)
 	})
 

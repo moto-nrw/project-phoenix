@@ -17,12 +17,14 @@ import {
   useState,
 } from "react";
 import { usePathname } from "next/navigation";
+import dynamic from "next/dynamic";
 import { AlertTriangle, Check, Clock, Pencil } from "lucide-react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { useLocale } from "next-intl";
 import {
   confirmRenewal,
   fetchStatus,
+  type RenewalConfirmation,
   getEnrollmentFormLabels,
   listEnrollmentChangeRequests,
   patchStatus,
@@ -34,6 +36,7 @@ import {
   type StatusResponse,
 } from "~/lib/enrollment-submission-api";
 import { createLogger } from "~/lib/logger";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import {
   useApiErrorDisplay,
   useApiFormError,
@@ -50,6 +53,7 @@ import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { ParentFamilyChildrenCard } from "~/components/parent/parent-family-children-card";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
 import { BackLink } from "~/components/ui/back-link";
@@ -63,6 +67,8 @@ import {
   translatedText,
 } from "~/lib/enrollment-translations";
 import { StatusBadge } from "~/components/ui/status-badge";
+import type { RenewalMode } from "~/components/enrollment/enrollment-renewal-banners";
+import { ApiError } from "~/lib/api-error";
 import { ChildStatusBadge } from "~/components/enrollment/child-status-badge";
 import { PublicEnrollmentContentSkeleton } from "~/components/enrollment/public-enrollment-shell";
 import { EnrollmentSignatureStatus } from "~/components/enrollment/enrollment-signature-status";
@@ -76,6 +82,17 @@ import {
 } from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "EnrollmentStatusView" });
+
+// Only a renewal shows its terms (#6456): the consent fields, the legal text
+// dialog and its Markdown load when one is on the page, not with every
+// status page.
+const RenewalBanners = dynamic(
+  () =>
+    import("~/components/enrollment/enrollment-renewal-banners").then(
+      (module) => module.RenewalBanners,
+    ),
+  { ssr: false },
+);
 
 interface Props {
   readonly token: string;
@@ -118,7 +135,9 @@ function EnrollmentStatusViewContent({
     EnrollmentChangeRequest[]
   >([]);
   const [loading, setLoading] = useState(true);
+  const [requestsReloadFailed, setRequestsReloadFailed] = useState(false);
   const [notFound, setNotFound] = useState(false);
+  const latestRequest = useRef(0);
   // One display path for every failure (#2515): loads stay where the data
   // is missing, the two forms report in their own alert, the buttons
   // without a form (confirm, withdraw) in a toast.
@@ -153,11 +172,33 @@ function EnrollmentStatusViewContent({
   const [editFirstName, setEditFirstName] = useState("");
   const [editLastName, setEditLastName] = useState("");
   const [editPhone, setEditPhone] = useState("");
+  const editingRef = useRef(editing);
+  useLayoutEffect(() => {
+    editingRef.current = editing;
+  });
+
+  // Puts a loaded status on the page; the first load and the reload after a
+  // write share it.
+  const applyStatus = useCallback(
+    (result: StatusResponse, requestChanges: EnrollmentChangeRequest[]) => {
+      setStatus(result);
+      setChangeRequests(requestChanges);
+      // A parent may have reopened the editor while the reload was pending.
+      if (!editingRef.current) {
+        setEditFirstName(result.guardian_first_name);
+        setEditLastName(result.guardian_last_name);
+        setEditPhone(result.guardian_phone ?? "");
+      }
+    },
+    [],
+  );
 
   const load = useCallback(async () => {
+    const request = ++latestRequest.current;
     setLoading(true);
     clearLoadError();
     clearRequestsLoadError();
+    setRequestsReloadFailed(false);
     setNotFound(false);
     try {
       const [result, requestChanges] = await Promise.all([
@@ -165,6 +206,7 @@ function EnrollmentStatusViewContent({
         // A failed list must not read as "no change requests yet": the
         // panel shows the load error instead of its empty text.
         listEnrollmentChangeRequests(token).catch((err: unknown) => {
+          if (request !== latestRequest.current) return null;
           logger.warn("change_requests_load_failed", {
             error: err instanceof Error ? err.message : String(err),
           });
@@ -175,17 +217,15 @@ function EnrollmentStatusViewContent({
           return null;
         }),
       ]);
+      if (request !== latestRequest.current) return;
       if (!result) {
         setNotFound(true);
         setChangeRequests([]);
         return;
       }
-      setStatus(result);
-      setChangeRequests(requestChanges ?? []);
-      setEditFirstName(result.guardian_first_name);
-      setEditLastName(result.guardian_last_name);
-      setEditPhone(result.guardian_phone ?? "");
+      applyStatus(result, requestChanges ?? []);
     } catch (err) {
+      if (request !== latestRequest.current) return;
       logger.error("status_load_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -194,10 +234,11 @@ function EnrollmentStatusViewContent({
         retry: () => void loadRef.current(),
       });
     } finally {
-      setLoading(false);
+      if (request === latestRequest.current) setLoading(false);
     }
   }, [
     token,
+    applyStatus,
     loadErrorObject,
     requestsLoadErrorObject,
     clearLoadError,
@@ -211,9 +252,52 @@ function EnrollmentStatusViewContent({
     loadRef.current = load;
   });
 
+  const invalidateRequest = useCallback(() => {
+    latestRequest.current++;
+  }, []);
   useEffect(() => {
     void load();
-  }, [load]);
+    return invalidateRequest;
+  }, [load, invalidateRequest]);
+
+  // The reload after a confirmed write (#6652) only reads and sets: the shown
+  // status stays while it runs, and a failure rejects, so the hook reports it
+  // as a load error that says the change is saved.
+  const readStatus = useCallback(async () => {
+    const request = ++latestRequest.current;
+    try {
+      const [statusResult, requestChanges] = await Promise.allSettled([
+        fetchStatus(token),
+        listEnrollmentChangeRequests(token),
+      ]);
+      if (request !== latestRequest.current) return;
+      setLoading(false);
+      setRequestsReloadFailed(false);
+      if (statusResult.status === "rejected") throw statusResult.reason;
+      const result = statusResult.value;
+      if (!result) {
+        setNotFound(true);
+        setChangeRequests([]);
+        return;
+      }
+      clearLoadError();
+      clearRequestsLoadError();
+      applyStatus(
+        result,
+        requestChanges.status === "fulfilled" ? requestChanges.value : [],
+      );
+      if (requestChanges.status === "rejected") {
+        setRequestsReloadFailed(true);
+        throw requestChanges.reason;
+      }
+    } catch (error) {
+      if (request !== latestRequest.current) return;
+      throw error;
+    }
+  }, [token, applyStatus, clearLoadError, clearRequestsLoadError]);
+  const afterWrite = useRefreshAfterWrite(t("reloadObject"), readStatus, {
+    savedSuffix: t("savedButStale"),
+  });
 
   const replyToChangeRequest = async (changeRequestId: string) => {
     const body = (replyDrafts[changeRequestId] ?? "").trim();
@@ -223,9 +307,6 @@ function EnrollmentStatusViewContent({
     setReplyErrorId(changeRequestId);
     try {
       await replyEnrollmentChangeRequest(token, changeRequestId, body);
-      setReplyDrafts((prev) => ({ ...prev, [changeRequestId]: "" }));
-      toast.success(t("changeRequestReplySaved"));
-      await load();
     } catch (err) {
       logger.error("change_request_reply_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -235,9 +316,13 @@ function EnrollmentStatusViewContent({
         // Sends the answer as it reads now, not the failed draft.
         retry: () => void replyRef.current(changeRequestId),
       });
+      return;
     } finally {
       setReplyingChangeRequest(null);
     }
+    setReplyDrafts((prev) => ({ ...prev, [changeRequestId]: "" }));
+    toast.success(t("changeRequestReplySaved"));
+    await afterWrite.refresh();
   };
   const replyRef = useRef(replyToChangeRequest);
   useLayoutEffect(() => {
@@ -254,9 +339,6 @@ function EnrollmentStatusViewContent({
         guardian_last_name: editLastName.trim(),
         guardian_phone: editPhone.trim() || undefined,
       });
-      toast.success(t("editSaved"));
-      setEditing(false);
-      await load();
     } catch (err) {
       logger.error("status_edit_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -265,9 +347,13 @@ function EnrollmentStatusViewContent({
         object: t("errorObjectEdit"),
         retry: () => void saveEditRef.current(),
       });
+      return;
     } finally {
       setSavingEdit(false);
     }
+    toast.success(t("editSaved"));
+    setEditing(false);
+    await afterWrite.refresh();
   };
   const saveEditRef = useRef(saveEdit);
   useLayoutEffect(() => {
@@ -282,28 +368,42 @@ function EnrollmentStatusViewContent({
     setEditing(false);
   };
 
-  const handleConfirmRenewal = async () => {
+  const handleConfirmRenewal = async (confirmation: RenewalConfirmation) => {
     if (!status) return;
     setConfirmingRenewal(true);
+    let confirmed: number;
     try {
-      const confirmed = await confirmRenewal(token);
+      confirmed = await confirmRenewal(token, confirmation);
+    } catch (err) {
+      logger.error("status_confirm_renewal_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      // The school published new terms while the page was open: the page
+      // loads them, the parents read and tick them again (#6456).
+      const changed =
+        err instanceof ApiError &&
+        err.code === "enrollment.renewal_terms_changed";
+      void showActionError(err, {
+        object: t("errorObject"),
+        retry: changed
+          ? undefined
+          : () => void confirmRenewalRef.current(confirmation),
+      });
+      if (changed) await load();
+      return;
+    } finally {
+      setConfirmingRenewal(false);
+    }
+    if (confirmed === 0) {
+      toast.success(t("termsConfirmed"));
+    } else {
       toast.success(
         confirmed === 1
           ? t("renewalConfirmedOne")
           : t("renewalConfirmedMany", { count: confirmed }),
       );
-      await load();
-    } catch (err) {
-      logger.error("status_confirm_renewal_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void showActionError(err, {
-        object: t("errorObject"),
-        retry: () => void confirmRenewalRef.current(),
-      });
-    } finally {
-      setConfirmingRenewal(false);
     }
+    await afterWrite.refresh();
   };
   const confirmRenewalRef = useRef(handleConfirmRenewal);
   useLayoutEffect(() => {
@@ -326,9 +426,6 @@ function EnrollmentStatusViewContent({
     withdrawError.clear();
     try {
       await withdrawStatus(token, childID);
-      setWithdrawTarget(null);
-      toast.success(childID ? t("withdrawnChild") : t("withdrawnAll"));
-      await load();
     } catch (err) {
       logger.error("status_withdraw_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -336,9 +433,13 @@ function EnrollmentStatusViewContent({
       // The error stays in the open dialog; its confirm button tries again,
       // so a retry still passes the confirmation.
       void withdrawError.show(err, { object: t("errorObject") });
+      return;
     } finally {
       setWithdrawingChild(null);
     }
+    setWithdrawTarget(null);
+    toast.success(childID ? t("withdrawnChild") : t("withdrawnAll"));
+    await afterWrite.refresh();
   };
 
   const confirmWithdraw = async () => {
@@ -388,7 +489,10 @@ function EnrollmentStatusViewContent({
         editing={editing}
         errors={{
           load: loadError,
-          requests: requestsLoadError,
+          reload: requestsReloadFailed ? null : afterWrite.error,
+          requests: requestsReloadFailed
+            ? (afterWrite.error ?? requestsLoadError)
+            : requestsLoadError,
           edit: editError.error,
           editField: editError.fieldError,
           reply: replyError.error,
@@ -445,6 +549,8 @@ function EnrollmentStatusViewContent({
 /** What failed on the status page, each shown where it belongs (#2515). */
 interface StatusErrors {
   readonly load: FormError | null;
+  /** The reload after a confirmed write (#6652). */
+  readonly reload: FormError | null;
   readonly requests: FormError | null;
   readonly edit: FormError | null;
   readonly editField: (name: string) => string | undefined;
@@ -471,7 +577,9 @@ interface EnrollmentStatusContentProps {
   readonly token: string;
   readonly withdrawingChild: string | null;
   readonly onChangeRequestReply: (changeRequestId: string) => Promise<void>;
-  readonly onConfirmRenewal: () => Promise<void>;
+  readonly onConfirmRenewal: (
+    confirmation: RenewalConfirmation,
+  ) => Promise<void>;
   readonly onEdit: (event: React.FormEvent) => Promise<void>;
   readonly onCancelEdit: () => void;
   readonly onWithdraw: (childId?: string) => void;
@@ -546,8 +654,23 @@ function EnrollmentStatusContent({
   const autoRenewedCount = status.children.filter(
     (child) => child.status === "auto_renewed",
   ).length;
-  const showOptInBanner = pendingRenewalCount > 0;
-  const showOptOutBanner = !showOptInBanner && autoRenewedCount > 0;
+  const renewalMode: RenewalMode | null =
+    pendingRenewalCount > 0
+      ? "opt_in"
+      : autoRenewedCount > 0
+        ? "opt_out"
+        : // A submitted, reviewed or waitlisted renewal still awaits a decision; its
+          // terms stay open until the parents accept them (#6456).
+          (status.renewal_terms?.blocks.length ?? 0) > 0 &&
+            !status.renewal_terms?.confirmed_at &&
+            status.children.some(
+              (child) =>
+                child.status === "submitted" ||
+                child.status === "under_review" ||
+                child.status === "waitlisted",
+            )
+          ? "submitted"
+          : null;
   const editHref = pathname?.startsWith("/parents")
     ? `/parents/anmeldung/status/${encodeURIComponent(token)}/edit`
     : `${pathname?.replace(/\/$/, "") ?? ""}/edit`;
@@ -587,6 +710,7 @@ function EnrollmentStatusContent({
       <EnrollmentStatusSummary status={status} submittedDate={submittedDate} />
 
       <LoadErrorAlert error={errors.load} />
+      <LoadErrorAlert error={errors.reload} />
 
       {allLocked ? (
         <SectionCard title={t("lockedAllTitle")} bodyClassName="mt-2 space-y-2">
@@ -650,15 +774,18 @@ function EnrollmentStatusContent({
         />
       ) : null}
 
-      <RenewalBanners
-        adjustHref={canRequestChange ? adjustHref : null}
-        confirmingRenewal={confirmingRenewal}
-        showOptInBanner={showOptInBanner}
-        showOptOutBanner={showOptOutBanner}
-        withdrawingAll={withdrawingChild === "__all__"}
-        onConfirmRenewal={onConfirmRenewal}
-        onWithdraw={onWithdraw}
-      />
+      {renewalMode === null ? null : (
+        <RenewalBanners
+          key={status.renewal_terms?.terms_fingerprint}
+          adjustHref={canRequestChange ? adjustHref : null}
+          confirmingRenewal={confirmingRenewal}
+          mode={renewalMode}
+          terms={status.renewal_terms}
+          withdrawingAll={withdrawingChild === "__all__"}
+          onConfirmRenewal={onConfirmRenewal}
+          onWithdraw={onWithdraw}
+        />
+      )}
       <EnrollmentChildrenSection
         enrollments={status.children}
         hasMultipleChildren={hasMultipleChildren}
@@ -671,6 +798,8 @@ function EnrollmentStatusContent({
         withdrawingChild={withdrawingChild}
         onWithdraw={onWithdraw}
       />
+      {/* Kinder in der Familie (#6335): only where the school asks. */}
+      <ParentFamilyChildrenCard source={{ kind: "enrollment", token }} />
       <GuardianSection
         allEditable={allEditable}
         canRequestChange={canRequestChange}
@@ -832,100 +961,6 @@ function EnrollmentStatusSummary({
         }
       />
     </section>
-  );
-}
-
-interface RenewalBannersProps {
-  /** Link to the reduced offerings/weekdays flow; null while a change request is already open (#2251). */
-  readonly adjustHref: string | null;
-  readonly confirmingRenewal: boolean;
-  readonly showOptInBanner: boolean;
-  readonly showOptOutBanner: boolean;
-  readonly withdrawingAll: boolean;
-  readonly onConfirmRenewal: () => Promise<void>;
-  readonly onWithdraw: (childId?: string) => void;
-}
-
-function RenewalBanners({
-  adjustHref,
-  confirmingRenewal,
-  showOptInBanner,
-  showOptOutBanner,
-  withdrawingAll,
-  onConfirmRenewal,
-  onWithdraw,
-}: RenewalBannersProps) {
-  const t = useCareTermTranslations("enrollmentStatus");
-  const handleConfirmRenewal = async () => {
-    await onConfirmRenewal();
-  };
-  const handleWithdraw = () => {
-    onWithdraw();
-  };
-
-  return (
-    <>
-      {showOptInBanner ? (
-        <section className="moto-content-surface rounded-xl border p-5 sm:p-6">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {t("renewalRequiredTitle")}
-          </h2>
-          <p className="mt-2 text-sm text-gray-700">
-            {t("renewalRequiredText")}
-          </p>
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            <Button
-              type="button"
-              onClick={handleConfirmRenewal}
-              disabled={confirmingRenewal}
-              size="md"
-            >
-              {confirmingRenewal ? t("confirming") : t("confirmEnrollment")}
-            </Button>
-            {adjustHref && (
-              <ButtonLink href={adjustHref} variant="surface" size="md">
-                {t("renewalAdjust")}
-              </ButtonLink>
-            )}
-            <Button
-              type="button"
-              onClick={handleWithdraw}
-              disabled={withdrawingAll}
-              variant="surface"
-              size="md"
-            >
-              {withdrawingAll ? t("declining") : t("declineEnrollment")}
-            </Button>
-          </div>
-          <p className="mt-3 text-xs text-gray-500">{t("renewalAdjustHint")}</p>
-        </section>
-      ) : null}
-      {showOptOutBanner ? (
-        <section className="moto-content-surface rounded-xl border p-5 sm:p-6">
-          <h2 className="text-lg font-semibold text-gray-900">
-            {t("autoRenewedTitle")}
-          </h2>
-          <p className="mt-2 text-sm text-gray-700">{t("autoRenewedText")}</p>
-          <div className="mt-4 flex flex-col gap-3 sm:flex-row sm:flex-wrap">
-            {adjustHref && (
-              <ButtonLink href={adjustHref} variant="surface" size="md">
-                {t("renewalAdjust")}
-              </ButtonLink>
-            )}
-            <Button
-              type="button"
-              onClick={handleWithdraw}
-              disabled={withdrawingAll}
-              variant="surface"
-              size="md"
-            >
-              {withdrawingAll ? t("unsubscribing") : t("unsubscribe")}
-            </Button>
-          </div>
-          <p className="mt-3 text-xs text-gray-500">{t("renewalAdjustHint")}</p>
-        </section>
-      ) : null}
-    </>
   );
 }
 
@@ -1404,6 +1439,7 @@ function ChangeRequestsPanel({
         custom_data: t("diff.child.custom_data"),
         date_of_birth: t("diff.child.date_of_birth"),
         first_name: t("diff.child.first_name"),
+        holiday_care_wish: t("diff.child.holiday_care_wish"),
         last_name: t("diff.child.last_name"),
         offering_days: t("diff.child.offering_days"),
         offering_ids: t("diff.child.offering_ids"),

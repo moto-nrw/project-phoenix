@@ -34,6 +34,10 @@ const FAMILY: BillingFamilyDetail = {
   recipientFirstName: "Sabine",
   recipientLastName: "Schneider",
   recipientEmail: "sabine@example.org",
+  familyEmail: "sabine@example.org",
+  familyDebtorNumber: "10 4711",
+  holidayOnly: false,
+  hasDocuments: true,
   debtorNumbers: ["10 4711"],
   payments: [{ kind: "family", costBearerName: "" }],
   invoiceCount: 2,
@@ -169,7 +173,7 @@ describe("TraegerBillingFamilyPage", () => {
     expect(invoice.getByText("Betrag")).toBeInTheDocument();
     expect(invoice.getByText("120,00 €")).toBeInTheDocument();
     expect(invoice.getByText("Teilgutschrift")).toBeInTheDocument();
-    expect(invoice.getByText("Berechnet")).toBeInTheDocument();
+    expect(invoice.getByText("Offene Forderung")).toBeInTheDocument();
     expect(invoice.getByText("115,00 €")).toBeInTheDocument();
 
     const cancelled = within(

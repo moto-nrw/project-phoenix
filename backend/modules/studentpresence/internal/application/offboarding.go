@@ -4,8 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // LockStaffSupervision returns the supervision IDs active on the given school
@@ -22,6 +23,10 @@ func (s *Service) LockStaffSupervision(ctx context.Context, staffID int64, value
 			return ports.Stats{}, errors.New("student presence: invalid staff supervision query")
 		}
 		if err := s.tx.Require(ctx); err != nil {
+			return ports.Stats{}, err
+		}
+		// Offboarding holds the staff row; the supervision rows are leaves.
+		if err := tenant.OrderLock(ctx, tenant.LockLeaf, "active.group_supervisors"); err != nil {
 			return ports.Stats{}, err
 		}
 		var stats ports.Stats

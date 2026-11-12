@@ -9,7 +9,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/traegerview"
+	"github.com/moto-ogs/project-phoenix/modules/traegerview"
 )
 
 // SchoolRows reads the rows of a school set; the Postgres adapter serves it.
@@ -36,6 +36,7 @@ type Overview struct {
 	enrollments traegerview.OpenEnrollments
 	alerts      traegerview.AlertSettings
 	occupancy   traegerview.OccupancyPorts
+	known       traegerview.KnownChildrenPorts
 	now         func() time.Time
 	withinAdmin func(context.Context, func(context.Context) error) error
 }
@@ -46,13 +47,13 @@ var _ traegerview.Overview = (*Overview)(nil)
 // the projection reads in; it is the Träger-Portal's only one (ADR 0084).
 func New(ports traegerview.Ports, rows SchoolRows, withinAdmin func(context.Context, func(context.Context) error) error) (*Overview, error) {
 	if ports.SchoolIDs == nil || rows == nil || ports.Trail == nil || ports.Persons == nil || ports.Staff == nil || ports.Bureau == nil || ports.Recorder == nil || ports.Holiday == nil || ports.Rosters == nil || ports.Present == nil || ports.Sick == nil || ports.OnSite == nil || ports.KeyDates == nil ||
-		ports.Enrollments == nil || ports.Alerts == nil || !occupancyPortsBound(ports.Occupancy) || withinAdmin == nil {
-		return nil, errors.New("traeger view: school IDs, rows, access trail, persons, staff, Träger-Büro addresses, access recorder, holiday trail, school figures, Stichtagszahlen, open enrollments, alert thresholds, occupancy reads and the administrative transaction are required")
+		ports.Enrollments == nil || ports.Alerts == nil || !occupancyPortsBound(ports.Occupancy) || ports.Known.Children == nil || ports.Known.Namesakes == nil || withinAdmin == nil {
+		return nil, errors.New("traeger view: school IDs, rows, access trail, persons, staff, Träger-Büro addresses, access recorder, holiday trail, school figures, Stichtagszahlen, open enrollments, alert thresholds, occupancy reads, known child reads and the administrative transaction are required")
 	}
 	return &Overview{
 		schoolIDs: ports.SchoolIDs, rows: rows, trail: ports.Trail, persons: ports.Persons, staff: ports.Staff, bureau: ports.Bureau,
 		recorder: ports.Recorder, holiday: ports.Holiday, rosters: ports.Rosters, present: ports.Present, sick: ports.Sick, onSite: ports.OnSite, keyDates: ports.KeyDates,
-		enrollments: ports.Enrollments, alerts: ports.Alerts, occupancy: ports.Occupancy, now: time.Now, withinAdmin: withinAdmin,
+		enrollments: ports.Enrollments, alerts: ports.Alerts, occupancy: ports.Occupancy, known: ports.Known, now: time.Now, withinAdmin: withinAdmin,
 	}, nil
 }
 
@@ -154,7 +155,7 @@ func (o *Overview) schoolFigures(ctx context.Context, scope []int64) (map[int64]
 	for _, schoolID := range scope {
 		figures := traegerview.SchoolFigures{
 			ChildrenTotal: len(students[schoolID]), ChildrenPresent: countStudents(students[schoolID], present[schoolID]),
-			ChildrenSick: countSick(students[schoolID], sickDays[schoolID], sickFlags[schoolID]),
+			ChildrenSick: countSick(students[schoolID], sickDays[schoolID], sickFlags[schoolID], present[schoolID]),
 			StaffTotal:   len(staff[schoolID]), StaffPresent: countMembers(staff[schoolID], onSite[schoolID]),
 			AsOf: now,
 		}
@@ -186,10 +187,15 @@ func countStudents(roster map[int64]int64, ids []int64) int {
 }
 
 // countSick counts the children of the roster (student ID to membership ID)
-// with a sick day or the sick flag, each child once.
-func countSick(students map[int64]int64, sickDays, sickFlags []int64) int {
+// with a sick day or the sick flag, each child once. Place before status
+// (#6371), as on the school's dashboard: a present child counts as present
+// only, its sick mark is no sick figure.
+func countSick(students map[int64]int64, sickDays, sickFlags, present []int64) int {
 	sick := 0
 	for student, membership := range students {
+		if slices.Contains(present, student) {
+			continue
+		}
 		if slices.Contains(sickDays, student) || slices.Contains(sickFlags, membership) {
 			sick++
 		}

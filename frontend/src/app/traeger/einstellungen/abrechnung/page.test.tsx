@@ -6,6 +6,9 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { SWRConfig } from "~/lib/swr/testing";
+vi.unmock("swr");
+
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import type { NumberRange } from "~/lib/traeger-billing-api";
@@ -13,6 +16,7 @@ import type {
   ContributionRule,
   CostBearer,
 } from "~/lib/traeger-contributions-api";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { catalogText } from "~/test/error-catalog-text";
 
 const { billingApi, termsApi, masterApi, session, api } = vi.hoisted(() => ({
@@ -55,6 +59,8 @@ const { billingApi, termsApi, masterApi, session, api } = vi.hoisted(() => ({
     createTraegerBankAccount: vi.fn(),
     updateTraegerBankAccount: vi.fn(),
     deleteTraegerBankAccount: vi.fn(),
+    // The switch of the online mandate (#4696) reads the Träger settings.
+    fetchTraegerSettingsSchema: vi.fn().mockResolvedValue({ tabs: [] }),
   },
   api: {
     fetchContributionRules: vi.fn(),
@@ -67,6 +73,7 @@ const { billingApi, termsApi, masterApi, session, api } = vi.hoisted(() => ({
   },
 }));
 
+vi.mock("~/lib/traeger-url", () => ({ traegerPath: (path: string) => path }));
 vi.mock("~/lib/traeger-contributions-api", () => api);
 vi.mock("~/lib/traeger-billing-api", () => billingApi);
 vi.mock("~/lib/traeger-billing-terms-api", async (importOriginal) => ({
@@ -87,7 +94,14 @@ vi.mock("~/lib/traeger-sepa-api", async (importOriginal) => ({
 }));
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
-    data: { user: { id: "A", permissions: session.permissions } },
+    data: {
+      user: {
+        id: "A",
+        scope: "org",
+        orgId: 7,
+        permissions: session.permissions,
+      },
+    },
     status: "authenticated",
   }),
 }));
@@ -131,10 +145,16 @@ const MASTER_DATA = {
 };
 
 function renderPage() {
+  const cache = new Map();
   return render(
     <ToastProvider>
       <TraegerAbrechnungsvorgabenPage />
     </ToastProvider>,
+    {
+      wrapper: ({ children }) => (
+        <SWRConfig value={{ provider: () => cache }}>{children}</SWRConfig>
+      ),
+    },
   );
 }
 
@@ -173,6 +193,7 @@ describe("TraegerAbrechnungsvorgabenPage", () => {
       example: "",
     });
     masterApi.fetchTraegerMasterData.mockResolvedValue(MASTER_DATA);
+    masterApi.fetchTraegerSettingsSchema.mockResolvedValue({ tabs: [] });
   });
 
   it("lists the rules by kind and names the kind without a rule", async () => {
@@ -535,6 +556,39 @@ describe("TraegerAbrechnungsvorgabenPage", () => {
     expect(await screen.findByText("FE-2026-0001")).toBeInTheDocument();
   });
 
+  it("shows a settings load failure without hiding billing data and retries only settings", async () => {
+    masterApi.fetchTraegerSettingsSchema
+      .mockRejectedValueOnce(
+        new ApiError("unavailable", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue({
+        tabs: [
+          {
+            categories: [
+              {
+                items: [{ key: "parent_billing.online_mandate", value: true }],
+              },
+            ],
+          },
+        ],
+      });
+    renderPage();
+    const message = catalogText(
+      "general.unavailable",
+      "die Liste der Einstellungen",
+    );
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(await screen.findByText("FE-2026-0001")).toBeInTheDocument();
+    expect(screen.getAllByText("Elternbeiträge")[0]).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    expect(await screen.findByText("Eingeschaltet")).toBeInTheDocument();
+    await waitFor(() =>
+      expect(screen.queryByText(message)).not.toBeInTheDocument(),
+    );
+    expect(masterApi.fetchTraegerSettingsSchema).toHaveBeenCalledTimes(2);
+    expect(billingApi.fetchHolidayNumberRange).toHaveBeenCalledOnce();
+  });
+
   it("keeps the bank accounts when reading them again fails (#5685)", async () => {
     masterApi.createTraegerBankAccount.mockResolvedValue({
       ...MASTER_DATA.bankAccounts[0],
@@ -561,10 +615,51 @@ describe("TraegerAbrechnungsvorgabenPage", () => {
 
     expect(
       await screen.findByText(
-        catalogText("general.unavailable", "die Liste der Bankverbindungen"),
+        `${catalogText("general.unavailable", "die Anzeige der Bankverbindungen")} ${SAVED_BUT_STALE_SUFFIX}`,
       ),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Elternbeiträge")[0]).toBeInTheDocument();
+  });
+
+  it("reports a rejected billing reload after saving a number pattern", async () => {
+    billingApi.fetchHolidayNumberRange.mockResolvedValue({
+      service: "holiday",
+      pattern: "",
+      example: "",
+    });
+    billingApi.saveHolidayNumberRange.mockResolvedValue({
+      service: "holiday",
+      pattern: "R-{NNN}",
+      example: "R-001",
+    });
+    billingApi.fetchCareNumberRange.mockResolvedValue({
+      service: "care",
+      pattern: "MB-{NNNN}",
+      example: "MB-0001",
+    });
+    renderPage();
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Muster festlegen" }),
+    );
+    fireEvent.change(
+      await screen.findByLabelText("Muster der Rechnungsnummer"),
+      { target: { value: "R-{NNN}" } },
+    );
+    billingApi.fetchHolidayNumberRange.mockRejectedValueOnce(
+      new ApiError("down", 503),
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    // Anker: die gespeicherte Änderung bleibt trotz des fehlgeschlagenen Lesens bestätigt.
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige der Abrechnungsvorgaben")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeVisible();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() =>
+      expect(billingApi.fetchHolidayNumberRange).toHaveBeenCalledTimes(3),
+    );
+    expect(billingApi.saveHolidayNumberRange).toHaveBeenCalledTimes(1);
   });
 
   it("asks for a pattern before the first release and saves it", async () => {

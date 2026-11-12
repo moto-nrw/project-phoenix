@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/feedback"
-	"github.com/moto-nrw/project-phoenix/modules/feedback/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/modules/feedback"
+	"github.com/moto-ogs/project-phoenix/modules/feedback/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -75,7 +75,7 @@ func TestFeedbackBatchFailureRollsBackWithoutReusingIDs(t *testing.T) {
 		feedbackBatchInput(student.ID, 3),
 	})
 	require.Error(t, err)
-	require.Contains(t, err.Error(), "foreign key constraint")
+	require.Equal(t, "23503", testpkg.PostgresSQLState(err))
 	require.Nil(t, entries)
 	retained, err := module.FindEntries(ctx, feedback.Filter{StudentID: &student.ID})
 	require.NoError(t, err)
@@ -99,7 +99,7 @@ func TestFeedbackBatchLaterChunkFailureRollsBackEarlierChunk(t *testing.T) {
 	}
 	inputs[128].StudentID = missingStudent
 	entries, err := module.SubmitBatch(testpkg.Ctx(t), inputs)
-	require.ErrorContains(t, err, "foreign key constraint")
+	require.Equal(t, "23503", testpkg.PostgresSQLState(err))
 	require.Nil(t, entries)
 	retained, err := module.FindEntries(testpkg.Ctx(t), feedback.Filter{StudentID: &student.ID})
 	require.NoError(t, err)

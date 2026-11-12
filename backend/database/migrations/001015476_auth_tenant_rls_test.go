@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -70,7 +70,7 @@ func TestAuthTenantRLSRejectsCrossSchoolAccess(t *testing.T) {
 				_, err := tx.ExecContext(ctx, `UPDATE ? SET tenant_id = ? WHERE tenant_id = ?`, bun.Ident(table), theirs, ours)
 				return err
 			})
-			require.ErrorContains(t, err, "row-level security", "WITH CHECK must reject reassignment to another school")
+			require.Equal(t, "42501", testpkg.PostgresSQLState(err), "WITH CHECK must reject reassignment to another school")
 		})
 	}
 }

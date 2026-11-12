@@ -7,10 +7,36 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/uptrace/bun"
 )
 
 const lateInviteTableExpr = `enrollment.late_invites AS "late_invite"`
+
+func (r *Store) LateInvitesByUsedRequestIDs(ctx context.Context, requestIDs []int64) ([]*enrollment.LateInvite, error) {
+	tenantID, err := r.tenantID(ctx)
+	if err != nil {
+		return nil, err
+	}
+	db, err := r.resolve(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if len(requestIDs) == 0 {
+		return nil, nil
+	}
+	var rows []lateInviteRow
+	if err := db.NewSelect().Model(&rows).ModelTableExpr(lateInviteTableExpr).
+		Where(`"late_invite".tenant_id = ?`, tenantID).
+		Where(`"late_invite".used_request_id IN (?)`, bun.List(requestIDs)).Scan(ctx); err != nil {
+		return nil, fmt.Errorf("failed to find enrollment late invites by used requests: %w", err)
+	}
+	invites := make([]*enrollment.LateInvite, 0, len(rows))
+	for i := range rows {
+		invites = append(invites, rows[i].value())
+	}
+	return invites, nil
+}
 
 func (r *Store) InsertLateInvite(ctx context.Context, invite *enrollment.LateInvite) error {
 	tenantID, err := r.tenantID(ctx)

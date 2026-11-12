@@ -9,6 +9,8 @@ import {
 } from "~/components/ui/collection-grid";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   acknowledgeStaffNotice,
@@ -50,6 +52,12 @@ export function TodayNoticeList({
   // Eine Kenntnisnahme ist eine Aktion ohne Formular: der Fehler kommt als
   // Meldung mit Wiederholen (#2517).
   const { show: showError } = useApiErrorDisplay();
+  // Nachladen nach der Kenntnisnahme: ein Fehler dabei ist ein Ladefehler
+  // über der Liste, keine gescheiterte Kenntnisnahme (#6652).
+  const afterAcknowledge = useRefreshAfterWrite(
+    "die Anzeige der Tagesinformationen",
+    onChanged,
+  );
   const latestConfirmRef = useRef<(notice: StaffNotice) => void>(
     () => undefined,
   );
@@ -58,8 +66,6 @@ export function TodayNoticeList({
     setPending(notice.id);
     try {
       await acknowledge(notice.id);
-      await onChanged();
-      window.dispatchEvent(new Event(STAFF_NOTICES_REFRESH_EVENT));
     } catch (err) {
       logger.error("staff_notice_acknowledge_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -68,9 +74,12 @@ export function TodayNoticeList({
         object: "die Kenntnisnahme",
         retry: () => latestConfirmRef.current(notice),
       });
-    } finally {
       setPending(null);
+      return;
     }
+    setPending(null);
+    await afterAcknowledge.refresh();
+    window.dispatchEvent(new Event(STAFF_NOTICES_REFRESH_EVENT));
   };
   useLayoutEffect(() => {
     latestConfirmRef.current = (notice) => void confirm(notice);
@@ -84,7 +93,7 @@ export function TodayNoticeList({
             {notice.title}
           </h3>
           {notice.priority === "important" && (
-            <StatusBadge label="Wichtig" tone="orange" />
+            <StatusBadge label="Wichtig" tone="warning" />
           )}
           <span className="text-xs text-gray-500">
             {describeRecurrence(notice)}
@@ -125,9 +134,15 @@ export function TodayNoticeList({
     );
   });
 
-  return grid ? (
+  const list = grid ? (
     <CollectionGrid as="ul">{items}</CollectionGrid>
   ) : (
     <ul className="space-y-4">{items}</ul>
+  );
+  return (
+    <>
+      <LoadErrorAlert error={afterAcknowledge.error} className="mb-4" />
+      {list}
+    </>
   );
 }

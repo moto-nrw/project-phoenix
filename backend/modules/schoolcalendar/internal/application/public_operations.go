@@ -7,9 +7,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/domain"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/internal/domain"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func (s *Service) FindCalendarPeriod(ctx context.Context, id int64) (result schoolcalendar.CalendarPeriod, err error) {
@@ -155,10 +155,17 @@ func (s *Service) CreateClosingDay(ctx context.Context, input schoolcalendar.Cre
 
 	fields := input.ClosingDayFields
 	err = s.run(ctx, "create_closing_day", func(ctx context.Context, stats *domain.OperationStats) error {
+		revision, err := s.lockHolidayClosureRevision(ctx, stats)
+		if err != nil {
+			return err
+		}
 		var createStats domain.OperationStats
 		result, createStats, err = s.store.CreateClosingDay(ctx, fields)
 		stats.Add(createStats)
-		return err
+		if err != nil {
+			return err
+		}
+		return s.recordHolidayClosureChange(ctx, stats, result.ID, result.Reason, nil, domain.RangeOf(result.StartDate, result.EndDate), revision)
 	})
 	return result, err
 }
@@ -173,10 +180,26 @@ func (s *Service) UpdateClosingDay(ctx context.Context, input schoolcalendar.Upd
 	fields := input.ClosingDayFields
 	id := input.ID
 	err = s.run(ctx, "update_closing_day", func(ctx context.Context, stats *domain.OperationStats) error {
+		revision, err := s.lockHolidayClosureRevision(ctx, stats)
+		if err != nil {
+			return err
+		}
+		previous, found, findStats, err := s.store.FindClosingDay(ctx, id)
+		stats.Add(findStats)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return schoolcalendar.ErrClosingDayNotFound
+		}
 		var updateStats domain.OperationStats
 		result, updateStats, err = s.store.UpdateClosingDay(ctx, id, fields)
 		stats.Add(updateStats)
-		return err
+		if err != nil {
+			return err
+		}
+		return s.recordHolidayClosureChange(ctx, stats, id, result.Reason, domain.RangeOf(previous.StartDate, previous.EndDate),
+			domain.RangeOf(result.StartDate, result.EndDate), revision)
 	})
 	return result, err
 }
@@ -185,9 +208,24 @@ func (s *Service) DeleteClosingDay(ctx context.Context, id int64) error {
 		return invalidClosingDay("closing day ID is required")
 	}
 	return s.run(ctx, "delete_closing_day", func(ctx context.Context, stats *domain.OperationStats) error {
+		revision, err := s.lockHolidayClosureRevision(ctx, stats)
+		if err != nil {
+			return err
+		}
+		previous, found, findStats, err := s.store.FindClosingDay(ctx, id)
+		stats.Add(findStats)
+		if err != nil {
+			return err
+		}
+		if !found {
+			return schoolcalendar.ErrClosingDayNotFound
+		}
 		deleteStats, err := s.store.DeleteClosingDay(ctx, id)
 		stats.Add(deleteStats)
-		return err
+		if err != nil {
+			return err
+		}
+		return s.recordHolidayClosureChange(ctx, stats, id, previous.Reason, domain.RangeOf(previous.StartDate, previous.EndDate), nil, revision)
 	})
 }
 func (s *Service) FindDateframe(ctx context.Context, id int64) (result schoolcalendar.Dateframe, err error) {

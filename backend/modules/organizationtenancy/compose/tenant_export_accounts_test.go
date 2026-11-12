@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,10 +23,10 @@ func TestTenantExportIncludesApplicantAccountWithoutMembership(t *testing.T) {
 	// Another school's membership of the same account must not be returned.
 	_, err := db.NewRaw("UPDATE auth.account_tenants SET account_id = ? WHERE id = ?", a, b).Exec(t.Context())
 	require.NoError(t, err)
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{}, &exportAuditFake{})
 	require.NoError(t, err)
 	out := filepath.Join(t.TempDir(), "export")
-	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, Output: out, Uploads: t.TempDir()}))
+	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, OperatorID: 42, Output: out, Uploads: t.TempDir()}))
 	data, err := os.ReadFile(filepath.Join(out, "auth.accounts.jsonl"))
 	require.NoError(t, err)
 	require.Contains(t, string(data), "synthetic-school-"+strconv.FormatInt(a, 10))

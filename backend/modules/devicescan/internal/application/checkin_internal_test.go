@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
 )
 
 func TestShouldSkipCheckin(t *testing.T) {
@@ -125,42 +125,20 @@ func TestProcessStudentCheckin(t *testing.T) {
 	})
 }
 
-func TestCheckActivityCapacity(t *testing.T) {
+func TestValidateActivitySession(t *testing.T) {
 	t.Parallel()
-	t.Run("an unlimited activity passes without counting", func(t *testing.T) {
+	t.Run("an activity projection is supported", func(t *testing.T) {
 		t.Parallel()
-		h := newHarness(t)
-		h.presence.groupErr = errBoom
-		require.NoError(t, h.service().checkActivityCapacity(context.Background(), &devicescan.Session{Activity: &devicescan.Activity{Name: "Sporthalle"}}))
+		require.NoError(t, validateActivitySession(&devicescan.Session{Activity: &devicescan.Activity{Name: "Sporthalle"}}))
 	})
-	t.Run("a template is loaded when the session did not carry it", func(t *testing.T) {
+	t.Run("a template without a projection is supported", func(t *testing.T) {
 		t.Parallel()
-		h := newHarness(t)
-		h.activities.byID[301] = &devicescan.Activity{ID: 301, Name: "Hausaufgaben", MaxParticipants: 1}
-		h.presence.groupCounts[201] = 1
-		err := h.service().checkActivityCapacity(context.Background(), &devicescan.Session{ID: 201, TemplateID: ptr(int64(301))})
-		_, ok := errors.AsType[*devicescan.ActivityCapacityExceededError](err)
-		assert.True(t, ok, "got %v", err)
+		require.NoError(t, validateActivitySession(&devicescan.Session{ID: 201, TemplateID: ptr(int64(301))}))
 	})
 	t.Run("a spontaneous session is unsupported", func(t *testing.T) {
 		t.Parallel()
-		h := newHarness(t)
-		err := h.service().checkActivityCapacity(context.Background(), &devicescan.Session{ID: 201})
+		err := validateActivitySession(&devicescan.Session{ID: 201})
 		requireFailure(t, err, devicescan.FailureInternal, devicescan.MessageSpontaneousUnsupported)
-	})
-	t.Run("a template lookup failure is the pinned text", func(t *testing.T) {
-		t.Parallel()
-		h := newHarness(t)
-		h.activities.findErr = errBoom
-		err := h.service().checkActivityCapacity(context.Background(), &devicescan.Session{ID: 201, TemplateID: ptr(int64(301))})
-		requireFailure(t, err, devicescan.FailureInternal, devicescan.MessageGetActivityFailed)
-	})
-	t.Run("an occupancy failure is the pinned text", func(t *testing.T) {
-		t.Parallel()
-		h := newHarness(t)
-		h.presence.groupErr = errBoom
-		err := h.service().checkActivityCapacity(context.Background(), &devicescan.Session{ID: 201, Activity: &devicescan.Activity{MaxParticipants: 3}})
-		requireFailure(t, err, devicescan.FailureInternal, devicescan.MessageCheckActivityCapFailed)
 	})
 }
 

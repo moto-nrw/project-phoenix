@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 func (s *Service) ListSchoolRoles(ctx context.Context) ([]*identityaccess.SchoolRole, error) {
@@ -45,12 +45,12 @@ func (s *Service) FindSchoolRoleByName(ctx context.Context, name string) (*ident
 	return publicSchoolRole(role), nil
 }
 
-func (s *Service) FindRolePermissions(ctx context.Context, id int64) ([]string, error) {
-	var permissions []string
+func (s *Service) FindRolePermissionsByRoleIDs(ctx context.Context, ids []int64) (map[int64][]string, error) {
+	var permissions map[int64][]string
 	err := s.run(ctx, s.withinSchoolRead, "find_role_permissions", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		var queryErr error
-		permissions, queryStats, queryErr = s.store.FindRolePermissions(txCtx, id, s.tenantOf(txCtx))
+		permissions, queryStats, queryErr = s.store.FindRolePermissionsByRoleIDs(txCtx, ids, s.tenantOf(txCtx))
 		stats.Add(queryStats)
 		return queryErr
 	})

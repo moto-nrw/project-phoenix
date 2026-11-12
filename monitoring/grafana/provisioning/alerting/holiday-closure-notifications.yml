@@ -1,0 +1,138 @@
+apiVersion: 1
+
+groups:
+  - orgId: 1
+    name: Phoenix Holiday Closure Commands
+    folder: Phoenix Alerts
+    interval: 1m
+    rules:
+      - uid: holiday-closure-commands-overdue
+        title: Holiday closure commands overdue
+        condition: C
+        data:
+          - refId: A
+            queryType: ""
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: P8E80F9AEF21F6940
+            model:
+              expr: 'sum(last_over_time({env="prod",service="server"} |= "holiday closure watchdog checked" | json | msg="holiday closure watchdog checked" | keep env,service,overdue | unwrap overdue [10m])) or vector(0)'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 0s
+        annotations:
+          summary: Bestätigte Schließtag-Hinweise sind überfällig oder technisch gesperrt.
+          description: Prüfe Auftrag und Zustellstand nach Runbook. Unklare Mails niemals blind wiederholen.
+          runbook_url: https://github.com/moto-ogs/project-phoenix/blob/main/monitoring/runbooks/holiday-closure-notifications.md
+        labels:
+          env: prod
+          issue: "6442"
+          service: holiday-closure-watchdog
+          severity: critical
+        isPaused: false
+
+  - orgId: 1
+    name: Phoenix Holiday Closure Watchdog
+    folder: Phoenix Alerts
+    interval: 1m
+    rules:
+      - uid: holiday-closure-watchdog-missing
+        title: Holiday closure watchdog missing for 10 minutes
+        condition: C
+        data:
+          - refId: A
+            queryType: ""
+            relativeTimeRange:
+              from: 600
+              to: 0
+            datasourceUid: P8E80F9AEF21F6940
+            model:
+              expr: 'sum(count_over_time({env="prod",service="server"} |= "holiday closure watchdog checked" | json | msg="holiday closure watchdog checked" [10m])) or vector(0)'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [1]
+                    type: lt
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: Alerting
+        execErrState: Alerting
+        for: 0s
+        annotations:
+          summary: Seit 10 Minuten fehlt die unabhängige Prüfung der Schließtag-Aufträge.
+          description: Prüfe Worker, Watchdog, Datenbank und Loki. Ein laufender Verarbeitungsjob ersetzt diese Prüfung nicht.
+          runbook_url: https://github.com/moto-ogs/project-phoenix/blob/main/monitoring/runbooks/holiday-closure-notifications.md
+        labels:
+          env: prod
+          issue: "6442"
+          service: holiday-closure-watchdog
+          severity: critical
+        isPaused: false

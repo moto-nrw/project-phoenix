@@ -8,9 +8,9 @@ import (
 	"sync/atomic"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // CleanupJob represents a single cleanup task that can be executed.
@@ -25,6 +25,7 @@ var errWorkerTraceStart = errors.New("start worker trace")
 
 // Scheduler manages scheduled tasks
 type Scheduler struct {
+	retentionCleanupJobs
 	activeService               ports.SessionMaintenance
 	cleanupService              ports.PresenceCleanup
 	authCleanup                 ports.AuthCleanup
@@ -32,11 +33,10 @@ type Scheduler struct {
 	workSessionCleanup          ports.WorkSessionCleaner
 	breakAutoEnder              ports.BreakAutoEnder
 	autoCheckouter              ports.AutoCheckouter
-	feedbackCleaner             ports.FeedbackCleaner
 	retention                   RetentionRun
 	cleanupRuns                 ports.CleanupRunLedger
 	cleanupClock                func() time.Time
-	cleanupFailures             sync.Map // cleanupAttemptKey → time.Time of the last failed attempt
+	cleanupFailures             sync.Map // cleanupAttemptKey → cleanupFailureStreak this process last recorded
 	staffDocumentFileCleaner    ports.StaffDocumentFileCleaner
 	studentDocumentFileCleaner  ports.StudentDocumentFileCleaner
 	fileStoreCleaner            ports.FileStoreCleaner
@@ -45,10 +45,9 @@ type Scheduler struct {
 	calendarFeedCleanup         ports.CalendarFeedCleaner
 	timeTrackingCleanup         ports.TimeTrackingCleanupService
 	studentChangeLogCleanup     ports.StudentChangeLogCleanup
-	pwaUsageCleanup             ports.PWAUsageCleanup
-	staffMessageCleanup         ports.StaffMessageCleanup
 	bookingConsistency          ports.BookingConsistencyAudit
 	holidayGuests               ports.HolidayGuestReconciliation
+	holidayClosureNotifications ports.HolidayClosureNotifications
 	plannedStaffExits           ports.PlannedStaffExits
 	careContractConclusion      ports.CareContractConclusion
 	staffQualificationReminders ports.StaffQualificationReminders
@@ -93,13 +92,17 @@ type Scheduler struct {
 	lastSessionEnd              sync.Map // tenant_id → time.Time
 	lastDataCleanup             sync.Map // tenant_id → time.Time
 	lastSessionCleanup          sync.Map // tenant_id → time.Time
-	lastStatusFlagClear         sync.Map // tenant_id → time.Time
+	lastStatusFlagClear         sync.Map // tenant_id → time.Time of the last successful run
 	lastMaterialization         sync.Map // tenant_id → time.Time
 	lastTimetableCleanup        sync.Map // tenant_id → time.Time (WP-B14)
 	lastTimeTrackingCleanup     sync.Map // tenant_id → time.Time (Tranche 0b)
 	lastStudentChangeLogCleanup sync.Map // tenant_id → time.Time (issue #1455)
 	lastPWAUsageCleanup         sync.Map // tenant_id → time.Time (issue #2189)
 	lastStaffMessageCleanup     sync.Map // tenant_id → time.Time (issue #2598)
+
+	// statusFlagPass is the Unix second of the latest status-day boundary
+	// every school has run the status-flag task for (#6291).
+	statusFlagPass atomic.Int64
 
 	// Overdue instance tracking (WP-B9). Re-fire guard so the same instance
 	// does not emit `instance_overdue` every minute for the same planned
@@ -190,6 +193,7 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 	return &Scheduler{
 		tasks:                         make(map[string]*ScheduledTask),
 		schedulerLifecycle:            newSchedulerLifecycle(deps),
+		retentionCleanupJobs:          newRetentionCleanupJobs(deps),
 		logger:                        deps.Logger,
 		getenv:                        deps.Getenv,
 		now:                           deps.Now,
@@ -202,7 +206,6 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 		authCleanup:                deps.AuthCleanup,
 		invitationCleanup:          deps.InvitationCleanup,
 		workSessionCleanup:         deps.WorkSessionCleanup,
-		feedbackCleaner:            deps.FeedbackCleaner,
 		staffDocumentFileCleaner:   deps.StaffDocumentCleaner,
 		studentDocumentFileCleaner: deps.StudentDocumentCleaner,
 		fileStoreCleaner:           deps.FileStoreCleaner,
@@ -210,8 +213,6 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 		calendarFeedCleanup:        deps.CalendarFeedCleanup,
 		timeTrackingCleanup:        deps.TimeTrackingCleanup,
 		studentChangeLogCleanup:    deps.StudentChangeLogCleanup,
-		pwaUsageCleanup:            deps.PWAUsageCleanup,
-		staffMessageCleanup:        deps.StaffMessageCleanup,
 		enrollmentRejectedCleanup:  deps.EnrollmentRejectedCleanup,
 		cleanupJobs:                schedulerCleanupJobs(deps),
 
@@ -220,7 +221,7 @@ func newScheduler(deps ports.WorkerDependencies) *Scheduler {
 		autoCheckouter:     deps.AutoCheckouter,
 		materializer:       deps.Materializer,
 		bookingConsistency: deps.BookingConsistency,
-		holidayGuests:      deps.HolidayGuests, plannedStaffExits: deps.PlannedStaffExits, careContractConclusion: deps.CareContractConclusion, careContractReminders: deps.CareContractReminders, staffQualificationReminders: deps.StaffQualificationReminders, weekProtocols: deps.WeekProtocols, payrollDispatch: deps.PayrollDispatch, schoolVacations: deps.SchoolVacations,
+		holidayGuests:      deps.HolidayGuests, holidayClosureNotifications: deps.HolidayClosureNotifications, plannedStaffExits: deps.PlannedStaffExits, careContractConclusion: deps.CareContractConclusion, careContractReminders: deps.CareContractReminders, staffQualificationReminders: deps.StaffQualificationReminders, weekProtocols: deps.WeekProtocols, payrollDispatch: deps.PayrollDispatch, schoolVacations: deps.SchoolVacations,
 		mealOrders:            deps.MealOrders,
 		autoStart:             deps.AutoStart,
 		autoEnd:               deps.AutoEnd,
@@ -256,6 +257,12 @@ func schedulerCleanupJobs(deps ports.WorkerDependencies) []CleanupJob {
 	}
 	if !isNilDependency(deps.TraegerDocumentReadRetention) {
 		jobs = append(jobs, CleanupJob{Description: "Träger document read retention", Run: deps.TraegerDocumentReadRetention.DeleteExpiredTraegerDocumentReads})
+	}
+	if !isNilDependency(deps.BelegRetention) {
+		jobs = append(jobs, CleanupJob{Description: "Beleg retention", Run: deps.BelegRetention.ApplyBelegRetention})
+	}
+	if !isNilDependency(deps.SEPADebitDownloadRetention) {
+		jobs = append(jobs, CleanupJob{Description: "SEPA debit download retention", Run: deps.SEPADebitDownloadRetention.DeleteExpiredSEPADebitDownloads})
 	}
 	return jobs
 }
@@ -394,8 +401,8 @@ func (s *Scheduler) waitUntilNextMinute(acquired <-chan struct{}, onAcquire func
 
 // statusFlagClearHour and statusFlagClearMinute are the fixed end of the day
 // for "Am Ende des Tages" (#3729). The time used to be a school setting; it is
-// 18:00 for every school now. Midnight would not work: the clear archives the
-// flag onto calendar.TodayDate(), which is already the next day at 00:00.
+// 18:00 for every school now. The archive dates each flag on its own status
+// day, so a late run still archives onto the right day (#6291).
 const (
 	statusFlagClearHour   = 18
 	statusFlagClearMinute = 0

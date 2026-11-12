@@ -18,8 +18,8 @@
       "description": "Kur shkolla publikon një njoftim të ri në portalin e prindërve."
     },
     "parent_message": {
-      "label": "Mesazh i ri nga OGS-ja",
-      "description": "Kur OGS-ja ju shkruan për një fëmijë."
+      "label": "Mesazh i ri nga {careTerm}-ja",
+      "description": "Kur {careTerm}-ja ju shkruan për një fëmijë."
     },
     "parent_appointment": {
       "label": "Takim i ri ose i ndryshuar",
@@ -31,11 +31,11 @@
     },
     "parent_request_decided": {
       "label": "Vendim për kërkesën tuaj",
-      "description": "Kur OGS-ja ka vendosur për një nga kërkesat tuaja."
+      "description": "Kur {careTerm}-ja ka vendosur për një nga kërkesat tuaja."
     },
     "parent_care_cancelled": {
       "label": "Kujdesi anulohet",
-      "description": "Kur OGS-ja anulon një nga takimet e kujdesit të fëmijës suaj."
+      "description": "Kur {careTerm}-ja anulon një nga takimet e kujdesit të fëmijës suaj."
     },
     "parent_billing_document": {
       "label": "Dokument i ri nga ofruesi",
@@ -45,5 +45,7 @@
   "errorObjectList": "lista e njoftimeve",
   "errorObjectType": "njoftimi „{name}“",
   "errorObjectEnableAll": "aktivizimi i të gjitha njoftimeve",
-  "errorObjectDisableAll": "çaktivizimi i të gjitha njoftimeve"
+  "errorObjectDisableAll": "çaktivizimi i të gjitha njoftimeve",
+  "enableAllTooltip": "Aktivizon të gjitha njoftimet njëherësh.",
+  "disableAllTooltip": "Çaktivizon menjëherë të gjitha njoftimet e moto për ju."
 }

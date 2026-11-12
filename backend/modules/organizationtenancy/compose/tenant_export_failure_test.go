@@ -9,9 +9,9 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -20,7 +20,7 @@ func TestTenantExportRejectsPartialFilesAndForeignReferences(t *testing.T) {
 	t.Parallel()
 	db, catalog, a, b := exportFixture(t)
 	uploads := fixtureUploads(t, db, catalog, a, b)
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{}, &exportAuditFake{})
 	require.NoError(t, err)
 	avatar := "avatars/global/" + strconv.FormatInt(a, 10) + ".bin"
 	require.NoError(t, os.Remove(filepath.Join(uploads, avatar)))
@@ -44,14 +44,14 @@ func TestTenantExportRejectsPartialFilesAndForeignReferences(t *testing.T) {
 	// A fresh attempt after resolving the failure succeeds; no partial files
 	// from a prior attempt are reused.
 	out := filepath.Join(t.TempDir(), "complete")
-	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, Output: out, Uploads: uploads}))
+	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, OperatorID: 42, Output: out, Uploads: uploads}))
 	readExportManifest(t, out)
 }
 
 func assertFailedExport(t *testing.T, exporter organizationtenancy.TenantExporter, school int64, uploads string) {
 	t.Helper()
 	out := filepath.Join(t.TempDir(), "partial")
-	err := exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: school, Output: out, Uploads: uploads})
+	err := exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: school, OperatorID: 42, Output: out, Uploads: uploads})
 	require.Error(t, err)
 	require.NoFileExists(t, filepath.Join(out, "COMPLETE"))
 	require.NotContains(t, err.Error(), uploads, "errors must not disclose original names")
@@ -63,7 +63,7 @@ func TestTenantExportDatabaseFailureCannotComplete(t *testing.T) {
 	a := testpkg.Tenant(t)
 	_, err := db.ExecContext(t.Context(), "DROP TABLE users.teachers CASCADE")
 	require.NoError(t, err)
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{}, &exportAuditFake{})
 	require.NoError(t, err)
 	assertFailedExport(t, exporter, a, t.TempDir())
 }
@@ -102,10 +102,10 @@ func TestTenantExportSnapshotIgnoresConcurrentWrites(t *testing.T) {
 		return err
 	}}
 	db.AddQueryHook(hook) //nolint:staticcheck // observe the pool the export already holds
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{}, &exportAuditFake{})
 	require.NoError(t, err)
 	out := filepath.Join(t.TempDir(), "export")
-	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, Output: out, Uploads: t.TempDir()}))
+	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, OperatorID: 42, Output: out, Uploads: t.TempDir()}))
 	require.NoError(t, hook.err)
 	data, err := os.ReadFile(filepath.Join(out, "facilities.rooms.jsonl"))
 	require.NoError(t, err)
@@ -120,9 +120,9 @@ func TestTenantExportWriteFailureCannotComplete(t *testing.T) {
 	out := filepath.Join(t.TempDir(), "partial")
 	hook := &snapshotExportHook{QueryCounter: testpkg.NewQueryCounter(), action: func() error { return os.Mkdir(filepath.Join(out, "active.activity_session_attendance.jsonl"), 0o700) }}
 	db.AddQueryHook(hook) //nolint:staticcheck // inject a disk failure on the pool the export holds
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{}, &exportAuditFake{})
 	require.NoError(t, err)
-	err = exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, Output: out, Uploads: t.TempDir()})
+	err = exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, OperatorID: 42, Output: out, Uploads: t.TempDir()})
 	require.NoError(t, hook.err)
 	require.Error(t, err)
 	require.NoFileExists(t, filepath.Join(out, "COMPLETE"))

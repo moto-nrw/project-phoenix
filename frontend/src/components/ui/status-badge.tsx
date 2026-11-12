@@ -6,13 +6,22 @@
 //
 // No leading dot: it only repeated what tint and label already say and made
 // rows of pills busier without adding meaning (#2476).
-import { isValidElement, type ReactNode } from "react";
+import { isValidElement, type ComponentType, type ReactNode } from "react";
 import type { LucideIcon } from "lucide-react";
+import { WarningIcon } from "@phosphor-icons/react/ssr";
 
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 
 export type StatusBadgeTone =
-  "blue" | "green" | "orange" | "red" | "gray" | "purple" | "cyan" | "outline";
+  | "blue"
+  | "green"
+  | "warning"
+  | "orange"
+  | "red"
+  | "gray"
+  | "purple"
+  | "cyan"
+  | "outline";
 
 /** `xs` is for dense grids (plan cells, calendar rows): 12 px, tight padding. */
 export type StatusBadgeSize = "md" | "xs";
@@ -29,6 +38,15 @@ const TONES: Record<
     bg: MOTO_COLOR_PALETTE.green.soft,
     text: MOTO_COLOR_PALETTE.green.strong,
   },
+  // LOCATION_COLORS.WARNING: "needs attention" (open, missing, pending).
+  // Yellow tint plus a warning icon, so it never reads as the orange
+  // Schulhof pill next to it (#5617).
+  warning: {
+    bg: MOTO_COLOR_PALETTE.amber.pill,
+    text: MOTO_COLOR_PALETTE.amber.pillText,
+  },
+  // LOCATION_COLORS.SCHOOLYARD hue. Not for "needs attention": that is
+  // `warning`. Only labels without a warning meaning (Feiertag, Demo).
   orange: {
     bg: MOTO_COLOR_PALETTE.orange.soft,
     text: MOTO_COLOR_PALETTE.orange.strong,
@@ -63,7 +81,19 @@ function sizeClass(size: StatusBadgeSize, compact: boolean) {
   return compact ? "px-2 py-0.5" : "px-2.5 py-1";
 }
 
-function isIconComponent(icon: unknown): icon is LucideIcon {
+type IconComponent =
+  LucideIcon | ComponentType<{ className?: string; "aria-hidden"?: "true" }>;
+
+// The warning tone's own icon (#5617). Filled, like the Alert warning icon: at
+// 12 px an outlined triangle smears into a blob on 1x screens, its "!" gone.
+function WarningFillIcon(props: {
+  className?: string;
+  "aria-hidden"?: "true";
+}) {
+  return <WarningIcon weight="fill" {...props} />;
+}
+
+function isIconComponent(icon: unknown): icon is IconComponent {
   // Lucide icons are forwardRef objects (`render`), plain components are
   // functions. Elements, arrays and text are nodes, not components.
   return (
@@ -75,7 +105,7 @@ function isIconComponent(icon: unknown): icon is LucideIcon {
   );
 }
 
-function renderIcon(icon: LucideIcon | ReactNode) {
+function renderIcon(icon: IconComponent | ReactNode) {
   if (icon === null || icon === undefined || typeof icon === "boolean") {
     return null;
   }
@@ -113,7 +143,7 @@ interface StatusPillCommonProps extends StatusPillDataAttributes {
    * (Phosphor, concept icon). Use with a distinct label, never as the only
    * cue; it is hidden from screen readers.
    */
-  readonly icon?: LucideIcon | ReactNode;
+  readonly icon?: IconComponent | ReactNode;
   /** Extra screen-reader context for a short visible label. */
   readonly accessibleLabel?: string;
   /** Matches compact informational labels that sit inside dense cards. */
@@ -184,6 +214,7 @@ export function StatusBadge({
   return (
     <StatusPillBase
       {...props}
+      icon={props.icon ?? (tone === "warning" ? WarningFillIcon : undefined)}
       backgroundColor={styles.bg}
       textColor={styles.text}
     />

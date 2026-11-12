@@ -3,14 +3,22 @@
 import { useEffect, useRef, useState } from "react";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
+  changeTraegerMemberName,
   changeTraegerRoles,
   inviteTraegerAccount,
   type TraegerMember,
 } from "~/lib/traeger-api";
+import {
+  MEMBER_NAME_REQUIRED,
+  TRAEGER_NAME_HINT,
+  TRAEGER_NAME_MAX_LENGTH,
+} from "~/lib/traeger-person-name";
 import type { TraegerRole } from "~/lib/traeger-roles";
 import { TraegerRoleChoice } from "./traeger-role-choice";
 
@@ -44,7 +52,8 @@ export function InviteTraegerAccountModal({
 }: Readonly<{
   isOpen: boolean;
   onClose: () => void;
-  onInvited: () => Promise<unknown>;
+  /** Reloads the list; never rejects (#6652). */
+  onInvited: RefreshAfterWrite;
   invite?: (input: TraegerInvitationInput) => Promise<unknown>;
   title?: string;
   hint?: string;
@@ -52,7 +61,8 @@ export function InviteTraegerAccountModal({
 }>) {
   const [email, setEmail] = useState("");
   const [roles, setRoles] = useState<TraegerRole[]>([]);
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -74,27 +84,28 @@ export function InviteTraegerAccountModal({
       formErrors.invalid("Bitte prüfen Sie Ihre Angaben.", fields);
       return;
     }
-    setSaving(true);
-    try {
-      await invite({ email: email.trim(), roles });
-      onClose();
+    await save.run(async (op) => {
+      try {
+        await invite({ email: email.trim(), roles });
+      } catch (err) {
+        logger.error("traeger_invitation_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "die Einladung" });
+        return;
+      }
+      if (op.isCurrent()) onClose();
       success(successText);
       await onInvited();
-    } catch (err) {
-      logger.error("traeger_invitation_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "die Einladung" });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   return (
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title={title}
       size="lg"
@@ -164,13 +175,15 @@ export function ChangeTraegerRolesModal({
   member: TraegerMember | null;
   members: readonly TraegerMember[];
   onClose: () => void;
-  onChanged: () => Promise<unknown>;
+  /** Reloads the list; never rejects (#6652). */
+  onChanged: RefreshAfterWrite;
 }>) {
   const isLastLeader =
     member?.roles.includes("leadership") === true &&
     members.filter((other) => other.roles.includes("leadership")).length <= 1;
   const [roles, setRoles] = useState<TraegerRole[]>([]);
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(member !== null);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -189,27 +202,28 @@ export function ChangeTraegerRolesModal({
       formErrors.invalid(ROLES_REQUIRED, { roles: ROLES_REQUIRED });
       return;
     }
-    setSaving(true);
-    try {
-      await changeTraegerRoles(member.accountId, roles);
-      onClose();
+    await save.run(async (op) => {
+      try {
+        await changeTraegerRoles(member.accountId, roles);
+      } catch (err) {
+        logger.error("traeger_roles_change_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "die Rollenvergabe" });
+        return;
+      }
+      if (op.isCurrent()) onClose();
       success("Die Rollen sind geändert.");
       await onChanged();
-    } catch (err) {
-      logger.error("traeger_roles_change_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "die Rollenvergabe" });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   return (
     <FormModal
       isOpen={member !== null}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       title="Rollen ändern"
       size="lg"
       error={formErrors.error}
@@ -243,6 +257,115 @@ export function ChangeTraegerRolesModal({
           disabled={saving}
           error={formErrors.fieldError("roles")}
           locked={isLastLeader ? LAST_LEADER_LOCK : undefined}
+        />
+      </form>
+    </FormModal>
+  );
+}
+
+/**
+ * Enters or changes the name of a person of the Träger-Büro (#4693). The
+ * export protocol and the history of every invoice show it. `onSaved` gets
+ * the person as the backend keeps it, so the row shows the name at once.
+ */
+export function ChangeTraegerMemberNameModal({
+  member,
+  onClose,
+  onSaved,
+  onChanged,
+}: Readonly<{
+  member: TraegerMember | null;
+  onClose: () => void;
+  onSaved: (member: TraegerMember) => void;
+  /** Reloads the list and the history; never rejects (#6652). */
+  onChanged: RefreshAfterWrite;
+}>) {
+  const [name, setName] = useState("");
+  const save = useFormModalPending(member !== null);
+  const saving = save.pending;
+  const formRef = useRef<HTMLFormElement>(null);
+  const formErrors = useApiFormError(formRef);
+  const { clear: clearErrors } = formErrors;
+  const { success } = useToast();
+
+  useEffect(() => {
+    if (!member) return;
+    setName(member.name);
+    clearErrors();
+  }, [member, clearErrors]);
+
+  const submit = async () => {
+    if (!member) return;
+    formErrors.clear();
+    const trimmed = name.trim();
+    if (!trimmed) {
+      formErrors.invalid(MEMBER_NAME_REQUIRED, { name: MEMBER_NAME_REQUIRED });
+      return;
+    }
+    await save.run(async (op) => {
+      let saved: TraegerMember;
+      try {
+        saved = await changeTraegerMemberName(member.accountId, trimmed);
+      } catch (err) {
+        logger.error("traeger_member_name_change_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "der Name" });
+        return;
+      }
+      onSaved(saved);
+      if (op.isCurrent()) onClose();
+      success("Der Name ist gespeichert.");
+      await onChanged();
+    });
+  };
+
+  const title = member?.name ? "Namen ändern" : "Namen eintragen";
+
+  return (
+    <FormModal
+      isOpen={member !== null}
+      onClose={onClose}
+      pending={save}
+      title={title}
+      size="md"
+      error={formErrors.error}
+      footer={
+        <EditActions
+          onCancel={onClose}
+          onSave={() => formRef.current?.requestSubmit()}
+          saving={saving}
+        />
+      }
+    >
+      <form
+        ref={formRef}
+        id="change-traeger-member-name-form"
+        noValidate
+        className="space-y-4"
+        onSubmit={(event) => {
+          event.preventDefault();
+          void submit();
+        }}
+      >
+        <p className="text-sm text-gray-600">
+          Name für{" "}
+          <span className="font-medium wrap-anywhere">{member?.email}</span>.
+        </p>
+        <Input
+          controlSize="compact"
+          id="change-traeger-member-name"
+          label="Name"
+          name="name"
+          autoComplete="off"
+          value={name}
+          onChange={(e) => setName(e.target.value)}
+          error={formErrors.fieldError("name")}
+          hint={TRAEGER_NAME_HINT}
+          maxLength={TRAEGER_NAME_MAX_LENGTH}
+          disabled={saving}
+          required
         />
       </form>
     </FormModal>

@@ -22,13 +22,17 @@ vi.mock("~/lib/notification-preferences-api", () => api);
 vi.mock("next-intl", () => ({
   useTranslations: (namespace: keyof typeof en) => {
     const messages = en[namespace] as Record<string, unknown>;
-    return (key: string) =>
-      key.split(".").reduce<unknown>((value, part) => {
-        if (value && typeof value === "object") {
-          return (value as Record<string, unknown>)[part];
-        }
-        return undefined;
-      }, messages) as string;
+    return (key: string, values?: Record<string, unknown>) =>
+      (
+        key.split(".").reduce<unknown>((value, part) => {
+          if (value && typeof value === "object") {
+            return (value as Record<string, unknown>)[part];
+          }
+          return undefined;
+        }, messages) as string
+      ).replace(/\{(\w+)\}/g, (match, name: string) =>
+        values && name in values ? String(values[name]) : match,
+      );
   },
 }));
 
@@ -52,8 +56,10 @@ describe("parent notification preference translations", () => {
   it("renders parent labels from the active catalog instead of backend German", async () => {
     renderWithToast(<NotificationPreferencesSection portal="parent" />);
 
+    // Der Titel steht schon im Ladezustand da, die Gruppen erst nach dem Laden.
+    // Deshalb auf die Gruppe selbst warten (#6320).
     expect(await screen.findByText("Notifications")).toBeVisible();
-    expect(screen.getByText("Messages")).toBeVisible();
+    expect(await screen.findByText("Messages")).toBeVisible();
     expect(
       screen.getByRole("switch", { name: "New message from the OGS" }),
     ).toBeVisible();

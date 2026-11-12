@@ -42,6 +42,52 @@ type DropzoneProps = DropzoneBaseProps &
   );
 
 /**
+ * Drag handling for a surface that takes dropped files next to its own
+ * controls, such as the chat composer (#6685): spread `dropProps` onto the
+ * frame and style it while `dragging`. The file dialog stays with the caller.
+ * Dropping skips any `accept`; the caller checks type and size.
+ */
+export function useFileDrop({
+  onFiles,
+  disabled = false,
+}: Readonly<{
+  onFiles: (files: File[]) => void;
+  disabled?: boolean;
+}>) {
+  const [dragging, setDragging] = useState(false);
+  // Only a drag that carries files counts: dragged text stays with the field.
+  const carriesFiles = (event: DragEvent) =>
+    Array.from(event.dataTransfer.types).includes("Files");
+  const over = (event: DragEvent) => {
+    if (!carriesFiles(event)) return;
+    // Also while disabled: otherwise the browser opens the dropped file.
+    event.preventDefault();
+    if (!disabled) setDragging(true);
+  };
+  const leave = (event: DragEvent) => {
+    const next = event.relatedTarget;
+    if (next instanceof Node && event.currentTarget.contains(next)) return;
+    setDragging(false);
+  };
+  const drop = (event: DragEvent) => {
+    if (!carriesFiles(event)) return;
+    event.preventDefault();
+    setDragging(false);
+    const files = Array.from(event.dataTransfer.files);
+    if (!disabled && files.length > 0) onFiles(files);
+  };
+  return {
+    dragging,
+    dropProps: {
+      onDragEnter: over,
+      onDragOver: over,
+      onDragLeave: leave,
+      onDrop: drop,
+    },
+  };
+}
+
+/**
  * The one way to hand a file to the app by dragging or choosing it (#5599).
  *
  * The visible button is the only control: a real `Button`, so Enter and Space

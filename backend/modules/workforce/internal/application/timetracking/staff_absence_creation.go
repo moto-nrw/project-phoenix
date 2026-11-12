@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func (s *staffAbsenceService) CreateAbsence(ctx context.Context, staffID int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
@@ -36,6 +36,14 @@ func (s *staffAbsenceService) CreateOwnAbsence(ctx context.Context, staffID int6
 }
 
 func (s *staffAbsenceService) CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, req CreateAbsenceRequest) (*StaffAbsenceResponse, error) {
+	// The subject's work-time gates come before the art's row (#6702): the
+	// art is a catalogue row, pinned after the gates and before the staff
+	// row the write takes. A sick report already holds these gates.
+	if req.AbsenceTypeID != nil && *req.AbsenceTypeID > 0 {
+		if err := s.lockStaffAbsenceWrites(ctx, subjectStaffID); err != nil {
+			return nil, err
+		}
+	}
 	// Resolve the school-defined art first (#2403): it, not the client, decides
 	// the canonical type every guard below and every later calculation reads.
 	selectedType, typeID, baseType, err := s.resolveAbsenceTypeSelection(ctx, req.AbsenceTypeID, req.AbsenceType)

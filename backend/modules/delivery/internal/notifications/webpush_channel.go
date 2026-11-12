@@ -10,12 +10,12 @@ import (
 	"sync"
 	"time"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	deliveryPorts "github.com/moto-ogs/project-phoenix/modules/delivery/internal/ports"
 
 	webpush "github.com/SherClockHolmes/webpush-go"
-	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	deliveryModels "github.com/moto-ogs/project-phoenix/modules/delivery/subscriptions"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -46,9 +46,9 @@ type webPushPayload struct {
 }
 
 const (
-	// maxPushPayloadBytes is a defensive bound well under the ~4KB Web Push
-	// limit; our payloads are a few hundred bytes.
-	maxPushPayloadBytes = 3800
+	// maxPushPayloadBytes is the largest payload one Web Push record holds;
+	// our payloads are a few hundred bytes.
+	maxPushPayloadBytes = deliveryContract.WebPushMaxPayloadBytes
 	// Keep outbound work bounded without serializing a large tenant's devices.
 	maxConcurrentPushSends = 8
 	pushSendTimeout        = 10 * time.Second
@@ -72,6 +72,9 @@ type webPushChannel struct {
 	// consume maxConcurrentPushSends outbound connections.
 	sendSlots chan struct{}
 	outbox    PushOutbox
+	// devices is the shared guardian device read of one series; nil outside
+	// a series (see forSeries).
+	devices *guardianDevices
 }
 
 type PushIntent struct {
@@ -177,8 +180,10 @@ func (c *webPushChannel) DeliverDurably(ctx context.Context, event Event) (int, 
 		return 0, errors.New("web push event requires an idempotency key")
 	}
 	accepted := 0
-	enqueue := func(txCtx context.Context) error {
-		subs, err := c.resolveEventSubscriptions(txCtx, event)
+	// A series shares its device read only inside the caller's transaction
+	// (#5869); a transaction of this delivery's own reads for itself.
+	enqueue := func(txCtx context.Context, devices *guardianDevices) error {
+		subs, err := c.resolveSubscriptions(txCtx, event, devices)
 		if err != nil {
 			return err
 		}
@@ -203,11 +208,11 @@ func (c *webPushChannel) DeliverDurably(ctx context.Context, event Event) (int, 
 		return nil
 	}
 	if _, active := tenant.TransactionFromContext(ctx); active {
-		err := enqueue(ctx)
+		err := enqueue(ctx, c.devices)
 		return accepted, err
 	}
 	err := tenant.WithTenantTx(ctx, c.db, event.Audience.TenantID, func(txCtx context.Context, _ bun.Tx) error {
-		return enqueue(txCtx)
+		return enqueue(txCtx, nil)
 	})
 	return accepted, err
 }
@@ -481,7 +486,7 @@ func (c *webPushChannel) sendOneSynchronously(ctx context.Context, event Event, 
 	}
 	sendCtx, cancel := context.WithTimeout(ctx, pushSendTimeout)
 	defer cancel()
-	resp, err := c.sender.Send(sendCtx, &webpush.Subscription{Endpoint: sub.Endpoint, Keys: webpush.Keys{P256dh: sub.P256dh, Auth: sub.Auth}}, payload, &webpush.Options{Subscriber: c.vapid.webPushSubscriber(), VAPIDPublicKey: c.vapid.PublicKey, VAPIDPrivateKey: c.vapid.PrivateKey, TTL: ttl, Urgency: urgency})
+	resp, err := c.sender.Send(sendCtx, &webpush.Subscription{Endpoint: sub.Endpoint, Keys: webpush.Keys{P256dh: sub.P256dh, Auth: sub.Auth}}, payload, &webpush.Options{Subscriber: c.vapid.webPushSubscriber(), VAPIDPublicKey: c.vapid.PublicKey, VAPIDPrivateKey: c.vapid.PrivateKey, RecordSize: deliveryContract.WebPushRecordSize, TTL: ttl, Urgency: urgency})
 	if err != nil {
 		return err
 	}

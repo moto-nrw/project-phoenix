@@ -5,8 +5,8 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan/ports"
 )
 
 // Presence modes of a tenant.
@@ -42,7 +42,10 @@ func (s *Service) Scan(ctx context.Context, command devicescan.ScanCommand) (*de
 		return nil, err
 	}
 
-	student := s.lookupStudent(ctx, person.ID)
+	student, err := s.lookupStudent(ctx, person.ID)
+	if err != nil {
+		return nil, err
+	}
 	if student == nil {
 		return s.scanStaff(ctx, device, person)
 	}
@@ -95,24 +98,23 @@ func (s *Service) resolvePerson(ctx context.Context, device *devicescan.Principa
 	return person, nil
 }
 
-// lookupStudent resolves the student behind a person. A lookup failure is
-// logged and treated as "no student", so the scan continues as a staff scan.
-func (s *Service) lookupStudent(ctx context.Context, personID int64) *ports.Student {
+// lookupStudent distinguishes a directory failure from a person who is not
+// a student. Only a successful missing-student lookup may continue as staff.
+func (s *Service) lookupStudent(ctx context.Context, personID int64) (*ports.Student, error) {
 	student, err := s.people.FindStudentByPerson(ctx, personID)
 	if err != nil {
-		s.logger.DebugContext(ctx, "student lookup for person",
+		s.logger.ErrorContext(ctx, "student lookup failed",
 			slog.Int64("person_id", personID),
 			slog.String("error", err.Error()),
 		)
-		return nil
+		return nil, devicescan.Internal(devicescan.MessageInternalServerError, err)
 	}
-	// A graduated alumnus is soft-deleted by the grade transition: treat the
-	// card like an unknown one so it opens neither a visit nor an attendance
-	// row (#405). Care-ended children stay resolvable so an open stay can end.
+	// Alumni open neither visits nor attendance; care-ended children remain
+	// resolvable so their open stay can end.
 	if student != nil && student.Alumnus {
-		return nil
+		return nil, nil
 	}
-	return student
+	return student, nil
 }
 
 // scanStaff joins a staff card to the device session as supervisor.

@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
 
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/internal/adapters/jobruntime"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/internal/adapters/jobruntime"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -159,6 +159,7 @@ type unitSchedulerDependencies struct {
 	registry                      *Registry
 	reminderNotifications         ports.ReminderNotificationTick
 	retention                     RetentionRun
+	retentionLog                  ports.RetentionLog
 	rolloverDeadlineRunner        ports.RolloverDeadlineRunner
 	schoolRepo                    ports.TenantDirectory
 	settings                      ports.SettingsResolver
@@ -203,7 +204,17 @@ func unitScheduler(input *unitSchedulerDependencies) *Scheduler {
 	if feedbackCleaner == nil {
 		feedbackCleaner = configured.feedbackCleaner
 	}
+	retentionLog := input.retentionLog
+	if retentionLog == nil {
+		retentionLog = func(context.Context, string, ports.RetentionOutcome) error { return nil }
+	}
 	return &Scheduler{
+		retentionCleanupJobs: retentionCleanupJobs{
+			feedbackCleaner:     feedbackCleaner,
+			pwaUsageCleanup:     input.pwaUsageCleanup,
+			staffMessageCleanup: input.staffMessageCleanup,
+			retentionLog:        retentionLog,
+		},
 		activeService:                 input.activeService,
 		allTenantIDsLoader:            tenantLoader,
 		announcementReminderScannedAt: input.announcementReminderScannedAt,
@@ -225,7 +236,6 @@ func unitScheduler(input *unitSchedulerDependencies) *Scheduler {
 		cleanupService:                input.cleanupService,
 		schedulerLifecycle:            schedulerLifecycle{done: input.done, lifecycleCtx: input.lifecycleCtx, stopLifecycle: input.stopLifecycle},
 		enrollmentRejectedCleanup:     input.enrollmentRejectedCleanup,
-		feedbackCleaner:               feedbackCleaner,
 		fileStoreCleaner:              input.fileStoreCleaner,
 		getenv:                        input.getenv,
 		instanceRepo:                  input.instanceRepo,
@@ -241,7 +251,6 @@ func unitScheduler(input *unitSchedulerDependencies) *Scheduler {
 		now:                           input.now,
 		outboxWorker:                  input.outboxWorker,
 		overdueBroadcaster:            input.overdueBroadcaster,
-		pwaUsageCleanup:               input.pwaUsageCleanup,
 		registry:                      registry,
 		reminderNotifications:         input.reminderNotifications,
 		retention:                     input.retention,
@@ -249,7 +258,6 @@ func unitScheduler(input *unitSchedulerDependencies) *Scheduler {
 		schoolRepo:                    input.schoolRepo,
 		settings:                      input.settings,
 		staffDocumentFileCleaner:      input.staffDocumentFileCleaner,
-		staffMessageCleanup:           input.staffMessageCleanup,
 		studentChangeLogCleanup:       input.studentChangeLogCleanup,
 		studentDocumentFileCleaner:    input.studentDocumentFileCleaner,
 		studentLifecycleAudit:         input.studentLifecycleAudit,

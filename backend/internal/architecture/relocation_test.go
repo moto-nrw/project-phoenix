@@ -54,7 +54,7 @@ func relocatedPolicy(t *testing.T, repo string, mutate func(document map[string]
 		}
 		document["relocations"] = []any{map[string]any{
 			"from": "target", "to": movedTargetPath,
-			"issue": "https://github.com/moto-nrw/project-phoenix/issues/3226",
+			"issue": "https://github.com/moto-ogs/project-phoenix/issues/3226",
 		}}
 		if mutate != nil {
 			mutate(document)
@@ -88,7 +88,7 @@ func TestRelocationRekeysTheMovedPackagesOwnDebt(t *testing.T) {
 	t.Parallel()
 	repo, _ := ratchetRepositoryWithPolicy(t, "", readFile(t, fixturePath(t, "vertical-forbidden.json")))
 	writeFile(t, filepath.Join(repo, "target", "target.go"), "package target\n\nimport _ \"example.test/architecture-fixture/linuxonly\"\n\nconst Value = \"target\"\n")
-	outgoing := fmt.Sprintf("{\"scope\":\"production\",\"rule\":\"imports.forbidden\",\"source\":%q,\"target\":\"example.test/architecture-fixture/linuxonly\",\"issue\":\"https://github.com/moto-nrw/project-phoenix/issues/2743\"}\n", "example.test/architecture-fixture/target")
+	outgoing := fmt.Sprintf("{\"scope\":\"production\",\"rule\":\"imports.forbidden\",\"source\":%q,\"target\":\"example.test/architecture-fixture/linuxonly\",\"issue\":\"https://github.com/moto-ogs/project-phoenix/issues/2743\"}\n", "example.test/architecture-fixture/target")
 	writeFile(t, filepath.Join(repo, "architecture", "legacy.jsonl"), legacyRecord(2743)+outgoing)
 	runGit(t, repo, "add", ".")
 	runGit(t, repo, "commit", "-qm", "target imports linuxonly")
@@ -99,7 +99,7 @@ func TestRelocationRekeysTheMovedPackagesOwnDebt(t *testing.T) {
 	writeFile(t, filepath.Join(repo, "architecture", "policy.json"), relocatedPolicy(t, repo, nil))
 	moved := "example.test/architecture-fixture/" + movedTargetPath
 	writeFile(t, filepath.Join(repo, "architecture", "legacy.jsonl"),
-		fmt.Sprintf("{\"scope\":\"production\",\"rule\":\"imports.forbidden\",\"source\":%q,\"target\":\"example.test/architecture-fixture/linuxonly\",\"issue\":\"https://github.com/moto-nrw/project-phoenix/issues/2743\"}\n", moved)+
+		fmt.Sprintf("{\"scope\":\"production\",\"rule\":\"imports.forbidden\",\"source\":%q,\"target\":\"example.test/architecture-fixture/linuxonly\",\"issue\":\"https://github.com/moto-ogs/project-phoenix/issues/2743\"}\n", moved)+
 			legacyRecordWithTarget(2743, moved))
 	runGit(t, repo, "add", "-A")
 	output, err := runRepositoryCheck(t, repo, baseRef)
@@ -115,7 +115,7 @@ func TestRelocationRejectsAnAddedImport(t *testing.T) {
 	writeFile(t, filepath.Join(repo, filepath.FromSlash(movedTargetPath), "target.go"), "package target\n\nimport _ \"example.test/architecture-fixture/linuxonly\"\n\nconst Value = \"target\"\n")
 	moved := "example.test/architecture-fixture/" + movedTargetPath
 	writeFile(t, filepath.Join(repo, "architecture", "legacy.jsonl"),
-		fmt.Sprintf("{\"scope\":\"production\",\"rule\":\"imports.forbidden\",\"source\":%q,\"target\":\"example.test/architecture-fixture/linuxonly\",\"issue\":\"https://github.com/moto-nrw/project-phoenix/issues/2743\"}\n", moved)+
+		fmt.Sprintf("{\"scope\":\"production\",\"rule\":\"imports.forbidden\",\"source\":%q,\"target\":\"example.test/architecture-fixture/linuxonly\",\"issue\":\"https://github.com/moto-ogs/project-phoenix/issues/2743\"}\n", moved)+
 			legacyRecordWithTarget(2743, moved))
 	output, err := runRepositoryCheck(t, repo, baseRef)
 	if err == nil || !strings.Contains(output, "absent from the base baseline") {
@@ -344,4 +344,4 @@ func TestPolicyRejectsInvalidRelocations(t *testing.T) {
 	}
 }
 
-const relocationIssue = "https://github.com/moto-nrw/project-phoenix/issues/3226"
+const relocationIssue = "https://github.com/moto-ogs/project-phoenix/issues/3226"

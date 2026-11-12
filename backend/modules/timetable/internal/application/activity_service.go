@@ -5,9 +5,9 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 )
 
 // ActivityService implements the activityContract.ActivityService interface
@@ -54,7 +54,6 @@ const (
 	opFindByCategory       = "find by category"
 	opFindGroup            = "find group"
 	opGetSchedule          = "get schedule"
-	opUpdateSchedule       = "update schedule"
 	opGetSupervisor        = "get supervisor"
 	opFindSupervisor       = "find supervisor"
 	opFindGroupSupervisors = "find group supervisors"
@@ -124,6 +123,9 @@ func (s *ActivityService) CreateGroup(ctx context.Context, group *activityContra
 	}
 	validatedCategory := group.Category
 	group.SetTenantID(group.Category.GetTenantID())
+	if err := s.lockActivitySupervisorStaff(ctx, 0, supervisorIDs...); err != nil {
+		return nil, &activityContract.ActivityError{Op: "create group", Err: err}
+	}
 
 	if err := createLegacyGroup(ctx, s.timetable, group); err != nil {
 		return nil, &activityContract.ActivityError{Op: "create group", Err: err}

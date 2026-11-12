@@ -12,7 +12,7 @@ import (
 	"strings"
 	"testing"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 
 	provider "github.com/SherClockHolmes/webpush-go"
 	"github.com/stretchr/testify/assert"
@@ -226,4 +226,44 @@ func vapidClaims(t *testing.T, header string) map[string]any {
 	var claims map[string]any
 	require.NoError(t, json.Unmarshal(payload, &claims))
 	return claims
+}
+
+// Sentry 2026-11-11: Mozilla delivers to Firefox on Android through FCM. It
+// puts the base64url-encoded request body into an FCM data map and answers
+// 413 when that map's JSON exceeds 4096 bytes (autopush-rs FcmSettings.max_data,
+// routers/common.rs message_size_check). webpush-go padded every body to 4096
+// bytes, so every such push failed, whatever its length.
+func TestSendPushFitsMozillasFCMBridge(t *testing.T) {
+	t.Parallel()
+	privateKey, publicKey, err := provider.GenerateVAPIDKeys()
+	require.NoError(t, err)
+	sender := New(deliveryContract.WebPushConfig{Subscriber: "mailto:push@example.test", PublicKey: publicKey, PrivateKey: privateKey}, nil)
+	var bodies [][]byte
+	sender.client = &http.Client{Transport: roundTripFunc(func(request *http.Request) (*http.Response, error) {
+		body, readErr := io.ReadAll(request.Body)
+		require.NoError(t, readErr)
+		bodies = append(bodies, body)
+		return &http.Response{StatusCode: http.StatusCreated, Status: "201 Created", Body: io.NopCloser(strings.NewReader(""))}, nil
+	})}
+	short := pushIntent(t)
+	largest := pushIntent(t)
+	encoded, err := json.Marshal(largest.PushPayload)
+	require.NoError(t, err)
+	largest.PushPayload.Title += strings.Repeat("x", deliveryContract.WebPushMaxPayloadBytes-len(encoded))
+
+	for _, intent := range []deliveryContract.ClaimedIntent{short, largest} {
+		_, err := sender.SendPush(context.Background(), intent)
+		require.NoError(t, err)
+	}
+
+	require.Len(t, bodies, 2)
+	assert.Len(t, bodies[0], len(bodies[1]), "padding hides the message length")
+	bridged, err := json.Marshal(map[string]string{
+		"chid": "00000000-0000-0000-0000-000000000000",
+		"body": base64.RawURLEncoding.EncodeToString(bodies[1]),
+		"con":  "aes128gcm",
+		"rid":  strings.Repeat("r", 128),
+	})
+	require.NoError(t, err)
+	assert.LessOrEqual(t, len(bridged), 4096, "Mozilla's FCM bridge answers 413 above 4096 bytes")
 }

@@ -1,9 +1,10 @@
 package timetracking
 
 import (
+	"math"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // German labor-law (ArbZG) thresholds applied to staff work sessions. These are
@@ -221,12 +222,19 @@ func netMinutesWithBreaks(ws *WorkSession, breaks []*WorkSessionBreak, now time.
 func netMinutesByDate(session *WorkSession, breaks []*WorkSessionBreak, end time.Time, from, to calendar.Date) map[calendar.Date]int {
 	minutesByDate := make(map[calendar.Date]int)
 	cachedBreakMinutes := session.BreakMinutes
+	pendingBreakMinutes := 0
 	if !end.After(session.CheckInTime) {
 		return minutesByDate
 	}
 	for day := calendar.DateFromTime(session.CheckInTime); !day.After(calendar.DateFromTime(end)); day = day.AddDays(1) {
 		start, dayEnd := sessionDaySpan(session.CheckInTime, end, day)
-		minutes := int(dayEnd.Sub(start).Minutes()) - breakMinutesWithin(breaks, end, start, dayEnd)
+		// Cumulative rounding conserves minutes across midnight, including
+		// sessions and pauses whose timestamps contain seconds.
+		gross := int(dayEnd.Sub(session.CheckInTime).Minutes()) - int(start.Sub(session.CheckInTime).Minutes())
+		pendingBreakMinutes += breakMinutesWithin(breaks, end, start, dayEnd)
+		deduct := min(gross, pendingBreakMinutes)
+		minutes := gross - deduct
+		pendingBreakMinutes -= deduct
 		// Legacy rows may carry only the cached break total. New rows always
 		// have break intervals, which take precedence for correct day mapping.
 		if len(breaks) == 0 && cachedBreakMinutes > 0 {
@@ -257,27 +265,34 @@ func sessionDaySpan(checkIn, end time.Time, day calendar.Date) (time.Time, time.
 	return start, dayEnd
 }
 
-// breakMinutesWithin sums the break time inside [start, dayEnd); a running
-// break lasts until the session end.
+// breakMinutesWithin allocates cumulative pause minutes to [start, dayEnd).
+// Ended pauses use the same rounding as EndBreak; running pauses use the
+// live counter's truncation. Differences of cumulative totals cannot lose
+// a minute when an interval crosses Berlin midnight or a clock change.
 func breakMinutesWithin(breaks []*WorkSessionBreak, end, start, dayEnd time.Time) int {
 	minutes := 0
 	for _, brk := range breaks {
-		breakEnd := end
-		if brk.EndedAt != nil && brk.EndedAt.Before(breakEnd) {
-			breakEnd = *brk.EndedAt
-		}
-		breakStart := brk.StartedAt
-		if breakStart.Before(start) {
-			breakStart = start
-		}
-		if breakEnd.After(dayEnd) {
-			breakEnd = dayEnd
-		}
-		if breakEnd.After(breakStart) {
-			minutes += int(breakEnd.Sub(breakStart).Minutes())
-		}
+		minutes += breakMinutesBefore(brk, end, dayEnd) - breakMinutesBefore(brk, end, start)
 	}
 	return minutes
+}
+
+func breakMinutesBefore(brk *WorkSessionBreak, sessionEnd, at time.Time) int {
+	end := sessionEnd
+	if brk.EndedAt != nil && brk.EndedAt.Before(end) {
+		end = *brk.EndedAt
+	}
+	if at.Before(end) {
+		end = at
+	}
+	elapsed := end.Sub(brk.StartedAt).Minutes()
+	if elapsed <= 0 {
+		return 0
+	}
+	if brk.EndedAt != nil {
+		return int(math.Round(elapsed))
+	}
+	return int(elapsed)
 }
 
 // isOvertime reports whether net work time exceeds the statutory overtime

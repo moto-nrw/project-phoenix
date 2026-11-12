@@ -13,15 +13,15 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	provisioningoperator "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
-	"github.com/moto-nrw/project-phoenix/modules/settings"
-	settingsoperator "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/api/testutil/routetest"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityoperator "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/operator"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	provisioningoperator "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/inbound/operator"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
+	settingsoperator "github.com/moto-ogs/project-phoenix/modules/settings/inbound/operator"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // chiWalk traverses all routes in the chi.Router and calls fn for each
@@ -118,7 +118,7 @@ func TestRouter(t *testing.T) {
 			bookingAuthorityImpact: http.NotFoundHandler(),
 		}
 		router := operatorRouter(operatorIdentity{sessions: operatorTestSessions(t, nil)},
-			provisioningoperator.ProvisioningConfig{}, nil, schoolSettings, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil, nil)
+			provisioningoperator.ProvisioningConfig{ErasureOrderRecords: stubErasureOrderRecords{}}, nil, schoolSettings, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil, nil)
 		require.NotNil(t, router)
 
 		// Walk the route tree and assert the settings subroute exists under /schools.
@@ -148,7 +148,7 @@ func TestRouter(t *testing.T) {
 		}
 		assert.Panics(t, func() {
 			operatorRouter(operatorIdentity{sessions: operatorTestSessions(t, nil)},
-				provisioningoperator.ProvisioningConfig{}, nil, schoolSettings, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil, nil)
+				provisioningoperator.ProvisioningConfig{ErasureOrderRecords: stubErasureOrderRecords{}}, nil, schoolSettings, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil, nil)
 		})
 	})
 
@@ -168,7 +168,7 @@ func TestRouter(t *testing.T) {
 	t.Run("billing seed route is mounted with the billing report", func(t *testing.T) {
 		billing := provisioningoperator.NewBillingResource(stubBillingReport{}, nil, nil)
 		router := operatorRouter(operatorIdentity{sessions: operatorTestSessions(t, nil)},
-			provisioningoperator.ProvisioningConfig{}, billing, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil, nil)
+			provisioningoperator.ProvisioningConfig{ErasureOrderRecords: stubErasureOrderRecords{}}, billing, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil, nil)
 
 		found := false
 		err := chiWalk(router, func(pattern string) {
@@ -191,7 +191,7 @@ func TestRouter(t *testing.T) {
 		})
 		for _, handler := range []http.HandlerFunc{nil, history} {
 			router := operatorRouter(operatorIdentity{sessions: operatorTestSessions(t, nil)},
-				provisioningoperator.ProvisioningConfig{}, nil, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil, handler)
+				provisioningoperator.ProvisioningConfig{ErasureOrderRecords: stubErasureOrderRecords{}}, nil, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil, handler)
 			found := false
 			require.NoError(t, chiWalk(router, func(pattern string) {
 				if pattern == "/schools/{id}/demo-presence-history" {
@@ -230,7 +230,7 @@ func TestUnregisteredTagScanRoutesSitBehindOperatorAuth(t *testing.T) {
 	}
 	provisioning := &protectedRouteProvisioningService{}
 	router := operatorRouter(operatorIdentity{access: authService, sessions: operatorTestSessions(t, authService)},
-		provisioningoperator.ProvisioningConfig{Service: provisioning}, nil, nil, nil, review, authRateLimiters{}, http.NotFoundHandler(), nil, nil)
+		provisioningoperator.ProvisioningConfig{Service: provisioning, ErasureOrderRecords: stubErasureOrderRecords{}}, nil, nil, nil, review, authRateLimiters{}, http.NotFoundHandler(), nil, nil)
 
 	anonymous := httptest.NewRecorder()
 	router.ServeHTTP(anonymous, httptest.NewRequest(http.MethodGet, "/unregistered-tag-scans/", nil))
@@ -345,7 +345,7 @@ func TestDemoPresenceHistoryRouteRequiresAudit(t *testing.T) {
 				w.WriteHeader(http.StatusNoContent)
 			})
 			router := operatorRouter(operatorIdentity{access: authService, sessions: operatorTestSessions(t, authService)},
-				provisioningoperator.ProvisioningConfig{Service: provisioningService}, nil, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil, history)
+				provisioningoperator.ProvisioningConfig{Service: provisioningService, ErasureOrderRecords: stubErasureOrderRecords{}}, nil, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil, history)
 			req := httptest.NewRequest(http.MethodPost, "/schools/42/demo-presence-history", nil)
 			req.Header.Set("Authorization", "Bearer "+operatorRouteAccessToken(t, 42))
 			rr := httptest.NewRecorder()
@@ -368,7 +368,7 @@ func TestDemoPresenceHistoryRouteRequiresAudit(t *testing.T) {
 // Access inputs and provisioning service, without billing, school settings,
 // announcements, the tag scan review or rate limits.
 func testOperatorRouter(identity operatorIdentity, provisioning organizationtenancy.Provisioning) chi.Router {
-	return operatorRouter(identity, provisioningoperator.ProvisioningConfig{Service: provisioning}, nil, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil, nil)
+	return operatorRouter(identity, provisioningoperator.ProvisioningConfig{Service: provisioning, ErasureOrderRecords: stubErasureOrderRecords{}}, nil, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil, nil)
 }
 
 // operatorTestSessions binds the operator session chains to the seeded test
@@ -399,4 +399,23 @@ func newCreateSchoolRequest(accessToken string, organizationID int) *http.Reques
 	req.Header.Set("Authorization", "Bearer "+accessToken)
 	req.RemoteAddr = "198.51.100.20:4444"
 	return req
+}
+
+// stubErasureOrderRecords stands in for the records command of an older
+// erasure order the operator router requires (#4720).
+type stubErasureOrderRecords struct{}
+
+func (stubErasureOrderRecords) RecordTraegerErasureOrderRecords(context.Context, organizationtenancy.RecordTraegerErasureOrderRecords) (organizationtenancy.TraegerErasureOrder, error) {
+	return organizationtenancy.TraegerErasureOrder{}, organizationtenancy.ErrTraegerErasureOrderNotFound
+}
+
+// The records command is injected, not discovered on the provisioning
+// service at request time: without it the operator router is not built
+// (ADR 0068 point 5).
+func TestOperatorRouterRequiresTheErasureOrderRecords(t *testing.T) {
+	t.Parallel()
+	assert.PanicsWithValue(t, "operator api: operator provisioning: the erasure order records capability is required", func() {
+		operatorRouter(operatorIdentity{sessions: operatorTestSessions(t, nil)}, provisioningoperator.ProvisioningConfig{},
+			nil, nil, nil, nil, authRateLimiters{}, http.NotFoundHandler(), nil, nil)
+	})
 }

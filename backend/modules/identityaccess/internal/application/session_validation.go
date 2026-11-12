@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // ValidateSessionTokens verifies a frontend session hand-off (access token
@@ -191,12 +191,24 @@ func (s *AccountAuthentication) parseSessionRefresh(refresh string, claims domai
 	var refreshClaims *domain.RefreshClaims
 	if refresh != "" {
 		parsed, err := s.codec.ParseRefreshToken(refresh)
-		if err != nil || parsed.ExpiresAt <= now || parsed.AccountID != claims.AccountID || parsed.Scope != claims.Scope || parsed.TenantID != claims.TenantID || (claims.Scope == domain.PortalOrg.Claim && parsed.OrgID != claims.OrgID) || claims.ReadOnly || claims.FamilyID == "" {
+		if err != nil || parsed.ExpiresAt <= now || parsed.AccountID != claims.AccountID || parsed.Scope != claims.Scope || parsed.TenantID != claims.TenantID || !refreshNamesTokenTraeger(parsed, claims) || claims.ReadOnly || claims.FamilyID == "" {
 			return nil, identityaccess.ErrInvalidToken
 		}
 		refreshClaims = &parsed
 	}
 	return refreshClaims, nil
+}
+
+// refreshNamesTokenTraeger: the refresh token of a Träger session and of a
+// parent session names the Träger its access token names. A staff access
+// token names its school's Träger, which its refresh token does not.
+func refreshNamesTokenTraeger(refresh domain.RefreshClaims, access domain.SessionClaims) bool {
+	switch access.Scope {
+	case domain.PortalOrg.Claim, domain.PortalParent.Claim:
+		return refresh.OrgID == access.OrgID
+	default:
+		return true
+	}
 }
 
 func (s *AccountAuthentication) validateRefreshRow(ctx context.Context, kind domain.SessionKind, claims domain.SessionClaims, refreshClaims domain.RefreshClaims, accountID int64) (domain.AccountSession, error) {

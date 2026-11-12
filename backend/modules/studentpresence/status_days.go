@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // StudentLifecycle is the presence view of where a child stands in the care
@@ -149,6 +149,11 @@ type StatusDayWriteContext struct {
 	// source of the OGS's own status-day write. The Schulverwaltung's report
 	// in moto schule writes the school source (#4791).
 	Source string
+	// ReplacePartialAbsences removes the staff-entered partial absences the
+	// caller confirmed replacing (#5698). It runs after the student and day
+	// locks and before the partial-absence check, so a partial absence the
+	// caller did not confirm still refuses the write. Nil replaces nothing.
+	ReplacePartialAbsences func(ctx context.Context, studentID int64) error
 }
 
 // ApplyLiveStatusForToday mutates a student's live sick/excused flags to reflect

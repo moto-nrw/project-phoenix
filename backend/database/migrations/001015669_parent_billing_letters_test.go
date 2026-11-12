@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -99,7 +99,10 @@ func TestConfirmationLettersNeverChange(t *testing.T) {
 			return err
 		})
 		require.Error(t, err, "the request role changes no letter: %s", statement)
-		assert.Regexp(t, "permission denied|never changes", err.Error(), statement)
+		if testpkg.PostgresSQLState(err) != "42501" {
+			assert.Equal(t, "55000", testpkg.PostgresSQLState(err), statement)
+			assert.ErrorContains(t, err, "never changes", statement)
+		}
 		_, err = db.ExecContext(ctx, statement, own)
 		assert.ErrorContains(t, err, "never changes", "no role changes a letter: %s", statement)
 	}
@@ -111,7 +114,7 @@ func TestConfirmationLettersNeverChange(t *testing.T) {
 			_, err := tx.ExecContext(ctx, statement, own)
 			return err
 		})
-		assert.ErrorContains(t, err, "permission denied", "the request role deletes no letter: %s", statement)
+		assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "the request role deletes no letter: %s", statement)
 	}
 	// Deleting the account that created the letters clears the reference
 	// and leaves the letters as they are.
@@ -139,5 +142,5 @@ func TestConfirmationLettersNeverChange(t *testing.T) {
 			VALUES (?, ?, ?, 'x.pdf', ?)`, own, document, run, pdf)
 		return err
 	})
-	assert.ErrorContains(t, err, "row-level security", "a Träger cannot add a letter to another Träger")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "a Träger cannot add a letter to another Träger")
 }

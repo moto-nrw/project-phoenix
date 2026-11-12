@@ -12,8 +12,8 @@ import (
 	"fmt"
 	"time"
 
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // Intent is the claimed Delivery e-mail intent a renderer turns into a

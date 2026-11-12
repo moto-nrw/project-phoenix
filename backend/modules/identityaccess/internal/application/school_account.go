@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 func (s *Service) FindSchoolAccountByEmail(ctx context.Context, email string) (identityaccess.Account, error) {
@@ -44,4 +44,26 @@ func (s *Service) withinSchoolRead(ctx context.Context, fn func(context.Context)
 		return domain.ErrTenantRequired
 	}
 	return s.tx.RunRead(ctx, fn)
+}
+
+// FindSchoolEmailIdentities batches the account and pending-invitation keys
+// used by school imports without exposing accounts of another school.
+func (s *Service) FindSchoolEmailIdentities(ctx context.Context, emails []string) (accounts map[string]int64, invited map[string][]int64, err error) {
+	normalized := make([]string, 0, len(emails))
+	for _, email := range emails {
+		if email = strings.ToLower(strings.TrimSpace(email)); email != "" {
+			normalized = append(normalized, email)
+		}
+	}
+	err = s.run(ctx, s.withinSchoolRead, "find_school_email_identities", func(txCtx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		var queryErr error
+		accounts, invited, queryStats, queryErr = s.store.FindSchoolEmailIdentities(txCtx, normalized, s.tenantOf(txCtx))
+		stats.Add(queryStats)
+		return queryErr
+	})
+	if err != nil {
+		return nil, nil, fmt.Errorf("identity access: find school email identities: %w", MapError(err))
+	}
+	return accounts, invited, nil
 }

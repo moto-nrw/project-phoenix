@@ -1,5 +1,5 @@
 import { describe, it, expect, vi } from "vitest";
-import { render, fireEvent, waitFor } from "@testing-library/react";
+import { render, fireEvent, waitFor, screen } from "@testing-library/react";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { SettingsField } from "./settings-field";
 import type { ResolvedSetting } from "~/lib/settings-api";
@@ -123,12 +123,15 @@ describe("SettingsField retention windows (ADR 0048)", () => {
   });
 
   it("asks before a reset shortens the window to the default", async () => {
-    const { container, onReset, getByRole, findByText } = renderOperatorField(
+    const { onReset, getByRole, findByText } = renderOperatorField(
       retentionSetting({ value: 600, is_default: false }),
     );
 
     fireEvent.click(
-      container.querySelector("button[title='Auf Standard zurücksetzen']")!,
+      screen.getByRole("button", {
+        name: "Zurücksetzen",
+        description: /^Stellt den Standard wieder her\./,
+      }),
     );
     await findByText(/älter als 365 Tage sind/);
     expect(onReset).not.toHaveBeenCalled();

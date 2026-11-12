@@ -1,6 +1,6 @@
 package carecontract
 
-import "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+import "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
 // ChangeImpact preserves the approval's consequences for the school to review.
 // IDs travel as strings, matching the existing care-plan impact presentation.

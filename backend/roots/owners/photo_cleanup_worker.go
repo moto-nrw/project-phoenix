@@ -5,13 +5,15 @@ import (
 	"errors"
 	"log/slog"
 
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	enrollmentModule "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	fileStorage "github.com/moto-nrw/project-phoenix/modules/filestorage"
-	fileStorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	communicationModule "github.com/moto-ogs/project-phoenix/modules/communication"
+	communicationCompose "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	enrollmentModule "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	fileStorage "github.com/moto-ogs/project-phoenix/modules/filestorage"
+	fileStorageCompose "github.com/moto-ogs/project-phoenix/modules/filestorage/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // workerFileCleanup adds managed-upload namespaces to the existing bounded,
@@ -39,6 +41,17 @@ func newFileStoreCleaner(db transactionruntime.Database, files fileStorage.Capab
 		coordinator := fileStorageCompose.NewDocumentCoordinator(enrollmentModule.RequestUploadStorageKind, backend, enrollmentUploadObjectStore{}, logger)
 		return coordinator.Remove(ctx, tenantID, storedName)
 	}
+	// Fotos und Dateien geloeschter Nachrichten (#6685): der Loeschtrigger
+	// reiht die Objekte ein, dieser Lauf entfernt sie.
+	attachments := communicationCompose.NewMessageAttachmentCleanup(db.Pool(), logger.With("service", "message-attachment-cleanup"))
+	removeAttachment := func(ctx context.Context, tenantID int64, storedName string) error {
+		backend, err := nativeUploads.PrivateUploadsBackend()
+		if err != nil {
+			return err
+		}
+		coordinator := fileStorageCompose.NewDocumentCoordinator(communicationModule.MessageAttachmentObjectKind, backend, enrollmentUploadObjectStore{}, logger)
+		return coordinator.Remove(ctx, tenantID, storedName)
+	}
 	return workerFileCleanup(func(ctx context.Context) (int, error) {
 		var removed int
 		var fileErr error
@@ -48,7 +61,8 @@ func newFileStoreCleaner(db transactionruntime.Database, files fileStorage.Capab
 		photosRemoved, photoErr := photos.Sweep(ctx, remover.RemoveStored)
 		legalRemoved, legalErr := legal.Sweep(ctx, removeLegal)
 		uploadsRemoved, uploadErr := uploads.SweepUploadObjects(ctx, removeUpload)
-		return removed + photosRemoved + legalRemoved + uploadsRemoved, errors.Join(fileErr, photoErr, legalErr, uploadErr)
+		attachmentsRemoved, attachmentErr := attachments.SweepMessageAttachmentObjects(ctx, removeAttachment)
+		return removed + photosRemoved + legalRemoved + uploadsRemoved + attachmentsRemoved, errors.Join(fileErr, photoErr, legalErr, uploadErr, attachmentErr)
 	})
 }
 

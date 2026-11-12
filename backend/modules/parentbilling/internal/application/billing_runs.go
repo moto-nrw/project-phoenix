@@ -11,8 +11,8 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Actions of the trail of a run.
@@ -69,6 +69,9 @@ type RunStore interface {
 	// number another invoice carries is ErrInvoiceNumberTaken.
 	IssueDocuments(ctx context.Context, organizationID int64, run parentbilling.BillingRun, year int, first int64, documents []parentbilling.BillingDocument) error
 	MarkRunReleased(ctx context.Context, organizationID, runID int64, issuedOn calendar.Date, count int, totalCents int64) (parentbilling.BillingRun, error)
+	// MarkRunDiscarded discards a calculated run of the Träger (#6628); a
+	// run that is not calculated is ErrBillingRunReleased.
+	MarkRunDiscarded(ctx context.Context, organizationID, runID int64) (parentbilling.BillingRun, error)
 	RunDocuments(ctx context.Context, organizationID, runID int64) ([]parentbilling.BillingDocument, error)
 	// RunLetters reads the letters of a released run; nil before they are
 	// created (#4669).
@@ -84,6 +87,8 @@ type RunStore interface {
 	paymentTermsReader
 	// DocumentKindStore keeps the kind of document of each service (#4688).
 	DocumentKindStore
+	// BookingAssignmentReader names where the positions book (#4821).
+	BookingAssignmentReader
 }
 
 // BillingRuns serves parentbilling.BillingRuns. The period and its confirmed
@@ -114,14 +119,16 @@ func NewBillingRuns(store RunStore, registrations parentbilling.HolidayBillingRe
 		kinds: newDocumentKindGate(store, templates), today: today}
 }
 
-// checkRelease refuses a release of nothing, of a preview that changed since
-// the review, and one that would issue a direct debit without a mandate while
-// the Träger holds such releases back (ADR 0171).
-func checkRelease(current preview, release parentbilling.BillingRelease) error {
+// checkRelease refuses a release of nothing, of a preview whose count, sum
+// or content (fingerprint, #6506) changed since the review, and one that
+// would issue a direct debit without a mandate while the Träger holds such
+// releases back (ADR 0171).
+func checkRelease(current preview, fingerprint string, release parentbilling.BillingRelease) error {
 	if len(current.documents) == 0 {
 		return parentbilling.ErrBillingRunEmpty
 	}
-	if len(current.documents) != release.DocumentCount || current.total() != release.TotalCents {
+	if len(current.documents) != release.DocumentCount || current.total() != release.TotalCents ||
+		fingerprint == "" || fingerprint != release.Fingerprint {
 		return parentbilling.ErrBillingRunChanged
 	}
 	if slices.ContainsFunc(current.documents, func(document parentbilling.BillingDocument) bool {
@@ -282,11 +289,8 @@ func (b *BillingRuns) ReleaseBillingRun(ctx context.Context, reviewer parentbill
 	if err != nil {
 		return parentbilling.BillingRunDetail{}, err
 	}
-	current, err := b.preview(ctx, reviewer, run)
+	current, err := b.checkedPreview(ctx, reviewer, run, release)
 	if err != nil {
-		return parentbilling.BillingRunDetail{}, err
-	}
-	if err := checkRelease(current, release); err != nil {
 		return parentbilling.BillingRunDetail{}, err
 	}
 	documentKind, err := b.releasedKind(ctx, reviewer.OrganizationID, run.Service, release)
@@ -305,6 +309,9 @@ func (b *BillingRuns) ReleaseBillingRun(ctx context.Context, reviewer parentbill
 		documents[i].IssuedOn = &issuedOn
 		documents[i].DocumentKind = documentKind
 	}
+	if err := b.freezeAccounts(ctx, reviewer, run, documents); err != nil {
+		return parentbilling.BillingRunDetail{}, err
+	}
 	if err := b.store.IssueDocuments(ctx, reviewer.OrganizationID, run, year, first, documents); err != nil {
 		return parentbilling.BillingRunDetail{}, err
 	}
@@ -321,6 +328,48 @@ func (b *BillingRuns) ReleaseBillingRun(ctx context.Context, reviewer parentbill
 		return parentbilling.BillingRunDetail{}, fmt.Errorf("parent billing: record release: %w", err)
 	}
 	return b.detail(ctx, reviewer, released)
+}
+
+// checkedPreview computes the preview again under the locks of the release
+// and holds it against what the Abrechnung checked: count, sum and content
+// (#6506), before a number is reserved or an invoice written.
+func (b *BillingRuns) checkedPreview(ctx context.Context, reviewer parentbilling.HolidayReviewer, run parentbilling.BillingRun, release parentbilling.BillingRelease) (preview, error) {
+	current, _, fingerprint, err := b.fingerprintedPreview(ctx, reviewer, run)
+	if err != nil {
+		return preview{}, err
+	}
+	if err := checkRelease(current, fingerprint, release); err != nil {
+		return preview{}, err
+	}
+	return current, nil
+}
+
+// fingerprintedPreview is the preview of a calculated run with the kind of
+// document its release would freeze now and the fingerprint of both
+// (#6506): the review shows it, the release compares it.
+func (b *BillingRuns) fingerprintedPreview(ctx context.Context, reviewer parentbilling.HolidayReviewer, run parentbilling.BillingRun) (preview, parentbilling.DocumentKindState, string, error) {
+	current, err := b.preview(ctx, reviewer, run)
+	if err != nil {
+		return preview{}, parentbilling.DocumentKindState{}, "", err
+	}
+	kind, legalRemedy, err := b.kinds.reviewed(ctx, reviewer.OrganizationID, run.Service)
+	if err != nil {
+		return preview{}, parentbilling.DocumentKindState{}, "", err
+	}
+	return current, kind, holidayPreviewFingerprint(run, current, kind.DocumentKind, legalRemedy), nil
+}
+
+// freezeAccounts copies where each position of the run's documents books
+// onto it, with the host school of each week read through Enrollment
+// (#4821, #6624).
+func (b *BillingRuns) freezeAccounts(ctx context.Context, reviewer parentbilling.HolidayReviewer, run parentbilling.BillingRun,
+	documents []parentbilling.BillingDocument,
+) error {
+	weeks, err := b.registrations.HolidayWeekHosts(ctx, reviewer, run.HolidayPeriodID)
+	if err != nil {
+		return fmt.Errorf("parent billing: read the host schools of the weeks: %w", err)
+	}
+	return freezeHolidayAccounts(ctx, b.store, b.settings, reviewer.OrganizationID, weeks, documents)
 }
 
 // releasedKind is the kind of document the release freezes: the kind the
@@ -402,7 +451,7 @@ func (b *BillingRuns) lockCalculated(ctx context.Context, organizationID, runID 
 		return parentbilling.BillingRun{}, err
 	}
 	if run.Status != parentbilling.RunCalculated {
-		return parentbilling.BillingRun{}, parentbilling.ErrBillingRunReleased
+		return parentbilling.BillingRun{}, closedRunError(run.Status)
 	}
 	return run, nil
 }
@@ -480,20 +529,15 @@ func (b *BillingRuns) preview(ctx context.Context, reviewer parentbilling.Holida
 // number range the release uses.
 func (b *BillingRuns) detail(ctx context.Context, reviewer parentbilling.HolidayReviewer, run parentbilling.BillingRun) (parentbilling.BillingRunDetail, error) {
 	detail := parentbilling.BillingRunDetail{BillingRun: run, BilledInAdvance: run.Service == parentbilling.ServiceHoliday}
-	if run.Status == parentbilling.RunReleased {
+	switch run.Status {
+	case parentbilling.RunReleased:
 		if err := b.releasedDetail(ctx, reviewer.OrganizationID, &detail); err != nil {
 			return parentbilling.BillingRunDetail{}, err
 		}
-	} else {
-		current, err := b.preview(ctx, reviewer, run)
-		if err != nil {
-			return parentbilling.BillingRunDetail{}, err
-		}
-		detail.Documents, detail.Unbilled, detail.DueDates = current.documents, current.unbilled, current.dueDates.InPaymentOrder()
-		if err := b.previewKind(ctx, reviewer.OrganizationID, &detail); err != nil {
-			return parentbilling.BillingRunDetail{}, err
-		}
-		if detail.MissingDebtorNumbers, detail.PaymentTextMissingDebtorNumbers, err = b.missingDebtorNumbers(ctx, reviewer.OrganizationID, current.documents); err != nil {
+	case parentbilling.RunDiscarded:
+		discardedHolidayDetail(&detail)
+	default:
+		if err := b.previewDetail(ctx, reviewer, &detail); err != nil {
 			return parentbilling.BillingRunDetail{}, err
 		}
 	}
@@ -632,18 +676,23 @@ func (b *BillingRuns) releasedDetail(ctx context.Context, organizationID int64, 
 	return nil
 }
 
-// previewKind names on the preview the kind of document the release would
-// freeze now and whether it lacks the legal remedy (#4688).
-func (b *BillingRuns) previewKind(ctx context.Context, organizationID int64, detail *parentbilling.BillingRunDetail) error {
-	state, err := b.kinds.current(ctx, organizationID, detail.Service)
+// previewDetail shows the preview of a calculated run with its
+// fingerprint (#6506), the kind of document the release would freeze now
+// and whether it lacks the legal remedy (#4688), and the drafts without a
+// debtor number.
+func (b *BillingRuns) previewDetail(ctx context.Context, reviewer parentbilling.HolidayReviewer, detail *parentbilling.BillingRunDetail) error {
+	current, kind, fingerprint, err := b.fingerprintedPreview(ctx, reviewer, detail.BillingRun)
 	if err != nil {
 		return err
 	}
-	detail.DocumentKindState = state
+	detail.Fingerprint = fingerprint
+	detail.Documents, detail.Unbilled, detail.DueDates = current.documents, current.unbilled, current.dueDates.InPaymentOrder()
+	detail.DocumentKindState = kind
 	for i := range detail.Documents {
-		detail.Documents[i].DocumentKind = state.DocumentKind
+		detail.Documents[i].DocumentKind = kind.DocumentKind
 	}
-	return nil
+	detail.MissingDebtorNumbers, detail.PaymentTextMissingDebtorNumbers, err = b.missingDebtorNumbers(ctx, reviewer.OrganizationID, current.documents)
+	return err
 }
 
 // issuedDocumentKind is the kind a released run froze: the kind of its

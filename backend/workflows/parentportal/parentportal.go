@@ -6,8 +6,8 @@
 package parentportal
 
 import (
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/care"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/messaging"
 )
 
 // Portal is the composed guardian portal: the child flows of care and the
@@ -66,4 +66,5 @@ const (
 	DayStateNoCare                     = care.DayStateNoCare
 	KeyEnrollmentBookingsAuthoritative = care.KeyEnrollmentBookingsAuthoritative
 	KeyParentNewsEnabled               = care.KeyParentNewsEnabled
+	KeyEnrollmentCareFacilityTerm      = care.KeyEnrollmentCareFacilityTerm
 )

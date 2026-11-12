@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func newOperatorMFARecords(t *testing.T, db *bun.DB) ports.OperatorMFARecords {
@@ -24,11 +24,15 @@ func newOperatorMFARecords(t *testing.T, db *bun.DB) ports.OperatorMFARecords {
 	return module.(ports.Records)
 }
 
+// newOperatorGeneration is the credential generation a new operator holds;
+// codes and devices of its password are bound to it (#6308).
+const newOperatorGeneration = 1
+
 func pendingChallenge(operatorID int64, expiresAt time.Time) identityaccess.OperatorMFAChallenge {
 	consumed := time.Now()
 	return identityaccess.OperatorMFAChallenge{
 		OperatorID: operatorID, CodeHash: "hash-" + uuid.Must(uuid.NewV4()).String(), ExpiresAt: expiresAt,
-		ConsumedAt: &consumed, IPAddress: net.ParseIP("203.0.113.5"),
+		ConsumedAt: &consumed, IPAddress: net.ParseIP("203.0.113.5"), CredentialGeneration: newOperatorGeneration,
 	}
 }
 
@@ -36,7 +40,7 @@ func newTrustedDevice(operatorID int64, expiresAt time.Time) identityaccess.Oper
 	userAgent := "Mozilla/5.0 (Test)"
 	return identityaccess.OperatorTrustedDevice{
 		OperatorID: operatorID, TokenHash: "token-" + uuid.Must(uuid.NewV4()).String(), UserAgent: &userAgent,
-		IPAddress: net.ParseIP("203.0.113.6"), ExpiresAt: expiresAt,
+		IPAddress: net.ParseIP("203.0.113.6"), ExpiresAt: expiresAt, CredentialGeneration: newOperatorGeneration,
 	}
 }
 

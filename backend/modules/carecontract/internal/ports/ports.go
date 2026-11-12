@@ -7,15 +7,17 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // InboxRow is a contract of the inbox with what its withdrawal period
 // needs: the conclusion and the earliest recorded provision of the notice,
-// the stored one or that of the latest online signature (#6105).
+// the stored one or that of the latest online signature (#6105), and the
+// school whose holidays move its last day (#6350).
 type InboxRow struct {
 	Contract   carecontract.InboxContract
+	SchoolID   int64
 	Concluded  *carecontract.Concluded
 	InformedAt *time.Time
 }
@@ -71,6 +73,10 @@ type NewContract struct {
 	// EarlyStart is the parents' express wish in the application that care
 	// begins within the withdrawal period (§ 356 Abs. 4 BGB, #4682).
 	EarlyStart bool
+	// FamilyChildren is the registration's number of children the
+	// Elternabrechnung takes over with the contract (#6335); not stored on
+	// the contract.
+	FamilyChildren *carecontract.FamilyStatement
 }
 
 type NewParty struct {
@@ -134,6 +140,7 @@ const (
 
 // Store persists the contracts of a Träger in its Träger transaction.
 type Store interface {
+	UpsertTemplates(ctx context.Context, organizationID, accountID, schoolID int64, inputs []carecontract.ModuleTemplateInput) ([]TemplateRow, error)
 	MarkWithdrawalInformed(ctx context.Context, organizationID, contractID int64, at time.Time) error
 	Templates(ctx context.Context, organizationID int64) ([]TemplateRow, error)
 	UpsertTemplate(ctx context.Context, organizationID, accountID, schoolID, offeringID int64, input carecontract.TemplateInput) (carecontract.Template, error)

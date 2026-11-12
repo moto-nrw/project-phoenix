@@ -8,8 +8,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -178,6 +179,9 @@ func (s *Store) FindWeekProtocol(ctx context.Context, id int64, lock bool) (time
 		Where(`"week_protocol".id = ?`, id).
 		Where(`"week_protocol".tenant_id = ?`, tenantID)
 	if lock {
+		if err := tenant.OrderLock(ctx, tenant.LockLeaf, "schedule.group_week_protocols"); err != nil {
+			return timetable.WeekProtocol{}, false, err
+		}
 		query = query.For("UPDATE")
 	}
 	if err := query.Scan(ctx); err != nil {

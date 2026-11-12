@@ -8,8 +8,8 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/go-ozzo/ozzo-validation/is"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
 )
 
 // LoginRequest is the body shape for POST /parent/auth/login.
@@ -44,6 +44,11 @@ func (rs *Resource) login(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		portalauth.Render(w, r, err, portalauth.ParentLoginRules, portalauth.LoginRules)
 		return
+	}
+	// The sign-in proved the address: its holiday registrations join the
+	// account (ADR 0216). The workflow logs a failure; the sign-in stands.
+	if rs.ParentService != nil {
+		rs.ParentService.ClaimHolidayRegistrationsAfterSignIn(r.Context(), req.Email)
 	}
 	common.Respond(w, r, http.StatusOK, portalauth.TokenResponse{AccessToken: accessToken, RefreshToken: refreshToken}, "Login successful")
 }

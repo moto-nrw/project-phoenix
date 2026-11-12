@@ -7,18 +7,20 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { Radio } from "~/components/ui/radio";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FieldLabel } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { traegerPath } from "~/lib/traeger-url";
 import {
   MAX_PRENOTIFICATION_DAYS,
   MIN_PRENOTIFICATION_DAYS,
@@ -57,7 +59,8 @@ function SepaCreditorModal({
   const [missing, setMissing] = useState<MissingMandate>(
     creditor.missingMandate,
   );
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(open);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -89,30 +92,30 @@ function SepaCreditorModal({
       formErrors.invalid("Bitte prüfen Sie Ihre Angaben.", fields);
       return;
     }
-    setSaving(true);
-    try {
-      const saved = await saveSepaCreditor({
-        creditorId: compact,
-        prenotificationDays: parsed,
-        missingMandate: missing,
-      });
-      success("Die Angaben zur Lastschrift sind gespeichert.");
-      onSaved(saved);
-    } catch (err) {
-      logger.error("sepa_creditor_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "die Angaben zur Lastschrift" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        const saved = await saveSepaCreditor({
+          creditorId: compact,
+          prenotificationDays: parsed,
+          missingMandate: missing,
+        });
+        success("Die Angaben zur Lastschrift sind gespeichert.");
+        if (op.isCurrent()) onSaved(saved);
+      } catch (err) {
+        logger.error("sepa_creditor_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "die Angaben zur Lastschrift" });
+      }
+    });
   };
 
   return (
     <FormModal
       isOpen={open}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title="Lastschrift"
       size="md"
@@ -212,11 +215,18 @@ function SepaCreditorModal({
   );
 }
 
+/** The settings area with the switch of the online mandate (#4696). */
+const ONLINE_MANDATE_SETTINGS_PATH =
+  "/traeger/einstellungen?bereich=monatsbeitrag";
+
 export function SepaCreditorCard({
   creditor,
+  onlineMandate,
   onChanged,
 }: Readonly<{
   creditor: SepaCreditor;
+  /** The Träger's switch of the mandate in the parents portal; null while unknown. */
+  onlineMandate?: boolean | null;
   onChanged: () => Promise<unknown>;
 }>) {
   const [editing, setEditing] = useState(false);
@@ -227,7 +237,7 @@ export function SepaCreditorCard({
       title="Lastschrift"
       titleBadge={
         missingId ? (
-          <StatusBadge tone="orange" label="Gläubiger-ID fehlt" />
+          <StatusBadge tone="warning" label="Gläubiger-ID fehlt" />
         ) : null
       }
       description="Damit buchen Sie Beiträge per SEPA-Lastschrift ab. Das Mandat jeder Familie erfassen Sie bei ihrem Vertrag."
@@ -260,6 +270,28 @@ export function SepaCreditorCard({
         <DataField label="Ohne gültiges Mandat" fullWidth>
           {MISSING_MANDATE_LABELS[creditor.missingMandate]}
         </DataField>
+        {onlineMandate === undefined || onlineMandate === null ? null : (
+          <DataField label="Mandat in der Eltern-App" fullWidth>
+            <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+              <StatusBadge
+                tone={onlineMandate ? "green" : "outline"}
+                label={onlineMandate ? "Eingeschaltet" : "Ausgeschaltet"}
+              />
+              <ButtonLink
+                href={traegerPath(ONLINE_MANDATE_SETTINGS_PATH)}
+                variant="link"
+                size="md"
+              >
+                In den Einstellungen ändern
+              </ButtonLink>
+            </span>
+            <span className="mt-1 block text-sm font-normal text-gray-600">
+              {onlineMandate
+                ? "Eltern erteilen und widerrufen das Mandat selbst, bei ihrem Vertrag."
+                : "Eltern geben das Mandat auf Papier ab. Sie erfassen es beim Vertrag der Familie."}
+            </span>
+          </DataField>
+        )}
       </DataGrid>
       <SepaCreditorModal
         open={editing}

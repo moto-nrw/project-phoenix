@@ -5,11 +5,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -261,16 +261,16 @@ func TestStudentStatusDayRepository_CountEffectiveDashboardAbsences(t *testing.T
 	counts, err := repo.CountEffectiveDashboardAbsences(ctxA, today)
 	require.NoError(t, err)
 	require.NotNil(t, counts)
-	assert.Equal(t, 3, counts.Sick)
-	assert.Equal(t, 4, counts.Excused)
+	assert.Len(t, counts.SickIDs, 3)
+	assert.Len(t, counts.ExcusedIDs, 4)
 	assert.Equal(t, []int64{cleared}, counts.UnaccountedIDs,
 		"only the active child in neither bucket is a home candidate (#3260)")
 
 	otherCounts, err := repo.CountEffectiveDashboardAbsences(ctxB, today)
 	require.NoError(t, err)
 	require.NotNil(t, otherCounts)
-	assert.Equal(t, 0, otherCounts.Sick)
-	assert.Equal(t, 1, otherCounts.Excused)
+	assert.Empty(t, otherCounts.SickIDs)
+	assert.Len(t, otherCounts.ExcusedIDs, 1)
 }
 
 func TestStudentStatusDayRepository_UpsertNil(t *testing.T) {

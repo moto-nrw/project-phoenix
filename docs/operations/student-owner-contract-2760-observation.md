@@ -42,7 +42,7 @@ At **01:44:58 UTC**:
   matches the corresponding archive tuple for every joined child: 0 mismatches.
 - `active.student_status_days` has 2,830 rows. This is a count, not a new
   checksum of the history. The release's earlier checksum evidence is in
-  [#2760](https://github.com/moto-nrw/project-phoenix/issues/2760).
+  [#2760](https://github.com/moto-ogs/project-phoenix/issues/2760).
 - Historical `care_state_mismatch_count` remains 3, 8 and 3 for schools
   4, 8 and 9. It compares dated status history, not copied absence fields;
   it is diagnostic and is not a Contract storage-loss gate.
@@ -84,7 +84,7 @@ actual code and production use before choosing a minimum rollback duration;
 at the time of this observation no duration or waiver had been agreed. The user
 subsequently chose at least 24 hours plus a complete regular school day and
 relevant jobs. The 48-hour test fixture remains synthetic input, not the
-production policy. See [the agreed rule](student-owner-storage-contract.md#operating-evidence).
+production policy. See [the agreed rule](student-owner-storage-contract.md#verification-and-historical-evidence).
 
 Before execution, Contract still needs the agreed operational acceptance,
 current caller/query evidence, a fresh restorable pre-Contract backup, and

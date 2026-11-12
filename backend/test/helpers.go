@@ -8,11 +8,10 @@ import (
 	"os"
 	"sync/atomic"
 	"testing"
-	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/testdb"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/internal/testdb"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -119,6 +118,9 @@ func SetupTestDB(t testing.TB) *bun.DB {
 
 // SetupIsolatedTestDB returns a disposable clone for one test. Use it only
 // when the behavior is database-global (schema, sweeps, hooks, or locks).
+// Subtests share the clone of their top-level test (or OwnTenant ancestor); it
+// is dropped when its last user finishes, so parallel siblings may each call
+// this.
 func SetupIsolatedTestDB(t testing.TB) *bun.DB {
 	t.Helper()
 	setupPackageTestDB(t)
@@ -268,9 +270,6 @@ func StrPtr(s string) *string { return &s }
 
 // Int64Ptr returns a pointer to the given int64 value.
 func Int64Ptr(i int64) *int64 { return &i }
-
-// TimePtr returns a pointer to the given time value.
-func TimePtr(t time.Time) *time.Time { return &t }
 
 // IsNotFoundError reports whether err is a repository not-found error. Every
 // legacy repository — including the ones that are now compositions over an

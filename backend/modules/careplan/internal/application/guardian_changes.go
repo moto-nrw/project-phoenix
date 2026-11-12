@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // GuardianAbsences writes a guardian's full-day status in the caller's
@@ -37,6 +37,9 @@ func (s *GuardianAbsences) reportGuardianAbsence(ctx context.Context, report car
 	slices.SortFunc(sorted, compareDates)
 	first, last := sorted[0], sorted[len(sorted)-1]
 	if err := s.refuseManualPartialAbsence(ctx, report.StudentID, sorted); err != nil {
+		return nil, err
+	}
+	if err := s.refuseSchoolStatus(ctx, report.StudentID, sorted); err != nil {
 		return nil, err
 	}
 	if err := s.write(ctx, report); err != nil {
@@ -73,6 +76,23 @@ func (s *GuardianAbsences) refuseManualPartialAbsence(ctx context.Context, stude
 	for _, row := range rows {
 		if row.HasManualPartialAbsence() && slices.Contains(sorted, row.ExceptionDate) {
 			return careplan.ErrManualPartialAbsenceConflict
+		}
+	}
+	return nil
+}
+
+// refuseSchoolStatus keeps a school-set full-day status (any source but the
+// family's) on its day; the caller already holds the care-day locks.
+func (s *GuardianAbsences) refuseSchoolStatus(ctx context.Context, studentID int64, sorted []careplan.Date) error {
+	rows, err := s.Records.ListStudentStatusDays(ctx, careplan.StudentStatusDayFilter{
+		StudentIDs: []int64{studentID}, From: sorted[0], To: sorted[len(sorted)-1], ActiveOnly: true,
+	})
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if row.Source != careplan.StudentStatusSourceParent && slices.Contains(sorted, row.Date) {
+			return careplan.ErrSchoolStatusDayConflict
 		}
 	}
 	return nil
@@ -127,7 +147,7 @@ func (s *GuardianPickupExceptions) apply(ctx context.Context, change careplan.Gu
 	if err != nil {
 		return err
 	}
-	if existing != nil && existing.Source == careplan.ExceptionSourceStaff {
+	if existing != nil && careplan.SchoolOwnedException(existing.Source) {
 		return careplan.ErrPickupExceptionStaffOwned
 	}
 	if err := s.writeLeg(ctx, existing, change); err != nil {

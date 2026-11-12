@@ -46,6 +46,10 @@ const PARENT_PUBLIC_PAGES = [
   // The public holiday registration of a Träger, gated by its link (#4661).
   "/parents/ferienanmeldung",
   "/ferienanmeldung",
+  // Setting up the parent account from the holiday registration's mail,
+  // gated by its link (#6673).
+  "/parents/ferienkonto",
+  "/ferienkonto",
   // The one-time link of a care contract mail, gated by its link (#4679).
   "/parents/vertrag-unterschreiben",
   "/vertrag-unterschreiben",

@@ -66,6 +66,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "~/components/ui/tabs";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { SectionLabel } from "~/components/ui/section-label";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { useApiFormError } from "~/contexts/ToastContext";
 
 import { instanceStatusTone } from "./timetable-colors";
@@ -216,7 +217,10 @@ export function SubstitutionSlideOver({
   // this appointment, but new removals delete the substitute row instead of
   // inventing an absence for the replacement person.
   const [restoredSubs, setRestoredSubs] = useState<Set<string>>(new Set());
-  const [saving, setSaving] = useState(false);
+  // The save is one atomic request: while it runs, the panel locks every way
+  // to close it (#6593). Another block is a new session.
+  const pending = useFormModalPending(instance !== null, instance?.id);
+  const saving = pending.pending;
   // Which reiter is shown (#1886). Seeded from initialTab and re-seeded whenever
   // a different block opens, so a `verlauf=1` deep link lands on the Verlauf tab.
   const [activeTab, setActiveTab] = useState<SubstitutionEditorTab>(initialTab);
@@ -499,57 +503,60 @@ export function SubstitutionSlideOver({
       )
     )
       return;
-    setSaving(true);
-    formErrors.clear();
-    try {
-      // Cancel is exclusive — it maps to the backend's cancel branch and ignores
-      // every other field, mirroring the UI where "Block absagen" is its own
-      // radio branch that hides the rest of the form.
-      if (cancel) {
-        await onApply({
-          cancel: true,
-          cancelReason: cancelReason.trim() || undefined,
-          guardianNotice: guardianNoticePayload(noticeDraft, noticeReach),
-        });
-        // Only close on a committed save — a failed cancel keeps the form open
-        // so the edits survive for a retry (#1840).
-        onClose();
-        return;
-      }
-
-      const input = buildStaffDeviationInput({
-        instanceId: instance.id,
-        people,
-        removedSubs,
-        restoredSubs,
-        desiredIds: desiredAbsenceIds,
-        targetIds: coverageIds,
-      });
-
-      // "Bewusst unbesetzt" only holds while the block stays understaffed after
-      // the save. isUnderstaffed forces it off if the block ends up fully
-      // staffed even though the (now-disabled) checkbox stayed checked, so the
-      // backend never sees a contradictory ack=true + fully-staffed state.
-      const effectiveUnstaffed = unstaffed && isUnderstaffed;
-      if (effectiveUnstaffed !== wasUnstaffed || noteEdited) {
-        input.understaffedAck = effectiveUnstaffed;
-        if (effectiveUnstaffed) {
-          input.understaffedNote = unstaffedReason.trim() || undefined;
+    const target = instance;
+    await pending.run(async (op) => {
+      formErrors.clear();
+      try {
+        // Cancel is exclusive — it maps to the backend's cancel branch and
+        // ignores every other field, mirroring the UI where "Block absagen" is
+        // its own radio branch that hides the rest of the form.
+        if (cancel) {
+          await onApply({
+            cancel: true,
+            cancelReason: cancelReason.trim() || undefined,
+            guardianNotice: guardianNoticePayload(noticeDraft, noticeReach),
+          });
+          // Only close on a committed save — a failed cancel keeps the form
+          // open so the edits survive for a retry (#1840). A late answer
+          // closes no panel that was closed or switched since.
+          if (op.isCurrent()) onClose();
+          return;
         }
-      }
 
-      // Keep the slide-over open (edits preserved) unless the save committed.
-      await onApply(input);
-      onClose();
-    } catch (err) {
-      // The caller has logged the failure; the form says why it stays open.
-      void formErrors.show(err, {
-        object: cancel ? "die Absage" : "die Vertretung",
-        retry: () => latestSaveRef.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
+        const input = buildStaffDeviationInput({
+          instanceId: target.id,
+          people,
+          removedSubs,
+          restoredSubs,
+          desiredIds: desiredAbsenceIds,
+          targetIds: coverageIds,
+        });
+
+        // "Bewusst unbesetzt" only holds while the block stays understaffed
+        // after the save. isUnderstaffed forces it off if the block ends up
+        // fully staffed even though the (now-disabled) checkbox stayed
+        // checked, so the backend never sees a contradictory ack=true +
+        // fully-staffed state.
+        const effectiveUnstaffed = unstaffed && isUnderstaffed;
+        if (effectiveUnstaffed !== wasUnstaffed || noteEdited) {
+          input.understaffedAck = effectiveUnstaffed;
+          if (effectiveUnstaffed) {
+            input.understaffedNote = unstaffedReason.trim() || undefined;
+          }
+        }
+
+        // Keep the slide-over open (edits preserved) unless the save committed.
+        await onApply(input);
+        if (op.isCurrent()) onClose();
+      } catch (err) {
+        // The caller has logged the failure; the form says why it stays open.
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, {
+          object: cancel ? "die Absage" : "die Vertretung",
+          retry: () => latestSaveRef.current(),
+        });
+      }
+    });
   }
 
   useLayoutEffect(() => {
@@ -562,6 +569,7 @@ export function SubstitutionSlideOver({
 
   return (
     <SlideOver
+      pending={pending}
       open={instance !== null}
       onOpenChange={(o) => {
         if (!o) onClose();
@@ -980,7 +988,6 @@ export function SubstitutionSlideOver({
                     type="button"
                     variant="outline"
                     size="md"
-                    disabled={saving}
                     onClick={onClose}
                   >
                     Abbrechen

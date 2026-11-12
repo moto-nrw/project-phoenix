@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // The receipt repeats the declaration (#5626): the fixed declarations the
@@ -24,17 +24,17 @@ func TestHolidayMailDeclarationRepeatsEveryDeclarationGiven(t *testing.T) {
 		{Key: "alt", Title: "Alt", Label: "Nicht mehr im Formular.", Enabled: false},
 	}}
 	input := enrollment.HolidayRegistrationInput{
-		DeclarationName: "Eva Muster", ConsentVersion: enrollment.HolidayConsentVersionCurrent,
+		DeclarationName: "Eva Muster", ConsentVersion: enrollment.HolidayConsentVersionCurrent, RetentionDays: 180,
 		PrivacyConsent: true, CustodyConfirmed: true, BindingConfirmed: true,
 		LegalAcceptances: map[string]bool{"fotos": true, "ausflug": false, "alt": true},
 	}
-	texts, ok := enrollment.HolidayConsentTextsOf(enrollment.HolidayConsentVersionCurrent)
+	texts, ok := enrollment.HolidayConsentTextsOf(enrollment.HolidayConsentVersionCurrent, 180)
 	require.True(t, ok)
 
 	declaration := holidayMailDeclaration(enrollment.HolidayPeriod{Binding: false}, form, input, givenAt)
 	require.NotNil(t, declaration)
 	assert.Equal(t, enrollment.HolidayRegistrationMailDeclaration{
-		Name: "Eva Muster", GivenAt: givenAt, ConsentVersion: 3,
+		Name: "Eva Muster", GivenAt: givenAt, ConsentVersion: enrollment.HolidayConsentVersionCurrent,
 		Statements: []enrollment.HolidayDeclarationStatement{
 			{Title: "Datenschutz", Text: texts.PrivacyConsent},
 			{Title: "Sorgerecht", Text: texts.CustodyConfirmed},

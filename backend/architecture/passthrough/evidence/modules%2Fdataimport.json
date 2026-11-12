@@ -23,9 +23,37 @@
     },
     {
       "build": "production",
+      "evidence": "func (o observedClassListEntryBatches) CreateClassListEntries(ctx context.Context, inputs []CreateClassListEntry) (result []ClassListEntry, err error) {\n\tdefer observeCommand(ctx, \"school-membership\", \"create_class_list_entries\", time.Now(), \u0026err)\n\treturn o.ClassListEntryBatches.CreateClassListEntries(ctx, inputs)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedClassListEntryBatches.CreateClassListEntries",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
       "evidence": "func (o observedClassListMembership) CreateClassListEntry(ctx context.Context, input CreateClassListEntry) (result ClassListEntry, err error) {\n\tdefer observeCommand(ctx, \"school-membership\", \"create_class_list_entry\", time.Now(), \u0026err)\n\treturn o.ClassListMembership.CreateClassListEntry(ctx, input)\n}",
       "form": "unclassified-evidence",
       "id": "modules/dataimport/ports/observedClassListMembership.CreateClassListEntry",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedEnrollmentBatches) CreateEnrollmentProfiles(ctx context.Context, inputs []EnrollmentStudent) (result []CreatedEnrollmentStudent, err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"create_enrollment_profiles\", time.Now(), \u0026err)\n\treturn o.EnrollmentBatches.CreateEnrollmentProfiles(ctx, inputs)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedEnrollmentBatches.CreateEnrollmentProfiles",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedEnrollmentBatches) EnrollCreatedStudent(ctx context.Context, created CreatedEnrollmentStudent, input EnrollmentStudent) (membershipID int64, err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"enroll_created_student\", time.Now(), \u0026err)\n\treturn o.EnrollmentBatches.EnrollCreatedStudent(ctx, created, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedEnrollmentBatches.EnrollCreatedStudent",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedEnrollmentBatches) SaveEnrollmentCares(ctx context.Context, cares []EnrollmentCare) (err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"save_enrollment_cares\", time.Now(), \u0026err)\n\treturn o.EnrollmentBatches.SaveEnrollmentCares(ctx, cares)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedEnrollmentBatches.SaveEnrollmentCares",
       "owner": "modules/dataimport"
     },
     {
@@ -65,9 +93,23 @@
     },
     {
       "build": "production",
+      "evidence": "func (o observedNewGuardianBatches) CreateNewStudentGuardians(ctx context.Context, links []NewStudentGuardianLink) (err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"create_new_student_guardians\", time.Now(), \u0026err)\n\treturn o.NewGuardianBatches.CreateNewStudentGuardians(ctx, links)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedNewGuardianBatches.CreateNewStudentGuardians",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
       "evidence": "func (o observedOpeningBalanceBookings) CreateOpeningBalance(ctx context.Context, staffID, decidedBy int64, date string, minutes int, note string) (result *StaffBalanceAdjustment, err error) {\n\tdefer observeCommand(ctx, \"workforce\", \"create_opening_balance\", time.Now(), \u0026err)\n\treturn o.OpeningBalanceBookings.CreateOpeningBalance(ctx, staffID, decidedBy, date, minutes, note)\n}",
       "form": "unclassified-evidence",
       "id": "modules/dataimport/ports/observedOpeningBalanceBookings.CreateOpeningBalance",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedPersonBatches) CreatePersons(ctx context.Context, inputs []CreatePerson) (result []Person, err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"create_persons\", time.Now(), \u0026err)\n\treturn o.PersonBatches.CreatePersons(ctx, inputs)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedPersonBatches.CreatePersons",
       "owner": "modules/dataimport"
     },
     {

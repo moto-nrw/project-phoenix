@@ -1,5 +1,5 @@
 {
-  "kicker": "Питание в группе продлённого дня",
+  "kicker": "Питание в {careTerm}",
   "title": "Обед",
   "subtitle": "Здесь видно, когда ребёнок обедает и что будет на обед.",
   "subtitleMealsOnly": "Здесь видно, что будет на обед.",
@@ -14,7 +14,7 @@
   "loading": "Меню питания загружается",
   "emptyThisWeekTitle": "На эту неделю меню ещё не внесено",
   "emptyNextWeekTitle": "На следующую неделю меню ещё не внесено",
-  "emptyWeek": "Как только группа продлённого дня внесёт меню, оно появится здесь.",
+  "emptyWeek": "Как только {careTerm} внесёт меню, оно появится здесь.",
   "weekNavigation": "Сменить календарную неделю",
   "previousWeek": "Предыдущая неделя",
   "calendarWeek": "Неделя {week}",
@@ -46,7 +46,7 @@
   "notRegistered": "Не записан на обед",
   "cancelledBySickNote": "Отменено из-за сообщения о болезни",
   "cancelledByAbsence": "Отменено, так как ребёнок отсутствует",
-  "closedDay": "В этот день продлёнка закрыта",
+  "closedDay": "В этот день {careTerm} закрыта",
   "participationUnavailable": "Запись не загружена",
   "mealUnavailable": "Меню не загружено",
   "singleChange": "Изменено только для этого дня",
@@ -76,7 +76,5 @@
   "registerWeekDone": "Записано на всю неделю.",
   "registerWeekLocked": "Срок записи на эти дни истёк, они остаются без записи: {days}.",
   "errorObjectWeekCancel": "отмену на неделю",
-  "errorObjectWeekRegister": "запись на неделю",
-  "participationCutoffLead": "Вы можете изменить запись до {time} {days, plural, one {за # рабочий день до обеда} few {за # рабочих дня до обеда} many {за # рабочих дней до обеда} other {за # рабочего дня до обеда}}.",
-  "participationSicknessLead": "Подтверждённое сообщение о болезни до {time} {days, plural, one {за # рабочий день до обеда} few {за # рабочих дня до обеда} many {за # рабочих дней до обеда} other {за # рабочего дня до обеда}} отменяет обед. После этого запись не меняется."
+  "errorObjectWeekRegister": "запись на неделю"
 }

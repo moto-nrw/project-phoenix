@@ -1,4 +1,4 @@
-import { fireEvent, render, screen } from "@testing-library/react";
+import { fireEvent, render, screen, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { useState } from "react";
 import { describe, expect, it, vi } from "vitest";
@@ -45,6 +45,7 @@ const offer: HolidayRegistrationOffer = {
   registrationOpensOn: "2026-09-01",
   registrationClosesOn: "2026-12-04",
   binding: true,
+  holidayWishMode: "off",
   notes: "",
   open: true,
   weeks: [
@@ -72,7 +73,9 @@ const offer: HolidayRegistrationOffer = {
 
 const MESSAGES = { de: deMessages, en: enMessages } as const;
 
-function Harness() {
+function Harness({
+  parentAccount,
+}: Readonly<{ parentAccount?: "ask" | "signed-in" }>) {
   const [locale, setLocale] = useState<"de" | "en">("de");
   refresh.current = () => {
     const cookie = new RegExp(`${LOCALE_COOKIE_NAME}=([a-z]+)`).exec(
@@ -85,7 +88,11 @@ function Harness() {
       <ToastProvider>
         <ParentLocaleProvider>
           <LanguageSwitcher />
-          <HolidayRegistrationForm token="link-key" offer={offer} />
+          <HolidayRegistrationForm
+            token="link-key"
+            offer={offer}
+            parentAccount={parentAccount}
+          />
         </ParentLocaleProvider>
       </ToastProvider>
     </NextIntlClientProvider>
@@ -168,5 +175,27 @@ describe("HolidayRegistrationForm language switch", () => {
     expect(screen.getByLabelText("E-mail address")).toHaveValue(
       "eva@example.org",
     );
+  });
+
+  it("keeps the answer to the account question when the parent switches the language (#6673)", async () => {
+    window.scrollTo = vi.fn();
+    render(<Harness parentAccount="ask" />);
+    fillRegistration();
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+    fireEvent.click(screen.getByRole("radio", { name: "Ja" }));
+
+    fireEvent.click(screen.getByRole("button", { name: /Sprache/ }));
+    fireEvent.click(screen.getByRole("option", { name: "English" }));
+
+    const group = await screen.findByRole("group", {
+      name: /Would you like to create a parent account/,
+    });
+    expect(within(group).getByRole("radio", { name: "Yes" })).toBeChecked();
+    expect(
+      within(group).getByText(/You will get an email to eva@example.org/),
+    ).toBeInTheDocument();
   });
 });

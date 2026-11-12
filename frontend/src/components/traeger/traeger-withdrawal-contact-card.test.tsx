@@ -7,6 +7,9 @@ import {
 } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { catalogText } from "~/test/error-catalog-text";
 
 // The link to the letterhead page needs no portal host here.
 vi.mock("~/lib/traeger-url", () => ({
@@ -131,5 +134,45 @@ describe("TraegerWithdrawalContactCard", () => {
 
     expect(screen.getByLabelText("Telefon für Widerrufe")).toBeDisabled();
     expect(preview().getByText("Eigene Angabe")).toBeInTheDocument();
+  });
+
+  // #6652: the save holds once the write is through; a failed reload of the
+  // page is a load error in the card that says the change is saved.
+  it("keeps the saved values when the page reload fails", async () => {
+    mockSave.mockClear();
+    mockSave.mockResolvedValue({
+      phone: "",
+      email: "widerruf@traeger.example",
+    });
+    const onSaved = vi
+      .fn()
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue(undefined);
+    render(
+      <ToastProvider>
+        <TraegerWithdrawalContactCard
+          withdrawal={{ phone: "", email: "" }}
+          contact={CONTACT}
+          letterheadText={LETTERHEAD}
+          canEdit
+          onSaved={onSaved}
+        />
+      </ToastProvider>,
+    );
+    fireEvent.change(screen.getByLabelText("E-Mail für Widerrufe"), {
+      target: { value: "widerruf@traeger.example" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige des Kontakts für Widerrufe")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledTimes(2));
+    expect(mockSave).toHaveBeenCalledTimes(1);
   });
 });

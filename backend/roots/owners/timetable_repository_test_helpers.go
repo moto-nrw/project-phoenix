@@ -7,17 +7,19 @@ import (
 	"log/slog"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	facilitiesAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	facilitiesAdapter "github.com/moto-ogs/project-phoenix/modules/facilities/compose/repositoryadapter"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // TimetableTestRepositories are the Timetable owner's retained rows and
@@ -130,7 +132,7 @@ func (r TimetableTestRepositories) WithDeviationAudit(events auditModels.Deviati
 }
 
 func (r TimetableTestRepositories) Enrollment() EnrollmentBookingProjection {
-	return NewEnrollmentBookingProjection(ComposeEnrollmentBookings(enrollmentCompose.New()))
+	return NewEnrollmentBookingProjection(ComposeEnrollmentBookings(enrollmentCompose.New()), UngatedEnrollmentPhaseBounds())
 }
 
 // CalendarPeriodUsage returns the planning owners' per-period reference
@@ -202,6 +204,14 @@ func NewTimetableTestRecurrenceLock(db transactionruntime.Database) (timetable.R
 		DB:                     db.Pool(),
 		GradeTransitionLockKey: schoolstructure.TransitionsLockKey,
 	})
+}
+
+// UngatedEnrollmentPhaseBounds is Enrollment's phase bounds reader without
+// the recurrence gate, for test projections built without a database
+// handle. The care lifecycle that restores through them holds the gate
+// itself; the production root binds NewEnrollmentPhaseBounds.
+func UngatedEnrollmentPhaseBounds() enrollment.PhaseBoundsReader {
+	return enrollment.NewPhaseBoundsReader(enrollmentCompose.New(), nil)
 }
 
 // MustNewTimetableRecurrenceLock is newTimetableTestRecurrenceLock for test

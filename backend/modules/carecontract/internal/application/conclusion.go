@@ -4,11 +4,12 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Conclusions serves carecontract.Conclusion: the conclusion at the
@@ -199,6 +200,9 @@ func (c *Conclusions) concludeOne(ctx context.Context, organizationID int64, dra
 		if err := c.recordAcceptance(txCtx, organizationID, id, draft); err != nil {
 			return err
 		}
+		if err := adoptFamilyChildren(txCtx, c.intake.store, c.intake.families, organizationID, id, draft); err != nil {
+			return err
+		}
 		return c.concludeRecord(txCtx, organizationID, id,
 			carecontract.Concluded{Method: carecontract.MethodWithApplication, At: *draft.AcceptedAt})
 	})
@@ -263,15 +267,17 @@ func acceptanceIssue(draft NewContract, termsChanged time.Time) string {
 }
 
 // acceptanceProof is the latest ticked block covering exactly the conditions
-// frozen into this contract, submitted before the school's acceptance.
+// frozen into this contract, submitted before the school's acceptance. Any
+// wording of the same conditions counts (acceptanceTexts, #6349), so a
+// consent given before the wording changed stays valid.
 func acceptanceProof(draft NewContract) (carecontract.AcceptedText, bool) {
-	text := acceptanceText(draft.Version.Terms)
-	if text == "" {
+	texts := acceptanceTexts(draft.Version.Terms)
+	if len(texts) == 0 {
 		return carecontract.AcceptedText{}, false
 	}
 	var found carecontract.AcceptedText
 	for _, proof := range draft.Acceptances {
-		if !proof.Required || !submittedAcceptance(draft, proof) || proof.Text != text {
+		if !proof.Required || !submittedAcceptance(draft, proof) || !slices.Contains(texts, proof.Text) {
 			continue
 		}
 		if proof.SubmittedAt.After(found.SubmittedAt) {

@@ -5,14 +5,37 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identitycompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
 // The staff offboarding access step lives in Identity & Access (#3225); these
 // behaviour tests drive it through the composed module and read the retained
 // account facts back through the auth service the factory composes with it.
+
+func TestStaffOffboardingAccountsLockInOneOrderedBatch(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	_, first := testpkg.CreateTestCalendarStaff(t, db, "Batch", "First")
+	_, second := testpkg.CreateTestCalendarStaff(t, db, "Batch", "Second")
+	access := identitycompose.NewStaffOffboardingAccountLocks(db)
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	require.ErrorContains(t, access.LockStaffOffboardingAccounts(ctx, []int64{first.ID}), "tenant transaction is required")
+	err := testpkg.WithinCurrentTenant(counter.Context(ctx), func(txCtx context.Context) error {
+		return access.LockStaffOffboardingAccounts(txCtx, []int64{second.ID, first.ID, second.ID})
+	})
+	require.NoError(t, err)
+	queries := counter.Selects("auth.accounts")
+	require.Len(t, queries, 1, "prelocking does not load access previews per account")
+	require.Contains(t, queries[0], `ORDER BY "account".id ASC FOR UPDATE`)
+	err = testpkg.WithinCurrentTenant(ctx, func(txCtx context.Context) error {
+		return access.LockStaffOffboardingAccounts(txCtx, []int64{0})
+	})
+	require.Error(t, err, "invalid IDs fail before querying")
+}
 
 func TestStaffOffboardingAccessRequiresCommitHooksForDurableCleanup(t *testing.T) {
 	t.Parallel()

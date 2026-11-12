@@ -3,7 +3,7 @@ package domain
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 )
 
 // The weekday plans of a child, re-exported so the persistence adapter reads
@@ -49,6 +49,11 @@ type StudentRecord struct {
 	// FirstCareFrom is the earliest day the child can have been cared for
 	// at this school, empty when unknown (School Membership, #6041).
 	FirstCareFrom string
+	// CarePausedAfter and CareResumedFrom bound the care gap of a returning
+	// child: days strictly between them are no care days, empty when no gap
+	// is known (School Membership, #6073).
+	CarePausedAfter string
+	CareResumedFrom string
 
 	AddressStreet     *string
 	AddressCity       *string

@@ -191,7 +191,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (r *AccountMFARecords) FindActiveTrustedDevice(ctx context.Context, accountID, tenantID int64, tokenHash string) (domain.AccountTrustedDevice, bool, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn domain.AccountTrustedDevice{}, false, err\n\t}\n\tvar row domain.AccountTrustedDevice\n\terr = db.NewRaw(\"SELECT \"+accountTrustedDeviceColumns+` FROM auth.mfa_trusted_devices\n WHERE account_id = ? AND COALESCE(tenant_id, 0) = ? AND token_hash = ? AND revoked_at IS NULL AND expires_at \u003e ? LIMIT 1`, accountID, tenantID, tokenHash, time.Now()).Scan(ctx, \u0026row)\n\treturn row, err == nil, err\n}",
+      "evidence": "func (r *AccountMFARecords) FindActiveTrustedDevice(ctx context.Context, accountID, tenantID int64, tokenHash string) (domain.AccountTrustedDevice, bool, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn domain.AccountTrustedDevice{}, false, err\n\t}\n\tvar row domain.AccountTrustedDevice\n\terr = db.NewRaw(\"SELECT \"+accountTrustedDeviceColumns+` FROM auth.mfa_trusted_devices\n WHERE account_id = ? AND COALESCE(tenant_id, 0) = ? AND token_hash = ? AND revoked_at IS NULL AND expires_at \u003e ?\n AND `+trustedDeviceCurrentCredential+` LIMIT 1`, accountID, tenantID, tokenHash, time.Now()).Scan(ctx, \u0026row)\n\treturn row, err == nil, err\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.FindActiveTrustedDevice",
       "owner": "modules/identityaccess"
@@ -219,14 +219,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (r *AccountMFARecords) InvalidateSessionMFA(ctx context.Context, accountID int64) error {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn err\n\t}\n\tif _, err = db.NewRaw(`UPDATE auth.accounts SET mfa_reset_generation = mfa_reset_generation + 1 WHERE id = ?`, accountID).Exec(ctx); err != nil {\n\t\treturn err\n\t}\n\t_, err = db.NewUpdate().Model((*accountSessionRow)(nil)).Set(\"mfa_verified = FALSE\").Where(\"account_id = ?\", accountID).Exec(ctx)\n\treturn err\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.InvalidateSessionMFA",
-      "owner": "modules/identityaccess"
-    },
-    {
-      "build": "production",
-      "evidence": "func (r *AccountMFARecords) ListActiveTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]domain.AccountTrustedDevice, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trows := make([]domain.AccountTrustedDevice, 0)\n\terr = db.NewRaw(\"SELECT \"+accountTrustedDeviceColumns+` FROM auth.mfa_trusted_devices\n WHERE account_id = ? AND COALESCE(tenant_id, 0) = ? AND revoked_at IS NULL AND expires_at \u003e ?\n ORDER BY last_used_at DESC NULLS LAST, created_at DESC`, accountID, tenantID, time.Now()).Scan(ctx, \u0026rows)\n\treturn rows, err\n}",
+      "evidence": "func (r *AccountMFARecords) ListActiveTrustedDevices(ctx context.Context, accountID, tenantID int64) ([]domain.AccountTrustedDevice, error) {\n\tdb, err := r.store.database(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trows := make([]domain.AccountTrustedDevice, 0)\n\terr = db.NewRaw(\"SELECT \"+accountTrustedDeviceColumns+` FROM auth.mfa_trusted_devices\n WHERE account_id = ? AND COALESCE(tenant_id, 0) = ? AND revoked_at IS NULL AND expires_at \u003e ?\n AND `+trustedDeviceCurrentCredential+`\n ORDER BY last_used_at DESC NULLS LAST, created_at DESC`, accountID, tenantID, time.Now()).Scan(ctx, \u0026rows)\n\treturn rows, err\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/adapters/postgres/AccountMFARecords.ListActiveTrustedDevices",
       "owner": "modules/identityaccess"
@@ -632,7 +625,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (g CapabilityGate) StartChallenge(ctx context.Context, accountID, tenantID int64, scope, ipAddress string) (string, error) {\n\tif g.Capability == nil {\n\t\treturn \"\", errMFANotComposed\n\t}\n\tportal, ok := domain.PortalNamed(scope)\n\tif !ok || !portal.Challenge {\n\t\treturn \"\", identityaccess.ErrMFAUnsupportedScope\n\t}\n\treturn g.Capability.StartMFAChallenge(ctx, accountID, tenantID, portal.Name, parseGateIP(ipAddress))\n}",
+      "evidence": "func (g CapabilityGate) StartChallenge(ctx context.Context, accountID, tenantID int64, scope, ipAddress string, credentialGeneration int64) (string, error) {\n\tif g.Capability == nil {\n\t\treturn \"\", errMFANotComposed\n\t}\n\tportal, ok := domain.PortalNamed(scope)\n\tif !ok || !portal.Challenge {\n\t\treturn \"\", identityaccess.ErrMFAUnsupportedScope\n\t}\n\treturn g.Capability.StartMFAChallenge(ctx, accountID, tenantID, portal.Name, parseGateIP(ipAddress), credentialGeneration)\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/CapabilityGate.StartChallenge",
       "owner": "modules/identityaccess"
@@ -688,7 +681,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (c ComposedAccountMFA) EnrollMFA(ctx context.Context, accountID int64) error {\n\treturn MFAError(c.Flows.Enroll(c.ctx(ctx), accountID))\n}",
+      "evidence": "func (c ComposedAccountMFA) EnrollMFA(ctx context.Context, proof identityaccess.VerifiedMFAChallenge) error {\n\treturn MFAError(c.Flows.Enroll(c.ctx(ctx), domain.VerifiedMFAChallenge(proof)))\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/ComposedAccountMFA.EnrollMFA",
       "owner": "modules/identityaccess"
@@ -807,7 +800,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (c ComposedAccountMFA) StartMFAChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error) {\n\ttoken, err := c.Flows.StartChallenge(c.ctx(ctx), accountID, tenantID, scope, ip)\n\treturn token, MFAError(err)\n}",
+      "evidence": "func (c ComposedAccountMFA) StartMFAChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP, credentialGeneration int64) (string, error) {\n\ttoken, err := c.Flows.StartBoundChallenge(c.ctx(ctx), accountID, tenantID, scope, ip, credentialGeneration)\n\treturn token, MFAError(err)\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/ComposedAccountMFA.StartMFAChallenge",
       "owner": "modules/identityaccess"
@@ -863,7 +856,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (e DemoAccessEngine) RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error {\n\treturn demoAccessError(e.Flows.Request(ctx, domain.DemoAccess{Email: request.Email, FirstName: request.FirstName, LastName: request.LastName, SchoolName: request.SchoolName, Source: request.Source, ContactOptIn: request.ContactOptIn, Role: domain.DemoRole(request.Role)}, request.ClientIP, request.EntryURLPrefix))\n}",
+      "evidence": "func (e DemoAccessEngine) RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error {\n\treturn demoAccessError(e.Flows.Request(ctx, domain.DemoAccess{Email: request.Email, FirstName: request.FirstName, LastName: request.LastName, SchoolName: request.SchoolName, Source: request.Source, ContactOptIn: request.ContactOptIn, Phone: request.Phone, Role: domain.DemoRole(request.Role)}, request.ClientIP, request.EntryURLPrefix))\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/DemoAccessEngine.RequestDemoAccess",
       "owner": "modules/identityaccess"
@@ -1192,7 +1185,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (f *OperatorMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {\n\tclaims, err := f.codec.ParseChallengeToken(challengeToken)\n\tif err != nil || claims.Scope != domain.PortalPlatform.Name {\n\t\treturn \"\", identityaccess.ErrMFAChallengeTokenInvalid\n\t}\n\treturn f.StartOperatorMFAChallenge(ctx, claims.AccountID, ip)\n}",
+      "evidence": "func (f *OperatorMFAFlows) ResendChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {\n\tclaims, err := f.codec.ParseChallengeToken(challengeToken)\n\tif err != nil || claims.Scope != domain.PortalPlatform.Name {\n\t\treturn \"\", identityaccess.ErrMFAChallengeTokenInvalid\n\t}\n\treturn f.StartOperatorMFAChallenge(ctx, claims.AccountID, ip, \u0026claims.CredentialGeneration)\n}",
       "form": "unclassified-evidence",
       "id": "modules/identityaccess/internal/application/OperatorMFAFlows.ResendChallenge",
       "owner": "modules/identityaccess"
@@ -1584,9 +1577,9 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *Service) FindRolePermissions(ctx context.Context, id int64) ([]string, error) {\n\tvar permissions []string\n\terr := s.run(ctx, s.withinSchoolRead, \"find_role_permissions\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tvar queryErr error\n\t\tpermissions, queryStats, queryErr = s.store.FindRolePermissions(txCtx, id, s.tenantOf(txCtx))\n\t\tstats.Add(queryStats)\n\t\treturn queryErr\n\t})\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"identity access: find role permissions: %w\", MapError(err))\n\t}\n\treturn permissions, nil\n}",
+      "evidence": "func (s *Service) FindRolePermissionsByRoleIDs(ctx context.Context, ids []int64) (map[int64][]string, error) {\n\tvar permissions map[int64][]string\n\terr := s.run(ctx, s.withinSchoolRead, \"find_role_permissions\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tvar queryErr error\n\t\tpermissions, queryStats, queryErr = s.store.FindRolePermissionsByRoleIDs(txCtx, ids, s.tenantOf(txCtx))\n\t\tstats.Add(queryStats)\n\t\treturn queryErr\n\t})\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"identity access: find role permissions: %w\", MapError(err))\n\t}\n\treturn permissions, nil\n}",
       "form": "unclassified-evidence",
-      "id": "modules/identityaccess/internal/application/Service.FindRolePermissions",
+      "id": "modules/identityaccess/internal/application/Service.FindRolePermissionsByRoleIDs",
       "owner": "modules/identityaccess"
     },
     {

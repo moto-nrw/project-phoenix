@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	usersHTTP "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	usersHTTP "github.com/moto-ogs/project-phoenix/modules/peopledirectory/http"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -3,7 +3,7 @@ package compose
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application"
 )
 
 func FailureLogger() func(Observation)                  { return application.FailureLogger() }

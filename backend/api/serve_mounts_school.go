@@ -9,53 +9,53 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/spf13/viper"
 
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
-	classdayHTTP "github.com/moto-nrw/project-phoenix/modules/classday/http"
-	communicationModule "github.com/moto-nrw/project-phoenix/modules/communication"
-	announcementAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements"
-	staffMessagingAPI "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
-	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
-	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/http"
-	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	roomsHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/facilities/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/planexport"
-	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	calendarAPI "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/http"
-	calendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/compose"
-	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	groupsHTTP "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http"
-	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	timetableAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http"
-	timetableHTTPAdapter "github.com/moto-nrw/project-phoenix/modules/timetable/http/activities"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/workflows/careexit"
-	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
-	gradeTransitionHTTP "github.com/moto-nrw/project-phoenix/workflows/gradetransition/http"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	carePlanModule "github.com/moto-ogs/project-phoenix/modules/careplan"
+	classdayHTTP "github.com/moto-ogs/project-phoenix/modules/classday/http"
+	communicationModule "github.com/moto-ogs/project-phoenix/modules/communication"
+	announcementAPI "github.com/moto-ogs/project-phoenix/modules/communication/http/parentannouncements"
+	staffMessagingAPI "github.com/moto-ogs/project-phoenix/modules/communication/http/staffmessages"
+	dataImportCompose "github.com/moto-ogs/project-phoenix/modules/dataimport/compose"
+	importAPI "github.com/moto-ogs/project-phoenix/modules/dataimport/http"
+	devicefleetCompose "github.com/moto-ogs/project-phoenix/modules/devicefleet/compose"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
+	roomsHTTPAdapter "github.com/moto-ogs/project-phoenix/modules/facilities/http"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/planexport"
+	schedulerPorts "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	calendarAPI "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/http"
+	calendarCompose "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal/compose"
+	schoolMembershipModule "github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	groupsHTTP "github.com/moto-ogs/project-phoenix/modules/schoolstructure/http"
+	settingsFacts "github.com/moto-ogs/project-phoenix/modules/settings"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	settingsHTTP "github.com/moto-ogs/project-phoenix/modules/settings/http"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	timetableModule "github.com/moto-ogs/project-phoenix/modules/timetable"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	timetableAPI "github.com/moto-ogs/project-phoenix/modules/timetable/http"
+	timetableHTTPAdapter "github.com/moto-ogs/project-phoenix/modules/timetable/http/activities"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	workforceModule "github.com/moto-ogs/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	timeTrackingHTTP "github.com/moto-ogs/project-phoenix/modules/workforce/http/timetracking"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/workflows/careexit"
+	"github.com/moto-ogs/project-phoenix/workflows/gradetransition"
+	gradeTransitionHTTP "github.com/moto-ogs/project-phoenix/workflows/gradetransition/http"
 )
 
 // mountPayrollDownload serves the one-time download link of the payroll
@@ -149,6 +149,8 @@ func mountSchoolPortalRoutes(
 	// OGS-internal colleague chat (#2598) — staff-to-staff, deliberately a
 	// separate surface from /messages (which is parent-facing).
 	staffMessaging := staffMessagingAPI.NewResource(chat.StaffMessaging)
+	// Fotos und Dateien im Team-Chat, in beiden Portalen (#6685).
+	staffAttachments := newMessageAttachmentRoutes(chat.StaffAttachments, logger.With("handler", "staff-message-attachments"))
 	// Tagesinformationen (#2180) are Timetable's: the owner composes the
 	// service over its own repository, the calendar periods for the week
 	// pattern and the People Directory names of the acknowledgement list
@@ -172,10 +174,11 @@ func mountSchoolPortalRoutes(
 	parentLetters := announcementAPI.NewResource(announcements, newDeclarationReports())
 	parentLetters.Classes = classLetterCaller{caller.Caller()}
 	school.ParentLetters = parentLetters
-	tenant.Mount("/staff-messages", staffMessaging.Router(ProtectedTenantRoutes))
+	tenant.Mount("/staff-messages", staffMessaging.Router(ProtectedTenantRoutesWith(staffAttachments.Register)))
 	tenant.Mount("/staff-notices", staffNotices.Router(ProtectedTenantRoutes))
 	tenant.Mount("/timetable", timetableResource.Router(ProtectedTenantRoutesWith(classdayHTTP.NewSlotListResource(classDay.SlotLists).Register)))
 	tenant.Mount("/notifications", notificationRoutes.Router())
+	root.Mount("/school-staff-messages", schoolMessageAttachmentRouter(staffAttachments))
 	root.Mount("/school", school.RouterWithAuthRateLimiter(limiters.authMiddleware(), SchoolSessionChain, ProtectedSchoolRoutes))
 	return nil
 }
@@ -240,7 +243,7 @@ func mountSchoolRoutes(
 	settings settingsCompose.SettingsService, caller *owners.CallerRows, active studentpresence.Presence, users peoplePorts.PersonDirectory,
 	education schoolstructure.GroupManagement, renderer *lists.RendererService, activities activityContract.ActivityService,
 	timetableOwner timetableModule.Capability, iot devicefleetCompose.IoTService, settingsWrites SettingsWrites,
-	holidaySchools HolidayHostSchools, holidayCare owners.HolidayGuestCarePlan, holidayAccessLog owners.DataAccessAppender,
+	holidaySchools HolidayHostSchools, holidayStudents owners.HolidayOwnChildStudents, holidayCare owners.HolidayGuestCarePlan, holidayAccessLog owners.DataAccessAppender,
 	membership schoolMembershipModule.Capability, classListEntries schoolMembershipModule.ClassListEntries, databaseStats DatabaseStatsReader,
 	dataImports imports, persons peopledirectory.Capability, gradeTransition *gradetransition.Workflow, enrollment *enrollmentAPI.Resource,
 	appEnv string, weekProtocolSeed schedulerPorts.WeekProtocolEvenings, healthData enrollmentOwner.HolidayHealthCipher,
@@ -253,13 +256,13 @@ func mountSchoolRoutes(
 		Users: peopleCompose.NewRoomSnapshotPeople(users), Education: education,
 		ListExport: renderer,
 	}, logger.With("handler", "rooms"), ProtectedTenantRoutes, transactionFailures.IsConstraintViolation).Router())
-	tenant.Mount("/groups", groupsHTTP.NewResource(education, active, peopleCompose.NewGroupRoutePeople(users), caller, transactionFailures.IsConstraintViolation).Router(ProtectedTenantRoutes))
+	tenant.Mount("/groups", groupsHTTP.NewResource(education, active, peopleCompose.NewGroupRoutePeople(users), caller, newGroupStudentsInClassDay(settings), transactionFailures.IsConstraintViolation).Router(ProtectedTenantRoutes))
 	tenant.Mount("/activities", timetableHTTPAdapter.NewResource(activities, timetableOwner, NewTimetableSupervisorDirectory(users), caller, TimetableHTTPTransactions).Router(ProtectedTenantRoutes))
 	// Parent enrollment (PR 5+).
 	tenant.Mount("/enrollment", enrollment.Router(TenantSessionChain))
 	// The hosting school's holiday participant lists (#4665) and holiday
 	// guests (#4666).
-	mountHolidayHostRoutes(tenant, holidaySchools, persons, holidayCare, users, holidayAccessLog, healthData)
+	mountHolidayHostRoutes(tenant, holidaySchools, persons, holidayStudents, holidayCare, holidayAccessLog, healthData)
 	// Info-point displays (#1325). One Device Fleet owner serves every entry
 	// point: the root composes it and the IoT service hands it back here
 	// (#2676).

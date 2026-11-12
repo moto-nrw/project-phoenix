@@ -462,11 +462,6 @@
     },
     {
       "decision": "0105",
-      "id": "modules/enrollment/internal/application/HolidayPeriods.HolidayPeriod",
-      "reason": "ADR 0105 (#4659): reads one holiday period of the session's Träger after checking the Träger and period IDs and maps a missing row to the owner's not-found error; the Träger transaction is the caller's."
-    },
-    {
-      "decision": "0105",
       "id": "modules/enrollment/internal/application/HolidayPeriods.ListHolidayPeriods",
       "reason": "ADR 0105 (#4659): lists the holiday periods of the session's Träger after refusing a missing Träger; the store reads them in three statements in the caller's Träger transaction."
     },

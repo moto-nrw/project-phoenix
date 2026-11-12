@@ -62,7 +62,7 @@ const SetNoticeEndModal = dynamic(
 /** How the office decided the end of an extraordinary termination. */
 const DECISION_LABELS = {
   festgelegt: { label: "Grund anerkannt", tone: "green" },
-  umgedeutet: { label: "Grund nicht anerkannt", tone: "orange" },
+  umgedeutet: { label: "Grund nicht anerkannt", tone: "warning" },
 } as const;
 
 /** Who declared, as the office reads it. */
@@ -303,10 +303,22 @@ function longWithdrawal(until: string): boolean {
   return until > toISODate(limit);
 }
 
+/** Why the end notice did not go out, in the words the office reads. */
+const END_NOTICE_NOT_SENT_REASONS = {
+  missing_student:
+    "Der Vertrag ist mit keinem Kind aus den „Kinderdaten“ der Schule verknüpft.",
+  no_permitted_address:
+    "Keine Adresse des Vertrags gehört noch einer Bezugsperson, die für das Kind handeln darf.",
+  unknown: "moto hat keine Adresse gefunden, an die die Mitteilung gehen darf.",
+} as const;
+
 function NoticeFacts({
   notice,
 }: Readonly<{ notice: NonNullable<ContractNoticeOptions["notice"]> }>) {
   const withdrawn = notice.kind === "widerruf";
+  const endNoticeCaption = notice.endNoticeSent
+    ? "Mitteilung zum Vertragsende, wie sie verschickt wurde"
+    : "Mitteilung zum Vertragsende (nicht verschickt)";
   return (
     <div className="space-y-4">
       <DataGrid columns={1}>
@@ -316,7 +328,7 @@ function NoticeFacts({
           ) : notice.endsOn ? (
             formatDate(notice.endsOn)
           ) : (
-            <StatusBadge label="Ende noch offen" tone="orange" />
+            <StatusBadge label="Ende noch offen" tone="warning" />
           )}
         </DataField>
         {notice.terminationKind ? (
@@ -367,16 +379,17 @@ function NoticeFacts({
       {notice.endNoticeText && !notice.endNoticeSent ? (
         <Alert
           type="warning"
-          message="Die Mitteilung zum Vertragsende ging nicht raus. Keine Adresse des Vertrags gehört noch einer Bezugsperson, die für das Kind handeln darf. Teilen Sie den Eltern das Vertragsende selbst mit, zum Beispiel per Brief."
+          title="Die Mitteilung zum Vertragsende ging nicht raus"
+          message={`${END_NOTICE_NOT_SENT_REASONS[notice.endNoticeNotSentReason ?? "unknown"]} Schicken Sie den Eltern die Mitteilung unten per Brief.`}
         />
       ) : null}
       {notice.endNoticeText ? (
         <figure
-          aria-label="Mitteilung zum Vertragsende, wie sie verschickt wurde"
+          aria-label={endNoticeCaption}
           className="moto-content-surface rounded-xl border p-4"
         >
           <figcaption className="mb-2 text-sm font-medium text-gray-900">
-            Mitteilung zum Vertragsende, wie sie verschickt wurde
+            {endNoticeCaption}
           </figcaption>
           <p className="text-sm wrap-anywhere whitespace-pre-line text-gray-700">
             {notice.endNoticeText}

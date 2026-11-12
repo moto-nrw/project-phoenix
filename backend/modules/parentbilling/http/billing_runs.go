@@ -9,10 +9,10 @@ import (
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	capability "github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	capability "github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // BillingRunResource serves the billing runs of a Träger at
@@ -25,19 +25,21 @@ import (
 // so do the Storno and the Gutschrift of an issued invoice (#4690).
 type BillingRunResource struct {
 	runs           capability.BillingRuns
+	discard        capability.HolidayRunDiscard
 	letters        capability.BillingLetterService
 	mail           capability.BillingLetterMailService
 	requireBilling common.Middleware
 }
 
-// NewBillingRunResource builds the resource. requireBilling admits only a
-// session with the Träger right "Abrechnung".
-func NewBillingRunResource(runs capability.BillingRuns, letters capability.BillingLetterService, mail capability.BillingLetterMailService,
-	requireBilling common.Middleware) *BillingRunResource {
-	if runs == nil || letters == nil || mail == nil || requireBilling == nil {
-		panic("parent billing http: the billing runs, the letters, their mail and the right check are required")
+// NewBillingRunResource builds the resource with the discard of an empty
+// open run (#6628). requireBilling admits only a session with the Träger
+// right "Abrechnung".
+func NewBillingRunResource(runs capability.BillingRuns, discard capability.HolidayRunDiscard, letters capability.BillingLetterService,
+	mail capability.BillingLetterMailService, requireBilling common.Middleware) *BillingRunResource {
+	if runs == nil || discard == nil || letters == nil || mail == nil || requireBilling == nil {
+		panic("parent billing http: the billing runs, their discard, the letters, their mail and the right check are required")
 	}
-	return &BillingRunResource{runs: runs, letters: letters, mail: mail, requireBilling: requireBilling}
+	return &BillingRunResource{runs: runs, discard: discard, letters: letters, mail: mail, requireBilling: requireBilling}
 }
 
 // RunRouter returns the routes mounted at /traeger/billing-runs.
@@ -52,6 +54,7 @@ func (rs *BillingRunResource) RunRouter(protectedTraegerRoutes func(chi.Router, 
 		billing.Get("/{id}", rs.detail)
 		billing.Post("/{id}/corrections", rs.correct)
 		billing.Post("/{id}/release", rs.release)
+		billing.Post("/{id}/discard", rs.discardRun)
 		billing.Put("/{id}/carried-corrections/{positionID}", rs.changeCarried)
 		billing.Delete("/{id}/carried-corrections/{positionID}", rs.removeCarried)
 		billing.Get("/{id}/export", rs.export)
@@ -103,14 +106,16 @@ type BillingCorrectionRequest struct {
 func (req *BillingCorrectionRequest) Bind(*http.Request) error { return nil }
 
 // BillingReleaseRequest is the body of POST
-// /traeger/billing-runs/{id}/release: the number of invoices and the sum of
-// the preview the Abrechnung checked.
+// /traeger/billing-runs/{id}/release: the number of invoices, the sum and
+// the fingerprint of the preview the Abrechnung checked (#6506).
 type BillingReleaseRequest struct {
 	DocumentCount int   `json:"document_count"`
 	TotalCents    int64 `json:"total_cents"`
 	// DocumentKind is the kind of document the Abrechnung saw (#4688);
 	// missing skips the check.
 	DocumentKind string `json:"document_kind"`
+	// Fingerprint is the fingerprint of the checked preview; required.
+	Fingerprint string `json:"fingerprint"`
 }
 
 // Bind accepts the body.
@@ -213,6 +218,21 @@ func (rs *BillingRunResource) correct(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	common.Respond(w, r, http.StatusCreated, detail, "Billing correction recorded successfully")
+}
+
+// discardRun discards an open run that has nothing to issue (#6628).
+func (rs *BillingRunResource) discardRun(w http.ResponseWriter, r *http.Request) {
+	reviewer, runID, ok := runKey(w, r)
+	if !ok {
+		return
+	}
+	detail, err := rs.discard.DiscardBillingRun(r.Context(), reviewer, runID)
+	if err != nil {
+		tenant.MarkRollback(r.Context())
+		renderBillingError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, detail, "Billing run discarded successfully")
 }
 
 // release issues the invoices. Any refusal rolls the Träger transaction
@@ -370,6 +390,8 @@ func renderBillingConflict(w http.ResponseWriter, r *http.Request, err error) {
 		{capability.ErrBillingRunNotReleased, common.CodeParentBillingBillingRunNotReleased},
 		{capability.ErrBillingRunChanged, common.CodeParentBillingBillingRunChanged},
 		{capability.ErrBillingRunEmpty, common.CodeParentBillingBillingRunEmpty},
+		{capability.ErrBillingRunDiscarded, common.CodeParentBillingBillingRunDiscarded},
+		{capability.ErrBillingRunNotEmpty, common.CodeParentBillingBillingRunNotEmpty},
 		{capability.ErrNumberRangeMissing, common.CodeParentBillingNumberRangeMissing},
 		{capability.ErrLegalRemedyMissing, common.CodeParentBillingLegalRemedyMissing},
 		{capability.ErrInvoiceNumberTaken, common.CodeParentBillingInvoiceNumberTaken},

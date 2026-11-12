@@ -6,20 +6,20 @@ import (
 	"log/slog"
 	"net/http"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/analytics"
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	meAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/analytics"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	meAPI "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/me"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	settingsModule "github.com/moto-ogs/project-phoenix/modules/settings"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	"github.com/moto-ogs/project-phoenix/observability"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // productionObservers record every owner operation the roots observe.
@@ -47,6 +47,7 @@ func mountServeMiddleware(
 	router chi.Router, unit tenant.UnitOfWork, logger *slog.Logger, config ServeConfig, tracer *observability.Tracer,
 	metrics *httpMetrics, tracker analytics.Tracker, settings settingsCompose.SettingsService, policy analytics.CollectionPolicy,
 	consent identityaccess.AccountAnalyticsConsent, guardianSchools identityaccess.GuardianSchools, sessions identityaccess.AccessSessions,
+	rateLimitEnabled bool,
 ) (*sessiontoken.TokenAuth, error) {
 	router.Use(requestIDs(tracer))
 	router.Use(apiCommon.ProblemResponseMiddleware)
@@ -85,7 +86,7 @@ func mountServeMiddleware(
 	// each protected group still rejects through the Authenticator and its
 	// scope gate. A group mounted without it fails closed.
 	router.Use(sessionAuth.Verifier(), sessiontoken.ParseVerified)
-	setupRateLimiting(router, securityLogger, demoLoopbackExempt())
+	setupRateLimiting(router, securityLogger, rateLimitEnabled, demoLoopbackExempt())
 	// Every verified access token must still rest on a live refresh-token
 	// family, so logout ends it at once on every instance (#5194).
 	router.Use(RequireLiveAccessSession(sessions))

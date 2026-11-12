@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The trail actions of the decided end of an extraordinary termination.
@@ -171,6 +171,13 @@ func (n *Notices) tellEnd(ctx context.Context, reviewer carecontract.Reviewer, r
 		return err
 	}
 	details["notice_sent"] = address != ""
+	if address == "" {
+		reason := carecontract.EndNoticeNoPermittedAddress
+		if state.StudentID == nil {
+			reason = carecontract.EndNoticeMissingStudent
+		}
+		details["notice_not_sent_reason"] = reason
+	}
 	if address != "" {
 		outboxID, err := n.post.EnqueueNoticeMail(ctx, carecontract.NoticeMail{
 			OrganizationID: org, ContractID: record.Summary.ID, Recipient: address,

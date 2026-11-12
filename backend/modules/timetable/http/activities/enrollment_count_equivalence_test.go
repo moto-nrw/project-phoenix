@@ -7,12 +7,12 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-	activitiesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http/activities"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
+	activitiesAPI "github.com/moto-ogs/project-phoenix/modules/timetable/http/activities"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -111,7 +111,7 @@ func TestStudentActivityCountsKeepSQLFailure(t *testing.T) {
 	got := enrollmentCountRequest(t, candidate, path)
 	counter.Stop()
 	require.Equal(t, http.StatusInternalServerError, want.Code, want.Body.String())
-	require.Contains(t, want.Body.String(), "permission denied for table persons")
+	require.Contains(t, want.Body.String(), "(SQLSTATE=42501)")
 	require.Equal(t, want.Code, got.Code)
 	require.Equal(t, want.Header(), got.Header())
 	require.Equal(t, want.Body.String(), got.Body.String())

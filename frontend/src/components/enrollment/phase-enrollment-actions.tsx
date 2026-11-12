@@ -12,6 +12,9 @@ import {
   createLateInvite,
   createManualApprovedEnrollment,
   fetchManualEnrollmentBootstrap,
+  existingChildChoiceFields,
+  type AdminExistingChildCandidate,
+  type ExistingChildChoice,
 } from "~/lib/enrollment-admin-api";
 import type {
   SubmitEnrollmentPayload,
@@ -21,6 +24,7 @@ import type { Phase } from "~/lib/enrollment-phase-api";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
+import { ChoiceModal } from "~/components/ui/choice-modal";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -35,12 +39,20 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { EnrollmentForm } from "~/components/enrollment/enrollment-form";
 import {
   prefetchedDataFromBootstrap,
   type EnrollmentFormPrefetchedData,
 } from "~/components/enrollment/enrollment-form-config";
 import { PublicLinkCopyButton } from "~/components/enrollment/public-link-copy-button";
+import {
+  existingChildChoiceDescription,
+  existingChildChoiceOptions,
+  renewedChildNameOf,
+  sendWithExistingChildChoice,
+  type ExistingChildChoiceSubject,
+} from "~/components/enrollment/existing-child-choice";
 import {
   type CareOfferingBookingStats,
   fetchCareOfferingBookingStats,
@@ -163,6 +175,10 @@ export function LateInviteModal({
                   url={generatedUrl}
                   componentId={`LateInvite:${phase.id}:${generatedUrl}`}
                   label="Nachzügler-Link kopieren"
+                  qrCode={{
+                    title: "QR-Code für den Nachzügler-Link",
+                    fileName: "qr-code-nachzuegler-anmeldung",
+                  }}
                 />
               </div>
             }
@@ -210,6 +226,18 @@ export function ManualApprovedEnrollmentModal({
     useState(false);
   const [sendNotification, setSendNotification] = useState(false);
   const [statusUrl, setStatusUrl] = useState("");
+  // Whether the saved enrollment renewed an enrolled child (#6148).
+  const [renewedChildName, setRenewedChildName] = useState<string | null>(null);
+  // The open question „Ist das Kind schon angemeldet?“ and the answer the
+  // waiting submission resumes with.
+  const [existingChildQuestion, setExistingChildQuestion] = useState<{
+    subject: ExistingChildChoiceSubject;
+    answer: (choice: ExistingChildChoice | null) => void;
+  } | null>(null);
+  // Locks the panel from sending until the answer is in, the question
+  // included (#6593): the question dialog sits outside the panel, so neither
+  // a click on it nor the focus it hands back may close the waiting form.
+  const send = useFormModalPending(isOpen, phase.id);
   const [loading, setLoading] = useState(false);
   const [attempt, setAttempt] = useState(0);
   const loadError = useApiLoadError();
@@ -232,6 +260,7 @@ export function ManualApprovedEnrollmentModal({
     setExternalConsentConfirmed(false);
     setSendNotification(false);
     setStatusUrl("");
+    setRenewedChildName(null);
     clearLoadError();
     clearChecks();
     setLoading(true);
@@ -296,14 +325,59 @@ export function ManualApprovedEnrollmentModal({
       return null;
     }
     checks.clear();
-    const result = await createManualApprovedEnrollment(phase.id, {
-      ...payload,
-      external_consent_confirmed: true,
-      reason: trimmedReason,
-      send_notification: sendNotification,
+    setRenewedChildName(null);
+    const child = payload.children[0];
+    let renewalCandidates: AdminExistingChildCandidate[] = [];
+    const created = await send.run(async (op) => {
+      try {
+        const result = await sendWithExistingChildChoice(
+          (choice) =>
+            createManualApprovedEnrollment(phase.id, {
+              ...payload,
+              external_consent_confirmed: true,
+              reason: trimmedReason,
+              send_notification: sendNotification,
+              ...existingChildChoiceFields(choice),
+            }).then((created) => ({ created, choice })),
+          // The form keeps its send button busy until the office answers.
+          (candidates) =>
+            new Promise<ExistingChildChoice | null>((resolve) => {
+              renewalCandidates = candidates;
+              setExistingChildQuestion({
+                subject: {
+                  first_name: child?.first_name ?? "",
+                  last_name: child?.last_name ?? "",
+                  possible_existing_children: candidates,
+                },
+                answer: resolve,
+              });
+            }),
+        );
+        // A late answer shows neither success nor error in a panel that was
+        // closed, reopened or switched to another phase meanwhile.
+        if (!result || !op.isCurrent()) return null;
+        // The renewed child is named as the school knows it, not as typed.
+        setRenewedChildName(
+          renewedChildNameOf(result.choice, renewalCandidates),
+        );
+        setStatusUrl(result.created.status_url);
+        return result.created;
+      } catch (err) {
+        if (!op.isCurrent()) {
+          logger.warn("manual_enrollment_late_failure", {
+            error: err instanceof Error ? err.message : String(err),
+          });
+          return null;
+        }
+        throw err;
+      }
     });
-    setStatusUrl(result.status_url);
-    return result;
+    return created ?? null;
+  };
+
+  const answerExistingChildQuestion = (choice: ExistingChildChoice | null) => {
+    existingChildQuestion?.answer(choice);
+    setExistingChildQuestion(null);
   };
 
   return (
@@ -312,6 +386,7 @@ export function ManualApprovedEnrollmentModal({
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
+      pending={send}
     >
       <SlideOverContent size="xl">
         <SlideOverHeader>
@@ -328,7 +403,11 @@ export function ManualApprovedEnrollmentModal({
           {statusUrl ? (
             <Alert
               type="success"
-              message="Die manuelle Anmeldung wurde angelegt und freigegeben."
+              message={
+                renewedChildName
+                  ? `Die Anmeldung von ${renewedChildName} wurde verlängert. Es wurde kein neues Kind angelegt.`
+                  : "Die manuelle Anmeldung wurde angelegt und freigegeben."
+              }
               actionLayout="stacked"
               action={
                 <div className="flex items-center gap-2">
@@ -344,6 +423,10 @@ export function ManualApprovedEnrollmentModal({
                     url={statusUrl}
                     componentId={`ManualEnrollment:${phase.id}:${statusUrl}`}
                     label="Statuslink kopieren"
+                    qrCode={{
+                      title: "QR-Code für den Statuslink",
+                      fileName: "qr-code-anmeldung-status",
+                    }}
                   />
                 </div>
               }
@@ -410,6 +493,24 @@ export function ManualApprovedEnrollmentModal({
           ) : null}
         </div>
       </SlideOverContent>
+      {existingChildQuestion ? (
+        <ChoiceModal
+          isOpen
+          title="Ist das Kind schon angemeldet?"
+          description={existingChildChoiceDescription(
+            existingChildQuestion.subject,
+          )}
+          options={existingChildChoiceOptions(existingChildQuestion.subject)}
+          onClose={() => answerExistingChildQuestion(null)}
+          onSelect={(value) =>
+            answerExistingChildQuestion(
+              value === "new"
+                ? { createNewStudent: true }
+                : { existingStudentId: value },
+            )
+          }
+        />
+      ) : null}
     </SlideOver>
   );
 }

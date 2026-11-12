@@ -37,6 +37,31 @@ type TraegerMembership struct {
 	Status         string
 	ActivatedAt    *time.Time
 	CreatedAt      time.Time
+	// DisplayName is the name the person carries at this Träger (#4693),
+	// empty until it is set.
+	DisplayName string
+}
+
+// TraegerMemberName is the name of a person at a Träger (#4693).
+type TraegerMemberName struct {
+	AccountID int64
+	Name      string
+}
+
+// TraegerMemberNames reads and sets the name of a Träger membership (#4693).
+// The name belongs to the membership: a person may carry different names at
+// two Träger, and it goes with the membership.
+type TraegerMemberNames interface {
+	// ListTraegerMemberNames returns the names of the given accounts at the
+	// Träger, from memberships in any state (a removed person keeps naming
+	// their past exports); an account without a name or without a
+	// membership there is missing. It joins the caller's administrative or
+	// Träger transaction and reads nothing for an empty set.
+	ListTraegerMemberNames(ctx context.Context, organizationID int64, accountIDs []int64) ([]TraegerMemberName, error)
+	// SetTraegerMemberName sets the name of the account's active membership
+	// on the caller's administrative transaction and reports whether one
+	// was active. The caller validates the name.
+	SetTraegerMemberName(ctx context.Context, organizationID, accountID int64, name string) (bool, error)
 }
 
 // TraegerMembershipQuery reads the Träger memberships and the schools a
@@ -72,6 +97,10 @@ type TraegerMembershipCommand interface {
 // ErrTraegerAccountNotFound reports an e-mail address without an account:
 // the person needs an account before the operator assigns them to a Träger.
 var ErrTraegerAccountNotFound = errors.New("no account with this e-mail address")
+
+// ErrTraegerAccountInactive reports a deactivated account: the assignment
+// does not reactivate it, so the person gets no Träger access (#6535).
+var ErrTraegerAccountInactive = errors.New("the account is deactivated")
 
 // ErrTraegerMemberNotFound reports an account that is no member of the
 // Träger-Büro the operator acts on.
@@ -179,4 +208,13 @@ type TraegerMemberProvisioning interface {
 	// RevokeTraegerInvitation withdraws the invitation; its link stops working.
 	RevokeTraegerInvitation(ctx context.Context, input TraegerInvitationCommand) error
 	ResetTraegerMemberMFA(ctx context.Context, input ResetTraegerMemberMFA) error
+}
+
+// AccountRetention supplies only the membership fact needed by account
+// offboarding. It joins the caller's transaction; tenant scope exposes no
+// fact about an account without an active mapping to that school.
+type AccountRetention interface {
+	// HasRetainedTraegerMembership counts pending/active membership independently
+	// of the Träger state. This does not grant permission to sign in.
+	HasRetainedTraegerMembership(ctx context.Context, accountID int64) (bool, error)
 }

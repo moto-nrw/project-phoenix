@@ -6,8 +6,10 @@
 // Kit-Bausteinen.
 
 import { useState } from "react";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { useApiFormError } from "~/contexts/ToastContext";
 import type { ClassDayHomework } from "~/lib/class-day-api";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import type { HomeworkInput } from "~/lib/school-class-day-api";
 
@@ -44,10 +46,12 @@ export function useClassHomework({
   readonly api?: ClassHomeworkApi;
   readonly schoolClass: string;
   readonly dateISO: string;
-  readonly onChanged: () => Promise<unknown>;
+  /** Reloads the class; never rejects (#6652). */
+  readonly onChanged: RefreshAfterWrite;
 }) {
   const [draft, setDraft] = useState<HomeworkDraft | null>(null);
-  const [saving, setSaving] = useState(false);
+  const submission = useFormModalPending(draft !== null);
+  const saving = submission.pending;
   const [deleting, setDeleting] = useState<ClassDayHomework | null>(null);
   const [removing, setRemoving] = useState(false);
   const formErrors = useApiFormError();
@@ -86,26 +90,28 @@ export function useClassHomework({
       description,
     };
     formErrors.clear();
-    setSaving(true);
-    try {
-      if (draft.editing) {
-        await api.change(schoolClass, draft.editing.id, input);
-      } else {
-        await api.add(schoolClass, dateISO, input);
+    await submission.run(async (op) => {
+      try {
+        if (draft.editing) {
+          await api.change(schoolClass, draft.editing.id, input);
+        } else {
+          await api.add(schoolClass, dateISO, input);
+        }
+      } catch (cause) {
+        logger.error("class_day_homework_save_failed", {
+          error: cause instanceof Error ? cause.message : String(cause),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(cause, {
+          object: "die Hausaufgabe",
+          retry: () => void save(),
+        });
+        return;
       }
       await onChanged();
-      setDraft(null);
-    } catch (cause) {
-      logger.error("class_day_homework_save_failed", {
-        error: cause instanceof Error ? cause.message : String(cause),
-      });
-      void formErrors.show(cause, {
-        object: "die Hausaufgabe",
-        retry: () => void save(),
-      });
-    } finally {
-      setSaving(false);
-    }
+      // Eine späte Antwort schließt keinen inzwischen neuen Entwurf (#6533).
+      if (op.isCurrent()) setDraft(null);
+    });
   };
 
   const askDelete = (entry: ClassDayHomework) => {
@@ -121,8 +127,6 @@ export function useClassHomework({
     setRemoving(true);
     try {
       await api.remove(schoolClass, deleting.id);
-      await onChanged();
-      setDeleting(null);
     } catch (cause) {
       logger.error("class_day_homework_delete_failed", {
         error: cause instanceof Error ? cause.message : String(cause),
@@ -131,14 +135,19 @@ export function useClassHomework({
         object: "die Hausaufgabe",
         retry: () => void confirmDelete(),
       });
-    } finally {
       setRemoving(false);
+      return;
     }
+    setDeleting((current) => (current === deleting ? null : current));
+    setRemoving(false);
+    await onChanged();
   };
 
   return {
     draft,
     saving,
+    /** Der Speicher-Vertrag für den Dialog (`FormModal pending`). */
+    pending: submission,
     formError: formErrors.error,
     fieldError: formErrors.fieldError,
     openNew,

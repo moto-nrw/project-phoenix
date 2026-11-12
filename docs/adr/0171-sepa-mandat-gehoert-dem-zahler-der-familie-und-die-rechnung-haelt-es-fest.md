@@ -6,8 +6,8 @@ status: proposed
 
 **Status: Vorgeschlagen.**
 
-Vorschlag vom 08.11.2026 zu [#4695](https://github.com/moto-nrw/project-phoenix/issues/4695),
-Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611)
+Vorschlag vom 08.11.2026 zu [#4695](https://github.com/moto-ogs/project-phoenix/issues/4695),
+Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611)
 (User Stories 82, 84, 85). Er baut auf
 [ADR 0167](0167-zahlungsweg-faelligkeit-und-empfaenger-entscheidet-eine-regel-und-die-rechnung-haelt-sie-fest.md)
 (Zahlungsweg, Fälligkeit, Familie = Mail-Adresse der Anmeldung) und
@@ -23,9 +23,9 @@ ein. Dafür braucht der Träger je Zahler ein SEPA-Mandat (Referenz, Datum der
 Unterschrift, Konto), seine Gläubiger-Identifikationsnummer und eine
 Vorabankündigung (Pre-Notification) auf jeder Rechnung. moto zieht kein Geld
 ein. Zwei Folge-Issues schreiben und lesen dieselben Mandate: der Import der
-bestehenden Mandate aus OGS Connect ([#6198](https://github.com/moto-nrw/project-phoenix/issues/6198))
-und die Lastschriftdatei PAIN.008 ([#4697](https://github.com/moto-nrw/project-phoenix/issues/4697)).
-Später erteilen Eltern das Mandat digital ([#4696](https://github.com/moto-nrw/project-phoenix/issues/4696)).
+bestehenden Mandate aus OGS Connect ([#6198](https://github.com/moto-ogs/project-phoenix/issues/6198))
+und die Lastschriftdatei PAIN.008 ([#4697](https://github.com/moto-ogs/project-phoenix/issues/4697)).
+Später erteilen Eltern das Mandat digital ([#4696](https://github.com/moto-ogs/project-phoenix/issues/4696)).
 
 ## Entscheidung
 
@@ -120,3 +120,47 @@ Später erteilen Eltern das Mandat digital ([#4696](https://github.com/moto-nrw/
 - **Ausstellung immer blockieren:** Ein fehlendes Mandat hielte den ganzen
   Lauf an; als Einstellung bleibt es wählbar.
 - **IBAN im Klartext neben einer Maske:** widerspricht dem Schutz at rest.
+
+## Ergänzung #6252: Getrennte Schlüsselringe
+
+[ADR 0183](0183-bankdaten-haben-einen-eigenen-schluesselring-und-einen-wiederholbaren-rekey.md)
+ersetzt die gemeinsame Schlüsselverwendung aus Punkt 4 und dem entsprechenden
+Folgepunkt: Bankdaten nutzen einen eigenen Pflichtring mit explizitem,
+vorübergehendem Legacy-Lesepfad und wiederholbarem Rekey. Fachliche Mandats-
+Unveränderlichkeit und Audit bleiben erhalten.
+
+## Ergänzung 2026-11-09 (#4696): Eltern erteilen das Mandat in der Eltern-App
+
+Entscheidung Yannick vom 09.11.2026 zu
+[#4696](https://github.com/moto-ogs/project-phoenix/issues/4696) (Option B der Recherche):
+
+1. **Nur in der Eltern-App, kein Link mit Token.** Erteilen, Lesen und Widerrufen
+   prüfen dasselbe wie das Unterschreiben im Postfach: Beziehung mit
+   `parent_portal.enrollments.view` zum Lesen, `parent_portal.enrollment.submit`
+   zum Erteilen und Widerrufen; der Vertrag ging an die Adresse des Kontos, und
+   die Familie des Mandats (Rechnungsempfänger des Vertrags) ist diese Adresse.
+2. **Schalter des Trägers** `parent_billing.online_mandate`, Standard aus. Ob die
+   Bank ein online bestätigtes Mandat (Textform) annimmt, klärt der Träger mit
+   seiner Bank. Aus heißt: Lesen antwortet nur „aus“, Schreiben wird abgelehnt.
+3. **Nachweis.** moto rendert den Mandatstext (Version `sepa-core-de-1`, Pflicht-
+   angaben nach EPC SDD Core Rulebook DS-01 4.7.2), die Eltern bestätigen dessen
+   SHA-256. Beim Erteilen rendert moto den Text erneut und speichert nur bei
+   gleicher Prüfsumme. `parent_billing.sepa_mandate_consents` hält Version,
+   Prüfsumme, Kanal `parent_account`, Konto, Zeitpunkt, die Bestätigung als
+   Kontoinhaber und den exakt bestätigten Text, versiegelt im Bank-Schlüsselring.
+   Spätere Kontokorrekturen ändern diesen Text nicht. Die Anfragerolle darf
+   Nachweise nur lesen und einfügen; der Trigger schützt alle Nachweisfelder.
+   Nur der privilegierte Rekey darf das Chiffrat unter gleichem AAD umschlüsseln,
+   ohne Text, Prüfsumme oder andere Nachweisfelder zu ändern. Der Text nennt
+   die IBAN maskiert. Damit eine andere IBAN mit gleicher Maske nicht mit
+   derselben Bestätigung durchgeht, gibt die Vorschau die volle IBAN als
+   versiegeltes Token zurück (Bankring, AAD: Träger, Konto, Referenz,
+   Prüfsumme); die Erteilung öffnet es und vergleicht. Der versiegelte
+   Nachweis enthält zusätzlich die volle IBAN und bindet so genau ein Konto;
+   Eltern sehen nur den bestätigten Text mit Maske.
+   Der Postfachhinweis wird gesammelt ohne Entschlüsselung oder Nachweisabruf
+   gelesen. Die Gültigkeitsanzeige folgt denselben Regeln wie der Einzug.
+4. **Vorläufig** nur für ein Konto, dessen Inhaber der Elternteil bestätigt. Ein
+   Widerruf endet am Tag des Widerrufs; der nächste Lauf zieht nicht mehr ein,
+   Lastschriften ohne eingereichte Datei bleiben draußen (`DebitLeftRevoked`).
+5. **Keine Kopplung an `guardian_financial_data`** (siehe Verworfene Optionen).

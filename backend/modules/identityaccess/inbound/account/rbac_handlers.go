@@ -8,8 +8,8 @@ import (
 
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // The role and permission routes call the Identity & Access role
@@ -155,6 +155,9 @@ func (rs *Resource) deleteRole(w http.ResponseWriter, r *http.Request) {
 
 // renderRoleMutationError maps role administration errors to appropriate HTTP responses.
 func renderRoleMutationError(err error) render.Renderer {
+	if errors.Is(err, identityaccess.ErrRoleHoldersChanged) {
+		return common.ErrorConflict(err)
+	}
 	if errors.Is(err, identityaccess.ErrRoleNameTaken) {
 		return common.ErrorConflictOnField(err, common.CodeIdentityRoleNameTaken, "name")
 	}

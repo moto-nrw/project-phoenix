@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	settingsplatform "github.com/moto-nrw/project-phoenix/modules/settings"
+	settingsplatform "github.com/moto-ogs/project-phoenix/modules/settings"
 )
 
 func TestGroupLiveRejectsMissingSourcesAtComposition(t *testing.T) {
@@ -24,7 +24,8 @@ func TestGroupLiveRejectsMissingSourcesAtComposition(t *testing.T) {
 // TestGroupLiveDecideDayFollowsTheSharedPrecedence pins the projection to the same
 // day-planning rules the student search and the timetable use: actual
 // presence turns an absent decision into unplanned attendance, but a
-// timeless exception and a plan with a time keep their own reasons.
+// timeless exception and a plan with a time keep their own reasons. With an
+// open check-in a status no longer overrules the plan (#6407).
 func TestGroupLiveDecideDayFollowsTheSharedPrecedence(t *testing.T) {
 	t.Parallel()
 
@@ -44,7 +45,11 @@ func TestGroupLiveDecideDayFollowsTheSharedPrecedence(t *testing.T) {
 			`{"Reason":"arrival_exception","ExceptionNotes":"Zahnarzt"}`},
 		{"pickup schedule", `{"Present":true,"Pickup":{"PickupTime":"2026-08-21T15:00:00Z"}}`,
 			`{"ComesToday":true,"Reason":"pickup_schedule"}`},
-		{"sick but present", `{"Present":true,"Sick":true,"HasTimetable":true}`,
+		// Place before status (#6407): a checked-in child keeps its plan; the
+		// sick note is only a hint.
+		{"sick but present keeps the plan", `{"Present":true,"Sick":true,"HasTimetable":true}`,
+			`{"ComesToday":true,"Reason":"timetable"}`},
+		{"sick but present without plan", `{"Present":true,"Sick":true}`,
 			`{"ComesToday":true,"Reason":"unplanned_attendance"}`},
 		{"timetable", `{"HasTimetable":true}`,
 			`{"ComesToday":true,"Reason":"timetable"}`},

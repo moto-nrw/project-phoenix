@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // catererPasswordChangeReason names the revocation a caterer's own password
@@ -15,8 +15,8 @@ const catererPasswordChangeReason = "password_change"
 // ChangeCatererPassword replaces a signed-in caterer's password (#4496).
 // The current password is checked like a login: a wrong one counts towards
 // the account's lock, and a locked account is refused. The new password,
-// the spent reset links and the end of every session of the account commit
-// together, as after a password reset.
+// the spent reset links, the revoked remembered devices (#6289) and the end
+// of every session of the account commit together.
 func (c *CatererAccess) ChangeCatererPassword(ctx context.Context, accountID int64, currentPassword, newPassword, ipAddress, userAgent string) error {
 	return catererError(c.changePassword(c.attach(ctx), accountID, currentPassword, newPassword, ipAddress, userAgent))
 }
@@ -94,7 +94,7 @@ func (c *CatererAccess) changePasswordInTx(ctx context.Context, accountID int64,
 		}
 		return refusal, nil
 	}
-	updated, _, err := c.store.SetAccountPassword(ctx, accountID, hash)
+	updated, _, err := c.store.WriteAccountCredential(ctx, accountID, domain.CredentialWrite{PasswordHash: hash})
 	if err != nil {
 		return nil, err
 	}

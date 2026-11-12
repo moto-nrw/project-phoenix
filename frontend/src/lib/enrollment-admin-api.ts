@@ -147,7 +147,7 @@ export interface CorrectAdminChildDataInput {
 }
 
 /** An enrolled child that may be the child of an enrollment (#6053). */
-interface AdminExistingChildCandidate {
+export interface AdminExistingChildCandidate {
   student_id: string;
   first_name: string;
   last_name: string;
@@ -159,6 +159,16 @@ interface AdminExistingChildCandidate {
 export type ExistingChildChoice =
   { existingStudentId: string } | { createNewStudent: true };
 
+/** The choice in the wire fields the decision and the manual enrollment take. */
+export function existingChildChoiceFields(
+  choice: ExistingChildChoice | undefined,
+): { existing_student_id?: string; create_new_student?: true } {
+  if (!choice) return {};
+  return "existingStudentId" in choice
+    ? { existing_student_id: choice.existingStudentId }
+    : { create_new_student: true };
+}
+
 export interface AdminRequestChild {
   id: string;
   first_name: string;
@@ -167,6 +177,8 @@ export interface AdminRequestChild {
   target_grade_level?: number;
   /** Concrete future class (e.g. "2a") when collected (#1833). */
   target_school_class?: string;
+  /** The parents' holiday care wish when the form asked it (#4703). */
+  holiday_care_wish?: boolean;
   status: ChildStatus;
   status_reason?: string | null;
   reviewed_at?: string | null;
@@ -613,6 +625,9 @@ export interface CreateManualApprovedEnrollmentInput extends SubmitEnrollmentPay
   external_consent_confirmed: boolean;
   reason: string;
   send_notification: boolean;
+  /** The office's answer when the child may already be enrolled (#6148). */
+  existing_student_id?: string;
+  create_new_student?: true;
 }
 
 export async function createManualApprovedEnrollment(
@@ -709,12 +724,7 @@ export async function decideAdminChild(
       child_id: childId,
       status,
       reason: reason ?? "",
-      ...(existingChildChoice && "existingStudentId" in existingChildChoice
-        ? { existing_student_id: existingChildChoice.existingStudentId }
-        : {}),
-      ...(existingChildChoice && "createNewStudent" in existingChildChoice
-        ? { create_new_student: true }
-        : {}),
+      ...existingChildChoiceFields(existingChildChoice),
     }),
   });
   if (!response.ok) {

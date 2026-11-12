@@ -6,8 +6,8 @@ import (
 	"net"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // The caterer's second factor (#4497, ADR 0077 point 7). The caterer
@@ -280,7 +280,7 @@ func (c *CatererAccess) confirmMFA(ctx context.Context, confirmation identityacc
 	if err != nil {
 		return identityaccess.CatererSession{}, err
 	}
-	if err := c.mfa.Enroll(ctx, confirmation.AccountID); err != nil {
+	if err := c.mfa.Enroll(ctx, proof); err != nil {
 		return identityaccess.CatererSession{}, err
 	}
 	c.logger.Info("caterer second factor switched on", slog.Int64("account_id", confirmation.AccountID))

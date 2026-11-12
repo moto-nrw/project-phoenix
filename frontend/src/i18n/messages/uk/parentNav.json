@@ -22,7 +22,6 @@
   "childProfile": "Профіль дитини",
   "loading": "Завантаження...",
   "sectionLoading": "Вміст завантажується",
-  "feedback": "Відгук",
   "help": "Довідка",
   "settings": "Налаштування",
   "enroll": "Новий запис",
@@ -34,5 +33,6 @@
   "noticeCount": "Підказки: {count}",
   "documents": "Документи",
   "privacy": "Конфіденційність",
-  "backToApp": "Назад до застосунку"
+  "backToApp": "Назад до застосунку",
+  "holidayRegistrations": "Заявки на канікули"
 }

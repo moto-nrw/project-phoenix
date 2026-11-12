@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -70,8 +70,7 @@ func TestRetiredDemoSchoolsLeaveTheSimulationAndTheCapacity(t *testing.T) {
 	// still waiting for its seed is closed, and an unknown slug is passed over.
 	// No access names either order any more, so both lose their visitor
 	// (#4048).
-	hidden, erased, err := queue.RetireDemoSchools(ctx, []string{first, waiting, "nobody-ordered-this"})
-	require.NoError(t, err)
+	hidden, erased := retireAtLeast(t, db, queue, []string{first, waiting, "nobody-ordered-this"}, 1, 2)
 	assert.Equal(t, 1, hidden)
 	assert.Equal(t, 2, erased)
 	assert.True(t, schoolHidden(t, db, firstID))
@@ -145,7 +144,7 @@ func TestRetiringDemoSchoolDefersDuringItsSeedLease(t *testing.T) {
 	slug := readyDemoSchool(t, db, queue, schools, "OGS Nord", schoolID)
 
 	require.NoError(t, schools.WithDemoLease(t.Context(), "demo school seed:"+slug, func(context.Context) error {
-		hidden, erased := retireNow(t, queue, []string{slug})
+		hidden, erased := retireNow(t, db, queue, []string{slug})
 		assert.Zero(t, hidden, "the run hides no school during its seed lease")
 		assert.Zero(t, erased, "the run erases no visitor during the seed lease")
 		assert.False(t, schoolHidden(t, db, schoolID))
@@ -154,7 +153,7 @@ func TestRetiringDemoSchoolDefersDuringItsSeedLease(t *testing.T) {
 	}))
 
 	// The next run is told nothing: it finds the order in the database.
-	hidden, erased := retireNow(t, queue, nil)
+	hidden, erased := retireAtLeast(t, db, queue, nil, 1, 1)
 	assert.Equal(t, 1, hidden)
 	assert.Equal(t, 1, erased)
 }
@@ -177,13 +176,13 @@ func TestRetiringDemoSchoolsSkipsDuringAnotherRunsLease(t *testing.T) {
 	_, err = tx.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended('platform.demo_school_states:visitor-erasure', 0))`).Exec(t.Context())
 	require.NoError(t, err)
 	t.Cleanup(func() { _ = tx.Rollback() })
-	hidden, erased := retireNow(t, queue, []string{slug})
+	hidden, erased := retireNow(t, db, queue, []string{slug})
 	assert.Zero(t, hidden, "the run hides no school during another run's lease")
 	assert.Zero(t, erased)
 	assert.False(t, schoolHidden(t, db, schoolID))
 	require.NoError(t, tx.Rollback())
 
-	hidden, erased = retireNow(t, queue, nil)
+	hidden, erased = retireAtLeast(t, db, queue, nil, 1, 1)
 	assert.Equal(t, 1, hidden)
 	assert.Equal(t, 1, erased)
 }

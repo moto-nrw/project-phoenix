@@ -266,6 +266,15 @@ const MENU_OFFSET_PX = 4;
 const MENU_MAX_HEIGHT_PX = 288; // matches the previous max-h-72 menu cap
 const MENU_VIEWPORT_MARGIN_PX = 8;
 
+/** Closest ancestor that scrolls vertically (a slide-over or modal body). */
+function scrollParentOf(element: HTMLElement): HTMLElement | null {
+  for (let node = element.parentElement; node; node = node.parentElement) {
+    const { overflowY } = getComputedStyle(node);
+    if (overflowY === "auto" || overflowY === "scroll") return node;
+  }
+  return null;
+}
+
 function firstEnabledIndex<K extends string>(
   options: readonly ListboxDropdownOption<K>[],
 ): number {
@@ -585,6 +594,36 @@ export function ListboxDropdown<K extends string>({
       window.removeEventListener("scroll", handleScroll, true);
     };
   }, [open, options, updateMenuPosition]);
+
+  // A layout change can push the trigger out of the visible area while the
+  // menu is open, without any scroll or resize event: recipients that load
+  // late grow the lists above the calendar's Wiederholung field by hundreds of
+  // pixels (#6356). The menu follows its trigger, so both would sit below the
+  // viewport, unreachable, and a scroll inside the menu cannot bring them
+  // back. When content of the trigger's scroll container changes size, return
+  // the trigger to view ("nearest" is a no-op while it is visible), then place
+  // the menu. Only an actual size change counts: the observer's first report
+  // after observe() is skipped, and this effect does not depend on `options`,
+  // so opening and re-rendering never scroll, and a scroll by the person
+  // stays theirs.
+  useEffect(() => {
+    if (!open || typeof ResizeObserver === "undefined") return;
+    const trigger = buttonRef.current;
+    if (!trigger) return;
+    let initialReport = true;
+    const observer = new ResizeObserver(() => {
+      if (initialReport) {
+        initialReport = false;
+        return;
+      }
+      trigger.scrollIntoView({ block: "nearest", inline: "nearest" });
+      updateMenuPosition();
+    });
+    const scrollParent = scrollParentOf(trigger);
+    const content = scrollParent ? scrollParent.children : [document.body];
+    for (const element of content) observer.observe(element);
+    return () => observer.disconnect();
+  }, [open, updateMenuPosition]);
 
   useEffect(() => {
     if (!open) {

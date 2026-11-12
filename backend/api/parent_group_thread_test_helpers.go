@@ -6,14 +6,14 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	communicationCompose "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // The group threads (#4784) for the parent portal suites, which may not
@@ -47,7 +47,7 @@ func CloseParentGroupThreadForTest(ctx context.Context, db transactionruntime.Da
 
 func parentGroupThreadsForTest(db transactionruntime.Database, staffAccountID int64) communication.ParentGroupThreadCapability {
 	messages := NewParentMessagingSuiteRepositories(db)
-	_, groups := communicationCompose.NewParentMessaging(communicationCompose.ParentMessagingConfig{
+	_, groups, _ := communicationCompose.NewParentMessaging(communicationCompose.ParentMessagingConfig{
 		ThreadRepo: messages.ParentMessageThread, MessageRepo: parentStore.NewParentMessageRepository(db.Pool()),
 		ReadRepo: messages.ParentMessageRead, UserContext: owners.StaffStudentReads{}, Session: groupThreadTestSession(staffAccountID),
 		Settings: groupThreadTestSettings{}, DB: db.Pool(), Logger: slog.Default(),
@@ -72,4 +72,7 @@ func (groupThreadTestSettings) ParentMessageStaffNameVisible(context.Context) (b
 }
 func (groupThreadTestSettings) ParentMessageLeadershipEnabled(context.Context) (bool, error) {
 	return false, nil
+}
+func (groupThreadTestSettings) CareFacilityTerm(context.Context) (string, error) {
+	return "OGS", nil
 }

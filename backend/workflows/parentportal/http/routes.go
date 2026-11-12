@@ -6,7 +6,7 @@ import (
 	"github.com/go-chi/chi/v5"
 )
 
-func (rs *Resource) mountAccountRoutes(r chi.Router) {
+func (rs *Resource) mountAccountRoutes(r chi.Router, authRateLimiter func(http.Handler) http.Handler) {
 	// Cross-tenant children list — every student the parent is
 	// linked to, across every active tenant mapping. Account id
 	// is read from claims, never from URL or body.
@@ -48,11 +48,11 @@ func (rs *Resource) mountAccountRoutes(r chi.Router) {
 	// dashboard.
 	r.Get("/me/enrollments", rs.listMyEnrollments)
 
-	rs.mountDocumentRoutes(r)
+	rs.mountDocumentRoutes(r, authRateLimiter)
 }
 
 // mountDocumentRoutes mounts the document inbox of the account.
-func (rs *Resource) mountDocumentRoutes(r chi.Router) {
+func (rs *Resource) mountDocumentRoutes(r chi.Router, authRateLimiter func(http.Handler) http.Handler) {
 	// Document inbox (#4671): the documents the Träger of the account's
 	// schools sent to its address, and the PDF of one of them. Account
 	// from the claims; the Träger only from the account's relationships.
@@ -67,6 +67,8 @@ func (rs *Resource) mountDocumentRoutes(r chi.Router) {
 	// The children of the family on that contract (#5918).
 	r.Get("/me/documents/{organizationId}/contracts/{contractId}/family-children", rs.familyChildren)
 	r.Put("/me/documents/{organizationId}/contracts/{contractId}/family-children", rs.stateFamilyChildren)
+	// The SEPA mandate of the family on that contract (#4696).
+	rs.mountSEPAMandateRoutes(r, authRateLimiter)
 	// Reading and signing a care contract (#4679).
 	r.Get("/me/documents/{organizationId}/contracts/{contractId}/signing", rs.contractSigning)
 	r.Post("/me/documents/{organizationId}/contracts/{contractId}/sign", rs.signContract)
@@ -117,6 +119,12 @@ func (rs *Resource) mountEnrollmentRoutes(r chi.Router) {
 	// register, and the guardian's contact data. The Träger comes from the
 	// link only; the registration itself stays the public submit.
 	r.Get("/holiday-registrations/{token}/family", rs.getHolidayRegistrationFamily)
+	// The holiday periods of the Träger of the account's children a parent
+	// can register for or soon will (#6671): the entry on the start page.
+	r.Get("/me/holiday-registrations", rs.listHolidayRegistrationOffers)
+	// The holiday registrations linked to the account (ADR 0216): what
+	// became of them, without health information, address or contacts.
+	r.Get("/me/holiday-registration-entries", rs.listHolidayRegistrationEntries)
 }
 
 func (rs *Resource) mountChildStatusRoutes(r chi.Router) {
@@ -165,6 +173,10 @@ func (rs *Resource) mountCommunicationRoutes(r chi.Router, authRateLimiter func(
 	r.Get("/me/messages/children/{studentId}/threads", rs.listChildThreads)
 	r.Get("/me/messages/children/{studentId}", rs.getChildConversation)
 	r.Post("/me/messages/children/{studentId}", rs.postChildMessage)
+	// Photos and files of the messages (#6685): upload before sending, read
+	// through a conversation of the guardian about this child.
+	r.Post("/me/messages/children/{studentId}/attachments", rs.uploadChildMessageAttachment)
+	r.Get("/me/messages/children/{studentId}/attachments/{attachmentId}/download", rs.downloadChildMessageAttachment)
 	// Group threads (#4784): what the OGS wrote to a group, class or AG of
 	// the guardian's children. Answers go to the child's conversation above.
 	r.Get("/me/messages/group-threads", rs.listGroupThreads)

@@ -4,7 +4,7 @@ import (
 	"strings"
 	"sync"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 )
 
 // testSchoolClassRules mirrors School Structure's supported grade range and

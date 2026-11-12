@@ -34,7 +34,7 @@ type Resource struct {
 staff, err := rs.UsersService.StaffRepository().FindByPersonID(ctx, personID)
 
 // FORBIDDEN — direct import of repositories from api/ files (except base.go + testutil)
-import "github.com/moto-nrw/project-phoenix/database/repositories/..."
+import "github.com/moto-ogs/project-phoenix/database/repositories/..."
 ```
 
 ### Required
@@ -165,7 +165,7 @@ All 308 such wrappers were deleted in the 2026-07 audit B3 batch; tests drive th
 **RULE: Use `api/common/errors.go` for HTTP error responses.** Do not redeclare `ErrorInvalidRequest`, `ErrorNotFound`, `ErrorInternalServer`, `ErrorForbidden`, or similar helpers in domain-specific `errors.go` files.
 
 ```go
-import "github.com/moto-nrw/project-phoenix/api/common"
+import "github.com/moto-ogs/project-phoenix/api/common"
 // helpers return a render.Renderer — wrap with RenderError:
 common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid student ID")))
 ```
@@ -348,7 +348,7 @@ querybudgets.AssertQueryBudget(t, "api.students.list", counter.Queries())
 
 **RULE: File size, function length and complexity are measured across the whole backend. Facade width, pass-throughs and legacy LOC keep their specific owner scopes below.** Migration #2580 moved 228,306 of 638,717 production LOC into those trees, where no gate in this document reached them: a file could pass every threshold above by being moved rather than by being written.
 
-Six ratchets freeze the state measured on **2026-09-18 at merge commit `ecf0003369`**, and #4071 extended three of them on 2026-10-15 (development `c49b81c3a9`) to where code went instead of where it left. The first seed was taken at `19feca2822`; five of them were re-measured after the merge of `origin/development` (`a47f77b2c3`), which brought in PR #3408 (issue #3350) and with it the new legacy subtree `modules/careplan/legacy/carelifecycle`. They repair nothing today. **Every entry may only fall — lower a number when a refactor earns it, delete it when the offender is gone; never raise one and never add one.** Each test file's header records its exact measurement command and the semantics of its four failure cases. `scripts/backend-architecture.sh check` enforces this against the pull request's base for every ratchet file in `backend/test/`: a raised integer constant, a raised `map[string]int` value or sum, a grown `map[string]string` exception register, and a measurement that disappears or can no longer be evaluated fail unless the change adds a new-numbered ADR the entry cites. Rename a register only with `renamed from <old name>` in the new declaration's comment (ADR 0057 point 5; `backend/architecture/README.md`, "Source ratchet budgets").
+Six of the ratchets below freeze the state measured on **2026-09-18 at merge commit `ecf0003369`** (the facade method set and the root-struct surface carry their own seed dates), and #4071 extended three of them on 2026-10-15 (development `c49b81c3a9`) to where code went instead of where it left. The first seed was taken at `19feca2822`; five of them were re-measured after the merge of `origin/development` (`a47f77b2c3`), which brought in PR #3408 (issue #3350) and with it the new legacy subtree `modules/careplan/legacy/carelifecycle`. They repair nothing today. **Every entry may only fall — lower a number when a refactor earns it, delete it when the offender is gone; never raise one and never add one.** Each test file's header records its exact measurement command and the semantics of its four failure cases. `scripts/backend-architecture.sh check` enforces this against the pull request's base for every ratchet file in `backend/test/`: a raised integer constant, a raised `map[string]int` value or sum, a grown `map[string]string` exception register, and a measurement that disappears or can no longer be evaluated fail unless the change adds a new-numbered ADR the entry cites. Rename a register only with `renamed from <old name>` in the new declaration's comment (ADR 0057 point 5; `backend/architecture/README.md`, "Source ratchet budgets").
 
 | Rule | Threshold | Test — `backend/test/…` | Seed on 2026-09-18 |
 |---|---|---|---|

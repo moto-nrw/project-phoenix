@@ -12,6 +12,7 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FieldLabel } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
@@ -79,7 +80,8 @@ export function SepaMandateModal({
   onSaved: (mandate: SepaMandate) => void;
 }>) {
   const [draft, setDraft] = useState<Draft>(() => emptyDraft(holder));
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(open);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -118,36 +120,36 @@ export function SepaMandateModal({
       formErrors.invalid("Bitte prüfen Sie Ihre Angaben.", fields);
       return;
     }
-    setSaving(true);
-    try {
-      const saved = await createSepaMandate({
-        contractId,
-        reference: draft.reference,
-        signedOn: draft.signedOn,
-        kind: draft.kind,
-        sequence: draft.sequence,
-        accountHolder: draft.accountHolder,
-        iban: compactCode(draft.iban),
-        bic: compactCode(draft.bic),
-      });
-      success("Das Mandat ist gespeichert.");
-      onSaved(saved);
-    } catch (err) {
-      // The message carries no bank data: the backend names the field only.
-      logger.error("sepa_mandate_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "das Mandat" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        const saved = await createSepaMandate({
+          contractId,
+          reference: draft.reference,
+          signedOn: draft.signedOn,
+          kind: draft.kind,
+          sequence: draft.sequence,
+          accountHolder: draft.accountHolder,
+          iban: compactCode(draft.iban),
+          bic: compactCode(draft.bic),
+        });
+        success("Das Mandat ist gespeichert.");
+        if (op.isCurrent()) onSaved(saved);
+      } catch (err) {
+        // The message carries no bank data: the backend names the field only.
+        logger.error("sepa_mandate_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "das Mandat" });
+      }
+    });
   };
 
   return (
     <FormModal
       isOpen={open}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title="Mandat erfassen"
       size="md"

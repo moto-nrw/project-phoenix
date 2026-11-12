@@ -9,8 +9,8 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // The guardian adapter serves /api/guardians (#2663): contact persons, their
@@ -248,13 +248,14 @@ func (rs *GuardianResource) Router() chi.Router {
 		rs.mountRelatedAccounts(r, withTx)
 
 		// Guardian payment data (#2608) sits behind guardians:financial. Reveal
-		// and export are POSTs because both are audited actions.
-		r.With(financial, withTx).Get("/payment-overview", rs.listPaymentOverview)
-		r.With(financial, withTx).Post("/payment-overview/export", rs.exportPaymentOverview)
+		// and export are POSTs because both are audited actions. Reads commit
+		// their own access audit before decryption, independently of HTTP errors.
+		r.With(financial).Get("/payment-overview", rs.listPaymentOverview)
+		r.With(financial).Post("/payment-overview/export", rs.exportPaymentOverview)
 		r.With(financial, withTx).Put("/students/{studentId}/payer", rs.setStudentPayer)
-		r.With(financial, withTx).Get("/{id}/payment", rs.getGuardianPayment)
+		r.With(financial).Get("/{id}/payment", rs.getGuardianPayment)
 		r.With(financial, withTx).Put("/{id}/payment", rs.updateGuardianPayment)
-		r.With(financial, withTx).Post("/{id}/payment/reveal", rs.revealGuardianPayment)
+		r.With(financial).Post("/{id}/payment/reveal", rs.revealGuardianPayment)
 
 		r.Route("/{id}/phone-numbers", func(r chi.Router) {
 			r.With(usersRead, withTx).Get("/", rs.listGuardianPhoneNumbers)

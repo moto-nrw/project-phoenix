@@ -6,14 +6,14 @@ import (
 	"context"
 	"time"
 
-	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+	recordports "github.com/moto-ogs/project-phoenix/modules/communication/ports"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // The announcement construction values of Communication's store, for suites
@@ -29,6 +29,7 @@ type (
 type ParentAnnouncementFixtures interface {
 	Create(context.Context, *ParentAnnouncementFixture) error
 	FindByID(context.Context, int64) (*ParentAnnouncementFixture, error)
+	UpdateDeclarationSettings(context.Context, int64, communication.ParentDeclarationSettings) error
 	Delete(context.Context, int64) error
 	SetPublished(context.Context, int64, *time.Time) error
 	ReplaceTargets(context.Context, int64, int64, []*ParentAnnouncementTargetFixture) error
@@ -62,6 +63,18 @@ func (f parentAnnouncementFixtures) ListDeclarationSubmissions(ctx context.Conte
 		return owners.ParentMessagingPointer(row, owners.ParentMessagingFromOwnerDeclarationSubmission)
 	}), err
 }
+
+// NewParentDeclarationVersionFixture is the first frozen version of a
+// declaration fixture, hashed as the staff publish hashes it.
+func NewParentDeclarationVersionFixture(a *ParentAnnouncementFixture) *parentportal.DeclarationVersion {
+	version := &parentportal.DeclarationVersion{
+		TenantID: a.TenantID, AnnouncementID: a.ID, VersionNo: 1, Title: a.Title, Body: a.Body,
+		Kind: a.Declaration.Kind, PublishedAt: time.Now(),
+	}
+	version.ContentHash = owners.SecurityFingerprints{}.Content(ParentDeclarationCanonicalContent(version))
+	return version
+}
+
 func ParentDeclarationCanonicalContent(value *parentportal.DeclarationVersion) []byte {
 	return parentstore.NewPortalDeclarationPolicy().PortalCanonicalContent(owners.ParentMessagingToOwnerDeclarationVersion(*value))
 }

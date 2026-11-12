@@ -1,9 +1,9 @@
 package compose
 
 import (
-	postgresNative "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	postgresNative "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // NewCaregiverCapabilityService composes the tenant-scoped caregiver

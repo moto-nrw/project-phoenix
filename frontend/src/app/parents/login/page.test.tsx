@@ -133,7 +133,9 @@ describe("ParentLoginPage i18n", () => {
     expect(screen.getByText("Made for after-school care")).toBeInTheDocument();
     expect(screen.getByText("Hosted in Germany")).toBeInTheDocument();
     expect(
-      screen.getByText(/I can find the most important OGS information/),
+      screen.getByText(
+        /I can find the most important information about childcare/,
+      ),
     ).toBeInTheDocument();
     expect(screen.getAllByText("Parent")).toHaveLength(4);
     expect(screen.getByText("Everything in one place")).toBeInTheDocument();
@@ -217,6 +219,34 @@ describe("ParentLoginPage i18n", () => {
   });
 
   it("redirects to the parents portal once the session is published", () => {
+    mocks.useSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { scope: "parent" } },
+    });
+
+    render(<ParentLoginPage />);
+
+    expect(mocks.redirect).toHaveBeenCalledWith("/parents");
+  });
+
+  it("returns a parent to the holiday registration the login was opened from (#6671)", () => {
+    mocks.searchParamsGet.mockImplementation((key: string) =>
+      key === "next" ? "/ferienanmeldung/link-key" : null,
+    );
+    mocks.useSession.mockReturnValue({
+      status: "authenticated",
+      data: { user: { scope: "parent" } },
+    });
+
+    render(<ParentLoginPage />);
+
+    expect(mocks.redirect).toHaveBeenCalledWith("/ferienanmeldung/link-key");
+  });
+
+  it("ignores a return target that is no holiday registration", () => {
+    mocks.searchParamsGet.mockImplementation((key: string) =>
+      key === "next" ? "https://example.org/ferienanmeldung/link-key" : null,
+    );
     mocks.useSession.mockReturnValue({
       status: "authenticated",
       data: { user: { scope: "parent" } },

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
 
 	"github.com/stretchr/testify/require"
 )
@@ -33,9 +33,19 @@ func (fakeHolidayRegistrationRetention) DeleteExpiredHolidayRegistrations(contex
 
 type fakeTraegerDocumentReadRetention struct{}
 
+type fakeSEPADebitDownloadRetention struct{}
+
+func (fakeSEPADebitDownloadRetention) DeleteExpiredSEPADebitDownloads(context.Context) (int, error) {
+	return 0, nil
+}
+
 func (fakeTraegerDocumentReadRetention) DeleteExpiredTraegerDocumentReads(context.Context) (int, error) {
 	return 0, nil
 }
+
+type fakeBelegRetention struct{}
+
+func (fakeBelegRetention) ApplyBelegRetention(context.Context) (int, error) { return 0, nil }
 
 type fakeAccountRetention struct{}
 
@@ -65,7 +75,10 @@ func minimalWorkerDependencies(t *testing.T) ports.WorkerDependencies {
 		AccountRetention:             fakeAccountRetention{},
 		HolidayRegistrationRetention: fakeHolidayRegistrationRetention{},
 		TraegerDocumentReadRetention: fakeTraegerDocumentReadRetention{},
+		BelegRetention:               fakeBelegRetention{},
+		SEPADebitDownloadRetention:   fakeSEPADebitDownloadRetention{},
 		FeedbackCleaner:              &fakeFeedbackCleaner{},
+		RetentionLog:                 func(context.Context, string, ports.RetentionOutcome) error { return nil },
 		CleanupRuns:                  newFakeCleanupRuns(),
 		Lease: ports.WorkerLease{
 			Store: newMemoryLeaseStore(), Name: "worker", Holder: "test-worker",
@@ -97,6 +110,7 @@ func TestNewWorkerRejectsMissingTokenCleanupDependencies(t *testing.T) {
 		name   string
 		remove func(*ports.WorkerDependencies)
 	}{
+		{name: "retention log", remove: func(deps *ports.WorkerDependencies) { deps.RetentionLog = nil }},
 		{name: "auth cleanup", remove: func(deps *ports.WorkerDependencies) { deps.AuthCleanup = nil }},
 		{name: "invitation cleanup", remove: func(deps *ports.WorkerDependencies) { deps.InvitationCleanup = nil }},
 		{name: "email change cleanup", remove: func(deps *ports.WorkerDependencies) { deps.EmailChangeCleanup = nil }},
@@ -104,6 +118,8 @@ func TestNewWorkerRejectsMissingTokenCleanupDependencies(t *testing.T) {
 		{name: "account retention", remove: func(deps *ports.WorkerDependencies) { deps.AccountRetention = nil }},
 		{name: "holiday registration retention", remove: func(deps *ports.WorkerDependencies) { deps.HolidayRegistrationRetention = nil }},
 		{name: "Träger document read retention", remove: func(deps *ports.WorkerDependencies) { deps.TraegerDocumentReadRetention = nil }},
+		{name: "beleg retention", remove: func(deps *ports.WorkerDependencies) { deps.BelegRetention = nil }},
+		{name: "SEPA debit download retention", remove: func(deps *ports.WorkerDependencies) { deps.SEPADebitDownloadRetention = nil }},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
@@ -228,6 +244,29 @@ func TestTraegerDocumentReadRetentionRunsInTheAdministrativeTransaction(t *testi
 	deps.TenantRuntime = markingCleanupRuntime{unitTenantRuntime()}
 	retention := &transactionalTraegerDocumentReadRetention{}
 	deps.TraegerDocumentReadRetention = retention
+
+	require.NoError(t, newScheduler(deps).runCleanupJobs(t.Context()))
+
+	require.Equal(t, []bool{true}, retention.inAdmin, "the job runs once, inside the administrative transaction")
+}
+
+// transactionalSEPADebitDownloadRetention records whether the hourly
+// cleanup handed it the scheduler's administrative transaction.
+type transactionalSEPADebitDownloadRetention struct{ inAdmin []bool }
+
+func (r *transactionalSEPADebitDownloadRetention) DeleteExpiredSEPADebitDownloads(ctx context.Context) (int, error) {
+	r.inAdmin = append(r.inAdmin, ctx.Value(cleanupTransactionKey{}) == true)
+	return 0, nil
+}
+
+// The unsubmitted PAIN.008 downloads expire across every Träger (ADR 0187),
+// which only the administrative transaction may do.
+func TestSEPADebitDownloadRetentionRunsInTheAdministrativeTransaction(t *testing.T) {
+	t.Parallel()
+	deps := minimalWorkerDependencies(t)
+	deps.TenantRuntime = markingCleanupRuntime{unitTenantRuntime()}
+	retention := &transactionalSEPADebitDownloadRetention{}
+	deps.SEPADebitDownloadRetention = retention
 
 	require.NoError(t, newScheduler(deps).runCleanupJobs(t.Context()))
 

@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -260,6 +260,9 @@ func (r SettingsRuntimeAdapter) LockStaffBalance(ctx context.Context, staffID in
 	if tenantID <= 0 {
 		return fmt.Errorf("tenant id is required")
 	}
+	if err := tenant.OrderLock(ctx, tenant.LockStaffWorkTime, tenant.StaffWorkTimeKey(staffID, false)); err != nil {
+		return err
+	}
 	return r.AcquireLock(ctx, fmt.Sprintf("staff-balance:%d:%d", tenantID, staffID), false)
 }
 
@@ -435,6 +438,19 @@ func (TenantTransactionRuntime) WithinTenant(ctx context.Context, tenantID int64
 
 func (TenantTransactionRuntime) WithinAdmin(ctx context.Context, fn func(context.Context) error) error {
 	return WithinAdminTransaction(ctx, fn)
+}
+
+// WithinAdminThenTenant forwards the one-way handoff of ADR 0161 like the
+// production binding.
+func (TenantTransactionRuntime) WithinAdminThenTenant(ctx context.Context, discover func(context.Context) (int64, error), fn func(context.Context) error) error {
+	return tenant.WithinAdminThenTenant(ctx, discover, fn)
+}
+
+// AmbientScope reports an open unit of any scope and the bound school, like
+// the production binding.
+func (TenantTransactionRuntime) AmbientScope(ctx context.Context) (bool, int64) {
+	_, open := tenant.TransactionFromContext(ctx)
+	return open || tenant.IsAdminTx(ctx) || tenant.TraegerTransactionFromContext(ctx) != 0, tenant.FromContext(ctx)
 }
 
 func (TenantTransactionRuntime) RegisterAfterCommit(ctx context.Context, fn func()) {

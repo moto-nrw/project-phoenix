@@ -40,6 +40,7 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import type { FormError, FormErrorDetail } from "~/components/ui/form-error";
 import {
   errorAlertActions,
@@ -104,6 +105,11 @@ import {
 } from "~/lib/date-helpers";
 import { useApiFormError, useApiLoadError } from "~/contexts/ToastContext";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+  type RefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   MAX_POLL_OPTION_LENGTH,
@@ -308,6 +314,13 @@ function ParentAnnouncementsContent() {
     loadError,
     "die Liste der Mitteilungen",
     () => void mutate(),
+    announcements === undefined ? undefined : STALE_DATA_SUFFIX,
+  );
+  // Nachladen nach dem Speichern im Formular: ein Fehler dabei steht über der
+  // Liste, auch wenn das Formular schon zu ist (#6652).
+  const formAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Mitteilungen",
+    () => mutate(fetchAnnouncements(true), { revalidate: false }),
   );
 
   const {
@@ -692,9 +705,12 @@ function ParentAnnouncementsContent() {
         isLoading ||
         (!!loadError && !shownLoadError && announcements === undefined)
       }
-      error={listErrorDisplay(shownLoadError, announcements !== undefined)}
+      error={
+        listErrorDisplay(shownLoadError, announcements !== undefined) ??
+        (filtered.length === 0 ? formAfterWrite.error : null)
+      }
       empty={
-        !isLoading && filtered.length === 0
+        !isLoading && filtered.length === 0 && !formAfterWrite.error
           ? {
               icon:
                 kind === "poll" ? (
@@ -745,12 +761,11 @@ function ParentAnnouncementsContent() {
               schoolClasses={schoolClasses ?? []}
               lookupLoadError={lookupLoadError}
               onClose={closeForm}
-              onRefresh={async () => {
-                await mutate();
-              }}
+              onRefresh={formAfterWrite.refresh}
               onSaved={async () => {
-                await mutate();
+                const refreshed = await formAfterWrite.refresh();
                 closeForm();
+                return refreshed;
               }}
             />
           )}
@@ -760,7 +775,7 @@ function ParentAnnouncementsContent() {
               announcement={publishTarget}
               onClose={() => setPublishTarget(null)}
               onDone={async () => {
-                await mutate();
+                await formAfterWrite.refresh();
               }}
             />
           )}
@@ -770,7 +785,7 @@ function ParentAnnouncementsContent() {
               announcement={unpublishTarget}
               onClose={() => setUnpublishTarget(null)}
               onDone={async () => {
-                await mutate();
+                await formAfterWrite.refresh();
               }}
             />
           )}
@@ -780,13 +795,14 @@ function ParentAnnouncementsContent() {
               announcement={deleteTarget}
               onClose={() => setDeleteTarget(null)}
               onDone={async () => {
-                await mutate();
+                await formAfterWrite.refresh();
               }}
             />
           )}
         </>
       }
     >
+      <LoadErrorAlert error={formAfterWrite.error} />
       <DataTable
         stackedOnMobile
         columns={columns}
@@ -823,13 +839,15 @@ interface AnnouncementFormModalProps {
   /** Gruppen, AGs oder Klassen konnten nicht geladen werden. */
   readonly lookupLoadError: FormError | null;
   readonly onClose: () => void;
-  readonly onSaved: () => Promise<void> | void;
+  /** Closes the panel and reloads the list; never rejects (#6652). */
+  readonly onSaved: RefreshAfterWrite;
   /**
    * Refresh the list WITHOUT closing the modal — used when the draft was saved
    * but publishing failed, so the new/updated draft appears in the list while
-   * the publish error stays visible for the user to retry.
+   * the publish error stays visible for the user to retry. Never rejects
+   * (#6652).
    */
-  readonly onRefresh: () => Promise<void> | void;
+  readonly onRefresh: RefreshAfterWrite;
 }
 
 const WIZARD_STEPS = ["Inhalt", "Empfänger"] as const;
@@ -939,7 +957,10 @@ function AnnouncementFormModal({
   const latestRemoveAttachmentRef = useRef<(attachmentId: string) => void>(
     () => undefined,
   );
-  const [attachmentBusy, setAttachmentBusy] = useState(false);
+  // Speichern und Entfernen eines Anhangs sperren das Panel (#6593); das
+  // Panel ist nur eingehängt, solange es offen ist.
+  const save = useFormModalPending();
+  const attachmentBusy = save.pending;
   // Ob die Anhänge dieser Mitteilung noch änderbar sind. Die Antwort der
   // Liste sagt es: ein Entwurf, der zwischenzeitlich anderswo veröffentlicht
   // wurde, ist es nicht mehr. Ohne diesen Zustand bietet der Assistent weiter
@@ -1059,13 +1080,10 @@ function AnnouncementFormModal({
   const [defaultOptionsUntouched, setDefaultOptionsUntouched] = useState(
     () => isPollForm && announcement === null,
   );
-  // Einverständnis settings (#3430). There is only one kind, consent; it can
-  // be withdrawn unless the school decides otherwise.
+  // Einverständnis settings (#3430). There is only one kind, consent; parents
+  // can always withdraw it (#6303).
   const [declarationSigners, setDeclarationSigners] =
     useState<DeclarationSigners>(announcement?.declaration_signers ?? "any");
-  const [declarationRevocable, setDeclarationRevocable] = useState(
-    announcement?.declaration_revocable ?? true,
-  );
   const [declarationRequiresPassword, setDeclarationRequiresPassword] =
     useState(announcement?.declaration_requires_password ?? false);
   const [declarationRequiresSignature, setDeclarationRequiresSignature] =
@@ -1247,24 +1265,26 @@ function AnnouncementFormModal({
       setAttachmentHint(lockedHint);
       return;
     }
-    setAttachmentBusy(true);
-    clearAttachmentErrors();
-    try {
-      await deleteAnnouncementAttachment(persistedId, attachmentId);
-      setExistingAttachments((prev) =>
-        prev.filter((a) => a.id !== attachmentId),
-      );
-    } catch (err) {
-      logger.error("announcement_attachment_delete_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await attachmentErrors.show(err, {
-        object: "das Entfernen des Anhangs",
-        retry: () => latestRemoveAttachmentRef.current(attachmentId),
-      });
-    } finally {
-      setAttachmentBusy(false);
-    }
+    const announcementId = persistedId;
+    await save.run(async (op) => {
+      clearAttachmentErrors();
+      try {
+        await deleteAnnouncementAttachment(announcementId, attachmentId);
+        setExistingAttachments((prev) =>
+          prev.filter((a) => a.id !== attachmentId),
+        );
+      } catch (err) {
+        logger.error("announcement_attachment_delete_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        await attachmentErrors.show(err, {
+          object: "das Entfernen des Anhangs",
+          retry: () => latestRemoveAttachmentRef.current(attachmentId),
+        });
+      }
+    });
   };
   useLayoutEffect(() => {
     latestRemoveAttachmentRef.current = (attachmentId) =>
@@ -1331,89 +1351,110 @@ function AnnouncementFormModal({
             // The only kind; sent explicitly so the payload says what it is.
             declaration_kind: "consent" as const,
             declaration_signers: declarationSigners,
-            declaration_revocable: declarationRevocable,
             declaration_requires_password: declarationRequiresPassword,
             declaration_requires_signature: declarationRequiresSignature,
           }
         : {}),
     };
 
-    setSubmitting(publish ? "publish" : "draft");
-    clearFormError();
     const retry = () => latestSubmitRef.current(publish);
-    try {
-      const saved = persistedId
-        ? await updateAnnouncement(persistedId, input)
-        : await createAnnouncement(input);
-      setPersistedId(saved.id);
+    await save.run(async (op) => {
+      setSubmitting(publish ? "publish" : "draft");
+      clearFormError();
+      // Speichert, lädt Anhänge hoch und veröffentlicht. Ein Fehler nach dem
+      // Speichern des Entwurfs zeigt das Formular selbst und meldet „refresh“:
+      // die Liste lädt nach, das Panel bleibt offen.
+      const persist = async (): Promise<"saved" | "refresh"> => {
+        const saved = persistedId
+          ? await updateAnnouncement(persistedId, input)
+          : await createAnnouncement(input);
+        setPersistedId(saved.id);
 
-      // Anhänge vor dem Veröffentlichen hochladen: danach ist die Mitteilung
-      // unveränderlich und das Backend lehnt jeden weiteren Anhang ab. Der
-      // Entwurf ist an dieser Stelle schon gespeichert, deshalb bleibt bei
-      // einem Fehlschlag nur der Upload offen — und in der Warteliste stehen
-      // dann genau die Dateien, die noch nicht oben sind, so dass ein zweiter
-      // Versuch nichts erneut auswählen und nichts doppelt hochladen muss.
-      if (pendingFiles.length > 0) {
-        try {
-          for (const file of pendingFiles) {
-            const uploaded = await uploadAnnouncementAttachment(saved.id, file);
-            // Jede Datei verlässt die Warteliste sofort nach ihrem Upload,
-            // nicht erst am Ende der Schleife: scheitert eine spätere, lädt der
-            // zweite Versuch sonst die schon übertragenen erneut hoch — der
-            // Anhang läge doppelt an, und die Höchstzahl wäre schneller
-            // erreicht als die Person Dateien ausgewählt hat.
-            setPendingFiles((prev) => prev.filter((entry) => entry !== file));
-            if (uploaded) {
-              setExistingAttachments((prev) => [...prev, uploaded]);
+        // Anhänge vor dem Veröffentlichen hochladen: danach ist die Mitteilung
+        // unveränderlich und das Backend lehnt jeden weiteren Anhang ab. Der
+        // Entwurf ist an dieser Stelle schon gespeichert, deshalb bleibt bei
+        // einem Fehlschlag nur der Upload offen — und in der Warteliste stehen
+        // dann genau die Dateien, die noch nicht oben sind, so dass ein zweiter
+        // Versuch nichts erneut auswählen und nichts doppelt hochladen muss.
+        if (pendingFiles.length > 0) {
+          try {
+            for (const file of pendingFiles) {
+              const uploaded = await uploadAnnouncementAttachment(
+                saved.id,
+                file,
+              );
+              // Jede Datei verlässt die Warteliste sofort nach ihrem Upload,
+              // nicht erst am Ende der Schleife: scheitert eine spätere, lädt der
+              // zweite Versuch sonst die schon übertragenen erneut hoch — der
+              // Anhang läge doppelt an, und die Höchstzahl wäre schneller
+              // erreicht als die Person Dateien ausgewählt hat.
+              setPendingFiles((prev) => prev.filter((entry) => entry !== file));
+              if (uploaded) {
+                setExistingAttachments((prev) => [...prev, uploaded]);
+              }
             }
+          } catch (err) {
+            logger.error("announcement_attachment_upload_failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            // Der Entwurf ist gespeichert; das Objekt sagt es mit. Die noch
+            // offenen Dateien stehen weiter in der Warteliste, „Wiederholen“
+            // lädt nur sie hoch.
+            if (op.isCurrent()) {
+              await formErrors.show(err, {
+                object: "das Hochladen eines Anhangs zum gespeicherten Entwurf",
+                retry,
+              });
+            }
+            return "refresh";
           }
-        } catch (err) {
-          logger.error("announcement_attachment_upload_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          // Der Entwurf ist gespeichert; das Objekt sagt es mit. Die noch
-          // offenen Dateien stehen weiter in der Warteliste, „Wiederholen“
-          // lädt nur sie hoch.
-          await formErrors.show(err, {
-            object: "das Hochladen eines Anhangs zum gespeicherten Entwurf",
-            retry,
-          });
-          await onRefresh();
-          return;
         }
-      }
 
-      if (publish) {
-        try {
-          await publishAnnouncement(saved.id);
-        } catch (err) {
-          // The draft is saved — surface only the publish failure so nothing is
-          // lost. Refresh the list so the draft appears, but keep THIS modal
-          // open so the error stays visible and the user can retry publishing.
-          logger.error("announcement_publish_failed", {
-            error: err instanceof Error ? err.message : String(err),
-          });
-          await formErrors.show(err, {
-            object: "das Veröffentlichen des gespeicherten Entwurfs",
-            retry,
-          });
-          await onRefresh();
-          return;
+        if (publish) {
+          try {
+            await publishAnnouncement(saved.id);
+          } catch (err) {
+            // The draft is saved — surface only the publish failure so nothing is
+            // lost. Refresh the list so the draft appears, but keep THIS modal
+            // open so the error stays visible and the user can retry publishing.
+            logger.error("announcement_publish_failed", {
+              error: err instanceof Error ? err.message : String(err),
+            });
+            if (op.isCurrent()) {
+              await formErrors.show(err, {
+                object: "das Veröffentlichen des gespeicherten Entwurfs",
+                retry,
+              });
+            }
+            return "refresh";
+          }
         }
+        return "saved";
+      };
+      let outcome: "saved" | "refresh";
+      try {
+        outcome = await persist();
+      } catch (err) {
+        logger.error("announcement_save_failed", {
+          mode: isEdit ? "update" : "create",
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "das Speichern der Mitteilung",
+          retry,
+        });
+        if (op.isCurrent()) setSubmitting(null);
+        return;
       }
-      await onSaved();
-    } catch (err) {
-      logger.error("announcement_save_failed", {
-        mode: isEdit ? "update" : "create",
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: "das Speichern der Mitteilung",
-        retry,
-      });
-    } finally {
-      setSubmitting(null);
-    }
+      if (op.isCurrent()) setSubmitting(null);
+      // Nachladen nach dem Schreiben: ein Fehler dabei ist ein Ladefehler der
+      // Liste, kein Fehler des Speicherns (#6652). Eine späte Antwort frischt
+      // nur die Liste auf; das Schließen gehört zum Panel, das gespeichert hat.
+      if (outcome === "saved" && op.isCurrent()) await onSaved();
+      else await onRefresh();
+    });
   };
   useLayoutEffect(() => {
     latestSubmitRef.current = (publish) => void handleSubmit(publish);
@@ -1487,6 +1528,7 @@ function AnnouncementFormModal({
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
+      pending={save}
     >
       <SlideOverContent size="xl">
         <SlideOverHeader>
@@ -1680,26 +1722,6 @@ function AnnouncementFormModal({
                     </fieldset>
 
                     <label
-                      htmlFor="declaration-revocable"
-                      className="flex cursor-pointer items-start gap-3"
-                    >
-                      <Checkbox
-                        id="declaration-revocable"
-                        checked={declarationRevocable}
-                        onChange={(e) =>
-                          setDeclarationRevocable(e.target.checked)
-                        }
-                      />
-                      <span className="text-sm text-gray-800">
-                        <span className="block">Widerruf erlauben</span>
-                        <span className="block text-xs text-gray-500">
-                          Eltern können eine Zustimmung später zurücknehmen,
-                          auch nach der Frist.
-                        </span>
-                      </span>
-                    </label>
-
-                    <label
                       htmlFor="declaration-signature"
                       className="flex cursor-pointer items-start gap-3"
                     >
@@ -1761,9 +1783,7 @@ function AnnouncementFormModal({
                           dropdownPlacement="down"
                           hint={
                             isDeclarationForm
-                              ? declarationRevocable
-                                ? "Danach können Eltern nicht mehr antworten. Eine Zustimmung widerrufen geht weiter."
-                                : "Danach können Eltern nicht mehr antworten."
+                              ? "Danach können Eltern nicht mehr antworten. Eine Zustimmung widerrufen geht weiter."
                               : "Danach ist die Umfrage geschlossen, bleibt aber lesbar."
                           }
                         />
@@ -2024,6 +2044,9 @@ function AnnouncementFormModal({
                             variant="ghost"
                             size="compact"
                             onClick={() => removePendingFile(index)}
+                            // Während des Speicherns lädt die Schleife genau
+                            // diese Liste hoch; entfernt wird danach.
+                            disabled={save.pending}
                           >
                             Entfernen
                           </Button>

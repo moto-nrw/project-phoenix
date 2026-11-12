@@ -1,25 +1,28 @@
 package api
 
 import (
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	"github.com/moto-nrw/project-phoenix/modules/auditlog/consents"
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
-	dataImportRetained "github.com/moto-nrw/project-phoenix/modules/dataimport/compose/imports"
-	importPorts "github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	"github.com/moto-ogs/project-phoenix/modules/auditlog/consents"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	dataImportCompose "github.com/moto-ogs/project-phoenix/modules/dataimport/compose"
+	dataImportRetained "github.com/moto-ogs/project-phoenix/modules/dataimport/compose/imports"
+	importPorts "github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	workforceModule "github.com/moto-ogs/project-phoenix/modules/workforce"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 type importIdentity interface {
@@ -50,7 +53,8 @@ type imports struct {
 func newImportRuntime(audit auditModels.Command, observe func(importModels.ImportObservation)) importPorts.ImportRuntime {
 	return importPorts.ImportRuntime{
 		Transactions: dataImportCompose.NewTransactions(), Audit: audit, Observe: observe,
-		Fingerprint: securityruntime.Fingerprint,
+		Fingerprint: securityruntime.Fingerprint, BoundStatements: tenant.WithStatementTimeout,
+		ConnectionLost: transactionruntime.IsTransientDatabaseError, SavepointLost: tenant.IsSavepointControlFailure,
 	}
 }
 
@@ -59,8 +63,9 @@ func newImportRuntime(audit auditModels.Command, observe func(importModels.Impor
 // failure mid-batch.
 func newStudentImport(
 	runtime importPorts.ImportRuntime, identity importIdentity, groups schoolstructure.GroupListing, rooms facilities.Query,
-	persons peopledirectory.Capability, guardians importPorts.GuardianDirectory, carePlan careplan.Capability,
-	presence studentpresence.Capability, consentHistory consents.ConsentTransitions,
+	persons peopledirectory.Capability, personBatches importPorts.PersonBatches, guardians importPorts.GuardianDirectory,
+	carePlan careplan.Capability, presence studentpresence.Capability, consentHistory consents.ConsentTransitions,
+	today func() timezone.Date,
 ) importModels.RowImporter[importModels.StudentImportRow] {
 	references := owners.NewReferences(groups, rooms)
 	resolver := dataImportRetained.NewRelationshipResolver(references.Groups, references.Rooms)
@@ -68,6 +73,7 @@ func newStudentImport(
 		importPorts.StudentImportDeps{
 			Transactions:    runtime.Transactions,
 			Persons:         persons,
+			PersonBatches:   personBatches,
 			Students:        persons,
 			Guardians:       guardians,
 			Schedules:       carePlan,
@@ -75,6 +81,13 @@ func newStudentImport(
 			FindRFIDCard:    identity.FindRFIDCard,
 			Resolver:        resolver,
 			ConsentHistory:  consentHistory,
+			// The leaf batch slices stay outside the owners' capabilities
+			// (#5552); without them every chunk takes the row path.
+			PrivacyConsentBatches: privacyConsentBatches(presence),
+			GuardianBatches:       guardianBatches(persons),
+			EnrollmentBatches:     enrollmentBatches(persons),
+			Today:                 today,
+			ConsentHistoryBatches: consentHistoryBatches(consentHistory),
 			// The owner's Kontingentzahl rule, so the preview counts what
 			// the membership write will count (#3571).
 			CountsTowardChildQuota: ImportChildQuotaRule(),
@@ -98,18 +111,20 @@ func newStaffImport(
 ) importModels.RowImporter[importModels.StaffImportRow] {
 	return dataImportRetained.NewImportService(dataImportRetained.NewStaffImportConfig(
 		importPorts.StaffImportDeps{
-			Authorization:       NewImportAuthorization(),
-			Transactions:        runtime.Transactions,
-			Invitations:         NewStaffInviter(invitations),
-			FindInvitedPeople:   identity.FindInvitedPersonIDs,
-			FindSchoolAccount:   NewImportSchoolAccountLookup(identity),
-			Roles:               identity,
-			RolePolicy:          dataImportCompose.NewSchoolRolePolicy(),
-			FindRolePermissions: identity.FindRolePermissions,
-			SchoolName:          NewImportSchoolName(organizations),
-			Persons:             persons,
-			Membership:          membership,
-			Records:             workforce,
+			Authorization:                NewImportAuthorization(),
+			Transactions:                 runtime.Transactions,
+			Invitations:                  NewStaffInviter(invitations),
+			FindInvitedPeople:            identity.FindInvitedPersonIDs,
+			FindSchoolEmailIdentities:    NewImportSchoolEmailLookup(identity),
+			FindSchoolAccount:            NewImportSchoolAccountLookup(identity),
+			Roles:                        identity,
+			RolePolicy:                   dataImportCompose.NewSchoolRolePolicy(),
+			FindRolePermissionsByRoleIDs: identity.FindRolePermissionsByRoleIDs,
+			SchoolName:                   NewImportSchoolName(organizations),
+			Persons:                      persons,
+			Membership:                   membership,
+			LockStaffPersonMerge:         owners.LockStaffPersonMergeShared,
+			Records:                      workforce,
 		},
 	), runtime)
 }
@@ -119,16 +134,86 @@ func newStaffImport(
 // audit trail apply to imported rows too.
 func newClassListImport(
 	runtime importPorts.ImportRuntime, membership schoolmembership.Capability, persons peopledirectory.Capability,
+	batches importPorts.ClassListEntryBatches,
 ) importModels.RowImporter[importModels.ClassListEntryImportRow] {
 	return dataImportRetained.NewImportService(dataImportRetained.NewClassListImportConfig(
 		importPorts.ClassListImportDeps{
 			Transactions: runtime.Transactions,
 			Membership:   membership,
+			Batches:      batches,
 			Persons:      persons,
 			Students:     persons,
 			Audit:        runtime.Audit,
 		},
 	), runtime)
+}
+
+// classListBatches binds School Membership's class-list batch slice, which
+// stays outside its capability (#5827); the owner's composition asserts that
+// its service implements it. Without it the import takes the row path.
+func classListBatches(membership schoolmembership.Capability) importPorts.ClassListEntryBatches {
+	if bound, ok := membership.(schoolmembership.ClassListEntryBatches); ok {
+		return bound
+	}
+	return nil
+}
+
+// personBatches binds People Directory's person batch slice, which stays
+// outside its capability (#5552); the owner's application asserts that the
+// service its composition holds implements it. Without it the student import
+// takes the row path.
+func personBatches(persons peopledirectory.Capability) importPorts.PersonBatches {
+	composed, ok := persons.(*peopleCompose.Directory)
+	if !ok {
+		return nil
+	}
+	if bound, ok := composed.Owner.(peopledirectory.PersonBatches); ok {
+		return bound
+	}
+	return nil
+}
+
+// guardianBatches binds People Directory's new-guardian batch slice, which
+// stays outside its capability (#5552, step 5c), like personBatches.
+func guardianBatches(persons peopledirectory.Capability) importPorts.NewGuardianBatches {
+	composed, ok := persons.(*peopleCompose.Directory)
+	if !ok {
+		return nil
+	}
+	if bound, ok := composed.Owner.(peopledirectory.NewGuardianBatches); ok {
+		return bound
+	}
+	return nil
+}
+
+// enrollmentBatches binds People Directory's enrollment batch slice, which
+// stays outside its capability (#5552, step 7), like personBatches.
+func enrollmentBatches(persons peopledirectory.Capability) importPorts.EnrollmentBatches {
+	composed, ok := persons.(*peopleCompose.Directory)
+	if !ok {
+		return nil
+	}
+	if bound, ok := composed.Owner.(peopledirectory.EnrollmentBatches); ok {
+		return bound
+	}
+	return nil
+}
+
+// privacyConsentBatches binds Student Presence's consent batch slice, which
+// its application implements outside Capability and Owner (#5552).
+func privacyConsentBatches(presence studentpresence.Capability) importPorts.PrivacyConsentBatches {
+	if bound, ok := presence.(studentpresence.PrivacyConsentBatches); ok {
+		return bound
+	}
+	return nil
+}
+
+// consentHistoryBatches binds the Audit consent recorder's batch slice.
+func consentHistoryBatches(recorder consents.ConsentTransitions) importPorts.ConsentTransitionBatches {
+	if bound, ok := recorder.(consents.ConsentTransitionBatches); ok {
+		return bound
+	}
+	return nil
 }
 
 // newOpeningBalanceImport composes the opening-balance import over
@@ -159,11 +244,11 @@ func newServeImports(
 	runtime := newImportRuntime(audit.Command, observeDataImport)
 	return imports{
 		Student: newStudentImport(
-			runtime, identity, groups, rooms, persons, persons, carePlan, presence.Presence,
-			auditCompose.NewConsentRecorder(audit.Command),
+			runtime, identity, groups, rooms, persons, personBatches(persons), persons, carePlan, presence.Presence,
+			auditCompose.NewConsentRecorder(audit.Command), nil,
 		),
 		Staff:     newStaffImport(runtime, identity, identity, organizations, persons, membership, workTime),
-		ClassList: newClassListImport(runtime, membership, persons),
+		ClassList: newClassListImport(runtime, membership, persons, classListBatches(membership)),
 		OpeningBalance: newOpeningBalanceImport(runtime, importPorts.OpeningBalanceImportDeps{
 			BalanceAdjustService: workforce.TimeTracking.OpeningBalances,
 			StaffAbsenceService:  workforce.TimeTracking.VacationTakeovers,

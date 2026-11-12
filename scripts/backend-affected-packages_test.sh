@@ -48,6 +48,11 @@ printf 'package localization\n\nconst Value = 1\n' >"$fixture/backend/modules/de
 printf 'package listrenderer\n\nconst Value = 1\n' >"$fixture/backend/modules/documentrendering/internal/application/listrenderer/service.go"
 printf 'package email\n' >"$fixture/backend/templates/email/template_test.go"
 printf 'package test\n' >"$fixture/backend/test/test.go"
+mkdir -p "$fixture/backend/database/audits"
+audit_names=(phase_edit_stale_pending_activations phase_edit_stale_class_switches booking_led_care_without_source_or_task)
+for audit in "${audit_names[@]}"; do
+  printf 'SELECT 1;\n' >"$fixture/backend/database/audits/$audit.sql"
+done
 # The query-budget register is its own package: only packages asserting budgets
 # depend on it, while ordinary importers of the shared test package do not.
 mkdir -p "$fixture/backend"/{test/query-budgets/api/students,budgetuser,fixtureuser}
@@ -71,6 +76,34 @@ import "example.test/project/modules/documentrendering/internal/application/list
 const Value = listrenderer.Value
 EOF
 printf 'package exportconsumer\n' >"$fixture/backend/modules/documentrendering/exportconsumer/consumer_test.go"
+# Embedded registers belong to their package; other JSON inputs are read by
+# path from tests that no import edge reveals.
+mkdir -p "$fixture/backend"/{modules/organizationtenancy/compose,database/migrations,auth/authorize/permissions,modules/identityaccess/internal/domain,architecture,cmd}
+printf 'package organizationtenancy\n\nconst Value = 1\n' >"$fixture/backend/modules/organizationtenancy/register.go"
+cat >"$fixture/backend/modules/organizationtenancy/compose/compose.go" <<'EOF'
+package compose
+
+import "example.test/project/modules/organizationtenancy"
+
+const Value = organizationtenancy.Value
+EOF
+printf 'package compose\n' >"$fixture/backend/modules/organizationtenancy/compose/compose_test.go"
+mkdir -p "$fixture/backend/modules/organizationtenancy/inbound/datareturn"
+printf 'package datareturn\n' >"$fixture/backend/modules/organizationtenancy/inbound/datareturn/register.go"
+printf 'package migrations\n' >"$fixture/backend/database/migrations/coverage_test.go"
+printf 'package permissions\n\nconst Value = 1\n' >"$fixture/backend/auth/authorize/permissions/constants.go"
+cat >"$fixture/backend/modules/identityaccess/internal/domain/domain.go" <<'EOF'
+package domain
+
+import "example.test/project/auth/authorize/permissions"
+
+const Value = permissions.Value
+EOF
+printf 'package domain\n' >"$fixture/backend/modules/identityaccess/internal/domain/domain_test.go"
+mkdir -p "$fixture/backend"/{testdata,sharedfixtureuser}
+printf 'package sharedfixtureuser\n\nconst path = "../testdata/shared-cases.json"\n' >"$fixture/backend/sharedfixtureuser/cases_test.go"
+printf 'package main\n\nfunc main() {}\n' >"$fixture/backend/cmd/main.go"
+printf 'package main\n' >"$fixture/backend/cmd/main_test.go"
 # Depth-2 import chain for the --direct (depth 1) mode, deliberately separate
 # from the core chain so the existing closure assertions stay untouched.
 mkdir -p "$fixture/backend"/{chainbase,chainmid,chainleaf}
@@ -239,6 +272,22 @@ printf 'template\n' >"$fixture/backend/templates/email/probe.html"
 assert_output $'example.test/project/templates/email\nexample.test/project/test'
 rm "$fixture/backend/templates/email/probe.html"
 
+# Audit SQL has no import edge. CI selects its test package, while --direct
+# leaves the targeted source-test selection to test-changed.sh.
+for audit in "${audit_names[@]}"; do
+  audit_path="backend/database/audits/$audit.sql"
+  printf '\n-- changed\n' >>"$fixture/$audit_path"
+  assert_output 'example.test/project/test'
+  assert_output_direct ''
+  git -C "$fixture" restore "$audit_path"
+  rm "$fixture/$audit_path"
+  assert_output 'example.test/project/test'
+  git -C "$fixture" restore "$audit_path"
+done
+printf 'SELECT 1;\n' >"$fixture/backend/database/audits/new_audit.sql"
+assert_output 'example.test/project/test'
+rm "$fixture/backend/database/audits/new_audit.sql"
+
 printf '{}\n' >"$fixture/backend/modules/delivery/internal/adapters/localization/locales.json"
 assert_output $'example.test/project/modules/delivery/internal/adapters/localization\nexample.test/project/modules/delivery/localeconsumer\nexample.test/project/test'
 rm "$fixture/backend/modules/delivery/internal/adapters/localization/locales.json"
@@ -246,6 +295,41 @@ rm "$fixture/backend/modules/delivery/internal/adapters/localization/locales.jso
 printf 'asset\n' >"$fixture/backend/modules/documentrendering/internal/application/listrenderer/assets/probe.txt"
 assert_output $'example.test/project/modules/documentrendering/exportconsumer\nexample.test/project/modules/documentrendering/internal/application/listrenderer\nexample.test/project/test'
 rm "$fixture/backend/modules/documentrendering/internal/application/listrenderer/assets/probe.txt"
+
+# Embedded production registers select their package and its importers. The
+# lifecycle catalog is also read by path from the migration coverage test.
+printf '{}\n' >"$fixture/backend/modules/organizationtenancy/return_register.json"
+assert_output $'example.test/project/modules/organizationtenancy\nexample.test/project/modules/organizationtenancy/compose\nexample.test/project/test'
+assert_lint_output pull_request false $'./modules/organizationtenancy\n./modules/organizationtenancy/compose\n./test'
+rm "$fixture/backend/modules/organizationtenancy/return_register.json"
+printf '{}\n' >"$fixture/backend/modules/organizationtenancy/data_lifecycle_catalog.json"
+assert_output $'example.test/project/database/migrations\nexample.test/project/modules/organizationtenancy\nexample.test/project/modules/organizationtenancy/compose\nexample.test/project/test'
+rm "$fixture/backend/modules/organizationtenancy/data_lifecycle_catalog.json"
+printf '{}\n' >"$fixture/backend/modules/organizationtenancy/inbound/datareturn/openapi.json"
+assert_output $'example.test/project/modules/organizationtenancy/inbound/datareturn\nexample.test/project/test'
+rm "$fixture/backend/modules/organizationtenancy/inbound/datareturn/openapi.json"
+
+# Read by path from tests only: no production closure, although the permission
+# catalog sits beside a widely imported package.
+printf '[]\n' >"$fixture/backend/auth/authorize/permissions/catalog.json"
+assert_output $'example.test/project/modules/identityaccess/internal/domain\nexample.test/project/test'
+rm "$fixture/backend/auth/authorize/permissions/catalog.json"
+printf '{}\n' >"$fixture/backend/architecture/composition.json"
+assert_output $'example.test/project/cmd\nexample.test/project/test'
+rm "$fixture/backend/architecture/composition.json"
+
+# Fixtures shared across packages select the tests that name them.
+printf '[]\n' >"$fixture/backend/testdata/shared-cases.json"
+assert_output $'example.test/project/sharedfixtureuser\nexample.test/project/test'
+rm "$fixture/backend/testdata/shared-cases.json"
+printf 'note\n' >"$fixture/backend/testdata/README.md"
+assert_output ''
+rm "$fixture/backend/testdata/README.md"
+
+# Notes beside these inputs stay outside the selection.
+printf 'note\n' >"$fixture/backend/modules/organizationtenancy/README.md"
+assert_output ''
+rm "$fixture/backend/modules/organizationtenancy/README.md"
 
 # Shrink-only registers feed the ratchets in ./test, which no import edge can
 # reveal. A register-only change must still run them.
@@ -332,6 +416,7 @@ if select_packages >/dev/null 2>&1; then
 fi
 
 assert_workflow_filter backend-tests 'backend/**/testdata/**' present
+assert_workflow_filter backend-tests 'backend/database/audits/*.sql' present
 assert_workflow_filter backend-tests 'backend/architecture/policy.json' present
 assert_workflow_filter error-codes 'frontend/src/lib/error-codes/*.generated.ts' present
 assert_workflow_filter backend-production 'backend/**/testdata/**' absent
@@ -342,6 +427,20 @@ assert_workflow_filter backend-test-infra 'scripts/backend-lint-packages.sh' pre
 assert_workflow_filter backend-test-infra 'scripts/test-run-id.sh' present
 assert_workflow_filter backend-test-infra 'scripts/backend-test-matrix.sh' present
 assert_workflow_filter backend-test-infra 'scripts/backend-test-matrix_test.sh' present
+assert_workflow_filter backend-test-infra 'scripts/backend-source-ratchets.mjs' present
+# Local wrappers start their self-tests in ci-scripts, not the full backend suite.
+for path in 'scripts/test-changed.sh' 'scripts/test-changed_test.sh' 'scripts/test-backend.sh' 'scripts/go-test-link-cache.sh'; do
+  assert_workflow_filter backend-test-infra "$path" absent
+  assert_workflow_filter backend-local-test-scripts "$path" present
+done
+assert_workflow_output_contains run-ci-scripts "steps.filter.outputs.backend-local-test-scripts == 'true'"
+assert_workflow_output_contains toolchain-changed "steps.filter.outputs.backend-local-test-scripts == 'true'"
+for path in 'scripts/backend-source-ratchets.mjs' 'backend/test/*_test.go'; do
+  assert_workflow_filter script-tests "$path" present
+  # Do not buy the release-restore or extra toolchain-ratchet jobs for these.
+  assert_workflow_filter tooling "$path" absent
+  assert_workflow_filter hooks "$path" absent
+done
 for filter in backend-tests backend-lint backend-architecture; do
   assert_workflow_filter "$filter" 'scripts/backend-architecture.sh' present
   assert_workflow_filter "$filter" 'scripts/backend-architecture/**' present
@@ -364,6 +463,48 @@ for pattern in \
 done
 assert_workflow_filter backend-tests 'backend/test/*.json' present
 assert_workflow_filter backend-production 'backend/test/*.json' absent
+for pattern in \
+  'backend/modules/organizationtenancy/return_register.json' \
+  'backend/modules/organizationtenancy/inbound/datareturn/openapi.json' \
+  'backend/modules/organizationtenancy/data_lifecycle_catalog.json'; do
+  for filter in backend-tests backend-lint backend-production; do
+    assert_workflow_filter "$filter" "$pattern" present
+  done
+done
+for pattern in \
+  'backend/auth/authorize/permissions/catalog.json' \
+  'backend/architecture/composition.json'; do
+  assert_workflow_filter backend-tests "$pattern" present
+  assert_workflow_filter backend-production "$pattern" absent
+done
+# Inventory: a JSON file under backend/ is either listed in the backend-tests
+# filter or a new input nobody classified. Add it to the filter and to the
+# selector in backend-affected-packages.sh.
+backend_test_patterns=$(awk '
+  $0 == "            backend-tests:" { active = 1; next }
+  active && /^            [a-z-]+:$/ { exit }
+  active && match($0, /\047[^\047]+\047/) { print substr($0, RSTART + 1, RLENGTH - 2) }
+' "$repo_root/.github/workflows/main.yml")
+while IFS= read -r path; do
+  case "$path" in
+    # Read only by the architecture ratchet job (backend-architecture filter);
+    # its tests build their own repositories.
+    backend/architecture/query-budget-non-http.json | \
+      backend/architecture/query-budget-retirements.json) continue ;;
+  esac
+  covered=false
+  while IFS= read -r pattern; do
+    # As in the filter: * stays inside one path segment, ** crosses them,
+    # and **/ also matches no directory at all.
+    regex=$(printf '%s' "$pattern" | sed -e 's/[.%]/\\&/g' -e 's|\*\*/|(.@/)?|g' \
+      -e 's|\*\*|.@|g' -e 's|\*|[^/]*|g' -e 's|@|*|g')
+    if [[ "$path" =~ ^${regex}$ ]]; then
+      covered=true
+      break
+    fi
+  done <<< "$backend_test_patterns"
+  [ "$covered" = true ] || { echo "backend JSON input missing from the backend-tests filter: $path" >&2; exit 1; }
+done < <(git -C "$repo_root" ls-files 'backend/*.json')
 # Every literal path the selector maps must still exist in the repository.
 for path in \
   backend/architecture/policy.json \
@@ -372,7 +513,15 @@ for path in \
   backend/modules/documentrendering/internal/application/listrenderer/assets \
   backend/test/transaction_boundaries.json \
   backend/test/durable_side_effect_notices.json \
-  backend/test/module_contract_inventory.json; do
+  backend/test/module_contract_inventory.json \
+  backend/modules/organizationtenancy/return_register.json \
+  backend/modules/organizationtenancy/inbound/datareturn/openapi.json \
+  backend/modules/organizationtenancy/data_lifecycle_catalog.json \
+  backend/database/migrations/data_lifecycle_coverage_test.go \
+  backend/auth/authorize/permissions/catalog.json \
+  backend/modules/identityaccess/internal/domain/mfa_privilege_test.go \
+  backend/architecture/composition.json \
+  backend/cmd/composition_smoke_test.go; do
   [ -e "$repo_root/$path" ] || { echo "selector path no longer exists: $path" >&2; exit 1; }
 done
 
@@ -463,10 +612,13 @@ assert_ci_gate fail ENV_CHECK_REQUIRED=true
 assert_ci_gate pass ENV_CHECK_REQUIRED=true ENV_CHECK_RESULT=success
 # Failures/cancellations remain the alls-green action's responsibility. Do not
 # permit either outcome while allowing intentionally skipped reusable jobs.
-if ! grep -Fq 'jobs: ${{ toJSON(needs) }}' "$repo_root/.github/workflows/main.yml" ||
+if ! grep -Fq 'CI_NEEDS: ${{ toJSON(needs) }}' "$repo_root/.github/workflows/main.yml" ||
+   ! grep -Fq 'id: normalize' "$repo_root/.github/workflows/main.yml" ||
+   ! grep -Fq 'run: python3 scripts/normalize-ci-needs.py' "$repo_root/.github/workflows/main.yml" ||
+   ! grep -Fq 'jobs: ${{ steps.normalize.outputs.jobs }}' "$repo_root/.github/workflows/main.yml" ||
    ! grep -Fq 'allowed-skips: lint, test, backend-architecture-ratchet, ci-scripts, env-sync-check' "$repo_root/.github/workflows/main.yml" ||
    grep -Eq 'allowed-failures:|allowed-cancelled:' "$repo_root/.github/workflows/main.yml"; then
-  echo 'ci-gate must still pass all results to alls-green without allowing failures' >&2
+  echo 'ci-gate must normalize all results before alls-green without allowing failures' >&2
   exit 1
 fi
 if ! grep -Fq 'packages_output=$(scripts/backend-lint-packages.sh)' \

@@ -8,16 +8,16 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // NewMFADependencies binds the second factor and the passkey ceremonies to
@@ -30,15 +30,16 @@ func NewMFADependencies(codec identityPorts.MFAChallengeCodec, settings settings
 	}
 
 	return &identityPorts.MFADependencies{
-		Settings:      mfaSettingsFor(settings),
-		Codec:         codec,
-		Codes:         shortCodeHasher{},
-		Mail:          mail,
-		ResetNotice:   mail,
-		OperatorAudit: operatorActionLog{ledger: operatorAuditLog, logger: logger},
-		JWTSecret:     jwtSecret,
-		Passkeys:      passkeys,
-		Logger:        logger,
+		PermissionGranted: securityruntime.HasPermission,
+		Settings:          mfaSettingsFor(settings),
+		Codec:             codec,
+		Codes:             shortCodeHasher{},
+		Mail:              mail,
+		ResetNotice:       mail,
+		OperatorAudit:     operatorActionLog{ledger: operatorAuditLog, logger: logger},
+		JWTSecret:         jwtSecret,
+		Passkeys:          passkeys,
+		Logger:            logger,
 	}, nil
 }
 

@@ -30,7 +30,7 @@ export type MailProviderBlock = "none" | "active" | "unreadable";
 
 export interface MailStatusCopy {
   readonly label: string;
-  readonly tone: "blue" | "green" | "orange" | "red" | "gray";
+  readonly tone: "blue" | "green" | "warning" | "red" | "gray";
   /** One line that says what happened and who acts next. */
   readonly explanation?: string;
 }
@@ -97,7 +97,7 @@ const OUTCOME_COPY: Record<MailOutcome, MailStatusCopy> = {
   delivered: { label: "Zugestellt", tone: "green" },
   delayed: {
     label: "Verzögert",
-    tone: "orange",
+    tone: "warning",
     explanation:
       "Die Mail kommt später an, es wird weiter versucht. Bitte senden Sie sie nicht noch einmal, sonst kommt sie doppelt an.",
   },
@@ -132,7 +132,7 @@ const OUTCOME_COPY: Record<MailOutcome, MailStatusCopy> = {
   },
   overdue: {
     label: "Überfällig",
-    tone: "orange",
+    tone: "warning",
     explanation:
       "Die Mail ist seit Tagen verzögert. Sie können sie noch einmal senden.",
   },

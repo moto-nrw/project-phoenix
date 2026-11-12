@@ -16,6 +16,8 @@ import {
 import { fetchStudents } from "~/lib/student-api";
 import { ApiError, transportFetch } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import type { GapInstance, TimetableTemplate } from "~/lib/timetable-types";
 import type { RosterDeviation } from "~/lib/roster-deviation";
 
@@ -256,7 +258,7 @@ vi.mock("~/lib/calendar-period-api", () => ({
   },
 }));
 
-// Nur den Netzwerk-Fetcher mocken; getSettingValue & Co. bleiben die echten
+// Nur den Netzwerk-Fetcher mocken; die übrigen Schema-Helfer bleiben die echten
 // Implementierungen, damit die Tests nicht gegen eine driftende Kopie laufen.
 vi.mock("~/lib/settings-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/settings-api")>()),
@@ -2691,6 +2693,118 @@ describe("BetreuungsplanView", () => {
     expect(mockShowActionError).not.toHaveBeenCalled();
   });
 
+  it.each(["detail-delete", "detail-delete-following"])(
+    "clears the deleted selection after the block disappears during refresh (%s)",
+    async (action) => {
+      setTestClock(new Date("2026-05-04T08:00:00"));
+      const gaps = deferred();
+      mockTenantMutate.mockImplementation((key: string) =>
+        key.startsWith("timetable-gaps") ? gaps.promise : Promise.resolve(),
+      );
+      setUrl("view=woche&block=42");
+      const view = render(<BetreuungsplanView />);
+      expect(screen.getByText("detail-close")).toBeVisible();
+      fireEvent.click(screen.getByText(action));
+      await waitFor(() =>
+        expect(mockTenantMutate).toHaveBeenCalledWith(
+          expect.stringMatching(/^timetable-gaps/),
+        ),
+      );
+
+      setupSWR({ instances: [] });
+      view.rerender(<BetreuungsplanView />);
+      // Anker: die Wochenansicht ist nach dem Entfernen des Blocks geladen.
+      expect(screen.getByText("week-grid")).toBeVisible();
+      expect(screen.queryByText("detail-close")).not.toBeInTheDocument();
+      await act(async () => gaps.resolve());
+
+      expect(urlParams().has("block")).toBe(false);
+      expect(urlParams().get("d")).toBe("2026-05-04");
+    },
+  );
+
+  it.each(["detail-delete", "detail-delete-following"])(
+    "preserves a different selection when deletion finishes (%s)",
+    async (action) => {
+      setTestClock(new Date("2026-05-04T08:00:00"));
+      const gaps = deferred();
+      setupSWR({ instances: [instance, { ...instance, id: "43" }] });
+      mockTenantMutate.mockImplementation((key: string) =>
+        key.startsWith("timetable-gaps") ? gaps.promise : Promise.resolve(),
+      );
+      setUrl("view=woche&block=42");
+      render(<BetreuungsplanView />);
+      fireEvent.click(screen.getByText(action));
+      await waitFor(() =>
+        expect(mockTenantMutate).toHaveBeenCalledWith(
+          expect.stringMatching(/^timetable-gaps/),
+        ),
+      );
+      act(() => setUrl("view=woche&block=43"));
+      expect(screen.getByText("detail-close")).toBeVisible();
+
+      await act(async () => gaps.resolve());
+
+      expect(urlParams().get("block")).toBe("43");
+      expect(screen.getByText("detail-close")).toBeVisible();
+    },
+  );
+
+  // Eine neue URL-Auswahl darf auch bei derselben ID nicht durch die
+  // Bereinigung einer früheren Löschantwort geschlossen werden (#6593).
+  it("keeps a block opened again when an earlier delete answers late (#6593)", async () => {
+    const answer = deferred();
+    mockDeleteCancelled.mockReturnValueOnce(answer.promise);
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("detail-delete"));
+    expect(mockDeleteCancelled).toHaveBeenCalledWith("42");
+    fireEvent.click(screen.getByText("detail-close"));
+    await waitFor(() => expect(urlParams().has("block")).toBe(false));
+    act(() => setUrl("view=woche&block=42"));
+    expect(await screen.findByText("detail-close")).toBeVisible();
+
+    await act(async () => answer.resolve());
+
+    expect(mockToastSuccess).toHaveBeenCalledWith("Der Termin ist gelöscht.");
+    expect(urlParams().get("block")).toBe("42");
+    expect(screen.getByText("detail-close")).toBeVisible();
+  });
+
+  it("keeps a block opened again when an earlier series end answers late (#6593)", async () => {
+    setTestClock(new Date("2026-05-04T08:00:00"));
+    const answer = deferred<{
+      templateId: string;
+      effectiveDate: string;
+      deletedInstances: number;
+    }>();
+    mockEndTemplate.mockReturnValueOnce(answer.promise);
+    setUrl("view=woche&block=42");
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("detail-delete-following"));
+    expect(mockEndTemplate).toHaveBeenCalledOnce();
+    fireEvent.click(screen.getByText("detail-close"));
+    await waitFor(() => expect(urlParams().has("block")).toBe(false));
+    act(() => setUrl("view=woche&block=42"));
+    expect(await screen.findByText("detail-close")).toBeVisible();
+
+    await act(async () =>
+      answer.resolve({
+        templateId: "7",
+        effectiveDate: "2026-05-04",
+        deletedInstances: 3,
+      }),
+    );
+
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "Der Regeltermin ist ab 04.05.2026 beendet.",
+    );
+    expect(urlParams().get("block")).toBe("42");
+    expect(screen.getByText("detail-close")).toBeVisible();
+  });
+
   it("ends following instances from the slide-over", async () => {
     // Der Regeltermin lässt sich nur ab heute beenden, also muss der Termin
     // der Fixture (2026-05-04) hier "heute" sein.
@@ -2732,6 +2846,26 @@ describe("BetreuungsplanView", () => {
     fireEvent.click(screen.getByText("detail-repeat"));
     expect(screen.getByText("event-save-series")).toBeInTheDocument();
     fireEvent.click(screen.getByText("event-save-series"));
+    await stateChange.waitFor(() =>
+      expect(mockTenantMutate).toHaveBeenCalled(),
+    );
+  });
+
+  it("ignores a second materialize click while the first request is in flight", async () => {
+    let finish!: (value: { instancesCreated: number; warnings: [] }) => void;
+    mockMaterialize.mockImplementationOnce(
+      () =>
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+    );
+    setUrl("view=serien");
+    render(<BetreuungsplanView />);
+    const apply = screen.getByText("apply-template");
+    fireEvent.click(apply);
+    fireEvent.click(apply);
+    expect(mockMaterialize).toHaveBeenCalledOnce();
+    finish({ instancesCreated: 1, warnings: [] });
     await stateChange.waitFor(() =>
       expect(mockTenantMutate).toHaveBeenCalled(),
     );
@@ -2825,6 +2959,54 @@ describe("BetreuungsplanView", () => {
         screen.queryByRole("dialog", { name: "Regeltermin archivieren?" }),
       ).not.toBeInTheDocument(),
     );
+  });
+
+  // #6636: das Archivieren ist gelungen, nur das Nachladen scheitert. Das
+  // ist ein Ladefehler über dem Plan, kein Fehler des Archivierens, und sein
+  // Wiederholen lädt nur nach.
+  it("meldet ein gescheitertes Nachladen nach dem Archivieren als Ladefehler", async () => {
+    setUrl("view=serien");
+    mockArchiveTemplate.mockResolvedValueOnce({});
+    let failTemplates = true;
+    mockTenantMutate.mockImplementation((key: string) =>
+      key === "timetable-templates-5" && failTemplates
+        ? Promise.reject(
+            new ApiError("down", 503, { code: "general.unavailable" }),
+          )
+        : Promise.resolve(undefined),
+    );
+    render(<BetreuungsplanView />);
+
+    fireEvent.click(screen.getByText("archive-template"));
+    fireEvent.click(screen.getByRole("button", { name: "Archivieren" }));
+
+    const message = `${catalogText("general.unavailable", "die Anzeige der Regeltermine")} ${SAVED_BUT_STALE_SUFFIX}`;
+    expect(await screen.findByText(message)).toBeInTheDocument();
+    expect(mockToastSuccess).toHaveBeenCalledWith(
+      "Der Regeltermin „Yoga“ ist archiviert.",
+    );
+    expect(
+      screen.queryByRole("dialog", { name: "Regeltermin archivieren?" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(
+        catalogText("general.unavailable", "das Archivieren des Regeltermins"),
+      ),
+    ).not.toBeInTheDocument();
+
+    failTemplates = false;
+    const reloads = mockTenantMutate.mock.calls.length;
+    const alert = screen.getByText(message).closest('[role="alert"]');
+    expect(alert).not.toBeNull();
+    fireEvent.click(
+      within(alert as HTMLElement).getByRole("button", { name: "Wiederholen" }),
+    );
+    await waitFor(() =>
+      expect(screen.queryByText(message)).not.toBeInTheDocument(),
+    );
+    expect(mockTenantMutate.mock.calls.length).toBeGreaterThan(reloads);
+    // Wiederholen lädt nur nach; archiviert wird nicht noch einmal.
+    expect(mockArchiveTemplate).toHaveBeenCalledTimes(1);
   });
 
   it("reports a failed Regeltermin apply as a toast with retry", async () => {

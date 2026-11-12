@@ -6,9 +6,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	schoolCalendarCompose "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // NewSchoolCalendar composes the calendar owner for graphs that do not record observations. Production roots compose
@@ -18,7 +18,7 @@ import (
 // NewSchoolCalendarWithAdministration.
 func NewSchoolCalendar(db transactionruntime.Database) (schoolcalendar.Calendar, error) {
 	observe := func(schoolCalendarCompose.Observation) {}
-	records, err := schoolCalendarCompose.NewRecords(schoolCalendarCompose.RecordsDependencies{
+	records, err := schoolCalendarCompose.NewRecords(schoolCalendarCompose.RecordsDependencies{ClosingDayReads: NewSchoolClosingDayReads(),
 		DB: db.Pool(), Observe: observe,
 		FederalState: func(context.Context) (string, error) {
 			return "", errors.New("school calendar: federal state resolver is not bound")

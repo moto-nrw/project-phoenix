@@ -5,11 +5,11 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/domain"
 	"github.com/uptrace/bun"
 )
 
@@ -29,13 +29,15 @@ type StaffAdminDependencies struct {
 	// against; nil means the wall clock. Tests pin it.
 	Now    func() time.Time
 	Logger *slog.Logger
+	// BankData seals and opens the bank and tax section (BANK_DATA_KEYS, #6332).
+	BankData workforce.BankDataCipher
 }
 
 // NewStaffAdmin composes the personnel-record administration over the
 // Workforce-owned record rows.
 func NewStaffAdmin(dependencies StaffAdminDependencies) (*workforce.StaffAdmin, error) {
-	if dependencies.DB == nil || dependencies.Subjects == nil || dependencies.Audit == nil || dependencies.Allows == nil {
-		return nil, errors.New("staff admin: database, staff subjects, audit trail and permission matcher are required")
+	if dependencies.DB == nil || dependencies.Subjects == nil || dependencies.Audit == nil || dependencies.Allows == nil || dependencies.BankData == nil {
+		return nil, errors.New("staff admin: database, staff subjects, audit trail, permission matcher and bank data cipher are required")
 	}
 	store := postgres.New(postgres.DatabaseRuntime(dependencies.DB))
 	now := dependencies.Now
@@ -54,8 +56,18 @@ func NewStaffAdmin(dependencies StaffAdminDependencies) (*workforce.StaffAdmin, 
 			Health: permissions.StaffDocumentsHealth, Financial: permissions.StaffFinancial, General: permissions.StaffDocuments,
 			Allows: dependencies.Allows,
 		},
-		application.Clock{Time: now}, logger.Warn,
+		application.Clock{Time: now}, logger.Warn, dependencies.BankData,
 	), records)), nil
 }
 
 // --- documents --------------------------------------------------------------
+
+// NewStaffBankExportFields opens the sealed staff bank and tax values for the return export of a school (#6412); only the administrative export CLI binds it, never HTTP.
+func NewStaffBankExportFields(cipher workforce.BankDataCipher) workforce.StaffBankExportFields {
+	return application.NewStaffBankExportFields(cipher)
+}
+
+// NewStaffBankDataRekey is the maintenance-only bank backfill/rekey (#6332), never HTTP.
+func NewStaffBankDataRekey(cipher workforce.BankDataRekeyCipher) workforce.StaffBankDataRekey {
+	return application.NewStaffBankDataRekey(postgres.NewStaffBankRekeyStore(), cipher)
+}

@@ -3,7 +3,7 @@ package careplanhttp
 import (
 	"net/http"
 
-	configSvc "github.com/moto-nrw/project-phoenix/modules/settings"
+	configSvc "github.com/moto-ogs/project-phoenix/modules/settings"
 )
 
 // scopeTestSettingsCache is the real Settings attachment passed through the

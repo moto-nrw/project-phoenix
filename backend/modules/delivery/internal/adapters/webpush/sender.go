@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"time"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 
 	provider "github.com/SherClockHolmes/webpush-go"
 )
@@ -48,7 +48,7 @@ func (s *Sender) SendPush(ctx context.Context, intent deliveryContract.ClaimedIn
 		Keys:     provider.Keys{P256dh: intent.PushRecipient.P256DH, Auth: intent.PushRecipient.Auth},
 	}, &provider.Options{
 		Subscriber: deliveryContract.WebPushProviderSubscriber(s.config.Subscriber), VAPIDPublicKey: s.config.PublicKey,
-		VAPIDPrivateKey: s.config.PrivateKey, TTL: pushTTL(intent.PushPayload.Priority), Urgency: pushUrgency(intent.PushPayload.Priority), HTTPClient: s.client,
+		VAPIDPrivateKey: s.config.PrivateKey, RecordSize: deliveryContract.WebPushRecordSize, TTL: pushTTL(intent.PushPayload.Priority), Urgency: pushUrgency(intent.PushPayload.Priority), HTTPClient: s.client,
 	})
 	if err != nil {
 		return deliveryContract.ProviderResult{}, fmt.Errorf("delivery provider: send push: %w", withoutPushToken(err))

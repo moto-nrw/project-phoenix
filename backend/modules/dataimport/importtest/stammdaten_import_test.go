@@ -5,15 +5,15 @@ import (
 	"fmt"
 	"testing"
 
-	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
+	dataImportCompose "github.com/moto-ogs/project-phoenix/modules/dataimport/compose"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	importService "github.com/moto-nrw/project-phoenix/modules/dataimport/internal/application/importservice"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	importService "github.com/moto-ogs/project-phoenix/modules/dataimport/internal/application/importservice"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -31,15 +31,16 @@ func newStammdatenStaffConfig(t *testing.T, db *bun.DB, invitations importModels
 	identity, err := api.NewIdentityAccessForTests(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	config := importService.NewStaffImportConfig(ports.StaffImportDeps{RolePolicy: dataImportCompose.NewSchoolRolePolicy(), Authorization: api.NewImportAuthorization(), Transactions: dataImportCompose.NewTransactions(),
-		Invitations:         invitations,
-		FindInvitedPeople:   identity.FindInvitedPersonIDs,
-		FindSchoolAccount:   api.NewImportSchoolAccountLookup(identity),
-		Roles:               identity,
-		FindRolePermissions: identity.FindRolePermissions,
-		SchoolName:          api.NewImportSchoolName(organizations),
-		Persons:             owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
-		Membership:          owners.MustNewSchoolMembership(testpkg.NewDatabase(t, db)),
-		Records:             owners.MustNewWorkforce(testpkg.NewDatabase(t, db)),
+		Invitations:                  invitations,
+		FindInvitedPeople:            identity.FindInvitedPersonIDs,
+		FindSchoolEmailIdentities:    api.NewImportSchoolEmailLookup(identity),
+		FindSchoolAccount:            api.NewImportSchoolAccountLookup(identity),
+		Roles:                        identity,
+		FindRolePermissionsByRoleIDs: identity.FindRolePermissionsByRoleIDs,
+		SchoolName:                   api.NewImportSchoolName(organizations),
+		Persons:                      owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, db)),
+		Membership:                   owners.MustNewSchoolMembership(testpkg.NewDatabase(t, db)),
+		Records:                      owners.MustNewWorkforce(testpkg.NewDatabase(t, db)),
 	})
 	return config, reposPeople
 }

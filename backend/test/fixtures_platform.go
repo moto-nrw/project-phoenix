@@ -215,12 +215,32 @@ func OwnTraegerHolidayPeriods(tb testing.TB, db *bun.DB, organizationID int64) {
 		// to the Träger itself.
 		_, err := db.ExecContext(context.Background(), `DELETE FROM enrollment.holiday_periods WHERE organization_id = ?`, organizationID)
 		require.NoError(tb, err, "Failed to clean up test holiday periods")
+		// The criteria of the allocation belong to the Träger (#4700); the
+		// answers and decisions went with the registrations.
+		_, err = db.ExecContext(context.Background(), `DELETE FROM enrollment.holiday_allocation_criteria WHERE organization_id = ?`, organizationID)
+		require.NoError(tb, err, "Failed to clean up test holiday criteria")
 		_, err = db.ExecContext(context.Background(), `DELETE FROM enrollment.holiday_registration_deletions WHERE organization_id = ?`, organizationID)
 		require.NoError(tb, err, "Failed to clean up the test holiday registration deletion log")
 		_, err = db.ExecContext(context.Background(), `DELETE FROM enrollment.holiday_registration_rate_limits WHERE organization_id = ?`, organizationID)
 		require.NoError(tb, err, "Failed to clean up test holiday registration counters")
 		_, err = db.ExecContext(context.Background(), `DELETE FROM platform.email_outbox WHERE organization_id = ?`, organizationID)
 		require.NoError(tb, err, "Failed to clean up test Träger mails")
+		// A confirmation remembers the family and its number at the Träger
+		// (#6692); a family without a contract does not go with one.
+		for _, table := range []string{"parent_billing.family_billing_events", "parent_billing.family_billing"} {
+			_, err = db.ExecContext(context.Background(), `DELETE FROM `+table+` WHERE organization_id = ?`, organizationID)
+			require.NoError(tb, err, "Failed to clean up the test families of the holiday care")
+		}
+	})
+}
+
+// OwnTraegerClosingDays removes the closing days a test plans for the Träger
+// (#4702) when the test ends.
+func OwnTraegerClosingDays(tb testing.TB, db *bun.DB, organizationID int64) {
+	tb.Helper()
+	tb.Cleanup(func() {
+		_, err := db.ExecContext(context.Background(), `DELETE FROM schedule.traeger_closing_days WHERE organization_id = ?`, organizationID)
+		require.NoError(tb, err, "Failed to clean up test Träger closing days")
 	})
 }
 
@@ -232,10 +252,16 @@ func OwnTraegerContributionRules(tb testing.TB, db *bun.DB, organizationID int64
 	tb.Helper()
 	tb.Cleanup(func() {
 		for _, table := range []string{
+			// The export protocol and the field mapping (#4693); a file's
+			// invoice links go with it.
+			"parent_billing.export_files", "parent_billing.export_mappings",
 			// An evidence holds its income level (#4685): it goes first.
 			"parent_billing.care_evidences",
 			"parent_billing.contribution_rules", "parent_billing.runs", "parent_billing.care_runs", "parent_billing.care_tariffs",
 			"parent_billing.care_price_lists",
+			// The runs of the Jahresbescheide take their notices, months and
+			// trail with them (#6219).
+			"parent_billing.care_notice_runs",
 			// The Mensa prices and the schools' released Mensa months (#4686);
 			// the Mensa positions go with the runs.
 			"parent_billing.care_meal_tariffs", "schedule.meal_billing_months",
@@ -245,6 +271,10 @@ func OwnTraegerContributionRules(tb testing.TB, db *bun.DB, organizationID int64
 			// The creditor of the SEPA direct debit (#4695); the mandates go
 			// with the care contracts.
 			"parent_billing.sepa_creditors",
+			// The stored PAIN.008 files of the downloads (ADR 0187).
+			"parent_billing.sepa_debit_files",
+			// The revenue accounts and cost centers (#4821).
+			"parent_billing.revenue_accounts", "parent_billing.cost_centers",
 		} {
 			_, err := db.ExecContext(context.Background(), `DELETE FROM `+table+` WHERE organization_id = ?`, organizationID)
 			require.NoError(tb, err, "Failed to clean up test Elternabrechnung rows")
@@ -289,4 +319,59 @@ func SoftDeleteTestSchool(tb testing.TB, db *bun.DB, schoolID int64) {
 	tb.Helper()
 	_, err := db.ExecContext(context.Background(), `UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolID)
 	require.NoError(tb, err, "Failed to soft-delete test school")
+}
+
+// OwnTraegerCatalog removes the Träger phases and care offerings a test
+// creates for the Träger (#4704, ADR 0195), with their versions and school
+// selections, when the test ends. Like the holiday periods they carry no
+// tenant, so they need their own exact-key teardown.
+func OwnTraegerCatalog(tb testing.TB, db *bun.DB, organizationID int64) {
+	tb.Helper()
+	tb.Cleanup(func() {
+		_, err := db.ExecContext(context.Background(), `DELETE FROM enrollment.traeger_care_offerings WHERE organization_id = ?`, organizationID)
+		require.NoError(tb, err, "Failed to clean up test Träger care offerings")
+		_, err = db.ExecContext(context.Background(), `DELETE FROM enrollment.traeger_phases WHERE organization_id = ?`, organizationID)
+		require.NoError(tb, err, "Failed to clean up test Träger phases")
+	})
+}
+
+// HolidayRegistrationFixture is a holiday registration a test wrote: its
+// period and the registration.
+type HolidayRegistrationFixture struct {
+	PeriodID       int64
+	RegistrationID int64
+}
+
+// CreateTestHolidayRegistration writes a holiday period of the Träger named
+// periodName with one care week from 15.10.2029 to 19.10.2029 at hostSchool
+// and the time model "bis 16 Uhr", and a registration of guardianEmail with
+// one holiday guest per first name, each with a place in that week (ADR
+// 0216). The period and the registration go when the test ends.
+func CreateTestHolidayRegistration(tb testing.TB, db *bun.DB, organizationID, hostSchool int64, periodName, guardianEmail string, firstNames ...string) HolidayRegistrationFixture {
+	tb.Helper()
+	OwnTraegerHolidayPeriods(tb, db, organizationID)
+	ctx := context.Background()
+	var fixture HolidayRegistrationFixture
+	var week, model int64
+	require.NoError(tb, db.NewRaw(`INSERT INTO enrollment.holiday_periods (organization_id, name, registration_opens_on, registration_closes_on)
+		VALUES (?, ?, DATE '2029-09-01', DATE '2029-09-30') RETURNING id`, organizationID, periodName).Scan(ctx, &fixture.PeriodID))
+	require.NoError(tb, db.NewRaw(`INSERT INTO enrollment.holiday_period_weeks (organization_id, holiday_period_id, starts_on, ends_on, host_school_id)
+		VALUES (?, ?, DATE '2029-10-15', DATE '2029-10-19', ?) RETURNING id`, organizationID, fixture.PeriodID, hostSchool).Scan(ctx, &week))
+	require.NoError(tb, db.NewRaw(`INSERT INTO enrollment.holiday_week_time_models (organization_id, holiday_period_week_id, name, starts_at, ends_at, price_cents)
+		VALUES (?, ?, 'bis 16 Uhr', '08:00', '16:00', 4500) RETURNING id`, organizationID, week).Scan(ctx, &model))
+	require.NoError(tb, db.NewRaw(`INSERT INTO enrollment.holiday_registrations (organization_id, holiday_period_id, guardian_first_name,
+			guardian_last_name, guardian_email, guardian_phone, privacy_consent_at)
+		VALUES (?, ?, 'Eva', 'Muster', ?, '0151 2345678', NOW()) RETURNING id`, organizationID, fixture.PeriodID, guardianEmail).Scan(ctx, &fixture.RegistrationID))
+	for i, firstName := range firstNames {
+		var child int64
+		require.NoError(tb, db.NewRaw(`INSERT INTO enrollment.holiday_registration_children (organization_id, holiday_period_id,
+				holiday_registration_id, position, first_name, last_name, birth_date, guest_school_name)
+			VALUES (?, ?, ?, ?, ?, 'Muster', DATE '2019-03-01', 'Grundschule Melle') RETURNING id`,
+			organizationID, fixture.PeriodID, fixture.RegistrationID, i+1, firstName).Scan(ctx, &child))
+		_, err := db.ExecContext(ctx, `INSERT INTO enrollment.holiday_registration_bookings (organization_id, holiday_period_id,
+				holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id, placement)
+			VALUES (?, ?, ?, ?, ?, 'placed')`, organizationID, fixture.PeriodID, child, week, model)
+		require.NoError(tb, err)
+	}
+	return fixture
 }

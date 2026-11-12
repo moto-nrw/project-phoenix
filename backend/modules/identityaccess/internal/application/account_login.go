@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // loginWithMFAGate authenticates a tenant-portal user. After the credential
@@ -78,7 +78,7 @@ func (s *AccountAuthentication) resolveTenantMFAGate(ctx context.Context, accoun
 // mfaEnrollmentResult issues an enrollment JWT only the portal's
 // /mfa/enroll/* surface accepts.
 func (s *AccountAuthentication) mfaEnrollmentResult(account domain.LoginAccount, tenantID int64, portal domain.Portal) (*domain.LoginResult, error) {
-	token, err := s.codec.IssueMFAEnrollmentToken(account.ID, tenantID, portal.Name, domain.MFAEnrollmentTokenTTL)
+	token, err := s.codec.IssueMFAEnrollmentToken(account.ID, tenantID, portal.Name, domain.MFAEnrollmentTokenTTL, account.MFAResetGeneration)
 	if err != nil {
 		return nil, failed("issue mfa enrollment token", err)
 	}
@@ -101,7 +101,7 @@ func (s *AccountAuthentication) trustedDeviceVerified(ctx context.Context, accou
 // mfaChallengeResult is the "MFA required, factor enrolled" response: an
 // email code plus a challenge token bound to the portal scope.
 func (s *AccountAuthentication) mfaChallengeResult(ctx context.Context, account domain.LoginAccount, tenantID int64, portal domain.Portal, ipAddress string) (*domain.LoginResult, error) {
-	challenge, err := s.mfa.StartChallenge(ctx, account.ID, tenantID, portal.Name, ipAddress)
+	challenge, err := s.mfa.StartChallenge(ctx, account.ID, tenantID, portal.Name, ipAddress, account.MFAResetGeneration)
 	if err != nil {
 		return nil, failed("start mfa challenge", err)
 	}
@@ -213,6 +213,10 @@ func (s *AccountAuthentication) validateLoginCredentials(ctx context.Context, em
 		s.logFailedLogin(ctx, account.ID, ipAddress, userAgent, "Account inactive")
 		return domain.LoginAccount{}, failed("login", identityaccess.ErrAccountInactive)
 	}
+	// The session, a challenge or an enrollment token follow in later
+	// transactions; each is bound to the credential generation this check
+	// read under the account lock (#6289).
+	account.PasswordChecked = true
 	return account, nil
 }
 

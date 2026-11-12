@@ -9,6 +9,10 @@ import {
 import type { FormEvent } from "react";
 
 import {
+  useFormModalPending,
+  type FormModalOperation,
+} from "~/components/ui/use-form-modal-pending";
+import {
   useApiFormError,
   useApiLoadError,
   useToast,
@@ -71,6 +75,7 @@ import {
   initialStaffIDs,
   initialStudentIDs,
   isoWeekday,
+  isSeriesNotesOnlyEdit,
   parseMaxParticipants,
   parseRequiredStaffOverride,
   plannedStudentIds,
@@ -428,7 +433,29 @@ export function useEventForm({
   // Rooms, categories, groups and planning tracks load together; one alert
   // names them, the first failure decides its text.
   const referenceLoad = useApiLoadError();
-  const [submitting, setSubmitting] = useState(false);
+  // Every write path runs through the panel's pending contract (#6593): while
+  // it runs, the panel cannot be closed, and an answer that arrives after the
+  // panel closed neither closes nor switches a dialog. `pendingKind` names
+  // the running write for the labels of Speichern and the delete dialog.
+  const save = useFormModalPending(isOpen);
+  const [pendingKind, setPendingKind] = useState<"save" | "delete">("save");
+  const submitting = save.pending && pendingKind === "save";
+  const deletingSeries = save.pending && pendingKind === "delete";
+  const runWrite = (
+    kind: "save" | "delete",
+    task: (op: FormModalOperation) => Promise<void>,
+  ) =>
+    save.run((op) => {
+      setPendingKind(kind);
+      return task(op);
+    });
+  /** Refreshes and points the planner at the result, for the open panel only. */
+  const reportSaved = (
+    op: FormModalOperation,
+    result: TimetableEventModalResult,
+  ) => {
+    if (op.isCurrent()) onSaved(result);
+  };
   // The panel's save error (SlideOverBody `error`) and the server's field
   // errors. Local checks before the send keep their own map below, because
   // each field clears its hint as soon as it is edited.
@@ -445,7 +472,6 @@ export function useEventForm({
   // The delete dialog is open while it fails, so its error stays in it.
   const deleteErrors = useApiFormError();
   const clearDeleteError = deleteErrors.clear;
-  const [deletingSeries, setDeletingSeries] = useState(false);
   const [expanded, setExpanded] = useState(variant === "full");
   // Validated room id stashed while the Dreifach-Frage dialog (US-5) is open.
   const [pendingSeriesEdit, setPendingSeriesEdit] = useState<{
@@ -484,7 +510,7 @@ export function useEventForm({
   const [lostEdits, setLostEdits] = useState<{
     scope: "all" | "following";
     result: EditedInWindowResult;
-    onConfirm: () => Promise<void>;
+    onConfirm: (op: FormModalOperation) => Promise<void>;
   } | null>(null);
   const [conflictWarnings, setConflictWarnings] = useState<
     ConflictWarningItem[]
@@ -540,9 +566,6 @@ export function useEventForm({
   // survives switching the repeat mode away and back within the same modal
   // session. null = no manual pick yet (defaults apply).
   const manualWeekPattern = useRef<1 | 2 | null>(null);
-  // React state is not visible to a second submit event until the next render.
-  // This ref closes that same-frame gap while `submitting` drives the UI.
-  const submitLock = useRef(false);
   // Keep retries of this modal's manual create on the same server operation.
   const createIdempotencyKey = useRef<string | null>(null);
   const createIdempotencyFingerprint = useRef<string | null>(null);
@@ -840,7 +863,6 @@ export function useEventForm({
     staffRosterTouched.current = false;
     listKindTouched.current = false;
     manualWeekPattern.current = null;
-    submitLock.current = false;
     createIdempotencyKey.current = null;
     createIdempotencyFingerprint.current = null;
     setForm(nextForm);
@@ -850,7 +872,6 @@ export function useEventForm({
     setDeleteConfirmOpen(false);
     setDeleteEffectiveDate(berlinTodayISO());
     clearDeleteError();
-    setDeletingSeries(false);
     setExpanded(variant === "full");
     setPendingSeriesEdit(null);
     setSelectedInstanceScope(null);
@@ -2367,12 +2388,17 @@ export function useEventForm({
 
   const handleSubmit = async (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
-    if (submitLock.current) return;
+    if (save.pending) return;
     if (isEditingInstance && initialInstance?.status !== "planned") return;
     const parsed = validateForm();
     if (!parsed) return;
-    submitLock.current = true;
-    setSubmitting(true);
+    await runWrite("save", (op) => submitParsed(op, parsed));
+  };
+
+  const submitParsed = async (
+    op: FormModalOperation,
+    parsed: NonNullable<ReturnType<typeof validateForm>>,
+  ) => {
     clearFormError();
 
     // US-5 Dreifach-Frage: editing an instance that belongs to a series first
@@ -2394,23 +2420,14 @@ export function useEventForm({
             instanceBody(parsed.roomId, initialInstance.activityGroupId),
           );
           toastSuccess("Der Termin ist gespeichert.");
-          onSaved({ kind: "instance", instance: saved });
-          onClose();
+          reportSaved(op, { kind: "instance", instance: saved });
+          if (op.isCurrent()) onClose();
         } catch (err) {
-          handleScopeError("single", err);
-        } finally {
-          submitLock.current = false;
-          setSubmitting(false);
+          handleScopeError(op, "single", err);
         }
         return;
       }
-      try {
-        await handleScopeSelect(selectedInstanceScope, {
-          roomId: parsed.roomId,
-        });
-      } finally {
-        submitLock.current = false;
-      }
+      await selectScope(op, selectedInstanceScope, { roomId: parsed.roomId });
       return;
     }
 
@@ -2440,16 +2457,17 @@ export function useEventForm({
             ? "Der Termin ist gespeichert."
             : "Der Termin ist angelegt.",
         );
-        onSaved({ kind: "instance", instance: saved });
-        onClose();
+        reportSaved(op, { kind: "instance", instance: saved });
+        if (op.isCurrent()) onClose();
         return;
       }
 
       if (!parsed.categoryId) {
-        setFieldErrors({ categoryId: "Bitte eine Kategorie auswählen." });
+        if (op.isCurrent()) {
+          setFieldErrors({ categoryId: "Bitte eine Kategorie auswählen." });
+        }
         return;
       }
-
       if (initialSeries) {
         const seriesId = initialSeries.id;
         const categoryId = parsed.categoryId;
@@ -2460,9 +2478,11 @@ export function useEventForm({
           pulledSeriesStart !== null &&
           JSON.stringify(currentWithoutStart) ===
             JSON.stringify(initialWithoutStart);
-        const runSeriesEdit = async () => {
+        const notesOnly = keepsOccurrencesForNotesOnlySave(initialSeries);
+        const runSeriesEdit = async (seriesOp: FormModalOperation) => {
           await timetableService.updateTemplate(seriesId, {
             ...seriesBody(parsed.roomId, categoryId),
+            ...(notesOnly ? { propagate_notes_to_predecessors: true } : {}),
             // #2226: pull the Serienbeginn forward when the user picked an
             // earlier date; unchanged keeps the stored envelope untouched.
             ...(pulledSeriesStart !== null
@@ -2474,26 +2494,29 @@ export function useEventForm({
               ? { end_date: form.seriesEndDate || null }
               : {}),
           });
-          const followUpOk = isStartDateOnlyPull
-            ? await materializePulledForwardWindow(
-                pulledSeriesStart,
-                seriesStartEdit!.original,
-              )
-            : await replanTemplateFuture(seriesId);
+          const followUpOk =
+            notesOnly ||
+            (isStartDateOnlyPull
+              ? await materializePulledForwardWindow(
+                  pulledSeriesStart,
+                  seriesStartEdit!.original,
+                )
+              : await replanTemplateFuture(seriesId));
           if (followUpOk) {
             toastSuccess("Der Regeltermin ist gespeichert.");
           } else {
             // oxlint-disable-next-line bauart/no-toast-form-error -- Kein Formularfehler: der Regeltermin ist gespeichert und das Panel schließt; der Hinweis auf die Folgetermine hat keine andere Fläche.
             toastWarning(FOLLOW_UP_WARNING);
           }
-          onSaved({ kind: "series", seriesId });
+          reportSaved(seriesOp, { kind: "series", seriesId });
         };
 
         // #1875: edits that rebuild existing instances need the same warning
         // as "Alle Termine". A start-only pull only inserts the opened gap and
-        // therefore preserves individual adjustments without a probe.
+        // therefore preserves individual adjustments without a probe, and so
+        // does a Wochennotiz-only save (#6141).
         let lost: EditedInWindowResult | null = null;
-        if (!isStartDateOnlyPull) {
+        if (!isStartDateOnlyPull && !notesOnly) {
           const editsTo =
             findPeriod(form.calendarPeriodId)?.endDate ??
             weekTo ??
@@ -2516,18 +2539,18 @@ export function useEventForm({
           }
         }
         if (lost) {
-          setLostEdits({
-            scope: "all",
-            result: lost,
-            onConfirm: runSeriesEdit,
-          });
-          submitLock.current = false;
-          setSubmitting(false);
+          if (op.isCurrent()) {
+            setLostEdits({
+              scope: "all",
+              result: lost,
+              onConfirm: runSeriesEdit,
+            });
+          }
           return;
         }
 
-        await runSeriesEdit();
-        onClose();
+        await runSeriesEdit(op);
+        if (op.isCurrent()) onClose();
         return;
       }
 
@@ -2565,7 +2588,7 @@ export function useEventForm({
           // oxlint-disable-next-line bauart/no-toast-form-error -- Kein Formularfehler: die Serie ist gespeichert und das Panel schließt; der Hinweis auf die Folgetermine hat keine andere Fläche.
           toastWarning(FOLLOW_UP_WARNING);
         }
-        onSaved({
+        reportSaved(op, {
           kind: "series",
           seriesId: created.templateId,
           linkedInstanceId: seriesSeedInstance.id,
@@ -2585,13 +2608,15 @@ export function useEventForm({
           // oxlint-disable-next-line bauart/no-toast-form-error -- Kein Formularfehler: der Regeltermin ist angelegt und das Panel schließt; der Hinweis auf die Folgetermine hat keine andere Fläche.
           toastWarning(FOLLOW_UP_WARNING);
         }
-        onSaved({ kind: "series", seriesId: templateId });
+        reportSaved(op, { kind: "series", seriesId: templateId });
       }
-      onClose();
+      if (op.isCurrent()) onClose();
     } catch (err) {
       logger.error("event_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
+      // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+      if (!op.isCurrent()) return;
       // Steht oben im Panel (SlideOverBody `error`), nicht als Toast:
       // Bauart 2 Regel 5.
       void showFormError(err, {
@@ -2601,9 +2626,6 @@ export function useEventForm({
         ),
         retry: retrySave,
       });
-    } finally {
-      submitLock.current = false;
-      setSubmitting(false);
     }
   };
 
@@ -2731,11 +2753,17 @@ export function useEventForm({
     };
   };
 
-  const handleScopeError = (scope: string, err: unknown) => {
+  const handleScopeError = (
+    op: FormModalOperation,
+    scope: string,
+    err: unknown,
+  ) => {
     logger.error("series_scope_save_failed", {
       scope,
       error: err instanceof Error ? err.message : String(err),
     });
+    // Ein inzwischen geschlossenes Panel zeigt keinen Fehler mehr.
+    if (!op.isCurrent()) return;
     setPendingSeriesEdit(null);
     setScopeClosingDayWarning(null);
     setLostEdits(null);
@@ -2748,11 +2776,32 @@ export function useEventForm({
   };
 
   /**
+   * #6141: a series save that changes only the Wochennotiz keeps the existing
+   * occurrences and their individual adjustments: the note is read onto every
+   * occurrence, so nothing needs rebuilding and nothing is lost. Two cases
+   * still rebuild as before: a changed answer to the closing-day prompt
+   * (#3594) changes which days carry an occurrence, and an offering-sourced
+   * series reconciles occurrence children on every template write.
+   */
+  const keepsOccurrencesForNotesOnlySave = (series: TimetableTemplate | null) =>
+    series !== null &&
+    (series.sourceCareOfferingIds?.length ?? 0) === 0 &&
+    (closingDayChoice.current === null ||
+      closingDayChoice.current === (series.includeClosingDays ?? false)) &&
+    initialFormSnapshot.current !== null &&
+    isSeriesNotesOnlyEdit(form, initialFormSnapshot.current);
+
+  /** "following" splits the series and always rebuilds its occurrences. */
+  const isScopedNotesOnlyEdit = (typedScope: "all" | "following") =>
+    typedScope === "all" && keepsOccurrencesForNotesOnlySave(scopedSeries);
+
+  /**
    * Applies a series-wide edit ("all" or "following") against a pre-loaded
    * template. Split out of handleScopeSelect so the #1875 lost-edits warning
    * can defer it until the user confirms.
    */
   const performSeriesEdit = async (
+    op: FormModalOperation,
     typedScope: "all" | "following",
     roomId: number,
     template: TimetableTemplate,
@@ -2760,6 +2809,7 @@ export function useEventForm({
     seriesTemplateId: string,
   ) => {
     if (!initialInstance) return;
+    const notesOnly = isScopedNotesOnlyEdit(typedScope);
     const chainResolved = template.resolvedFromTemplateId !== undefined;
     // #2187: on the chain path the write targets the living successor, whose
     // untouched fields must survive the save — see chainPreservedScalars.
@@ -2846,6 +2896,7 @@ export function useEventForm({
         studentScopeIDs.length > 0 || staffScopeIDs.length > 0;
       await timetableService.updateTemplate(seriesTemplateId, {
         ...body,
+        ...(notesOnly ? { propagate_notes_to_predecessors: true } : {}),
         ...(rosterChanged
           ? {
               series_roster_from: rosterFrom,
@@ -2866,7 +2917,10 @@ export function useEventForm({
             }
           : {}),
       });
-      if (await replanTemplateFuture(seriesTemplateId, periodEnd)) {
+      if (
+        notesOnly ||
+        (await replanTemplateFuture(seriesTemplateId, periodEnd))
+      ) {
         // The roster change reaches back to rosterFrom, but title, time, room
         // and Planungsschiene belong to the successor's own window and start
         // where it starts. Naming rosterFrom for all of them would claim more
@@ -2881,7 +2935,7 @@ export function useEventForm({
       } else {
         toastWarning(FOLLOW_UP_WARNING);
       }
-      onSaved({ kind: "series", seriesId: seriesTemplateId });
+      reportSaved(op, { kind: "series", seriesId: seriesTemplateId });
       return;
     }
     if (typedScope === "following") {
@@ -2932,31 +2986,37 @@ export function useEventForm({
       } else {
         toastWarning(FOLLOW_UP_WARNING);
       }
-      onSaved({ kind: "series", seriesId: split.newTemplateId });
+      reportSaved(op, { kind: "series", seriesId: split.newTemplateId });
     } else {
       await timetableService.updateTemplate(seriesTemplateId, body);
-      if (await replanTemplateFuture(seriesTemplateId, periodEnd)) {
+      if (
+        notesOnly ||
+        (await replanTemplateFuture(seriesTemplateId, periodEnd))
+      ) {
         toastSuccess("Der Regeltermin ist gespeichert.");
       } else {
         toastWarning(FOLLOW_UP_WARNING);
       }
-      onSaved({ kind: "series", seriesId: seriesTemplateId });
+      reportSaved(op, { kind: "series", seriesId: seriesTemplateId });
     }
   };
 
-  const continuePreparedSeriesEdit = async ({
-    typedScope,
-    roomId,
-    template,
-    periodEnd,
-    seriesTemplateId,
-  }: {
-    typedScope: "all" | "following";
-    roomId: number;
-    template: TimetableTemplate;
-    periodEnd: string | undefined;
-    seriesTemplateId: string;
-  }) => {
+  const continuePreparedSeriesEdit = async (
+    op: FormModalOperation,
+    {
+      typedScope,
+      roomId,
+      template,
+      periodEnd,
+      seriesTemplateId,
+    }: {
+      typedScope: "all" | "following";
+      roomId: number;
+      template: TimetableTemplate;
+      periodEnd: string | undefined;
+      seriesTemplateId: string;
+    },
+  ) => {
     if (!initialInstance) return;
     // #1875: before rebuilding the series, check whether single-occurrence
     // edits in the affected window would be discarded. "following" also
@@ -2968,31 +3028,37 @@ export function useEventForm({
       typedScope === "following" ? initialInstance.date : berlinTodayISO();
     const editsTo = periodEnd ?? weekTo ?? editsFrom;
     let lost: EditedInWindowResult | null = null;
-    try {
-      const probe = await timetableService.countEditedInWindow(
-        seriesTemplateId,
-        editsFrom,
-        editsTo,
-        typedScope === "following" &&
-          template.resolvedFromTemplateId === undefined,
-      );
-      if (probe.count > 0) lost = probe;
-    } catch (probeErr) {
-      // Bewusst still: die Rückfrage zu Einzelanpassungen ist ein Hinweis
-      // vor dem Speichern. Fällt die Zählung aus, läuft die Änderung wie ohne
-      // Einzelanpassungen weiter; der Ausfall steht im Log.
-      logger.warn("edited_in_window_probe_failed", {
-        error: probeErr instanceof Error ? probeErr.message : String(probeErr),
-      });
+    // A Wochennotiz-only save rebuilds nothing, so nothing can be lost (#6141).
+    if (!isScopedNotesOnlyEdit(typedScope)) {
+      try {
+        const probe = await timetableService.countEditedInWindow(
+          seriesTemplateId,
+          editsFrom,
+          editsTo,
+          typedScope === "following" &&
+            template.resolvedFromTemplateId === undefined,
+        );
+        if (probe.count > 0) lost = probe;
+      } catch (probeErr) {
+        // Bewusst still: die Rückfrage zu Einzelanpassungen ist ein Hinweis
+        // vor dem Speichern. Fällt die Zählung aus, läuft die Änderung wie
+        // ohne Einzelanpassungen weiter; der Ausfall steht im Log.
+        logger.warn("edited_in_window_probe_failed", {
+          error:
+            probeErr instanceof Error ? probeErr.message : String(probeErr),
+        });
+      }
     }
 
     if (lost) {
+      if (!op.isCurrent()) return;
       setPendingSeriesEdit(null);
       setLostEdits({
         scope: typedScope,
         result: lost,
-        onConfirm: () =>
+        onConfirm: (confirmOp) =>
           performSeriesEdit(
+            confirmOp,
             typedScope,
             roomId,
             template,
@@ -3004,19 +3070,21 @@ export function useEventForm({
     }
 
     await performSeriesEdit(
+      op,
       typedScope,
       roomId,
       template,
       periodEnd,
       seriesTemplateId,
     );
+    if (!op.isCurrent()) return;
     setPendingSeriesEdit(null);
     onClose();
   };
 
   const handleInitialScopeSelect = async (scope: string) => {
     if (
-      submitting ||
+      save.pending ||
       !initialInstance?.activityGroupId ||
       !isSeriesEditScope(scope)
     ) {
@@ -3028,53 +3096,64 @@ export function useEventForm({
     }
 
     const typedScope = scope === "following" ? "following" : "all";
-    setSubmitting(true);
-    clearFormError();
-    try {
-      const template = await timetableService.getTemplate(
-        initialInstance.activityGroupId,
-        form.calendarPeriodId,
-      );
-      const nextForm = formFromSeries(
-        template,
-        initialInstance.date,
-        defaultCalendarPeriodId,
-      );
-      setScopedSeries(template);
-      setForm(nextForm);
-      setInitialStudentIDsSnapshot([...nextForm.studentIds]);
-      setInitialStaffIDsSnapshot([...nextForm.staffIds]);
-      setInitialPrimaryStaffIDSnapshot(nextForm.primaryStaffId);
-      requiredStaffTouched.current = false;
-      studentRosterTouched.current = false;
-      staffRosterTouched.current = false;
-      listKindTouched.current = false;
-      setSelectedInstanceScope(typedScope);
-    } catch (err) {
-      logger.error("series_scope_template_load_failed", {
-        scope,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      // Die Umfangsfrage ist noch offen und zeigt den Text an; erneut
-      // versuchen heißt dort, den Umfang noch einmal zu wählen.
-      void showFormError(err, { object: "die Serie" });
-    } finally {
-      setSubmitting(false);
-    }
+    const groupId = initialInstance.activityGroupId;
+    const occurrenceDate = initialInstance.date;
+    await runWrite("save", async (op) => {
+      clearFormError();
+      try {
+        const template = await timetableService.getTemplate(
+          groupId,
+          form.calendarPeriodId,
+        );
+        if (!op.isCurrent()) return;
+        const nextForm = formFromSeries(
+          template,
+          occurrenceDate,
+          defaultCalendarPeriodId,
+        );
+        setScopedSeries(template);
+        setForm(nextForm);
+        // The series values are the baseline of this scope's edit (#6141).
+        initialFormSnapshot.current = nextForm;
+        setInitialStudentIDsSnapshot([...nextForm.studentIds]);
+        setInitialStaffIDsSnapshot([...nextForm.staffIds]);
+        setInitialPrimaryStaffIDSnapshot(nextForm.primaryStaffId);
+        requiredStaffTouched.current = false;
+        studentRosterTouched.current = false;
+        staffRosterTouched.current = false;
+        listKindTouched.current = false;
+        setSelectedInstanceScope(typedScope);
+      } catch (err) {
+        logger.error("series_scope_template_load_failed", {
+          scope,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        // Die Umfangsfrage ist noch offen und zeigt den Text an; erneut
+        // versuchen heißt dort, den Umfang noch einmal zu wählen.
+        void showFormError(err, { object: "die Serie" });
+      }
+    });
   };
 
-  async function handleScopeSelect(
+  async function handleScopeSelect(scope: string) {
+    if (save.pending) return;
+    await runWrite("save", (op) => selectScope(op, scope));
+  }
+
+  async function selectScope(
+    op: FormModalOperation,
     scope: string,
     pendingOverride?: { roomId: number },
   ) {
-    if (submitting || !isSeriesEditScope(scope)) return;
+    if (!isSeriesEditScope(scope)) return;
     const pending = pendingOverride ?? pendingSeriesEdit;
     const groupId = initialInstance?.activityGroupId;
     if (!pending || !initialInstance || !groupId) return;
 
     // Single-occurrence edit ("Nur diese Woche"): unchanged plain instance PUT.
     if (scope === "single") {
-      setSubmitting(true);
       try {
         await checkCoverageBeforeSave(coverageProbes);
         const saved = await timetableService.update(
@@ -3082,19 +3161,17 @@ export function useEventForm({
           instanceBody(pending.roomId, groupId),
         );
         toastSuccess("Der Termin ist gespeichert.");
-        onSaved({ kind: "instance", instance: saved });
+        reportSaved(op, { kind: "instance", instance: saved });
+        if (!op.isCurrent()) return;
         setPendingSeriesEdit(null);
         onClose();
       } catch (err) {
-        handleScopeError(scope, err);
-      } finally {
-        setSubmitting(false);
+        handleScopeError(op, scope, err);
       }
       return;
     }
 
     const typedScope = scope === "following" ? "following" : "all";
-    setSubmitting(true);
     try {
       const template =
         scopedSeries ??
@@ -3126,6 +3203,7 @@ export function useEventForm({
         scopeFrom,
       );
       if (closingConflict) {
+        if (!op.isCurrent()) return;
         setScopeClosingDayWarning({
           conflict: closingConflict.conflict,
           closingDayCount: closingConflict.count,
@@ -3138,7 +3216,7 @@ export function useEventForm({
         return;
       }
 
-      await continuePreparedSeriesEdit({
+      await continuePreparedSeriesEdit(op, {
         typedScope,
         roomId: pending.roomId,
         template,
@@ -3146,50 +3224,46 @@ export function useEventForm({
         seriesTemplateId,
       });
     } catch (err) {
-      handleScopeError(scope, err);
-    } finally {
-      setSubmitting(false);
+      handleScopeError(op, scope, err);
     }
   }
 
   /** #3594: `includeClosingDays` is the answer to the series prompt. */
   const confirmScopeClosingDay = async (includeClosingDays: boolean) => {
-    if (submitting) return;
+    if (save.pending) return;
     const warning = scopeClosingDayWarning;
     if (!warning) return;
     closingDayChoice.current = includeClosingDays;
     setScopeClosingDayWarning(null);
-    setSubmitting(true);
-    try {
-      await continuePreparedSeriesEdit({
-        typedScope: warning.scope,
-        roomId: warning.roomId,
-        template: warning.template,
-        periodEnd: warning.periodEnd,
-        seriesTemplateId: warning.seriesTemplateId,
-      });
-    } catch (err) {
-      handleScopeError(warning.scope, err);
-    } finally {
-      setSubmitting(false);
-    }
+    await runWrite("save", async (op) => {
+      try {
+        await continuePreparedSeriesEdit(op, {
+          typedScope: warning.scope,
+          roomId: warning.roomId,
+          template: warning.template,
+          periodEnd: warning.periodEnd,
+          seriesTemplateId: warning.seriesTemplateId,
+        });
+      } catch (err) {
+        handleScopeError(op, warning.scope, err);
+      }
+    });
   };
 
   const confirmLostEdits = async () => {
-    if (submitting) return;
+    if (save.pending) return;
     const pending = lostEdits;
     if (!pending) return;
-    setSubmitting(true);
-    try {
-      await pending.onConfirm();
-      setLostEdits(null);
-      onClose();
-    } catch (err) {
-      handleScopeError(pending.scope, err);
-    } finally {
-      submitLock.current = false;
-      setSubmitting(false);
-    }
+    await runWrite("save", async (op) => {
+      try {
+        await pending.onConfirm(op);
+        if (!op.isCurrent()) return;
+        setLostEdits(null);
+        onClose();
+      } catch (err) {
+        handleScopeError(op, pending.scope, err);
+      }
+    });
   };
 
   const openSeriesDeleteConfirm = () => {
@@ -3220,24 +3294,28 @@ export function useEventForm({
       return;
     }
 
-    setDeletingSeries(true);
-    clearDeleteError();
-    try {
-      await onDeleteSeries(initialSeries, deleteEffectiveDate);
-      setDeleteConfirmOpen(false);
-      onClose();
-    } catch (err) {
-      logger.error("series_delete_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      // Der Löschdialog ist offen: der Fehler bleibt in ihm.
-      void deleteErrors.show(err, {
-        object: "das Löschen des Regeltermins",
-        retry: () => latestDeleteRef.current(),
-      });
-    } finally {
-      setDeletingSeries(false);
-    }
+    const series = initialSeries;
+    const effectiveDate = deleteEffectiveDate;
+    await runWrite("delete", async (op) => {
+      clearDeleteError();
+      try {
+        await onDeleteSeries(series, effectiveDate);
+        if (!op.isCurrent()) return;
+        setDeleteConfirmOpen(false);
+        onClose();
+      } catch (err) {
+        logger.error("series_delete_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        // Der Löschdialog ist offen: der Fehler bleibt in ihm.
+        void deleteErrors.show(err, {
+          object: "das Löschen des Regeltermins",
+          retry: () => latestDeleteRef.current(),
+        });
+      }
+    });
   };
 
   useLayoutEffect(() => {
@@ -4037,6 +4115,7 @@ export function useEventForm({
     staffLoadError: staffLoad.error,
     retryStudentLoad,
     retryStaffLoad,
+    pending: save,
     submitting,
     handleSubmit,
     validateForm,

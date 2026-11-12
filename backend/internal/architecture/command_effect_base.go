@@ -6,7 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
+	"github.com/moto-ogs/project-phoenix/architecture/artifacts"
 )
 
 type effectBase struct {
@@ -17,7 +17,12 @@ type effectBase struct {
 
 // CompareCommandEffects checks reviewed effects against the immutable PR base.
 // New leaves need exact evidence; expanded exceptions need a newly added ADR.
-func CompareCommandEffects(project, ref string) error {
+//
+// It reads the base register through rewrite. A non-nil
+// rewrite is an approved module rename whose Go diff is proven to be the pure
+// rename (ADR 0217): base digests of the same identity then hash the same
+// sources under the old path, so the candidate digest replaces them.
+func CompareCommandEffects(project, ref string, rewrite *baseRewrite) error {
 	candidate, err := loadCommandEffects(project)
 	if err != nil {
 		return err
@@ -26,9 +31,12 @@ func CompareCommandEffects(project, ref string) error {
 	if err != nil {
 		return err
 	}
-	base, bootstrap, err := loadBaseCommandEffects(project, context)
+	base, bootstrap, err := loadBaseCommandEffects(project, context, rewrite)
 	if err != nil {
 		return err
+	}
+	if rewrite != nil {
+		adoptRenamedDigests(base, candidate)
 	}
 	if bootstrap {
 		context.addedADRs["0083"] = true
@@ -58,13 +66,89 @@ func resolveEffectBase(project, ref string) (effectBase, error) {
 		return effectBase{}, err
 	}
 	adrs, err := addedADRs(root, sha)
-	return effectBase{root: root, sha: sha, addedADRs: adrs}, err
+	if err != nil {
+		return effectBase{}, err
+	}
+	accepted, err := acceptedADRs(root, sha)
+	if err != nil {
+		return effectBase{}, err
+	}
+	for number := range accepted {
+		adrs[number] = true
+	}
+	return effectBase{root: root, sha: sha, addedADRs: adrs}, nil
+}
+
+// acceptedADRs lists the ADRs this change accepts: the base holds the file
+// with front-matter status proposed, the candidate the same file with status
+// accepted. A decision proposed in an earlier documentation change is
+// accepted in the change that implements it (ADR 0206), so it approves that
+// change's command effects like a new ADR would. It approves no ratchet
+// budget raise.
+func acceptedADRs(root, sha string) (map[string]bool, error) {
+	changed, err := gitOutput(root, "diff", "--name-only", "-z", sha, "--", "docs/adr/")
+	if err != nil {
+		return nil, err
+	}
+	accepted := map[string]bool{}
+	for _, name := range strings.Split(changed, "\x00") {
+		number, ok := adrNumber(filepath.Base(name))
+		if !ok || filepath.Dir(name) != "docs/adr" {
+			continue
+		}
+		accepts, err := acceptsADR(root, sha, name)
+		if err != nil {
+			return nil, err
+		}
+		if accepts {
+			accepted[number] = true
+		}
+	}
+	return accepted, nil
+}
+
+// acceptsADR reports whether the candidate's file name is accepted while the
+// base holds the same file as proposed.
+func acceptsADR(root, sha, name string) (bool, error) {
+	source, err := os.ReadFile(filepath.Join(root, name))
+	if os.IsNotExist(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	if adrStatus(string(source)) != "accepted" {
+		return false, nil
+	}
+	base, err := gitOutput(root, "show", sha+":"+name)
+	if err != nil {
+		return false, nil // Not in the base under this name: addedADRs decides.
+	}
+	return adrStatus(base) == "proposed", nil
+}
+
+// adrStatus is the status of the ADR's leading front matter, empty without.
+func adrStatus(source string) string {
+	lines := strings.Split(strings.ReplaceAll(source, "\r\n", "\n"), "\n")
+	if len(lines) == 0 || strings.TrimSpace(lines[0]) != "---" {
+		return ""
+	}
+	for _, line := range lines[1:] {
+		line = strings.TrimSpace(line)
+		if line == "---" {
+			return ""
+		}
+		if value, ok := strings.CutPrefix(line, "status:"); ok {
+			return strings.TrimSpace(value)
+		}
+	}
+	return ""
 }
 
 const commandEffectDecision = "docs/adr/0083-ratchets-protect-invariants-and-expose-command-effects.md"
 const commandEffectAddendum = "\n## Implementation addendum 2026-10-23 (#4739)\n"
 
-func loadBaseCommandEffects(project string, base effectBase) (*commandEffectManifest, bool, error) {
+func loadBaseCommandEffects(project string, base effectBase, rewrite *baseRewrite) (*commandEffectManifest, bool, error) {
 	relative, err := repositoryRelativePath(base.root, project, commandEffectInventory)
 	if err != nil {
 		return nil, false, err
@@ -84,8 +168,20 @@ func loadBaseCommandEffects(project string, base effectBase) (*commandEffectMani
 	if err != nil {
 		return nil, false, err
 	}
-	manifest, err := decodeCommandEffects(stored.Document)
+	manifest, err := decodeCommandEffects(rewrite.apply(stored.Document))
 	return manifest, false, err
+}
+
+func adoptRenamedDigests(base, candidate *commandEffectManifest) {
+	digests := make(map[string]string, len(candidate.Entries))
+	for _, entry := range candidate.Entries {
+		digests[entry.key()] = entry.BindingDigest
+	}
+	for index, entry := range base.Entries {
+		if digest, ok := digests[entry.key()]; ok {
+			base.Entries[index].BindingDigest = digest
+		}
+	}
 }
 
 // Only the first register may cite the new implementation addendum. Once a
@@ -220,7 +316,7 @@ func (entry commandEffectEntry) changedBindingFailures(was commandEffectEntry, i
 	return failures
 }
 
-func compareCommandEffectsIfEnabled(project, ref string, policy *Policy) error {
+func compareCommandEffectsIfEnabled(project, ref string, policy *Policy, rewrite *baseRewrite) error {
 	if !commandEffectsEnabled(policy) {
 		return nil
 	}
@@ -229,7 +325,7 @@ func compareCommandEffectsIfEnabled(project, ref string, policy *Policy) error {
 	if _, err := os.Stat(filepath.Join(project, commandEffectInventory)); os.IsNotExist(err) {
 		return nil
 	}
-	return CompareCommandEffects(project, ref)
+	return CompareCommandEffects(project, ref, rewrite)
 }
 
 func (manifest *commandEffectManifest) unresolvedCount() int {

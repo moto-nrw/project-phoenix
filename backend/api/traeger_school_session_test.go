@@ -18,10 +18,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // newTraegerSchoolSessionPortal mounts /traeger with its second-factor
@@ -150,8 +150,9 @@ func TestTraegerSchoolSessionRefusesForeignSchoolsAndMissingRights(t *testing.T)
 		member := traegerAccount(t, db, password)
 		testpkg.CreateTestTraegerMember(t, db, organization, member.ID, role)
 		session := signInTraegerWithSecondFactor(t, router, member.Email, password)
-		code, _ = startTraegerSchoolSession(t, router, session.AccessToken, school)
+		code, answer = startTraegerSchoolSession(t, router, session.AccessToken, school)
 		assert.Equal(t, http.StatusForbidden, code, "%s without Schulzugang gets 403 (#5471)", role)
+		assert.NotEqual(t, "traeger.school_not_found", answer.Code, "a missing right is no missing school")
 	}
 
 	// The token claims a right the database no longer grants: the owner

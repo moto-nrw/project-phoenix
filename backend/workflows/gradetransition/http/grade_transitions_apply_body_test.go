@@ -15,15 +15,15 @@ import (
 	"strings"
 	"testing"
 
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
 
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func TestGradeTransitionResource_Apply_BodyHandling(t *testing.T) {

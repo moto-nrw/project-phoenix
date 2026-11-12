@@ -3,7 +3,7 @@ package migrations
 import (
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -66,6 +66,8 @@ func TestUnusedAccountErasureWithoutWaitRollsBack(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := t.Context()
+	// Test this migration's round trip even after newer erasure extensions.
+	require.NoError(t, unusedAccountErasureWithoutWaitUp(ctx, db))
 	current := readUnusedAccountErasure(t, db)
 
 	require.NoError(t, unusedAccountErasureWithoutWaitDown(ctx, db))

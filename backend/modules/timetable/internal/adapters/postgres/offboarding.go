@@ -4,8 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 type offboardingInstanceRow struct {
@@ -25,6 +26,11 @@ func (s *Store) PreviewStaffOffboarding(ctx context.Context, staffID int64, from
 	if err != nil {
 		return instances, plannedSupervisors, stats, err
 	}
+	// The person's staff row is held (LockStaffRows); its blocks, assignments
+	// and planned supervisor rows are leaves after it.
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "schedule.activity_instances"); err != nil {
+		return instances, plannedSupervisors, stats, err
+	}
 	rows := []offboardingInstanceRow{}
 	query := instanceStaffSelect(db, &rows, tenantID).
 		ColumnExpr(`"activity_instance".date::text AS offboarding_date, "activity_instance".status AS offboarding_status, "activity_instance".updated_at AS instance_updated_at`).
@@ -41,6 +47,9 @@ func (s *Store) PreviewStaffOffboarding(ctx context.Context, staffID int64, from
 			instances = append(instances, domain.OffboardingInstance{AssignmentID: row.ID, AssignmentUpdatedAt: row.UpdatedAt,
 				InstanceID: row.InstanceID, Date: row.Date, Status: row.Status, InstanceUpdatedAt: row.InstanceUpdatedAt})
 		}
+	}
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "activities.supervisors"); err != nil {
+		return instances, plannedSupervisors, stats, err
 	}
 	supervisors := []plannedSupervisorRow{}
 	query = plannedSupervisorSelect(db, &supervisors, tenantID).

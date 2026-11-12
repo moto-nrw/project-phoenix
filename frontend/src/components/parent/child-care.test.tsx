@@ -463,6 +463,124 @@ describe("PickupTimeModal — failed preload guard", () => {
     expect(onSubmit).not.toHaveBeenCalled();
   });
 
+  it("keeps typed pickup fields when a focus refetch replaces records with equal values", () => {
+    const entry: CareException = {
+      date: todayISO(),
+      pickup_time: "14:30",
+      reason: "original",
+      source: "guardian",
+      pickup_source: "guardian",
+      updated_at: "2026-09-09T08:00:00Z",
+    };
+    const props = {
+      careExceptionsLoaded: true,
+      pickupChangeEnabled: true,
+      onClose: vi.fn(),
+      onSubmit: vi.fn(),
+      onRemove: vi.fn(),
+    };
+    const { rerender } = render(
+      <PickupTimeModal {...props} careExceptions={[entry]} />,
+    );
+    const reason = screen.getByRole("textbox", { name: /Grund/ });
+    fireEvent.change(reason, { target: { value: "typed draft" } });
+    rerender(<PickupTimeModal {...props} careExceptions={[{ ...entry }]} />);
+    expect(reason).toHaveValue("typed draft");
+  });
+
+  it.each(["exception", "request"] as const)(
+    "refills pickup fields when switching dates with equal saved %s values",
+    (source) => {
+      const nextDay = parseISODate(todayISO());
+      nextDay.setDate(nextDay.getDate() + 1);
+      const tomorrow = toISODate(nextDay);
+      const entries = [todayISO(), tomorrow].map((date) => ({
+        date,
+        pickup_time: "14:30",
+        reason: "appointment",
+      }));
+      const { dateInput, pickupInput, reasonInput } = renderModal({
+        careExceptions:
+          source === "exception"
+            ? entries.map((entry) => ({
+                ...entry,
+                source: "guardian",
+                pickup_source: "guardian",
+                updated_at: "2026-09-09T08:00:00Z",
+              }))
+            : [],
+        pickupChangeRequests:
+          source === "request"
+            ? entries.map((entry) => ({
+                ...entry,
+                id: entry.date,
+                status: "approved",
+                created_at: "2026-09-09T08:00:00Z",
+              }))
+            : [],
+      });
+
+      expect(pickupInput).toHaveValue("14:30");
+      expect(reasonInput).toHaveValue("appointment");
+      fireEvent.change(pickupInput, { target: { value: "15:00" } });
+      fireEvent.change(reasonInput!, { target: { value: "unsaved draft" } });
+      fireEvent.change(dateInput, { target: { value: tomorrow } });
+
+      expect(pickupInput).toHaveValue("14:30");
+      expect(reasonInput).toHaveValue("appointment");
+    },
+  );
+
+  it("keeps the edited pickup request identity after changing its date", async () => {
+    const update = vi
+      .spyOn(parentApi, "updatePickupChangeRequest")
+      .mockResolvedValue({
+        id: "request-edit",
+        date: "2026-09-10",
+        pickup_time: "14:30",
+        reason: "appointment",
+        status: "pending",
+        created_at: "2026-09-09T08:00:00Z",
+      });
+    render(
+      <PickupTimeModal
+        studentId="1"
+        careExceptions={[]}
+        careExceptionsLoaded
+        pickupChangeEnabled
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        onRemove={vi.fn()}
+        pickupChangeRequests={[
+          {
+            id: "request-edit",
+            date: todayISO(),
+            pickup_time: "14:30",
+            reason: "appointment",
+            status: "pending",
+            created_at: "2026-09-09T08:00:00Z",
+          },
+        ]}
+      />,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage bearbeiten" }));
+    const date =
+      document.querySelector<HTMLInputElement>('input[type="date"]')!;
+    fireEvent.change(date, { target: { value: "2026-09-10" } });
+    fireEvent.click(screen.getByRole("button", { name: "Änderung speichern" }));
+    await waitFor(() =>
+      expect(update).toHaveBeenCalledWith(
+        "1",
+        "request-edit",
+        expect.objectContaining({
+          date: "2026-09-10",
+          pickupTime: "14:30",
+          reason: "appointment",
+        }),
+      ),
+    );
+  });
+
   it("shows a pending request and lets the guardian edit it", () => {
     const onRemove = vi.fn().mockResolvedValue(undefined);
     render(
@@ -843,6 +961,95 @@ describe("PickupTimeModal — Änderungsfrist für heute", () => {
   });
 });
 
+// #5710: ab dem Betreuungsende der Schule ändern Eltern die heutige Abholzeit
+// nicht mehr, auch wenn das Kind noch im Unterricht ist. Der Dialog sagt das
+// vor der Eingabe; andere Tage bleiben offen.
+describe("PickupTimeModal — Betreuungsende", () => {
+  const CARE_DAY_ENDED =
+    "Die Betreuung ist für heute schon zu Ende. Die Abholzeit für heute können Sie nicht mehr ändern. Andere Tage können Sie weiter ändern.";
+
+  function renderEnded(
+    overrides: Partial<React.ComponentProps<typeof PickupTimeModal>> = {},
+  ) {
+    render(
+      <PickupTimeModal
+        careExceptions={[]}
+        careExceptionsLoaded
+        pickupChangeEnabled
+        careDayEnded
+        onClose={vi.fn()}
+        onSubmit={vi.fn().mockResolvedValue(undefined)}
+        onRemove={vi.fn().mockResolvedValue(undefined)}
+        {...overrides}
+      />,
+    );
+  }
+
+  it("sperrt heute nach dem Betreuungsende und nennt den Grund", () => {
+    renderEnded({
+      careExceptions: [
+        {
+          date: todayISO(),
+          pickup_time: "14:00",
+          source: "guardian",
+          pickup_source: "guardian",
+          updated_at: "2026-09-09T08:00:00Z",
+        },
+      ],
+    });
+
+    expect(screen.getByText(CARE_DAY_ENDED)).toBeInTheDocument();
+    expect(
+      screen.queryByLabelText(/^Abholzeit/, { selector: "input" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Änderung zurücknehmen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Anfrage senden" }),
+    ).toBeDisabled();
+  });
+
+  it("lässt nach dem Betreuungsende einen anderen Tag zu", () => {
+    renderEnded();
+    const d = parseISODate(todayISO());
+    d.setDate(d.getDate() + 1);
+    fireEvent.change(
+      document.querySelector<HTMLInputElement>('input[type="date"]')!,
+      { target: { value: toISODate(d) } },
+    );
+
+    // Anker: das Abholfeld ist für den anderen Tag wieder da.
+    expect(
+      screen.getByLabelText(/^Abholzeit/, { selector: "input" }),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(CARE_DAY_ENDED)).not.toBeInTheDocument();
+  });
+
+  it("sperrt heute, wenn der Server das Betreuungsende meldet", async () => {
+    const onCutoffPassed = vi.fn();
+    const onSubmit = vi.fn().mockRejectedValue(
+      new ApiError("x", 409, {
+        code: "care.pickup_change_care_day_ended",
+      }),
+    );
+    const { pickupInput, reasonInput } = renderModal({
+      onSubmit,
+      onCutoffPassed,
+    });
+
+    fireEvent.change(pickupInput, { target: { value: "14:00" } });
+    fireEvent.change(reasonInput!, { target: { value: "Arzttermin" } });
+    fireEvent.click(screen.getByRole("button", { name: "Anfrage senden" }));
+
+    expect(await screen.findAllByText(CARE_DAY_ENDED)).not.toHaveLength(0);
+    expect(onCutoffPassed).toHaveBeenCalled();
+    expect(
+      screen.getByRole("button", { name: "Anfrage senden" }),
+    ).toBeDisabled();
+  });
+});
+
 // Issue #1735: the former "Krank melden" modal became a generic "Abmelden" modal
 // with a Krank/Entschuldigt choice. These pin that the chosen kind reaches the
 // submit handler as the status argument, which is the heart of the feature.
@@ -1105,6 +1312,224 @@ describe("SickNoteModal — Abmeldegrund", () => {
     );
 
     expect(onSubmit).not.toHaveBeenCalled();
+  });
+});
+
+// #5698: families never overwrite a school entry. A day the school already
+// excused from a time goes to the school as a request; free days in the same
+// report are written directly.
+describe("SickNoteModal — Teil-Abwesenheit der Schule", () => {
+  const schoolPartial = (
+    date: string,
+    excusedFrom = "13:00",
+  ): CareException => ({
+    date,
+    pickup_time: excusedFrom,
+    excused_from: excusedFrom,
+    source: "staff",
+    pickup_source: "staff",
+    updated_at: "2026-09-08T10:00:00Z",
+  });
+
+  function chooseRange(from: string, to: string) {
+    fireEvent.change(screen.getByLabelText("Erster Tag"), {
+      target: { value: from },
+    });
+    fireEvent.change(screen.getByLabelText("Letzter Tag"), {
+      target: { value: to },
+    });
+  }
+
+  function fillReason() {
+    fireEvent.change(
+      screen.getByRole("textbox", { name: "Grund / Hinweis an die OGS" }),
+      { target: { value: "Fieber" } },
+    );
+  }
+
+  function send() {
+    fireEvent.click(
+      screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
+    );
+  }
+
+  it("nennt den Tag, für den eine Anfrage an die OGS geht, und sendet alle Tage", async () => {
+    const onSubmit = vi.fn().mockResolvedValue("partly_pending");
+    render(
+      <SickNoteModal
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        sickRequiresApproval={false}
+        careExceptions={[schoolPartial("2026-09-10")]}
+      />,
+    );
+    chooseRange("2026-09-10", "2026-09-11");
+
+    const notice = screen.getByRole("status");
+    expect(notice).toHaveTextContent(
+      "Für einen Tag geht eine Anfrage an die OGS",
+    );
+    expect(notice).toHaveTextContent(/10\.09\.2026.*ab 13:00 Uhr/);
+    expect(notice).toHaveTextContent("Bis dahin gilt ihr Eintrag.");
+    // The test translator skips ICU plurals; the interpolated total is enough.
+    expect(
+      screen.getByText(/von 2 Tagen wird direkt gemeldet\./),
+    ).toBeInTheDocument();
+
+    fillReason();
+    send();
+    await waitFor(() => expect(onSubmit).toHaveBeenCalledTimes(1));
+    expect(onSubmit).toHaveBeenCalledWith(
+      ["2026-09-10", "2026-09-11"],
+      "Fieber",
+      "sick",
+      [],
+    );
+    expect(
+      await screen.findByRole("heading", { name: "Gemeldet und angefragt" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die freien Tage sind gemeldet. Für die anderen Tage prüft die OGS Ihre Meldung. Bis dahin gilt ihr Eintrag.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("sendet auch, wenn jeder Tag schon eingetragen ist, und sagt, wer entscheidet", async () => {
+    const onSubmit = vi.fn().mockResolvedValue("pending");
+    render(
+      <SickNoteModal
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        sickRequiresApproval={false}
+        careExceptions={[schoolPartial("2026-09-09", "11:30")]}
+      />,
+    );
+
+    expect(
+      screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
+    ).toBeEnabled();
+    fillReason();
+    send();
+    await waitFor(() =>
+      expect(onSubmit).toHaveBeenCalledWith(
+        ["2026-09-09"],
+        "Fieber",
+        "sick",
+        [],
+      ),
+    );
+    expect(
+      await screen.findByText(
+        "Die OGS hat für diese Tage schon etwas eingetragen. Sie prüft Ihre Meldung. Bis dahin gilt ihr Eintrag.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("zählt eine Krankmeldung der OGS als Schuleintrag", () => {
+    render(
+      <SickNoteModal
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        sickRequiresApproval={false}
+        sickDays={[
+          {
+            id: "1",
+            student_id: "7",
+            date: "2026-09-10",
+            status: "sick",
+            reported_at: "2026-09-08T10:00:00Z",
+            source: "planned",
+          },
+        ]}
+      />,
+    );
+    chooseRange("2026-09-10", "2026-09-11");
+
+    const notice = screen.getByRole("status");
+    expect(notice).toHaveTextContent(
+      "Für einen Tag geht eine Anfrage an die OGS",
+    );
+    expect(notice).toHaveTextContent(
+      /10\.09\.2026: von der OGS krank gemeldet/,
+    );
+    expect(
+      screen.getByText(/von 2 Tagen wird direkt gemeldet\./),
+    ).toBeInTheDocument();
+  });
+
+  it("übersieht Abholzeiten ohne Teil-Abwesenheit", () => {
+    render(
+      <SickNoteModal
+        onClose={vi.fn()}
+        onSubmit={vi.fn()}
+        sickRequiresApproval={false}
+        careExceptions={[
+          {
+            date: "2026-09-09",
+            pickup_time: "14:00",
+            source: "staff",
+            pickup_source: "staff",
+            updated_at: "2026-09-08T10:00:00Z",
+          },
+        ]}
+      />,
+    );
+
+    expect(
+      screen.getByText(/Ihr Kind wird für diesen Tag abgemeldet\./),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Anfrage an die OGS/)).not.toBeInTheDocument();
+  });
+
+  it("nennt den Tag nach dem Nachladen, wenn die OGS ihn gerade eingetragen hat", async () => {
+    // The school entered the day after the dialog opened: the dialog reads
+    // the school's entries for exactly the chosen days.
+    const listSpy = vi
+      .spyOn(parentApi, "listCareExceptions")
+      .mockResolvedValue([schoolPartial("2026-09-10")]);
+    const onSubmit = vi.fn().mockRejectedValue(
+      new ApiError("conflict", 409, {
+        code: "care.care_exception_conflict",
+      }),
+    );
+    render(
+      <SickNoteModal
+        studentId="7"
+        onClose={vi.fn()}
+        onSubmit={onSubmit}
+        sickRequiresApproval={false}
+      />,
+    );
+    chooseRange("2026-09-10", "2026-09-11");
+    fillReason();
+    send();
+
+    expect(
+      await screen.findByText(/10\.09\.2026: entschuldigt ab 13:00 Uhr/),
+    ).toBeInTheDocument();
+    expect(listSpy).toHaveBeenCalledWith("7", {
+      from: "2026-09-10",
+      to: "2026-09-11",
+    });
+  });
+
+  it("bittet um erneutes Senden, wenn das Nachladen nichts findet", async () => {
+    vi.spyOn(parentApi, "listCareExceptions").mockResolvedValue([]);
+    const onSubmit = vi.fn().mockRejectedValue(
+      new ApiError("conflict", 409, {
+        code: "care.care_exception_conflict",
+      }),
+    );
+    render(
+      <SickNoteModal studentId="7" onClose={vi.fn()} onSubmit={onSubmit} />,
+    );
+    fillReason();
+    send();
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Die OGS hat gerade etwas für einen der Tage eingetragen. Bitte senden Sie die Meldung noch einmal.",
+    );
   });
 });
 

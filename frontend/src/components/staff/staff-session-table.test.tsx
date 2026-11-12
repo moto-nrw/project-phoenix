@@ -1660,3 +1660,78 @@ describe("staff-session-table.invalidation", () => {
     });
   });
 });
+
+describe("staff-session-table.credit", () => {
+  // #6851, #6852: Wegpackzeit und Rundung stecken in der Ist-Zeit; die
+  // Hinweis-Spalte zeigt sie, die gestempelten Zeiten bleiben stehen.
+  function renderCredit(session: StaffHistorySession) {
+    return render(
+      <StaffSessionTable
+        staffId="1"
+        from={new Date(2026, 0, 5)}
+        to={new Date(2026, 0, 11)}
+        sessions={[session]}
+        schedule={null}
+        accountStartDate=""
+        accountStartDatePending={false}
+        accountStartDateError={false}
+        today={new Date(2026, 5, 15)}
+        isAdminView
+      />,
+    );
+  }
+
+  const stamped: StaffHistorySession = {
+    id: "51",
+    date: "2026-01-05",
+    // 08:00–14:03 Berlin, +5 Min. Wegpackzeit, auf 15 Min. gerundet: 6:15.
+    net_minutes: 375,
+    check_in_time: "2026-01-05T07:00:00Z",
+    check_out_time: "2026-01-05T13:03:00Z",
+    break_minutes: 0,
+    pack_up_minutes: 5,
+    rounding_minutes: 7,
+  };
+
+  it("zeigt Wegpackzeit und Rundung neben den gestempelten Zeiten", () => {
+    renderCredit(stamped);
+
+    expect(screen.getByText("+5 Min. Wegpackzeit")).toBeInTheDocument();
+    expect(screen.getByText("Gerundet +7 Min.")).toBeInTheDocument();
+    expect(screen.getByText("14:03")).toBeInTheDocument();
+  });
+
+  it("behält die Hinweise bei einem Checkout genau um Mitternacht", () => {
+    renderCredit({
+      ...stamped,
+      check_in_time: "2026-01-05T22:03:00Z",
+      check_out_time: "2026-01-05T23:00:00Z",
+      net_minutes: 60,
+      rounding_minutes: -2,
+    });
+    expect(screen.getByText("+5 Min. Wegpackzeit")).toBeInTheDocument();
+    expect(screen.getByText("Gerundet -2 Min.")).toBeInTheDocument();
+    expect(screen.getByText("00:00")).toBeInTheDocument();
+  });
+
+  it("bucht Wegpackzeit nur auf den letzten Tag des Nachtblocks", () => {
+    renderCredit({
+      ...stamped,
+      check_in_time: "2026-01-05T21:00:00Z",
+      check_out_time: "2026-01-06T00:00:00Z",
+      net_minutes: 185,
+      rounding_minutes: 0,
+    });
+    expect(screen.getByText("2h")).toBeInTheDocument();
+    expect(screen.getByText("1h 5min")).toBeInTheDocument();
+    expect(screen.getAllByText("+5 Min. Wegpackzeit")).toHaveLength(1);
+  });
+
+  it("zeigt abgerundete Minuten mit Minuszeichen", () => {
+    renderCredit({ ...stamped, pack_up_minutes: 0, rounding_minutes: -3 });
+
+    expect(screen.getByText("Gerundet -3 Min.")).toBeInTheDocument();
+    expect(screen.getByText("14:03")).toBeInTheDocument();
+    expect(screen.queryByText(/Wegpackzeit/)).not.toBeInTheDocument();
+  });
+});

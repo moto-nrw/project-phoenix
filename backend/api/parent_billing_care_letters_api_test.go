@@ -20,9 +20,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 type careLetterDocumentBody struct {
@@ -189,6 +189,7 @@ func TestCareLettersSendEveryFamilyOnceAndShowTheirState(t *testing.T) {
 	assert.Equal(t, careSeriesBody{Queued: 1, WithoutEmail: 1}, decodeSchoolPortalData[careSeriesBody](t, rec.Body.Bytes()))
 	mails := careLetterMails(t, f, run.ID)
 	require.Len(t, mails, 1)
+	assertInvoiceMailHistory(t, f.traeger, f.office.token, "care-invoices", mia.ID, 1, 0)
 	var payload map[string]any
 	require.NoError(t, json.Unmarshal(mails[0].Payload, &payload))
 	assert.Equal(t, "care_invoice", payload["document_kind"])
@@ -220,11 +221,15 @@ func TestCareLettersSendEveryFamilyOnceAndShowTheirState(t *testing.T) {
 	_, err := f.db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET status = 'dead_letter' WHERE id = ?`, mails[0].ID)
 	require.NoError(t, err)
 	assert.Equal(t, "failed", careLetterOf(careLetters(t, f, run.ID), mia, "invoice").Status)
+	assertInvoiceMailHistory(t, f.traeger, f.office.token, "care-invoices", mia.ID, 1, 0)
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodPost, oneMail, nil)
 	require.Equal(t, http.StatusAccepted, rec.Code, "a failed mail is sent again: %s", rec.Body.String())
 	assert.Len(t, careLetterMails(t, f, run.ID), 2)
 	assert.Equal(t, 1, careInboxPushes(t, f), "only the first send pushes")
 	assert.Equal(t, 2, careLetterOf(careLetters(t, f, run.ID), mia, "invoice").Sends)
+	_, err = f.db.ExecContext(context.Background(), `UPDATE platform.email_outbox SET status = 'sent', sent_at = NOW() WHERE id = ?`, careLetterMails(t, f, run.ID)[1].ID)
+	require.NoError(t, err)
+	assertInvoiceMailHistory(t, f.traeger, f.office.token, "care-invoices", mia.ID, 2, 1)
 
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, careRunPath(run.ID, "/letters/print"), nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

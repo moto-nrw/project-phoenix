@@ -148,6 +148,7 @@ export function ReleaseSupervisionModal({
       confirmText="Abgeben"
       confirmVariant="danger"
       isConfirmLoading={isConfirmLoading}
+      loadingText="Wird abgegeben …"
     >
       <div className="space-y-4">
         <FormErrorAlert message={error} />

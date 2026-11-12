@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -102,4 +102,20 @@ func TestSortDailyParticipantsOrdersByClassNameAndID(t *testing.T) {
 		ids = append(ids, participant.StudentID)
 	}
 	assert.Equal(t, []int64{15, 11, 12, 14, 13}, ids)
+}
+
+func TestDailyParticipantsUseGermanNamesAndNumericClasses(t *testing.T) {
+	t.Parallel()
+	participants := []mealplan.DailyParticipant{
+		{StudentID: 4, FirstName: "Anna", LastName: "Adam", SchoolClass: "10a"},
+		{StudentID: 3, FirstName: "Anna", LastName: "Zimmermann", SchoolClass: "2a"},
+		{StudentID: 2, FirstName: "Zoe", LastName: "Özdemir", SchoolClass: "2a"},
+		{StudentID: 1, FirstName: "Änne", LastName: "Özdemir", SchoolClass: "2a"},
+	}
+	mealplan.SortDailyParticipants(participants)
+	ids := make([]int64, len(participants))
+	for i, p := range participants {
+		ids[i] = p.StudentID
+	}
+	assert.Equal(t, []int64{1, 2, 3, 4}, ids)
 }

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // AccountLifecycleStore is the persistence port over the identity-owned rows
@@ -42,6 +42,11 @@ type StaffDirectory interface {
 	LinkPersonToRFIDCard(ctx context.Context, personID int64, tagID string) error
 	IsStudentPerson(ctx context.Context, personID int64) (bool, error)
 	FindStaffByPerson(ctx context.Context, personID int64) (domain.StaffMember, bool, error)
+	// LockStaffPersonMerge shares the school's staff person merge gate for
+	// the caller's transaction. The identity chain takes it before it writes
+	// a person or a staff row (#6702): the merge holds it exclusively while it
+	// locks the school's staff rows and then their people.
+	LockStaffPersonMerge(ctx context.Context) error
 	CreateStaff(ctx context.Context, tenantID, personID int64, retiredStaffID *int64) (int64, error)
 	FindCaregiverProfile(ctx context.Context, staffID int64) (domain.CaregiverProfile, bool, error)
 	CreateCaregiverProfile(ctx context.Context, tenantID, staffID int64, position string) (int64, error)
@@ -74,11 +79,11 @@ type AccessTokenCodec interface {
 }
 
 // AccountAdministration is the consumer-owned port over the retained role
-// and account management flows staff offboarding drives (#2721): a role
+// and account management flows staff offboarding drives (#2721): a role-set
 // removal revokes the sessions it must, a deactivation records the durable
 // account-wide revocation intent. Both join the caller's transaction.
 type AccountAdministration interface {
-	RemoveRoleFromAccount(ctx context.Context, accountID, roleID int64) error
+	RemoveRolesFromAccount(ctx context.Context, accountID int64, roleIDs []int64) error
 	DeactivateAccount(ctx context.Context, accountID int64) error
 }
 
@@ -133,6 +138,9 @@ type GuardianDirectory interface {
 // context carries; the public validate and accept routes hold the
 // administrative transaction.
 type GuardianInvitationStore interface {
+	// InvalidateGuardianInvitations ends open links. Contact changes also
+	// invalidate pending approvals; replacing a mailed link must preserve them.
+	InvalidateGuardianInvitations(ctx context.Context, guardianProfileID int64, now time.Time, includePendingApprovals bool) error
 	// LockGuardianAccountEmail serializes guardian provisioning across schools,
 	// including when no account row exists. Held until the caller's transaction ends.
 	LockGuardianAccountEmail(ctx context.Context, email string) error
@@ -148,12 +156,14 @@ type GuardianInvitationStore interface {
 	ListRedeemableGuardianInvitations(ctx context.Context, now time.Time) ([]domain.GuardianInvitation, error)
 	InsertGuardianInvitation(ctx context.Context, invitation domain.GuardianInvitation) (domain.GuardianInvitation, error)
 	// UpdateGuardianInvitation writes the invitation only while it is still
-	// unaccepted and carries expectedApprovalStatus, the status the caller
-	// read; otherwise it reports ErrGuardianInvitationNotFound.
-	UpdateGuardianInvitation(ctx context.Context, invitation domain.GuardianInvitation, expectedApprovalStatus string) error
+	// unaccepted and carries the approval status and expiry the caller read;
+	// otherwise it reports ErrGuardianInvitationNotFound.
+	UpdateGuardianInvitation(ctx context.Context, invitation domain.GuardianInvitation, expectedApprovalStatus string, expectedExpiresAt time.Time) error
 	// AcceptGuardianInvitation stamps the acceptance and reports whether the
-	// invitation was still unaccepted, so a token is spent exactly once.
-	AcceptGuardianInvitation(ctx context.Context, id int64, acceptedAt time.Time) (bool, error)
+	// invitation was still unaccepted and still carried the link token it was
+	// looked up by, so a token is spent exactly once and a replaced link
+	// never (#6495).
+	AcceptGuardianInvitation(ctx context.Context, id int64, token string, acceptedAt time.Time) (bool, error)
 
 	AccountProvisioning
 }

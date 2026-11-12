@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 
 import { StatusBadge } from "~/components/ui/status-badge";
 import { ConfirmationModal, Modal } from "~/components/ui/modal";
@@ -41,6 +41,7 @@ import {
 import { createLogger } from "~/lib/logger";
 import { formatDate } from "~/lib/date-helpers";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "OfferingChangeRequestModal" });
 
@@ -157,7 +158,7 @@ export function OfferingChangeRequestModal({
   /** Ob die OGS einen Grund verlangt (requiresGuardianReason). */
   reasonRequired?: boolean;
 }>) {
-  const t = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentMasterData");
   const locale = useLocale();
   const [catalog, setCatalog] = useState<OfferingCatalog | null>(null);
   const [draft, setDraft] = useState<DraftMap>({});
@@ -658,6 +659,7 @@ export function OfferingChangeRequestModal({
         confirmText={t("careOfferingsModal.withdrawalConfirmSubmit")}
         cancelText={t("careOfferingsModal.withdrawalConfirmBack")}
         isConfirmLoading={submitting}
+        loadingText={t("careOfferingsModal.submitting")}
       >
         <p className="text-sm text-gray-600">
           {t("careOfferingsModal.withdrawalConfirmBody", {

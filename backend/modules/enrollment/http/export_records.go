@@ -4,12 +4,12 @@ import (
 	"sort"
 	"strings"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
 
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
 )
 
 // ---------------------------------------------------------------------
@@ -268,6 +268,13 @@ func childFields(ch ExportChildRow, childCustoms []capability.FormField) []lists
 		lists.Field{Label: "Aktivierung", Value: activationSummary(c)},
 		lists.Field{Label: "Betreuungsangebote", Value: formatOfferings(ch.Offerings)},
 	)
+	if c.HolidayCareWish != nil {
+		wish := "nicht gewünscht"
+		if *c.HolidayCareWish {
+			wish = "gewünscht"
+		}
+		fields = append(fields, lists.Field{Label: "Ferienbetreuung", Value: wish})
+	}
 	for _, cf := range childCustoms {
 		if v, ok := c.CustomData.Lookup(cf.Key); ok {
 			fields = append(fields, lists.Field{Label: cf.Label, Value: formatCustomValue(cf, v)})

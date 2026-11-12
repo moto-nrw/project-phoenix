@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 const shiftWallClockLayout = "15:04:05"
@@ -20,7 +20,7 @@ func ShiftCapability(shift *workforce.ShiftRecord) workforce.StaffShift {
 	value := workforce.StaffShift{
 		ID: shift.ID, TenantID: shift.TenantID, StaffID: shift.StaffID, Date: shift.Date.String(),
 		StartTime: shiftWallClock(shift.StartTime), EndTime: shiftWallClock(shift.EndTime), BreakMinutes: shift.BreakMinutes,
-		ShiftTypeID: shift.ShiftTypeID, Notes: shift.Notes, SeriesID: shift.SeriesID, Detached: shift.Detached,
+		ShiftTypeID: shift.ShiftTypeID, Notes: shift.Notes, SeriesID: shift.SeriesID, Detached: shift.Detached, SeriesOverride: shift.SeriesOverride,
 		Cancelled: shift.Cancelled, ChangeReason: shift.ChangeReason, OriginShiftID: shift.OriginShiftID,
 		SickAbsenceID: shift.SickAbsenceID, CreatedBy: shift.CreatedBy, UpdatedBy: shift.UpdatedBy,
 		CreatedAt: shift.CreatedAt, UpdatedAt: shift.UpdatedAt,
@@ -52,6 +52,7 @@ func applyShiftToRow(shift *workforce.ShiftRecord, value workforce.StaffShift) {
 	shift.Notes = value.Notes
 	shift.SeriesID = value.SeriesID
 	shift.Detached = value.Detached
+	shift.SeriesOverride = value.SeriesOverride
 	shift.SeriesOccurrenceDate = nil
 	if value.SeriesOccurrenceDate != "" {
 		occurrence := calendar.Date(value.SeriesOccurrenceDate)

@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -123,7 +123,7 @@ func TestClassHomeworkIsTenantIsolated(t *testing.T) {
 	assert.Equal(t, []string{"eigene"}, texts, "only the own school's rows are visible")
 	_, err = tx.ExecContext(t.Context(), `INSERT INTO education.class_homework (tenant_id, school_class, date, description)
 		VALUES (?, '3a', '2026-10-22', 'eingeschmuggelt')`, other)
-	assert.ErrorContains(t, err, "row-level security", "a row for another school is refused")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "a row for another school is refused")
 }
 
 // TestSchoolErasureDeletesHomework proves the reinstalled erasure phases
@@ -154,6 +154,9 @@ func TestSchoolErasureDeletesHomework(t *testing.T) {
 func TestClassHomeworkRollbackPreservesSchoolErasure(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	// The message attachments (1.15.936, #6685) extend the erasure functions
+	// this test restores; they go first.
+	require.NoError(t, messageAttachmentsDown(t.Context(), db))
 	// Roll back the holiday guests first (#4666): their tables and foreign
 	// keys extend the erasure functions the older migrations restore.
 	rollBackHolidayGuests(t, db)

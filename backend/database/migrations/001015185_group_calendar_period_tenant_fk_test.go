@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -18,9 +18,7 @@ func TestGroupCalendarPeriodTenantFKRejectsCrossTenantReference(t *testing.T) {
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
-	testpkg.OwnTenantRows(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
-	testpkg.OwnTenantRows(t, db, tenantB)
 	t.Cleanup(func() {
 		cleanupCtx := context.Background()
 		_, err := db.NewDelete().TableExpr("schedule.calendar_periods").Where("tenant_id IN (?)", testpkg.DBList([]int64{tenantA, tenantB})).Exec(cleanupCtx)

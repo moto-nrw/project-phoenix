@@ -12,9 +12,9 @@ import (
 	"github.com/go-webauthn/webauthn/webauthn"
 	"github.com/gofrs/uuid"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // OperatorPasskeyFlows runs the operator portal's WebAuthn ceremonies
@@ -51,12 +51,12 @@ type OperatorPasskeyFlowDependencies struct {
 // operatorPasskeyGate is the second factor an operator registration is gated
 // by; operatorPasskeySessions mints the pair a completed login returns.
 type operatorPasskeyGate interface {
-	StartOperatorMFAChallenge(ctx context.Context, operatorID int64, ip net.IP) (string, error)
-	VerifyOperatorMFACode(ctx context.Context, operatorID int64, code string) error
+	StartOperatorMFAChallenge(ctx context.Context, operatorID int64, ip net.IP, credentialGeneration *int64) (string, error)
+	VerifyOperatorMFACode(ctx context.Context, operatorID int64, code string, credentialGeneration *int64) error
 }
 
 type operatorPasskeySessions interface {
-	IssueTokensForAuthenticatedOperator(ctx context.Context, operatorID int64, ipAddress, userAgent string) (string, string, error)
+	IssueTokensForAuthenticatedOperator(ctx context.Context, operatorID int64, credentialGeneration *int64, ipAddress, userAgent string) (string, string, error)
 }
 
 // NewOperatorPasskeyFlows composes the ceremonies. A missing relying party
@@ -91,7 +91,8 @@ func (f *OperatorPasskeyFlows) StartEnrollmentChallenge(ctx context.Context, ope
 	if err != nil {
 		return domain.PasskeyEnrollmentChallenge{}, err
 	}
-	token, err := f.mfa.StartOperatorMFAChallenge(ctx, operatorID, ip)
+	// The registration runs in a session; no password check precedes it.
+	token, err := f.mfa.StartOperatorMFAChallenge(ctx, operatorID, ip, nil)
 	if err != nil {
 		return domain.PasskeyEnrollmentChallenge{}, err
 	}
@@ -104,7 +105,7 @@ func (f *OperatorPasskeyFlows) BeginRegistration(ctx context.Context, request do
 	if err := domain.ValidateOperatorPasskeyOrigin(request.ExpectedOrigin, f.originHost); err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
-	if err := f.mfa.VerifyOperatorMFACode(ctx, request.OperatorID, request.Code); err != nil {
+	if err := f.mfa.VerifyOperatorMFACode(ctx, request.OperatorID, request.Code, nil); err != nil {
 		return domain.PasskeyCeremonyOptions{}, err
 	}
 	operator, err := f.operators.findOperatorByID(ctx, request.OperatorID)
@@ -271,7 +272,8 @@ func (f *OperatorPasskeyFlows) FinishLogin(ctx context.Context, request domain.O
 	if err != nil {
 		return domain.PasskeyLoginResult{}, err
 	}
-	accessToken, refreshToken, err := f.sessions.IssueTokensForAuthenticatedOperator(ctx, operatorID, request.IPAddress, request.UserAgent)
+	// A passkey sign-in checks no password, so nothing binds it to one.
+	accessToken, refreshToken, err := f.sessions.IssueTokensForAuthenticatedOperator(ctx, operatorID, nil, request.IPAddress, request.UserAgent)
 	if err != nil {
 		return domain.PasskeyLoginResult{}, err
 	}

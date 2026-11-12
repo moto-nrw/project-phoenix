@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // careMealHorizon is how many months back a run looks for released Mensa
@@ -202,7 +202,7 @@ func (c *CareBilling) addMeals(ctx context.Context, organizationID int64, run pa
 		return err
 	}
 	from := calendar.NewDate(run.BillingMonth.Year(), run.BillingMonth.Month()-(careMealHorizon-1), 1)
-	releases, err := c.meals.ReleasedMealMonths(ctx, organizationID, monthEnd(run.BillingMonth))
+	releases, err := c.meals.ReleasedMealMonths(ctx, organizationID, from, monthEnd(run.BillingMonth))
 	if err != nil {
 		return fmt.Errorf("parent billing: read the released Mensa months: %w", err)
 	}
@@ -297,11 +297,16 @@ func mealTariffOn(tariffs []parentbilling.CareMealTariff, schoolID int64, month 
 // next month; a held or unpriced contract stays out with its reason
 // shown elsewhere. An ended month without a release is a gap.
 func billMeals(month *careMonth, in careMealInput) {
+	from := calendar.NewDate(in.month.Year(), in.month.Month()-(careMealHorizon-1), 1)
+	// Bound identity matching and billing to the same inclusive window,
+	// including when a caller supplies releases outside the store's range.
+	in.releases = slices.DeleteFunc(slices.Clone(in.releases), func(release parentbilling.CareMealRelease) bool {
+		return release.Month.Before(from) || release.Month.After(in.month)
+	})
 	in.childNames = mealChildNames(in)
 	in.contracts, in.contractOrder = versionsByContract(in.versions)
 	month.mealGaps, month.mealUnbilled = []parentbilling.CareMealGap{}, []parentbilling.CareMealUnbilled{}
 	month.mealChanged = []parentbilling.CareMealChanged{}
-	from := calendar.NewDate(in.month.Year(), in.month.Month()-(careMealHorizon-1), 1)
 	released := map[CareMealKey]parentbilling.CareMealRelease{}
 	for _, release := range in.releases {
 		released[CareMealKey{SchoolID: release.SchoolID, Month: release.Month}] = release
@@ -482,8 +487,10 @@ func mealInvoiceIssued(in careMealInput, contractID int64) bool {
 	if in.ownInvoice {
 		return in.mealInvoiced[contractID]
 	}
-	_, issued := in.invoiced[contractID]
-	return issued
+	invoice, issued := in.invoiced[contractID]
+	// A notice assesses care only. A coexisting monthly invoice still
+	// closes the invoice that carries this month's meals.
+	return issued && (invoice.DocumentKind != parentbilling.DocumentKindFeeNotice || invoice.ID != 0)
 }
 
 // mealChildContracts names the contracts at the school in the month of the run

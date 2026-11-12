@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The signature of a care contract (#4679, ADR 0088 section 3): the parents
@@ -156,6 +156,7 @@ type Signing interface {
 	LinkSigning(ctx context.Context, link string) (SigningView, error)
 	LinkSigningDocument(ctx context.Context, link string) (File, error)
 	SignByLink(ctx context.Context, link string, input SignatureInput) (SigningView, error)
+	LinkFamilyChildren
 }
 
 // InboxSigning serves the signature in the parents portal. The workflow

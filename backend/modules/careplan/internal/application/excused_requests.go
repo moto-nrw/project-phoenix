@@ -9,8 +9,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
 )
 
 // excusedRequestMaxReasonLen bounds notes and staff reasons (in runes).
@@ -50,6 +50,9 @@ type ExcusedRequestDependencies struct {
 	Notifier    ports.AbsenceNotifier
 	Ledger      ports.RequestLedger
 	Shares      ports.ShareVisibility
+	// PartialAbsences removes partial absences a reviewer confirmed
+	// replacing (#5698). Nil refuses such an approval.
+	PartialAbsences ports.PartialAbsenceReplacer
 }
 
 // ExcusedRequests is the student excused-absence request workflow. A pending
@@ -57,18 +60,19 @@ type ExcusedRequestDependencies struct {
 // approve it in the central request queue. Every method runs inside the
 // ambient tenant transaction the caller opened.
 type ExcusedRequests struct {
-	carePlan    careplan.Capability
-	students    ports.ExcusedRequestStudents
-	scope       careplan.ReviewScopeResolver
-	hooks       ports.TransactionHooks
-	today       func() careplan.Date
-	observe     ports.Observer
-	logger      *slog.Logger
-	messenger   ports.RequestMessenger
-	broadcaster ports.StaffBroadcaster
-	notifier    ports.AbsenceNotifier
-	ledger      ports.RequestLedger
-	shares      ports.ShareVisibility
+	carePlan        careplan.Capability
+	students        ports.ExcusedRequestStudents
+	scope           careplan.ReviewScopeResolver
+	hooks           ports.TransactionHooks
+	today           func() careplan.Date
+	observe         ports.Observer
+	logger          *slog.Logger
+	messenger       ports.RequestMessenger
+	broadcaster     ports.StaffBroadcaster
+	notifier        ports.AbsenceNotifier
+	ledger          ports.RequestLedger
+	shares          ports.ShareVisibility
+	partialAbsences ports.PartialAbsenceReplacer
 }
 
 func NewExcusedRequests(deps ExcusedRequestDependencies) (*ExcusedRequests, error) {
@@ -85,7 +89,7 @@ func NewExcusedRequests(deps ExcusedRequestDependencies) (*ExcusedRequests, erro
 		carePlan: deps.CarePlan, students: deps.Students, scope: deps.Scope, hooks: deps.Hooks,
 		today: deps.Today, observe: deps.Observe, logger: deps.Logger,
 		messenger: deps.Messenger, broadcaster: deps.Broadcaster, notifier: deps.Notifier,
-		ledger: deps.Ledger, shares: deps.Shares,
+		ledger: deps.Ledger, shares: deps.Shares, partialAbsences: deps.PartialAbsences,
 	}, nil
 }
 
@@ -118,7 +122,9 @@ func (w *ExcusedRequests) Submit(ctx context.Context, input careplan.ExcusedRequ
 	if err != nil {
 		return nil, err
 	}
-	if err := w.ensureNoPartialAbsence(ctx, input.StudentID, sorted); err != nil {
+	// A parent request may name a day with a staff-entered partial absence:
+	// the school decides it and may replace that entry on approval (#5698).
+	if _, err := w.lockRequestedDays(ctx, input.StudentID, sorted); err != nil {
 		return nil, err
 	}
 	existing, err := w.findMatchingPendingRequest(ctx, input.StudentID, sorted, input.AbsenceStatus)
@@ -245,7 +251,8 @@ func (w *ExcusedRequests) EditRequest(ctx context.Context, input careplan.Excuse
 	if err != nil {
 		return nil, err
 	}
-	if err := w.ensureNoPartialAbsence(ctx, req.StudentID, sorted); err != nil {
+	// A partial absence on a day no longer refuses the request (#5698).
+	if _, err := w.lockRequestedDays(ctx, req.StudentID, sorted); err != nil {
 		return nil, err
 	}
 	if err := w.carePlan.UpdatePendingExcusedAbsenceRequest(ctx, req.ID, sorted, trimmed, absenceStatus); err != nil {

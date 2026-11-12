@@ -81,7 +81,7 @@ export interface CareTimeOverruns {
 export type CareTimeExportFormat = "pdf" | "xlsx";
 
 /** Tone of the day's status pill; matches the kit's StatusBadge tones. */
-export type CareTimeTone = "blue" | "green" | "orange" | "red" | "gray";
+export type CareTimeTone = "blue" | "green" | "warning" | "red" | "gray";
 
 /** Gruppen- und Klassenfilter der Statistik, beide wiederholbar. */
 export interface CareTimeFilter {
@@ -152,8 +152,8 @@ export const CARE_TIME_DAY_LABELS: Record<
   { label: string; tone: CareTimeTone }
 > = {
   within_plan: { label: "Wie gebucht", tone: "green" },
-  overrun: { label: "Außerhalb der Buchung", tone: "orange" },
-  unbooked: { label: "Da ohne Buchung", tone: "orange" },
+  overrun: { label: "Außerhalb der Buchung", tone: "warning" },
+  unbooked: { label: "Da ohne Buchung", tone: "warning" },
   absent: { label: "Nicht da", tone: "gray" },
   sick: { label: "Krank", tone: "red" },
   excused: { label: "Entschuldigt", tone: "gray" },

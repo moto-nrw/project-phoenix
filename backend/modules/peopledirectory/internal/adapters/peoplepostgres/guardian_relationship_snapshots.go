@@ -4,8 +4,10 @@ import (
 	"context"
 	"encoding/json"
 
-	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	models "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
+	"github.com/uptrace/bun"
+
+	directory "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	models "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
 )
 
 func nativeGuardianRelationship(row *models.StudentGuardian) (*directory.GuardianRelationshipSnapshot, error) {
@@ -62,4 +64,34 @@ func (r *GuardianRelationshipRepository) GuardianLinkedChildren(ctx context.Cont
 		}
 	}
 	return result, err
+}
+
+// GuardianRelationshipsForUpdate locks relationship rows first, then reads
+// their permission projection in a fresh statement after any withdrawal.
+func (r *GuardianRelationshipRepository) GuardianRelationshipsForUpdate(ctx context.Context, studentIDs []int64, profileID int64) ([]*directory.GuardianRelationshipSnapshot, error) {
+	if len(studentIDs) == 0 {
+		return nil, nil
+	}
+	db, err := r.runtime.DB(ctx)
+	if err != nil {
+		return nil, err
+	}
+	var locked []int64
+	lock := db.NewSelect().TableExpr(`users.student_guardian_relationships AS "relationship"`).
+		ColumnExpr(`"relationship".id`).Where(`"relationship".student_id IN (?)`, bun.List(studentIDs)).
+		Where(`"relationship".guardian_profile_id = ?`, profileID).
+		OrderExpr(`"relationship".student_id ASC`).For("UPDATE")
+	if err := withTenantFilter(ctx, r.runtime, lock, "relationship").Scan(ctx, &locked); err != nil {
+		return nil, err
+	}
+	if len(locked) == 0 {
+		return nil, nil
+	}
+	var rows []*models.StudentGuardian
+	query, err := r.linkQuery(ctx, &rows)
+	if err != nil {
+		return nil, err
+	}
+	err = withTenantFilter(ctx, r.runtime, query.Where(`"student_guardian".id IN (?)`, bun.List(locked)), "student_guardian").Scan(ctx)
+	return nativeGuardianRelationships(rows, err)
 }

@@ -16,14 +16,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	authAPI "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The public demo routes (#3462), driven through the wired router against
@@ -203,6 +203,10 @@ func TestDemoAccessRequestRejectsInvalidFields(t *testing.T) {
 		"no last name":       {"email": "kim@ogs.de", "school_name": "OGS", "first_name": "Kim"},
 		"blank last name":    {"email": "kim@ogs.de", "school_name": "OGS", "first_name": "Kim", "last_name": " \t "},
 		"last name too long": {"email": "kim@ogs.de", "school_name": "OGS", "first_name": "Kim", "last_name": strings.Repeat("x", 121)},
+		"phone too long": {
+			"email": "kim@ogs.de", "school_name": "OGS", "first_name": "Kim", "last_name": "Beispiel",
+			"contact_opt_in": true, "phone": strings.Repeat("1", 51),
+		},
 		// The website sends person_name alongside while it moves over; the
 		// backend no longer reads it, so it cannot stand in for the names.
 		"only person name": {"email": "kim@ogs.de", "school_name": "OGS", "person_name": "Kim Beispiel"},

@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // seedTraegerInvitees are the colleagues the seeded Träger-Büro has invited
@@ -74,24 +74,6 @@ func (seedTraegerBueroStep) Run(_ context.Context, rt *Runtime) error {
 	return seedTraegerInvitation(rt)
 }
 
-// seedTraegerInvitation signs the admin in to the Träger-Portal and invites
-// the seeded colleagues through the Träger route.
-func seedTraegerInvitation(rt *Runtime) error {
-	traeger, err := seedTraegerSession(rt)
-	if err != nil {
-		return err
-	}
-	for _, invitee := range seedTraegerInvitees {
-		if _, err := rt.Client.PostWithAuth(traeger, "/traeger/accounts/invitations", map[string]any{
-			"email": invitee.email, "roles": []string{invitee.role},
-		}); err != nil {
-			return fmt.Errorf("invite into the Träger-Büro: %w", err)
-		}
-	}
-	fmt.Printf("  Träger-Büro: %d colleagues invited\n", len(seedTraegerInvitees))
-	return nil
-}
-
 // seedTraegerHolidayPeriodStep plans a published holiday period for the
 // Träger-Büro (#4659) through the Träger-Portal, signed in as the bootstrap
 // school admin the previous step assigned: the two Herbstferien weeks the
@@ -122,7 +104,7 @@ func (seedTraegerHolidayPeriodStep) Run(ctx context.Context, rt *Runtime) error 
 	if err != nil {
 		return err
 	}
-	raw, err := rt.Client.PostWithAuth(auth, "/traeger/holiday-periods/", seedHolidayPeriod(calendar.TodayDate(), rt.Bootstrap.SchoolID))
+	raw, err := seedHolidayPeriodOutsideNoCareDays(rt.Client, auth, calendar.TodayDate(), rt.Bootstrap.SchoolID)
 	if err != nil {
 		return fmt.Errorf("create the holiday period: %w", err)
 	}
@@ -140,7 +122,7 @@ func (seedTraegerHolidayPeriodStep) Run(ctx context.Context, rt *Runtime) error 
 	if err := seedContributionRules(rt.Client, auth, calendar.TodayDate()); err != nil {
 		return err
 	}
-	token, err := seedHolidayRegistrations(rt, auth, periodID, published, schools[0])
+	token, err := seedHolidayRegistrations(ctx, rt, auth, periodID, published, schools[0])
 	if errors.Is(err, errSeedHolidayRegistrationRefused) {
 		fmt.Printf("  WARNING: %v; the holiday period stays without registrations\n", err)
 		rt.Values[seedHolidayRegistrationsSkippedKey] = true
@@ -203,7 +185,7 @@ func seedHolidayParticipantList(rt *Runtime) (int64, error) {
 // emergency contact and its pickup person. The sibling of the hosting school
 // stays in its own group. The step fails when no guest joins.
 func seedHolidayGuests(rt *Runtime, weekID int64) error {
-	raw, err := rt.Client.PostWithAuth(rt.TenantAuth, "/api/groups", map[string]any{"name": "Feriengruppe", "teacher_ids": []int64{}})
+	raw, err := rt.Client.PostWithAuth(rt.TenantAuth, "/api/groups", map[string]any{"name": seedHolidayGroupName, "teacher_ids": []int64{}})
 	if err != nil {
 		return fmt.Errorf("create the holiday group: %w", err)
 	}
@@ -211,6 +193,7 @@ func seedHolidayGuests(rt *Runtime, weekID int64) error {
 	if err != nil {
 		return fmt.Errorf("read the holiday group: %w", err)
 	}
+	rt.Values[seedHolidayGroupKey] = groupID
 	raw, err = rt.Client.PutWithAuth(rt.TenantAuth, fmt.Sprintf("/api/holiday-weeks/%d/guest-group", weekID),
 		map[string]any{"group_id": fmt.Sprint(groupID)})
 	if err != nil {
@@ -228,7 +211,7 @@ func seedHolidayGuests(rt *Runtime, weekID int64) error {
 		return fmt.Errorf("no holiday guest joined the holiday group")
 	}
 	fmt.Printf("  Ausrichtende OGS: %d holiday guest(s) in the Feriengruppe\n", envelope.Data.Guests)
-	return nil
+	return seedHolidayGuestGroupHint(rt, groupID)
 }
 
 // seedHolidayAddressForm saves the next version of the period's form with
@@ -273,7 +256,7 @@ func seedHolidayAddressForm(client *Client, auth AuthRef, periodID int64) error 
 // contribution (#4664); it confirms the duplicate with the cost takeover by
 // a cost bearer (#5627). The form shows the siblings' contribution before
 // it is sent.
-func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, published []byte, homeSchool int64) (string, error) {
+func seedHolidayRegistrations(ctx context.Context, rt *Runtime, auth AuthRef, periodID int64, published []byte, homeSchool int64) (string, error) {
 	if err := seedHolidayAddressForm(rt.Client, auth, periodID); err != nil {
 		return "", err
 	}
@@ -285,7 +268,7 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 	if _, err := rt.Client.PostPublic("/traeger/holiday-quotes/"+token, seedHolidayQuote(registration)); err != nil {
 		return "", fmt.Errorf("show the holiday contribution: %w", err)
 	}
-	raw, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+token, registration)
+	raw, err := rt.Client.PostPublic("/traeger/holiday-registrations/"+token, seedHolidayWithParentProof(ctx, rt, token, registration))
 	var refused *APIError
 	if errors.As(err, &refused) && slices.Contains(seedHolidayRefusals, refused.Code) {
 		return "", fmt.Errorf("%w: %s", errSeedHolidayRegistrationRefused, refused.Code)
@@ -314,14 +297,14 @@ func seedHolidayRegistrations(rt *Runtime, auth AuthRef, periodID int64, publish
 	if _, err := rt.Client.GetWithAuth(auth, registrations); err != nil {
 		return "", fmt.Errorf("list the holiday registrations: %w", err)
 	}
-	if _, err := rt.Client.PutWithAuth(auth, "/traeger/settings/values/"+seedDebtorNumberSettingKey, map[string]any{"value": true}); err != nil {
-		return "", fmt.Errorf("ask for the debtor number at the confirmation: %w", err)
+	if err := seedAskForDebtorNumber(rt, auth); err != nil {
+		return "", err
 	}
 	if _, err := rt.Client.PutWithAuth(auth, "/traeger/settings/values/"+seedPaymentTextSettingKey, map[string]any{"value": seedPaymentText}); err != nil {
 		return "", fmt.Errorf("write the payment text of the letters: %w", err)
 	}
 	confirm := fmt.Sprintf("/traeger/holiday-contributions/%d/registrations/%d/confirm", periodID, siblings)
-	if _, err := rt.Client.PostWithAuth(auth, confirm, map[string]any{"benefits_exemption": false, "debtor_number": seedHolidayDebtorNumber}); err != nil {
+	if _, err := rt.Client.PostWithAuth(auth, confirm, seedSiblingsConfirmation); err != nil {
 		return "", fmt.Errorf("confirm the holiday registration: %w", err)
 	}
 	fmt.Println("  Träger-Büro: siblings confirmed with their contribution and debtor number")
@@ -368,21 +351,27 @@ func seedHolidaySiblingGroup(rt *Runtime, auth AuthRef, token string, periodID i
 		return fmt.Errorf("merge the siblings of two registrations: %w", err)
 	}
 	fmt.Println("  Träger-Büro: the third sibling's registration merged with the siblings")
-	return seedHolidaySiblingCancellation(rt, auth, token, periodID, sibling, siblings)
+	if err := seedHolidaySiblingCancellation(rt, auth, token, periodID, sibling, siblings); err != nil {
+		return err
+	}
+	return seedHolidayWaitlist(rt, auth, token, periodID, sibling)
 }
 
-// seedHolidayAfterConfirmation corrects the confirmed siblings' details
-// (#5629), confirms the second registration with the cost takeover by a
+// seedHolidayAfterConfirmation switches the Träger to five-digit debtor
+// numbers (#6675), corrects the confirmed siblings' details (#5629), confirms the second registration with the cost takeover by a
 // cost bearer (#5627) and merges a third sibling's registration with the
 // siblings (#5628).
 func seedHolidayAfterConfirmation(rt *Runtime, auth AuthRef, token string, periodID, siblings, duplicate int64, registration map[string]any) error {
+	if err := seedDebtorNumberFormat(rt, auth); err != nil {
+		return err
+	}
 	if err := seedHolidayRegistrationEdit(rt, auth, periodID, siblings, registration); err != nil {
 		return err
 	}
 	if err := seedHolidayCostTakeover(rt, auth, periodID, duplicate); err != nil {
 		return err
 	}
-	return seedHolidaySiblingGroup(rt, auth, token, periodID, registration, siblings)
+	return seedHolidayFamilies(rt, auth, token, periodID, registration, siblings)
 }
 
 // seedHolidayRegistrationEdit lets the Träger-Büro correct the confirmed
@@ -447,7 +436,7 @@ func seedHolidayCostTakeover(rt *Runtime, auth AuthRef, periodID, registrationID
 
 // seedCostTakeoverDebtorNumber is the invented debtor number of the family
 // whose contribution the cost bearer pays.
-const seedCostTakeoverDebtorNumber = "10 4712"
+const seedCostTakeoverDebtorNumber = "10472"
 
 // seedDebtorNumberSettingKey is the Träger switch that asks for the debtor
 // number of the family at the confirmation (#5621); the demo Träger works
@@ -500,7 +489,7 @@ func seedHolidayRegistrationPrefill(ctx context.Context, rt *Runtime, token stri
 		return fmt.Errorf("the seeded parent has no child to prefill the holiday registration with")
 	}
 	fmt.Printf("  Ferienanmeldung: prefill offers %d known child(ren) of a parent account\n", len(envelope.Data.Children))
-	return nil
+	return seedHolidayRegistrationOffer(rt, auth, token)
 }
 
 // seedContributionRules keeps the contribution rules of the Abrechnung
@@ -590,13 +579,14 @@ const seedTurnstileTestToken = "XXXX.DUMMY.TOKEN.XXXX"
 
 // The public holiday registration always requires Turnstile (ADR 0110). The
 // demo server holds a real Turnstile key, which refuses the test token. It
-// also counts every attempt per Träger, sender e-mail and IP address, and
-// all demo schools share one Träger and the seeded parent's address: after
-// five orders a day the server refuses the attempt before the captcha. On
-// either refusal the holiday step publishes the period without
-// registrations and skips what builds on them, the billing run and the
-// confirmation letters, instead of failing every demo school order.
-var seedHolidayRefusals = []string{seedCaptchaFailed, seedSubmissionRateLimited}
+// also counts every stored registration per Träger, sender e-mail and IP
+// address (#6726), and all demo schools share one Träger and the seeded
+// parent's address: past ten stored registrations a day the server refuses
+// the next one. On any of these refusals the holiday step publishes the
+// period without registrations and skips what builds on them, the billing
+// run and the confirmation letters, instead of failing every demo school
+// order.
+var seedHolidayRefusals = []string{seedCaptchaFailed, seedSubmissionRateLimited, seedSubmissionEmailRateLimited}
 
 var errSeedHolidayRegistrationRefused = errors.New("the server refuses the seeded holiday registration")
 
@@ -651,8 +641,8 @@ func seedHolidayRegistration(published []byte, homeSchool int64) (string, map[st
 		"pickup_persons":     []map[string]any{{"name": "Peter Ferienkind", "relationship": "Onkel"}},
 		"privacy_consent":    true, "health_consent": true, "binding_confirmed": true,
 		"custody_confirmed": true, "declaration_name": "Sabine Ferienkind",
-		"consent_version": 3,
-		"captcha_token":   seedTurnstileTestToken,
+		"consent_version": seedHolidayConsentVersion, "retention_days": seedHolidayRetentionDays,
+		"captcha_token": seedTurnstileTestToken,
 	}, nil
 }
 
@@ -726,11 +716,12 @@ func seedTraegerSchoolIDs(client *Client, auth AuthRef) ([]int64, error) {
 	return ids, nil
 }
 
-// seedHolidayPeriod is the request body: the two Herbstferien weeks, Monday
-// to Friday, both hosted by host, with prices in whole cent.
-func seedHolidayPeriod(today calendar.Date, host int64) map[string]any {
+// seedHolidayPeriodShifted is the seeded holiday period with two weeks from
+// the autumn holidays on, Monday to Friday, hosted by host, with prices in
+// whole cent; both weeks shifted by shift weeks.
+func seedHolidayPeriodShifted(today calendar.Date, host int64, shift int) map[string]any {
 	ferienStart, _ := seedHerbstferien(seedDate{Time: today.UTCMidnight()})
-	firstMonday := calendar.NewDate(ferienStart.Year(), ferienStart.Month(), ferienStart.Day())
+	firstMonday := calendar.NewDate(ferienStart.Year(), ferienStart.Month(), ferienStart.Day()).AddDays(7 * shift)
 	weeks := make([]map[string]any, 0, 2)
 	for i := range 2 {
 		monday := firstMonday.AddDays(7 * i)
@@ -747,9 +738,17 @@ func seedHolidayPeriod(today calendar.Date, host int64) map[string]any {
 		"registration_opens_on":  today.String(),
 		"registration_closes_on": firstMonday.AddDays(-7).String(), "binding": true,
 		"notes": "Mittagessen gibt es vor Ort. Bitte geben Sie Ihrem Kind ein Frühstück und etwas zu trinken mit.",
-		"weeks": weeks,
+		// The text of the acceptance mail a confirmation sends (#6672).
+		"acceptance_mail_text": seedHolidayAcceptanceMailText,
+		"weeks":                weeks,
 	}
 }
+
+// seedHolidayAcceptanceMailText is what the demo Träger tells the parents
+// when it confirms a holiday registration (#6672).
+const seedHolidayAcceptanceMailText = "Bei Betreuung bis 16 Uhr geben Sie Ihrem Kind bitte ein Mittagessen mit.\n" +
+	"Bitte packen Sie Wechselkleidung, Sportsachen und regenfeste Kleidung ein.\n" +
+	"Wir freuen uns auf die Ferien mit Ihrem Kind!"
 
 // traegerSeedSettingKey is the setting the demo Träger sets for all its
 // schools (ADR 0086, #4652): parent news on, as the registry default already

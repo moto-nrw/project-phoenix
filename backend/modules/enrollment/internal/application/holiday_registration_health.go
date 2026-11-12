@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // HolidayRegistrationHealth opens the health information of one registration
@@ -27,8 +27,21 @@ func (h *HolidayRegistrationReview) HolidayRegistrationHealth(ctx context.Contex
 	if !found {
 		return enrollment.HolidayRegistrationHealthDetail{}, enrollment.ErrHolidayRegistrationEntryNotFound
 	}
-	family, err := openHolidayHealthRecord(h.health, sealed.Family,
-		enrollment.HolidayFamilyHealthContext(reviewer.OrganizationID, registrationID))
+	detail, err := openHolidayRegistrationHealth(h.health, reviewer.OrganizationID, registrationID, sealed)
+	if err != nil {
+		return enrollment.HolidayRegistrationHealthDetail{}, err
+	}
+	if err := h.audit(ctx, reviewer, periodID, registrationID, enrollment.HolidayAuditHealth, nil); err != nil {
+		return enrollment.HolidayRegistrationHealthDetail{}, err
+	}
+	return detail, nil
+}
+
+// openHolidayRegistrationHealth opens the sealed health information of one
+// registration: the family's answers and each child's fields and answers,
+// every child in its order, also one without health information.
+func openHolidayRegistrationHealth(cipher enrollment.HolidayHealthCipher, organizationID, registrationID int64, sealed enrollment.HolidaySealedRegistrationHealth) (enrollment.HolidayRegistrationHealthDetail, error) {
+	family, err := openHolidayHealthRecord(cipher, sealed.Family, enrollment.HolidayFamilyHealthContext(organizationID, registrationID))
 	if err != nil {
 		return enrollment.HolidayRegistrationHealthDetail{}, err
 	}
@@ -37,8 +50,8 @@ func (h *HolidayRegistrationReview) HolidayRegistrationHealth(ctx context.Contex
 		Children:   make([]enrollment.HolidayRegistrationHealth, len(sealed.Children)),
 	}
 	for i, child := range sealed.Children {
-		record, err := openHolidayHealthRecord(h.health, child.Sealed,
-			enrollment.HolidayChildHealthContext(reviewer.OrganizationID, registrationID, child.Position))
+		record, err := openHolidayHealthRecord(cipher, child.Sealed,
+			enrollment.HolidayChildHealthContext(organizationID, registrationID, child.Position))
 		if err != nil {
 			return enrollment.HolidayRegistrationHealthDetail{}, err
 		}
@@ -46,9 +59,6 @@ func (h *HolidayRegistrationReview) HolidayRegistrationHealth(ctx context.Contex
 			ChildID: child.ChildID, Allergies: record.Allergies, Medication: record.Medication,
 			HealthNotes: record.HealthNotes, CustomData: answersOrEmptyObject(record.Answers),
 		}
-	}
-	if err := h.audit(ctx, reviewer, periodID, registrationID, enrollment.HolidayAuditHealth, nil); err != nil {
-		return enrollment.HolidayRegistrationHealthDetail{}, err
 	}
 	return detail, nil
 }

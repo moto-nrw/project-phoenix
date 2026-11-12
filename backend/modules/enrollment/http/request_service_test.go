@@ -11,23 +11,23 @@ import (
 	"testing"
 	"time"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	deliveryModule "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -201,6 +201,31 @@ func (a *recordingGuardianAuthorizer) AccountHasStudentPermission(_ context.Cont
 func (a *recordingGuardianAuthorizer) GuardianEmailHasStudentPermission(_ context.Context, email string, _, _ int64, _ string) (bool, error) {
 	a.email = email
 	return email == a.grantedEmail, nil
+}
+
+// The renewal asks the held variants (#6638); the stub records them alike.
+func (a *recordingGuardianAuthorizer) HoldAccountStudentsPermission(ctx context.Context, accountID int64, studentIDs, _ []int64, tenantID int64, permission string) (map[int64]bool, error) {
+	grants := map[int64]bool{}
+	for _, id := range studentIDs {
+		granted, err := a.AccountHasStudentPermission(ctx, accountID, id, tenantID, permission)
+		if err != nil {
+			return nil, err
+		}
+		grants[id] = granted
+	}
+	return grants, nil
+}
+
+func (a *recordingGuardianAuthorizer) HoldGuardianEmailStudentsPermission(ctx context.Context, email string, studentIDs, _ []int64, tenantID int64, permission string) (map[int64]bool, error) {
+	grants := map[int64]bool{}
+	for _, id := range studentIDs {
+		granted, err := a.GuardianEmailHasStudentPermission(ctx, email, id, tenantID, permission)
+		if err != nil {
+			return nil, err
+		}
+		grants[id] = granted
+	}
+	return grants, nil
 }
 
 func (r *recordingOutbox) EnqueueMail(_ context.Context, req TestMail) error {
@@ -402,7 +427,7 @@ func TestRequestService_SubmitLateInviteRenewalUsesInviteEmailForAuthorization(t
 	authorizer := &recordingGuardianAuthorizer{grantedEmail: "submitted@example.test"}
 	config := env.config
 	config.StudentRepo = repos.Student
-	config.GuardianAuthorizer = authorizer
+	config.GuardianHold = authorizer
 	svc := newTestRequestService(config)
 	created, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.CreateLateInvite, enrollmentAPI.CreateLateInviteInput{
 		PhaseID:       env.phaseID,
@@ -466,7 +491,7 @@ func withLateInviteRenewalFixture(
 	authorizer := &recordingGuardianAuthorizer{grantedEmail: inviteEmail}
 	config := env.config
 	config.StudentRepo = repos.Student
-	config.GuardianAuthorizer = authorizer
+	config.GuardianHold = authorizer
 	svc := newTestRequestService(config)
 	created, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), svc.CreateLateInvite, enrollmentAPI.CreateLateInviteInput{
 		PhaseID:       env.phaseID,
@@ -2106,8 +2131,9 @@ func TestRequestService_Withdraw_NonFinalIgnoresNotificationSettingFailure(t *te
 // --- Rate limiting ---
 
 // TestRequestService_Submit_RateLimitsByEmail walks the configured
-// per-email threshold (5 submissions / 24h). The 6th attempt for the
-// same email must return ErrRateLimited even when the IP varies.
+// per-email threshold (10 stored submissions / 24h, #6726). The 11th for
+// the same email must return ErrEmailRateLimited even when the IP varies,
+// and not the refusal of the IP address.
 //
 // We vary the child first/last name per iteration so the per-(parent,
 // child, phase) duplicate guard added in the parent-enrollment fixup
@@ -2120,7 +2146,7 @@ func TestRequestService_Submit_RateLimitsByEmail(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// Use distinct IPs so we hit the email bucket, not the IP one.
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 10; i++ {
 		req := validSubmission(t, env.phaseID)
 		req.RemoteIP = "10.0.0." + strconv.Itoa(i+1)
 		req.Children[0].FirstName = "Lina" + strconv.Itoa(i)
@@ -2129,43 +2155,17 @@ func TestRequestService_Submit_RateLimitsByEmail(t *testing.T) {
 		require.NoError(t, err, "attempt %d should succeed", i+1)
 	}
 
-	// 6th attempt → over the email threshold.
+	// 11th submission → over the email threshold.
 	req := validSubmission(t, env.phaseID)
 	req.RemoteIP = "10.0.0.99"
 	req.Children[0].FirstName = "LinaOver"
 	req.Children[0].LastName = "BeispielOver"
 	_, err := env.svc.Submit(ctx, req)
 	require.Error(t, err)
-	assert.True(t, errors.Is(err, enrollmentNative.ErrRateLimited),
-		"6th submission with same email must hit ErrRateLimited; got %v", err)
-}
-
-// TestRequestService_Submit_RateLimitsByIP walks the per-IP threshold
-// (10 submissions / 1h). Email is varied so we don't hit that bucket
-// first.
-func TestRequestService_Submit_RateLimitsByIP(t *testing.T) {
-	t.Parallel()
-
-	env := setupRequestTest(t)
-	ctx := testpkg.Ctx(t)
-
-	const sharedIP = "203.0.113.7"
-	for i := 0; i < 10; i++ {
-		req := validSubmission(t, env.phaseID)
-		req.RemoteIP = sharedIP
-		req.GuardianEmail = "anna+" + strconv.Itoa(i) + "@example.com"
-		_, err := env.svc.Submit(ctx, req)
-		require.NoError(t, err, "IP attempt %d should succeed", i+1)
-	}
-
-	// 11th request → over the IP threshold.
-	req := validSubmission(t, env.phaseID)
-	req.RemoteIP = sharedIP
-	req.GuardianEmail = "anna+over@example.com"
-	_, err := env.svc.Submit(ctx, req)
-	require.Error(t, err)
-	assert.True(t, errors.Is(err, enrollmentNative.ErrRateLimited),
-		"11th submission from same IP must hit ErrRateLimited; got %v", err)
+	assert.True(t, errors.Is(err, enrollmentNative.ErrEmailRateLimited),
+		"11th submission with same email must hit ErrEmailRateLimited; got %v", err)
+	assert.False(t, errors.Is(err, enrollmentNative.ErrRateLimited),
+		"the e-mail refusal is not the refusal of the IP address")
 }
 
 // TestRequestService_Submit_RateLimitTenantIsolation verifies that one
@@ -2182,7 +2182,7 @@ func TestRequestService_Submit_RateLimitTenantIsolation(t *testing.T) {
 	ctx := testpkg.Ctx(t)
 
 	// The test's tenant burns through its email bucket.
-	for i := 0; i < 5; i++ {
+	for i := 0; i < 10; i++ {
 		req := validSubmission(t, env.phaseID)
 		req.RemoteIP = "10.0.0." + strconv.Itoa(i+1)
 		req.Children[0].FirstName = "Lina" + strconv.Itoa(i)
@@ -2198,7 +2198,7 @@ func TestRequestService_Submit_RateLimitTenantIsolation(t *testing.T) {
 	overReq.Children[0].LastName = "BeispielOver"
 	_, err := env.svc.Submit(ctx, overReq)
 	require.Error(t, err)
-	require.True(t, errors.Is(err, enrollmentNative.ErrRateLimited))
+	require.True(t, errors.Is(err, enrollmentNative.ErrEmailRateLimited))
 
 	// A submission with a different tenant_id must NOT be limited by this
 	// tenant's counter. Direct repo call asserts the upsert keys on
@@ -2221,37 +2221,37 @@ func TestRequestService_Submit_RateLimitTenantIsolation(t *testing.T) {
 		"a different tenant's bucket must start fresh, got %d", state.Attempts)
 }
 
-func TestRequestService_Submit_RateLimitPersistsWhenOuterTxRollsBack(t *testing.T) {
+// The count belongs to the stored submission (#6726): when the transaction
+// that stored it rolls back, the count goes with it. Before, the count ran in
+// a transaction of its own and outlived every refused attempt.
+func TestRequestService_Submit_RateLimitRollsBackWithTheSubmission(t *testing.T) {
 	t.Parallel()
 
 	env := setupRequestTest(t)
 	ctx := testpkg.Ctx(t)
 	email := "rollback+" + strconv.FormatInt(time.Now().UnixNano(), 10) + "@example.com"
-	ip := "198.51.100.42"
 
 	req := validSubmission(t, env.phaseID)
 	req.GuardianEmail = email
-	req.RemoteIP = ip
-	req.Children = nil
+	req.RemoteIP = "198.51.100.42"
 
+	failure := errors.New("after the stored submission")
 	err := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-		_, submitErr := env.svc.Submit(txCtx, req)
-		return submitErr
+		if _, submitErr := env.svc.Submit(txCtx, req); submitErr != nil {
+			return submitErr
+		}
+		return failure
 	})
-	require.Error(t, err)
-	require.True(t, errors.Is(err, enrollmentNative.ErrInvalidSubmission),
-		"submission should fail after the rate-limit increment")
+	require.ErrorIs(t, err, failure)
 
-	var attempts int
+	var buckets int
 	err = env.db.NewSelect().
 		TableExpr("enrollment.submission_rate_limits").
-		Column("attempts").
+		ColumnExpr("count(*)").
 		Where("tenant_id = ?", testpkg.Tenant(t)).
-		Where("key_type = ?", enrollmentNative.SubmissionRateLimitKeyTypeEmail).
-		Where("key_value = ?", email).
-		Scan(context.Background(), &attempts)
+		Scan(context.Background(), &buckets)
 	require.NoError(t, err)
-	assert.Equal(t, 1, attempts, "rate-limit increment must outlive outer submit rollback")
+	assert.Zero(t, buckets, "the counts of a rolled-back submission must not persist")
 }
 
 // --- Capacity overflow ---

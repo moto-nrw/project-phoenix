@@ -7,7 +7,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 var (
@@ -192,4 +192,25 @@ func NormalizeGuardianLink(link GuardianLinkRecord) (GuardianLinkRecord, error) 
 		link.EmergencyPriority = 1 // the column default an unset priority took
 	}
 	return link, nil
+}
+
+// NewGuardianProfile is one guardian profile the data import creates
+// together with a new child (#5552).
+type NewGuardianProfile struct {
+	FirstName, LastName                           string
+	AddressStreet, AddressCity, PostalCode, Notes *string
+	PreferredContactMethod, LanguagePreference    string
+}
+
+// NewGuardianPhone is one phone row of a profile created in the same call.
+type NewGuardianPhone struct {
+	GuardianProfileID int64
+	GuardianPhoneRecord
+}
+
+// NewGuardianLinkResult is the relationship a new link wrote and the account
+// the locked guardian row names.
+type NewGuardianLinkResult struct {
+	ID        int64
+	AccountID *int64
 }

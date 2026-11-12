@@ -8,7 +8,7 @@ status: accepted
 2026-11-02 freigegeben. Ergänzt
 [ADR 0062](0062-demo-visitor-erasure-is-a-database-workflow.md) und
 [ADR 0092](0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md);
-Entscheidung für [#5544](https://github.com/moto-nrw/project-phoenix/issues/5544).
+Entscheidung für [#5544](https://github.com/moto-ogs/project-phoenix/issues/5544).
 
 ## Kontext
 
@@ -79,8 +79,13 @@ Ledger.
    `platform.demo_school_origins`. Ein Trigger auf
    `platform.demo_school_states` schreibt dort jede Schule, die eine
    Demo-Bestellung nennt (aktuelle und aufgegebene), sobald die
-   Demo-Steuerung sie einträgt. Kein Aufrufer kann eine Zeile anlegen;
-   `phoenix_demo` darf nur lesen. Der Nachweis bleibt, wenn ADR 0062 die
+   Demo-Steuerung sie einträgt. Kein Aufrufer kann direkt eine Zeile
+   anlegen; `phoenix_demo` darf nur lesen. Mittelbar trägt die
+   Demo-Steuerung aber jede Schul-ID ein, die sie in
+   `demo_school_states.visitor_school_ids` schreibt. Der Nachweis schützt
+   gegen HTTP-Schreibwege und nicht zugeordnete Wiederherstellungen, nicht
+   gegen eine fehlerhafte oder kompromittierte Demo-Steuerung (ADR 0189,
+   „Vertrauensgrenze“). Der Nachweis bleibt, wenn ADR 0062 die
    Bestellung löscht. Eine ausgeblendete Schule ohne diesen Nachweis, etwa
    eine echte Schule aus einer Wiederherstellung, bleibt unberührt. Die
    Migration trägt nur Schulen nach, die eine noch vorhandene Bestellung
@@ -100,8 +105,9 @@ Ledger.
 
 ## Folgen
 
-- Die Datenbankzeilen einer ausgemusterten Demo-Schule bleiben ausgeblendet,
-  bis die Demo-Datenbank neu aufgebaut wird; nur ihre Dateien gehen.
+- Die Datenbankzeilen einer ausgemusterten Demo-Schule löscht seit #5559
+  der Demo-Betrieb 90 Tage nach dem Stilllegen, frühestens nach dem Vermerk
+  dieser Dateiphase ([ADR 0189](0189-demo-betrieb-loescht-ausgemusterte-demo-schulen-nach-90-tagen-aus-der-datenbank.md)).
 - `TenantObjects` entfernt beim Löschen auch den geleerten Schulordner
   (`<art>/<schule>/`), damit kein Pfad mehr die Schule nennt. Das gilt auch
   für die Schullöschung; ihr Nachzählen bleibt 0.

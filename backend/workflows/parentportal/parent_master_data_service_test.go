@@ -14,13 +14,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
-	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
+	parentportalcompose "github.com/moto-ogs/project-phoenix/workflows/parentportal/compose"
 )
 
 // masterDataSettings builds a parentSettingsStub with the master-data feature
@@ -43,9 +43,17 @@ func masterDataSettings(editEnabled, requestEnabled, guardianManagementEnabled b
 func buildMasterDataService(t *testing.T, editEnabled bool) (*parentService.Portal, *bun.DB) {
 	t.Helper()
 	db := testpkg.SetupTestDB(t)
+	return parentportalcompose.New(masterDataServiceDependencies(t, db, editEnabled)), db
+}
+
+// masterDataServiceDependencies is the wiring of buildMasterDataService, for
+// tests that replace a port before composing.
+func masterDataServiceDependencies(t *testing.T, db *bun.DB, editEnabled bool) parentportalcompose.Dependencies {
+	t.Helper()
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+	return parentportalcompose.Dependencies{
+		Memberships:         parentMemberships(t, db),
 		GuardianChanges:     owners.ParentGuardianChanges(),
 		DeparturePolicy:     owners.ParentDeparturePolicy(),
 		GuardianPolicy:      owners.NewParentGuardianPolicy(),
@@ -61,6 +69,7 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (*parentService.Port
 		GuardianProfileRepo: owners.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
 		PersonRepo:          owners.NewParentPersonReads(reposPeople.Person),
 		GuardianPhoneRepo:   owners.NewParentGuardianPhoneReads(reposPeople.GuardianPhoneNumber),
+		StudentGuardianRepo: owners.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
 		ChangeRequestRepo:   owners.NewParentDataRequestReads(repos.CarePlan()),
 		StudentAudit:        owners.NewParentStudentAudit(api.NewPeopleDirectorySuiteStudentAudit(testpkg.RequestAuditActor, api.NewStudentAudit(testpkg.NewDatabase(t, db)))),
 		Settings:            masterDataSettings(editEnabled, false, true),
@@ -70,8 +79,7 @@ func buildMasterDataService(t *testing.T, editEnabled bool) (*parentService.Port
 		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
 
 		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
-	})
-	return svc, db
+	}
 }
 
 func TestUpdateMasterDataField_RecordsStudentAudit(t *testing.T) {
@@ -113,33 +121,10 @@ func TestUpdateMasterDataField_GuardianManagementDisabledRejectsContactEdits(t *
 	t.Parallel()
 
 	db := testpkg.SetupTestDB(t)
-	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
-	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges:     owners.ParentGuardianChanges(),
-		DeparturePolicy:     owners.ParentDeparturePolicy(),
-		GuardianPolicy:      owners.NewParentGuardianPolicy(),
-		Fingerprints:        owners.SecurityFingerprints{},
-		Declarations:        owners.ParentDeclarationPolicy(),
-		Locales:             owners.ParentPortalLocales(),
-		Runtime:             owners.ParentPortalRuntime{},
-		CarePlan:            owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
-		People:              owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:        careProfiles(t, db),
-		ChildRepo:           repos.ParentChildReads(),
-		StudentRepo:         owners.NewParentStudentReads(reposPeople.Student),
-		GuardianProfileRepo: owners.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
-		PersonRepo:          owners.NewParentPersonReads(reposPeople.Person),
-		GuardianPhoneRepo:   owners.NewParentGuardianPhoneReads(reposPeople.GuardianPhoneNumber),
-		ChangeRequestRepo:   owners.NewParentDataRequestReads(repos.CarePlan()),
-		Settings:            masterDataSettings(true, false, false),
-		StudentUpdates:      owners.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
-		Logger:              slog.Default(),
-
-		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
-
-		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
-	})
+	deps := masterDataServiceDependencies(t, db, true)
+	deps.StudentAudit = nil
+	deps.Settings = masterDataSettings(true, false, false)
+	svc := parentportalcompose.New(deps)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	newEmail := fmt.Sprintf("new.parent.%d@example.test", chain.AccountID)
 
@@ -166,17 +151,21 @@ func TestChildFeatures_SplitsMasterDataContactCapability(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges: owners.ParentGuardianChanges(),
-		DeparturePolicy: owners.ParentDeparturePolicy(),
-		GuardianPolicy:  owners.NewParentGuardianPolicy(),
-		Fingerprints:    owners.SecurityFingerprints{},
-		Declarations:    owners.ParentDeclarationPolicy(),
-		Locales:         owners.ParentPortalLocales(),
-		Runtime:         owners.ParentPortalRuntime{},
-		ChildRepo:       repos.ParentChildReads(),
-		Settings:        masterDataSettings(true, true, false),
-		MealPlan:        availableMealPlan(false),
-		Logger:          slog.Default(),
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		GuardianProfileRepo: guardProfiles(t, db),
+		StudentRepo:         guardStudents(t, db),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
+		ChildRepo:           repos.ParentChildReads(),
+		Settings:            masterDataSettings(true, true, false),
+		MealPlan:            availableMealPlan(false),
+		Logger:              slog.Default(),
 
 		CarePlanPolicy: owners.NewParentCarePlanPolicy(),
 	})

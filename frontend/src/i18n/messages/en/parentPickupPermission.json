@@ -24,18 +24,11 @@
     "procedure": "You sign with a simple electronic signature with a drawn signature.",
     "missing": "Please sign and tap “Confirm signature”."
   },
-  "statement": {
-    "permissionAll": "I allow {person} to pick up the child from the OGS on every day.",
-    "permissionSome": "I allow {person} to pick up the child from the OGS on these days: {days}.",
-    "day": "I allow {person} to pick up the child from the OGS on {date}.",
-    "aloneDay": "I allow the child to walk home alone on {date}.",
-    "aloneWeekly": "I allow the child to walk home alone on these days: {days}."
-  },
-  "waitsForOgs": "The OGS confirms the permission. Until then it does not apply.",
-  "pendingBadge": "Waiting for the OGS",
-  "pending": "Waiting for the OGS: {days}",
+  "waitsForOgs": "The {careTerm} confirms the permission. Until then it does not apply.",
+  "pendingBadge": "Waiting for the {careTerm}",
+  "pending": "Waiting for the {careTerm}: {days}",
   "onlyDays": "Only {days}",
-  "requestSent": "Your request is with the OGS. You will see here when it is confirmed.",
+  "requestSent": "Your request is with the {careTerm}. You will see here when it is confirmed.",
   "proofPdf": "Proof (PDF)",
   "errorObjectProof": "The proof",
   "errorObjectRequest": "The pickup permission",

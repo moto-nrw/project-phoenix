@@ -10,9 +10,16 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	configSvc "github.com/moto-nrw/project-phoenix/modules/settings/internal/application"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	configSvc "github.com/moto-ogs/project-phoenix/modules/settings/internal/application"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
+
+// ExportFields projects setting values for the return export (#3838): a
+// non-secret value leaves as stored, a secret or unknown key as null. Only
+// the administrative export CLI binds it, never an HTTP route.
+type ExportFields interface {
+	ProjectExportField(table, column string, row map[string]json.RawMessage, raw json.RawMessage) (json.RawMessage, error)
+}
 
 // Keys of the tenant settings other owners read.
 const (

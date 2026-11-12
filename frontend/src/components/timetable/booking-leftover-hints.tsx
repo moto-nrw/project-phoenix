@@ -5,6 +5,7 @@ import {
   useCallback,
   useEffect,
   useId,
+  useLayoutEffect,
   useRef,
   useState,
 } from "react";
@@ -12,6 +13,10 @@ import { ChevronDown, ChevronUp, TriangleAlert } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
@@ -26,6 +31,7 @@ import {
   bookingLeftoverKey,
 } from "~/lib/booking-leftover";
 import { parseISODate, formatDate, toISODate } from "~/lib/date-helpers";
+import { useAccessControlledData } from "~/lib/hooks/use-access-controlled-data";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
@@ -72,11 +78,20 @@ export function BookingLeftoverHints({
   const firstRemovableDay = earliestRemovalDay(useBerlinToday());
   const openListId = useId();
   const key = periodId ? timetableKeys.bookingLeftovers(periodId) : null;
-  const { data, error } = useSWRAuth(
+  const { data: cachedData, error } = useSWRAuth(
     key,
     () => timetableService.getBookingLeftovers(periodId!),
     { keepPreviousData: false },
   );
+  const { data, accessRefused } = useAccessControlledData(
+    key,
+    cachedData,
+    error,
+  );
+  useLayoutEffect(() => {
+    if (!accessRefused) return;
+    setRemoving(null);
+  }, [accessRefused]);
   const reload = useCallback(
     () => (key ? tenantMutate(key) : undefined),
     [key, tenantMutate],
@@ -85,6 +100,22 @@ export function BookingLeftoverHints({
     error,
     "die Prüfung der Kinder ohne passende Buchung",
     reload,
+    data === undefined ? undefined : STALE_DATA_SUFFIX,
+  );
+  const readAfterWrite = useCallback(async () => {
+    if (!key || !periodId) return;
+    // A refusal rejects; useRefreshAfterWrite then loads the page anew (#6801).
+    await tenantMutate(
+      key,
+      () => timetableService.getBookingLeftovers(periodId),
+      { revalidate: false },
+    );
+  }, [key, periodId, tenantMutate]);
+  // Nachladen nach Behalten oder Entfernen: ein Fehler dabei ist ein
+  // Ladefehler über den Hinweisen, kein Fehler der Aktion (#6652).
+  const afterWrite = useRefreshAfterWrite(
+    "die Anzeige der Kinder ohne passende Buchung",
+    readAfterWrite,
   );
 
   const seenVersion = useRef(templatesVersion);
@@ -106,7 +137,7 @@ export function BookingLeftoverHints({
             ? `${leftover.studentName} bleibt in „${leftover.templateName}“.`
             : `Der Hinweis zu ${leftover.studentName} wird wieder gezeigt.`,
         );
-        await reload();
+        await afterWrite.refresh();
       } catch (err) {
         logger.error("booking_leftover_decision_failed", {
           template_id: leftover.templateId,
@@ -122,7 +153,7 @@ export function BookingLeftoverHints({
         setBusyKey(null);
       }
     },
-    [reload, showActionError, toast],
+    [afterWrite, showActionError, toast],
   );
 
   const closeRemoval = () => {
@@ -147,7 +178,7 @@ export function BookingLeftoverHints({
         `${removing.studentName} ist aus „${removing.templateName}“ entfernt.`,
       );
       setRemoving(null);
-      await reload();
+      await afterWrite.refresh();
     } catch (err) {
       logger.warn("booking_leftover_remove_failed", {
         template_id: removing.templateId,
@@ -164,21 +195,38 @@ export function BookingLeftoverHints({
   const leftovers = data ?? [];
   const open = leftovers.filter((leftover) => !leftover.kept);
   const kept = canManage ? leftovers.filter((leftover) => leftover.kept) : [];
-  if (error) {
-    return <LoadErrorAlert error={loadError} actionLayout="responsive" />;
+  // Bestätigte Hinweise bleiben bei einem Ladefehler stehen (#6652).
+  if (error && data === undefined) {
+    return (
+      <LoadErrorAlert
+        error={afterWrite.error ?? loadError}
+        actionLayout="responsive"
+      />
+    );
   }
-  if (open.length === 0 && kept.length === 0) return null;
+  const reloadAlerts = (
+    <>
+      {error ? (
+        <LoadErrorAlert error={loadError} actionLayout="responsive" />
+      ) : null}
+      <LoadErrorAlert error={afterWrite.error} actionLayout="responsive" />
+    </>
+  );
+  if (open.length === 0 && kept.length === 0) {
+    return error || afterWrite.error ? reloadAlerts : null;
+  }
 
   const hiddenCount = Math.max(0, open.length - INITIAL_LEFTOVER_COUNT);
   const visible = expanded ? open : open.slice(0, INITIAL_LEFTOVER_COUNT);
 
   return (
     <div className="flex flex-col gap-3" data-testid="booking-leftover-hints">
+      {reloadAlerts}
       {open.length > 0 ? (
         <SectionCard
           title="Ohne passende Buchung eingeplant"
           titleBadge={
-            <StatusBadge tone="orange" label={`${open.length} offen`} />
+            <StatusBadge tone="warning" label={`${open.length} offen`} />
           }
           description="Diese Kinder stehen von Hand in einem Regeltermin. Ihre Buchung für diese Tage ist weggefallen."
           leading={

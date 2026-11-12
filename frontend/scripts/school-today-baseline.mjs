@@ -9,10 +9,7 @@ export default {
     "getStartDateForTimeRange: referenceDate: Date = new Date(),",
     "relativeDaysLabel: at: Date = new Date(),",
   ],
-  "src/lib/activity-api.ts": [
-    "created_at: new Date(),",
-    "updated_at: new Date(),",
-  ],
+
   "src/lib/pickup-helpers.ts": [
     "const [now, setNow] = useState(() => new Date());",
     "setNow(new Date());",
@@ -118,6 +115,5 @@ export default {
   "src/app/[tenant]/(protected)/time-tracking/page.tsx": [
     "const now = new Date();",
     "const now = new Date();",
-    "const tzOffset = -new Date().getTimezoneOffset();",
   ],
 };

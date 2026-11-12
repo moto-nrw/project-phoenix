@@ -10,6 +10,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,6 +42,7 @@ func wsCreateTestServiceWithAbsenceRepo() (*workSessionService, *wsMockWorkSessi
 		auditRepo:                 auditRepo,
 		absenceRepo:               absenceRepo,
 		GroupSupervisorRepository: supervisorRepo,
+		settings:                  &wsMockSettingsResolver{},
 	}
 
 	return service, sessionRepo, breakRepo, auditRepo, absenceRepo, supervisorRepo
@@ -59,8 +62,8 @@ func TestWSExportSessions_CSV_Success(t *testing.T) {
 	to := NewDate(2024, 1, 7)
 
 	date1 := NewDate(2024, 1, 2)
-	checkIn := time.Date(2024, 1, 2, 8, 0, 0, 0, time.UTC)
-	checkOut := time.Date(2024, 1, 2, 16, 30, 0, 0, time.UTC)
+	checkIn := time.Date(2024, 1, 2, 8, 0, 0, 0, calendar.Berlin)
+	checkOut := time.Date(2024, 1, 2, 16, 30, 0, 0, calendar.Berlin)
 
 	sessionRepo.getHistoryByStaffIDFunc = func(_ context.Context, _ int64, _, _ Date) ([]*WorkSession, error) {
 		return []*WorkSession{
@@ -197,9 +200,9 @@ func TestWSBuildExportRows_SessionsOnly(t *testing.T) {
 
 	date1 := NewDate(2024, 1, 2)
 	date2 := NewDate(2024, 1, 3)
-	checkIn1 := time.Date(2024, 1, 2, 8, 0, 0, 0, time.UTC)
-	checkOut1 := time.Date(2024, 1, 2, 16, 0, 0, 0, time.UTC)
-	checkIn2 := time.Date(2024, 1, 3, 9, 0, 0, 0, time.UTC)
+	checkIn1 := time.Date(2024, 1, 2, 8, 0, 0, 0, calendar.Berlin)
+	checkOut1 := time.Date(2024, 1, 2, 16, 0, 0, 0, calendar.Berlin)
+	checkIn2 := time.Date(2024, 1, 3, 9, 0, 0, 0, calendar.Berlin)
 
 	sessions := []*SessionResponse{
 		{
@@ -299,8 +302,8 @@ func TestDayExportRowsByStaffIDs_BatchesAllRepositoryLoads(t *testing.T) {
 	ctx := context.Background()
 	staffIDs := []int64{100, 200}
 	date := NewDate(2024, 1, 2)
-	checkIn := time.Date(2024, 1, 2, 8, 0, 0, 0, time.UTC)
-	checkOut := time.Date(2024, 1, 2, 16, 0, 0, 0, time.UTC)
+	checkIn := time.Date(2024, 1, 2, 8, 0, 0, 0, calendar.Berlin)
+	checkOut := time.Date(2024, 1, 2, 16, 0, 0, 0, calendar.Berlin)
 
 	var sessionLoads, absenceLoads, breakLoads, manualAuditLoads int
 	sessionRepo.getHistoryByStaffIDsFunc = func(_ context.Context, gotStaffIDs []int64, _, _ Date) (map[int64][]*WorkSession, error) {
@@ -427,8 +430,8 @@ func TestWSBuildExportRows_Mixed(t *testing.T) {
 
 	date1 := NewDate(2024, 1, 2)
 	date2 := NewDate(2024, 1, 3)
-	checkIn := time.Date(2024, 1, 2, 8, 0, 0, 0, time.UTC)
-	checkOut := time.Date(2024, 1, 2, 16, 0, 0, 0, time.UTC)
+	checkIn := time.Date(2024, 1, 2, 8, 0, 0, 0, calendar.Berlin)
+	checkOut := time.Date(2024, 1, 2, 16, 0, 0, 0, calendar.Berlin)
 
 	sessions := []*SessionResponse{
 		{
@@ -471,7 +474,7 @@ func TestWSBuildExportRows_SortsByDate(t *testing.T) {
 
 	date1 := NewDate(2024, 1, 5)
 	date2 := NewDate(2024, 1, 2)
-	checkIn := time.Date(2024, 1, 5, 8, 0, 0, 0, time.UTC)
+	checkIn := time.Date(2024, 1, 5, 8, 0, 0, 0, calendar.Berlin)
 
 	sessions := []*SessionResponse{
 		{
@@ -572,8 +575,8 @@ func TestWSSessionToRow_Complete(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date := NewDate(2024, 1, 15) // Monday
-	checkIn := time.Date(2024, 1, 15, 8, 30, 0, 0, time.UTC)
-	checkOut := time.Date(2024, 1, 15, 17, 15, 0, 0, time.UTC)
+	checkIn := time.Date(2024, 1, 15, 8, 30, 0, 0, calendar.Berlin)
+	checkOut := time.Date(2024, 1, 15, 17, 15, 0, 0, calendar.Berlin)
 
 	sr := &SessionResponse{
 		WorkSession: &WorkSession{
@@ -618,7 +621,7 @@ func TestWSSessionToRow_RunningBreakUsesLiveTotal(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date := NewDate(2024, 1, 15)
-	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
+	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, calendar.Berlin)
 
 	sr := &SessionResponse{
 		WorkSession: &WorkSession{
@@ -650,7 +653,7 @@ func TestWSSessionToRow_NFC(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date := NewDate(2024, 1, 15)
-	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
+	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, calendar.Berlin)
 
 	sr := &SessionResponse{
 		WorkSession: &WorkSession{
@@ -678,7 +681,7 @@ func TestWSSessionToRow_LegacyUnknownSource(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date := NewDate(2024, 1, 15)
-	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
+	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, calendar.Berlin)
 
 	sr := &SessionResponse{
 		WorkSession: &WorkSession{
@@ -702,7 +705,7 @@ func TestWSSessionToRow_NoCheckOut(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date := NewDate(2024, 1, 15)
-	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
+	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, calendar.Berlin)
 
 	sr := &SessionResponse{
 		WorkSession: &WorkSession{
@@ -727,7 +730,7 @@ func TestWSSessionToRow_HomeOffice(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date := NewDate(2024, 1, 15)
-	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
+	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, calendar.Berlin)
 
 	sr := &SessionResponse{
 		WorkSession: &WorkSession{
@@ -756,8 +759,8 @@ func TestWSSessionToRow_Quelle_AutoCheckedOut(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date := NewDate(2024, 1, 15)
-	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
-	checkOut := time.Date(2024, 1, 15, 23, 59, 0, 0, time.UTC)
+	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, calendar.Berlin)
+	checkOut := time.Date(2024, 1, 15, 23, 59, 0, 0, calendar.Berlin)
 
 	sr := &SessionResponse{
 		WorkSession: &WorkSession{
@@ -786,7 +789,7 @@ func TestWSSessionToRow_Quelle_ManuelCorrected(t *testing.T) {
 	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
 
 	date := NewDate(2024, 1, 15)
-	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
+	checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, calendar.Berlin)
 
 	sr := &SessionResponse{
 		WorkSession: &WorkSession{
@@ -825,7 +828,7 @@ func TestWSSessionToRow_NetMinutesFormatting(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.expected, func(t *testing.T) {
 			date := NewDate(2024, 1, 15)
-			checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, time.UTC)
+			checkIn := time.Date(2024, 1, 15, 8, 0, 0, 0, calendar.Berlin)
 
 			sr := &SessionResponse{
 				WorkSession: &WorkSession{
@@ -852,13 +855,13 @@ func TestWSSessionToRow_GermanWeekdays(t *testing.T) {
 		date     time.Time
 		expected string
 	}{
-		{time.Date(2024, 1, 14, 0, 0, 0, 0, time.UTC), "Sonntag"},    // Sunday
-		{time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC), "Montag"},     // Monday
-		{time.Date(2024, 1, 16, 0, 0, 0, 0, time.UTC), "Dienstag"},   // Tuesday
-		{time.Date(2024, 1, 17, 0, 0, 0, 0, time.UTC), "Mittwoch"},   // Wednesday
-		{time.Date(2024, 1, 18, 0, 0, 0, 0, time.UTC), "Donnerstag"}, // Thursday
-		{time.Date(2024, 1, 19, 0, 0, 0, 0, time.UTC), "Freitag"},    // Friday
-		{time.Date(2024, 1, 20, 0, 0, 0, 0, time.UTC), "Samstag"},    // Saturday
+		{time.Date(2024, 1, 14, 0, 0, 0, 0, calendar.Berlin), "Sonntag"},    // Sunday
+		{time.Date(2024, 1, 15, 0, 0, 0, 0, calendar.Berlin), "Montag"},     // Monday
+		{time.Date(2024, 1, 16, 0, 0, 0, 0, calendar.Berlin), "Dienstag"},   // Tuesday
+		{time.Date(2024, 1, 17, 0, 0, 0, 0, calendar.Berlin), "Mittwoch"},   // Wednesday
+		{time.Date(2024, 1, 18, 0, 0, 0, 0, calendar.Berlin), "Donnerstag"}, // Thursday
+		{time.Date(2024, 1, 19, 0, 0, 0, 0, calendar.Berlin), "Freitag"},    // Friday
+		{time.Date(2024, 1, 20, 0, 0, 0, 0, calendar.Berlin), "Samstag"},    // Saturday
 	}
 
 	for _, wd := range weekdays {
@@ -1759,4 +1762,17 @@ func TestWSCheckIn_CreateError(t *testing.T) {
 	require.Error(t, err)
 	assert.Nil(t, session)
 	assert.Contains(t, err.Error(), "failed to create work session")
+}
+
+func TestWSSessionToRow_UTCInstantInSummerPrintsBerlinTime(t *testing.T) {
+	t.Parallel()
+	svc, _, _, _, _, _ := wsCreateTestServiceWithAbsenceRepo()
+	checkIn := time.Date(2026, time.July, 15, 6, 30, 0, 0, time.UTC)
+	checkOut := time.Date(2026, time.July, 15, 15, 15, 0, 0, time.UTC)
+	row := svc.sessionToRow(&SessionResponse{WorkSession: &WorkSession{
+		Date: NewDate(2026, time.July, 15), CheckInTime: checkIn, CheckOutTime: &checkOut,
+	}})
+	require.Len(t, row, 9)
+	assert.Equal(t, "08:30", row[2])
+	assert.Equal(t, "17:15", row[3])
 }

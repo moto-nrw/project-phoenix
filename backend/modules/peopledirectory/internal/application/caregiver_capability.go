@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"strings"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 type caregiverCapabilityService struct {
@@ -125,6 +125,15 @@ func (s *caregiverCapabilityService) ensureCaregiverProfile(
 	input peopleValues.EnableCaregiverCapabilityInput,
 	details map[string]any,
 ) error {
+	// Role assignment completes the identity chain after this profile write.
+	// Acquire its shared merge gate before profile creation locks an existing staff row.
+	schoolID := tenant.FromContext(ctx)
+	if err := tenant.OrderLock(ctx, tenant.LockStaffPersonMerge, tenant.LockIDKey(schoolID)); err != nil {
+		return err
+	}
+	if err := tenant.AcquireLock(ctx, peopleValues.StaffPersonMergeLockKey(schoolID), true); err != nil {
+		return err
+	}
 	person, err := s.ensurePerson(ctx, accountID, input, details)
 	if err != nil {
 		return err

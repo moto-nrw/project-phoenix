@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // holidayLinksStub resolves one known link.
@@ -24,11 +24,11 @@ type holidayLinksStub struct {
 	schoolIDs      []int64
 }
 
-func (s holidayLinksStub) ResolveHolidayRegistrationSchools(_ context.Context, token string) (int64, []int64, error) {
+func (s holidayLinksStub) ResolveHolidayRegistrationSchools(_ context.Context, token string) (parentService.HolidayRegistrationScope, error) {
 	if token != s.token {
-		return 0, nil, ErrHolidayRegistrationLinkNotFound
+		return parentService.HolidayRegistrationScope{}, ErrHolidayRegistrationLinkNotFound
 	}
-	return s.organizationID, s.schoolIDs, nil
+	return parentService.HolidayRegistrationScope{OrganizationID: s.organizationID, SchoolIDs: s.schoolIDs}, nil
 }
 
 func serveHolidayRegistrationFamily(t *testing.T, rs *Resource, token string) *httptest.ResponseRecorder {

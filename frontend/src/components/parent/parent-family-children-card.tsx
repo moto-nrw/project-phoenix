@@ -1,9 +1,10 @@
 "use client";
 
-// Kinder in der Familie (#5918): Eltern geben im Vertrag an, wie viele
-// Kinder ihre Familie hat, auch Geschwister ohne Betreuungsvertrag. Der
-// Träger bestätigt die Zahl; erst dann zählt sie für die
-// Geschwisterermäßigung. Gespeichert wird nur die Zahl.
+// Kinder in der Familie (#5918, #6335): Eltern geben an, wie viele Kinder
+// ihre Familie hat, auch Geschwister ohne Betreuungsvertrag. Das geht im
+// Vertrag im Elternportal, über den Link aus der Vertragsmail und schon auf
+// der Statusseite der Anmeldung. Der Träger bestätigt die Zahl; erst dann
+// zählt sie für die Geschwisterermäßigung. Gespeichert wird nur die Zahl.
 
 import { useLocale, useTranslations } from "next-intl";
 import { useCallback, useEffect, useRef, useState } from "react";
@@ -27,6 +28,7 @@ import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
   fetchFamilyChildren,
+  type FamilyChildrenSource,
   type ParentFamilyChildren,
   stateFamilyChildren,
 } from "~/lib/parent-family-children-api";
@@ -47,9 +49,10 @@ function waitsForTraeger(family: ParentFamilyChildren): boolean {
 }
 
 export function ParentFamilyChildrenCard({
-  organizationId,
-  contractId,
-}: Readonly<{ organizationId: string; contractId: string }>) {
+  source: initialSource,
+}: Readonly<{ source: FamilyChildrenSource }>) {
+  // The card names one contract or registration for its whole life.
+  const [source] = useState(initialSource);
   const t = useTranslations("parentFamilyChildren");
   const locale = useLocale();
   const [family, setFamily] = useState<ParentFamilyChildren | null>(null);
@@ -60,10 +63,11 @@ export function ParentFamilyChildrenCard({
   const formRef = useRef<HTMLFormElement>(null);
   const saveError = useApiFormError(formRef);
   const { success } = useToast();
+  const enrollment = source.kind === "enrollment";
 
   const load = useCallback(async () => {
     try {
-      const next = await fetchFamilyChildren(organizationId, contractId);
+      const next = await fetchFamilyChildren(source);
       setFamily(next);
       setChildren(next.statedChildren ?? next.confirmedChildren ?? 1);
       clearLoadError();
@@ -76,7 +80,7 @@ export function ParentFamilyChildrenCard({
         retry: () => void load(),
       });
     }
-  }, [organizationId, contractId, clearLoadError, showLoadError, t]);
+  }, [source, clearLoadError, showLoadError, t]);
 
   useEffect(() => {
     void load();
@@ -86,10 +90,8 @@ export function ParentFamilyChildrenCard({
     saveError.clear();
     setSaving(true);
     try {
-      setFamily(
-        await stateFamilyChildren(organizationId, contractId, children),
-      );
-      success(t("saved"));
+      setFamily(await stateFamilyChildren(source, children));
+      success(t(enrollment ? "enrollmentSaved" : "saved"));
     } catch (err) {
       logger.error("parent_family_children_state_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -102,6 +104,11 @@ export function ParentFamilyChildrenCard({
 
   const date = (value: string | null) =>
     value ? formatDate(value, false, locale) : "";
+  // A school that does not use the number does not ask for it, and a
+  // registration that ended without an accepted child (rejected, withdrawn)
+  // leads to no contract that could carry it.
+  if (family && !family.asked) return null;
+  if (family && enrollment && !family.canState && !family.accepted) return null;
 
   return (
     <SectionCard
@@ -132,8 +139,8 @@ export function ParentFamilyChildrenCard({
               ) : null}
               {waitsForTraeger(family) ? (
                 <p className="flex flex-wrap items-center gap-2 text-sm text-gray-900">
-                  <StatusBadge tone="orange" label={t("pendingBadge")} />
-                  {t("pending", {
+                  <StatusBadge tone="warning" label={t("pendingBadge")} />
+                  {t(enrollment ? "enrollmentPending" : "pending", {
                     count: family.statedChildren ?? 0,
                     date: date(family.statedAt),
                   })}
@@ -194,8 +201,15 @@ export function ParentFamilyChildrenCard({
               </div>
             </form>
           ) : (
-            <p className="text-sm text-gray-600">{t("noRight")}</p>
+            <p className="text-sm text-gray-600">
+              {t(enrollment ? "enrollmentClosed" : "noRight")}
+            </p>
           )}
+          {source.kind !== "inbox" && family.canState ? (
+            <p className="text-sm text-gray-600">
+              {t(enrollment ? "enrollmentHint" : "linkHint")}
+            </p>
+          ) : null}
           <p className="text-sm text-gray-600">{t("onlyNumber")}</p>
         </div>
       ) : null}

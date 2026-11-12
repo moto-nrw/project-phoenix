@@ -6,15 +6,15 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-ogs/project-phoenix/realtime"
 
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // ErrPhotoNoTenant refuses a photo route reached without a tenant context.
@@ -33,13 +33,14 @@ type StudentPhotoConsentRecorder interface {
 }
 
 type StudentPhotoRuntime struct {
-	Cleanup     func(context.Context, string) error
-	Settings    peoplePorts.PhotoSettings
-	Broadcaster PhotoBroadcaster
-	Unlinker    peoplePorts.PhotoUnlinker
-	Consents    StudentPhotoConsentRecorder
-	Logger      *slog.Logger
-	Actor       func(context.Context) int64
+	Cleanup      func(context.Context, string) error
+	CleanupBatch func(context.Context, []string) error
+	Settings     peoplePorts.PhotoSettings
+	Broadcaster  PhotoBroadcaster
+	Unlinker     peoplePorts.PhotoUnlinker
+	Consents     StudentPhotoConsentRecorder
+	Logger       *slog.Logger
+	Actor        func(context.Context) int64
 }
 
 // PhotoBroadcaster is the subset of realtime.Broadcaster the photo lifecycle
@@ -67,6 +68,16 @@ func (r StudentPhotoRuntime) QueueUnlinkStoredPhoto(ctx context.Context, storedU
 		return nil
 	}
 	return r.Cleanup(ctx, storedURL)
+}
+
+func (r StudentPhotoRuntime) QueueUnlinkStoredPhotos(ctx context.Context, urls []string) error {
+	if len(urls) == 0 {
+		return nil
+	}
+	if r.CleanupBatch == nil {
+		return errors.New("student photo batch cleanup is required")
+	}
+	return r.CleanupBatch(ctx, urls)
 }
 
 func (r StudentPhotoRuntime) UnlinkStoredPhoto(storedURL string) {

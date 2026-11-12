@@ -6,19 +6,19 @@ import (
 	"testing"
 	"time"
 
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	parentportal "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentportalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/communication/communicationtest"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	parentportalcompose "github.com/moto-ogs/project-phoenix/workflows/parentportal/compose"
 )
 
 // TestSubmitCareException_EmitsSelfServiceMirrorPill wires a real emitter into
@@ -43,29 +43,32 @@ func TestSubmitCareException_EmitsSelfServiceMirrorPill(t *testing.T) {
 		},
 	}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges:   owners.ParentGuardianChanges(),
-		DeparturePolicy:   owners.ParentDeparturePolicy(),
-		GuardianPolicy:    owners.NewParentGuardianPolicy(),
-		Fingerprints:      owners.SecurityFingerprints{},
-		Declarations:      owners.ParentDeclarationPolicy(),
-		Locales:           owners.ParentPortalLocales(),
-		Runtime:           owners.ParentPortalRuntime{},
-		MessagingEnabled:  owners.BindParentMessagingGate(settings, slog.Default()),
-		CarePlan:          owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
-		People:            owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:      careProfiles(t, db),
-		ChildRepo:         repos.ParentChildReads(),
-		StatusDayRepo:     repos.StudentStatusDay,
-		StudentRepo:       owners.NewParentStudentReads(reposPeople.Student),
-		CareExceptions:    owners.NewParentCareExceptions(repos.CarePlan()),
-		Settings:          settings,
-		StudentUpdates:    owners.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
-		MessageThreadRepo: owners.BindParentMessageThreadAccess(reposMessages.ParentMessageThread),
-		MessageRepo:       owners.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
-		MessageReadRepo:   owners.BindParentMessageInboxReads(reposMessages.ParentMessageRead),
-		Conversations:     api.NewParentConversationCore(reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(db), reposMessages.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
-		Emitter:           owners.BindParentChildEvents(emitter),
-		Logger:            slog.Default(),
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		GuardianProfileRepo: guardProfiles(t, db),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
+		MessagingEnabled:    owners.BindParentMessagingGate(settings, slog.Default()),
+		CarePlan:            owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:              owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:        careProfiles(t, db),
+		ChildRepo:           repos.ParentChildReads(),
+		StatusDayRepo:       repos.StudentStatusDay,
+		StudentRepo:         owners.NewParentStudentReads(reposPeople.Student),
+		CareExceptions:      owners.NewParentCareExceptions(repos.CarePlan()),
+		Settings:            settings,
+		StudentUpdates:      owners.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
+		MessageThreadRepo:   owners.BindParentMessageThreadAccess(reposMessages.ParentMessageThread),
+		MessageRepo:         owners.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
+		MessageReadRepo:     owners.BindParentMessageInboxReads(reposMessages.ParentMessageRead),
+		Conversations:       api.NewParentConversationCore(reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(db), reposMessages.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
+		Emitter:             owners.BindParentChildEvents(emitter),
+		Logger:              slog.Default(),
 
 		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
 
@@ -122,29 +125,32 @@ func TestSubmitCareException_WakesEveryGuardian(t *testing.T) {
 		},
 	}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges:   owners.ParentGuardianChanges(),
-		DeparturePolicy:   owners.ParentDeparturePolicy(),
-		GuardianPolicy:    owners.NewParentGuardianPolicy(),
-		Fingerprints:      owners.SecurityFingerprints{},
-		Declarations:      owners.ParentDeclarationPolicy(),
-		Locales:           owners.ParentPortalLocales(),
-		Runtime:           owners.ParentPortalRuntime{},
-		MessagingEnabled:  owners.BindParentMessagingGate(settings, slog.Default()),
-		CarePlan:          owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
-		People:            owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
-		CareProfiles:      careProfiles(t, db),
-		ChildRepo:         repos.ParentChildReads(),
-		StatusDayRepo:     repos.StudentStatusDay,
-		StudentRepo:       owners.NewParentStudentReads(reposPeople.Student),
-		CareExceptions:    owners.NewParentCareExceptions(repos.CarePlan()),
-		Settings:          settings,
-		StudentUpdates:    owners.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
-		MessageThreadRepo: owners.BindParentMessageThreadAccess(reposMessages.ParentMessageThread),
-		MessageRepo:       owners.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
-		MessageReadRepo:   owners.BindParentMessageInboxReads(reposMessages.ParentMessageRead),
-		Conversations:     api.NewParentConversationCore(reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(db), reposMessages.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
-		Emitter:           owners.BindParentChildEvents(emitter),
-		Logger:            slog.Default(),
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		GuardianProfileRepo: guardProfiles(t, db),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
+		MessagingEnabled:    owners.BindParentMessagingGate(settings, slog.Default()),
+		CarePlan:            owners.NewParentCarePlanCommands(repos.CarePlan(), nil),
+		People:              owners.MustNewPeopleDirectory(testpkg.MustDatabase(db)),
+		CareProfiles:        careProfiles(t, db),
+		ChildRepo:           repos.ParentChildReads(),
+		StatusDayRepo:       repos.StudentStatusDay,
+		StudentRepo:         owners.NewParentStudentReads(reposPeople.Student),
+		CareExceptions:      owners.NewParentCareExceptions(repos.CarePlan()),
+		Settings:            settings,
+		StudentUpdates:      owners.BindParentStudentUpdates(testpkg.NewRecordingBroadcaster()),
+		MessageThreadRepo:   owners.BindParentMessageThreadAccess(reposMessages.ParentMessageThread),
+		MessageRepo:         owners.BindParentMessageReads(communicationtest.NewParentMessageRepository(db)),
+		MessageReadRepo:     owners.BindParentMessageInboxReads(reposMessages.ParentMessageRead),
+		Conversations:       api.NewParentConversationCore(reposMessages.ParentMessageThread, communicationtest.NewParentMessageRepository(db), reposMessages.ParentMessageRead, testpkg.NewRecordingBroadcaster(), slog.Default()),
+		Emitter:             owners.BindParentChildEvents(emitter),
+		Logger:              slog.Default(),
 
 		DataRequests: owners.NewParentDataRequestCommands(repos.CarePlan()),
 

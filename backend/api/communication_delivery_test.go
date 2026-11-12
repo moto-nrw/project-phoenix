@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/devices"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -21,6 +21,27 @@ func (send communicationDeliveryProbe) NotifyEvent(ctx context.Context, event de
 }
 func (send communicationDeliveryProbe) NotifyEventDurably(ctx context.Context, event devices.NotificationEvent) (int, error) {
 	return send(ctx, event)
+}
+
+// NotifyEvents and NotifyEventsDurably answer each event of a series on its own.
+func (send communicationDeliveryProbe) NotifyEvents(ctx context.Context, events []devices.NotificationEvent) (int, error) {
+	for i, event := range events {
+		if _, err := send(ctx, event); err != nil {
+			return i, err
+		}
+	}
+	return len(events), nil
+}
+func (send communicationDeliveryProbe) NotifyEventsDurably(ctx context.Context, events []devices.NotificationEvent) ([]int, error) {
+	receipts := []int{}
+	for _, event := range events {
+		count, err := send(ctx, event)
+		if err != nil {
+			return receipts, err
+		}
+		receipts = append(receipts, count)
+	}
+	return receipts, nil
 }
 
 func TestCommunicationDeliveryPreservesRecipientSelectorsAndPartialReceipt(t *testing.T) {
@@ -47,12 +68,22 @@ func TestCommunicationDeliveryPreservesRecipientSelectorsAndPartialReceipt(t *te
 	require.Same(t, failure, owners.BindCommunicationNotificationSender(source)(ctx, event))
 	assert.Same(t, ctx, receivedContext)
 	assert.Equal(t, expected, receivedEvent)
-	receipt, err := owners.BindCommunicationDurableNotificationSender(source)(ctx, event)
-	assert.Equal(t, 7, receipt)
+	series := owners.BindCommunicationNotificationSeries(source)
+	accepted, err := series.Notify(ctx, []communication.NotificationEvent{event})
+	assert.Zero(t, accepted)
+	assert.Same(t, failure, err)
+	assert.Same(t, ctx, receivedContext)
+	assert.Equal(t, expected, receivedEvent)
+	receipts, err := series.NotifyDurably(ctx, []communication.NotificationEvent{event})
+	assert.Empty(t, receipts, "the failing variant's partial receipt is not an accepted variant")
 	assert.Same(t, failure, err)
 	assert.Equal(t, expected, receivedEvent)
+	accepting := communicationDeliveryProbe(func(context.Context, devices.NotificationEvent) (int, error) { return 7, nil })
+	receipts, err = owners.BindCommunicationNotificationSeries(accepting).NotifyDurably(ctx, []communication.NotificationEvent{event, event})
+	require.NoError(t, err)
+	assert.Equal(t, []int{7, 7}, receipts)
 	assert.Nil(t, owners.BindCommunicationNotificationSender(nil))
-	assert.Nil(t, owners.BindCommunicationDurableNotificationSender(nil))
+	assert.Equal(t, communication.NotificationSeries{}, owners.BindCommunicationNotificationSeries(nil))
 }
 
 func TestCommunicationDeliveryPreservesAbsentAndEmptySelectors(t *testing.T) {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 )
 
 func (s *Store) StaffMergeMemberships(ctx context.Context, schoolID int64, lock bool) ([]schoolmembership.Staff, error) {
@@ -21,7 +21,7 @@ func (s *Store) StaffMergeMemberships(ctx context.Context, schoolID int64, lock 
 	rows := []staffRow{}
 	query := db.NewSelect().TableExpr(`users.staff_school_memberships AS "staff"`).ColumnExpr(`staff.*`).Where(`staff.tenant_id = ?`, schoolID).OrderExpr(`staff.id ASC`)
 	if lock {
-		query = query.For("UPDATE OF staff")
+		query = query.For(staffRowLock + " OF staff")
 	}
 	if err := query.Scan(ctx, &rows); err != nil {
 		return nil, err

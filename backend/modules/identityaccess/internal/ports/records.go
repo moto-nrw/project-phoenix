@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // The record ports of the operator and account sessions, the operator second
@@ -202,7 +202,8 @@ type AccountSessionCommand interface {
 	// caller's school only and returns ErrTenantRequired without one.
 	RevokeAccountSessionsInTenant(ctx context.Context, accountID int64) ([]AccountSession, error)
 	// RevokeAllAccountSessions deletes the account's sessions at every school.
-	RevokeAllAccountSessions(ctx context.Context, accountID int64) ([]AccountSession, error)
+	// keepFamilyID, when set, names the one family that stays.
+	RevokeAllAccountSessions(ctx context.Context, accountID int64, keepFamilyID string) ([]AccountSession, error)
 	// RevokeAccountSessionsCreatedAtOrBefore deletes the sessions that already
 	// existed at cutoff, including their later refresh successors, and keeps
 	// logins that only started afterwards.

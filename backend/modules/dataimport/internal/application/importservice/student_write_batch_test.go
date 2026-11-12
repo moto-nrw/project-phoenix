@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	dataimport "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	dataimport "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 )
 
 type writeMatchTransactions struct {
@@ -39,7 +39,8 @@ func TestStudentWriteBatchReadFailureFallsBackWithoutRetainingFailure(t *testing
 		rows[i] = dataimport.StudentImportRow{FirstName: "First", LastName: last, SchoolClass: "1A"}
 	}
 	ctx := context.WithValue(context.Background(), importModeKey{}, dataimport.ImportModeCreate)
-	prepared := config.BatchWriteConfig(ctx, rows)
+	prepared, err := config.BatchWriteConfig(ctx, rows)
+	require.NoError(t, err)
 	require.Same(t, config, prepared)
 	for _, row := range rows {
 		id, err := prepared.FindExisting(ctx, row)
@@ -49,7 +50,9 @@ func TestStudentWriteBatchReadFailureFallsBackWithoutRetainingFailure(t *testing
 	require.Equal(t, 1, batchReads)
 	require.Equal(t, len(rows), scalarReads)
 	// Each new attempt rebuilds its read set instead of reusing the failure.
-	require.Same(t, config, config.BatchWriteConfig(ctx, rows))
+	again, err := config.BatchWriteConfig(ctx, rows)
+	require.NoError(t, err)
+	require.Same(t, config, again)
 	require.Equal(t, 2, batchReads)
 }
 
@@ -58,6 +61,8 @@ func TestStudentWriteBatchLeavesUpdateAndUpsertOnScalarReaders(t *testing.T) {
 	config := &StudentImportConfig{}
 	for _, mode := range []dataimport.ImportMode{dataimport.ImportModeUpdate, dataimport.ImportModeUpsert} {
 		ctx := context.WithValue(context.Background(), importModeKey{}, mode)
-		require.Same(t, config, config.BatchWriteConfig(ctx, make([]dataimport.StudentImportRow, 8)))
+		prepared, err := config.BatchWriteConfig(ctx, make([]dataimport.StudentImportRow, 8))
+		require.NoError(t, err)
+		require.Same(t, config, prepared)
 	}
 }

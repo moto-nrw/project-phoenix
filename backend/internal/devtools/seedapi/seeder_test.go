@@ -1031,6 +1031,7 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 	t.Helper()
 	weeklyMock := &weeklyProfileAPIMock{traces: traces}
 	idCounter := int64(0)
+	holidayGuestGroupID := "0"
 	// The first staff members the seed creates; the Frühbetreuung's
 	// deviation needs the second.
 	var planningStaffIDs []map[string]any
@@ -1172,7 +1173,17 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 		}
 		if r.URL.Path == "/api/holiday-weeks/51/guest-group" {
 			// The holiday guest joins the Feriengruppe (#4666).
-			_, _ = fmt.Fprint(w, `{"status":"success","data":{"week_id":51,"group_id":5,"guests":1}}`)
+			var body struct {
+				GroupID string `json:"group_id"`
+			}
+			require.NoError(t, json.NewDecoder(r.Body).Decode(&body))
+			holidayGuestGroupID = body.GroupID
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":{"week_id":51,"group_id":%s,"guests":1,"own_children":1}}`, body.GroupID)
+			return
+		}
+		if r.URL.Path == "/api/holiday-guests/groups" {
+			// The group management names the Feriengruppe before its week.
+			_, _ = fmt.Fprintf(w, `{"status":"success","data":[{"group_id":%s,"week_id":51,"guests":1}]}`, holidayGuestGroupID)
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/traeger/billing-runs/") && !strings.HasSuffix(r.URL.Path, "/release") && r.URL.Path != "/traeger/billing-runs/" {
@@ -1714,6 +1725,11 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		// An upload for a message answers with the attachment (#6685).
+		if strings.HasSuffix(r.URL.Path, "/attachments") && r.Method == seedHTTPMethodPost {
+			_ = json.NewEncoder(w).Encode(map[string]any{"status": "success", "data": map[string]any{"id": fmt.Sprintf("%d", idCounter)}})
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/parent/me/messages/children/") && r.Method == seedHTTPMethodPost {
 			_ = json.NewEncoder(w).Encode(map[string]any{
 				"status": "success", "data": map[string]any{
@@ -1769,6 +1785,22 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			})
 			return
 		}
+		if r.URL.Path == "/traeger/holiday-periods/criteria" {
+			// The criteria of the allocation as stored (#4700).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"criteria":[{"id":71},{"id":72},{"id":73},{"id":74}],"periods":[]}}`)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/traeger/holiday-periods/") && strings.HasSuffix(r.URL.Path, "/allocation") {
+			// The allocation list with its first pending child (#4700).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"weeks":[{"pending":[{"booking_id":81,"proposal":"placed"}]}]}}`)
+			return
+		}
+		if strings.HasPrefix(r.URL.Path, "/traeger/catalog/phases/") && strings.HasSuffix(r.URL.Path, "/preview") {
+			// The preview of the Träger phase carries the fingerprint its
+			// rollout confirms (#4704).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"traeger_phase_id":3,"fingerprint":"preview-key","schools":[]}}`)
+			return
+		}
 		if strings.HasPrefix(r.URL.Path, "/traeger/holiday-periods/") && strings.HasSuffix(r.URL.Path, "/publish") {
 			// The published period carries its public link and its weeks
 			// for the holiday registration of the same step (#4661).
@@ -1788,9 +1820,27 @@ func fullSeedAPIMock(t *testing.T, traces ...*fullSeedAPITrace) *seedHTTPTestSer
 			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"id":"72","organization_id":"3","contract_status":"versendet"}]}`)
 			return
 		}
+		if r.URL.Path == "/parent/me/holiday-registrations" {
+			// The start page of the parents app offers the same period (#6671).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":[{"token":"link-key","open":true,"children":[{"student_id":"9"}]}]}`)
+			return
+		}
+		if r.Method == seedHTTPMethodPost && r.URL.Path == "/traeger/holiday-registrations/link-key" && r.Header.Get(seedTokenHeader) == "true" {
+			// The guest family asking for a parent account gets the setup
+			// link only the local seeder receives (ADR 0216).
+			w.WriteHeader(seedHTTPStatusCreated)
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"id":10,"parent_account_setup_url":"http://parents.localhost:3000/ferienkonto/setup-token"}}`)
+			return
+		}
 		if r.URL.Path == "/parent/holiday-registrations/link-key/family" {
-			// The first seeded parent's prefill of the same link (#4662).
-			_, _ = fmt.Fprint(w, `{"status":"success","data":{"guardian":{},"children":[{"student_id":"9","school_id":"1"}]}}`)
+			// The first seeded parent's prefill of the same link (#4662) with
+			// the proof of the account (ADR 0216).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"guardian":{},"children":[{"student_id":"9","school_id":"1"}],"account_proof":"account-proof"}}`)
+			return
+		}
+		if r.URL.Path == "/parent/me/holiday-registration-entries" {
+			// The parent's linked holiday registrations (ADR 0216).
+			_, _ = fmt.Fprint(w, `{"status":"success","data":{"registrations":[{"id":1},{"id":2}]}}`)
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/parent-announcements/") && strings.HasSuffix(r.URL.Path, "/publish") {

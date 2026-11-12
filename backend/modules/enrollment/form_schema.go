@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 )
 
 // validFormFieldTypes is the set of accepted FormFieldType values.
@@ -105,8 +105,9 @@ func (c *VisibilityCondition) validateSource(appliesToChild bool) error {
 }
 
 var validCoreRequirements = map[string]bool{
-	CoreRequirementGuardianPhone: true,
-	CoreRequirementSignature:     true,
+	CoreRequirementGuardianPhone:   true,
+	CoreRequirementSignature:       true,
+	CoreRequirementHolidayCareWish: true,
 }
 
 // Validate rejects unknown core requirement keys so typos in the admin API

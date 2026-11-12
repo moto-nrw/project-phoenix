@@ -8,9 +8,9 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 const (
@@ -150,7 +150,8 @@ type ServiceDependencies struct {
 // Service implements the Active Service interface
 type service struct {
 	ServiceDependencies
-	tenantRuntime *tenant.UnitOfWork
+	tenantRuntime      *tenant.UnitOfWork
+	visitAdmissionRead VisitAdmissionRead
 
 	// Optional: Tenant-scoped settings resolver for auto-clear logic.
 	// When nil, auto-clear falls back to the registry default behavior.

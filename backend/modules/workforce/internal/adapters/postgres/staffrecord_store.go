@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -64,15 +65,16 @@ type staffQualificationRow struct {
 }
 
 type staffFinancialDataRow struct {
-	bun.BaseModel        `bun:"table:users.staff_financial_data,alias:staff_financial_data"`
-	ID                   int64     `bun:"id,pk,autoincrement"`
-	TenantID             int64     `bun:"tenant_id,notnull"`
-	StaffID              int64     `bun:"staff_id,notnull"`
-	IBAN                 *string   `bun:"iban"`
-	TaxID                *string   `bun:"tax_id"`
-	SocialSecurityNumber *string   `bun:"social_security_number"`
-	CreatedAt            time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
-	UpdatedAt            time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
+	bun.BaseModel              `bun:"table:users.staff_financial_data,alias:staff_financial_data"`
+	ID                         int64     `bun:"id,pk,autoincrement"`
+	TenantID                   int64     `bun:"tenant_id,notnull"`
+	StaffID                    int64     `bun:"staff_id,notnull"`
+	IBANSealed                 []byte    `bun:"iban_sealed"`
+	IBANMasked                 *string   `bun:"iban_masked"`
+	TaxIDSealed                []byte    `bun:"tax_id_sealed"`
+	SocialSecurityNumberSealed []byte    `bun:"social_security_number_sealed"`
+	CreatedAt                  time.Time `bun:"created_at,nullzero,notnull,default:current_timestamp"`
+	UpdatedAt                  time.Time `bun:"updated_at,nullzero,notnull,default:current_timestamp"`
 }
 
 type staffDocumentRow struct {
@@ -485,6 +487,9 @@ func (s *Store) ListQueuedStaffDocumentFileCleanups(ctx context.Context, staffID
 			WHERE offboarding.tenant_id = "staff_document_file_cleanup".tenant_id
 			AND offboarding.staff_id = "staff_document_file_cleanup".staff_id AND offboarding.completed_at IS NULL)`)
 	}
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "users.staff_document_file_cleanup"); err != nil {
+		return nil, domain.OperationStats{}, err
+	}
 	query = query.OrderExpr(`"staff_document_file_cleanup".id ASC`).For("UPDATE SKIP LOCKED")
 	stats, err := scanAll(ctx, query, "list queued staff document file cleanups")
 	if err != nil {
@@ -585,17 +590,20 @@ func staffQualificationsToDomain(rows []staffQualificationRow) []domain.StaffQua
 	return result
 }
 
+// staffFinancialDataFromDomain writes only sealed values and the mask (#6332).
 func staffFinancialDataFromDomain(value domain.StaffFinancialData) *staffFinancialDataRow {
 	return &staffFinancialDataRow{
-		ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID, IBAN: value.IBAN, TaxID: value.TaxID,
-		SocialSecurityNumber: value.SocialSecurityNumber, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
+		ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID,
+		IBANSealed: value.IBANSealed, IBANMasked: value.IBANMasked, TaxIDSealed: value.TaxIDSealed,
+		SocialSecurityNumberSealed: value.SocialSecurityNumberSealed, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
 	}
 }
 
 func staffFinancialDataToDomain(row staffFinancialDataRow) domain.StaffFinancialData {
 	return domain.StaffFinancialData{
-		ID: row.ID, TenantID: row.TenantID, StaffID: row.StaffID, IBAN: row.IBAN, TaxID: row.TaxID,
-		SocialSecurityNumber: row.SocialSecurityNumber, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
+		ID: row.ID, TenantID: row.TenantID, StaffID: row.StaffID, IBANSealed: row.IBANSealed, IBANMasked: row.IBANMasked,
+		TaxIDSealed: row.TaxIDSealed, SocialSecurityNumberSealed: row.SocialSecurityNumberSealed,
+		CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt,
 	}
 }
 

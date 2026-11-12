@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
+	appointmentcap "github.com/moto-ogs/project-phoenix/modules/appointments"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal/internal/ports"
 )
 
 type guardianRecipientReadSet struct {
@@ -31,7 +31,7 @@ func (s *service) loadGuardianRecipientReadSet(ctx context.Context, appointmentI
 	if err != nil {
 		return nil, err
 	}
-	readSet, guardianIDs, recipientIDs := indexGuardianRecipientRows(recipients)
+	readSet, guardianIDs := indexGuardianRecipientRows(recipients)
 	if len(guardianIDs) == 0 {
 		return readSet, nil
 	}
@@ -39,11 +39,6 @@ func (s *service) loadGuardianRecipientReadSet(ctx context.Context, appointmentI
 	if err != nil {
 		return nil, err
 	}
-	studentLinks, err := s.cfg.Appointments.FindAppointmentRecipientStudents(ctx, recipientIDs)
-	if err != nil {
-		return nil, err
-	}
-	indexRecipientStudents(readSet.studentsByRecipient, studentLinks)
 	guardianLinks := make([]*ports.StudentGuardian, 0, len(contacts))
 	for _, contact := range contacts {
 		profile := contact.Profile
@@ -56,7 +51,7 @@ func (s *service) loadGuardianRecipientReadSet(ctx context.Context, appointmentI
 	return readSet, nil
 }
 
-func indexGuardianRecipientRows(recipients []*appointmentcap.AppointmentRecipient) (*guardianRecipientReadSet, []int64, []int64) {
+func indexGuardianRecipientRows(recipients []*appointmentcap.AppointmentRecipient) (*guardianRecipientReadSet, []int64) {
 	readSet := &guardianRecipientReadSet{
 		recipientsByAppointment: make(map[int64][]*appointmentcap.AppointmentRecipient),
 		profiles:                make(map[int64]*ports.GuardianProfile),
@@ -64,21 +59,14 @@ func indexGuardianRecipientRows(recipients []*appointmentcap.AppointmentRecipien
 		allowed:                 make(map[[2]int64]bool),
 	}
 	guardianIDs := make([]int64, 0, len(recipients))
-	recipientIDs := make([]int64, 0, len(recipients))
 	for _, recipient := range recipients {
 		readSet.recipientsByAppointment[recipient.AppointmentID] = append(readSet.recipientsByAppointment[recipient.AppointmentID], recipient)
 		if recipient.RecipientType == appointmentcap.RecipientTypeGuardianProfile && recipient.GuardianProfileID != nil {
 			guardianIDs = append(guardianIDs, *recipient.GuardianProfileID)
-			recipientIDs = append(recipientIDs, recipient.ID)
+			readSet.studentsByRecipient[recipient.ID] = recipient.StudentIDs
 		}
 	}
-	return readSet, guardianIDs, recipientIDs
-}
-
-func indexRecipientStudents(byRecipient map[int64][]int64, links []*appointmentcap.AppointmentRecipientStudent) {
-	for _, link := range links {
-		byRecipient[link.RecipientID] = append(byRecipient[link.RecipientID], link.StudentID)
-	}
+	return readSet, guardianIDs
 }
 
 func guardianPermissionSet(links []*ports.StudentGuardian) map[[2]int64]bool {

@@ -10,6 +10,7 @@
 // „Schreiben“ ([id]/schreiben). Jedes Öffnen steht im Protokoll des Laufs.
 
 import dynamic from "next/dynamic";
+import { ArchiveX, Inbox } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -18,6 +19,7 @@ import {
   MONTH_RULE_LABELS,
   formatMonth,
   invoiceCountLabel,
+  isEmptyCareRun,
 } from "~/components/traeger/care-billing-format";
 import {
   CareRunInvoices,
@@ -40,7 +42,10 @@ import {
 } from "~/components/traeger/release-open-points";
 import { CareRunMealsCard } from "~/components/traeger/care-run-meals";
 import { runDueDatesText } from "~/components/traeger/billing-payment-format";
-import { invoiceDateLabel } from "~/components/traeger/care-review-format";
+import {
+  invoiceDateLabel,
+  invoiceKindLabel,
+} from "~/components/traeger/care-review-format";
 import {
   CareDebitHintsCard,
   CareExcludedCard,
@@ -52,6 +57,7 @@ import { HolidayHeadFacts } from "~/components/traeger/holiday-period-head";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
+import { EmptyState } from "~/components/ui/empty-state";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SectionCard } from "~/components/ui/section-card";
 import { billingConcept } from "~/lib/concepts/billing";
@@ -68,9 +74,11 @@ import { numberPatternPreview } from "~/components/traeger/billing-format";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
 import {
+  type CareFeeNoticeHold,
   type CareInvoice,
   type CareLetters,
   type CareRunDetail,
+  discardCareRun,
   fetchCareLetters,
   fetchCareRun,
   releaseCareRun,
@@ -97,6 +105,14 @@ const CareCostBearerCard = dynamic(
     ),
   { ssr: false },
 );
+// The direct debit file of a released run (#4697) loads with the run.
+const SepaDebitCard = dynamic(
+  () =>
+    import("~/components/traeger/sepa-debit-card").then(
+      (module) => module.SepaDebitCard,
+    ),
+  { ssr: false },
+);
 const CareInvoiceDateModal = dynamic(
   () =>
     import("~/components/traeger/care-run-review-modals").then(
@@ -116,6 +132,24 @@ const RUN_STEPS = [
  * "1 Kind mit doppeltem Vertrag wird nicht abgerechnet.", after the release
  * "… ist nicht abgerechnet."
  */
+function feeNoticeHeldText(held: readonly CareFeeNoticeHold[]): string {
+  const names = held
+    .slice(0, 5)
+    .map((hold) => `${hold.childFirstName} ${hold.childLastName}`.trim());
+  const rest = held.length - names.length;
+  const list =
+    rest > 0
+      ? `${names.join(", ")} und ${rest} weitere`
+      : names.length > 1
+        ? `${names.slice(0, -1).join(", ")} und ${names.at(-1)}`
+        : (names[0] ?? "");
+  const subject =
+    held.length === 1
+      ? `Der Jahresbescheid von ${list} setzt diesen Monat auf 0,00 €.`
+      : `Die Jahresbescheide von ${list} setzen diesen Monat auf 0,00 €.`;
+  return `${subject} Der Monat bleibt gesperrt. Dieser Lauf rechnet dafür keine Betreuung ab. Wollen Sie den Monat abrechnen, stellen Sie einen neuen Bescheid aus.`;
+}
+
 function notBilledLabel(children: number, released = false): string {
   if (children === 1) {
     return `1 Kind mit doppeltem Vertrag ${released ? "ist" : "wird"} nicht abgerechnet.`;
@@ -130,6 +164,8 @@ export default function TraegerCareRunPage() {
   const [run, setRun] = useState<CareRunDetail | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [releasing, setReleasing] = useState(false);
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
   const releaseErrors = useApiErrorDisplay();
@@ -207,13 +243,34 @@ export default function TraegerCareRunPage() {
     }
   };
 
+  const discard = async () => {
+    if (!run) return;
+    setDiscarding(true);
+    try {
+      setRun(await discardCareRun(run.id));
+      setConfirmingDiscard(false);
+      success(
+        `Der Lauf ist verworfen. Für ${formatMonth(run.billingMonth)} können Sie einen neuen Lauf starten.`,
+      );
+    } catch (err) {
+      logger.error("traeger_care_run_discard_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setConfirmingDiscard(false);
+      void releaseErrors.show(err, { object: "der Monatslauf" });
+      void load();
+    } finally {
+      setDiscarding(false);
+    }
+  };
+
   const include = async (invoice: CareInvoice) => {
     if (!run) return;
-    setReturning(invoice.contractId);
+    setReturning(`${invoice.contractId}-${invoice.service}`);
     try {
-      setRun(await includeCareInvoice(run.id, invoice.contractId));
+      setRun(await includeCareInvoice(run.id, invoice));
       success(
-        `Die Rechnung von ${invoice.childFirstName} ${invoice.childLastName} ist wieder im Lauf.`,
+        `${invoiceKindLabel(invoice)} von ${invoice.childFirstName} ${invoice.childLastName} ist wieder im Lauf.`,
       );
     } catch (err) {
       logger.error("traeger_care_invoice_include_failed", {
@@ -250,6 +307,8 @@ export default function TraegerCareRunPage() {
   };
 
   const preview = run?.status === "calculated";
+  const discarded = run?.status === "discarded";
+  const empty = run ? isEmptyCareRun(run) : false;
   const canRelease =
     preview &&
     !(run.previewCount > 0 && run.legalRemedyMissing) &&
@@ -359,16 +418,32 @@ export default function TraegerCareRunPage() {
               label={CARE_RUN_STATUS_LABELS[run.status]}
               tone={CARE_RUN_STATUS_TONES[run.status]}
             />
-            <span className="tabular-nums">
-              {invoiceCountLabel(run.previewCount)} ·{" "}
-              {formatEuro(run.previewCents)}
-            </span>
+            {discarded ? (
+              <span>
+                Verworfen am{" "}
+                {run.discardedAt ? formatDate(run.discardedAt) : "–"}
+              </span>
+            ) : (
+              <span className="tabular-nums">
+                {invoiceCountLabel(run.previewCount)} ·{" "}
+                {formatEuro(run.previewCents)}
+              </span>
+            )}
           </HolidayHeadFacts>
         ) : null
       }
       statsLoading={!run && !pageLoad.error}
       actions={
-        preview ? (
+        empty ? (
+          <Button
+            type="button"
+            variant="outline_danger"
+            size="md"
+            onClick={() => setConfirmingDiscard(true)}
+          >
+            Leeren Lauf verwerfen
+          </Button>
+        ) : preview ? (
           <Button
             type="button"
             variant="primary"
@@ -383,7 +458,29 @@ export default function TraegerCareRunPage() {
       error={pageLoad.error}
       loading={!pageLoad.error && !run}
       overlays={
-        run ? (
+        run && empty ? (
+          <ConfirmationModal
+            isOpen={confirmingDiscard}
+            title="Leeren Lauf verwerfen?"
+            confirmText="Verwerfen"
+            confirmVariant="danger"
+            isConfirmLoading={discarding}
+            loadingText="Wird verworfen …"
+            onClose={() => setConfirmingDiscard(false)}
+            onConfirm={() => void discard()}
+          >
+            <div className="space-y-3 text-sm text-gray-700">
+              <p>
+                Der Monatslauf für {formatMonth(run.billingMonth)} stellt nichts
+                aus. Er bleibt als „Verworfen“ in der Liste.
+              </p>
+              <p>
+                Danach ist der Monat frei. Sie können sofort einen neuen Lauf
+                starten.
+              </p>
+            </div>
+          </ConfirmationModal>
+        ) : run ? (
           <ConfirmationModal
             isOpen={confirming}
             title="Monatslauf freigeben?"
@@ -437,18 +534,90 @@ export default function TraegerCareRunPage() {
         ) : null
       }
     >
-      {run ? (
+      {run && !discarded && run.feeNoticeHeld?.length ? (
+        <Alert
+          type="warning"
+          title="Durch aufgehobenen Bescheid gesperrt"
+          message={feeNoticeHeldText(run.feeNoticeHeld)}
+          action={
+            <ButtonLink
+              href={traegerPath("/traeger/abrechnung/jahresbescheide")}
+              variant="surface"
+              size="compact"
+            >
+              Neuen Bescheid ausstellen
+            </ButtonLink>
+          }
+        />
+      ) : null}
+      {run && (discarded || empty) ? (
+        <>
+          <SectionCard title="Monatslauf">
+            <EmptyState
+              tone="neutral"
+              icon={
+                discarded ? (
+                  <ArchiveX className="h-7 w-7" aria-hidden="true" />
+                ) : (
+                  <Inbox className="h-7 w-7" aria-hidden="true" />
+                )
+              }
+              title={
+                discarded
+                  ? "Dieser Lauf ist verworfen"
+                  : "Dieser Lauf hat nichts abzurechnen"
+              }
+              description={
+                discarded
+                  ? `Er hatte nichts abzurechnen und hat nichts ausgestellt. Für ${formatMonth(run.billingMonth)} können Sie einen neuen Lauf starten.`
+                  : `Für ${formatMonth(run.billingMonth)} gibt es keine Rechnung. Es fehlt auch kein Preis. Sie können den Lauf verwerfen. Danach ist der Monat frei für einen neuen Lauf.`
+              }
+              className="py-6"
+            />
+            <div className="mt-2 border-t border-gray-100 pt-5">
+              <DataGrid columns={2}>
+                <DataField label="Zeitraum">
+                  {formatMonth(run.billingMonth)}
+                </DataField>
+                <DataField label="Schulen">
+                  {run.schools.map((school) => school.name).join(", ") || "–"}
+                </DataField>
+                <DataField label="Gestartet am">
+                  {formatDate(run.createdAt)}
+                </DataField>
+                {discarded ? (
+                  <DataField label="Verworfen am">
+                    {run.discardedAt ? formatDate(run.discardedAt) : "–"}
+                  </DataField>
+                ) : null}
+              </DataGrid>
+            </div>
+          </SectionCard>
+          {/* Mensa months a school has not released yet come with a later
+              run; the empty run still names them. */}
+          {empty ? (
+            <CareRunMealsCard
+              gaps={run.mealGaps}
+              unbilled={run.mealUnbilled}
+              changed={run.mealChanged}
+            />
+          ) : null}
+        </>
+      ) : run ? (
         <>
           {preview ? (
             <>
               <CareExcludeModal
                 runId={run.id}
                 invoice={excluding}
+                invoices={run.invoices}
                 onClose={() => setExcluding(null)}
-                onExcluded={(next) => {
+                onExcluded={(next, invoice) => {
                   setRun(next);
                   setExcluding(null);
-                  success("Die Rechnung ist ausgeschlossen.");
+                  success(
+                    `${invoiceKindLabel(invoice)} von ${invoice.childFirstName} ${invoice.childLastName} ist ausgeschlossen.`,
+                  );
                 }}
               />
               <CareInvoiceDateModal
@@ -700,6 +869,9 @@ export default function TraegerCareRunPage() {
               letters={letters}
               loadError={lettersLoad.error}
             />
+          ) : null}
+          {released && run.previewCount > 0 ? (
+            <SepaDebitCard kind="care-runs" runId={run.id} />
           ) : null}
           {run.costBearers.length > 0 ? (
             <CareCostBearerCard

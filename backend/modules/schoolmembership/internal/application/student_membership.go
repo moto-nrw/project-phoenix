@@ -3,9 +3,11 @@ package application
 import (
 	"context"
 	"fmt"
+	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func (s *Service) Enroll(ctx context.Context, input schoolmembership.StudentEnrollment) (result int64, err error) {
@@ -76,4 +78,57 @@ func (s *Service) AssignGroup(ctx context.Context, studentID int64, groupID *int
 		return err
 	})
 	return result, err
+}
+
+// MovePendingWindow moves the window of a still pending child (#6505). The
+// row lock comes first, so a status change committed meanwhile is seen and
+// the child is left alone. No class gate is taken: the move writes no class,
+// and a caller holding the recurrence gate must not wait for it afterwards.
+// The Kontingentzahl cannot rise: the counted pending children are those
+// whose start lies ahead, and the move keeps or ends that.
+func (s *Service) MovePendingWindow(ctx context.Context, move schoolmembership.PendingWindowMove) (moved bool, err error) {
+	if move.StudentID <= 0 {
+		return false, invalid("student ID is required")
+	}
+	err = s.runWrite(ctx, "move_pending_student_window", func(txCtx context.Context, stats *domain.OperationStats) error {
+		if err := admitLeaf(txCtx, true, "users.student_school_memberships"); err != nil {
+			return err
+		}
+		current, found, queryStats, readErr := s.store.LockStudentWindow(txCtx, move.StudentID)
+		stats.Add(queryStats)
+		if readErr != nil || !found || current.Status != "pending" {
+			return readErr
+		}
+		moved = true
+		next := current
+		next.EnrolledFrom = movedBound(current.EnrolledFrom, move.FromBefore, move.FromAfter, move.OtherStarts, move.FromAfter.Before)
+		next.EnrolledUntil = movedBound(current.EnrolledUntil, move.UntilBefore, move.UntilAfter, move.OtherEnds, move.UntilAfter.After)
+		if next.EnrolledFrom == current.EnrolledFrom && next.EnrolledUntil == current.EnrolledUntil {
+			return nil
+		}
+		if next.EnrolledFrom != "" && next.EnrolledUntil != "" && calendar.Date(next.EnrolledFrom).After(calendar.Date(next.EnrolledUntil)) {
+			return &schoolmembership.PendingWindowConflictError{StudentID: move.StudentID}
+		}
+		_, writeStats, writeErr := s.store.RenewStudentEnrollment(txCtx, next, s.today())
+		stats.Add(writeStats)
+		return writeErr
+	})
+	if err != nil {
+		return false, err
+	}
+	return moved, nil
+}
+
+// movedBound is the next value of one window bound: the phase's new bound
+// when the bound still is the phase's old one, or when it comes from another
+// approval and the new bound widens the window (widens reports that).
+func movedBound(current string, before, after calendar.Date, others []calendar.Date, widens func(calendar.Date) bool) string {
+	if current == "" {
+		return current
+	}
+	day := calendar.Date(current)
+	if day == before || (slices.Contains(others, day) && widens(day)) {
+		return after.String()
+	}
+	return current
 }

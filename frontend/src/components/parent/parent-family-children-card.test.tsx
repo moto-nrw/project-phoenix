@@ -18,7 +18,11 @@ const family: ParentFamilyChildren = {
   validFrom: "2026-09-01",
   validUntil: null,
   canState: false,
+  asked: true,
+  accepted: true,
 };
+
+const inbox = { kind: "inbox", organizationId: "4", contractId: "75" } as const;
 
 describe("ParentFamilyChildrenCard", () => {
   beforeEach(() => vi.clearAllMocks());
@@ -42,7 +46,7 @@ describe("ParentFamilyChildrenCard", () => {
     ],
   ] as const)("%s", async (_name, count, pending) => {
     mocks.fetch.mockResolvedValue(count);
-    render(<ParentFamilyChildrenCard organizationId="4" contractId="75" />, {
+    render(<ParentFamilyChildrenCard source={inbox} />, {
       wrapper: ToastProvider,
     });
     // Anker: the family response has loaded, not just the card skeleton.
@@ -55,11 +59,11 @@ describe("ParentFamilyChildrenCard", () => {
     expect(
       screen.queryByRole("button", { name: "Angabe senden" }),
     ).not.toBeInTheDocument();
-    expect(mocks.fetch).toHaveBeenCalledWith("4", "75");
+    expect(mocks.fetch).toHaveBeenCalledWith(inbox);
   });
   it("offers submission only when the response permits it", async () => {
     mocks.fetch.mockResolvedValue({ ...family, canState: true });
-    render(<ParentFamilyChildrenCard organizationId="4" contractId="75" />, {
+    render(<ParentFamilyChildrenCard source={inbox} />, {
       wrapper: ToastProvider,
     });
     expect(
@@ -70,13 +74,112 @@ describe("ParentFamilyChildrenCard", () => {
   it("shows a failed statement inside the form, not only as a toast", async () => {
     mocks.fetch.mockResolvedValue({ ...family, canState: true });
     mocks.state.mockRejectedValue(new Error("network down"));
-    render(<ParentFamilyChildrenCard organizationId="4" contractId="75" />, {
+    render(<ParentFamilyChildrenCard source={inbox} />, {
       wrapper: ToastProvider,
     });
     const send = await screen.findByRole("button", { name: "Angabe senden" });
     const form = send.closest("form") as HTMLFormElement;
     fireEvent.click(send);
     expect(await within(form).findByRole("alert")).toBeInTheDocument();
-    expect(mocks.state).toHaveBeenCalledWith("4", "75", 3);
+    expect(mocks.state).toHaveBeenCalledWith(inbox, 3);
+  });
+
+  // #6335: the mail link and the registration's status page use the same
+  // card; each sends to its own source only.
+  it("states the number through an open mail link", async () => {
+    const link = { kind: "link", link: "4.abc" } as const;
+    mocks.fetch.mockResolvedValue({
+      ...family,
+      statedChildren: null,
+      statedAt: null,
+      confirmedChildren: null,
+      confirmedAt: null,
+      canState: true,
+    });
+    mocks.state.mockResolvedValue({
+      ...family,
+      statedChildren: 2,
+      confirmedChildren: null,
+      confirmedAt: null,
+      canState: true,
+    });
+    render(<ParentFamilyChildrenCard source={link} />, {
+      wrapper: ToastProvider,
+    });
+    expect(
+      await screen.findByText(
+        "Bis zur Unterschrift können Sie die Zahl hier ändern.",
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Ein Kind mehr" }));
+    fireEvent.click(screen.getByRole("button", { name: "Angabe senden" }));
+    expect(await screen.findByText("Wird geprüft")).toBeInTheDocument();
+    expect(mocks.fetch).toHaveBeenCalledWith(link);
+    expect(mocks.state).toHaveBeenCalledWith(link, 2);
+  });
+
+  it("asks on the registration only where the school uses the number", async () => {
+    const enrollment = { kind: "enrollment", token: "tok" } as const;
+    mocks.fetch.mockResolvedValue({ ...family, asked: false });
+    render(
+      <div data-testid="host">
+        <ParentFamilyChildrenCard source={enrollment} />
+      </div>,
+      { wrapper: ToastProvider },
+    );
+    await vi.waitFor(() =>
+      expect(mocks.fetch).toHaveBeenCalledWith(enrollment),
+    );
+    await vi.waitFor(() =>
+      expect(screen.getByTestId("host")).toBeEmptyDOMElement(),
+    );
+  });
+
+  it("points to the contract once a child of the registration is accepted", async () => {
+    mocks.fetch.mockResolvedValue({
+      ...family,
+      statedChildren: 3,
+      confirmedChildren: null,
+      confirmedAt: null,
+      canState: false,
+    });
+    render(
+      <ParentFamilyChildrenCard
+        source={{ kind: "enrollment", token: "tok" }}
+      />,
+      { wrapper: ToastProvider },
+    );
+    expect(
+      await screen.findByText(
+        "Ihr Kind ist angenommen. Die Zahl ändern Sie jetzt in Ihrem Betreuungsvertrag.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(/Der Träger prüft sie, wenn Ihr Vertrag kommt/),
+    ).toBeInTheDocument();
+  });
+
+  it("shows nothing once a registration ended without an accepted child", async () => {
+    const enrollment = { kind: "enrollment", token: "tok" } as const;
+    mocks.fetch.mockResolvedValue({
+      ...family,
+      statedChildren: 3,
+      confirmedChildren: null,
+      confirmedAt: null,
+      canState: false,
+      accepted: false,
+    });
+    render(
+      <div data-testid="host">
+        <ParentFamilyChildrenCard source={enrollment} />
+      </div>,
+      { wrapper: ToastProvider },
+    );
+    await vi.waitFor(() =>
+      expect(mocks.fetch).toHaveBeenCalledWith(enrollment),
+    );
+    await vi.waitFor(() =>
+      expect(screen.getByTestId("host")).toBeEmptyDOMElement(),
+    );
   });
 });

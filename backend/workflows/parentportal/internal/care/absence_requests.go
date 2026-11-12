@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ListExcusedRequests is the legacy-named read path for the child's pending and
@@ -16,31 +16,36 @@ import (
 // child's effective absence state is shared separately; request notes and
 // decision reasons remain private to their submitter.
 func (s *Service) ListExcusedRequests(ctx context.Context, accountID, studentID int64) ([]*ExcusedAbsenceRequest, error) {
-	child, err := s.ResolveOwnedChild(ctx, accountID, studentID)
-	if err != nil {
-		return nil, err
-	}
 	if s.ExcusedRequests == nil {
+		// Without the store there is no school read; the child is still
+		// checked first, as on the read below.
+		if _, err := s.ResolveOwnedChild(ctx, accountID, studentID); err != nil {
+			return nil, err
+		}
 		return []*ExcusedAbsenceRequest{}, nil
 	}
 	// Show rejected/withdrawn requests for two weeks so a parent learns the
-	// outcome, while pending ones show regardless of age.
-	recentSince := time.Now().AddDate(0, 0, -14)
+	// outcome, while pending ones show regardless of age. The window starts
+	// when the child check is done, as it did before the handoff.
+	var recentSince time.Time
 	var out []*ExcusedAbsenceRequest
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err := s.WithPermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess, func(*Child) error {
+		recentSince = time.Now().AddDate(0, 0, -14)
+		return nil
+	}, func(txCtx context.Context, _ *Child) error {
 		rows, err := s.ExcusedRequests.ListForStudent(txCtx, studentID, recentSince)
 		if err != nil {
-			return err
+			return fmt.Errorf("parent: list excused requests: %w", err)
 		}
 		visibility, visibilityErr := s.RequestSharing.LoadRequestShareVisibility(txCtx, studentID)
 		if visibilityErr != nil {
-			return visibilityErr
+			return fmt.Errorf("parent: list excused requests: %w", visibilityErr)
 		}
 		out = visibleExcusedRequests(rows, accountID, visibility)
 		return nil
 	})
-	if txErr != nil {
-		return nil, fmt.Errorf("parent: list excused requests: %w", txErr)
+	if err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -116,7 +121,7 @@ func (s *Service) EditExcusedRequest(
 		return nil, ErrExcusedRequestNotFound
 	}
 	var out *ExcusedAbsenceRequest
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, sickNoteWriteAccess, func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err

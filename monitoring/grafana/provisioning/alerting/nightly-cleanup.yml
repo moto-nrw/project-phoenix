@@ -1,0 +1,79 @@
+apiVersion: 1
+
+# Nächtliche Löschung (#6327): ein Alarm je Schule und Job, solange der Job
+# dreimal oder öfter in Folge fehlgeschlagen ist. Der Worker schreibt bei jedem
+# fehlgeschlagenen Lauf ab dem dritten Fehlschlag genau eine Zeile
+# "nightly cleanup failing repeatedly" und beim ersten Erfolg danach
+# "nightly cleanup recovered" mit consecutive_failures=0. Die Regel liest den
+# letzten Wert je Schule und Job. Zwischen zwei Fehlerzeilen liegen höchstens
+# 24 Stunden Wartezeit plus die Laufzeit eines Laufs (höchstens 2 Stunden),
+# deshalb deckt das Fenster von 30 Stunden einen laufenden Dauerfehler ab.
+# Runbook: monitoring/runbooks/nightly-cleanup.md.
+groups:
+  - orgId: 1
+    name: Phoenix Nightly Cleanup
+    folder: Phoenix Alerts
+    interval: 5m
+    rules:
+      - uid: nightly-cleanup-failing
+        title: Nightly cleanup failing repeatedly
+        condition: C
+        data:
+          - refId: A
+            queryType: ""
+            relativeTimeRange:
+              from: 108000
+              to: 0
+            datasourceUid: P8E80F9AEF21F6940
+            model:
+              expr: 'max by (tenant_id, job_id) (last_over_time({env="prod",service="server"} |= "nightly cleanup" | json | msg=~"nightly cleanup (failing repeatedly|recovered)" | keep tenant_id, job_id, consecutive_failures | unwrap consecutive_failures [30h]))'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [2]
+                    type: gt
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 0s
+        annotations:
+          summary: Nächtliche Löschung {{ $labels.job_id }} schlägt bei Mandant {{ $labels.tenant_id }} wiederholt fehl.
+          description: '{{ $values.B.Value }} Läufe in Folge fehlgeschlagen. Betroffene Schritte und nächster Versuch stehen in der Logzeile "nightly cleanup failing repeatedly".'
+          runbook_url: https://github.com/moto-ogs/project-phoenix/blob/main/monitoring/runbooks/nightly-cleanup.md
+        labels:
+          env: prod
+          issue: "6327"
+          service: nightly-cleanup
+          severity: critical
+        isPaused: false

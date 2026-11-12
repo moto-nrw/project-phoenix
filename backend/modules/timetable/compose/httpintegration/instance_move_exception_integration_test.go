@@ -21,12 +21,12 @@ import (
 	"testing"
 	"time"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
+	fixtures "github.com/moto-ogs/project-phoenix/modules/timetable/fixturetest"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -111,7 +111,7 @@ func TestDeletePlanned_WritesExceptionAndBlocksRematerialization(t *testing.T) {
 	require.Len(t, rows, 1)
 	inst := rows[0]
 
-	require.NoError(t, s.instance.DeleteCancelled(s.ctx, inst.ID))
+	require.NoError(t, deleteInTenantTx(t, s.ctx, s.db, s.instance, inst.ID))
 
 	excs := loadExceptions(t, s, s.template.ID)
 	require.Len(t, excs, 1, "delete must consume the original slot")

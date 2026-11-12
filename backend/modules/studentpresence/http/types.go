@@ -6,9 +6,9 @@ import (
 	strings "strings"
 	time "time"
 
-	absencerecords "github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	absencerecords "github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Constants for date formats
@@ -20,6 +20,10 @@ type CreateStudentStatusDaysRequest struct {
 	Status string   `json:"status"`
 	Dates  []string `json:"dates"`
 	Reason string   `json:"reason,omitempty"` // optional free-text reason stamped on each day
+	// ReplacePartialAbsenceDates names the requested days whose staff-entered
+	// partial absence the caller confirmed replacing with this status (#5698).
+	// Every other manual partial absence still refuses the write.
+	ReplacePartialAbsenceDates []string `json:"replace_partial_absence_dates,omitempty"`
 }
 
 const maxStudentStatusDayCreateDays = 366

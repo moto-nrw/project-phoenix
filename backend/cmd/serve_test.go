@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // =============================================================================
@@ -284,6 +284,7 @@ func validServeConfig() serveConfig {
 		TurnstileSiteKey:   "1x00000000000000000000AA",
 		TurnstileSecretKey: "1x0000000000000000000000000000000AA",
 		HealthDataKeys:     testHealthDataKeys(),
+		BankDataKeys:       testHealthDataKeys(),
 	}
 }
 
@@ -375,5 +376,18 @@ func TestScrubSentryEvent_RedactsSigningTokensInEveryField(t *testing.T) {
 			assert.NotContains(t, value, signingToken)
 			assert.Contains(t, value, "[REDACTED]")
 		})
+	}
+}
+
+func TestValidateServeConfig_BankRingRequiredWithoutFallback(t *testing.T) {
+	t.Parallel()
+	for _, invalid := range []string{"", " ", "malformed", "bank:c2hvcnQ="} {
+		config := validServeConfig()
+		config.BankDataLegacyKeys = config.HealthDataKeys
+		config.BankDataKeys = invalid
+		err := validateServeConfig(config)
+		require.Error(t, err)
+		require.Contains(t, err.Error(), "BANK_DATA_KEYS")
+		require.NotContains(t, err.Error(), config.HealthDataKeys)
 	}
 }

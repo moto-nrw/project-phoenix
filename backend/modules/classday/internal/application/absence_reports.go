@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/classday"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/classday"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Ports of the absence reports (#4791). The OGS's status-day write stores a
@@ -188,7 +188,7 @@ func (a absenceReports) unreportedAmong(ctx context.Context, studentIDs []int64,
 	if len(absent) == 0 {
 		return nil, nil
 	}
-	entries, err := a.reads.ActiveStatusDays(ctx, absent, date)
+	entries, err := a.reads.StandingStatusDays(ctx, absent, date)
 	if err != nil {
 		return nil, fmt.Errorf("class day absence report: load status days: %w", err)
 	}

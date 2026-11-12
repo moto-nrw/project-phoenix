@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // The intake as these routes and the parents portal speak it: the owner's
@@ -114,7 +114,7 @@ type RequestService interface {
 	GuardiansByStatusToken(ctx context.Context, token string) ([]*capability.RequestGuardian, error)
 	Edit(ctx context.Context, token string, patch EditPatch) error
 	Withdraw(ctx context.Context, token string, childID int64) error
-	ConfirmRenewal(ctx context.Context, token string) (int, error)
+	ConfirmRenewal(ctx context.Context, token string, confirmation capability.RenewalConfirmation) (int, error)
 	IsEnrollmentEnabled(ctx context.Context) bool
 	LegalTexts(ctx context.Context) (LegalTexts, error)
 	LegalTextsForPhaseWithLateInvite(ctx context.Context, phaseID int64, lateInviteToken string) (LegalTexts, error)
@@ -238,8 +238,8 @@ func (s intakeService) Withdraw(ctx context.Context, token string, childID int64
 	return s.owner.Withdraw(ctx, token, childID)
 }
 
-func (s intakeService) ConfirmRenewal(ctx context.Context, token string) (int, error) {
-	return s.owner.ConfirmRenewal(ctx, token)
+func (s intakeService) ConfirmRenewal(ctx context.Context, token string, confirmation capability.RenewalConfirmation) (int, error) {
+	return s.owner.ConfirmRenewal(ctx, token, confirmation)
 }
 
 func (s intakeService) IsEnrollmentEnabled(ctx context.Context) bool {

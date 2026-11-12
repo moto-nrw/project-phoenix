@@ -1,8 +1,8 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application"
 )
 
 // Ports the composition root binds for Enrollment's reports.
@@ -31,8 +31,7 @@ type (
 	ReportDependencies     = application.ReportDependencies
 )
 
-// NewReports composes Enrollment's phase reports and the class roster of a
-// day over the owners the root binds.
+// NewReports composes Enrollment's phase reports and the class roster of a day over the owners the root binds.
 func NewReports(deps ReportDependencies) enrollment.Reports {
 	return application.NewReports(deps)
 }

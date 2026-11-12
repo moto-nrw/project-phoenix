@@ -1,5 +1,6 @@
 "use client";
 
+import { differenceInCalendarDays } from "date-fns/differenceInCalendarDays";
 import { CalendarPlus, SquarePen, Thermometer } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useInvalidateMatching } from "~/lib/swr";
@@ -21,6 +22,7 @@ import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import { ABSENCE_TYPE_HEX, ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
 import {
+  berlinClockFromISO,
   berlinTodayISO,
   endOfBerlinDayISO,
   isoWeekNumber,
@@ -150,6 +152,8 @@ function splitSessionByBerlinDate(
     createdAt: "",
     updatedAt: "",
     netMinutes: session.net_minutes,
+    packUpMinutes: session.pack_up_minutes,
+    roundingMinutes: session.rounding_minutes,
     isOvertime: false,
     isBreakCompliant: true,
     restPeriodWarning: null,
@@ -157,7 +161,7 @@ function splitSessionByBerlinDate(
       id: index.toString(),
       sessionId: session.id ?? "",
       startedAt: workBreak.started_at,
-      endedAt: workBreak.ended_at,
+      endedAt: workBreak.ended_at ?? null,
       durationMinutes: 0,
       plannedEndTime: null,
     })),
@@ -186,9 +190,10 @@ function splitSessionByBerlinDate(
     now,
   );
 
-  return [...valuesByDate.entries()].map(([date, values], index) => {
+  const dayEntries = [...valuesByDate.entries()];
+  return dayEntries.map(([date, values], index) => {
     const isFirstDay = date === berlinTodayISO(start);
-    const isLastDay = date === berlinTodayISO(end);
+    const isLastDay = index === dayEntries.length - 1;
     const previousDay = parseISODate(date);
     previousDay.setDate(previousDay.getDate() - 1);
     const segmentStart = isFirstDay
@@ -216,6 +221,10 @@ function splitSessionByBerlinDate(
       // `edit_count`, damit auch dort erkennbar bleibt, dass die gezeigten
       // Minuten aus einem korrigierten Block stammen.
       audit_count: index === 0 ? session.audit_count : 0,
+      // Die Gutschrift (#6851, #6852) bucht der Server auf den Tag des
+      // Ausstempelns; nur dessen Segment zeigt ihre Hinweise.
+      pack_up_minutes: isLastDay ? session.pack_up_minutes : 0,
+      rounding_minutes: isLastDay ? session.rounding_minutes : 0,
     };
   });
 }
@@ -436,8 +445,9 @@ export function StaffSessionTable({
       const end = absence.date_end.slice(0, 10);
       const startDate = new Date(`${start}T00:00:00`);
       const endDate = new Date(`${end}T00:00:00`);
-      const dayCount =
-        Math.floor((endDate.getTime() - startDate.getTime()) / 86_400_000) + 1;
+      // Calendar days, not elapsed 24-hour blocks: a range across the March
+      // clock change is an hour short and lost its last day.
+      const dayCount = differenceInCalendarDays(endDate, startDate) + 1;
       for (let offset = 0; offset < dayCount; offset++) {
         const cursor = new Date(startDate);
         cursor.setDate(cursor.getDate() + offset);
@@ -529,8 +539,7 @@ export function StaffSessionTable({
   const days = useMemo(() => {
     const result: Date[] = [];
     const start = new Date(from);
-    const dayCount =
-      Math.floor((to.getTime() - start.getTime()) / 86_400_000) + 1;
+    const dayCount = differenceInCalendarDays(to, start) + 1;
     for (let i = 0; i < dayCount; i++) {
       const d = new Date(start);
       d.setDate(d.getDate() + i);
@@ -1492,6 +1501,43 @@ function SourceBadges({
 
 const NO_LABOR_HINTS: readonly LaborHint[] = [];
 
+// Die Gutschrift steckt schon in der Ist-Zeit (#6851, #6852). Die Pills
+// zeigen, woher die Abweichung von den gestempelten Zeiten kommt.
+function creditPills(
+  sessions: readonly StaffHistorySession[],
+): { key: string; label: string; title: string; tone: StatusBadgeTone }[] {
+  const packUp = sessions.reduce((sum, s) => sum + (s.pack_up_minutes ?? 0), 0);
+  const rounding = sessions.reduce(
+    (sum, s) => sum + (s.rounding_minutes ?? 0),
+    0,
+  );
+  const pills: {
+    key: string;
+    label: string;
+    title: string;
+    tone: StatusBadgeTone;
+  }[] = [];
+  if (packUp > 0) {
+    pills.push({
+      key: "pack-up",
+      label: `+${packUp} Min. Wegpackzeit`,
+      title:
+        "Beim Ausstempeln zählt moto die Wegpackzeit zur Arbeitszeit dazu. Die gestempelten Zeiten bleiben gleich.",
+      tone: "gray",
+    });
+  }
+  if (rounding !== 0) {
+    pills.push({
+      key: "rounding",
+      label: `Gerundet ${rounding > 0 ? "+" : "-"}${Math.abs(rounding)} Min.`,
+      title:
+        "moto rundet die Dauer jedes Arbeitsblocks. Die gestempelten Zeiten bleiben gleich.",
+      tone: "gray",
+    });
+  }
+  return pills;
+}
+
 // Hinweis-Spalte für orthogonale System- und Korrektur-Hinweise. Mehrere
 // Pills können gleichzeitig sichtbar sein (z.B. NFC-Session mit Auto-Checkout
 // UND nachträglicher Korrektur).
@@ -1531,9 +1577,10 @@ function HintBadges({
     pills.push({
       key: "auto-checkout",
       label: "Auto-Checkout",
-      tone: "orange",
+      tone: "warning",
     });
   }
+  pills.push(...creditPills(sessions));
   if (pills.length === 0 && laborHints.length === 0) {
     return <span className="text-xs text-gray-300">–</span>;
   }
@@ -1638,7 +1685,7 @@ function LaborHintList({ hints }: { readonly hints: readonly LaborHint[] }) {
     <>
       {hints.map((hint) => (
         <span key={hint.key} className="flex flex-col items-start gap-0.5">
-          <StatusBadge label={hint.label} tone="orange" title={hint.title} />
+          <StatusBadge label={hint.label} tone="warning" title={hint.title} />
           {hint.detail ? (
             <span className="text-moto-amber-strong text-xs">
               {hint.detail}
@@ -1679,9 +1726,7 @@ function formatShortDate(d: Date): string {
   return `${dd}.${mm}.`;
 }
 
+// School time, whatever the viewer's zone (#6293).
 function formatTimeOnly(iso: string): string {
-  const date = new Date(iso);
-  const hh = String(date.getHours()).padStart(2, "0");
-  const mm = String(date.getMinutes()).padStart(2, "0");
-  return `${hh}:${mm}`;
+  return berlinClockFromISO(iso);
 }

@@ -10,15 +10,15 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
-	portalCompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
-	parentHTTP "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
+	portalCompose "github.com/moto-ogs/project-phoenix/workflows/parentportal/compose"
+	parentHTTP "github.com/moto-ogs/project-phoenix/workflows/parentportal/http"
 	"github.com/stretchr/testify/require"
 )
 
@@ -40,6 +40,7 @@ func TestParentPortalMessagesPositiveGrowthQueryBudget(t *testing.T) {
 	portal := portalCompose.New(portalCompose.Dependencies{
 		GuardianPolicy: owners.NewParentGuardianPolicy(), DeparturePolicy: owners.ParentDeparturePolicy(), Fingerprints: owners.SecurityFingerprints{}, Declarations: owners.ParentDeclarationPolicy(), Locales: owners.ParentPortalLocales(), Runtime: owners.ParentPortalRuntime{}, Logger: slog.Default(),
 		ChildRepo: repos.ParentChildReads(), StudentRepo: owners.NewParentStudentReads(people.Student), GuardianProfileRepo: owners.NewParentGuardianProfileReads(people.GuardianProfile), Settings: settings.Settings,
+		StudentGuardianRepo: owners.NewParentStudentGuardianReads(people.StudentGuardian), Memberships: owners.NewParentSchoolMembershipLock(database),
 		CareProfiles: profiles, People: owners.MustNewPeopleDirectory(database), MessagingEnabled: owners.BindParentMessagingGate(settings.Settings, slog.Default()),
 		MessageThreadRepo: owners.BindParentMessageThreadAccess(messages.ParentMessageThread), MessageRepo: owners.BindParentMessageReads(messageRepo), MessageReadRepo: owners.BindParentMessageInboxReads(messages.ParentMessageRead),
 		Conversations: api.NewParentConversationCore(messages.ParentMessageThread, messageRepo, messages.ParentMessageRead, broadcaster, slog.Default()), GroupThreads: api.NewParentGroupThreadTestPort(database),
@@ -95,7 +96,10 @@ func TestParentPortalMessagesPositiveGrowthQueryBudget(t *testing.T) {
 
 		paths := []struct{ name, path string }{{"conversation", fmt.Sprintf("/me/messages/children/%d", chain.StudentID)}, {"threads", fmt.Sprintf("/me/messages/children/%d/threads", chain.StudentID)}, {"group_thread", fmt.Sprintf("/me/messages/group-threads/%d", groupID)}}
 		for _, entry := range paths {
-			req := httptest.NewRequest("GET", entry.path, nil).WithContext(counter.Context(testpkg.WithPackageTenantRuntime(testpkg.Ctx(t))))
+			// A parent request is bound to no school (ProtectedParentGroup); a
+			// bound context could select the ambient way instead of the
+			// production path (ADR 0161, #5862, #6616).
+			req := httptest.NewRequest("GET", entry.path, nil).WithContext(counter.Context(testpkg.WithPackageTenantRuntime(context.Background())))
 			req.Header.Set("Authorization", "Bearer "+token)
 			counter.Reset()
 			counter.Start()

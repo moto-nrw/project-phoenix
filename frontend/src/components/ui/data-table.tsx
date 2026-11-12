@@ -14,7 +14,10 @@ import {
 
 import { ChevronRight } from "lucide-react";
 
-import { useResolvedMediaQuery } from "~/lib/hooks/use-media-query";
+import {
+  AT_LEAST_MD,
+  useResolvedMediaQuery,
+} from "~/lib/hooks/use-media-query";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
@@ -31,6 +34,8 @@ interface DataTableMoreAction {
   readonly loading?: boolean;
   readonly loadingText?: string;
   readonly disabled?: boolean;
+  /** What the click does, shown on hover and key focus. */
+  readonly tooltip?: string;
 }
 
 export interface DataTableColumn<T> {
@@ -145,6 +150,11 @@ interface DataTableProps<T> {
   rows: T[];
   getRowKey: (row: T) => string | number;
   onRowClick?: (row: T) => void;
+  /**
+   * Rows `onRowClick` can open; the others stay plain (no pointer, no hover,
+   * no button role). Without it every row opens.
+   */
+  canClickRow?: (row: T) => boolean;
   // Rows with their own buttons or menus must not also become an ARIA button:
   // nested interactive elements have ambiguous keyboard and screen-reader
   // semantics. Their explicit action is the keyboard path to the detail view.
@@ -592,6 +602,7 @@ function StackedRows<T>({
   rows,
   getRowKey,
   onRowClick,
+  canClickRow,
   rowHasInteractiveControls,
   rowClassName,
   isLoading,
@@ -613,6 +624,7 @@ function StackedRows<T>({
   rows: T[];
   getRowKey: (row: T) => string | number;
   onRowClick?: (row: T) => void;
+  canClickRow?: (row: T) => boolean;
   rowHasInteractiveControls?: boolean;
   rowClassName?: (row: T) => string;
   isLoading?: boolean;
@@ -694,6 +706,8 @@ function StackedRows<T>({
           {rows.map((row) => {
             const active =
               activeRowKey != null && getRowKey(row) === activeRowKey;
+            const rowClickable = clickable && (canClickRow?.(row) ?? true);
+            const rowKeyboardClickable = keyboardClickable && rowClickable;
             // The <li> stays a list item and keeps the handlers; a row that
             // is a button itself puts its role and tab stop on the wrapper
             // inside, or the list would lose its items (axe "list").
@@ -702,7 +716,7 @@ function StackedRows<T>({
                 key={getRowKey(row)}
                 aria-current={active ? "true" : undefined}
                 onClick={
-                  onRowClick
+                  onRowClick && rowClickable
                     ? (event) => {
                         if (
                           event.target instanceof Element &&
@@ -715,7 +729,7 @@ function StackedRows<T>({
                     : undefined
                 }
                 onKeyDown={
-                  keyboardClickable
+                  rowKeyboardClickable
                     ? (event) => {
                         // Only the row's own focus stop, not a control in it.
                         if (
@@ -732,9 +746,9 @@ function StackedRows<T>({
                 }
               >
                 <div
-                  className={`${STACKED_ROW_PADDING[layout]} ${clickable ? "cursor-pointer" : ""} ${active ? ACTIVE_ROW_CLASS : ""} ${rowClassName ? rowClassName(row) : ""}`}
-                  tabIndex={keyboardClickable ? 0 : undefined}
-                  role={keyboardClickable ? "button" : undefined}
+                  className={`${STACKED_ROW_PADDING[layout]} ${rowClickable ? "cursor-pointer" : ""} ${active ? ACTIVE_ROW_CLASS : ""} ${rowClassName ? rowClassName(row) : ""}`}
+                  tabIndex={rowKeyboardClickable ? 0 : undefined}
+                  role={rowKeyboardClickable ? "button" : undefined}
                 >
                   {layout === "form" ? (
                     <FormStackedRow
@@ -834,6 +848,7 @@ function StackedRows<T>({
           variant="surface"
           size="md"
           onClick={moreAction.onClick}
+          tooltip={moreAction.tooltip}
           disabled={moreAction.disabled}
           isLoading={moreAction.loading}
           loadingText={moreAction.loadingText}
@@ -888,6 +903,7 @@ export function DataTable<T>({
   rows,
   getRowKey,
   onRowClick,
+  canClickRow,
   rowHasInteractiveControls = false,
   emptyState,
   headerActions,
@@ -944,7 +960,7 @@ export function DataTable<T>({
   // (server render, hydration) both stay and CSS picks one, so nothing jumps.
   // Match Tailwind's md query exactly, including fractional widths and the
   // browser's default font size. A max-width in px can leave a CSS/JS gap.
-  const desktop = useResolvedMediaQuery("(min-width: 48rem)");
+  const desktop = useResolvedMediaQuery(AT_LEAST_MD);
   const showStacked = stackedOnMobile && desktop !== true;
   const showTable = !stackedOnMobile || desktop !== false;
 
@@ -1079,6 +1095,7 @@ export function DataTable<T>({
             rows={visibleRows}
             getRowKey={getRowKey}
             onRowClick={onRowClick}
+            canClickRow={canClickRow}
             rowHasInteractiveControls={rowHasInteractiveControls}
             rowClassName={rowClassName}
             isLoading={isLoading}
@@ -1263,7 +1280,11 @@ export function DataTable<T>({
                           prev === rowKey ? null : rowKey,
                         );
                       const tinted = selected || active || expanded;
-                      const interactive = clickable || canExpand;
+                      const rowClickable =
+                        clickable && (canClickRow?.(row) ?? true);
+                      const rowKeyboardClickable =
+                        keyboardClickable && rowClickable;
+                      const interactive = rowClickable || canExpand;
                       const tone = tinted ? null : (rowTone?.(row) ?? null);
                       const rowClasses = [
                         `${bodyRowClass} transition-colors`,
@@ -1278,7 +1299,7 @@ export function DataTable<T>({
                         .filter(Boolean)
                         .join(" ");
                       const handleRowKey =
-                        canExpand || keyboardClickable
+                        canExpand || rowKeyboardClickable
                           ? (event: KeyboardEvent<HTMLTableRowElement>) => {
                               if (event.target !== event.currentTarget) return;
                               if (event.key !== "Enter" && event.key !== " ") {
@@ -1304,16 +1325,16 @@ export function DataTable<T>({
                             onClick={
                               canExpand
                                 ? toggle
-                                : onRowClick
+                                : onRowClick && rowClickable
                                   ? () => onRowClick(row)
                                   : undefined
                             }
                             onKeyDown={handleRowKey}
                             tabIndex={
-                              canExpand || keyboardClickable ? 0 : undefined
+                              canExpand || rowKeyboardClickable ? 0 : undefined
                             }
                             role={
-                              !canExpand && keyboardClickable
+                              !canExpand && rowKeyboardClickable
                                 ? "button"
                                 : undefined
                             }
@@ -1438,6 +1459,7 @@ export function DataTable<T>({
                 variant="surface"
                 size="md"
                 onClick={moreAction.onClick}
+                tooltip={moreAction.tooltip}
                 disabled={moreAction.disabled}
                 isLoading={moreAction.loading}
                 loadingText={moreAction.loadingText}

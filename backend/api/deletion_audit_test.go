@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
+	audit "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/compose/presenceservice"
 	"github.com/stretchr/testify/require"
 )
 
@@ -17,8 +17,13 @@ type deletionEventWriter struct {
 	write func(context.Context, *audit.DataDeletion) error
 }
 
-func (w deletionEventWriter) Create(ctx context.Context, entry *audit.DataDeletion) error {
-	return w.write(ctx, entry)
+func (w deletionEventWriter) CreateAll(ctx context.Context, entries []*audit.DataDeletion) error {
+	for _, entry := range entries {
+		if err := w.write(ctx, entry); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func TestDeletionAuditPreservesSubjectEvidenceAndFailure(t *testing.T) {
@@ -54,7 +59,7 @@ func TestDeletionAuditPreservesSubjectEvidenceAndFailure(t *testing.T) {
 			require.Equal(t, entry.Metadata, got.Metadata)
 			return writeErr
 		}})
-		require.ErrorIs(t, writer.Create(ctx, entry), writeErr)
+		require.ErrorIs(t, writer.CreateAll(ctx, []*presenceservice.DeletionEvent{entry}), writeErr)
 		require.Equal(t, 1, calls)
 	}
 	require.Nil(t, owners.NewDeletionAudit(nil))

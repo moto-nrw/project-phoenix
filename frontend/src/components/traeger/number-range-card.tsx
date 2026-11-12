@@ -10,9 +10,12 @@ import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   type NumberRange,
@@ -52,11 +55,18 @@ export function NumberRangeCard({
   const copy = SERVICES[service];
   const [open, setOpen] = useState(false);
   const [pattern, setPattern] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(open);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
   const { success } = useToast();
+  // The reload after a saved pattern is a load error above the card, never
+  // an error of the closed dialog (#6652).
+  const afterSave = useRefreshAfterWrite(
+    "die Anzeige des Nummernkreises",
+    onChanged,
+  );
 
   useEffect(() => {
     if (!open) return;
@@ -72,20 +82,21 @@ export function NumberRangeCard({
       });
       return;
     }
-    setSaving(true);
-    try {
-      await copy.save(pattern.trim());
+    await save.run(async (op) => {
+      try {
+        await copy.save(pattern.trim());
+      } catch (err) {
+        logger.error("number_range_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "das Muster" });
+        return;
+      }
       success("Das Muster ist gespeichert.");
-      setOpen(false);
-      await onChanged();
-    } catch (err) {
-      logger.error("number_range_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "das Muster" });
-    } finally {
-      setSaving(false);
-    }
+      if (op.isCurrent()) setOpen(false);
+      await afterSave.refresh();
+    });
   };
 
   const set = Boolean(numberRange.pattern);
@@ -104,6 +115,7 @@ export function NumberRangeCard({
         </Button>
       }
     >
+      <LoadErrorAlert error={afterSave.error} className="mb-4" />
       {set ? (
         <DataGrid columns={2}>
           <DataField label="Muster">
@@ -121,7 +133,7 @@ export function NumberRangeCard({
       <FormModal
         isOpen={open}
         onClose={() => setOpen(false)}
-        closeDisabled={saving}
+        pending={save}
         isBackdropDismissDisabled
         title={set ? "Muster ändern" : "Muster festlegen"}
         size="md"

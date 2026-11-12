@@ -14,11 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil/routetest"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityoperator "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/operator"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The active-operator check of ADR 0161 step 2 (#5795) on a real database:
@@ -45,7 +45,7 @@ func newOperatorLivenessRig(t *testing.T) operatorLivenessRig {
 // session signs an operator in and returns its refresh family.
 func (r operatorLivenessRig) session(t *testing.T, operatorID int64) string {
 	t.Helper()
-	_, _, err := r.identity.IssueTokensForAuthenticatedOperator(provisioningContext(t, r.db), operatorID, "127.0.0.1", "operator-liveness")
+	_, _, err := r.identity.IssueTokensForAuthenticatedOperator(provisioningContext(t, r.db), operatorID, nil, "127.0.0.1", "operator-liveness")
 	require.NoError(t, err)
 	var family string
 	require.NoError(t, r.db.NewRaw("SELECT family_id FROM platform.operator_refresh_tokens WHERE operator_id = ? ORDER BY id DESC LIMIT 1", operatorID).Scan(context.Background(), &family))

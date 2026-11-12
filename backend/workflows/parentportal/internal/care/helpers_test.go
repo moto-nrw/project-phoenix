@@ -6,16 +6,17 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	parentportalcompose "github.com/moto-ogs/project-phoenix/workflows/parentportal/compose"
 )
 
 // childResolver binds messaging's ChildResolver to the real guardian-child
@@ -26,7 +27,12 @@ func childResolver(db *bun.DB, repos *api.RepositoryTestFactory, reposPeople *ap
 
 		Runtime:   owners.ParentPortalRuntime{},
 		ChildRepo: repos.ParentChildReads(), StudentRepo: owners.NewParentStudentReads(reposPeople.Student),
-		RequestSharing: unusedRequestSharer{},
+		// The child write guard locks through these ports (#6529).
+		Memberships:         owners.NewParentSchoolMembershipLock(testpkg.MustDatabase(db)),
+		GuardianHold:        parentportalcompose.GuardianHold,
+		GuardianProfileRepo: owners.NewParentGuardianProfileReads(reposPeople.GuardianProfile),
+		StudentGuardianRepo: owners.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
+		RequestSharing:      unusedRequestSharer{},
 
 		DeparturePolicy: owners.ParentDeparturePolicy(),
 

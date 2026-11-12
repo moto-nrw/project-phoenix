@@ -12,6 +12,7 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
@@ -161,7 +162,8 @@ export function CareCostShareModal({
 }>) {
   const today = berlinTodayISO();
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(target !== null);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -220,12 +222,12 @@ export function CareCostShareModal({
       );
       return;
     }
-    setSaving(true);
-    try {
-      onSaved(
-        await saveCareCostShare(target.share?.id ?? null, {
+    const kind = draft.kind;
+    await save.run(async (op) => {
+      try {
+        const result = await saveCareCostShare(target.share?.id ?? null, {
           contractId: target.contract.contractId,
-          kind: draft.kind,
+          kind,
           costBearerId: draft.costBearerId,
           shareBasisPoints: basisPoints,
           shareCents: cents,
@@ -234,17 +236,17 @@ export function CareCostShareModal({
           validUntil: draft.validUntil,
           reference: draft.reference.trim(),
           checkedOn: draft.checkedOn,
-        }),
-      );
-      success(`Der Anteil für ${child} ist gespeichert.`);
-    } catch (err) {
-      logger.error("care_cost_share_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "die Kostenübernahme" });
-    } finally {
-      setSaving(false);
-    }
+        });
+        if (op.isCurrent()) onSaved(result);
+        success(`Der Anteil für ${child} ist gespeichert.`);
+      } catch (err) {
+        logger.error("care_cost_share_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "die Kostenübernahme" });
+      }
+    });
   };
 
   const valueField =
@@ -254,7 +256,7 @@ export function CareCostShareModal({
     <FormModal
       isOpen={target !== null}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title={
         target?.share

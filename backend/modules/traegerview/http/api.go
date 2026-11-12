@@ -11,9 +11,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/traegerview"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/traegerview"
 )
 
 // Resource serves the Träger projection routes.
@@ -105,6 +105,9 @@ func (rs *Resource) listSchools(w http.ResponseWriter, r *http.Request) {
 // session with its contact data and figures (#5686). Figures are aggregated
 // numbers and a school's contact data is no personal data of a child or staff
 // member, so the read is not written to the access log (ADR 0084 section 7).
+// A school of another Träger and an unknown ID both answer 404
+// traeger.school_not_found, like the Absprung, so the route reveals no school
+// (#6461); a missing right stays a 403 of the permission middleware.
 func (rs *Resource) getSchool(w http.ResponseWriter, r *http.Request) {
 	principal, err := common.CurrentPrincipal(r.Context())
 	if err != nil || principal.OrganizationID() <= 0 {
@@ -119,7 +122,7 @@ func (rs *Resource) getSchool(w http.ResponseWriter, r *http.Request) {
 	view, err := rs.overview.School(r.Context(), principal.OrganizationID(), schoolID)
 	switch {
 	case errors.Is(err, traegerview.ErrSchoolOutsideTraeger):
-		common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeTraegerSchoolNotFound))
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeTraegerSchoolNotFound))
 	case errors.Is(err, traegerview.ErrTraegerUnavailable):
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 	case err != nil:

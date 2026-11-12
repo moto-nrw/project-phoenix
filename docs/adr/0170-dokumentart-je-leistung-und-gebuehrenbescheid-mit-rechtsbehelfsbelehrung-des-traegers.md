@@ -6,8 +6,8 @@ status: proposed
 
 **Status: Vorgeschlagen.**
 
-Vorschlag vom 08.11.2026 zu [#4688](https://github.com/moto-nrw/project-phoenix/issues/4688),
-Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Vorschlag vom 08.11.2026 zu [#4688](https://github.com/moto-ogs/project-phoenix/issues/4688),
+Etappe 2 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Story 73, Vorbild Gemeinde Hardt (MK-007). Er baut auf
 [ADR 0119](0119-abrechnungslauf-stellt-unveraenderliche-rechnungen-aus-einem-nummernkreis-aus.md),
 [ADR 0152](0152-dokumentvorlagen-des-traegers-liegen-bei-organisation-und-tenancy.md) und
@@ -95,7 +95,8 @@ ein Jahr (§ 58 Abs. 2 VwGO), deshalb wird ohne sie kein Bescheid ausgestellt.
   Folge je Leistung (ADR 0119 Nachtrag 2026-11-03).
 - **Jahresbescheid mit Monatsraten:** Der Monatslauf stellt je Monat aus; ein
   Bescheid über einen Zeitraum mit Raten zum Monatsersten (MK-007) bräuchte
-  einen eigenen Lauf über mehrere Monate. Offen als Folge-Issue.
+  einen eigenen Lauf über mehrere Monate. Vorgeschlagen in
+  [ADR 0182](0182-jahresbescheid-veranlagt-die-monate-eines-jahres-und-keine-monatsrechnung-rechnet-sie-noch-einmal-ab.md) (#6219).
 
 ## Register
 

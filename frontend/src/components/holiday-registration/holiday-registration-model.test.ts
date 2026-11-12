@@ -9,6 +9,7 @@ import {
   emptyContact,
   emptyRegistration,
   hasRoomForKnownChild,
+  knownChildRefused,
   OTHER_SCHOOL,
   payloadFromDraft,
   quoteAgeRanks,
@@ -25,6 +26,7 @@ const offer: HolidayRegistrationOffer = {
   registrationOpensOn: "2026-11-02",
   registrationClosesOn: "2026-12-04",
   binding: true,
+  holidayWishMode: "off",
   notes: "",
   open: true,
   weeks: [
@@ -222,7 +224,9 @@ describe("payloadFromDraft", () => {
     const payload = payloadFromDraft(complete(), offer, "captcha");
     expect(payload.custody_confirmed).toBe(true);
     expect(payload.declaration_name).toBe("Eva Muster");
-    expect(payload.consent_version).toBe(3);
+    expect(payload.consent_version).toBe(5);
+    // The retention the privacy text named (#6691).
+    expect(payload.retention_days).toBe(365);
   });
 
   it("sends the school of a child of the Träger without a guest school name", () => {
@@ -244,6 +248,8 @@ describe("known children of a parent account (#4662)", () => {
     firstName: "Felix",
     lastName: "Schneider",
     birthDate: "2018-03-01",
+    holidayWish: "",
+    holidayWishProof: "",
   };
   const known = (studentId: string): HolidayKnownChild => ({
     ...felix,
@@ -259,6 +265,7 @@ describe("known children of a parent account (#4662)", () => {
         phone: "0151",
       },
       children: [felix],
+      accountProof: "",
     });
     expect(draft.guardian.email).toBe("s@example.org");
     expect(draft.children).toHaveLength(1);
@@ -384,8 +391,11 @@ describe("optional second guardian", () => {
       payloadFromDraft(draft, offer, "captcha").second_guardian,
     ).toBeUndefined();
     expect(
-      registrationFromFamily({ guardian: draft.guardian, children: [] })
-        .secondGuardian,
+      registrationFromFamily({
+        guardian: draft.guardian,
+        children: [],
+        accountProof: "",
+      }).secondGuardian,
     ).toEqual(emptyRegistration().secondGuardian);
   });
 
@@ -610,5 +620,222 @@ describe("order of the children by age for the quote (#5664)", () => {
     expect(
       quoteAgeRanks([born("2017-05-05"), born("2017-05-05"), born("")]),
     ).toEqual([1, 1, 0]);
+  });
+});
+
+describe("holiday care wish of a known child (#4703)", () => {
+  const lia: HolidayKnownChild = {
+    studentId: "41",
+    schoolId: "31",
+    firstName: "Lia",
+    lastName: "Muster",
+    birthDate: "2018-03-01",
+    holidayWish: "yes",
+    holidayWishProof: "sealed",
+  };
+  const withMode = (
+    holidayWishMode: HolidayRegistrationOffer["holidayWishMode"],
+  ): HolidayRegistrationOffer => ({ ...offer, holidayWishMode });
+
+  it("sends the statement of a picked child of the Träger's school", () => {
+    const draft = toggleKnownChild(complete(), lia, withMode("priority"));
+    const payload = payloadFromDraft(draft, withMode("priority"), "t");
+    const sent = payload.children.find((child) => child.first_name === "Lia");
+    expect(sent?.home_school_id).toBe(31);
+    expect(sent?.wish_proof).toBe("sealed");
+  });
+
+  it("sends no statement once the child is a holiday guest", () => {
+    const picked = toggleKnownChild(complete(), lia, withMode("priority"));
+    const guest = {
+      ...picked,
+      children: picked.children.map((child) =>
+        child.firstName === "Lia" ? { ...child, school: OTHER_SCHOOL } : child,
+      ),
+    };
+    const sent = payloadFromDraft(guest, withMode("priority"), "t").children;
+    expect(sent.map((child) => child.first_name)).toContain("Lia");
+    expect(sent.every((child) => child.wish_proof === undefined)).toBe(true);
+  });
+
+  it("refuses to pick a child without a wish only when the period admits only wishes", () => {
+    const declined = { ...lia, holidayWish: "no" as const };
+    expect(knownChildRefused(declined, withMode("wish_only"))).toBe(true);
+    expect(knownChildRefused(declined, withMode("priority"))).toBe(false);
+    expect(knownChildRefused(lia, withMode("wish_only"))).toBe(false);
+    const draft = complete();
+    expect(toggleKnownChild(draft, declined, withMode("wish_only"))).toBe(
+      draft,
+    );
+  });
+});
+
+describe("booking of days (#4701)", () => {
+  const byDays: HolidayRegistrationOffer = {
+    ...offer,
+    maxDaysPerChild: 3,
+    weeks: [
+      {
+        ...offer.weeks[0]!,
+        bookingUnit: "day",
+        careDays: [
+          "2027-01-04",
+          "2027-01-05",
+          "2027-01-06",
+          "2027-01-07",
+          "2027-01-08",
+        ],
+        fullDays: [],
+      },
+      offer.weeks[1]!,
+    ],
+  };
+  const child = (patch: Partial<ChildDraft>): ChildDraft => ({
+    ...emptyChild(),
+    firstName: "Tom",
+    lastName: "Tag",
+    birthDate: "2017-05-04",
+    school: "1",
+    ...patch,
+  });
+  const errorsOf = (draftChild: ChildDraft) =>
+    validateRegistration(
+      { ...emptyRegistration(), children: [draftChild] },
+      byDays,
+    )["children.0.bookings"];
+
+  it("needs a day in a week by days and sends the chosen days", () => {
+    expect(errorsOf(child({ bookings: { "11": "21" } }))).toBe("days");
+    const chosen = child({
+      bookings: { "11": "21" },
+      days: { "11": ["2027-01-05", "2027-01-04", "2027-01-10"] },
+    });
+    expect(errorsOf(chosen)).toBeUndefined();
+    const payload = payloadFromDraft(
+      { ...emptyRegistration(), children: [chosen] },
+      byDays,
+      "token",
+    );
+    expect(payload.children[0]?.bookings).toEqual([
+      { week_id: 11, time_model_id: 21, days: ["2027-01-04", "2027-01-05"] },
+    ]);
+  });
+
+  it("counts a whole week by its five care days against the bound", () => {
+    expect(
+      errorsOf(
+        child({
+          bookings: { "11": "21", "12": "22" },
+          days: { "11": ["2027-01-04"] },
+        }),
+      ),
+    ).toBe("dayLimit");
+  });
+});
+
+describe("criteria of the allocation (#4700)", () => {
+  const byCriteria: HolidayRegistrationOffer = {
+    ...offer,
+    allocationMode: "criteria",
+    criteria: [
+      { id: "1", question: "Sind beide Eltern berufstätig?", scope: "family" },
+      {
+        id: "2",
+        question: "Ist ein Geschwisterkind angemeldet?",
+        scope: "child",
+      },
+    ],
+  };
+
+  it("asks every family and every child criterion as a yes/no question", () => {
+    expect(validateRegistration(complete(), byCriteria)).toEqual({
+      "criteria.1": "yesNo",
+      "children.0.criteria.2": "yesNo",
+    });
+    const answered: RegistrationDraft = {
+      ...complete(),
+      criteria: { "1": false },
+      children: complete().children.map((child) => ({
+        ...child,
+        criteria: { "2": true },
+      })),
+    };
+    expect(validateRegistration(answered, byCriteria)).toEqual({});
+  });
+
+  it("sends the answers per family and per child, a stale criterion left out", () => {
+    const draft: RegistrationDraft = {
+      ...complete(),
+      criteria: { "1": true, "9": true },
+      children: complete().children.map((child) => ({
+        ...child,
+        criteria: { "2": false },
+      })),
+    };
+    const payload = payloadFromDraft(draft, byCriteria, "captcha");
+    expect(payload.criteria).toEqual({ "1": true });
+    expect(payload.children[0]?.criteria).toEqual({ "2": false });
+  });
+
+  it("asks and sends nothing for a period by arrival", () => {
+    expect(validateRegistration(complete(), offer)).toEqual({});
+    const payload = payloadFromDraft(complete(), offer, "captcha");
+    expect(payload).not.toHaveProperty("criteria");
+    expect(payload.children[0]).not.toHaveProperty("criteria");
+  });
+});
+
+describe("parent account in the payload (#6673)", () => {
+  it("sends the answer of a parent without a session", () => {
+    expect(
+      payloadFromDraft(
+        { ...complete(), parentAccountRequested: true },
+        offer,
+        "c",
+      ),
+    ).toMatchObject({ parent_account_requested: true });
+    const declined = payloadFromDraft(
+      { ...complete(), parentAccountRequested: false },
+      offer,
+      "c",
+    );
+    expect(declined.parent_account_requested).toBe(false);
+    expect(declined).not.toHaveProperty("parent_account_proof");
+    // An unanswered question never reads as a yes.
+    expect(
+      payloadFromDraft(complete(), offer, "c").parent_account_requested,
+    ).toBe(false);
+  });
+
+  it("takes the account's proof from the prefill and asks nothing then", () => {
+    const draft = registrationFromFamily({
+      guardian: {
+        firstName: "Sabine",
+        lastName: "Schneider",
+        email: "s@example.org",
+        phone: "0151",
+      },
+      children: [],
+      accountProof: "sealed",
+    });
+    expect(draft.parentAccountProof).toBe("sealed");
+    const payload = payloadFromDraft(
+      {
+        ...complete(),
+        parentAccountProof: "sealed",
+        parentAccountRequested: true,
+      },
+      offer,
+      "c",
+    );
+    expect(payload.parent_account_proof).toBe("sealed");
+    expect(payload.parent_account_requested).toBe(false);
+    expect(
+      registrationFromFamily({
+        guardian: draft.guardian,
+        children: [],
+        accountProof: "",
+      }).parentAccountProof,
+    ).toBeUndefined();
   });
 });

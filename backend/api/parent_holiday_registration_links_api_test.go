@@ -9,13 +9,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	parentAPI "github.com/moto-ogs/project-phoenix/workflows/parentportal/http"
 )
 
 // TestParentHolidayRegistrationLinksNameTheLinksTraegerOnly pins the root
@@ -33,13 +33,13 @@ func TestParentHolidayRegistrationLinksNameTheLinksTraegerOnly(t *testing.T) {
 		DB: f.db, People: owners.EnrollmentFlowGuardianDirectory{}, Observe: func(deliveryContract.Observation) {},
 	})
 	require.NoError(t, err)
-	links := newParentHolidayRegistrationLinks(organizations, delivery.Module, testHealthCipher(), slog.Default())
+	links := newParentHolidayRegistrationLinks(organizations, delivery.Module, testHealthCipher(), nil, slog.Default())
 	resolve := func(token string) (int64, []int64, error) {
 		var organizationID int64
 		var schoolIDs []int64
 		err := tenant.WithinAdmin(tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, f.db)), func(ctx context.Context) error {
-			var resolveErr error
-			organizationID, schoolIDs, resolveErr = links.ResolveHolidayRegistrationSchools(ctx, token)
+			scope, resolveErr := links.ResolveHolidayRegistrationSchools(ctx, token)
+			organizationID, schoolIDs = scope.OrganizationID, scope.SchoolIDs
 			return resolveErr
 		})
 		return organizationID, schoolIDs, err

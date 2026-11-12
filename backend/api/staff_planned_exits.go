@@ -10,25 +10,25 @@ import (
 
 	"github.com/go-chi/render"
 
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
-	"github.com/moto-nrw/project-phoenix/observability"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	schoolMembershipModule "github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	staffHTTP "github.com/moto-ogs/project-phoenix/modules/schoolmembership/http"
+	"github.com/moto-ogs/project-phoenix/observability"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	schedulerPorts "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/workflows/staffoffboarding"
 )
 
 // PlannedStaffExitsJob builds the Worker's planned staff exits (#4809) over
@@ -56,18 +56,18 @@ func PlannedStaffExitsJob(db transactionruntime.Database, hub *realtime.Hub, log
 			QueueOffboardedDocumentCleanup: cleanup.Enqueue,
 		})
 		due, err := staffoffboarding.NewDueExits(newStaffExitPlanner(workflow, offboarding), staffoffboarding.DueExitDependencies{
-			Notify: staffExitNotifier(notifications, staff, logger), Isolate: isolatePlannedExit, Now: time.Now,
+			Notify: staffExitNotifier(notifications, staff, logger), Within: PlannedExitTransaction, BoundLockWaits: BoundPlannedExitLockWaits(plannedExitLockWait),
+			Isolate: isolatePlannedExit, Now: time.Now, Logger: logger,
 		})
 		if err != nil {
 			panic(err)
 		}
 		return func(ctx context.Context) error {
-			run, err := due.RunDue(ctx)
-			for staffID, failure := range run.Failed {
-				logger.Error("planned staff exit failed",
+			_, err := due.RunDue(ctx)
+			if err != nil {
+				logger.Error("planned staff exits run aborted",
 					"tenant_id", tenant.FromContext(ctx),
-					"staff_id", staffID,
-					"error", failure,
+					"error", err,
 				)
 			}
 			return err
@@ -120,8 +120,43 @@ func staffAccountIDs(holders []*peopleValues.StaffWithRoleInfo) []int64 {
 	return ids
 }
 
-// isolatePlannedExit runs one planned exit in a savepoint: its own failure
-// is rolled back and reported, a broken savepoint aborts the school's run.
+// plannedExitLockWait bounds how long a planned exit waits for a lock another
+// transaction holds before it gives way to a later run (#6703). Writers hold
+// these locks for one request; an immediate offboarding of the same member
+// holds them longer, and then the exit finds the member retired next time.
+const plannedExitLockWait = 3 * time.Second
+
+// PlannedExitTransaction runs one planned exit in a tenant transaction of
+// its own, detached from the scheduler's school transaction, so it commits or
+// rolls back alone (#6703). A unit that rolled back is the exit's failure;
+// one that never started, whose commit outcome is unknown, whose savepoint
+// control failed or whose run was cancelled aborts the school's run.
+func PlannedExitTransaction(ctx context.Context, fn func(context.Context) error) (failed, err error) {
+	err = tenant.WithinCurrentTenant(tenant.ContextWithoutTransaction(ctx), fn)
+	switch {
+	case err == nil:
+		return nil, nil
+	case ctx.Err() != nil, tenant.IsSavepointControlFailure(err), tenant.TransactionResult(err) != tenant.UnitOfWorkRolledBack:
+		return nil, err
+	}
+	return err, nil
+}
+
+// BoundPlannedExitLockWaits bounds the lock waits of a planned exit's locks:
+// a lock another transaction holds longer than limit defers the exit.
+func BoundPlannedExitLockWaits(limit time.Duration) func(context.Context, func(context.Context) error) error {
+	return func(ctx context.Context, fn func(context.Context) error) error {
+		err := tenant.WithLockTimeout(ctx, limit, fn)
+		if errors.Is(err, tenant.ErrLockWaitExceeded) {
+			return fmt.Errorf("%w: %w", staffoffboarding.ErrExitLocked, err)
+		}
+		return err
+	}
+}
+
+// isolatePlannedExit runs one offboarding in a savepoint of its exit's
+// transaction: its own failure is rolled back and reported, a broken
+// savepoint aborts the school's run.
 func isolatePlannedExit(ctx context.Context, fn func(context.Context) error) (failed, err error) {
 	failed = tenant.WithSavepoint(ctx, fn)
 	if errors.Is(failed, tenant.ErrSavepointControl) {

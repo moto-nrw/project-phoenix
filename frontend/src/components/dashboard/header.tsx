@@ -2,6 +2,7 @@
 // Refactored with extracted sub-components to reduce cognitive complexity
 "use client";
 
+import { AT_LEAST_LG } from "~/lib/hooks/use-media-query";
 import { useState, useEffect } from "react";
 import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
@@ -65,7 +66,7 @@ import {
 
 // Nur oberhalb von lg existiert die Desktop-Seitenleiste; darunter zeigt
 // die App die mobile Bottom-Nav und der Shortcut hätte nichts zu schalten.
-const SIDEBAR_VISIBLE_QUERY = "(min-width: 1024px)";
+const SIDEBAR_VISIBLE_QUERY = AT_LEAST_LG;
 
 function isEditableTarget(target: EventTarget | null): boolean {
   if (!(target instanceof HTMLElement)) return false;
@@ -154,6 +155,9 @@ const TRAEGER_PAGE_TITLES: ReadonlyArray<
   ["/stichtagszahlen", "Stichtagszahlen"],
   ["/belegung", "Belegung"],
   ["/ferien", "Ferienbetreuung"],
+  ["/anmeldephasen", "Anmeldephasen"],
+  ["/schliesstage", "Schließtage"],
+  ["/zeitvergleich", "Länger als gebucht"],
   ["/dokumente", "Dokumente"],
   // Die drei Bereiche der Abrechnung (#5145): die genaueren Adressen zuerst,
   // denn der erste Treffer gewinnt.
@@ -174,6 +178,7 @@ const TRAEGER_PAGE_TITLES: ReadonlyArray<
   ["/einstellungen/dokumentarten", "Dokumentarten"],
   ["/einstellungen/zugriffsprotokoll", "Zugriffsprotokoll"],
   ["/einstellungen", "Allgemein"],
+  ["/konto", "Konto"],
 ];
 
 function traegerTitleForPath(pathname: string): string | null {
@@ -292,6 +297,11 @@ export function Header() {
       matchesPathPrefix(pathname, "/documents")
     )
       return tParentNav("documents");
+    if (
+      pathname === "/parents/ferienanmeldungen" ||
+      pathname === "/ferienanmeldungen"
+    )
+      return tParentNav("holidayRegistrations");
     if (pathname === "/parents/calendar" || pathname === "/calendar")
       return tParentNav("calendar");
     if (
@@ -568,7 +578,7 @@ export function Header() {
                         ? tParentNav("settings")
                         : mode === "school"
                           ? "Einstellungen"
-                          : mode === "caterer"
+                          : mode === "caterer" || mode === "traeger"
                             ? "Konto"
                             : undefined
                   }

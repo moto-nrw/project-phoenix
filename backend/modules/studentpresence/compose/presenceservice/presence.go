@@ -4,11 +4,13 @@
 package presenceservice
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/uptrace/bun"
 )
 
 // The presence services read and lock facts owned by other capabilities; the
@@ -16,7 +18,6 @@ import (
 type (
 	PresenceDependencies               = presence.ServiceDependencies
 	PresenceOption                     = presence.ServiceOption
-	RequestPrincipal                   = presence.RequestPrincipal
 	PresenceSettingsResolver           = presence.SettingsResolver
 	GuardianWaker                      = presence.GuardianWaker
 	School                             = presence.School
@@ -24,10 +25,7 @@ type (
 	PresenceStudents                   = presence.PresenceStudents
 	AttendanceStaff                    = presence.AttendanceStaff
 	AttendanceStaffNames               = presence.AttendanceStaffNames
-	AttendanceRooms                    = presence.AttendanceRooms
-	SessionRoom                        = studentpresence.SessionRoom
 	AttendanceActivityGroups           = presence.AttendanceActivityGroups
-	AttendanceActivityCategories       = presence.AttendanceActivityCategories
 	AttendanceEducationGroups          = presence.AttendanceEducationGroups
 	EducationGroupRoom                 = presence.EducationGroupRoom
 	SessionDeviceDirectory             = presence.SessionDeviceDirectory
@@ -67,6 +65,8 @@ func WithGuardianWaker(waker GuardianWaker) PresenceOption {
 
 // NewPresence builds the presence capability from explicit dependencies.
 func NewPresence(deps PresenceDependencies, options ...PresenceOption) studentpresence.Presence {
+	store := postgres.NewVisitAdmissionReader(tenant.CurrentTenantTransaction[bun.IDB])
+	options = append(options, presence.WithVisitAdmissionRead(store.ReadVisitAdmission))
 	return presence.NewPresenceFacade(presence.NewService(deps, options...), deps)
 }
 

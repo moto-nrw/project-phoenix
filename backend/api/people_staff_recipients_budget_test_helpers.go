@@ -4,7 +4,7 @@ package api
 
 import (
 	"github.com/go-chi/chi/v5"
-	staffmessaging "github.com/moto-nrw/project-phoenix/modules/communication/http/staffmessages"
+	staffmessaging "github.com/moto-ogs/project-phoenix/modules/communication/http/staffmessages"
 )
 
 // NewPeopleStaffRecipientsBudgetTestRouter exposes the existing recipient

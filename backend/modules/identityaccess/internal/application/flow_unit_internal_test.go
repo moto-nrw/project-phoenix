@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 type flowUnitKey struct{}
@@ -67,7 +67,7 @@ func TestNilReceiverFlowsReportTheirSentinel(t *testing.T) {
 	_, err := authentication.LoginWithMFAGate(ctx, "", "", "", "", "", "")
 	requireSameError(t, errAccountAuthenticationUnavailable, err)
 	var administration *AccountAdministration
-	requireSameError(t, errAccountAdministrationUnavailable, administration.ChangeAccountPassword(ctx, 1, "", ""))
+	requireSameError(t, errAccountAdministrationUnavailable, administration.ChangeAccountPassword(ctx, identityaccess.OwnPasswordChange{AccountID: 1}))
 	var lifecycle *AccountLifecycle
 	_, err = lifecycle.PreviewStaffOffboarding(ctx, 1)
 	requireSameError(t, errAccountLifecycleUnavailable, err)

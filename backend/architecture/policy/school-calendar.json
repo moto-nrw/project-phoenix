@@ -64,6 +64,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/schoolcalendar/traegercalendar",
+      "owner": "school-calendar",
+      "role": "contract",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/schoolcalendar/portal/compose",
       "owner": "school-calendar",
       "role": "compose",
@@ -93,6 +100,19 @@
     }
   ],
   "data_objects": [
+    {"name": "calendar.holiday_closure_authorizations", "write_owner": "school-calendar"},
+    {
+      "name": "calendar.holiday_closure_revisions",
+      "write_owner": "school-calendar"
+    },
+    {
+      "name": "calendar.holiday_closure_proposals",
+      "write_owner": "school-calendar"
+    },
+    {
+      "name": "calendar.holiday_closure_events",
+      "write_owner": "school-calendar"
+    },
     {
       "name": "calendar.parent_conference_bookings",
       "write_owner": "school-calendar"
@@ -123,6 +143,10 @@
     },
     {
       "name": "schedule.dateframes",
+      "write_owner": "school-calendar"
+    },
+    {
+      "name": "schedule.traeger_closing_days",
       "write_owner": "school-calendar"
     }
   ],

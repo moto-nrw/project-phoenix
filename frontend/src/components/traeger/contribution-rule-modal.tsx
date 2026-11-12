@@ -4,6 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { ISODateInput } from "~/components/ui/date-picker";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import {
   SegmentedControl,
@@ -12,6 +13,7 @@ import {
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { berlinTodayISO } from "~/lib/date-helpers";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   type ContributionRule,
@@ -106,10 +108,12 @@ export function ContributionRuleModal({
 }: Readonly<{
   edit: ContributionRuleEdit | null;
   onClose: () => void;
-  onSaved: () => Promise<unknown>;
+  /** Reloads the card; never rejects (#6652). */
+  onSaved: RefreshAfterWrite;
 }>) {
   const [draft, setDraft] = useState<Draft | null>(null);
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(edit !== null);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -165,26 +169,27 @@ export function ContributionRuleModal({
     formErrors.clear();
     const rule = input(draft);
     if (!rule) return;
-    setSaving(true);
-    try {
-      if (edit.kind === "create") {
-        await createContributionRule(rule);
-        success("Die Regel ist gespeichert.");
-      } else {
-        await updateContributionRule(edit.rule.id, rule);
-        success("Die Regel ist geändert.");
+    await save.run(async (op) => {
+      try {
+        if (edit.kind === "create") {
+          await createContributionRule(rule);
+          success("Die Regel ist gespeichert.");
+        } else {
+          await updateContributionRule(edit.rule.id, rule);
+          success("Die Regel ist geändert.");
+        }
+      } catch (err) {
+        logger.error("contribution_rule_save_failed", {
+          kind: edit.kind,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "die Regel" });
+        return;
       }
-      onClose();
+      if (op.isCurrent()) onClose();
       await onSaved();
-    } catch (err) {
-      logger.error("contribution_rule_save_failed", {
-        kind: edit.kind,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "die Regel" });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   const set = (patch: Partial<Draft>) =>
@@ -195,7 +200,7 @@ export function ContributionRuleModal({
     <FormModal
       isOpen={edit !== null}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title={title}
       size="md"

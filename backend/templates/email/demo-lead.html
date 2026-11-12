@@ -9,6 +9,7 @@
     <p>E-Mail: {{.Email}}</p>
     <p>Quelle: {{if .Source}}{{.Source}}{{else}}keine Angabe{{end}}</p>
     <p>Kontakt erlaubt: {{if .ContactOptIn}}ja{{else}}nein{{end}}</p>
+    {{if .Phone}}<p>Telefon: {{.Phone}}</p>{{end}}
     <p>Kennung des Demo-Zugangs: {{.AccessID}}</p>
 </div>
 

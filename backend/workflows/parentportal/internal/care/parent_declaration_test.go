@@ -14,15 +14,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/api"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -41,8 +41,16 @@ type declarationSetup struct {
 
 func newDeclarationSetup(t *testing.T, settings communication.ParentDeclarationSettings, deadline *time.Time) *declarationSetup {
 	t.Helper()
+	return newDeclarationSetupWith(t, settings, deadline, nil)
+}
+
+func newDeclarationSetupWith(
+	t *testing.T, settings communication.ParentDeclarationSettings, deadline *time.Time,
+	wrap func(parentportal.AnnouncementAccess) parentportal.AnnouncementAccess,
+) *declarationSetup {
+	t.Helper()
 	testpkg.OwnTenant(t)
-	svc, db, repos := buildAnnouncementServiceOn(t, testpkg.SetupIsolatedTestDB(t), true)
+	svc, db, repos := buildAnnouncementServiceWithAccess(t, testpkg.SetupIsolatedTestDB(t), true, nil, wrap)
 	chain := testpkg.CreateTestParentGuardianChain(t, db)
 	setup := &declarationSetup{
 		svc: svc, db: db, repo: api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain: chain,
@@ -92,9 +100,9 @@ func freezeTestVersion(t *testing.T, ctx context.Context, repo api.ParentAnnounc
 	return version
 }
 
-func consent(signers string, revocable, password bool) communication.ParentDeclarationSettings {
+func consent(signers string, password bool) communication.ParentDeclarationSettings {
 	return communication.ParentDeclarationSettings{
-		Kind: parentportal.DeclarationKindConsent, Signers: signers, Revocable: revocable, RequiresPassword: password,
+		Kind: parentportal.DeclarationKindConsent, Signers: signers, RequiresPassword: password,
 	}
 }
 
@@ -122,7 +130,7 @@ func (s *declarationSetup) history(t *testing.T) []*parentportal.DeclarationSubm
 
 func TestDeclaration_ConsentIsRecordedOnceAndShownInFeed(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
 
 	before := s.feedDeclaration(t, s.chain.AccountID)
 	require.Len(t, before.Children, 1)
@@ -158,12 +166,13 @@ func TestDeclaration_ConsentIsRecordedOnceAndShownInFeed(t *testing.T) {
 	assert.Equal(t, communication.DeclarationStateAgreed, after.Children[0].State)
 	require.NotNil(t, after.Children[0].MyAction)
 	assert.Equal(t, parentportal.DeclarationActionAgreed, *after.Children[0].MyAction)
-	assert.Equal(t, []string{"declined"}, after.Children[0].AllowedActions)
+	// A consent is withdrawn by revoking it, never made final (#6303).
+	assert.Equal(t, []string{"revoked"}, after.Children[0].AllowedActions)
 }
 
 func TestDeclaration_ConcurrentSubmissionsStoreOneRow(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
 
 	var wg sync.WaitGroup
 	createdCount := 0
@@ -188,7 +197,7 @@ func TestDeclaration_ConcurrentSubmissionsStoreOneRow(t *testing.T) {
 
 func TestDeclaration_ChangedVersionIsRefusedAndKeepsOldProof(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
 	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
 	require.NoError(t, err)
 
@@ -215,7 +224,7 @@ func TestDeclaration_ChangedVersionIsRefusedAndKeepsOldProof(t *testing.T) {
 
 func TestDeclaration_WithdrawnPermissionRefusesTheDeclaration(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
 	revokeDeclarationPermission(t, s.db, s.chain.AccountID)
 
 	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
@@ -232,7 +241,7 @@ func TestDeclaration_WithdrawnPermissionRefusesTheDeclaration(t *testing.T) {
 
 func TestDeclaration_WithdrawnPermissionAllowsOwnRevocation(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, true, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
 
 	_, created, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
 	require.NoError(t, err)
@@ -247,7 +256,7 @@ func TestDeclaration_WithdrawnPermissionAllowsOwnRevocation(t *testing.T) {
 
 func TestDeclaration_ForeignChildAndForeignSchoolAreNotFound(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
 
 	// Another family's child in the same school, not reached for this account.
 	other := testpkg.CreateTestParentGuardianChain(t, s.db)
@@ -261,7 +270,7 @@ func TestDeclaration_ForeignChildAndForeignSchoolAreNotFound(t *testing.T) {
 	foreignCtx := tenant.WithTenantID(testpkg.WithTestTenantRuntime(t, context.Background()), foreignTenant)
 	foreign, foreignVersion := seedDeclaration(t, foreignCtx, s.repo, s.chain.AccountID, foreignTenant,
 		[]*api.ParentAnnouncementTargetFixture{{TargetType: "school_all"}},
-		consent(communication.DeclarationSignersAny, false, false), nil)
+		consent(communication.DeclarationSignersAny, false), nil)
 	_, _, err = s.svc.SubmitDeclaration(s.ctx, s.chain.AccountID, foreign.ID, parentportal.DeclarationInput{
 		StudentID: s.chain.StudentID, VersionID: foreignVersion.ID, Action: parentportal.DeclarationActionAgreed,
 	}, nil)
@@ -272,7 +281,7 @@ func TestDeclaration_ForeignChildAndForeignSchoolAreNotFound(t *testing.T) {
 func TestDeclaration_DeadlineAllowsOnlyRevocation(t *testing.T) {
 	t.Parallel()
 	deadline := time.Now().Add(time.Hour)
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, true, false), &deadline)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), &deadline)
 	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionRevoked)
 	require.ErrorIs(t, err, parentportal.ErrDeclarationActionNotAllowed, "nothing to revoke before consenting")
 	_, _, err = s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
@@ -295,7 +304,7 @@ func TestDeclaration_DeadlineAllowsOnlyRevocation(t *testing.T) {
 
 func TestDeclaration_ExpiredAllowsOnlyRevocation(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, true, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
 	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
 	require.NoError(t, err)
 
@@ -336,7 +345,7 @@ func TestDeclaration_EndedActivityEnrollmentKeepsHistoryAndRevocation(t *testing
 
 	announcement, version := seedDeclaration(t, seedCtx, api.NewParentAnnouncementFixtures(repos.ParentAnnouncement), chain.AccountID, chain.TenantID,
 		[]*api.ParentAnnouncementTargetFixture{{TargetType: "activity_group", TargetRefID: &group.ID}},
-		consent(communication.DeclarationSignersAny, true, false), nil)
+		consent(communication.DeclarationSignersAny, false), nil)
 	_, created, err := svc.SubmitDeclaration(ctx, chain.AccountID, announcement.ID, parentportal.DeclarationInput{
 		StudentID: chain.StudentID, VersionID: version.ID, Action: parentportal.DeclarationActionAgreed,
 	}, nil)
@@ -389,7 +398,7 @@ func TestDeclaration_EndedActivityEnrollmentKeepsHistoryAndRevocation(t *testing
 
 func TestDeclaration_AllGuardiansMustDeclare(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAll, false, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAll, false), nil)
 	co := testpkg.CreateTestCoGuardianForStudent(t, s.db, s.chain.StudentID, "Anna", "Schneider")
 
 	_, _, err := s.submit(s.chain.AccountID, parentportal.DeclarationActionAgreed)
@@ -411,7 +420,7 @@ func TestDeclaration_AllGuardiansMustDeclare(t *testing.T) {
 
 func TestDeclaration_PasswordIsCheckedWhenTheSchoolAsksForIt(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, true), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, true), nil)
 	const correctSecret, wrongSecret = "richtig", "falsch"
 	confirm := func(_ context.Context, given string) error {
 		if given != correctSecret {
@@ -437,7 +446,7 @@ func TestDeclaration_PasswordIsCheckedWhenTheSchoolAsksForIt(t *testing.T) {
 
 func TestDeclaration_OpenedButUnansweredKeepsTheBadge(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
 	persisted, err := testpkg.TenantQuery1(t, s.seedCtx, testpkg.SetupTestDB(t), s.repo.FindByID, s.announcement.ID)
 	require.NoError(t, err)
 
@@ -459,7 +468,7 @@ func TestDeclaration_OpenedButUnansweredKeepsTheBadge(t *testing.T) {
 
 func TestDeclaration_ProofContainsOnlyTheOwnDeclarations(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
 	co := testpkg.CreateTestCoGuardianForStudent(t, s.db, s.chain.StudentID, "Anna", "Schneider")
 
 	_, err := s.svc.DeclarationProof(s.ctx, s.chain.AccountID, s.announcement.ID, s.chain.StudentID)
@@ -499,7 +508,7 @@ func TestDeclaration_ProofContainsOnlyTheOwnDeclarations(t *testing.T) {
 
 func TestDeclarationProofAttachmentAccessRequiresTheOwnFrozenVersion(t *testing.T) {
 	t.Parallel()
-	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false, false), nil)
+	s := newDeclarationSetup(t, consent(communication.DeclarationSignersAny, false), nil)
 	s.version.Attachments = []parentportal.DeclarationAttachmentDigest{{
 		AttachmentID: 91, Filename: "Ausflug.pdf", ContentType: "application/pdf", SizeBytes: 2048,
 	}}

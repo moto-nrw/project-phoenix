@@ -76,6 +76,8 @@ export interface FamilyBilling {
   readonly paymentMethod: PaymentMethod | "";
   /** Day of the month 1–28; null keeps the date of the run. */
   readonly dueDay: number | null;
+  /** Number of the family in the finance system of the Träger, "" without one (#4693). */
+  readonly debtorNumber: string;
   readonly updatedAt: string;
 }
 
@@ -90,6 +92,7 @@ export interface FamilyBillingInput {
   readonly payerAddress: PostalAddress | null;
   readonly paymentMethod: PaymentMethod | "";
   readonly dueDay: number | null;
+  readonly debtorNumber: string;
 }
 
 /** The due date of a run for one payment method. */
@@ -100,7 +103,11 @@ export interface RunDueDate {
 }
 
 /** Why an invoice of a family that pays by direct debit is not collected (#4695). */
-type DebitGap = "mandate_missing" | "creditor_missing" | "creditor_changed";
+type DebitGap =
+  | "mandate_missing"
+  | "creditor_missing"
+  | "creditor_changed"
+  | "mandate_expired";
 
 /** The SEPA mandate an invoice by direct debit is collected with (#4695). */
 interface InvoiceMandate {
@@ -157,6 +164,7 @@ interface BackendFamilyBilling {
   payer_address: BackendAddress | null;
   payment_method: PaymentMethod | "";
   due_day: number | null;
+  debtor_number?: string;
   updated_at: string;
 }
 
@@ -233,6 +241,7 @@ function familyFromBackend(family: BackendFamilyBilling): FamilyBilling {
       : null,
     paymentMethod: family.payment_method,
     dueDay: family.due_day,
+    debtorNumber: family.debtor_number ?? "",
     updatedAt: family.updated_at,
   };
 }
@@ -320,6 +329,7 @@ export function familyBillingBody(input: FamilyBillingInput) {
         : null,
     payment_method: input.paymentMethod,
     due_day: input.dueDay,
+    debtor_number: input.debtorNumber.trim(),
   };
 }
 

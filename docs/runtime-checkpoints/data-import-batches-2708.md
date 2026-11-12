@@ -1,10 +1,10 @@
 # Data Import bounded-batch completion
 
-Issue: [#2708](https://github.com/moto-nrw/project-phoenix/issues/2708).
+Issue: [#2708](https://github.com/moto-ogs/project-phoenix/issues/2708).
 Code baseline: `8f1f4d78a0`; measurements include this working-tree cutover.
 Measured locally on 2026-09-12, macOS arm64, PostgreSQL 17.11.
 This ordinary migration supplements accepted checkpoint
-[#3020](https://github.com/moto-nrw/project-phoenix/issues/3020), not a new
+[#3020](https://github.com/moto-ogs/project-phoenix/issues/3020), not a new
 checkpoint acceptance or a staging/production observation.
 
 ## Cutover and replay contract

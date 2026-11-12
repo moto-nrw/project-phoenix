@@ -6,13 +6,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	careContractCompose "github.com/moto-ogs/project-phoenix/modules/carecontract/compose"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	deliveryRuntime "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // CareContractNoticeSettings reads Träger-level texts in the caller's
@@ -25,12 +25,14 @@ type CareContractNoticeSettings interface {
 // Träger level of the settings system, the confirmation mail to Delivery
 // and, for the office, who may still receive the notice of a decided end.
 // The parents portal's binding passes nil addressees: it decides no end.
+// holidays dates the withdrawal period at the school (#6350).
 func NewCareContractNoticePorts(settings CareContractNoticeSettings, delivery deliveryRuntime.Capability,
-	addressees carecontract.NoticeAddressees) careContractCompose.NoticePorts {
+	addressees carecontract.NoticeAddressees, holidays carecontract.SchoolHolidays) careContractCompose.NoticePorts {
 	return careContractCompose.NoticePorts{
 		Templates:  careContractNoticeTemplates{settings: settings},
 		Post:       careContractNoticePost{delivery: delivery},
 		Addressees: addressees,
+		Holidays:   holidays,
 	}
 }
 
@@ -180,8 +182,9 @@ type parentContractNotices struct {
 
 // NewParentContractNotices binds the parents' declarations over the
 // confirmation templates of the Träger and Delivery's outbox.
-func NewParentContractNotices(settings CareContractNoticeSettings, delivery deliveryRuntime.Capability) parentportal.ContractNoticesPort {
-	return parentContractNotices{notices: careContractCompose.NewParentNotices(NewCareContractNoticePorts(settings, delivery, nil))}
+func NewParentContractNotices(settings CareContractNoticeSettings, delivery deliveryRuntime.Capability,
+	holidays carecontract.SchoolHolidays) parentportal.ContractNoticesPort {
+	return parentContractNotices{notices: careContractCompose.NewParentNotices(NewCareContractNoticePorts(settings, delivery, nil, holidays))}
 }
 
 func (n parentContractNotices) ContractNoticeOptions(ctx context.Context, organizationID, contractID int64,

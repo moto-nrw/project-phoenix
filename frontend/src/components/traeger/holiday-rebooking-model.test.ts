@@ -13,6 +13,7 @@ const period: HolidayPeriod = {
   registrationOpensOn: "2026-11-02",
   registrationClosesOn: "2026-12-04",
   binding: true,
+  holidayWishRule: false,
   notes: "",
   status: "published",
   publishedAt: "2026-10-20T10:00:00Z",
@@ -67,6 +68,9 @@ const child: HolidayRegistrationChild = {
   homeSchoolId: null,
   guestSchoolName: "",
   duplicateRegistrationIds: [],
+  holidayWish: "",
+  holidayWishSource: "",
+  holidayWishCheck: false,
   bookings: [
     {
       weekId: "52",
@@ -75,6 +79,9 @@ const child: HolidayRegistrationChild = {
       hostSchoolId: "32",
       timeModelId: "63",
       timeModelName: "bis 13 Uhr",
+      placement: "placed",
+      waitlistPosition: null,
+      promotedAt: null,
     },
   ],
 };

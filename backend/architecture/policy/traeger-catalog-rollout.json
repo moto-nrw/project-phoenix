@@ -1,0 +1,251 @@
+{
+  "packages": [
+    {
+      "path": "workflows/traegercatalog",
+      "owner": "traeger-catalog-rollout",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/traegercatalog/ports",
+      "owner": "traeger-catalog-rollout",
+      "role": "port",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/traegercatalog/internal/application",
+      "owner": "traeger-catalog-rollout",
+      "role": "application",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/traegercatalog/compose",
+      "owner": "traeger-catalog-rollout",
+      "role": "compose",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "workflows/traegercatalog/http",
+      "owner": "traeger-catalog-rollout",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "traeger-catalog-rollout.public.enrollment",
+      "description": "The rollout contract speaks the field changes of Enrollment's Träger phase and copy types (ADR 0195).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-catalog-rollout",
+      "source_role": "public",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "traeger-catalog-rollout.public.care-plan",
+      "description": "The rollout contract speaks the field changes of Care Plan's Träger offering and copy types (ADR 0195).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-catalog-rollout",
+      "source_role": "public",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "traeger-catalog-rollout.port.enrollment",
+      "description": "Rollout ports name Enrollment's Träger phases and phase copies through their public contract (ADR 0195 section 3).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-catalog-rollout",
+      "source_role": "port",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "traeger-catalog-rollout.application.enrollment",
+      "description": "The rollout coordinates Enrollment's Träger phases and phase copies through their public contract (ADR 0195 section 5).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-catalog-rollout",
+      "source_role": "application",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "traeger-catalog-rollout.port.care-plan",
+      "description": "Rollout ports name Care Plan's Träger offerings and offering copies through their public contract (ADR 0195 section 3).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-catalog-rollout",
+      "source_role": "port",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "traeger-catalog-rollout.application.care-plan",
+      "description": "The rollout coordinates Care Plan's Träger offerings and offering copies through their public contract (ADR 0195 section 5).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-catalog-rollout",
+      "source_role": "application",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "traeger-catalog-rollout.application.ports",
+      "description": "The rollout consumes its own consumer-owned ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-catalog-rollout",
+      "source_role": "application",
+      "target_owner": "traeger-catalog-rollout",
+      "target_role": "port"
+    },
+    {
+      "id": "traeger-catalog-rollout.application.public",
+      "description": "The rollout implements its own public contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-catalog-rollout",
+      "source_role": "application",
+      "target_owner": "traeger-catalog-rollout",
+      "target_role": "public"
+    },
+    {
+      "id": "traeger-catalog-rollout.compose.tenant-runtime",
+      "description": "The rollout composition opens the Träger transaction and each school's tenant transaction (ADR 0195 section 2).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-catalog-rollout",
+      "source_role": "compose",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "traeger-catalog-rollout.http.public",
+      "description": "The catalog HTTP transport serves its own workflow contract.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-catalog-rollout",
+      "source_role": "http",
+      "target_owner": "traeger-catalog-rollout",
+      "target_role": "public"
+    },
+    {
+      "id": "traeger-catalog-rollout.http.enrollment",
+      "description": "The catalog HTTP transport keeps Enrollment's Träger phases in the Träger transaction and maps their errors (ADR 0195 section 1).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-catalog-rollout",
+      "source_role": "http",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "traeger-catalog-rollout.http.care-plan",
+      "description": "The catalog HTTP transport keeps Care Plan's Träger offerings in the Träger transaction and maps their errors (ADR 0195 section 1).",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-catalog-rollout",
+      "source_role": "http",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "traeger-catalog-rollout.http.tenant-runtime",
+      "description": "The catalog HTTP transport discards the Träger transaction of a refused write.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-catalog-rollout",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "public"
+    },
+    {
+      "id": "traeger-catalog-rollout.http.tenant-runtime.http",
+      "description": "The catalog HTTP transport renders through the shared API envelope.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-catalog-rollout",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "traeger-catalog-rollout.decision-test.enrollment",
+      "description": "Rollout decision tests fake Enrollment's Träger phase and copy through public DTOs.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "traeger-catalog-rollout",
+      "source_role": "workflow-decision-test",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "traeger-catalog-rollout.decision-test.care-plan",
+      "description": "Rollout decision tests fake Care Plan's Träger offering and copy through public DTOs.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "traeger-catalog-rollout",
+      "source_role": "workflow-decision-test",
+      "target_owner": "care-plan",
+      "target_role": "public"
+    },
+    {
+      "id": "traeger-catalog-rollout.port.organization-tenancy",
+      "description": "The rollout revalidates school ownership under its share lock in the school transaction.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-catalog-rollout",
+      "source_role": "port",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    },
+    {
+      "id": "traeger-catalog-rollout.application.organization-tenancy",
+      "description": "The rollout revalidates school ownership under its share lock in the school transaction.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "traeger-catalog-rollout",
+      "source_role": "application",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    },
+    {
+      "id": "traeger-catalog-rollout.decision-test.organization-tenancy",
+      "description": "School ownership decisions use the public school DTO.",
+      "scopes": [
+        "internal_test"
+      ],
+      "source_owner": "traeger-catalog-rollout",
+      "source_role": "workflow-decision-test",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    }
+  ]
+}

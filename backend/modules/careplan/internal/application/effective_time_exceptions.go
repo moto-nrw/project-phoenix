@@ -2,12 +2,11 @@ package application
 
 import (
 	"context"
-	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // lockedExceptionByID re-reads an exception under its day lock. A row that a
@@ -292,31 +291,6 @@ func (c *effectiveTimeCore[S, E, N, D]) deleteLockedException(txCtx context.Cont
 	return c.deleteExceptionRow(txCtx, exceptionID)
 }
 
-func (c *effectiveTimeCore[S, E, N, D]) deleteAllExceptions(
-	ctx context.Context,
-	studentID int64,
-) error {
-	return c.transactions.WithinTenant(ctx, func(txCtx context.Context) error {
-		rows, err := c.exceptions.FindByStudentID(txCtx, studentID)
-		if err != nil {
-			return &careplan.ScheduleError{Op: c.operation("get student %s exceptions"), Err: err}
-		}
-
-		// Lock the snapshot before deleting any row. A new exception on another
-		// date stays untouched, including its partial-absence provenance.
-		candidates := c.exceptionDeletionSnapshot(rows)
-		if err := c.lockExceptionSnapshot(txCtx, studentID, candidates); err != nil {
-			return err
-		}
-		for _, row := range candidates {
-			if err := c.deleteSnapshotException(txCtx, row.id); err != nil {
-				return err
-			}
-		}
-		return nil
-	})
-}
-
 func (c *effectiveTimeCore[S, E, N, D]) deleteExceptionRow(ctx context.Context, exceptionID int64) error {
 	if err := c.exceptions.Delete(ctx, exceptionID); err != nil {
 		return &careplan.ScheduleError{
@@ -365,58 +339,4 @@ func prepareExceptionUpdate(fields *domain.EffectiveExceptionFields, studentID i
 	fields.CreatedBy = staffID
 	fields.CreatedByGuardian = nil
 	return nil
-}
-
-type exceptionDeletionCandidate struct {
-	id   int64
-	date calendar.Date
-}
-
-func (c *effectiveTimeCore[S, E, N, D]) exceptionDeletionSnapshot(rows []E) []exceptionDeletionCandidate {
-	candidates := make([]exceptionDeletionCandidate, 0, len(rows))
-	for _, row := range rows {
-		if isZeroEntity(row) {
-			continue
-		}
-		fields := c.domain.ExceptionFields(row)
-		candidates = append(candidates, exceptionDeletionCandidate{id: fields.ID, date: fields.Date})
-	}
-	sort.Slice(candidates, func(i, j int) bool {
-		if candidates[i].date == candidates[j].date {
-			return candidates[i].id < candidates[j].id
-		}
-		return candidates[i].date.Before(candidates[j].date)
-	})
-	return candidates
-}
-
-func (c *effectiveTimeCore[S, E, N, D]) lockExceptionSnapshot(ctx context.Context, studentID int64, candidates []exceptionDeletionCandidate) error {
-	var lockedDate calendar.Date
-	for index, row := range candidates {
-		if index > 0 && row.date == lockedDate {
-			continue
-		}
-		if err := c.transactions.LockStudentAndExceptionDay(ctx, studentID, row.date.String()); err != nil {
-			return err
-		}
-		lockedDate = row.date
-	}
-	return nil
-}
-
-func (c *effectiveTimeCore[S, E, N, D]) deleteSnapshotException(ctx context.Context, id int64) error {
-	fresh, err := c.exceptions.FindByIDForUpdate(ctx, id)
-	if err != nil {
-		if c.transactions.IsNotFound(err) {
-			return nil
-		}
-		return &careplan.ScheduleError{Op: c.operation("get student %s exception by id"), Err: err}
-	}
-	if isZeroEntity(fresh) {
-		return nil
-	}
-	if c.domain.ExceptionFields(fresh).ExcusedFrom != nil {
-		return careplan.ErrCareExceptionContainsPartialAbsence
-	}
-	return c.deleteExceptionRow(ctx, id)
 }

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -181,5 +181,5 @@ func TestHolidayHostSchoolReadsOnlyConfirmedChildrenOfItsOpenWeeks(t *testing.T)
 			own, draft, confirmed, draftWeek, draftModel)
 		return err
 	})
-	assert.ErrorContains(t, err, "row-level security", "the host writes no booking")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "the host writes no booking")
 }

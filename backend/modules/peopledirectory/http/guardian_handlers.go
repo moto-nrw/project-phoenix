@@ -9,9 +9,9 @@ import (
 	"unicode"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
 )
 
 var validPhoneTypes = map[string]bool{"mobile": true, "home": true, "work": true, "other": true}
@@ -418,6 +418,7 @@ func (rs *GuardianResource) getStudentGuardians(w http.ResponseWriter, r *http.R
 				row.Guardian.HasAccount,
 				row.Link.HasPermission(peopledirectory.GuardianPermissionPortalAccess),
 				row.InvitationPending,
+				row.InvitationLinkEnded,
 			),
 		})
 	}

@@ -12,6 +12,9 @@ const HOLIDAY_REGISTRATIONS_PAGE = /^\/ferien\/[^/]+\/anmeldungen(?:\/|$)/;
 /** `/ferien/{id}/formular`, the form of a holiday period (#5198). */
 const HOLIDAY_FORM_PAGE = /^\/ferien\/[^/]+\/formular$/;
 
+/** `/ferien/{id}/plaetze`, the places and waitlist of a holiday period. */
+const HOLIDAY_PLACES_PAGE = /^\/ferien\/[^/]+\/plaetze$/;
+
 function onPage(page: string, path: string): boolean {
   return page === path || page.startsWith(`${path}/`);
 }
@@ -30,6 +33,7 @@ export function getTraegerHelpTopicForPath(pathname: string): HelpTopicId {
   if (onPage(page, "/belegung")) return HELP_TOPICS.traegerOccupancy;
   if (onPage(page, "/schulen")) return HELP_TOPICS.traegerSchoolView;
   if (onPage(page, "/dokumente")) return HELP_TOPICS.traegerSharedDocuments;
+  if (onPage(page, "/konto")) return HELP_TOPICS.traegerProfile;
   if (onPage(page, "/einstellungen/mitglieder")) {
     return HELP_TOPICS.traegerAccounts;
   }
@@ -49,6 +53,9 @@ export function getTraegerHelpTopicForPath(pathname: string): HelpTopicId {
     return HELP_TOPICS.traegerHolidayContribution;
   }
   if (onPage(page, "/einstellungen")) return HELP_TOPICS.traegerSettings;
+  if (onPage(page, "/abrechnung/jahresbescheide")) {
+    return HELP_TOPICS.traegerCareNotices;
+  }
   if (
     onPage(page, "/abrechnung/monatsbeitraege") ||
     onPage(page, "/abrechnung/preise")
@@ -63,6 +70,9 @@ export function getTraegerHelpTopicForPath(pathname: string): HelpTopicId {
   ) {
     return HELP_TOPICS.traegerCareReductions;
   }
+  if (onPage(page, "/abrechnung/exporte")) {
+    return HELP_TOPICS.traegerFinanceExports;
+  }
   if (onPage(page, "/abrechnung/lastschrift")) {
     return HELP_TOPICS.traegerSepaMandates;
   }
@@ -74,6 +84,7 @@ export function getTraegerHelpTopicForPath(pathname: string): HelpTopicId {
   if (onPage(page, "/zeitvergleich"))
     return HELP_TOPICS.traegerCareTimeOverruns;
   if (HOLIDAY_FORM_PAGE.test(page)) return HELP_TOPICS.traegerHolidayForm;
+  if (HOLIDAY_PLACES_PAGE.test(page)) return HELP_TOPICS.traegerHolidayPlaces;
   if (HOLIDAY_REGISTRATIONS_PAGE.test(page)) {
     return HELP_TOPICS.traegerHolidayRegistrationReview;
   }

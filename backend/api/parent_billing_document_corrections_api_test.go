@@ -18,7 +18,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 type correctedDocumentBody struct {
@@ -55,6 +55,7 @@ type correctedRunBody struct {
 	Status       string                  `json:"status"`
 	PreviewCount int                     `json:"preview_count"`
 	PreviewCents int64                   `json:"preview_cents"`
+	Fingerprint  string                  `json:"fingerprint"`
 	Documents    []correctedDocumentBody `json:"documents"`
 }
 
@@ -219,7 +220,7 @@ func TestIssuedInvoicesAreCancelledCreditedAndIssuedAgainAsDocumentsOfTheirOwn(t
 	assert.Equal(t, first.RegistrationID, preview.Documents[0].RegistrationID)
 	assert.Equal(t, "FE-0001", preview.Documents[0].ReferenceNumber)
 	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(next.ID, "/release"),
-		map[string]any{"document_count": preview.PreviewCount, "total_cents": preview.PreviewCents})
+		map[string]any{"document_count": preview.PreviewCount, "total_cents": preview.PreviewCents, "fingerprint": preview.Fingerprint})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	reissued := correctedRun(t, f, billing, next.ID).Documents[0]
 	assert.Equal(t, "FE-0005", reissued.Number)

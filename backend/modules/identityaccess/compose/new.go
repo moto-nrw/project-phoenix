@@ -1,5 +1,4 @@
-// Package compose wires the Identity & Access module over the shared tenant
-// runtime and the Bun database.
+// Package compose wires Identity & Access over the tenant runtime and database.
 package compose
 
 import (
@@ -8,12 +7,12 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-	internalports "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
-	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application"
+	internalports "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
+	identityBindingPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 type Observation = internalports.Observation
@@ -32,22 +31,19 @@ type Dependencies struct {
 	Lifecycle *LifecycleDependencies
 	// Resets requires Sessions; nil reports ErrPasswordResetUnavailable.
 	Resets *PasswordResetDependencies
-	// Invitations composes the school invitation flows (#2722). They require
-	// Sessions and Lifecycle; compositions without it report
-	// ErrSchoolInvitationUnavailable.
+	// Invitations composes the school invitation flows (#2722); they require
+	// Sessions and Lifecycle, else they report ErrSchoolInvitationUnavailable.
 	Invitations *identityBindingPorts.SchoolInvitationDependencies
 	// MFA composes the account and operator second factor and, with its
-	// relying-party facts, both portals' passkey ceremonies (#3331). It
-	// requires Sessions; compositions without it report
-	// ErrAccountMFAUnavailable and ErrOperatorMFAUnavailable.
+	// relying-party facts, both portals' passkey ceremonies (#3331). It requires
+	// Sessions; without it: ErrAccountMFAUnavailable, ErrOperatorMFAUnavailable.
 	MFA *identityBindingPorts.MFADependencies
-	// OperatorProvisioning composes the operator invitation and e-mail
-	// change flows (#3332). They require Sessions and Operators;
-	// compositions without it report ErrOperatorProvisioningUnavailable.
+	// OperatorProvisioning composes the operator invitation and e-mail change
+	// flows (#3332); they require Sessions and Operators, else they report
+	// ErrOperatorProvisioningUnavailable.
 	OperatorProvisioning *OperatorProvisioningDependencies
-	// Traeger composes the Träger-Büro account management (#4650): the
-	// invitation into a Träger-Büro and its roles. It requires Sessions;
-	// compositions without it report ErrTraegerAccountsUnavailable.
+	// Traeger composes the Träger-Büro invitation and roles (#4650); it requires
+	// Sessions, else it reports ErrTraegerAccountsUnavailable.
 	Traeger *identityBindingPorts.TraegerAccountDependencies
 	// Demo composes public demo access only in the demo environment.
 	Demo *identityBindingPorts.DemoDependencies
@@ -55,16 +51,11 @@ type Dependencies struct {
 	TenantRuntime tenant.UnitOfWork
 }
 
-// New composes the Identity & Access module. Guardian operations run on the
-// caller's ambient transaction when one exists and otherwise open one for
-// the tenant in context, so the guardian-access writes commit with the
-// approval that requested them. Operator and account-session operations join
-// an ambient transaction and otherwise run on the root connection: operators
-// and their sessions are platform-wide rows without a tenant, and the
-// account-session flows (login, refresh, switch, logout) open the
-// administrative transaction their rotation and audit evidence must commit
-// in before a tenant is known. Account-session statements apply the tenant
-// filter the runtime scoped the caller to.
+// New composes Identity & Access. Guardian writes join the caller's transaction
+// or open one for its tenant, committing with the approval that requested them.
+// Operator/session operations join an ambient transaction or use the root
+// connection. Login, refresh, switch and logout open an administrative unit
+// before a tenant is known; school statements apply the runtime's tenant filter.
 func New(dependencies Dependencies) (identityaccess.Owner, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("identity access compose: all dependencies are required")
@@ -76,8 +67,7 @@ func New(dependencies Dependencies) (identityaccess.Owner, error) {
 	runAdmin := newCommandTransactions(attach).RunAdmin
 	service := application.New(store, store, store, newCommandTransactions(attach), tenant.FromContext, application.NewObserver(dependencies.Observe))
 	operatorMFARecords := application.NewOperatorMFA(service, store)
-	// The second factor is composed first: every login path consults its
-	// gate, and the passkey ceremonies below need the sessions it gates.
+	// Compose MFA first: login and passkey ceremonies depend on its gate.
 	flows, err := newMFACore(service, operatorMFARecords, postgres.NewAccountMFARecords(store), dependencies.Sessions, dependencies.MFA, runtime)
 	if err != nil {
 		return nil, err
@@ -137,14 +127,28 @@ func composeBesideEngine(dependencies Dependencies, auth *application.AccountAut
 	return demoAccess, traegerAccounts, caterers, err
 }
 
-// NewGuardianInvitationReads composes the guardian invitation lists over the
-// database alone, for a root that needs them before it composes the module.
-// They run on the caller's ambient transaction like the module's reads.
+// NewGuardianInvitationReads joins ambient transactions without the full owner.
 func NewGuardianInvitationReads(db *bun.DB) (identityaccess.GuardianInvitationReads, error) {
 	if db == nil {
 		return nil, errors.New("identity access compose: the guardian invitation reads need the database")
 	}
 	return application.NewGuardianInvitationReads(postgres.NewStore(db), newCommandTransactions(nil).RunRead), nil
+}
+
+func NewGuardianInvitationInvalidation(db *bun.DB) (identityaccess.GuardianInvitationInvalidation, error) {
+	if db == nil {
+		return nil, errors.New("identity access compose: guardian invitation invalidation needs the database")
+	}
+	return application.NewGuardianInvitationInvalidation(postgres.NewStore(db)), nil
+}
+
+// NewSchoolMembershipLock binds the parent write guard's membership lock (#6529).
+func NewSchoolMembershipLock(db *bun.DB) identityaccess.SchoolMembershipLock {
+	return application.NewSchoolMembershipLock(postgres.NewStore(db), tenant.FromContext, tenant.TransactionFromContext)
+}
+
+func NewGuardianInvitationAccountLock(db *bun.DB) identityaccess.GuardianInvitationAccountLock {
+	return application.NewGuardianInvitationAccountLock(postgres.NewStore(db), tenant.FromContext, tenant.TransactionFromContext)
 }
 
 func newCommandTransactions(attach func(context.Context) context.Context) application.CommandTransactions {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // OperatorAccess is what the invitation, profile and second-factor routes
@@ -12,7 +12,7 @@ import (
 // the invitation and e-mail change flows, and the account deactivation.
 type OperatorAccess interface {
 	identityaccess.OperatorDirectory
-	IssueTokensForAuthenticatedOperator(ctx context.Context, operatorID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+	IssueTokensForAuthenticatedOperator(ctx context.Context, operatorID int64, credentialGeneration *int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 	identityaccess.OperatorProvisioning
 	identityaccess.OperatorStatus
 }

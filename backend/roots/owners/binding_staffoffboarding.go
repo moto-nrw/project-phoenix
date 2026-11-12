@@ -5,12 +5,13 @@ import (
 	"errors"
 	"log/slog"
 
-	staffoffboardingcompose "github.com/moto-nrw/project-phoenix/workflows/staffoffboarding/compose"
+	identitycompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	staffoffboardingcompose "github.com/moto-ogs/project-phoenix/workflows/staffoffboarding/compose"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/workflows/staffoffboarding"
 )
 
 // Authorize applies the tenant-portal permission boundary before the workflow
@@ -42,10 +43,16 @@ func NewStaffOffboarding(deps staffoffboardingcompose.Dependencies, work staffof
 	membership := deps.Membership
 	return staffoffboardingcompose.New(staffoffboarding.Dependencies{
 		UnitOfWork: tenant.NewTransactionRunner().RunInTx, Authorize: deps.Authorize,
-		Today: func() string { return calendar.TodayDate().String() }, FindStaff: membership.FindStaff,
+		Today: func() string { return calendar.TodayDate().String() }, FindStaff: membership.FindStaff, ListStaff: membership.ListStaff,
 		Membership: deps.Retirement, Workforce: work, Timetable: deps.Timetable, People: deps.People,
 		LockSupervision: deps.LockSupervision,
+		LockAccounts:    identitycompose.NewStaffOffboardingAccountLocks(deps.DB).LockStaffOffboardingAccounts,
 		PreviewAccess: func(ctx context.Context, id int64) (staffoffboarding.AccessPreview, error) {
+			// The preview locks the account, the first lock of a staff exit
+			// (Konto → Schule → Profil, tenant.LockAccount, #6702).
+			if err := tenant.OrderLock(ctx, tenant.LockAccount, tenant.LockIDKey(id)); err != nil {
+				return staffoffboarding.AccessPreview{}, err
+			}
 			p, err := deps.Access.PreviewStaffOffboarding(ctx, id)
 			return staffoffboarding.AccessPreview{Revision: p.Revision, Roles: int64(len(p.RoleIDs)), Tokens: p.Tokens, PreserveGuardian: p.PreserveGuardian, DeactivateAccount: p.DeactivateAccount}, err
 		},

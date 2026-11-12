@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/realtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -230,7 +230,7 @@ func (b finalMemberBroadcaster) BroadcastToStaffAccounts(tenantID int64, account
 func (b finalMemberBroadcaster) BroadcastToSchoolAccounts(tenantID int64, accountIDs []int64, event realtime.Event) error {
 	return b.school(tenantID, accountIDs, event)
 }
-func (finalMemberBroadcaster) BroadcastToAll(realtime.Event) error { return nil }
+
 func (finalMemberBroadcaster) BroadcastParentMessage(int64, int64, realtime.Event) error {
 	return nil
 }

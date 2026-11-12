@@ -58,7 +58,7 @@ services:
       - production
 
   server:
-    image: ghcr.io/moto-nrw/phoenix-server:main
+    image: ghcr.io/moto-ogs/phoenix-server:main
     restart: unless-stopped
     depends_on:
       postgres:
@@ -68,6 +68,8 @@ services:
       - "127.0.0.1:8080:8080"
     volumes:
       - production-avatar-uploads:/app/public/uploads
+      # Encrypted return packages released for retrieval (ADR 0203).
+      - production-data-return:/app/data-return
     environment:
       # Endpoint only. The application password is added by GetServeDSN.
       # Never interpolate the privileged maintenance DB_DSN here.
@@ -109,6 +111,8 @@ services:
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY:?TURNSTILE_SITE_KEY is required}
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY:?TURNSTILE_SECRET_KEY is required}
       HEALTH_DATA_KEYS: ${HEALTH_DATA_KEYS:?HEALTH_DATA_KEYS is required}
+      BANK_DATA_KEYS: ${BANK_DATA_KEYS:?BANK_DATA_KEYS is required}
+      BANK_DATA_LEGACY_KEYS: ${BANK_DATA_LEGACY_KEYS?BANK_DATA_LEGACY_KEYS is required}
       FRONTEND_URL: ${FRONTEND_URL:?FRONTEND_URL is required}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL is required}
       PARENTS_URL: ${PARENTS_URL:?PARENTS_URL is required}
@@ -133,7 +137,6 @@ services:
       POSTHOG_HOST: ${POSTHOG_HOST?POSTHOG_HOST is required}
       CLEANUP_SCHEDULER_ENABLED: ${CLEANUP_SCHEDULER_ENABLED:?CLEANUP_SCHEDULER_ENABLED is required}
       SESSION_END_SCHEDULER_ENABLED: ${SESSION_END_SCHEDULER_ENABLED:?SESSION_END_SCHEDULER_ENABLED is required}
-      STUDENT_DAILY_CHECKOUT_TIME: ${STUDENT_DAILY_CHECKOUT_TIME:?STUDENT_DAILY_CHECKOUT_TIME is required}
     logging:
       driver: journald
       options:
@@ -148,7 +151,7 @@ services:
       - production
 
   frontend:
-    image: ghcr.io/moto-nrw/phoenix-frontend:main
+    image: ghcr.io/moto-ogs/phoenix-frontend:main
     restart: unless-stopped
     depends_on:
       - server
@@ -162,7 +165,6 @@ services:
       NEXTAUTH_URL: ${NEXTAUTH_URL:?NEXTAUTH_URL is required}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET:?NEXTAUTH_SECRET is required}
       METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN:?METRICS_BEARER_TOKEN is required}
-      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST:?AUTH_TRUST_HOST is required}
       TENANT_DOMAIN: ${TENANT_DOMAIN:?TENANT_DOMAIN is required}
       NEXT_PUBLIC_APP_ENV: ${NEXT_PUBLIC_APP_ENV:?NEXT_PUBLIC_APP_ENV is required}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL:?NEXT_PUBLIC_API_URL is required}
@@ -197,7 +199,7 @@ services:
 
   # Explicit one-shot job, excluded from normal service startup.
   migrate:
-    image: ghcr.io/moto-nrw/phoenix-server:main
+    image: ghcr.io/moto-ogs/phoenix-server:main
     profiles: ["maintenance"]
     depends_on:
       postgres:
@@ -222,6 +224,24 @@ services:
     networks:
       - production
 
+  # Explicit maintenance only: privileged DSN, bank rings, no health/HTTP secrets.
+  bank-data-rekey:
+    image: ghcr.io/moto-ogs/phoenix-server:main
+    profiles: ["maintenance"]
+    command: ["./main", "bank-data-rekey"]
+    environment:
+      TZ: ${TZ:?TZ is required}
+      APP_ENV: ${APP_ENV:?APP_ENV is required}
+      DB_DSN: ${DB_DSN:?DB_DSN is required}
+      DB_MAX_OPEN_CONNS: ${DB_MAX_OPEN_CONNS:?DB_MAX_OPEN_CONNS is required}
+      DB_MAX_IDLE_CONNS: ${DB_MAX_IDLE_CONNS:?DB_MAX_IDLE_CONNS is required}
+      DB_CONN_MAX_LIFETIME: ${DB_CONN_MAX_LIFETIME:?DB_CONN_MAX_LIFETIME is required}
+      DB_CONN_MAX_IDLE_TIME: ${DB_CONN_MAX_IDLE_TIME:?DB_CONN_MAX_IDLE_TIME is required}
+      BANK_DATA_KEYS: ${BANK_DATA_KEYS:?BANK_DATA_KEYS is required}
+      BANK_DATA_LEGACY_KEYS: ${BANK_DATA_LEGACY_KEYS?BANK_DATA_LEGACY_KEYS is required}
+    networks:
+      - production
+
 networks:
   production:
     driver: bridge
@@ -230,3 +250,5 @@ volumes:
   postgres:
   production-avatar-uploads:
     name: phoenix-production-uploads
+  production-data-return:
+    name: phoenix-production-data-return

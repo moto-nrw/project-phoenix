@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage/internal/domain"
 	"github.com/uptrace/bun"
 )
 
@@ -66,6 +66,31 @@ func (s *FileCleanupStore) Queue(ctx context.Context, ownerID int64, storedName 
 	stats := measure(started, 1)
 	if err != nil {
 		return stats, fmt.Errorf("file storage postgres: queue file cleanup: %w", err)
+	}
+	return stats, nil
+}
+
+// QueueAll records a set of detached uploads with one upsert, in the
+// triggering transaction. Settled entries are revived as in Queue.
+func (s *FileCleanupStore) QueueAll(ctx context.Context, ownerID int64, names []string, retryAfter time.Time) (domain.OperationStats, error) {
+	if len(names) == 0 {
+		return domain.OperationStats{}, nil
+	}
+	db, tenantID, err := requireTenant(s.database, ctx)
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	rows := make([]fileCleanupRow, 0, len(names))
+	for _, name := range names {
+		rows = append(rows, fileCleanupRow{TenantID: tenantID, ObjectKind: s.kind, OwnerID: ownerID, FilenameStored: name, RetryAfter: retryAfter})
+	}
+	started := time.Now()
+	_, err = db.NewInsert().Model(&rows).ModelTableExpr(`documents.file_cleanup`).
+		On("CONFLICT (tenant_id, object_kind, filename_stored) DO UPDATE").
+		Set("cleaned_at = NULL").Set("retry_after = EXCLUDED.retry_after").Set("owner_id = EXCLUDED.owner_id").Exec(ctx)
+	stats := measure(started, int64(len(rows)))
+	if err != nil {
+		return stats, fmt.Errorf("file storage postgres: queue upload cleanups: %w", err)
 	}
 	return stats, nil
 }

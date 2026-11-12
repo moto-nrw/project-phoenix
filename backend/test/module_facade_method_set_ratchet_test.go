@@ -49,7 +49,7 @@ var moduleFacadeMethodSetAllowlist = map[string]int{
 	"modules/appointments/appointments.go:Command":                                                    16,
 	"modules/appointments/appointments.go:Query":                                                      20,
 	"modules/appointments/retention.go:Owner":                                                         38,
-	"modules/careplan/arrival_schedules.go:ArrivalScheduleService":                                    38,
+	"modules/careplan/arrival_schedules.go:ArrivalScheduleService":                                    37,
 	"modules/careplan/booking_materialization.go:BookingMaterializationCapability":                    16,
 	"modules/careplan/booking_materialization.go:CareOfferingCapability":                              55,
 	"modules/careplan/care_documents.go:StudentDocuments":                                             14,
@@ -62,7 +62,7 @@ var moduleFacadeMethodSetAllowlist = map[string]int{
 	"modules/careplan/excused_requests.go:ExcusedAbsenceRequests":                                     18,
 	"modules/careplan/excusedrequests/contract.go:Service":                                            18,
 	"modules/careplan/offering_changes.go:OfferingChangeCapability":                                   21,
-	"modules/careplan/pickup_schedules.go:PickupScheduleService":                                      38,
+	"modules/careplan/pickup_schedules.go:PickupScheduleService":                                      37,
 	"modules/careplan/records.go:CareRecordsCommand":                                                  15,
 	"modules/careplan/records.go:CareRecordsQuery":                                                    15,
 	"modules/careplan/requests.go:CareRequestsCommand":                                                16,
@@ -127,7 +127,7 @@ var moduleFacadeMethodSetAllowlist = map[string]int{
 	"modules/studentpresence/studentpresence.go:Query":                                                47,
 	"modules/studentpresence/visit.go:VisitQuery":                                                     13,
 	"modules/timetable/activity_instances.go:ActivityInstanceCapability":                              15,
-	"modules/timetable/activitycontract/capability.go:ActivityService":                                40,
+	"modules/timetable/activitycontract/capability.go:ActivityService":                                39,
 	"modules/timetable/fixturetest/activity_instance_records_test_helpers.go:ActivityInstanceRecords": 20,
 	"modules/timetable/fixturetest/instance_lifecycle_test_helpers.go:InstanceLifecycle":              21,
 	"modules/timetable/fixturetest/instance_student_records_test_helpers.go:InstanceStudentRecords":   39,
@@ -213,7 +213,7 @@ func moduleFacadeMethodSetScan(backendRoot string) (map[string]int, error) {
 
 // moduleFacadeModulePath is the backend's module path; first-party imports
 // below it are type-checked from source.
-const moduleFacadeModulePath = "github.com/moto-nrw/project-phoenix"
+const moduleFacadeModulePath = "github.com/moto-ogs/project-phoenix"
 
 // moduleFacadeImporter type-checks first-party packages from source with the
 // standard library alone (the test-support role may not import

@@ -16,10 +16,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken/tokentest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // --- capturing mailer (file-local to avoid name clashes) ---
@@ -44,9 +44,9 @@ func TestOperatorMFAService_StartChallenge_DispatchesEmail(t *testing.T) {
 	svc, db, mailer := newOperatorMFAWithDispatcher(t)
 
 	op := testpkg.CreateTestOperator(t, db)
-	require.NoError(t, svc.EnrollOperatorMFA(ctx, op.ID))
+	require.NoError(t, svc.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: op.ID, CredentialGeneration: op.CredentialGeneration}))
 
-	_, err := svc.StartOperatorMFAChallenge(ctx, op.ID, net.ParseIP("203.0.113.7"))
+	_, err := svc.StartOperatorMFAChallenge(ctx, op.ID, net.ParseIP("203.0.113.7"), nil)
 	require.NoError(t, err)
 
 	if !mailer.WaitForMessages(1, 3*time.Second) {
@@ -64,9 +64,9 @@ func TestOperatorMFAService_IssueTrustedDevice_DispatchesAddedEmail(t *testing.T
 	svc, db, mailer := newOperatorMFAWithDispatcher(t)
 
 	op := testpkg.CreateTestOperator(t, db)
-	require.NoError(t, svc.EnrollOperatorMFA(ctx, op.ID))
+	require.NoError(t, svc.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: op.ID, CredentialGeneration: op.CredentialGeneration}))
 
-	cookie, _, err := svc.IssueOperatorTrustedDevice(ctx, op.ID,
+	cookie, _, err := svc.IssueOperatorTrustedDevice(ctx, currentOperatorProof(t, db, op.ID),
 		"Mozilla/5.0 (Windows NT 10.0) Chrome/121.0", net.ParseIP("203.0.113.8"))
 	require.NoError(t, err)
 	require.NotEmpty(t, cookie)
@@ -88,9 +88,9 @@ func TestOperatorMFAService_VerifyCodeForOperator_NoActiveChallenge(t *testing.T
 	svc, _, db := newTestOperatorMFAService(t)
 
 	op := testpkg.CreateTestOperator(t, db)
-	require.NoError(t, svc.EnrollOperatorMFA(ctx, op.ID))
+	require.NoError(t, svc.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: op.ID, CredentialGeneration: op.CredentialGeneration}))
 
-	err := svc.VerifyOperatorMFACode(ctx, op.ID, "123456")
+	err := svc.VerifyOperatorMFACode(ctx, op.ID, "123456", nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid,
 		"no active challenge must surface as the generic invalid-code error")
@@ -101,7 +101,7 @@ func TestOperatorMFAService_VerifyCodeForOperator_UnknownOperator(t *testing.T) 
 	ctx := context.Background()
 	svc, _, _ := newTestOperatorMFAService(t)
 
-	err := svc.VerifyOperatorMFACode(ctx, 9876543210, "123456")
+	err := svc.VerifyOperatorMFACode(ctx, 9876543210, "123456", nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid,
 		"unknown operator id must map to the generic invalid-code error, not a 500")
@@ -113,12 +113,12 @@ func TestOperatorMFAService_VerifyCodeForOperator_WrongCode(t *testing.T) {
 	svc, _, db := newTestOperatorMFAService(t)
 
 	op := testpkg.CreateTestOperator(t, db)
-	require.NoError(t, svc.EnrollOperatorMFA(ctx, op.ID))
+	require.NoError(t, svc.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: op.ID, CredentialGeneration: op.CredentialGeneration}))
 
-	_, err := svc.StartOperatorMFAChallenge(ctx, op.ID, net.ParseIP("127.0.0.1"))
+	_, err := svc.StartOperatorMFAChallenge(ctx, op.ID, net.ParseIP("127.0.0.1"), nil)
 	require.NoError(t, err)
 
-	err = svc.VerifyOperatorMFACode(ctx, op.ID, "000000")
+	err = svc.VerifyOperatorMFACode(ctx, op.ID, "000000", nil)
 	require.Error(t, err)
 	assert.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid)
 }
@@ -181,9 +181,9 @@ func TestOperatorMFAService_ResendChallenge_HappyPathDispatcher(t *testing.T) {
 	svc, _, db := newTestOperatorMFAService(t)
 
 	op := testpkg.CreateTestOperator(t, db)
-	require.NoError(t, svc.EnrollOperatorMFA(ctx, op.ID))
+	require.NoError(t, svc.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: op.ID, CredentialGeneration: op.CredentialGeneration}))
 
-	tok, err := svc.StartOperatorMFAChallenge(ctx, op.ID, net.ParseIP("127.0.0.1"))
+	tok, err := svc.StartOperatorMFAChallenge(ctx, op.ID, net.ParseIP("127.0.0.1"), nil)
 	require.NoError(t, err)
 	require.NotEmpty(t, tok)
 
@@ -204,14 +204,14 @@ func TestOperatorMFAService_StartChallenge_RateLimitAfter3Codes(t *testing.T) {
 	svc, _, db := newTestOperatorMFAService(t)
 
 	op := testpkg.CreateTestOperator(t, db)
-	require.NoError(t, svc.EnrollOperatorMFA(ctx, op.ID))
+	require.NoError(t, svc.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: op.ID, CredentialGeneration: op.CredentialGeneration}))
 
 	ip := net.ParseIP("203.0.113.30")
 	for i := 0; i < identityaccess.OperatorMFARateLimitMaxSent; i++ {
-		_, err := svc.StartOperatorMFAChallenge(ctx, op.ID, ip)
+		_, err := svc.StartOperatorMFAChallenge(ctx, op.ID, ip, nil)
 		require.NoErrorf(t, err, "operator code %d must still be permitted", i+1)
 	}
-	_, err := svc.StartOperatorMFAChallenge(ctx, op.ID, ip)
+	_, err := svc.StartOperatorMFAChallenge(ctx, op.ID, ip, nil)
 	assert.ErrorIs(t, err, identityaccess.ErrMFARateLimited)
 }
 
@@ -221,9 +221,9 @@ func TestOperatorMFAService_VerifyChallenge_LockoutAfter5Failures(t *testing.T) 
 	svc, _, db := newTestOperatorMFAService(t)
 
 	op := testpkg.CreateTestOperator(t, db)
-	require.NoError(t, svc.EnrollOperatorMFA(ctx, op.ID))
+	require.NoError(t, svc.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: op.ID, CredentialGeneration: op.CredentialGeneration}))
 
-	challenge, err := svc.StartOperatorMFAChallenge(ctx, op.ID, net.ParseIP("127.0.0.1"))
+	challenge, err := svc.StartOperatorMFAChallenge(ctx, op.ID, net.ParseIP("127.0.0.1"), nil)
 	require.NoError(t, err)
 
 	for i := 0; i < identityaccess.MFALockoutThreshold; i++ {
@@ -241,7 +241,7 @@ func TestOperatorMFAService_VerifyChallenge_LockoutAfter5Failures(t *testing.T) 
 func TestOperatorMFAService_StartChallenge_UnknownOperator_Rejected(t *testing.T) {
 	t.Parallel()
 	svc, _, _ := newTestOperatorMFAService(t)
-	_, err := svc.StartOperatorMFAChallenge(context.Background(), 9876543210, net.ParseIP("127.0.0.1"))
+	_, err := svc.StartOperatorMFAChallenge(context.Background(), 9876543210, net.ParseIP("127.0.0.1"), nil)
 	require.Error(t, err, "unknown operator id must surface as an error, not silently mint a code")
 }
 
@@ -253,9 +253,9 @@ func TestOperatorMFAService_VerifyCodeForOperator_HappyPath(t *testing.T) {
 	svc, _, db := newTestOperatorMFAService(t)
 
 	op := testpkg.CreateTestOperator(t, db)
-	require.NoError(t, svc.EnrollOperatorMFA(ctx, op.ID))
+	require.NoError(t, svc.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: op.ID, CredentialGeneration: op.CredentialGeneration}))
 
-	_, err := svc.StartOperatorMFAChallenge(ctx, op.ID, net.ParseIP("127.0.0.1"))
+	_, err := svc.StartOperatorMFAChallenge(ctx, op.ID, net.ParseIP("127.0.0.1"), nil)
 	require.NoError(t, err)
 
 	// The mailed plaintext never leaves the flow, so the delivered row's
@@ -266,5 +266,5 @@ func TestOperatorMFAService_VerifyCodeForOperator_HappyPath(t *testing.T) {
 	const knownCode = "424242"
 	substituteOperatorChallengeCode(t, db, active.ID, knownCode)
 
-	require.NoError(t, svc.VerifyOperatorMFACode(ctx, op.ID, knownCode))
+	require.NoError(t, svc.VerifyOperatorMFACode(ctx, op.ID, knownCode, nil))
 }

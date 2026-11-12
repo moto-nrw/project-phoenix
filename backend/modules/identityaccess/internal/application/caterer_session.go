@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // The caterer's session (ADR 0077). A caterer belongs to no school: its
@@ -19,6 +19,24 @@ import (
 // one the presented session is kept at while that supply lives, else the
 // first live one. That school is a storage key, never an access right; the
 // token stays tenant-less.
+
+// lockCatererSessionSchool chooses and locks the successor's storage school
+// under the account lock, before refresh locks any token. Revocation may have
+// missed a first login in its account snapshot: it then holds the school while
+// deleting the token, so taking these locks in reverse order would deadlock.
+func (r *refreshRotation) lockCatererSessionSchool(ctx context.Context, current domain.AccountSession) error {
+	schoolID, err := r.service.catererSessionSchool(ctx, r.account.ID, current)
+	if err != nil {
+		return err
+	}
+	if err := r.service.requireLiveSessionSchool(ctx, schoolID); err != nil {
+		return err
+	}
+	// Keep the chosen school through persistence instead of resolving another
+	// one after the token lock if the caterer's supplies change meanwhile.
+	r.catererSchoolID = schoolID
+	return nil
+}
 
 // catererSessionSchool is the school a caterer's successor session is kept
 // at: the current one while its supply is live, else the first live school

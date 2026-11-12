@@ -6,9 +6,9 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -95,6 +95,26 @@ func (o testGuardianLinkOwners) GrantGuardianStudentAccess(ctx context.Context, 
 	_, err := o.queryDB(ctx).NewRaw(`INSERT INTO auth.guardian_student_access (tenant_id, relationship_id, account_id, permissions)
 		VALUES (?, ?, ?, ?::jsonb)`, tenantID, relationshipID, accountID, string(permissions)).Exec(ctx)
 	return err
+}
+
+// CreateGuardianPickupPermissions and GrantGuardianStudentAccesses write the
+// batch halves one by one through the single commands above.
+func (o testGuardianLinkOwners) CreateGuardianPickupPermissions(ctx context.Context, tenantID int64, links []peopledirectory.NewGuardianLinkHalves) error {
+	for _, link := range links {
+		if err := o.CreateGuardianPickupPermission(ctx, tenantID, link.RelationshipID, link.CanPickup, link.PickupNotes); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (o testGuardianLinkOwners) GrantGuardianStudentAccesses(ctx context.Context, tenantID int64, links []peopledirectory.NewGuardianLinkHalves) error {
+	for _, link := range links {
+		if err := o.GrantGuardianStudentAccess(ctx, tenantID, link.RelationshipID, link.AccountID, link.Permissions); err != nil {
+			return err
+		}
+	}
+	return nil
 }
 
 func (o testGuardianLinkOwners) SetGuardianStudentPermissions(ctx context.Context, tenantID, relationshipID int64, permissions json.RawMessage) (bool, error) {

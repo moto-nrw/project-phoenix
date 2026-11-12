@@ -1,0 +1,6 @@
+{
+  "api/traeger/closing-days": [
+    "GET traeger /traeger/closing-days/ query=from,to",
+    "POST traeger /traeger/closing-days/"
+  ]
+}

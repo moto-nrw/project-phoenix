@@ -3,8 +3,9 @@ package ports
 import (
 	"context"
 	"errors"
-
 	"time"
+
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // ErrGuardianEmailInUse marks a guardian e-mail that another profile of the
@@ -25,6 +26,9 @@ type GuardianInvitationRecord struct {
 	StudentID         *int64
 	ApprovalStatus    string
 	CreatedAt         time.Time
+	// RecipientEmail is the normalized address the link was issued for, or
+	// "" for a legacy link without a recorded recipient (#6294).
+	RecipientEmail string
 }
 
 // GuardianInvitations is the consumer-owned port over the Identity & Access
@@ -33,8 +37,11 @@ type GuardianInvitationRecord struct {
 // The composition root binds it; auth.guardian_invitations belongs to the
 // owner module.
 type GuardianInvitations interface {
+
 	// ListOpen returns the invitations of those contacts that are still
-	// going somewhere: redeemable, or awaiting a staff decision.
+	// going somewhere: redeemable, or awaiting a staff decision. Legacy links
+	// without a recorded recipient come along, also after they ran out, so
+	// the list can show them as dead links (#6294).
 	ListOpen(ctx context.Context, guardianProfileIDs []int64) ([]GuardianInvitationRecord, error)
 	// ListRedeemable returns the invitations of the school in context whose
 	// link can still be spent.
@@ -48,8 +55,10 @@ type GuardianServiceDependencies struct {
 	GuardianPhoneNumberRepo GuardianPhoneNumberRepository
 	StudentGuardianRepo     StudentGuardianRepository
 	GuardianInvitations     GuardianInvitations
-	StudentRepo             StudentRepository
-	PersonRepo              PersonRepository
+	// InvalidateInvites joins the contact edit transaction.
+	InvalidateInvites func(context.Context, int64) error
+	StudentRepo       StudentRepository
+	PersonRepo        PersonRepository
 
 	// Payment data (#2608). Kept as separate, narrow dependencies so the
 	// guardians:financial code path is the only one holding a reference to
@@ -58,6 +67,9 @@ type GuardianServiceDependencies struct {
 	GuardianFinancialRepo  GuardianFinancialDataRepository
 	GuardianFinancialAudit GuardianFinancialAudit
 	DataAccessLog          GuardianDataAccessLog
+	// BankData seals and opens IBAN and account holder with the bank ring
+	// (#6332, ADR 0183). Without it the path refuses to store or open them.
+	BankData peopledirectory.BankDataCipher
 
 	// RolePresets assigns a relationship's role and the parent-portal
 	// permissions it grants.

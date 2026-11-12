@@ -16,7 +16,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/testdb"
+	"github.com/moto-ogs/project-phoenix/internal/testdb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -137,6 +137,12 @@ func TestHermeticTestPatterns(t *testing.T) {
 				"Fix: make the helper stop mutating global state; inject the value instead.",
 				len(violations), strings.Join(violations, "\n"))
 		}
+	})
+
+	t.Run("no_isolated_parent_parallel_children", func(t *testing.T) {
+		findings := checkIsolatedParallelSubtests(t, backendRoot)
+		t.Logf("isolated parent/parallel-child findings: %v", findings)
+		assert.Empty(t, findings, "slot-limited isolated parent clones cannot coexist with parallel descendants: %v", findings)
 	})
 
 	t.Run("tests_run_in_parallel", func(t *testing.T) {
@@ -400,6 +406,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"newCareFixture",                 // modules/careplan/contracttest care-request tests — wraps SetupTestDB
 		"setupDashboardContext",          // api/active supervision-dashboard tests — wraps SetupActiveModule → SetupTestDB
 		"setupStudentsRoute",             // modules/peopledirectory/inbound/students route suites — wraps testutil.SetupStudentModule → SetupTestDB
+		"newDemoOrder",                   // modules/organizationtenancy/compose demo retirement tests (#6305) — wraps SetupIsolatedTestDB
 	}
 
 	// Patterns indicating mock-based testing (legitimate alternative)

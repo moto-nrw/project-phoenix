@@ -13,8 +13,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // The operator half of the fake store (ports.OperatorStore) and the doubles
@@ -72,6 +72,24 @@ func (s *fakeStore) UpdateOperator(_ context.Context, operator domain.Operator) 
 		return false, stats(), nil
 	}
 	s.operators[operator.ID] = operator
+	return true, stats(), nil
+}
+
+// WriteOperatorCredential mirrors the one credential writer: the password
+// changes only on the expected hash and moves the generation on.
+func (s *fakeStore) WriteOperatorCredential(_ context.Context, id int64, write domain.CredentialWrite) (bool, domain.OperationStats, error) {
+	s.record("WriteOperatorCredential")
+	if s.updateOperatorErr != nil {
+		return false, stats(), s.updateOperatorErr
+	}
+	operator, ok := s.operators[id]
+	if !ok || (write.ExpectedPasswordHash != "" && operator.PasswordHash != write.ExpectedPasswordHash) ||
+		(write.ExpectedGeneration != nil && operator.CredentialGeneration != *write.ExpectedGeneration) {
+		return false, stats(), nil
+	}
+	operator.PasswordHash = write.PasswordHash
+	operator.CredentialGeneration++
+	s.operators[id] = operator
 	return true, stats(), nil
 }
 
@@ -209,7 +227,7 @@ func (m *fakeOperatorMFA) VerifyOperatorTrustedDevice(_ context.Context, _ int64
 	m.calls = append(m.calls, "VerifyTrustedDevice")
 	return cookie != "" && cookie == m.trustedCookie, nil
 }
-func (m *fakeOperatorMFA) StartOperatorMFAChallenge(context.Context, int64, net.IP) (string, error) {
+func (m *fakeOperatorMFA) StartOperatorMFAChallenge(context.Context, int64, net.IP, *int64) (string, error) {
 	m.calls = append(m.calls, "StartChallenge")
 	if m.challengeErr != nil {
 		return "", m.challengeErr
@@ -254,7 +272,7 @@ type fakeCredentialCleanup struct {
 	err         error
 }
 
-func (c *fakeCredentialCleanup) RevokeEmailChanges(_ context.Context, operatorID int64) error {
+func (c *fakeCredentialCleanup) RevokePasswordBoundCredentials(_ context.Context, operatorID int64) error {
 	if c.err != nil {
 		return c.err
 	}

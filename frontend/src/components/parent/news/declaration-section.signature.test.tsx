@@ -36,11 +36,11 @@ function item(): ParentAnnouncement {
     declaration: {
       kind: "consent",
       signers: "any",
-      revocable: true,
       requires_password: false,
       requires_signature: true,
       deadline: null,
       closed: false,
+      ended: false,
       version: { id: "12", version_no: 2, content_hash: "ab".repeat(32) },
       children: [
         {

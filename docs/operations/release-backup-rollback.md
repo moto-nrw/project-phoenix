@@ -135,6 +135,16 @@ restore process remains active. Never bypass it during a running operation.
 does not start the application. Standalone `.dump` files and independently
 chosen image tags are deliberately rejected. No down migration is needed.
 
+Every restore, automatic or manual, revokes all data-return tokens that still
+have an archive right after `pg_restore` (ADR 0203): the volume
+`phoenix-<env>-data-return` is not part of the snapshot and keeps its
+archives, while the restored database would bring back revoked tokens and
+spent downloads. The rows record `revoked_by = 'restore'`; the output prints
+`restore_data_return_revoked=<count>`. A snapshot from before the data-return
+tables revokes nothing. A failed revocation stops the restore with the
+application stopped. After the rollback, run `tenant return purge` and issue
+new tokens ([runbook](auskunft-und-rueckgabe.md#8-paket-zum-abruf-freigeben-art-30-abs-2-data-act)).
+
 ## Verification
 
 `node --test scripts/release-backup.test.mjs` exercises shell failure paths.

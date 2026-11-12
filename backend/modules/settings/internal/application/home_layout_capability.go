@@ -3,7 +3,7 @@ package config
 import (
 	"context"
 
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 func (s *settingsService) homeLayoutService() (*HomeLayoutService, error) {

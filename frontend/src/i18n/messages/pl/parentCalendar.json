@@ -14,7 +14,7 @@
   "types": {
     "care": "Godziny opieki",
     "invitation": "Zaproszenie",
-    "appointment": "Termin w OGS"
+    "appointment": "Spotkanie"
   },
   "accept": "Przyjmij",
   "decline": "Odrzuć",
@@ -22,22 +22,13 @@
   "declined": "Termin odrzucony.",
   "answeredAccepted": "Przyjęto",
   "answeredDeclined": "Odrzucono",
-  "cancelledByOgs": "Odwołany przez OGS",
+  "cancelledByOgs": "Odwołany przez {careTerm}",
   "previousMonth": "Poprzedni miesiąc",
   "nextMonth": "Następny miesiąc",
   "close": "Zamknij",
   "allDay": "Cały dzień",
   "moreEvents": "+ {count} więcej",
   "responseRequired": "Wymagana odpowiedź",
-  "weekdayShort": {
-    "1": "Pn",
-    "2": "Wt",
-    "3": "Śr",
-    "4": "Cz",
-    "5": "Pt",
-    "6": "So",
-    "7": "Nd"
-  },
   "errorObjectList": "lista terminów",
   "errorObjectResponse": "odpowiedź"
 }

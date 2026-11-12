@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // PhaseResponse is the wire shape returned to admin UIs. Int64 IDs are
@@ -509,6 +509,10 @@ func phaseWriteErrorRenderer(err error) render.Renderer {
 		return common.ErrorConflictOnField(enrollmentOwner.ErrPhaseDuplicateName, common.CodeEnrollmentPhaseNameExists, "name")
 	case errors.Is(err, enrollmentOwner.ErrPhaseCareOfferingConflict):
 		return common.ErrorConflictWithCode(enrollmentOwner.ErrPhaseCareOfferingConflict, common.CodeEnrollmentPhaseCareOfferingConflict)
+	case errors.Is(err, enrollmentOwner.ErrPhasePendingChildWindowConflict):
+		return common.ErrorConflictWithCode(enrollmentOwner.ErrPhasePendingChildWindowConflict, common.CodeEnrollmentPhasePendingChildWindowConflict)
+	case errors.Is(err, enrollmentOwner.ErrPhaseBookingBoundsConflict):
+		return bookingBoundsConflict(err)
 	case errors.Is(err, enrollmentOwner.ErrPhaseNotFound):
 		return common.ErrorNotFoundWithCode(err, common.CodeEnrollmentPhaseNotFound)
 	case errors.Is(err, enrollmentOwner.ErrInvalidPhase):
@@ -518,8 +522,39 @@ func phaseWriteErrorRenderer(err error) render.Renderer {
 	}
 }
 
+// PhaseUpdateResponse is the saved phase plus the children whose care runs
+// past a shortened end (#6598). The school ends each of them on purpose
+// through the care-end process; the edit changed none of them.
+type PhaseUpdateResponse struct {
+	PhaseResponse
+	CareBeyondEnd []CareBeyondEndResponse `json:"care_beyond_end"`
+}
+
+// CareBeyondEndResponse is one child of PhaseUpdateResponse: its care end as
+// it stands and the phase's new end.
+type CareBeyondEndResponse struct {
+	StudentID   string `json:"student_id"`
+	FirstName   string `json:"first_name"`
+	LastName    string `json:"last_name"`
+	SchoolClass string `json:"school_class"`
+	CareEnd     string `json:"care_end"`
+	PhaseEnd    string `json:"phase_end"`
+}
+
+func toPhaseUpdateResponse(p *enrollmentOwner.Phase, report enrollmentOwner.PhaseUpdateReport) PhaseUpdateResponse {
+	children := make([]CareBeyondEndResponse, 0, len(report.CareBeyondEnd))
+	for _, child := range report.CareBeyondEnd {
+		children = append(children, CareBeyondEndResponse{
+			StudentID: strconv.FormatInt(child.StudentID, 10), FirstName: child.FirstName, LastName: child.LastName,
+			SchoolClass: child.SchoolClass, CareEnd: child.CareEnd.String(), PhaseEnd: child.PhaseEnd.String(),
+		})
+	}
+	return PhaseUpdateResponse{PhaseResponse: toPhaseResponse(p), CareBeyondEnd: children}
+}
+
 func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
 	req := &PhaseRequest{}
+	var report enrollmentOwner.PhaseUpdateReport
 	updateWithRefetch(rs, w, r, rs.PhaseService == nil, "phase service not configured",
 		func(r *http.Request, id int64) (*enrollmentOwner.Phase, error) {
 			if err := render.Bind(r, req); err != nil {
@@ -536,12 +571,14 @@ func (rs *Resource) updatePhase(w http.ResponseWriter, r *http.Request) {
 				return getErr
 			}
 			req.hydrateOmittedFields(model, existing)
-			return rs.PhaseService.UpdatePhase(ctx, model)
+			var err error
+			report, err = rs.PhaseService.UpdatePhase(ctx, model)
+			return err
 		},
 		func(ctx context.Context, id int64) (*enrollmentOwner.Phase, error) {
 			return rs.PhaseService.PhaseByID(ctx, id)
 		},
-		func(p *enrollmentOwner.Phase) any { return toPhaseResponse(p) },
+		func(p *enrollmentOwner.Phase) any { return toPhaseUpdateResponse(p, report) },
 		"Phase updated",
 		phaseWriteErrorRenderer)
 }
@@ -562,6 +599,14 @@ func (rs *Resource) deletePhase(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		if errors.Is(err, enrollmentOwner.ErrPhaseNotFound) {
 			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentPhaseNotFound))
+			return
+		}
+		if errors.Is(err, enrollmentOwner.ErrPhaseHasEffectiveBookings) {
+			common.RenderError(w, r, common.ErrorConflictWithCode(enrollmentOwner.ErrPhaseHasEffectiveBookings, common.CodeEnrollmentPhaseHasEffectiveBookings))
+			return
+		}
+		if errors.Is(err, enrollmentOwner.ErrTraegerCopyDelete) {
+			common.RenderError(w, r, common.ErrorConflictWithCode(enrollmentOwner.ErrTraegerCopyDelete, common.CodeEnrollmentTraegerCopyDelete))
 			return
 		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
@@ -608,4 +653,16 @@ func (rs *Resource) getPhaseDeleteImpact(w http.ResponseWriter, r *http.Request)
 		CareOfferings: impact.CareOfferings,
 		StudentsKept:  impact.StudentsKept,
 	}, "Phase delete impact")
+}
+
+// bookingBoundsConflict answers a phase edit that would leave a booking
+// empty with the child's name, so the form says whose offerings to adjust
+// (#6597).
+func bookingBoundsConflict(err error) render.Renderer {
+	var conflict *enrollmentOwner.PhaseBookingBoundsConflictError
+	if !errors.As(err, &conflict) || conflict.ChildName == "" {
+		return common.ErrorConflictWithCode(enrollmentOwner.ErrPhaseBookingBoundsConflict, common.CodeEnrollmentPhaseBookingBoundsConflict)
+	}
+	return common.ErrorConflictWithDetails(enrollmentOwner.ErrPhaseBookingBoundsConflict, common.CodeEnrollmentPhaseBookingBoundsConflict,
+		map[string]any{"child": conflict.ChildName})
 }

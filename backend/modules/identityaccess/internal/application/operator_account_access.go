@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // OperatorAccountAccess is the operator-led management of which schools an
@@ -608,12 +608,17 @@ func (s *OperatorAccountAccess) deactivateAfterLastSchool(adminCtx context.Conte
 	if err != nil {
 		return false, err
 	}
-	if len(remaining) == 0 {
-		if err := s.deactivateAccount(adminCtx, accountID); err != nil {
-			return false, err
-		}
+	if len(remaining) != 0 {
+		return false, nil
 	}
-	return len(remaining) == 0, nil
+	retained, err := s.sessions.hasRetainedTraegerMembership(adminCtx, accountID)
+	if err != nil || retained {
+		return false, err
+	}
+	if err := s.deactivateAccount(adminCtx, accountID); err != nil {
+		return false, err
+	}
+	return true, nil
 }
 
 func accountTenantRoles(values []domain.AccountTenantRole) []identityaccess.AccountTenantRole {

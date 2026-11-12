@@ -18,9 +18,37 @@ vi.mock("next-auth/react", () => ({
   }),
 }));
 
-vi.mock("vaul", async () =>
-  (await import("~/test/enrollment-editors")).vaulMock(),
-);
+vi.mock("vaul", async () => {
+  const original = await (await import("~/test/enrollment-editors")).vaulMock();
+  return {
+    Drawer: {
+      ...original.Drawer,
+      Root: ({
+        children,
+        open,
+        dismissible,
+        onOpenChange,
+      }: {
+        children: React.ReactNode;
+        open?: boolean;
+        dismissible?: boolean;
+        onOpenChange?: (open: boolean) => void;
+      }) =>
+        open === false ? null : (
+          <div>
+            <button
+              type="button"
+              disabled={dismissible === false}
+              onClick={() => onOpenChange?.(false)}
+            >
+              Dismiss panel
+            </button>
+            {children}
+          </div>
+        ),
+    },
+  };
+});
 
 const mocks = await vi.hoisted(async () =>
   (await import("~/test/enrollment-editors")).createEditorMocks(),
@@ -164,6 +192,7 @@ import { CareOfferingsEditor } from "./care-offerings-editor";
 import type { CareOffering } from "~/lib/care-offering-api";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import type { Phase } from "~/lib/enrollment-phase-api";
 import {
   phase,
@@ -177,12 +206,48 @@ import {
   deferred,
   resetEditorMocks,
 } from "~/test/enrollment-editors";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 beforeEach(() => {
   resetEditorMocks(mocks);
 });
 
 describe("CareOfferingsEditor", () => {
+  it("keeps the editor open while saving through outside dismissal", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings.mockResolvedValue([offering()]);
+    let finish!: (value: ReturnType<typeof offering>) => void;
+    mocks.updateCareOffering.mockImplementation(
+      () =>
+        new Promise<ReturnType<typeof offering>>((resolve) => {
+          finish = resolve;
+        }),
+    );
+    render(<CareOfferingsEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Regelbetreuung",
+      }),
+    );
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Bearbeiten" }),
+    );
+    fireEvent.click(await screen.findByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(mocks.updateCareOffering).toHaveBeenCalled());
+    expect(
+      screen.getByRole("button", { name: "Dismiss panel" }),
+    ).toBeDisabled();
+    finish(offering());
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("button", { name: "Dismiss panel" }),
+      ).not.toBeInTheDocument(),
+    );
+  });
+
   it("creates, edits, deletes, and clones offerings", async () => {
     mocks.listPhases.mockResolvedValue([
       phase(),
@@ -1992,5 +2057,80 @@ describe("CareOfferingsEditor", () => {
     ).toBeInTheDocument();
     expect(screen.queryByText("in use")).not.toBeInTheDocument();
     expect(mocks.toast.error).not.toHaveBeenCalled();
+  });
+
+  it.each(["phases", "offerings"])(
+    "loads the page anew when the post-write %s read is refused",
+    async (source) => {
+      resetPageReloads();
+      mocks.listPhases.mockResolvedValue([phase()]);
+      mocks.listCareOfferings.mockReset().mockResolvedValue([offering()]);
+      mocks.deleteCareOffering.mockResolvedValue(undefined);
+      render(<CareOfferingsEditor />);
+      fireEvent.click(
+        await screen.findByRole("button", {
+          name: "Aktionen für Regelbetreuung",
+        }),
+      );
+      fireEvent.click(await screen.findByRole("menuitem", { name: "Löschen" }));
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Ja, löschen" }),
+      );
+      (source === "phases"
+        ? mocks.listPhases
+        : mocks.listCareOfferings
+      ).mockRejectedValueOnce(new ApiError("refused", 403));
+      fireEvent.click(
+        await within(dialog).findByRole("button", {
+          name: "Endgültig löschen",
+        }),
+      );
+      // #6801: the page loads anew; its first load shows the refusal.
+      await expectPageReloadedAfterRefusal();
+      expect(mocks.deleteCareOffering).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  // #6652: the deletion holds once the write is through; a failed reload keeps
+  // the confirmed catalog and says the change is saved.
+  it("keeps the catalog after a deletion whose reload fails", async () => {
+    mocks.listPhases.mockResolvedValue([phase()]);
+    mocks.listCareOfferings
+      .mockReset()
+      .mockResolvedValueOnce([offering()])
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue([]);
+    mocks.deleteCareOffering.mockResolvedValue(undefined);
+
+    render(<CareOfferingsEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Aktionen für Regelbetreuung",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Löschen" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Ja, löschen" }),
+    );
+    fireEvent.click(
+      await within(dialog).findByRole("button", { name: "Endgültig löschen" }),
+    );
+
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige der Betreuungsangebote")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeInTheDocument();
+    // Anker: der bestätigte Katalog bleibt stehen.
+    expect(screen.getByText("Regelbetreuung")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() =>
+      expect(mocks.listCareOfferings).toHaveBeenCalledTimes(3),
+    );
+    expect(mocks.deleteCareOffering).toHaveBeenCalledTimes(1);
   });
 });

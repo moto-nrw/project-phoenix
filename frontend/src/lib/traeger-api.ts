@@ -483,6 +483,17 @@ export interface HolidayTimeModel {
   readonly protected?: boolean;
 }
 
+/**
+ * A day of a week on which the host school gives no care (#4702): a
+ * statutory holiday of its federal state or one of its closing days.
+ */
+export interface HolidayNoCareDay {
+  /** Calendar date "YYYY-MM-DD". */
+  readonly date: string;
+  readonly kind: "holiday" | "closing_day";
+  readonly name: string;
+}
+
 /** A bookable week of a holiday period with the school that hosts it. */
 export interface HolidayWeek {
   readonly id?: string;
@@ -491,7 +502,17 @@ export interface HolidayWeek {
   readonly endsOn: string;
   readonly hostSchoolId: string;
   readonly timeModels: readonly HolidayTimeModel[];
+  /**
+   * "week": parents book the whole week; "day": single days, and the price
+   * of a time model is the price of one day (#4701). Absent reads as week.
+   */
+  readonly bookingUnit?: HolidayBookingUnit;
+  /** Days without care of the stored week; such a week takes no new booking. Read only. */
+  readonly noCareDays?: readonly HolidayNoCareDay[];
 }
+
+/** How a holiday week is booked (#4701). */
+export type HolidayBookingUnit = "week" | "day";
 
 /** What the Träger-Büro writes: the whole period with its weeks. */
 export interface HolidayPeriodInput {
@@ -500,8 +521,31 @@ export interface HolidayPeriodInput {
   readonly registrationClosesOn: string;
   readonly binding: boolean;
   readonly notes: string;
+  /**
+   * The Träger's text in the mail parents get when the office confirms
+   * their registration (#6672); empty sends the fixed part only.
+   */
+  readonly acceptanceMailText?: string;
+  /**
+   * Children with a holiday care wish from the OGS registration come first
+   * (#4703); the Träger setting decides what happens without one.
+   */
+  readonly holidayWishRule: boolean;
+  /**
+   * Care days one child may book in the period; null or absent is no bound
+   * (#4701).
+   */
+  readonly maxDaysPerChild?: number | null;
+  /**
+   * How places are given out (#4700): in the order of arrival, or by the
+   * office after the Träger's criteria. Absent reads as arrival.
+   */
+  readonly allocationMode?: HolidayAllocationMode;
   readonly weeks: readonly HolidayWeek[];
 }
+
+/** How the places of a holiday period are given out (#4700). */
+export type HolidayAllocationMode = "arrival" | "criteria";
 
 export interface HolidayPeriod extends HolidayPeriodInput {
   readonly id: string;
@@ -511,6 +555,8 @@ export interface HolidayPeriod extends HolidayPeriodInput {
   readonly publicToken: string;
   /** Registrations received so far, a summed figure. */
   readonly registrationCount: number;
+  /** The period has a registration, so its allocation stays (#4700). */
+  readonly allocationModeLocked?: boolean;
 }
 
 interface BackendTimeModel {
@@ -529,6 +575,8 @@ interface BackendWeek {
   ends_on: string;
   host_school_id: number;
   time_models?: BackendTimeModel[] | null;
+  booking_unit?: HolidayBookingUnit;
+  no_care_days?: HolidayNoCareDay[] | null;
 }
 
 interface BackendHolidayPeriod {
@@ -538,10 +586,15 @@ interface BackendHolidayPeriod {
   registration_closes_on: string;
   binding: boolean;
   notes: string;
+  acceptance_mail_text?: string;
+  holiday_wish_rule?: boolean;
   status: "draft" | "published";
   published_at: string | null;
   public_token?: string;
   registration_count?: number;
+  max_days_per_child?: number | null;
+  allocation_mode?: HolidayAllocationMode;
+  allocation_mode_locked?: boolean;
   weeks?: BackendWeek[] | null;
 }
 
@@ -553,15 +606,22 @@ function holidayPeriodFromBackend(period: BackendHolidayPeriod): HolidayPeriod {
     registrationClosesOn: period.registration_closes_on,
     binding: period.binding,
     notes: period.notes,
+    acceptanceMailText: period.acceptance_mail_text ?? "",
+    holidayWishRule: period.holiday_wish_rule ?? false,
     status: period.status,
     publishedAt: period.published_at,
     publicToken: period.public_token ?? "",
     registrationCount: period.registration_count ?? 0,
+    maxDaysPerChild: period.max_days_per_child ?? null,
+    allocationMode: period.allocation_mode ?? "arrival",
+    allocationModeLocked: period.allocation_mode_locked ?? false,
     weeks: (period.weeks ?? []).map((week) => ({
       id: String(week.id),
       startsOn: week.starts_on,
       endsOn: week.ends_on,
       hostSchoolId: String(week.host_school_id),
+      bookingUnit: week.booking_unit ?? "week",
+      noCareDays: week.no_care_days ?? [],
       timeModels: (week.time_models ?? []).map((model) => ({
         id: String(model.id),
         name: model.name,
@@ -582,11 +642,16 @@ function holidayPeriodToBackend(input: HolidayPeriodInput) {
     registration_closes_on: input.registrationClosesOn,
     binding: input.binding,
     notes: input.notes,
+    acceptance_mail_text: input.acceptanceMailText ?? "",
+    holiday_wish_rule: input.holidayWishRule,
+    max_days_per_child: input.maxDaysPerChild ?? null,
+    allocation_mode: input.allocationMode ?? "arrival",
     weeks: input.weeks.map((week) => ({
       ...(week.id ? { id: Number(week.id) } : {}),
       starts_on: week.startsOn,
       ends_on: week.endsOn,
       host_school_id: Number(week.hostSchoolId),
+      booking_unit: week.bookingUnit ?? "week",
       time_models: week.timeModels.map((model) => ({
         ...(model.id ? { id: Number(model.id) } : {}),
         name: model.name,
@@ -605,6 +670,11 @@ function holidayPeriodToBackend(input: HolidayPeriodInput) {
 export interface TraegerMember {
   readonly accountId: string;
   readonly email: string;
+  /**
+   * The name the export protocol and the history of an invoice show
+   * (#4693); empty while the person has none.
+   */
+  readonly name: string;
   readonly roles: readonly TraegerRole[];
 }
 
@@ -635,6 +705,7 @@ export interface TraegerInvitationPreview {
 interface BackendMember {
   account_id: number;
   email: string;
+  name?: string | null;
   roles?: string[] | null;
 }
 
@@ -688,6 +759,15 @@ function mapInvitation(invitation: BackendInvitation): TraegerInvitation {
   };
 }
 
+function mapMember(member: BackendMember): TraegerMember {
+  return {
+    accountId: String(member.account_id),
+    email: member.email,
+    name: member.name ?? "",
+    roles: traegerRoles(member.roles ?? []),
+  };
+}
+
 /** The people and the open invitations of the Träger-Büro. */
 export async function fetchTraegerBuero(): Promise<TraegerBuero> {
   const data = await traegerRequest<{
@@ -695,11 +775,7 @@ export async function fetchTraegerBuero(): Promise<TraegerBuero> {
     invitations?: BackendInvitation[];
   } | null>("/api/traeger/accounts");
   return {
-    members: (data?.members ?? []).map((member) => ({
-      accountId: String(member.account_id),
-      email: member.email,
-      roles: traegerRoles(member.roles ?? []),
-    })),
+    members: (data?.members ?? []).map(mapMember),
     invitations: (data?.invitations ?? []).map(mapInvitation),
   };
 }
@@ -710,7 +786,8 @@ export type TraegerAccountChangeAction =
   | "invitation_revoked"
   | "invitation_accepted"
   | "roles_changed"
-  | "member_removed";
+  | "member_removed"
+  | "name_changed";
 
 /** One change of the Träger-Büro: who did what, when, to whom. */
 export interface TraegerAccountHistoryEntry {
@@ -722,6 +799,8 @@ export interface TraegerAccountHistoryEntry {
   /** Empty for an account erased since; the page says „Gelöschtes Konto“. */
   readonly actorEmail: string;
   readonly targetEmail: string;
+  /** The new name of a `name_changed` entry, else empty. */
+  readonly targetName: string;
   readonly rolesBefore: readonly TraegerRole[];
   readonly rolesAfter: readonly TraegerRole[];
 }
@@ -737,6 +816,7 @@ interface BackendHistoryEntry {
   action: TraegerAccountChangeAction;
   actor_email: string;
   target_email: string;
+  target_name?: string | null;
   roles_before?: string[] | null;
   roles_after?: string[] | null;
 }
@@ -760,6 +840,7 @@ export async function fetchTraegerAccountHistory(
       action: entry.action,
       actorEmail: entry.actor_email,
       targetEmail: entry.target_email,
+      targetName: entry.target_name ?? "",
       rolesBefore: traegerRoles(entry.roles_before ?? []),
       rolesAfter: traegerRoles(entry.roles_after ?? []),
     })),
@@ -795,6 +876,22 @@ export async function changeTraegerRoles(
   );
 }
 
+/**
+ * Enters or changes the name of a person of the Träger-Büro (#4693) and
+ * returns the person as saved (trimmed).
+ */
+export async function changeTraegerMemberName(
+  accountId: string,
+  name: string,
+): Promise<TraegerMember> {
+  return mapMember(
+    await traegerRequest<BackendMember>(
+      `/api/traeger/accounts/${encodeURIComponent(accountId)}/name`,
+      { method: "PUT", body: { name } },
+    ),
+  );
+}
+
 export async function removeTraegerMember(accountId: string): Promise<void> {
   await traegerRequest(
     `/api/traeger/accounts/${encodeURIComponent(accountId)}`,
@@ -823,19 +920,66 @@ export async function fetchTraegerInvitation(
 /** Accepts the invitation and returns the address to sign in with. */
 export async function acceptTraegerInvitation(
   token: string,
-  input: { readonly password: string; readonly confirmPassword?: string },
+  input: {
+    /** The person's name in this Träger-Büro (#4693). */
+    readonly name: string;
+    readonly password: string;
+    readonly confirmPassword?: string;
+  },
 ): Promise<string> {
   const data = await traegerRequest<{ email: string }>(
     `/api/traeger/invitations/${encodeURIComponent(token)}/accept`,
     {
       method: "POST",
       body: {
+        name: input.name,
         password: input.password,
         confirm_password: input.confirmPassword ?? "",
       },
     },
   );
   return data.email;
+}
+
+/** The signed-in person in this Träger-Büro: sign-in address and name. */
+export interface TraegerProfile {
+  readonly accountId: string;
+  readonly email: string;
+  /** Empty while the person has none. */
+  readonly name: string;
+}
+
+interface BackendProfile {
+  account_id: number;
+  email: string;
+  name?: string | null;
+}
+
+function mapProfile(profile: BackendProfile): TraegerProfile {
+  return {
+    accountId: String(profile.account_id),
+    email: profile.email,
+    name: profile.name ?? "",
+  };
+}
+
+/** The own account of the signed-in person (#4693); needs no extra right. */
+export async function fetchTraegerProfile(): Promise<TraegerProfile> {
+  return mapProfile(
+    await traegerRequest<BackendProfile>("/api/traeger/profile"),
+  );
+}
+
+/** Changes the own name and returns the profile as saved (trimmed). */
+export async function changeTraegerProfileName(
+  name: string,
+): Promise<TraegerProfile> {
+  return mapProfile(
+    await traegerRequest<BackendProfile>("/api/traeger/profile/name", {
+      method: "PUT",
+      body: { name },
+    }),
+  );
 }
 
 const holidayPeriodsPath = "/api/traeger/holiday-periods";

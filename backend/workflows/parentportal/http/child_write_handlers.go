@@ -8,11 +8,11 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 const (
@@ -271,18 +271,21 @@ type ChildFeaturesResponse struct {
 	// PickupChangeCutoffTime is the same-day cutoff for the one-day pickup
 	// change as HH:MM, "" without one (#3163). PickupChangeTodayClosed is true
 	// once it has passed: today is closed for guardians, later days are not.
-	PickupChangeCutoffTime       string `json:"pickup_change_cutoff_time"`
-	PickupChangeTodayClosed      bool   `json:"pickup_change_today_closed"`
-	PickupManageAllowed          bool   `json:"pickup_manage_allowed"`
-	GuardianContactManageAllowed bool   `json:"guardian_contact_manage_allowed"`
-	AbsenceRequestEditEnabled    bool   `json:"absence_request_edit_enabled"`
-	RelatedAccountsInviteEnabled bool   `json:"related_accounts_invite_enabled"`
-	RelatedAccountsRemoveEnabled bool   `json:"related_accounts_remove_enabled"`
-	MasterDataEditEnabled        bool   `json:"master_data_edit_enabled"`
-	MasterDataContactEditEnabled bool   `json:"master_data_contact_edit_enabled"`
-	MasterDataRequestEnabled     bool   `json:"master_data_request_enabled"`
-	MealPlanEnabled              bool   `json:"meal_plan_enabled"`
-	MealRegistrationEnabled      bool   `json:"meal_registration_enabled"`
+	PickupChangeCutoffTime  string `json:"pickup_change_cutoff_time"`
+	PickupChangeTodayClosed bool   `json:"pickup_change_today_closed"`
+	// PickupChangeCareDayEnded is true once the school's care day is over:
+	// today's pickup is closed for guardians, later days are not (#5710).
+	PickupChangeCareDayEnded     bool `json:"pickup_change_care_day_ended"`
+	PickupManageAllowed          bool `json:"pickup_manage_allowed"`
+	GuardianContactManageAllowed bool `json:"guardian_contact_manage_allowed"`
+	AbsenceRequestEditEnabled    bool `json:"absence_request_edit_enabled"`
+	RelatedAccountsInviteEnabled bool `json:"related_accounts_invite_enabled"`
+	RelatedAccountsRemoveEnabled bool `json:"related_accounts_remove_enabled"`
+	MasterDataEditEnabled        bool `json:"master_data_edit_enabled"`
+	MasterDataContactEditEnabled bool `json:"master_data_contact_edit_enabled"`
+	MasterDataRequestEnabled     bool `json:"master_data_request_enabled"`
+	MealPlanEnabled              bool `json:"meal_plan_enabled"`
+	MealRegistrationEnabled      bool `json:"meal_registration_enabled"`
 	// HasOpenChangeRequest is STATE (not a capability): the child has a pending
 	// change request awaiting an OGS decision, so the overview can badge the
 	// Stammdaten entry.
@@ -292,6 +295,9 @@ type ChildFeaturesResponse struct {
 	// request (operations.parent_request_reason_policy, #2267), so the portal
 	// marks the note field as required up front.
 	ReasonRequired bool `json:"reason_required"`
+	// CareFacilityTerm is the school's term for its care („OGS“, „GTS“,
+	// #6082): the portal names this child's care with it.
+	CareFacilityTerm string `json:"care_facility_term"`
 }
 
 // getChildFeatures returns the resolved parent-portal feature flags for the
@@ -324,6 +330,7 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 		PickupChangeModeEnabled:      flags.PickupChangeModeEnabled,
 		PickupChangeCutoffTime:       flags.PickupChangeCutoffTime,
 		PickupChangeTodayClosed:      flags.PickupChangeTodayClosed,
+		PickupChangeCareDayEnded:     flags.PickupChangeCareDayEnded,
 		PickupManageAllowed:          flags.PickupManageAllowed,
 		GuardianContactManageAllowed: flags.GuardianContactManageAllowed,
 		AbsenceRequestEditEnabled:    flags.AbsenceRequestEditEnabled,
@@ -337,6 +344,7 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 		HasOpenChangeRequest:         flags.HasOpenChangeRequest,
 		NewsEnabled:                  flags.NewsEnabled,
 		ReasonRequired:               flags.ReasonRequired,
+		CareFacilityTerm:             flags.CareFacilityTerm,
 	}, "Child features retrieved")
 }
 

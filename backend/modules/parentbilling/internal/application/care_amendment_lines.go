@@ -3,7 +3,7 @@ package application
 import (
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // The correction lines of the changes of the review (#6197) as the letter

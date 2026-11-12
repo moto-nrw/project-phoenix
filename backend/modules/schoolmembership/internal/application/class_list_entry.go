@@ -5,10 +5,10 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/domain"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // Class-list entry audit actions (#2382). Part of the audit wire format.
@@ -56,6 +56,9 @@ func (s *Service) findClassListEntry(ctx context.Context, id int64, lock string)
 	err = run(ctx, "find_class_list_entry", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
+		if err := admitLeaf(txCtx, lock != "", "users.class_list_entries"); err != nil {
+			return err
+		}
 		result, found, queryStats, err = s.store.FindClassListEntry(txCtx, id, lock)
 		stats.Add(queryStats)
 		if err == nil && !found {
@@ -106,6 +109,9 @@ func (s *Service) UpdateClassListEntry(ctx context.Context, input schoolmembersh
 	}
 	id, fields := input.ID, input.ClassListEntryFields
 	err = s.runWrite(ctx, "update_class_list_entry", func(txCtx context.Context, stats *domain.OperationStats) error {
+		if err := admitLeaf(txCtx, true, "users.class_list_entries"); err != nil {
+			return err
+		}
 		_, found, queryStats, err := s.store.FindClassListEntry(txCtx, id, "UPDATE")
 		stats.Add(queryStats)
 		if err != nil {
@@ -404,6 +410,9 @@ func (s *Service) ResolveClassListEntry(ctx context.Context, input schoolmembers
 }
 
 func (s *Service) lockClassListEntry(ctx context.Context, id int64, stats *domain.OperationStats) (schoolmembership.ClassListEntry, error) {
+	if err := admitLeaf(ctx, true, "users.class_list_entries"); err != nil {
+		return schoolmembership.ClassListEntry{}, err
+	}
 	entry, found, queryStats, err := s.store.FindClassListEntry(ctx, id, "UPDATE")
 	stats.Add(queryStats)
 	if err != nil {

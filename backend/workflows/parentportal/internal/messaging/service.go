@@ -11,17 +11,25 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/care"
 )
 
 // Child is the resolved guardian-child context the messaging flows need.
 type Child = care.Child
 
 // ChildResolver is the port to the guardian-child resolution, which checks the
-// relationship's parent-portal permission.
+// relationship's parent-portal permission. WithPermittedChild is the same
+// check followed by a read of the child's school in one transaction (ADR
+// 0161), for read routes only; WithPermittedChildForWrite is its write
+// counterpart. WithChildWrite opens the school unit of a parent write for a
+// resolved child behind the guard that holds the relationship, its
+// permissions and the school membership until commit (#6529).
 type ChildResolver interface {
+	WithChildWrite(ctx context.Context, accountID, studentID int64, child *Child, access care.ChildWriteAccess, write func(context.Context) error) error
 	ResolvePermittedChild(ctx context.Context, accountID, studentID int64, permission string) (*Child, error)
+	WithPermittedChild(ctx context.Context, accountID, studentID int64, permission string, between func(*Child) error, read func(context.Context, *Child) error) error
+	WithPermittedChildForWrite(ctx context.Context, accountID, studentID int64, permission string, between func(*Child) error, write func(context.Context, *Child) error, adjust ...func(*care.ChildWriteAccess)) error
 }
 
 // ConversationCore is the consumer-owned port for Communication's shared
@@ -78,12 +86,14 @@ type Config struct {
 
 	AnnouncementRepo AnnouncementAccess
 
-	MessageThreadRepo     MessageThreadAccess
-	MessageRepo           MessageReads
-	MessageReadRepo       MessageInboxReads
-	Conversations         ConversationCore
-	MessagingEnabled      MessagingGate
-	GroupThreads          GroupThreads
+	MessageThreadRepo MessageThreadAccess
+	MessageRepo       MessageReads
+	MessageReadRepo   MessageInboxReads
+	Conversations     ConversationCore
+	MessagingEnabled  MessagingGate
+	GroupThreads      GroupThreads
+	// MessageAttachments stores the photos and files of messages (#6685).
+	MessageAttachments    MessageAttachments
 	Surveys               Surveys
 	ParentMessageNotifier care.StaffParentMessageNotifier
 	Emitter               care.ChildEvents
@@ -145,4 +155,10 @@ func (s *Service) resolveOwnedChild(ctx context.Context, accountID, studentID in
 
 func (s *Service) resolvePermittedChild(ctx context.Context, accountID, studentID int64, permission string) (*Child, error) {
 	return s.Children.ResolvePermittedChild(ctx, accountID, studentID, permission)
+}
+
+// withOwnedChild checks the child with parent_portal.access and runs read in
+// the same transaction under the child's school.
+func (s *Service) withOwnedChild(ctx context.Context, accountID, studentID int64, between func(*Child) error, read func(context.Context, *Child) error) error {
+	return s.Children.WithPermittedChild(ctx, accountID, studentID, care.GuardianPermissionPortalAccess, between, read)
 }

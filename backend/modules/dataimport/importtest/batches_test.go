@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func TestImportBatches_RollbackResumeAndIdempotentReplay(t *testing.T) {
@@ -292,22 +292,37 @@ func TestImportBatches_RetriesWholeTransactionAfterDatabaseConflict(t *testing.T
 			}
 			require.Len(t, *module.Observations, 1)
 			observation := (*module.Observations)[0]
-			assert.Equal(t, 1, observation.BatchesRetried)
+			// Since #5827 the conflict hits the chunk's batch attempt: it rolls
+			// back to the chunk savepoint and replays row by row in the same
+			// transaction, so it consumes no retry (ADR 0067 addendum, F8).
+			assert.Zero(t, observation.BatchesRetried)
+			assert.Equal(t, 1, observation.BatchFallbacks)
 			assert.Equal(t, 1, observation.BatchesCommitted)
 			assert.Equal(t, 2, observation.Created)
 			assert.Zero(t, observation.CheckpointLag)
-			ownerAttempts, ownerFailures := 0, 0
+			batchAttempts, batchFailures, rowAttempts, rowFailures := 0, 0, 0, 0
 			for _, command := range observation.Commands {
-				if command.Owner == "school-membership" && command.Operation == "create_class_list_entry" {
-					ownerAttempts++
-					if command.Failed {
-						ownerFailures++
-					}
-					assert.Greater(t, command.Duration.Nanoseconds(), int64(0))
+				if command.Owner != "school-membership" {
+					continue
 				}
+				switch command.Operation {
+				case "create_class_list_entries":
+					batchAttempts++
+					if command.Failed {
+						batchFailures++
+					}
+				case "create_class_list_entry":
+					rowAttempts++
+					if command.Failed {
+						rowFailures++
+					}
+				}
+				assert.Greater(t, command.Duration.Nanoseconds(), int64(0))
 			}
-			assert.Equal(t, 4, ownerAttempts, "both rows are attempted again after rollback")
-			assert.Equal(t, 1, ownerFailures)
+			assert.Equal(t, 1, batchAttempts, "the observation keeps the commands of the rolled-back batch")
+			assert.Equal(t, 1, batchFailures)
+			assert.Equal(t, 2, rowAttempts, "both rows are attempted again by the replay")
+			assert.Zero(t, rowFailures)
 			if code == "40P01" {
 				assert.Equal(t, 1, observation.Deadlocks)
 			} else {

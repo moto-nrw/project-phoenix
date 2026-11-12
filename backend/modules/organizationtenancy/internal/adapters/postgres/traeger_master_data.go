@@ -8,9 +8,9 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/domain"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // Master data of a Träger (#4653, ADR 0112). Its tables carry
@@ -190,6 +190,25 @@ func (s *TraegerMasterDataStore) FindDocumentContact(ctx context.Context, organi
 	}
 	profile := firstProfile(rows)
 	return organizationtenancy.TraegerDocumentContact{Contact: profile.Contact, Withdrawal: profile.Withdrawal}, nil
+}
+
+// TraegerName serves organizationtenancy.TraegerNames through
+// platform.current_traeger_name (1.15.902, #6437): the function answers only
+// for the Träger of app.current_org_id, which traegerDB has checked to be
+// organizationID.
+func (s *TraegerMasterDataStore) TraegerName(ctx context.Context, organizationID int64) (string, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return "", err
+	}
+	var name *string
+	if err := db.NewRaw(`SELECT platform.current_traeger_name()`).Scan(ctx, &name); err != nil {
+		return "", fmt.Errorf("organization tenancy postgres: find Träger name: %w", err)
+	}
+	if name == nil {
+		return "", nil
+	}
+	return *name, nil
 }
 
 // LockProfile locks the row; create makes it first where it is missing.

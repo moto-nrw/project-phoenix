@@ -40,6 +40,8 @@ import { calendarPeriodService } from "~/lib/calendar-period-api";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useClosingDaysState } from "~/lib/hooks/use-closing-days";
+import { usePlanningHolidayWeeks } from "~/lib/hooks/use-holiday-care";
+import { holidayCareDays } from "~/lib/holiday-care";
 import { useDienstplanData } from "~/lib/hooks/use-dienstplan-data";
 import { useUrlParams } from "~/lib/hooks/use-url-params";
 import { createLogger } from "~/lib/logger";
@@ -256,6 +258,24 @@ function DienstplanContent() {
     closingDayRanges,
     isLoading: closingDaysLoading,
   } = useClosingDaysState(weekFrom, weekTo);
+  // Ferienwochen der Schule für ihren Träger (ADR 0116): an diesen Tagen
+  // braucht die Ferienbetreuung Personal, auch ohne Termin im Betreuungsplan.
+  const holidayWeeks = usePlanningHolidayWeeks();
+  // Erst mit den Schließtagen: ein Schließtag darf nicht kurz als
+  // Ferienbetreuung erscheinen.
+  const holidayCare = useMemo(
+    () =>
+      holidayCareDays(
+        closingDaysLoading ? [] : holidayWeeks.weeks,
+        weekFrom,
+        weekTo,
+        closingDays,
+      ),
+    [holidayWeeks.weeks, weekFrom, weekTo, closingDays, closingDaysLoading],
+  );
+  const holidayCareHref = holidayWeeks.canOpenList
+    ? tenantPath("/ferienwochen")
+    : undefined;
 
   const refreshAfterPlanMutation = useCallback(() => {
     // Bewusst still: die Änderung ist gespeichert; ein misslungenes
@@ -391,6 +411,8 @@ function DienstplanContent() {
         reducedPath={reducedPath}
         todayIso={today}
         closingDayRanges={closingDayRanges}
+        holidayWeeks={holidayWeeks.weeks}
+        holidayCareHref={holidayCareHref}
         onWeekClick={(monday) => updateUrlParams({ d: monday, view: null })}
       />
     );
@@ -405,6 +427,8 @@ function DienstplanContent() {
           todayIso={today}
           closingDays={closingDays}
           closingDaysLoading={closingDaysLoading}
+          holidayCare={holidayCare}
+          holidayCareHref={holidayCareHref}
           typesById={typesById}
           shiftTypes={shiftTypes ?? []}
           summary={summaryByStaff.get(personMember.id)}
@@ -457,6 +481,8 @@ function DienstplanContent() {
           closingDays={closingDays}
           closingDaysLoading={closingDaysLoading}
           closingDayRanges={closingDayRanges}
+          holidayCare={holidayCare}
+          holidayCareHref={holidayCareHref}
           typesById={typesById}
           shiftTypes={shiftTypes ?? []}
           reducedPath={reducedPath}
@@ -622,6 +648,7 @@ function DienstplanContent() {
       }
     >
       <LoadErrorAlert error={periodsLoad.error} className="mb-3" />
+      <LoadErrorAlert error={holidayWeeks.loadError} className="mb-3" />
       {content}
 
       {modal && (
@@ -646,14 +673,11 @@ function DienstplanContent() {
           isOpen
           initial={null}
           onClose={() => setPeriodModalOpen(false)}
-          onSaved={() => {
-            setPeriodModalOpen(false);
-            void mutatePeriods();
-          }}
-          onDeleted={() => {
-            setPeriodModalOpen(false);
-            void mutatePeriods();
-          }}
+          // Nur neu laden: der Dialog schließt sich selbst, sobald auch die
+          // Verknüpfungen gespeichert sind und keine Überschneidung zu lesen
+          // ist, und nie aus einer späten Antwort heraus (#6593).
+          onSaved={() => void mutatePeriods()}
+          onDeleted={() => void mutatePeriods()}
         />
       )}
       {/* Erst bei Bedarf gemountet, wie die übrigen Dialoge dieser Fläche:

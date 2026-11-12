@@ -18,14 +18,13 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // failingCaptcha is the token the local Turnstile refuses.
@@ -41,9 +40,24 @@ type holidayRegistrationFixture struct {
 // as the serving root does, with a local Turnstile.
 func newHolidayRegistrationFixture(t *testing.T) holidayRegistrationFixture {
 	t.Helper()
+	return newHolidayRegistrationFixtureWithDays(t, owners.HolidayTestSchoolCalendar{})
+}
+
+// newHolidayRegistrationFixtureWithDays is newHolidayRegistrationFixture
+// whose host schools give no care on days (#6447).
+func newHolidayRegistrationFixtureWithDays(t *testing.T, days owners.HolidayTestSchoolCalendar) holidayRegistrationFixture {
+	t.Helper()
+	return newHolidayRegistrationFixtureIn(t, days, "test")
+}
+
+// newHolidayRegistrationFixtureIn is newHolidayRegistrationFixtureWithDays in
+// the environment appEnv, which gates what the local seeder receives (ADR
+// 0216).
+func newHolidayRegistrationFixtureIn(t *testing.T, days owners.HolidayTestSchoolCalendar, appEnv string) holidayRegistrationFixture {
+	t.Helper()
 	db := testpkg.SetupTestDB(t)
 	unit := testpkg.TenantRuntime(t, db)
-	traeger, _ := traegerPortalOn(t, db, unit)
+	traeger := traegerPortalWithDays(t, db, unit, days)
 	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
 	delivery, err := deliveryCompose.NewModule(deliveryCompose.ModuleDependencies{
@@ -55,8 +69,10 @@ func newHolidayRegistrationFixture(t *testing.T) holidayRegistrationFixture {
 		_ = json.NewEncoder(w).Encode(map[string]any{"success": r.Form.Get("response") != failingCaptcha})
 	}))
 	t.Cleanup(turnstile.Close)
+	settings, err := owners.BuildTraegerSettings(testpkg.NewDatabase(t, db), unit, slog.Default(), organizations, nil)
+	require.NoError(t, err)
 	resource := NewHolidayRegistrationHTTP(organizations, delivery.Module, TurnstileKeys{SiteKey: "site-key", SecretKey: "secret-key"},
-		turnstile.URL, testHealthCipher(), slog.Default())
+		turnstile.URL, testHealthCipher(), days, settings, owners.NewHolidayParentAccountLinks(holidayTestSetupLinks{}, "https://eltern.example.org/"), appEnv, slog.Default())
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
 		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -152,9 +168,14 @@ func siblingsRegistration(offer holidayOfferBody, email string) map[string]any {
 		"pickup_persons":     []map[string]any{{"name": "Opa Muster"}},
 		"privacy_consent":    true, "health_consent": true, "binding_confirmed": true,
 		"custody_confirmed": true, "declaration_name": "Eva Muster", "consent_version": enrollment.HolidayConsentVersionCurrent,
-		"captcha_token": "valid-token",
+		"retention_days": holidayDefaultRetentionDays, "captcha_token": "valid-token",
 	}
 }
+
+// holidayDefaultRetentionDays is the registry default of the Träger's
+// holiday_registration.retention_days (#6691): a year. A registration names
+// the days of the privacy text it agrees to.
+const holidayDefaultRetentionDays = 365
 
 func registrationRefusalOf(t *testing.T, rec *httptest.ResponseRecorder) (string, []string) {
 	t.Helper()
@@ -222,7 +243,11 @@ func TestHolidayRegistrationStoresSiblingsAndAHolidayGuestWithItsReceipt(t *test
 		Data map[string]any `json:"data"`
 	}
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &receipt))
-	assert.ElementsMatch(t, []string{"id", "submitted_at"}, keysOf(receipt.Data), "the answer repeats no personal data")
+	// The placements name each booking by the child's position and week
+	// (#4699), never by a name.
+	assert.ElementsMatch(t, []string{"id", "submitted_at", "placements"}, keysOf(receipt.Data), "the answer repeats no personal data")
+	assert.NotContains(t, rec.Body.String(), "Lia", "the placements name no child")
+	assert.NotContains(t, rec.Body.String(), "Muster", "the placements name no family")
 
 	ctx := context.Background()
 	var children []struct {
@@ -355,20 +380,18 @@ func TestHolidayRegistrationRefusesInvalidClosedAndAbusiveSubmissions(t *testing
 	code, _ = registrationRefusalOf(t, rec)
 	assert.Equal(t, "enrollment.captcha_failed", code)
 
-	// Three attempts counted so far; the online registration's limit for an
-	// e-mail address is five a day, so the sixth is refused.
-	for range 2 {
+	// Refused attempts take nothing from the limits (#6726): after more of
+	// them than the old limit of five a day, the corrected registration of
+	// the same e-mail address is stored.
+	for range 5 {
 		rec = publicJSON(t, f.public, http.MethodPost, registrationPath(period.PublicToken), refused)
 		require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())
 	}
-	rec = publicJSON(t, f.public, http.MethodPost, registrationPath(period.PublicToken), siblingsRegistration(offer, "pruefung@example.org"))
-	require.Equal(t, http.StatusTooManyRequests, rec.Code, rec.Body.String())
-	code, _ = registrationRefusalOf(t, rec)
-	assert.Equal(t, "enrollment.submission_rate_limited", code)
-	assert.Equal(t, "3600", rec.Header().Get("Retry-After"))
 	var stored int
 	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM enrollment.holiday_registrations WHERE organization_id = ?`, office.organization).Scan(context.Background(), &stored))
 	assert.Zero(t, stored, "no refused attempt stored a registration")
+	rec = publicJSON(t, f.public, http.MethodPost, registrationPath(period.PublicToken), siblingsRegistration(offer, "pruefung@example.org"))
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
 
 	closedBody := januaryHolidays(office)
 	closedBody.RegistrationOpensOn, closedBody.RegistrationClosesOn = "2020-01-01", "2020-01-31"
@@ -453,7 +476,7 @@ func TestHolidayRegistrationsGoThreeMonthsAfterTheirPeriod(t *testing.T) {
 
 	ctx := tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, f.db))
 	require.NoError(t, tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
-		_, err := enrollmentCompose.NewHolidayRegistrationRetention(nil).DeleteExpiredHolidayRegistrations(adminCtx)
+		_, err := owners.NewHolidayRegistrationRetention(nil).DeleteExpiredHolidayRegistrations(adminCtx)
 		return err
 	}))
 	countRows := func(period int64) int {

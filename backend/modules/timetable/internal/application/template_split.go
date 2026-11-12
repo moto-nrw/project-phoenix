@@ -7,12 +7,12 @@ import (
 	"log/slog"
 	"slices"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // Template split (WP-B3, "Dieser und alle folgenden").
@@ -53,6 +53,7 @@ type TemplateSplitDependencies struct {
 	SupervisorRepo       timetable.PlannedSupervisorCapability
 	Directories          ports.RepositoryDirectories
 	InstanceRepo         ports.InstanceRows
+	InstanceStaff        timetable.InstanceStaffCapability
 	TimeframeRepo        timetable.TimeframeCapability
 	Materialization      timetable.MaterializationCapability
 	Deviations           ports.SeriesDeviations
@@ -77,7 +78,7 @@ type TemplateSplitService struct {
 // no sensible degraded mode, so every required dependency must be wired.
 func NewTemplateSplitService(deps TemplateSplitDependencies) (*TemplateSplitService, error) {
 	if deps.GroupRepo == nil || deps.CategoryRepo == nil || deps.ScheduleRepo == nil || deps.EnrollmentRepo == nil ||
-		deps.SupervisorRepo == nil || noInstanceRows(deps.InstanceRepo) || deps.TimeframeRepo == nil ||
+		deps.SupervisorRepo == nil || noInstanceRows(deps.InstanceRepo) || deps.InstanceStaff == nil || deps.TimeframeRepo == nil ||
 		deps.Materialization == nil || deps.Deviations == nil || deps.RecurrenceLock == nil ||
 		deps.CareOfferings.ValidateSeries == nil || deps.CareOfferings.ValidateOfferingSource == nil || deps.Transactions == nil {
 		return nil, errors.New("timetable template split: required dependency is nil")
@@ -89,8 +90,11 @@ func NewTemplateSplitService(deps TemplateSplitDependencies) (*TemplateSplitServ
 		deps.Today = calendar.TodayDate
 	}
 	return &TemplateSplitService{
-		deps:                 deps,
-		lockTenantRecurrence: deps.RecurrenceLock.LockRecurrenceWrites,
+		deps: deps,
+		// The split materializes its window, which reads roster state under
+		// the grade-transition gate; the gate precedes the split's day locks
+		// (recurrence → transitions → days, #6232).
+		lockTenantRecurrence: deps.RecurrenceLock.LockRecurrenceWritesThenGradeTransitions,
 		runInTx: func(ctx context.Context, fn func(context.Context) error) error {
 			return inTenant(ctx, deps.Transactions, tenant.FromContext(ctx), func(txCtx context.Context) error {
 				return fn(txCtx)
@@ -385,7 +389,7 @@ func (s *TemplateSplitService) splitInTransaction(
 	if err := s.lockSplitRecurrence(ctx, "split template"); err != nil {
 		return nil, err
 	}
-	if err := validateAssignableCategory(ctx, s.deps.CategoryRepo, in.CategoryID, "split template: validate category"); err != nil {
+	if err := s.validateSplitCatalogue(ctx, in); err != nil {
 		return nil, err
 	}
 	if err := s.lockSplitDays(ctx, in, tenantID); err != nil {
@@ -483,11 +487,6 @@ func (s *TemplateSplitService) writeSplitSuccessor(
 	if err := s.validateSuccessorOfferingSource(ctx, *in, old.SourceCareOfferingIDs); err != nil {
 		return nil, nil, nil, err
 	}
-	if in.PlanningTrackIDProvided && !samePlanningTrackID(in.PlanningTrackID, old.PlanningTrackID) {
-		if err := validateAssignablePlanningTrack(ctx, s.deps.PlanningTracks, in.PlanningTrackID, old.PlanningTrackID); err != nil {
-			return nil, nil, nil, err
-		}
-	}
 	newGroup, scheduleIDs, err := s.createSplitSuccessor(
 		ctx, old, *in, tenantID, sourceValidUntil, activeEnrollments, activeSupervisors,
 	)
@@ -574,6 +573,9 @@ func (s *TemplateSplitService) prepareSplitSource(
 	// Load before capping: the active-row predicates no longer match after it.
 	enrollments, supervisors, err := s.loadSegmentRosterCandidates(ctx, old.ID, in.EffectiveDate, sourceValidUntil)
 	if err != nil {
+		return nil, nil, nil, nil, err
+	}
+	if err := s.lockSplitStaff(ctx, *in, supervisors, sourceValidUntil); err != nil {
 		return nil, nil, nil, nil, err
 	}
 	if err := s.capSplitSource(ctx, old.ID, in.EffectiveDate, enrollments, supervisors, sourceValidUntil); err != nil {

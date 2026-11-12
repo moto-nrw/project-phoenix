@@ -266,9 +266,13 @@ describe("BillingMailCard", () => {
     });
     renderCard();
 
-    fireEvent.click(
-      await screen.findByRole("button", { name: "An alle Familien senden" }),
-    );
+    // Der Knopf steht schon im Ladezustand da, gesperrt bis die Liste geladen
+    // ist. Ein Klick davor verpufft, also erst auf die Freigabe warten (#6312).
+    const sendAll = await screen.findByRole("button", {
+      name: "An alle Familien senden",
+    });
+    await waitFor(() => expect(sendAll).toBeEnabled());
+    fireEvent.click(sendAll);
 
     await waitFor(() =>
       expect(api.mailBillingLetters).toHaveBeenCalledWith("9"),

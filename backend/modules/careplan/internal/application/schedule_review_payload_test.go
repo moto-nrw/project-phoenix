@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,8 +23,10 @@ func TestCareReviewRequestedSummary(t *testing.T) {
 
 func TestCareReviewPendingRequiresReasonButSummaryDoesNot(t *testing.T) {
 	t.Parallel()
-	for _, reason := range []string{"", "   ", strings.Repeat("ü", 256)} {
-		t.Run(reason, func(t *testing.T) {
+	// The cases are named: a reason as subtest name would make a test framing
+	// line longer than PIPE_BUF (#6488).
+	for name, reason := range map[string]string{"empty": "", "blank": "   ", "256 umlauts": strings.Repeat("ü", 256)} {
+		t.Run(name, func(t *testing.T) {
 			payload, err := json.Marshal(map[string]string{"date": "2026-03-30", "pickup_time": "14:00", "reason": reason})
 			require.NoError(t, err)
 			service := &ScheduleReviews{}

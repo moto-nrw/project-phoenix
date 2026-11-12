@@ -9,9 +9,9 @@ import (
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	capability "github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	capability "github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // BillingTermsResource serves who gets an invoice, how it is paid and by
@@ -103,6 +103,7 @@ type FamilyBillingRequest struct {
 	PayerAddress    *capability.PostalAddress `json:"payer_address"`
 	PaymentMethod   string                    `json:"payment_method"`
 	DueDay          *int                      `json:"due_day"`
+	DebtorNumber    string                    `json:"debtor_number"`
 }
 
 // Bind accepts the body; the Owner validates the deviation.
@@ -257,6 +258,9 @@ func (rs *BillingTermsResource) setDueDates(w http.ResponseWriter, r *http.Reque
 // input code of its route; the refusals of a run keep the codes of the run.
 func renderTermsError(w http.ResponseWriter, r *http.Request, err error, invalidCode string) {
 	var fields validation.Errors
+	if renderDebtorNumberFormat(w, r, err) {
+		return
+	}
 	switch {
 	case errors.As(err, &fields), errors.Is(err, capability.ErrServiceUnknown):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, invalidCode))

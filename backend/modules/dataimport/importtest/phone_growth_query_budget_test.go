@@ -4,10 +4,10 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/api"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
 )
 
@@ -34,7 +34,14 @@ func TestStudentImportPhoneGrowthQueryBudget(t *testing.T) {
 			} else {
 				querybudgets.AssertQueryBudget(t, "modules.dataimport.student_batch.phone_growth.n8", counter.Measurement(counter.Queries()))
 			}
-			require.EqualValues(t, 5*n+1, counter.WriteRows())
+			writes := 5*n + 1
+			if n >= 6 {
+				// From six rows on the chunk executor creates the persons in
+				// one MERGE through a raw statement, which BUN labels SELECT
+				// and the DML counter therefore skips (#5552).
+				writes -= n
+			}
+			require.EqualValues(t, writes, counter.WriteRows())
 			require.Empty(t, counter.Selects("users.guardian_phone_numbers"), "new guardians need no phone-list or count read before their first number")
 		})
 	}

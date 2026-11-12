@@ -5,7 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -40,6 +41,9 @@ func (s *Store) FindGroupSubstitution(ctx context.Context, id int64, lock bool) 
 		ModelTableExpr(tableGroupSubstitution+` AS "group_substitution"`).
 		Where(`"group_substitution".id = ?`, id), aliasGroupSubstitution, scope)
 	if lock {
+		if err := tenant.OrderLock(ctx, tenant.LockLeaf, "education.group_substitution"); err != nil {
+			return domain.GroupSubstitution{}, false, domain.OperationStats{}, err
+		}
 		query = query.For("UPDATE")
 	}
 	found, stats, err := scanOne(ctx, query, "find group substitution")
@@ -220,6 +224,9 @@ func (s *Store) DeleteGroupSubstitutionsForStaff(ctx context.Context, staffID in
 func (s *Store) LockGroupSubstitutions(ctx context.Context) (domain.OperationStats, error) {
 	db, _, err := s.database(ctx)
 	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "education.group_substitution"); err != nil {
 		return domain.OperationStats{}, err
 	}
 	stats := domain.OperationStats{Queries: 1}

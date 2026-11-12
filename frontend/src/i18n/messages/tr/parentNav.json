@@ -22,7 +22,6 @@
   "childProfile": "Çocuk profili",
   "loading": "Yükleniyor...",
   "sectionLoading": "İçerik yükleniyor",
-  "feedback": "Geri bildirim",
   "help": "Yardım",
   "settings": "Ayarlar",
   "enroll": "Yeni kayıt",
@@ -34,5 +33,6 @@
   "noticeCount": "{count} uyarı",
   "documents": "Belgeler",
   "privacy": "Gizlilik",
-  "backToApp": "Uygulamaya dön"
+  "backToApp": "Uygulamaya dön",
+  "holidayRegistrations": "Tatil kayıtları"
 }

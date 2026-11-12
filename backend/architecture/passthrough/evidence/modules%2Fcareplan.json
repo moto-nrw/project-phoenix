@@ -184,6 +184,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (p GuardianPickupPermissions) CreateGuardianPickupPermissions(ctx context.Context, permissions []careplan.GuardianPickupPermission) error {\n\tstarted := time.Now()\n\tstats, err := p.Store.CreateGuardianPickupPermissions(ctx, permissions)\n\tp.Observe(ports.Observation{Operation: \"create_guardian_pickup_permissions\", Duration: time.Since(started), Stats: stats, Err: err})\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/careplan/internal/adapters/postgres/GuardianPickupPermissions.CreateGuardianPickupPermissions",
+      "owner": "modules/careplan"
+    },
+    {
+      "build": "production",
       "evidence": "func (q parentChildQueries) FindForAccount(ctx context.Context, accountID, studentID int64) (*careplan.ParentPortalChild, error) {\n\trow, err := q.source.FindForAccount(ctx, accountID, studentID)\n\treturn q.child(row), err\n}",
       "form": "unclassified-evidence",
       "id": "modules/careplan/internal/adapters/postgres/parentChildQueries.FindForAccount",
@@ -205,7 +212,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *statusDayStore) CountEffectiveStudentAbsences(ctx context.Context, date careplan.Date) (careplan.StudentStatusCounts, carePlanCompose.RequestStoreStats, error) {\n\tstudents, err := s.students.ListEnrolledStudents(ctx)\n\tif err != nil {\n\t\treturn careplan.StudentStatusCounts{}, carePlanCompose.RequestStoreStats{}, err\n\t}\n\trows, stats, err := s.ListStudentStatusDays(ctx, careplan.StudentStatusDayFilter{Date: date, ActiveOnly: true})\n\tif err != nil {\n\t\treturn careplan.StudentStatusCounts{}, stats, err\n\t}\n\treturn countEffectiveStudentAbsences(students, statusDayFlagsByStudent(rows)), stats, nil\n}",
+      "evidence": "func (s *statusDayStore) CountEffectiveStudentAbsences(ctx context.Context, date careplan.Date) (careplan.StudentStatusCounts, carePlanCompose.RequestStoreStats, error) {\n\tstudents, err := s.students.ListEnrolledStudents(ctx)\n\tif err != nil {\n\t\treturn careplan.StudentStatusCounts{}, carePlanCompose.RequestStoreStats{}, err\n\t}\n\trows, stats, err := s.ListStudentStatusDays(ctx, careplan.StudentStatusDayFilter{Date: date, IncludeEndOfDay: true})\n\tif err != nil {\n\t\treturn careplan.StudentStatusCounts{}, stats, err\n\t}\n\treturn countEffectiveStudentAbsences(students, statusDayFlagsByStudent(rows)), stats, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/careplan/internal/adapters/postgres/statusDayStore.CountEffectiveStudentAbsences",
       "owner": "modules/careplan"

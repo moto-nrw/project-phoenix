@@ -7,10 +7,11 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -95,4 +96,14 @@ func NewSessionMaintenance(deps SessionMaintenanceDependencies) (*SessionMainten
 
 func AccountExists(profiles identityaccess.AccountProfiles) func(context.Context, int64) (bool, error) {
 	return application.AccountExists(profiles)
+}
+
+// NewOperatorDirectory composes the operator lookup alone, for the Träger
+// export CLI that refuses an unknown or inactive operator (ADR 0187).
+func NewOperatorDirectory(db *bun.DB) (identityaccess.OperatorDirectory, error) {
+	if db == nil {
+		return nil, errors.New("identity access compose: the operator directory needs the database")
+	}
+	store := postgres.NewStore(db)
+	return application.New(store, store, store, newCommandTransactions(nil), tenant.FromContext, application.NewObserver(func(Observation) {})), nil
 }

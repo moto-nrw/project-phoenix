@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The monthly contribution of the care contract (#4684, spec #4611 user
@@ -197,6 +197,8 @@ type CareRun struct {
 	MonthRule     string         `json:"month_rule"`
 	// FreeOfCharge is the free-month count saved by the release.
 	FreeOfCharge int `json:"free_of_charge"`
+	// DiscardedAt is set once the Abrechnung discarded the empty run (#6626).
+	DiscardedAt *time.Time `json:"discarded_at"`
 	// CareRunScope names the schools and the invoice date (#5916).
 	CareRunScope
 }
@@ -240,6 +242,8 @@ type CarePosition struct {
 	// SiblingCents is what the position costs at the sibling prices of the
 	// price list; a sibling rule in the price-list mode charges it (#6196).
 	SiblingCents int64 `json:"-"`
+	// Accounts is where the position books, copied by the release (#4821).
+	Accounts PositionAccounts `json:"-"`
 }
 
 // CareRecipient is who an invoice goes to: the contract party, which the
@@ -285,6 +289,9 @@ type CareInvoice struct {
 	// FamilyEmail is the family of the invoice: the mail address of the
 	// contract party, whoever pays (#4689). The sibling rules count by it.
 	FamilyEmail string `json:"family_email"`
+	// DebtorNumber is the number of the family in the finance system of the
+	// Träger the release copies (#4693); empty without one.
+	DebtorNumber string `json:"debtor_number,omitempty"`
 	// Payment is how and by when the invoice is paid (#4689); an invoice
 	// issued before has none.
 	Payment   *InvoicePayment `json:"payment"`
@@ -383,12 +390,18 @@ type CareRunDetail struct {
 	// UncountedFamilies counts the families a sibling rule that counts the
 	// family ranked without a confirmed number for the month (#5918): the
 	// rule counts their children with a contract alone.
-	UncountedFamilies int    `json:"uncounted_families"`
-	Billed            int    `json:"billed"`
-	PreviewCount      int    `json:"preview_count"`
-	PreviewCents      int64  `json:"preview_cents"`
-	NumberPattern     string `json:"number_pattern"`
-	NumberRangeSet    bool   `json:"number_range_set"`
+	UncountedFamilies int `json:"uncounted_families"`
+	Billed            int `json:"billed"`
+	// FeeNoticeContracts counts the contracts of Billed a Jahresbescheid
+	// assesses for the month (#6219); no monthly invoice bills them.
+	FeeNoticeContracts int `json:"fee_notice_contracts"`
+	// FeeNoticeHeld are the contracts of FeeNoticeContracts an amended
+	// Jahresbescheid set to nothing for the month (ADR 0182).
+	FeeNoticeHeld  []CareFeeNoticeHold `json:"fee_notice_held"`
+	PreviewCount   int                 `json:"preview_count"`
+	PreviewCents   int64               `json:"preview_cents"`
+	NumberPattern  string              `json:"number_pattern"`
+	NumberRangeSet bool                `json:"number_range_set"`
 	// MealGaps and MealUnbilled are the Mensa of a calculated run (#4686):
 	// the ended months a school has not released and the released months
 	// of children the run does not bill.
@@ -461,6 +474,39 @@ type CareBillingSettings interface {
 	// CareAmendmentSettings says which changes of an invoice the review
 	// allows (#6197).
 	CareAmendmentSettings
+	// DatevBillingSettings names the standard revenue account the release
+	// copies onto a position without an account of its own (#4821).
+	DatevBillingSettings
+}
+
+// CareRunDiscard discards an open monthly run that has nothing to issue
+// (#6626): no invoice, also no excluded one, no contract of a free month,
+// no booking without a price and no child held back. It holds the run and
+// the monthly billing of the Träger like the release, refuses a run with
+// content as ErrBillingRunNotEmpty and records the discard in the run's
+// trail; nothing is deleted, and the schools are free for a new run of
+// the month.
+type CareRunDiscard interface {
+	DiscardCareRun(ctx context.Context, reviewer HolidayReviewer, runID int64) (CareRunDetail, error)
+}
+
+// CareModulePriceList holds the prices of one module of a school from the
+// first day of a month on, as a Träger care offering hands them to the
+// school's copy (ADR 0195).
+type CareModulePriceList struct {
+	SchoolID       int64
+	CareOfferingID int64
+	ModuleName     string
+	ValidFrom      calendar.Date
+	Prices         []CarePrice
+}
+
+// CareModulePrices replaces a batch of modules in one school's price lists
+// from their respective months on and leaves the other modules, with
+// the same lock and the same refusal of a billed month as SaveCarePriceList.
+// It runs in the Träger transaction the caller opens.
+type CareModulePrices interface {
+	SaveCareModulePrices(ctx context.Context, reviewer HolidayReviewer, lists []CareModulePriceList) error
 }
 
 // CareBilling lets the Abrechnung of a Träger keep the monthly prices of

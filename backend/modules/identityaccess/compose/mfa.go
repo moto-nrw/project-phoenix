@@ -4,20 +4,15 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
-	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
-// The MFA and passkey composition owns its persistence. School settings,
-// challenge signing, code hashing, mail and the operator action log arrive
-// through consumer-owned seams.
-
-// newMFACore composes the second factor itself. It runs before the session
-// flows, because the login paths consult the gate it produces; the passkey
-// ceremonies come after them, because a completed ceremony mints a session.
+// MFA is composed before sessions, whose login gate consults it; passkeys
+// follow sessions because completed ceremonies mint a session.
 func newMFACore(
 	service *application.Service,
 	operatorRecords *application.OperatorMFA,
@@ -42,7 +37,8 @@ func newMFACore(
 	secret := domain.DeriveMFASecret(deps.JWTSecret)
 
 	account, err := application.NewAccountMFAFlows(application.AccountMFAFlowDependencies{
-		Records: records, Settings: deps.Settings,
+		PermissionGranted: deps.PermissionGranted,
+		Records:           records, Settings: deps.Settings,
 		Codec: application.MFAChallengeCodec{Source: deps.Codec}, Codes: deps.Codes, Mail: application.MFAMail{Source: deps.Mail},
 		Audit: trail, Runtime: runtime, Secret: secret, Logger: deps.Logger, ResetNotice: application.ResetNoticeOf(deps.ResetNotice),
 	})

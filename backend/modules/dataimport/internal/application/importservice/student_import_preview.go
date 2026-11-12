@@ -2,11 +2,13 @@ package importpkg
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"strings"
 	"unicode/utf8"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 )
 
 // PreviewConfig builds a read-only batch view through the existing directory
@@ -14,45 +16,82 @@ import (
 // uses this read model, but consumes names before preceding writes can stale it.
 // Failed bulk reads roll back before the original row-by-row path runs, so an
 // optimization cannot turn one lookup failure into errors on unrelated rows.
-func (c *StudentImportConfig) PreviewConfig(ctx context.Context, rows []importModels.StudentImportRow) ports.ImportConfig[importModels.StudentImportRow] {
+//
+// A failed savepoint statement of the bulk read ends the preview (E19): its
+// transaction can no longer be trusted, so no row falls back onto it.
+func (c *StudentImportConfig) PreviewConfig(ctx context.Context, rows []importModels.StudentImportRow) (ports.ImportConfig[importModels.StudentImportRow], error) {
+	view, err := c.previewConfig(ctx, rows)
+	if err != nil {
+		return nil, fmt.Errorf("%w: read preview matches: %v", errSavepointLost, err)
+	}
+	return view, nil
+}
+
+// previewConfig is PreviewConfig that returns a failed savepoint statement of
+// the bulk read instead of falling back (E19); a failed read whose savepoint
+// rolled back still falls back to the row-by-row path.
+func (c *StudentImportConfig) previewConfig(ctx context.Context, rows []importModels.StudentImportRow) (ports.ImportConfig[importModels.StudentImportRow], error) {
 	if c.Transactions == nil || len(rows) < 2 {
-		return c
+		return c, nil
 	}
 	filter, names := studentPreviewNames(rows)
 	if len(filter.Names) == 0 {
-		return c
+		return c, nil
 	}
 	persons, students, err := c.readPreviewMatches(ctx, filter)
-	if err != nil {
-		return c
+	if errors.Is(err, importModels.ErrSavepointControl) {
+		return nil, err
 	}
+	if err != nil {
+		return c, nil
+	}
+	viewPersons, viewStudents, ok := nameMatchDirectories(persons, students, filter, names, c.Persons, c.Students)
+	if !ok {
+		return c, nil
+	}
+	clone := *c
+	clone.Persons, clone.Students = viewPersons, viewStudents
+	return &clone, nil
+}
+
+// nameMatchDirectories answers the exact-name searches of filter's names, and
+// the student listing of the persons found, from one read of both. ok is false
+// when that read cannot stand in for the scalar predicate.
+func nameMatchDirectories(persons []ports.Person, students []ports.Student, filter ports.PersonFilter, names map[ports.PersonName][]ports.Person, basePersons ports.PersonDirectory, baseStudents ports.StudentDirectory) (ports.PersonDirectory, ports.StudentDirectory, bool) {
 	// Both owner predicates use database LOWER with NFC normalization, not
 	// accent-insensitive search or Go's Unicode folding. Keep scalar matching
 	// for non-ASCII results rather than reimplementing the database equality.
 	// An empty bulk result proves absence because it uses the scalar predicate.
 	if len(persons) > 0 && !asciiPreviewNames(filter.Names, persons) {
-		return c
+		return nil, nil, false
 	}
 	for _, person := range persons {
 		// BTRIM in the owner removes spaces, not arbitrary Unicode whitespace.
 		name := previewName(strings.Trim(person.FirstName, " "), strings.Trim(person.LastName, " "))
 		names[name] = append(names[name], person)
 	}
-	clone := *c
-	clone.Persons = previewPersons{PersonDirectory: c.Persons, names: names}
 	personIDs := make(map[int64]bool, len(persons))
 	for _, person := range persons {
 		personIDs[person.ID] = true
 	}
-	clone.Students = previewStudents{StudentDirectory: c.Students, personIDs: personIDs, students: students}
-	return &clone
+	return previewPersons{PersonDirectory: basePersons, names: names}, previewStudents{StudentDirectory: baseStudents, personIDs: personIDs, students: students}, true
 }
 
 func studentPreviewNames(rows []importModels.StudentImportRow) (ports.PersonFilter, map[ports.PersonName][]ports.Person) {
-	names := make(map[ports.PersonName][]ports.Person, len(rows))
-	seen := make(map[ports.PersonName]bool, len(rows))
+	pairs := make([]ports.PersonName, len(rows))
+	for i, row := range rows {
+		pairs[i] = ports.PersonName{FirstName: row.FirstName, LastName: row.LastName}
+	}
+	return previewNameFilter(pairs)
+}
+
+// previewNameFilter is the name-set filter of distinct, complete, trimmed
+// names, with an empty match list per case-folded name.
+func previewNameFilter(pairs []ports.PersonName) (ports.PersonFilter, map[ports.PersonName][]ports.Person) {
+	names := make(map[ports.PersonName][]ports.Person, len(pairs))
+	seen := make(map[ports.PersonName]bool, len(pairs))
 	filter := ports.PersonFilter{}
-	for _, row := range rows {
+	for _, row := range pairs {
 		name := ports.PersonName{FirstName: strings.TrimSpace(row.FirstName), LastName: strings.TrimSpace(row.LastName)}
 		if name.FirstName == "" || name.LastName == "" || seen[name] {
 			continue
@@ -69,20 +108,28 @@ func (c *StudentImportConfig) readPreviewMatches(ctx context.Context, filter por
 	var students []ports.Student
 	err := c.Transactions.Savepoint(ctx, func(ctx context.Context) error {
 		var err error
-		persons, err = c.Persons.SearchPersons(ctx, filter)
-		if err != nil {
-			return err
-		}
-		ids := make([]int64, 0, len(persons))
-		for _, person := range persons {
-			ids = append(ids, person.ID)
-		}
-		if len(ids) > 0 {
-			students, err = c.Students.ListStudentsByPersonID(ctx, ids)
-		}
+		persons, students, err = readNameMatches(ctx, c.Persons, c.Students, filter)
 		return err
 	})
 	return persons, students, err
+}
+
+// readNameMatches reads every person carrying one of filter's names and the
+// students among them.
+func readNameMatches(ctx context.Context, persons ports.PersonDirectory, students ports.StudentDirectory, filter ports.PersonFilter) ([]ports.Person, []ports.Student, error) {
+	found, err := persons.SearchPersons(ctx, filter)
+	if err != nil {
+		return nil, nil, err
+	}
+	ids := make([]int64, 0, len(found))
+	for _, person := range found {
+		ids = append(ids, person.ID)
+	}
+	if len(ids) == 0 {
+		return found, nil, nil
+	}
+	rows, err := students.ListStudentsByPersonID(ctx, ids)
+	return found, rows, err
 }
 
 func previewName(first, last string) ports.PersonName {

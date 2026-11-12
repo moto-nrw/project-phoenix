@@ -14,12 +14,12 @@ import (
 	"testing"
 	"time"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
+	fixtures "github.com/moto-ogs/project-phoenix/modules/timetable/fixturetest"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -357,4 +357,28 @@ func TestInstance_ReplanWeek_PreservesRequiredStaffPin(t *testing.T) {
 	require.Len(t, regen2, 1)
 	assert.Nil(t, regen2[0].RequiredStaff,
 		"an un-pinned occurrence stays NULL after re-plan so template edits keep propagating")
+}
+
+// Historical slots occupied by cancelled blocks are insert-only no-ops.
+// A replan must not try to lock their retired template supervisor as live.
+func TestInstance_ReplanWeek_KeepsRetiredCancelledRoster(t *testing.T) {
+	t.Parallel()
+	date := calendar.NewDate(2020, time.June, 8)
+	s := makeScenario(t, activityContract.WeekdayMonday, date)
+	defer s.runCleanup(t)
+	_, err := s.materialization.MaterializeForTenant(s.ctx, date, date, timetable.MaterializationSourceManual)
+	require.NoError(t, err)
+	instances := listInstancesForDate(t, s.db, s.template.ID, date)
+	require.Len(t, instances, 1)
+	_, err = s.db.NewRaw(`UPDATE schedule.activity_instances SET status = 'cancelled' WHERE id = ?`, instances[0].ID).Exec(s.ctx)
+	require.NoError(t, err)
+	_, err = s.db.NewRaw(`UPDATE users.staff_school_memberships SET deleted_at = CURRENT_TIMESTAMP WHERE id = ?`, s.staffID).Exec(s.ctx)
+	require.NoError(t, err)
+	result, err := s.instance.ReplanWeek(s.ctx, date, date, &s.template.ID, nil)
+	require.NoError(t, err)
+	require.Zero(t, result.DeletedInstances)
+	require.Zero(t, result.Materialization.InstancesCreated)
+	rows := loadInstanceStaffRows(t, s.db, s.ctx, instances[0].ID)
+	require.Len(t, rows, 1)
+	require.Equal(t, s.staffID, rows[0].StaffID)
 }

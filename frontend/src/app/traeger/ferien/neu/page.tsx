@@ -5,17 +5,21 @@
 
 import { useRouter } from "next/navigation";
 import { HolidayPeriodForm } from "~/components/traeger/holiday-period-form";
+import { useHolidayEditorCalendar } from "~/components/traeger/use-week-no-care-days";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
+import { useTraegerHolidayCriteria } from "~/components/traeger/use-traeger-resources";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useInvalidateFamily } from "~/lib/swr";
 import { traegerKeys } from "~/lib/swr/portal-keys";
 import { traegerPath } from "~/lib/traeger-url";
 
 export default function NewTraegerHolidayPeriodPage() {
+  const holidayCalendar = useHolidayEditorCalendar();
   const router = useRouter();
   const invalidate = useInvalidateFamily();
   const { schools, error } = useTraegerSchools();
   const listHref = traegerPath("/traeger/ferien");
+  const { data: criteria } = useTraegerHolidayCriteria();
 
   return (
     <TenantPage
@@ -29,7 +33,9 @@ export default function NewTraegerHolidayPeriodPage() {
     >
       {schools ? (
         <HolidayPeriodForm
+          calendar={holidayCalendar}
           schools={schools}
+          criteria={criteria}
           onCancel={() => router.push(listHref)}
           onSaved={(period) => {
             void invalidate(traegerKeys.periodsFamily);

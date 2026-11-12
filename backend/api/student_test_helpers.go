@@ -9,36 +9,36 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/realtime"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/modules/grouplive"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	schoolStructure "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
-	studentdeletioncompose "github.com/moto-nrw/project-phoenix/workflows/studentdeletion/compose"
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	careplanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
+	communicationCompose "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/grouplive"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	schoolStructure "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	settingsValues "github.com/moto-ogs/project-phoenix/modules/settings"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/compose/presenceservice"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	shiftplansyncCompose "github.com/moto-ogs/project-phoenix/workflows/shiftplansync/compose"
+	studentdeletioncompose "github.com/moto-ogs/project-phoenix/workflows/studentdeletion/compose"
 )
 
 // StudentTestModule is the Care Plan side of the student graph: the care
@@ -146,7 +146,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	liveEducation := NewActiveTestEducation(db, unit, clocks...)
 	livePresence := NewActiveTestPresence(db, unit, clocks...)
 	liveTimetable, _ := NewActiveTestTimetable(db, unit, clocks...)
-	care, careAudit, err := NewCareLifecycleTestModule(db, unit)
+	care, careAudit, err := NewCareLifecycleTestModule(db, unit, clocks...)
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
 	}
@@ -271,7 +271,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		Offerings:      enrollmentCompose.NewCareOfferingRecords(students.CarePlan),
 		Notifications:  owners.NewEnrollmentNotifications(repos.Enrollment(), settingsService, owners.OutboxEnqueuer{Outbox: emailOutboxService}, owners.EnrollmentSchoolDirectory{Schools: reposSchools.School}),
 		Bookings:       careBookings,
-		GuardianAccess: guardianAccess, GuardianAuthorizer: repos.StudentGuardian,
+		GuardianAccess: guardianAccess, GuardianAuthorizer: repos.StudentGuardian, GuardianHold: owners.NewEnrollmentGuardianHold(db, repos.StudentGuardian, repos.Student, repos.GuardianProfile, nil),
 		People: owners.EnrollmentDecisionPeopleDirectory(
 			repos.Person, repos.Staff, repos.Student, repos.StudentGuardian, repos.GuardianProfile, repos.GuardianPhoneNumber, persons,
 		),
@@ -344,7 +344,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 	}
 	excusedRequestService, err := owners.NewExcusedAbsenceRequestService(
 		students.CarePlan, repos.Student, repos.Person, owners.ParentRequestReviewScope(requestReviewPolicy, requestTokenReads.Permissions),
-		pillEmitter, realtimeHub, parentRequestEvents, nil, nil, nil, logger.With("service", "excused-requests"), nil,
+		pillEmitter, realtimeHub, parentRequestEvents, nil, nil, nil, logger.With("service", "excused-requests"), nil, partialAbsenceService,
 	)
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, err
@@ -377,7 +377,7 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		Persons: owners.NewEducationPersonQuery(persons), Teachers: owners.NewEducationCaregivers(repos.Teacher),
 		Staff: owners.NewEducationStaff(repos.Staff), Actors: SubstitutionActorResolver{Identity: userContextService.Caller()},
 		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
-		ActiveSupervisorCreator: activeService, SupervisionRelease: activeService,
+		ActiveSupervisorCreator: activeService, SupervisionRelease: activeService, StaffBalance: owners.MustNewWorkforce(db).LockStaffBalanceWrites,
 		Audit:   NewEducationSubstitutionAudit(studentAudits.SubstitutionChange),
 		Runtime: schoolStructure.NewLegacyRepositoryRuntime(db.Pool()), Broadcaster: NewGroupEvents(realtimeHub, logger),
 		Logger: logger.With("service", "substitution"),
@@ -416,8 +416,8 @@ func newStudentTestModule(db transactionruntime.Database, unit tenant.UnitOfWork
 		CareParticipation: careLifecycleService,
 		ExcusedRequests:   excusedRequestService,
 		StatusDays:        studentStatusDayService,
-		Logger:            logger.With("service", "ogs-group-live"),
-		Now:               now,
+		HolidayGroups:     enrollmentCompose.NewHolidayGuestBadgeList(timezone.CalendarDateClock(now)),
+		Logger:            logger.With("service", "ogs-group-live"), Now: now,
 	}, nil)
 	if err != nil {
 		return StudentTestModule{}, ActiveTestModule{}, StudentTestPeople{}, nil, nil, nil, fmt.Errorf("compose OGS group live projection: %w", err)

@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -295,6 +296,9 @@ func (s *Store) LockInstanceStudentAssignments(ctx context.Context, instanceID i
 	if err != nil {
 		return domain.OperationStats{}, err
 	}
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "schedule.instance_students"); err != nil {
+		return domain.OperationStats{}, err
+	}
 	var ids []int64
 	return scanAllInto(ctx, db.NewSelect().Table("schedule.instance_students").Column("id").
 		Where("tenant_id = ?", tenantID).Where("instance_id = ?", instanceID).OrderExpr("id").For("UPDATE"), &ids, "lock attendance")
@@ -306,6 +310,9 @@ func (s *Store) LockInstanceStudentsByID(ctx context.Context, ids []int64) (doma
 	}
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "schedule.instance_students"); err != nil {
 		return domain.OperationStats{}, err
 	}
 	var locked []int64

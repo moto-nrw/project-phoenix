@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Inbox serves carecontract.Inbox (ADR 0088 section 7, ADR 0126, ADR 0153):
@@ -19,6 +19,7 @@ type Inbox struct {
 	// (#5941): it records no read, so it needs no layer of its own.
 	carecontract.InboxNotices
 	carecontract.DocumentPushValidity
+	periods withdrawalPeriods
 }
 
 var (
@@ -26,14 +27,17 @@ var (
 	_ carecontract.InboxNotices = (*Inbox)(nil)
 )
 
+// NewInbox builds the inbox. holidays dates the withdrawal period the list
+// offers (#6350); a binding that lists no contracts may pass nil, and a
+// list without it then fails instead of offering a period it cannot date.
 func NewInbox(store interface {
 	Store
 	carecontract.DocumentPushValidity
-}) *Inbox {
+}, holidays carecontract.SchoolHolidays) *Inbox {
 	if store == nil {
 		panic("care contract: the store is required")
 	}
-	return &Inbox{store: store, InboxNotices: store, DocumentPushValidity: store}
+	return &Inbox{store: store, InboxNotices: store, DocumentPushValidity: store, periods: withdrawalPeriods{holidays: holidays}}
 }
 
 // InboxContracts lists the sent contracts addressed to the reader and
@@ -53,9 +57,19 @@ func (in *Inbox) InboxContracts(ctx context.Context, organizationID int64, reade
 	}
 	today := calendar.TodayDate()
 	contracts, ids := make([]carecontract.InboxContract, len(rows)), make([]int64, len(rows))
+	subjects := make([]withdrawalSubject, len(rows))
 	for i, row := range rows {
 		contracts[i], ids[i] = row.Contract, row.Contract.ID
-		contracts[i].CanWithdraw = row.Contract.CanEnd && withdrawalMayRun(row.Concluded, row.InformedAt, today)
+		if row.Contract.CanEnd {
+			subjects[i] = withdrawalSubject{schoolID: row.SchoolID, concluded: row.Concluded, informedAt: row.InformedAt}
+		}
+	}
+	until, err := in.periods.untilEach(ctx, subjects)
+	if err != nil {
+		return nil, err
+	}
+	for i := range contracts {
+		contracts[i].CanWithdraw = withdrawalMayRun(until[i], today)
 	}
 	if err := trail(ctx, in.store, organizationID, reader.AccountID, 0, 0, ActionRead, map[string]any{"inbox": "list", "contract_ids": ids}); err != nil {
 		return nil, err
@@ -97,12 +111,11 @@ func inboxAddress(organizationID int64, reader carecontract.InboxReader) (string
 	return email, nil
 }
 
-// withdrawalMayRun tells whether the withdrawal period of a concluded
-// contract may still run on day (#6105). informedAt is the earliest recorded
+// withdrawalMayRun tells whether a withdrawal period ending on until may
+// still run on day (#6105). The period is dated from the earliest recorded
 // provision of the notice; a later delivery proof only moves it earlier, so
 // the end computed from it is never before the true end. A contract without
-// a period (withdrawalUntil) shows no withdrawal function.
-func withdrawalMayRun(concluded *carecontract.Concluded, informedAt *time.Time, day calendar.Date) bool {
-	until := withdrawalUntil(concluded, informedAt)
+// a period (nil) shows no withdrawal function.
+func withdrawalMayRun(until *calendar.Date, day calendar.Date) bool {
 	return until != nil && !day.After(*until)
 }

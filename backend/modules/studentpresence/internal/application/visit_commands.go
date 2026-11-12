@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
 )
 
 func (s *Service) CloseGroupVisits(ctx context.Context, ids []int64) (result int64, err error) {
@@ -42,14 +42,42 @@ func (s *Service) TransferRecentDeviceVisits(ctx context.Context, to, deviceID i
 	return result, err
 }
 
-func (s *Service) DeleteCompletedVisitsBefore(ctx context.Context, studentID int64, policy studentpresence.VisitRetentionPolicy, cutoff time.Time) (result int64, err error) {
-	err = s.runWrite(ctx, "delete_completed_visits_before", func(txCtx context.Context) (ports.Stats, error) {
-		if studentID <= 0 || cutoff.IsZero() {
-			return ports.Stats{}, errors.New("student presence: invalid visit retention request")
-		}
-		stats, writeErr := s.store.DeleteCompletedVisitsBefore(txCtx, studentID, policy, cutoff)
-		result = stats.Rows
+func (s *Service) DeleteExpiredVisits(ctx context.Context, students []studentpresence.VisitRetentionCount, now time.Time) (result map[int64]int64, err error) {
+	expiries, err := visitExpiries(students, now)
+	if err != nil || len(expiries) == 0 {
+		return map[int64]int64{}, err
+	}
+	err = s.runWrite(ctx, "delete_expired_visits", func(txCtx context.Context) (ports.Stats, error) {
+		var stats ports.Stats
+		var writeErr error
+		result, stats, writeErr = s.store.DeleteExpiredVisits(txCtx, expiries)
 		return stats, writeErr
 	})
 	return result, err
+}
+
+// visitExpiries maps each student's retention onto its deletion cutoff: the
+// completed-day boundary when the attendance log is off, otherwise its
+// retention window back from now. A student appears at most once.
+func visitExpiries(students []studentpresence.VisitRetentionCount, now time.Time) ([]ports.VisitExpiry, error) {
+	if now.IsZero() {
+		return nil, errors.New("student presence: invalid visit retention request")
+	}
+	expiries := make([]ports.VisitExpiry, 0, len(students))
+	seen := make(map[int64]bool, len(students))
+	for _, student := range students {
+		if student.StudentID <= 0 || seen[student.StudentID] {
+			return nil, errors.New("student presence: invalid visit retention request")
+		}
+		seen[student.StudentID] = true
+		if student.CompletedBefore != nil {
+			expiries = append(expiries, ports.VisitExpiry{StudentID: student.StudentID, Cutoff: *student.CompletedBefore, ByExit: true})
+			continue
+		}
+		if student.RetentionDays < 1 {
+			return nil, errors.New("student presence: invalid visit retention request")
+		}
+		expiries = append(expiries, ports.VisitExpiry{StudentID: student.StudentID, Cutoff: now.AddDate(0, 0, -student.RetentionDays)})
+	}
+	return expiries, nil
 }

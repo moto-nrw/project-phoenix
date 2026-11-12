@@ -1,5 +1,8 @@
 import { problemResponse } from "./api-response-error.server";
-import { forwardBackendResponse } from "./backend-proxy-response.server";
+import {
+  forwardBackendResponse,
+  forwardedBody,
+} from "./backend-proxy-response.server";
 
 export interface FileResponseOptions {
   /** Keep the backend's Cache-Control, for a versioned image like a logo. */
@@ -64,7 +67,10 @@ export async function fileResponse(
       ((options.backendCacheControl && backend.headers.get("Cache-Control")) ||
         "no-store"),
   );
-  return new Response(backend.body, { status: backend.status, headers });
+  return new Response(forwardedBody(backend), {
+    status: backend.status,
+    headers,
+  });
 }
 
 /** An appointment file, for a backend answer that names no type. */

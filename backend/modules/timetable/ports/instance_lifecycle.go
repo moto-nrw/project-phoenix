@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 // LifecyclePresence is the Student Presence slice the transitions read and
@@ -80,8 +80,8 @@ type LifecycleStudents interface {
 
 // InstanceLifecycleDependencies wires the lifecycle. Broadcaster and
 // GuardianNotices are optional (nil announces nothing and refuses every
-// notice); Settings is required with EnforceTimePolicy; Logger and Now
-// default. Every other field is required.
+// notice), and so is SickReports; Settings is required with
+// EnforceTimePolicy; Logger and Now default. Every other field is required.
 type InstanceLifecycleDependencies struct {
 	InstanceRepo        InstanceRows
 	IdempotencyRepo     timetable.ActivityInstanceCommand
@@ -105,6 +105,7 @@ type InstanceLifecycleDependencies struct {
 	Broadcaster         LifecycleBroadcaster
 	Settings            LifecycleSettings
 	Materialization     timetable.MaterializationCapability
+	SickReports         SickReportReader // nil: an edit marks nobody sick (#6292)
 	RecurrenceLock      timetable.RecurrenceWriteLock
 	StartConflicts      timetable.StartConflictQuery
 	SubstituteConflicts timetable.SubstituteConflictQuery

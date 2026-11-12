@@ -18,8 +18,8 @@
       "description": "Коли школа публікує нове оголошення в батьківському порталі."
     },
     "parent_message": {
-      "label": "Нове повідомлення від OGS",
-      "description": "Коли OGS пише вам щодо дитини."
+      "label": "Нове повідомлення від {careTerm}",
+      "description": "Коли {careTerm} пише вам щодо дитини."
     },
     "parent_appointment": {
       "label": "Нова або змінена подія",
@@ -31,11 +31,11 @@
     },
     "parent_request_decided": {
       "label": "Рішення щодо вашого запиту",
-      "description": "Коли OGS ухвалила рішення щодо одного з ваших запитів."
+      "description": "Коли {careTerm} ухвалила рішення щодо одного з ваших запитів."
     },
     "parent_care_cancelled": {
       "label": "Догляд скасовано",
-      "description": "Коли OGS скасовує запланований догляд вашої дитини."
+      "description": "Коли {careTerm} скасовує запланований догляд вашої дитини."
     },
     "parent_billing_document": {
       "label": "Новий документ від організації",
@@ -45,5 +45,7 @@
   "errorObjectList": "список сповіщень",
   "errorObjectType": "сповіщення «{name}»",
   "errorObjectEnableAll": "увімкнення всіх сповіщень",
-  "errorObjectDisableAll": "вимкнення всіх сповіщень"
+  "errorObjectDisableAll": "вимкнення всіх сповіщень",
+  "enableAllTooltip": "Вмикає всі сповіщення одразу.",
+  "disableAllTooltip": "Одразу вимикає для вас усі сповіщення moto."
 }

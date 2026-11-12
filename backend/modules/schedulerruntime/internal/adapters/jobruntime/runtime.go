@@ -6,9 +6,10 @@ package jobruntime
 
 import (
 	"context"
+	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // Runtime runs the Worker's units of work in the composed tenant runtime.
@@ -78,4 +79,16 @@ func (r Runtime) WithCommitGuard(ctx context.Context, guard func(context.Context
 // at once outside a transaction.
 func (r Runtime) RegisterAfterCommit(ctx context.Context, fn func()) {
 	tenant.RegisterAfterCommit(ctx, fn)
+}
+
+// WithSavepoint runs fn in a savepoint of the transaction in ctx; usable is
+// false when the savepoint itself failed and the transaction is lost.
+// Outside a transaction every statement commits on its own, so a failed
+// statement cannot affect the next one and fn runs directly.
+func (r Runtime) WithSavepoint(ctx context.Context, fn func(context.Context) error) (bool, error) {
+	if _, inTransaction := tenant.TransactionFromContext(ctx); !inTransaction {
+		return true, fn(ctx)
+	}
+	err := tenant.WithSavepoint(ctx, fn)
+	return !errors.Is(err, tenant.ErrSavepointControl), err
 }

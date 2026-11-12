@@ -6,8 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -126,12 +125,11 @@ func TestUnitOfWorkDropsFailedAttemptHooksBeforeRetry(t *testing.T) {
 	id, err := tenant.NewTenantID(42)
 	require.NoError(t, err)
 	ctx := tenant.WithUnitOfWork(context.Background(), uow)
-	var hooks, rollbacks []int
+	var hooks []int
 
 	err = tenant.WithinTenantRetry(ctx, id, func(txCtx context.Context) error {
 		attempt := attempts
 		tenant.RegisterAfterCommit(txCtx, func() { hooks = append(hooks, attempt) })
-		tenanttest.RegisterAfterRollback(txCtx, func() { rollbacks = append(rollbacks, attempt) })
 		if attempt == 1 {
 			return retryErr
 		}
@@ -140,10 +138,9 @@ func TestUnitOfWorkDropsFailedAttemptHooksBeforeRetry(t *testing.T) {
 
 	require.NoError(t, err)
 	assert.Equal(t, []int{2}, hooks, "a rolled-back attempt must not leak its after-commit hooks")
-	assert.Equal(t, []int{1}, rollbacks, "a failed attempt must compensate before it is retried")
 }
 
-func TestUnitOfWorkRunsRollbackHooksWhenCommitFails(t *testing.T) {
+func TestUnitOfWorkDropsAfterCommitHooksWhenCommitFails(t *testing.T) {
 	t.Parallel()
 	commitErr := errors.New("commit failed")
 	uow, err := tenant.NewUnitOfWork(
@@ -161,17 +158,15 @@ func TestUnitOfWorkRunsRollbackHooksWhenCommitFails(t *testing.T) {
 	id, err := tenant.NewTenantID(42)
 	require.NoError(t, err)
 	ctx := tenant.WithUnitOfWork(context.Background(), uow)
-	var commits, rollbacks int
+	var commits int
 
 	err = tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {
 		tenant.RegisterAfterCommit(txCtx, func() { commits++ })
-		tenanttest.RegisterAfterRollback(txCtx, func() { rollbacks++ })
 		return nil
 	})
 
 	require.ErrorIs(t, err, commitErr)
 	assert.Zero(t, commits)
-	assert.Equal(t, 1, rollbacks)
 }
 
 func TestUnitOfWorkObservesRollbackDurationAndRetries(t *testing.T) {

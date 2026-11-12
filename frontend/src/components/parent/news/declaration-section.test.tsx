@@ -53,11 +53,11 @@ function declaration(
   return {
     kind: "consent",
     signers: "any",
-    revocable: true,
     requires_password: false,
     requires_signature: false,
     deadline: null,
     closed: false,
+    ended: false,
     version: { id: "12", version_no: 2, content_hash: "ab".repeat(32) },
     children: [child()],
     ...overrides,
@@ -188,7 +188,7 @@ describe("declarationErrorOutcome", () => {
     [409, "care.declaration_closed", false, true, false, false],
     [409, "care.declaration_action_not_allowed", false, true, false, false],
     [409, "care.child_care_ended", false, true, false, false],
-    [403, "care.declaration_password_required", true, false, false, false],
+    [403, "care.declaration_password_required", true, true, false, false],
     [403, "care.declaration_password_incorrect", true, false, false, true],
     [429, undefined, true, false, false, false],
     [400, undefined, true, false, false, false],
@@ -270,6 +270,39 @@ describe("Einverständnis in the detail view", () => {
       screen.getByText("Nichts ist vorausgewählt.", { exact: false }),
     ).toBeInTheDocument();
     expect(screen.getByText("Fassung 2")).toBeInTheDocument();
+  });
+
+  it("says before the consent that it can be withdrawn at any time (#6303)", () => {
+    render(
+      <NewsDetailModal item={item()} onClose={vi.fn()} onUpdated={vi.fn()} />,
+    );
+
+    expect(screen.getByRole("button", { name: "Zustimmen" })).toBeEnabled();
+    expect(
+      screen.getByText("Sie können Ihre Zustimmung jederzeit widerrufen."),
+    ).toBeInTheDocument();
+  });
+
+  it("drops the hint once only a refusal is left to give", () => {
+    render(
+      <NewsDetailModal
+        item={item(
+          {},
+          {
+            children: [
+              child({ my_action: "revoked", allowed_actions: ["declined"] }),
+            ],
+          },
+        )}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByRole("button", { name: "Ablehnen" })).toBeEnabled();
+    expect(
+      screen.queryByText("Sie können Ihre Zustimmung jederzeit widerrufen."),
+    ).not.toBeInTheDocument();
   });
 
   it("confirms child, action and version before it submits", async () => {
@@ -402,6 +435,63 @@ describe("Einverständnis in the detail view", () => {
     );
   });
 
+  it("reloads and asks for the password the school switched on meanwhile (#6494)", async () => {
+    const submit = vi
+      .spyOn(parentApi, "submitDeclaration")
+      .mockRejectedValueOnce(
+        new ApiError("password", 403, {
+          code: "care.declaration_password_required",
+        }),
+      )
+      .mockResolvedValueOnce(submission("agreed"));
+    const onStale = vi.fn();
+    const { rerender } = render(
+      <NewsDetailModal
+        item={item()}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+        onStale={onStale}
+      />,
+    );
+
+    fireEvent.click(screen.getByRole("button", { name: "Zustimmen" }));
+    const dialog = await screen.findByRole("dialog", {
+      name: "Ihre Antwort prüfen",
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Zustimmen" }));
+
+    expect(
+      await within(dialog).findByText(
+        catalogText("care.declaration_password_required", "die Antwort"),
+      ),
+    ).toBeInTheDocument();
+    expect(onStale).toHaveBeenCalledWith("42");
+
+    // The reload brings the password requirement; the confirmation stays
+    // open and now shows the field.
+    rerender(
+      <NewsDetailModal
+        item={item({}, { requires_password: true })}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+        onStale={onStale}
+      />,
+    );
+    const field = await within(dialog).findByLabelText(
+      "Passwort Ihres Eltern-Kontos",
+    );
+    fireEvent.change(field, { target: { value: "richtig" } });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Zustimmen" }));
+    await waitFor(() =>
+      expect(submit).toHaveBeenLastCalledWith("42", {
+        studentId: "5",
+        action: "agreed",
+        versionId: "12",
+        password: "richtig",
+      }),
+    );
+  });
+
   it("closes the confirmation, tells the parent and reloads when the text changed", async () => {
     vi.spyOn(parentApi, "submitDeclaration").mockRejectedValue(
       new ApiError("changed", 409, {
@@ -436,6 +526,116 @@ describe("Einverständnis in the detail view", () => {
         screen.queryByRole("dialog", { name: "Ihre Antwort prüfen" }),
       ).not.toBeInTheDocument(),
     );
+  });
+
+  it("shows a consent to an older wording with that wording and revokes it on that version (#6303)", async () => {
+    const submit = vi
+      .spyOn(parentApi, "submitDeclaration")
+      .mockResolvedValue(submission("revoked"));
+    const onUpdated = vi.fn();
+    const earlier = {
+      version: {
+        id: "11",
+        version_no: 1,
+        content_hash: "ef".repeat(32),
+        title: "Ausflug in den Zoo",
+        body: "Alter Text: Abfahrt um 8 Uhr.",
+      },
+      submitted_at: "2026-09-01T08:30:00Z",
+      allowed_actions: ["revoked"] as const,
+    };
+
+    render(
+      <NewsDetailModal
+        item={item({}, { children: [child({ earlier_consent: earlier })] })}
+        onClose={vi.fn()}
+        onUpdated={onUpdated}
+      />,
+    );
+
+    // The school asks for the new wording; the old consent stands below it.
+    expect(screen.getByRole("button", { name: "Zustimmen" })).toBeEnabled();
+    expect(
+      screen.getByText(
+        /Sie haben Fassung 1 am 01\.09\.2026, 10:30 Uhr zugestimmt\./,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Alter Text: Abfahrt um 8 Uhr."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Zustimmung widerrufen" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Zustimmung widerrufen",
+    });
+    expect(within(dialog).getByText("Fassung 1")).toBeInTheDocument();
+    fireEvent.click(within(dialog).getByRole("button", { name: "Widerrufen" }));
+
+    await waitFor(() =>
+      expect(submit).toHaveBeenCalledWith("42", {
+        studentId: "5",
+        action: "revoked",
+        versionId: "11",
+        password: undefined,
+        signature: undefined,
+      }),
+    );
+    expect(onUpdated).toHaveBeenCalledWith(
+      "42",
+      expect.objectContaining({
+        declaration: expect.objectContaining({
+          children: [
+            expect.objectContaining({
+              earlier_consent: null,
+              my_action: null,
+              allowed_actions: ["agreed", "declined"],
+            }),
+          ],
+        }),
+      }),
+    );
+  });
+
+  it("says that revoking the current consent also ends the one to an older wording", () => {
+    render(
+      <NewsDetailModal
+        item={item(
+          {},
+          {
+            children: [
+              child({
+                my_action: "agreed",
+                my_submitted_at: "2026-09-09T08:30:00Z",
+                state: "agreed",
+                allowed_actions: ["revoked"],
+                earlier_consent: {
+                  version: {
+                    id: "11",
+                    version_no: 1,
+                    content_hash: "ef".repeat(32),
+                    title: "Ausflug in den Zoo",
+                    body: "Alter Text",
+                  },
+                  submitted_at: "2026-09-01T08:30:00Z",
+                  allowed_actions: ["revoked"],
+                },
+              }),
+            ],
+          },
+        )}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getAllByRole("button", { name: "Zustimmung widerrufen" }),
+    ).toHaveLength(1);
+    expect(
+      screen.getByText("Damit endet auch Ihre Zustimmung zu Fassung 1."),
+    ).toBeInTheDocument();
   });
 
   it("shows the own action with a proof link and offers a withdrawal with its own dialog", async () => {
@@ -759,5 +959,126 @@ describe("unclear submit result (#3430)", () => {
       ),
     ).toBeInTheDocument();
     expect(onStale).not.toHaveBeenCalled();
+  });
+});
+
+describe("an Einverständnis the school ended (#6290)", () => {
+  function ended(overrides: Partial<ParentAnnouncement> = {}) {
+    return item(overrides, {
+      ended: true,
+      closed: true,
+      requires_signature: true,
+      children: [
+        child({
+          my_action: "agreed",
+          my_submitted_at: "2026-09-09T08:30:00Z",
+          state: "agreed",
+          allowed_actions: ["revoked"],
+        }),
+      ],
+    });
+  }
+
+  it("asks for nothing, even unread", () => {
+    expect(isOutstandingAnnouncement(item({ read: false }))).toBe(true);
+    expect(isOutstandingAnnouncement(ended({ read: false }))).toBe(false);
+  });
+
+  it("says on the card that the school ended it", () => {
+    render(<NewsCard item={ended()} onOpen={vi.fn()} />);
+    expect(screen.getByText("Zugestimmt")).toBeInTheDocument();
+    expect(screen.getByText("Einverständnis beendet")).toBeInTheDocument();
+  });
+
+  it("keeps the withdrawal and offers no new answer", async () => {
+    const markRead = vi.spyOn(parentApi, "markAnnouncementRead");
+    const attachments = vi.spyOn(parentApi, "listAnnouncementAttachments");
+    const submit = vi
+      .spyOn(parentApi, "submitDeclaration")
+      .mockResolvedValue(submission("revoked"));
+    render(
+      <NewsDetailModal
+        item={ended({ read: false })}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText(
+        "Die Schule fragt hier nicht mehr nach. Sie können nicht mehr neu antworten.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Nachweis ansehen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Zustimmen" }),
+    ).not.toBeInTheDocument();
+    // Nobody signs a new consent here, so the signing note would only confuse.
+    expect(
+      screen.queryByText(
+        "Zum Zustimmen unterschreiben Sie mit dem Finger oder der Maus.",
+      ),
+    ).not.toBeInTheDocument();
+    // The backend no longer serves the message as live: no read mark and no
+    // files, which would only fail and report the message as outdated.
+    expect(markRead).not.toHaveBeenCalled();
+    expect(attachments).not.toHaveBeenCalled();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Zustimmung widerrufen" }),
+    );
+    const dialog = await screen.findByRole("dialog", {
+      name: "Zustimmung widerrufen",
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Widerrufen" }));
+    await waitFor(() =>
+      expect(submit).toHaveBeenCalledWith(
+        "42",
+        expect.objectContaining({ action: "revoked", versionId: "12" }),
+      ),
+    );
+  });
+});
+
+describe("a guardian who may no longer declare (#6290)", () => {
+  it("keeps the own answer and its withdrawal", () => {
+    render(
+      <NewsDetailModal
+        item={item(
+          {},
+          {
+            children: [
+              child({
+                can_submit: false,
+                state: "no_signer",
+                my_action: "agreed",
+                my_submitted_at: "2026-09-09T08:30:00Z",
+                allowed_actions: ["revoked"],
+              }),
+            ],
+          },
+        )}
+        onClose={vi.fn()}
+        onUpdated={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByText("Für Mia können Sie nicht mehr neu antworten."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText("Ihre Antwort: Zugestimmt am 09.09.2026, 10:30 Uhr"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Zustimmung widerrufen" }),
+    ).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Zustimmen" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByText(/Das machen die sorgeberechtigten Personen/),
+    ).not.toBeInTheDocument();
   });
 });

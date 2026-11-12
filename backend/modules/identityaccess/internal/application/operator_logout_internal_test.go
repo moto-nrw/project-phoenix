@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/stretchr/testify/require"
 )
 
@@ -48,7 +48,7 @@ func TestOperatorLogoutRequiresConfirmedRevocation(t *testing.T) {
 			ctx := context.Background()
 			f := newOperatorFixture(t)
 			operator := f.seedOperator(42)
-			_, _, err := f.auth.IssueTokensForAuthenticatedOperator(ctx, operator.ID, "", "")
+			_, _, err := f.auth.IssueTokensForAuthenticatedOperator(ctx, operator.ID, nil, "", "")
 			require.NoError(t, err)
 			sessions := f.store.operatorSessionsOf(operator.ID)
 			require.Len(t, sessions, 1)

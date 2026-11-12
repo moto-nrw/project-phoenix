@@ -51,6 +51,8 @@ describe("SEPA checks (#4695)", () => {
         fields: ["account_holder", "iban"],
         accountId: "5",
         occurredAt: "2026-11-08T10:00:00+01:00",
+        importFile: null,
+        importLine: null,
       }),
     ).toBe("Geändert: Kontoinhaber, IBAN im Büro");
   });
@@ -62,6 +64,8 @@ describe("SEPA checks (#4695)", () => {
       source: "office" as const,
       fields: [],
       occurredAt: "2026-11-08T10:00:00+01:00",
+      importFile: null,
+      importLine: null,
     };
     const emails = new Map([["5", "buero@example.org"]]);
     expect(mandateEventActor({ ...event, accountId: "5" }, emails)).toBe(

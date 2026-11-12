@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Week pattern values shared with the timetable recurrence primitives.
@@ -41,6 +41,7 @@ var (
 // refusal with its own error code instead of reading the message (#2514).
 var (
 	ErrReplacementOutsideOrigin    = errors.New("replacement outside the shift it covers")
+	ErrReplacementStaffAbsent      = errors.New("replacement staff member is absent on the date")
 	ErrShiftHasReplacements        = errors.New("shift has replacements")
 	ErrShiftSeriesNoOccurrences    = errors.New("shift series has no occurrences left")
 	ErrShiftSeriesOutsidePeriod    = errors.New("shift series outside its calendar period")
@@ -86,6 +87,9 @@ type StaffShift struct {
 	// edited for one week only, which re-plans leave alone.
 	SeriesID *int64
 	Detached bool
+	// SeriesOverride keeps a deliberate single-occurrence edit independent
+	// of series validity. Unknown legacy detachments are retained too.
+	SeriesOverride bool
 	// SeriesOccurrenceDate is the immutable recurrence slot a series row
 	// materialized for; it does not follow Date when the row is moved.
 	// Empty for standalone rows.

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/domain"
 	"github.com/uptrace/bun"
 )
 
@@ -20,11 +20,12 @@ func (s *Store) ClaimEmail(ctx context.Context, tenantID, id int64, now, expires
 		scope = nil
 	}
 	err := s.inAdminTransaction(ctx, func(txCtx context.Context, db bun.IDB) error {
-		err := db.NewRaw(`UPDATE platform.email_outbox
+		err := db.NewRaw(`UPDATE platform.email_outbox AS candidate
    SET status = 'claimed', lease_token = uuid_generate_v4()::text, lease_expires_at = ?, updated_at = ?
    WHERE COALESCE(tenant_id, 0) = COALESCE(?, 0) AND id = ? AND
     ((status = 'pending' AND next_retry_at <= ?) OR
      (status = 'claimed' AND lease_expires_at <= ? AND lease_token NOT LIKE 'dispatch:%'))
+   AND `+holidayClosurePredecessorReadySQL+`
    RETURNING *`, expires, now, scope, id, now, now).Scan(txCtx, &row)
 		if !errors.Is(err, sql.ErrNoRows) {
 			acquired = err == nil

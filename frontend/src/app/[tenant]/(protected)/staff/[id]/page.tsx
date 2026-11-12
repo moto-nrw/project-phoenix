@@ -83,6 +83,10 @@ import { MFAAdminOverrideModal } from "~/components/auth/mfa-admin-override-moda
 import { StammdatenTab } from "~/components/staff/stammdaten-tab";
 import { UebersichtTab } from "~/components/staff/uebersicht-tab";
 import { ZeiterfassungTab } from "~/components/staff/zeiterfassung-tab";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { staffAbsenceService } from "~/lib/staff-api";
 import { formatDate, isValidISODate, berlinTodayISO } from "~/lib/date-helpers";
@@ -266,10 +270,13 @@ export default function StaffDetailContent() {
   // Ladefehler stehen dort, wo die Daten fehlen, mit Wiederholen (#2514).
   // Ein 404 ist kein Ladefehler, sondern eine Person, die es nicht mehr gibt.
   const staffNotFound = error instanceof ApiError && error.status === 404;
+  // Mit geladener Person bleibt die Akte stehen und der Fehler darüber; nur
+  // ohne Daten ersetzt er die Seite (#6636).
   const staffLoadError = useSwrLoadError(
     staffNotFound ? undefined : error,
     "die Personalakte",
     mutateStaff,
+    staff && !staff.endedOn ? STALE_DATA_SUFFIX : undefined,
   );
   const recordLoadError = useSwrLoadError(
     recordError,
@@ -313,13 +320,24 @@ export default function StaffDetailContent() {
   const [mfaModalOpen, setMfaModalOpen] = useState(false);
   const hasAccess = hasSessionAccess(session);
 
-  const refreshRecord = useCallback(async () => {
+  const reloadRecord = useCallback(async () => {
     await Promise.all([
       tenantMutate(staffKeys.recordKey(staffId)),
       tenantMutate(staffKeys.profileKey(staffId)),
       refreshStaffFamily(),
     ]);
   }, [staffId, tenantMutate, refreshStaffFamily]);
+  // Nachladen nach einem gelungenen Schreiben: ein Fehler dabei ist ein
+  // Ladefehler über dem Reiter, kein Fehler der Aktion (#6636).
+  const recordRefresh = useRefreshAfterWrite(
+    "die Anzeige der Personalakte",
+    reloadRecord,
+  );
+  const { refresh: refreshRecord } = recordRefresh;
+  const familyRefresh = useRefreshAfterWrite(
+    "die Liste des Personals",
+    refreshStaffFamily,
+  );
 
   // EIN Speichern für Name, Position, Notizen und Systemrolle (Bauart 2
   // Regel 4). Der Datensatz geht zuerst; scheitert danach der Rollenwechsel,
@@ -371,10 +389,6 @@ export default function StaffDetailContent() {
     clearDeleteError();
     try {
       await teacherService.deleteTeacher(staffId);
-      toastSuccess("Die Person ist gelöscht.");
-      await refreshStaffFamily();
-      setShowDeleteModal(false);
-      router.push(referrer);
     } catch (err) {
       logger.error("failed to delete staff record", {
         staff_id: staffId,
@@ -384,16 +398,23 @@ export default function StaffDetailContent() {
         object: "die Person",
         retry: () => void handleDeleteRecordRef.current(),
       });
-    } finally {
       setDeleting(false);
+      return;
     }
+    toastSuccess("Die Person ist gelöscht.");
+    // The list loads anew after the navigation; a failed refresh here is no
+    // error of the deletion and never deletes again (#6652).
+    await familyRefresh.refresh();
+    setShowDeleteModal(false);
+    router.push(referrer);
+    setDeleting(false);
   }, [
     clearDeleteError,
     referrer,
     router,
     showDeleteError,
     staffId,
-    refreshStaffFamily,
+    familyRefresh,
     toastSuccess,
   ]);
   useLayoutEffect(() => {
@@ -426,18 +447,19 @@ export default function StaffDetailContent() {
     clearWithdrawExitError();
     try {
       await staffPlannedExitService.withdraw(staffId);
-      setShowWithdrawExitModal(false);
-      toastSuccess("Der Austritt ist zurückgenommen.");
-      await refreshRecord();
     } catch (err) {
       logger.error("planned_exit_withdraw_failed", {
         staff_id: staffId,
         error: err instanceof Error ? err.message : String(err),
       });
       await showWithdrawExitError(err, { object: "den Austritt" });
-    } finally {
       setWithdrawingExit(false);
+      return;
     }
+    setShowWithdrawExitModal(false);
+    setWithdrawingExit(false);
+    toastSuccess("Der Austritt ist zurückgenommen.");
+    await refreshRecord();
   }, [
     clearWithdrawExitError,
     refreshRecord,
@@ -501,7 +523,9 @@ export default function StaffDetailContent() {
     return <StaffDetailSkeleton referrer={referrer} backLabel={backLabel} />;
   }
 
-  if (!isLoading && error && !staffNotFound) {
+  // Die frühere Beschäftigung hat keinen Platz für den Hinweis über der
+  // Akte; dort ersetzt der Fehler weiter die Seite.
+  if (!isLoading && error && !staffNotFound && (!staff || staff.endedOn)) {
     // Bis der Katalogtext geladen ist, bleibt das Skelett stehen.
     if (!staffLoadError)
       return <StaffDetailSkeleton referrer={referrer} backLabel={backLabel} />;
@@ -724,7 +748,7 @@ export default function StaffDetailContent() {
           {plannedExitDate ? (
             <StatusBadge
               label={`Austritt am ${formatDate(plannedExitDate)}`}
-              tone="orange"
+              tone="warning"
             />
           ) : null}
           {recordMenuItems.length > 0 ? (
@@ -795,6 +819,7 @@ export default function StaffDetailContent() {
                   title="Austritt zurücknehmen?"
                   confirmText="Zurücknehmen"
                   isConfirmLoading={withdrawingExit}
+                  loadingText="Wird zurückgenommen…"
                 >
                   <div className="space-y-3">
                     <FormErrorAlert message={withdrawExitErrors.error} />
@@ -832,6 +857,8 @@ export default function StaffDetailContent() {
     >
       {staff ? (
         <>
+          <LoadErrorAlert error={staffLoadError} />
+          <LoadErrorAlert error={recordRefresh.error} />
           {activeTab === "uebersicht" && showTimeTracking && (
             <UebersichtTab staffId={staffId} />
           )}

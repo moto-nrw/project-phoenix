@@ -15,17 +15,25 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // fakeParentService implements PortalService. Only the profile methods
 // carry behaviour; the rest satisfy the interface for the handler tests.
 type fakeParentService struct {
+	claimedEmails []string
+
+	sepaView     parentService.SEPAMandateView
+	sepaText     parentService.SEPAMandateText
+	sepaErr      error
+	gotSEPAInput parentService.SEPAMandateInput
+	gotSEPACall  string
+
 	declarationProof *parentService.DeclarationProof
 
 	conferenceChild         *parentService.Child
@@ -186,12 +194,21 @@ func (f *fakeParentService) SharedDocumentFile(_ context.Context, accountID, org
 	return f.documentFile, f.documentsErr
 }
 
-func (f *fakeParentService) HolidayRegistrationFamily(_ context.Context, accountID, organizationID int64, schoolIDs []int64) (*parentService.HolidayRegistrationFamily, error) {
-	f.gotHolidayAccount, f.gotHolidayOrganization, f.gotHolidaySchools = accountID, organizationID, schoolIDs
+func (f *fakeParentService) HolidayRegistrationFamily(_ context.Context, accountID int64, scope parentService.HolidayRegistrationScope) (*parentService.HolidayRegistrationFamily, error) {
+	f.gotHolidayAccount, f.gotHolidayOrganization, f.gotHolidaySchools = accountID, scope.OrganizationID, scope.SchoolIDs
 	if f.holidayFamily != nil {
 		return f.holidayFamily, nil
 	}
 	return &parentService.HolidayRegistrationFamily{}, nil
+}
+func (f *fakeParentService) HolidayRegistrationOffers(context.Context, int64) ([]parentService.HolidayRegistrationOffer, error) {
+	return nil, nil
+}
+func (f *fakeParentService) HolidayRegistrationEntries(context.Context, int64) ([]parentService.HolidayRegistrationEntry, error) {
+	return nil, nil
+}
+func (f *fakeParentService) ClaimHolidayRegistrationsAfterSignIn(_ context.Context, email string) {
+	f.claimedEmails = append(f.claimedEmails, email)
 }
 func (f *fakeParentService) ListEnrollmentsForAccount(context.Context, int64) ([]*parentService.EnrollmentRequestSummary, error) {
 	return nil, nil
@@ -840,6 +857,43 @@ func TestSubmitCareException_MapsCutoffPassedToConflictCode(t *testing.T) {
 	assert.Contains(t, w.Body.String(), `"code":"care.pickup_change_cutoff_passed"`)
 }
 
+// #5710: after the school's care day end the submit answers 409 with its own
+// code, so the portal can say why today's pickup is closed.
+func TestSubmitCareException_MapsCareDayEndedToConflictCode(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentService{careExceptionErr: parentService.ErrPickupChangeCareDayEnded}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+
+	rs.submitCareException(w, careExceptionRequest(`{"date":"2026-08-18","pickup_time":"18:30","reason":"Arzttermin"}`))
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"care.pickup_change_care_day_ended"`)
+}
+
+// The features response says when the care day has ended, so the portal
+// closes today's pickup before anyone types (#5710).
+func TestGetChildFeatures_ReportsCareDayEnded(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentService{childFeatures: parentService.ChildFeatureFlags{
+		PickupChangeEnabled:      true,
+		PickupChangeCareDayEnded: true,
+	}}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+	req := withClaims(httptest.NewRequest(http.MethodGet, "/me/children/77/features", nil), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("studentId", "77")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+
+	rs.getChildFeatures(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), `"pickup_change_care_day_ended":true`)
+}
+
 // The features response carries the cutoff and today's lock state to the
 // portal before anyone types (#3163).
 func TestGetChildFeatures_ReportsPickupChangeCutoff(t *testing.T) {
@@ -862,6 +916,24 @@ func TestGetChildFeatures_ReportsPickupChangeCutoff(t *testing.T) {
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.Contains(t, w.Body.String(), `"pickup_change_cutoff_time":"11:00"`)
 	assert.Contains(t, w.Body.String(), `"pickup_change_today_closed":true`)
+}
+
+// The portal names each child's care with its school's term (#6082).
+func TestGetChildFeatures_ReportsCareFacilityTerm(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentService{childFeatures: parentService.ChildFeatureFlags{CareFacilityTerm: "GTS"}}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+	req := withClaims(httptest.NewRequest(http.MethodGet, "/me/children/77/features", nil), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("studentId", "77")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+
+	rs.getChildFeatures(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), `"care_facility_term":"GTS"`)
 }
 
 func TestGetMyProfile_Unauthorized_WhenNoClaims(t *testing.T) {
@@ -1061,4 +1133,16 @@ func TestUpdateMyProfile_PropagatesOtherErrorsAs500(t *testing.T) {
 	rs.updateMyProfile(w, req)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func (f *fakeParentService) PrepareChildMessageAttachment(context.Context, int64, int64, parentService.MessageAttachmentUpload) (*parentService.StoredMessageAttachment, error) {
+	return nil, errors.New("not implemented in fake")
+}
+
+func (f *fakeParentService) DiscardChildMessageAttachment(context.Context, int64, int64, int64) error {
+	return errors.New("not implemented in fake")
+}
+
+func (f *fakeParentService) OpenChildMessageAttachment(context.Context, int64, int64, int64) (*parentService.StoredMessageAttachment, error) {
+	return nil, errors.New("not implemented in fake")
 }

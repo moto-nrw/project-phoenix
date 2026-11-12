@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/classday"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
+	"github.com/moto-ogs/project-phoenix/modules/classday"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
 )
 
 // Ports of the absence list (#4793). Student Presence stores the morning
@@ -195,10 +195,8 @@ func (a absenceList) children(ctx context.Context, schoolClass string, from, unt
 	}
 	children = kept
 	sort.SliceStable(children, func(i, j int) bool {
-		if children[i].LastName != children[j].LastName {
-			return children[i].LastName < children[j].LastName
-		}
-		return children[i].FirstName < children[j].FirstName
+		a, b := children[i], children[j]
+		return collation.CompareGermanNames(a.LastName, a.FirstName, b.LastName, b.FirstName) < 0
 	})
 	return children, participation, nil
 }

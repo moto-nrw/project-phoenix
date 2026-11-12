@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -57,7 +57,7 @@ func TestTraegerSettingValuesFollowTheTraegerAndItsSchools(t *testing.T) {
 		_, err = tx.ExecContext(ctx, `SAVEPOINT foreign_write`)
 		require.NoError(t, err)
 		_, err = tx.ExecContext(ctx, `INSERT INTO config.traeger_setting_values (organization_id, setting_key, value) VALUES (?, 'foreign.key', '1')`, other)
-		assert.ErrorContains(t, err, "row-level security", "the Träger writes no value of another Träger")
+		assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "the Träger writes no value of another Träger")
 		_, err = tx.ExecContext(ctx, `ROLLBACK TO SAVEPOINT foreign_write`)
 		require.NoError(t, err)
 		result, err := tx.ExecContext(ctx, `UPDATE config.traeger_setting_values SET value = 'true' WHERE organization_id = ?`, other)
@@ -77,7 +77,7 @@ func TestTraegerSettingValuesFollowTheTraegerAndItsSchools(t *testing.T) {
 		deleted, _ := result.RowsAffected()
 		assert.Zero(t, deleted, "a school deletes no value of its Träger")
 		_, err = tx.ExecContext(ctx, `INSERT INTO config.traeger_setting_values (organization_id, setting_key, value) VALUES (?, 'school.key', '1')`, own)
-		assert.ErrorContains(t, err, "row-level security", "a school writes no Träger value")
+		assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "a school writes no Träger value")
 	})
 
 	asRole(t, db, "app.current_tenant_id", otherSchool, func(tx bun.Tx) {
@@ -102,7 +102,7 @@ func TestTraegerSettingAuditIsAppendOnlyForTheTraeger(t *testing.T) {
 		_, err := tx.ExecContext(ctx, `INSERT INTO config.traeger_setting_audit (organization_id, setting_key, new_value, action) VALUES (?, 'own.key', 'false', 'set')`, own)
 		assert.NoError(t, err, "the Träger appends to its change log")
 		_, err = tx.ExecContext(ctx, `UPDATE config.traeger_setting_audit SET action = 'reset' WHERE organization_id = ?`, own)
-		assert.ErrorContains(t, err, "permission denied", "the change log is append-only")
+		assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "the change log is append-only")
 	})
 	asRole(t, db, "app.current_tenant_id", school, func(tx bun.Tx) {
 		var entries int

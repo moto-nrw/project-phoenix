@@ -7,11 +7,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 
-	mealplanAPI "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
+	mealplanAPI "github.com/moto-ogs/project-phoenix/modules/mealplan/http"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	settingsHTTP "github.com/moto-ogs/project-phoenix/modules/settings/http"
 )
 
 func TestAccessLevelsMapOntoSecurityRuntimeLevels(t *testing.T) {

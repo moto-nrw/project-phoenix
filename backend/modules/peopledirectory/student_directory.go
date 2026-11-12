@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Care-status windows of the staff directory. Running and Ended are the two
@@ -50,6 +50,11 @@ type StudentRecord struct {
 	// at this school, empty when unknown (School Membership, #6041). Not on
 	// the wire.
 	FirstCareFrom string `json:"-"`
+	// CarePausedAfter and CareResumedFrom bound the care gap of a returning
+	// child: days strictly between them are no care days, empty when no gap
+	// is known (School Membership, #6073). Not on the wire.
+	CarePausedAfter string `json:"-"`
+	CareResumedFrom string `json:"-"`
 
 	AddressStreet     *string `json:"address_street,omitempty"`
 	AddressCity       *string `json:"address_city,omitempty"`

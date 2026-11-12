@@ -14,10 +14,10 @@ import (
 	validation "github.com/go-ozzo/ozzo-validation"
 	"github.com/go-ozzo/ozzo-validation/is"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // Error messages (S1192 - avoid duplicate string literals)
@@ -663,6 +663,10 @@ func renderInvitationError(w http.ResponseWriter, r *http.Request, err error) bo
 			return false
 		}
 		return true
+	case errors.Is(err, identityaccess.ErrGuardianInvitationAddressChanged):
+		// The holder of the link may not be the guardian: the answer names
+		// no address and no name (#6294).
+		return render.Render(w, r, common.ErrorGoneWithCode(identityaccess.ErrGuardianInvitationAddressChanged, common.CodeIdentityGuardianInvitationAddressChanged)) == nil
 	case errors.Is(err, identityaccess.ErrInvitationExpired), errors.Is(err, identityaccess.ErrInvitationUsed):
 		if render.Render(w, r, common.ErrorGoneWithCode(err, common.CodeIdentityInvitationExpired)) != nil {
 			return false

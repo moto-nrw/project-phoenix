@@ -4,17 +4,17 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	recordports "github.com/moto-ogs/project-phoenix/modules/communication/ports"
 
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
-	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
-	parentAudience "github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience"
-	audienceRows "github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/contract"
-	parentInbox "github.com/moto-nrw/project-phoenix/modules/parentmessageinbox"
-	staffInbox "github.com/moto-nrw/project-phoenix/modules/staffmessageinbox"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	staffStore "github.com/moto-ogs/project-phoenix/modules/communication/staffstore"
+	guardianLinkView "github.com/moto-ogs/project-phoenix/modules/guardianlinkview/compose"
+	parentAudience "github.com/moto-ogs/project-phoenix/modules/parentannouncementaudience"
+	audienceRows "github.com/moto-ogs/project-phoenix/modules/parentannouncementaudience/contract"
+	parentInbox "github.com/moto-ogs/project-phoenix/modules/parentmessageinbox"
+	staffInbox "github.com/moto-ogs/project-phoenix/modules/staffmessageinbox"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 type announcementApplicants struct {

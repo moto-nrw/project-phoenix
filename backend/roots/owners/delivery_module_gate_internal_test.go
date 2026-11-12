@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	deliveryModels "github.com/moto-ogs/project-phoenix/modules/delivery/subscriptions"
 )
 
 // cancelledModules books every module except the listed keys per school.

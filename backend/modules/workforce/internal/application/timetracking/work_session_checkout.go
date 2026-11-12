@@ -2,6 +2,7 @@ package timetracking
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"maps"
@@ -10,10 +11,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func (s *workSessionService) CheckOut(ctx context.Context, staffID int64, reason string) (*WorkSession, error) {
@@ -78,14 +79,8 @@ func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day 
 		return nil, err
 	}
 
-	// Close the session using repository method
-	closed, err := s.repo.CloseWorkSession(ctx, session.ID, now, false)
-	err = workSessionWriteError("close session", err)
-	if err != nil {
-		return nil, fmt.Errorf("failed to close session: %w", err)
-	}
-	if !closed {
-		return nil, workforce.ErrNoActiveSession
+	if err := s.closeRegularCheckout(ctx, session.ID, now); err != nil {
+		return nil, err
 	}
 
 	if deviation != nil {
@@ -94,8 +89,10 @@ func (s *workSessionService) CheckOutOn(ctx context.Context, staffID int64, day 
 		}
 	}
 
-	// End all active supervisions for this staff member (fire-and-forget)
-	s.endActiveSupervisionsOnCheckout(ctx, staffID)
+	// End all active supervisions for this staff member (best effort)
+	if err := s.endActiveSupervisionsOnCheckout(ctx, staffID); err != nil {
+		return nil, err
+	}
 
 	// Re-fetch the updated session
 	updatedSessionRecords, err := s.repo.FindWorkSession(ctx, session.ID)
@@ -262,23 +259,46 @@ func (s *workSessionService) endFoundActiveBreak(ctx context.Context, sessionID 
 	return nil
 }
 
-// endActiveSupervisionsOnCheckout ends all active supervisions for a staff member (fire-and-forget).
-func (s *workSessionService) endActiveSupervisionsOnCheckout(ctx context.Context, staffID int64) {
-	if s.GroupSupervisorRepository == nil {
-		return
+// inBestEffortSavepoint runs a best-effort step in a savepoint when ctx
+// carries a transaction, so the step's database error cannot abort the
+// writes around it (#6288). It returns the step's error; usable is false only
+// when the savepoint itself failed and the transaction is lost.
+func inBestEffortSavepoint(ctx context.Context, fn func(context.Context) error) (usable bool, err error) {
+	if _, inTransaction := tenant.TransactionFromContext(ctx); !inTransaction {
+		return true, fn(ctx)
 	}
-	ended, err := s.endActiveSupervisionsWithGroupLocks(ctx, staffID)
+	err = tenant.WithSavepoint(ctx, fn)
+	return !errors.Is(err, tenant.ErrSavepointControl), err
+}
+
+// endActiveSupervisionsOnCheckout ends all active supervisions for a staff
+// member. It is best effort: a failure only leaves the supervisions open and
+// never rolls back the checkout. Only a failed savepoint is returned.
+func (s *workSessionService) endActiveSupervisionsOnCheckout(ctx context.Context, staffID int64) error {
+	if s.GroupSupervisorRepository == nil {
+		return nil
+	}
+	ended := 0
+	usable, err := inBestEffortSavepoint(ctx, func(ctx context.Context) error {
+		var endErr error
+		ended, endErr = s.endActiveSupervisionsWithGroupLocks(ctx, staffID)
+		return endErr
+	})
+	if !usable {
+		return fmt.Errorf("failed to end active supervisions on checkout: %w", err)
+	}
 	if err != nil {
 		s.getLogger().WarnContext(ctx, "failed to end active supervisions on checkout",
 			slog.Int64("staff_id", staffID),
 			slog.String("error", err.Error()))
-		return
+		return nil
 	}
 	if ended > 0 {
 		s.getLogger().InfoContext(ctx, "ended active supervisions on checkout",
 			slog.Int("ended_count", ended),
 			slog.Int64("staff_id", staffID))
 	}
+	return nil
 }
 
 func (s *workSessionService) endActiveSupervisionsWithGroupLocks(ctx context.Context, staffID int64) (int, error) {

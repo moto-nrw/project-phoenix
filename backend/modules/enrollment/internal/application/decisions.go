@@ -7,9 +7,9 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // openSchoolClassPlaceholder satisfies the required users.students.school_class
@@ -152,7 +152,7 @@ func (d *Decisions) DecisionRequest(ctx context.Context, requestID int64) (publi
 	if d.deps.LateInvites == nil || enrollmentNative.NormalizedSubmissionSource(req.SubmissionSource) != enrollmentNative.RequestSourceLateInvite {
 		return summary, nil
 	}
-	invite, err := d.deps.LateInvites.LateInviteByUsedRequestID(ctx, requestID)
+	invite, err := approvalLateInvite(ctx, d.deps.LateInvites, requestID)
 	if err != nil {
 		if errors.Is(err, enrollmentNative.ErrLateInviteNotFound) {
 			return summary, nil

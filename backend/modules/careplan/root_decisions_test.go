@@ -7,7 +7,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func TestStatusDayOverviewShowsActiveAndEndOfDayRowsInsideTheWindows(t *testing.T) {
@@ -44,15 +44,33 @@ func TestStatusDayOverviewWithoutChildrenMatchesNothing(t *testing.T) {
 
 func TestEndOfDayStatusFlagArchiveMapsTheLiveFlags(t *testing.T) {
 	t.Parallel()
-	fallback := time.Date(2026, 9, 21, 7, 0, 0, 0, time.UTC)
-	sick, err := EndOfDayStatusFlagArchive("sick", "sick_since", "2026-09-21", fallback)
+	fallback := time.Date(2026, 9, 21, 16, 0, 0, 0, time.UTC)
+	sick, err := EndOfDayStatusFlagArchive("sick", "sick_since", fallback, "2026-09-21", fallback)
 	require.NoError(t, err)
-	assert.Equal(t, StatusFlagArchive{FlagColumn: "sick", SinceColumn: "sick_since", Status: "sick", Date: "2026-09-21", ReportedFallback: fallback, Source: "end_of_day"}, sick)
-	excused, err := EndOfDayStatusFlagArchive("excused", "excused_since", "2026-09-21", fallback)
+	assert.Equal(t, StatusFlagArchive{FlagColumn: "sick", SinceColumn: "sick_since", Status: "sick", Date: "2026-09-21", ReportedFallback: fallback, Source: "end_of_day", Before: fallback}, sick)
+	excused, err := EndOfDayStatusFlagArchive("excused", "excused_since", fallback, "2026-09-21", fallback)
 	require.NoError(t, err)
 	assert.Equal(t, "excused", excused.Status)
-	_, err = EndOfDayStatusFlagArchive("trip", "trip_since", "2026-09-21", fallback)
+	_, err = EndOfDayStatusFlagArchive("trip", "trip_since", fallback, "2026-09-21", fallback)
 	require.EqualError(t, err, `unsupported status flag column "trip"`)
+}
+
+// A carried flag stands for the new day when it was reported before that
+// day's Berlin midnight; the OGS's own source is the fallback.
+func TestStatusFlagCarryMapsTheLiveFlags(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 10, 25, 0, 1, 0, 0, calendar.Berlin)
+	carry, err := StatusFlagCarry("excused", "excused_since", "2026-10-25", at)
+	require.NoError(t, err)
+	assert.Equal(t, StatusFlagArchive{
+		FlagColumn: "excused", SinceColumn: "excused_since", Status: "excused", Date: "2026-10-25",
+		ReportedFallback: at, Source: "manual", Before: calendar.NewDate(2026, 10, 25).BerlinMidnight(), Carry: true,
+	}, carry)
+	assert.True(t, carry.Before.Equal(time.Date(2026, 10, 24, 22, 0, 0, 0, time.UTC)), "Berlin midnight in summer time")
+	_, err = StatusFlagCarry("trip", "trip_since", "2026-10-25", at)
+	require.EqualError(t, err, `unsupported status flag column "trip"`)
+	_, err = StatusFlagCarry("sick", "sick_since", "25.10.2026", at)
+	require.Error(t, err)
 }
 
 func TestParticipationBoundaryTakesTheEarlierEnd(t *testing.T) {

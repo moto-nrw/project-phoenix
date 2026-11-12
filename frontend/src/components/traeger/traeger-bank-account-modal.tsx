@@ -4,8 +4,10 @@ import { useEffect, useRef, useState } from "react";
 import { Checkbox } from "~/components/ui/checkbox";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   createTraegerBankAccount,
@@ -42,10 +44,12 @@ export function TraegerBankAccountModal({
 }: Readonly<{
   edit: BankAccountEdit | null;
   onClose: () => void;
-  onSaved: () => Promise<unknown>;
+  /** Reloads the card; never rejects (#6652). */
+  onSaved: RefreshAfterWrite;
 }>) {
   const [draft, setDraft] = useState<TraegerBankAccountInput>(EMPTY);
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(edit !== null);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -77,26 +81,29 @@ export function TraegerBankAccountModal({
       formErrors.invalid("Bitte prüfen Sie Ihre Angaben.", fields);
       return;
     }
-    setSaving(true);
-    try {
-      if (edit.kind === "create") {
-        await createTraegerBankAccount(draft);
-        success(`Die Bankverbindung „${draft.label.trim()}“ ist gespeichert.`);
-      } else {
-        await updateTraegerBankAccount(edit.account.id, draft);
-        success(`Die Bankverbindung „${draft.label.trim()}“ ist geändert.`);
+    await save.run(async (op) => {
+      try {
+        if (edit.kind === "create") {
+          await createTraegerBankAccount(draft);
+          success(
+            `Die Bankverbindung „${draft.label.trim()}“ ist gespeichert.`,
+          );
+        } else {
+          await updateTraegerBankAccount(edit.account.id, draft);
+          success(`Die Bankverbindung „${draft.label.trim()}“ ist geändert.`);
+        }
+      } catch (err) {
+        logger.error("traeger_bank_account_save_failed", {
+          kind: edit.kind,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "die Bankverbindung" });
+        return;
       }
-      onClose();
+      if (op.isCurrent()) onClose();
       await onSaved();
-    } catch (err) {
-      logger.error("traeger_bank_account_save_failed", {
-        kind: edit.kind,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "die Bankverbindung" });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   const isDefault = edit?.kind === "change" && edit.account.isDefault;
@@ -106,7 +113,7 @@ export function TraegerBankAccountModal({
     <FormModal
       isOpen={edit !== null}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title={
         edit?.kind === "change"

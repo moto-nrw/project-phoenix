@@ -5,13 +5,17 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 const (
 	exceptionSourceGuardian = "guardian"
 	exceptionSourceStaff    = "staff"
 )
+
+// schoolOwned reports whether the school, not a guardian, decided the leg: a
+// staff row or a day Enrollment planned from a holiday booking (ADR 0120).
+func schoolOwned(source string) bool { return source != exceptionSourceGuardian }
 
 // loadCareException merges the pickup and arrival exceptions for one date into
 // the parent-facing projection. Returns nil if neither leg has a row.
@@ -50,7 +54,7 @@ func applyDatePickupLeg(out *CareException, pickup *PickupException) bool {
 		out.Reason = pickup.Reason
 	}
 	out.UpdatedAt = pickup.UpdatedAt
-	return pickup.Source == exceptionSourceStaff
+	return schoolOwned(pickup.Source)
 }
 
 // applyDateArrivalLeg copies the arrival leg of one date into out and reports
@@ -66,7 +70,7 @@ func applyDateArrivalLeg(out *CareException, arrival *ArrivalException) bool {
 	if arrival.UpdatedAt.After(out.UpdatedAt) {
 		out.UpdatedAt = arrival.UpdatedAt
 	}
-	return arrival.Source == exceptionSourceStaff
+	return schoolOwned(arrival.Source)
 }
 
 // ListCareExceptions returns the merged pickup/arrival exceptions for the child
@@ -75,31 +79,26 @@ func applyDateArrivalLeg(out *CareException, arrival *ArrivalException) bool {
 // (via DeleteCareException) clear overrides they created, even after the school
 // switches the feature off, so existing entries never become stuck.
 func (s *Service) ListCareExceptions(ctx context.Context, accountID, studentID int64, from, to calendar.Date) ([]*CareException, error) {
-	child, err := s.ResolveOwnedChild(ctx, accountID, studentID)
-	if err != nil {
-		return nil, err
-	}
-
 	var out []*CareException
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
-		pickups, err := s.CareExceptions.ListPickupExceptions(txCtx, StudentScheduleFilter{StudentIDs: []int64{studentID}, From: calendar.Date(from), To: calendar.Date(to)})
+	err := s.WithPermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess, nil, func(txCtx context.Context, _ *Child) error {
+		filter := StudentScheduleFilter{StudentIDs: []int64{studentID}, From: from, To: to}
+		pickups, err := s.CareExceptions.ListPickupExceptions(txCtx, filter)
 		if err != nil {
-			return err
+			return fmt.Errorf("parent: list care exceptions: %w", err)
 		}
-		arrivals, err := s.CareExceptions.ListArrivalExceptions(txCtx, StudentScheduleFilter{StudentIDs: []int64{studentID}, From: calendar.Date(from), To: calendar.Date(to)})
+		arrivals, err := s.CareExceptions.ListArrivalExceptions(txCtx, filter)
 		if err != nil {
-			return err
+			return fmt.Errorf("parent: list care exceptions: %w", err)
 		}
-		departures, err := s.CareExceptions.ListDepartureExceptions(txCtx, StudentScheduleFilter{StudentIDs: []int64{studentID}, From: calendar.Date(from), To: calendar.Date(to)})
+		departures, err := s.CareExceptions.ListDepartureExceptions(txCtx, filter)
 		if err != nil {
-			return err
+			return fmt.Errorf("parent: list care exceptions: %w", err)
 		}
-		out = mergeCareExceptions(pickups, arrivals, accountID)
-		out = mergeDepartureExceptions(out, departures)
+		out = mergeDepartureExceptions(mergeCareExceptions(pickups, arrivals, accountID), departures)
 		return nil
 	})
-	if txErr != nil {
-		return nil, fmt.Errorf("parent: list care exceptions: %w", txErr)
+	if err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -147,7 +146,10 @@ func applyPickupException(ce *CareException, p PickupException, accountID int64)
 	if p.UpdatedAt.After(ce.UpdatedAt) {
 		ce.UpdatedAt = p.UpdatedAt
 	}
-	if p.Source == exceptionSourceStaff || p.HasManualPartialAbsence() {
+	if p.HasManualPartialAbsence() {
+		ce.ExcusedFrom = p.ExcusedFrom
+	}
+	if schoolOwned(p.Source) || p.HasManualPartialAbsence() {
 		ce.Source = exceptionSourceStaff
 	}
 }
@@ -168,7 +170,7 @@ func applyArrivalException(ce *CareException, a ArrivalException, accountID int6
 	if a.UpdatedAt.After(ce.UpdatedAt) {
 		ce.UpdatedAt = a.UpdatedAt
 	}
-	if a.Source == exceptionSourceStaff {
+	if schoolOwned(a.Source) {
 		ce.Source = exceptionSourceStaff
 	}
 }

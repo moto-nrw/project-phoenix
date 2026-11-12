@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"testing"
 
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )

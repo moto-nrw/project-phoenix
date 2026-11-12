@@ -638,8 +638,8 @@ describe("formatTime", () => {
     expect(formatTime("2026-13-45T99:99:99Z")).toBe("--:--");
   });
 
-  it("formats valid ISO timestamp to HH:MM in local time", () => {
-    // formatTime converts UTC to local time using getHours()/getMinutes()
+  it("formats valid ISO timestamp to HH:MM in Berlin time", () => {
+    // formatTime shows the school's wall clock (#6293)
     const result1 = formatTime("2026-01-15T08:00:00Z");
     const result2 = formatTime("2026-01-15T14:30:00Z");
     const result3 = formatTime("2026-01-15T23:59:00Z");
@@ -907,6 +907,161 @@ describe("indexWorkSessionMinutesByBerlinDate", () => {
     breaks: [],
     editCount: 0,
     ...overrides,
+  });
+
+  it.each([
+    {
+      name: "pack-up",
+      start: "22:00",
+      end: "01:00",
+      net: 185,
+      packUp: 5,
+      rounding: 0,
+      breaks: 0,
+      first: 120,
+      second: 65,
+    },
+    {
+      name: "rounding deduction",
+      start: "23:08",
+      end: "00:02",
+      net: 45,
+      packUp: 0,
+      rounding: -9,
+      breaks: 0,
+      first: 45,
+      second: 0,
+    },
+    {
+      name: "excess break consumes credit",
+      start: "23:00",
+      end: "00:00",
+      net: 0,
+      packUp: 5,
+      rounding: 0,
+      breaks: 90,
+      first: 0,
+      second: 0,
+    },
+    {
+      name: "remaining credit after excess break",
+      start: "23:00",
+      end: "00:00",
+      net: 3,
+      packUp: 5,
+      rounding: 0,
+      breaks: 62,
+      first: 3,
+      second: 0,
+    },
+  ])("books $name at the last occupied day", (tc) => {
+    const session = openSession({
+      date: "2026-07-20",
+      checkInTime: `2026-07-20T${tc.start}:00+02:00`,
+      checkOutTime: `2026-07-21T${tc.end}:00+02:00`,
+      netMinutes: tc.net,
+      packUpMinutes: tc.packUp,
+      roundingMinutes: tc.rounding,
+      breakMinutes: tc.breaks,
+    });
+    const indexed = indexWorkSessionMinutesByBerlinDate([session]);
+    expect(indexed.get("2026-07-20")?.netMinutes ?? 0).toBe(tc.first);
+    expect(indexed.get("2026-07-21")?.netMinutes ?? 0).toBe(tc.second);
+    expect(
+      [...indexed.values()].reduce((sum, day) => sum + day.netMinutes, 0),
+    ).toBe(tc.net);
+  });
+
+  it.each([
+    {
+      name: "ended pause",
+      breaks: [
+        {
+          id: "b",
+          sessionId: "1",
+          startedAt: "2026-07-31T21:45:30Z",
+          endedAt: "2026-07-31T22:15:10Z",
+          durationMinutes: 30,
+          plannedEndTime: null,
+        },
+      ],
+      netMinutes: 90,
+      first: 44,
+      second: 46,
+      firstBreak: 15,
+      secondBreak: 15,
+    },
+    {
+      name: "no pause",
+      breaks: [],
+      netMinutes: 120,
+      first: 59,
+      second: 61,
+      firstBreak: 0,
+      secondBreak: 0,
+    },
+    {
+      name: "running pause",
+      breaks: [
+        {
+          id: "b",
+          sessionId: "1",
+          startedAt: "2026-07-31T21:45:30Z",
+          endedAt: null,
+          durationMinutes: 0,
+          plannedEndTime: null,
+        },
+      ],
+      netMinutes: 45,
+      first: 45,
+      second: 0,
+      firstBreak: 14,
+      secondBreak: 61,
+    },
+  ])(
+    "conserves fractional minutes across a month boundary ($name)",
+    ({ breaks, netMinutes, first, second, firstBreak, secondBreak }) => {
+      const session = openSession({
+        date: "2026-07-31",
+        checkInTime: "2026-07-31T21:00:30Z",
+        checkOutTime: "2026-07-31T23:00:30Z",
+        breaks,
+        netMinutes,
+      });
+      expect(
+        indexWorkSessionMinutesByBerlinDate(
+          [session],
+          new Date("2026-08-01T12:00:00Z"),
+        ),
+      ).toEqual(
+        new Map([
+          ["2026-07-31", { netMinutes: first, breakMinutes: firstBreak }],
+          ["2026-08-01", { netMinutes: second, breakMinutes: secondBreak }],
+        ]),
+      );
+    },
+  );
+
+  it("carries a rounded pause past a day with no full gross minute", () => {
+    const session = openSession({
+      date: "2026-07-31",
+      checkInTime: "2026-07-31T21:59:30Z",
+      checkOutTime: "2026-07-31T22:01:30Z",
+      netMinutes: 1,
+      breaks: [
+        {
+          id: "b",
+          sessionId: "1",
+          startedAt: "2026-07-31T21:59:30Z",
+          endedAt: "2026-07-31T22:00:00Z",
+          durationMinutes: 1,
+          plannedEndTime: null,
+        },
+      ],
+    });
+    expect(indexWorkSessionMinutesByBerlinDate([session])).toEqual(
+      new Map([["2026-08-01", { netMinutes: 1, breakMinutes: 1 }]]),
+    );
   });
 
   it("caps an open block from yesterday at the 12-hour live limit", () => {

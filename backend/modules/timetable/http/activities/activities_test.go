@@ -14,19 +14,19 @@ import (
 	"testing"
 	"time"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
-	activitiesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http/activities"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/api/testutil/routetest"
+	activitiesAPI "github.com/moto-ogs/project-phoenix/modules/timetable/http/activities"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // init seeds JWT viper defaults before any test constructs a Resource via
@@ -454,62 +454,6 @@ func TestGetActivitySchedules_Success(t *testing.T) {
 	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
 }
 
-func TestCreateActivitySchedule_Success(t *testing.T) {
-	t.Parallel()
-	ctx := setupActivitiesRoute(t)
-
-	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("CreateSched-%d", time.Now().UnixNano()))
-
-	body := map[string]interface{}{
-		"weekday": 1, // Monday
-	}
-
-	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/schedules", activity.ID), body)
-
-	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
-
-	testutil.AssertSuccessResponse(t, rr, http.StatusCreated)
-}
-
-func TestCreateActivitySchedule_BadRequest_InvalidWeekday(t *testing.T) {
-	t.Parallel()
-	ctx := setupActivitiesRoute(t)
-
-	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("InvalidSched-%d", time.Now().UnixNano()))
-
-	body := map[string]interface{}{
-		"weekday": 10, // Invalid weekday
-	}
-
-	req := testutil.NewAuthenticatedRequest(t, "POST", fmt.Sprintf("/activities/%d/schedules", activity.ID), body)
-
-	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
-
-	testutil.AssertBadRequest(t, rr)
-}
-
-func TestGetAvailableTimeSlots_Success(t *testing.T) {
-	t.Parallel()
-	ctx := setupActivitiesRoute(t)
-
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/schedules/available", nil)
-
-	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
-
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-}
-
-func TestGetAvailableTimeSlots_BadRequest_InvalidWeekday(t *testing.T) {
-	t.Parallel()
-	ctx := setupActivitiesRoute(t)
-
-	req := testutil.NewAuthenticatedRequest(t, "GET", "/activities/schedules/available?weekday=invalid", nil)
-
-	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
-
-	testutil.AssertBadRequest(t, rr)
-}
-
 // =============================================================================
 // SUPERVISOR TESTS
 // =============================================================================
@@ -908,90 +852,6 @@ func TestGetActivitySchedule_NotFound(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("GetSchedNF-%d", time.Now().UnixNano()))
 
 	req := testutil.NewAuthenticatedRequest(t, "GET",
-		fmt.Sprintf("/activities/%d/schedules/999999", activity.ID), nil)
-
-	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
-
-	testutil.AssertNotFound(t, rr)
-}
-
-func TestUpdateActivitySchedule_Success(t *testing.T) {
-	t.Parallel()
-	ctx := setupActivitiesRoute(t)
-
-	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UpdSched-%d", time.Now().UnixNano()))
-
-	// Create a schedule first
-	actSvc := ctx.resource.ActivityService
-	schedData := &activityContract.Schedule{
-		ActivityGroupID: activity.ID,
-		Weekday:         1, // Monday
-	}
-	schedule, err := actSvc.AddSchedule(testpkg.Ctx(t), activity.ID, schedData)
-	require.NoError(t, err)
-
-	body := map[string]interface{}{
-		"weekday": 2, // Tuesday
-	}
-
-	req := testutil.NewAuthenticatedRequest(t, "PUT",
-		fmt.Sprintf("/activities/%d/schedules/%d", activity.ID, schedule.ID), body)
-
-	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
-
-	testutil.AssertSuccessResponse(t, rr, http.StatusOK)
-}
-
-func TestUpdateActivitySchedule_NotFound(t *testing.T) {
-	t.Parallel()
-	ctx := setupActivitiesRoute(t)
-
-	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("UpdSchedNF-%d", time.Now().UnixNano()))
-
-	body := map[string]interface{}{
-		"weekday": 2,
-	}
-
-	req := testutil.NewAuthenticatedRequest(t, "PUT",
-		fmt.Sprintf("/activities/%d/schedules/999999", activity.ID), body)
-
-	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
-
-	testutil.AssertNotFound(t, rr)
-}
-
-func TestDeleteActivitySchedule_Success(t *testing.T) {
-	t.Parallel()
-	ctx := setupActivitiesRoute(t)
-
-	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("DelSched-%d", time.Now().UnixNano()))
-
-	// Create a schedule first
-	actSvc := ctx.resource.ActivityService
-	schedData := &activityContract.Schedule{
-		ActivityGroupID: activity.ID,
-		Weekday:         1, // Monday
-	}
-	schedule, err := actSvc.AddSchedule(testpkg.Ctx(t), activity.ID, schedData)
-	require.NoError(t, err)
-
-	req := testutil.NewAuthenticatedRequest(t, "DELETE",
-		fmt.Sprintf("/activities/%d/schedules/%d", activity.ID, schedule.ID), nil)
-
-	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())
-
-	// Should succeed with 200 or 204
-	assert.True(t, rr.Code == http.StatusOK || rr.Code == http.StatusNoContent,
-		"Expected 200 or 204, got %d", rr.Code)
-}
-
-func TestDeleteActivitySchedule_NotFound(t *testing.T) {
-	t.Parallel()
-	ctx := setupActivitiesRoute(t)
-
-	activity := testpkg.CreateTestActivityGroup(t, ctx.db, fmt.Sprintf("DelSchedNF-%d", time.Now().UnixNano()))
-
-	req := testutil.NewAuthenticatedRequest(t, "DELETE",
 		fmt.Sprintf("/activities/%d/schedules/999999", activity.ID), nil)
 
 	rr := testutil.ExecuteWithAuth(t, ctx.router, req, testutil.DefaultTestClaims())

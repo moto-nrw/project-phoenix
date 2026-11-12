@@ -1,7 +1,8 @@
 # Backend architecture policy
 
-`policy.json` is the source for package and runtime write ownership, package
-roles, tenant-safe read projections, legacy-composition symbols, dependency
+`policy.json` and the owner fragments in `policy/` are the sources for package
+and runtime write ownership, package roles, tenant-safe read projections,
+legacy-composition symbols, dependency
 classes, import scopes, and target import rules. Generated lint configs and
 diagrams must derive from this file and must not be committed.
 
@@ -49,14 +50,21 @@ method-level pass-through follow-ups; no new policy permission follows.
 
 ## Canonical module map
 
+> **Historical migration log.** The narrative below records intermediate
+> states of the completed architecture migration, including packages and
+> wiring files that have since been deleted. It is not the current module
+> inventory. Use `policy.json` and `policy/` for current ownership and allowed
+> dependencies. Architecture principles, Commands and Source ratchet budgets
+> below remain current guidance.
+
 [ADR 0066](../../docs/adr/0066-principle-every-module-table-and-cross-owner-read-has-one-owner.md)
 is the principle for this map.
 [ADR 0010](../../docs/adr/0010-file-storage-is-the-eighteenth-domain.md)
 records File Storage as the eighteenth domain, and
 [ADR 0012](../../docs/adr/0012-export-transfer-is-the-tenth-platform.md)
 records Export Transfer as the tenth platform module, for
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), resolved in
-[#3034](https://github.com/moto-nrw/project-phoenix/issues/3034).
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580), resolved in
+[#3034](https://github.com/moto-ogs/project-phoenix/issues/3034).
 [ADR 0088](../../docs/adr/0088-betreuungsvertrag-und-elternabrechnung-sind-eigene-owner-beim-traeger.md)
 adds the Elternabrechnung (`parent-billing`) as the nineteenth domain, built
 first by [ADR 0115](../../docs/adr/0115-ferienbeitrag-entsteht-in-der-elternabrechnung-und-wird-bei-bestaetigung-festgehalten.md)
@@ -873,7 +881,7 @@ behavior tests off the retired names. The later-pickup decision that writes to b
 bound at the composition root (`api/pickup_extensions.go`) rather than as a
 new workflow owner. `database/repositories/student_presence.go`, the old
 provider, is gone. The evidence lives in
-[presence-cutover-2762.json](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/presence-cutover-2762.json) and the runbook in
+[presence-cutover-2762.json](https://github.com/moto-ogs/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/presence-cutover-2762.json) and the runbook in
 [docs/operations/presence-storage-cutover-2762.md](../../docs/operations/presence-storage-cutover-2762.md),
 the Contract in
 [docs/operations/presence-storage-contract-2763.md](../../docs/operations/presence-storage-contract-2763.md).
@@ -903,7 +911,7 @@ counter until #2757, because the previous image links guardians with
 `INSERT ... ON CONFLICT`; `TestGuardianStorageCallerInventory` keeps every
 provider off it. `database/repositories/users/student_guardian.go`, the old
 provider, is gone. The evidence lives in
-[guardian-owner-cutover-2756.json](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/guardian-owner-cutover-2756.json) and the
+[guardian-owner-cutover-2756.json](https://github.com/moto-ogs/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/guardian-owner-cutover-2756.json) and the
 runbook in
 [docs/operations/guardian-owner-storage-cutover.md](../../docs/operations/guardian-owner-storage-cutover.md).
 
@@ -930,13 +938,13 @@ scripts/backend-architecture.sh audit-issues \
   --api-url https://api.github.com
 scripts/backend-architecture.sh explain \
   --scope production \
-  --source github.com/moto-nrw/project-phoenix/services/mealplan \
-  --target github.com/moto-nrw/project-phoenix/models/mealplan
+  --source github.com/moto-ogs/project-phoenix/modules/mealplan/compose \
+  --target github.com/moto-ogs/project-phoenix/modules/mealplan/internal/application
 scripts/backend-architecture.sh diagram
 scripts/backend-architecture.sh dependencies \
   --focus module:meal-plan
 scripts/backend-architecture.sh dependencies \
-  --focus package:services/mealplan
+  --focus package:modules/mealplan/compose
 scripts/backend-architecture.sh cycles
 ```
 
@@ -1092,7 +1100,7 @@ The legacy baseline is canonical JSONL sorted by `scope|rule|source|target`.
 Each record has exactly these fields in this order:
 
 ```json
-{"scope":"production","rule":"imports.forbidden","source":"example/source","target":"example/target","issue":"https://github.com/moto-nrw/project-phoenix/issues/1234"}
+{"scope":"production","rule":"imports.forbidden","source":"example/source","target":"example/target","issue":"https://github.com/moto-ogs/project-phoenix/issues/1234"}
 ```
 
 The first four fields identify one exact violation. `issue` identifies its one
@@ -1452,7 +1460,7 @@ lets a reviewed epoch declare that move in the optional `relocations` array,
 sorted by `from`:
 
 ```json
-{"from":"models/auth","to":"modules/identityaccess/legacy/authmodels","issue":"https://github.com/moto-nrw/project-phoenix/issues/3226"}
+{"from":"models/auth","to":"modules/identityaccess/legacy/authmodels","issue":"https://github.com/moto-ogs/project-phoenix/issues/3226"}
 ```
 
 PR mode then reads the base baseline at the candidate's paths. A declaration is
@@ -1476,6 +1484,27 @@ candidate-created still comes from Git, as for any package the candidate
 writes. Prefer a relocation over compatibility permissions whenever a package
 moves unchanged — it keeps each consumer's debt under the consumer's own
 migration issue instead of dropping it and re-deriving it later.
+
+### Renaming the Go module
+
+Every package, binding and evidence key carries the module path, so a module
+rename would read as the removal and re-addition of the whole tree.
+[ADR 0217](../../docs/adr/0217-der-go-modulpfad-folgt-der-github-organisation.md)
+lets a reviewed epoch declare it in the optional `module_rename` object:
+
+```json
+{"from":"github.com/moto-nrw/project-phoenix","approval_adr":"0217"}
+```
+
+The declaration is active while the base policy's `module_path` equals `from`.
+PR mode then reads the base policy, baseline and command-effect register with
+`from` spelled as the candidate's `module_path` and compares them as usual. An
+active declaration must prove the epoch increased, that `approval_adr` is added
+in the change, and that every Go file of the project outside
+`internal/architecture/` equals its base file once the new path is spelled as
+the old one; added or deleted Go files fail. Only then may base binding digests
+of the same identity be replaced by the candidate's: they hash the same sources
+under the old path. Afterwards the declaration is a record and cannot replay.
 
 #3226 moves `auth/jwt`, `models/auth` and `database/repositories/auth` into
 `modules/identityaccess/legacy/jwt`, `.../legacy/authmodels` and
@@ -3361,7 +3390,7 @@ rules are retired. The
 `inbound-students.to.file-storage-adapter` binding is different: its source
 package existed before the move and imported the old path as debt under
 #2731, which PR mode cannot carry over to the new target. It is a
-[named exception](https://github.com/moto-nrw/project-phoenix/issues/2580#issuecomment-5638973300)
+[named exception](https://github.com/moto-ogs/project-phoenix/issues/2580#issuecomment-5638973300)
 to rule 5 of `backend/CLAUDE.md`. #2731 re-anchored it on the People
 Directory student routes as `people-directory.http.file-storage-adapter`
 without widening it: the public File Storage capability offers no child
@@ -3530,7 +3559,7 @@ acceptance registry and the `validate-ticket` command were removed after the
 migration closed. `legacy.jsonl` is empty and may only shrink against the base,
 so no retirement remains that a record could cover. The records stay readable
 at commit
-[`46506b00c6`](https://github.com/moto-nrw/project-phoenix/tree/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture);
+[`46506b00c6`](https://github.com/moto-ogs/project-phoenix/tree/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture);
 the measurements they cite remain in `docs/runtime-checkpoints/`. Sections
 above that name a record (`<name>-<issue>.json`) refer to that commit.
 The decision is recorded in the
@@ -3706,7 +3735,7 @@ The three root rules into implementation roles of other owners
 (`root-composition.to.workforce-adapter`,
 `root-composition.compose.production.data-import.adapter`,
 `root-composition.compose.scheduler-runtime-postgres`) became exact debt under
-[#4003](https://github.com/moto-nrw/project-phoenix/issues/4003). They yield
+[#4003](https://github.com/moto-ogs/project-phoenix/issues/4003). They yield
 four tuples, because the scheduler rule covered `jobruntime` and
 `workerlease`. Point 7.3 adds `identity-access`/`adapter` to the shared
 fixture targets (`shared-fixtures.identity-access-adapter`).
@@ -4477,14 +4506,14 @@ a contract the root may already reach, or into the owner that holds the code:
   codec; the two limiter tests stay in `api`.
 
 The other 21 keys keep #2750 as carrier. Sixteen need a decision
-([#4063](https://github.com/moto-nrw/project-phoenix/issues/4063)): the
+([#4063](https://github.com/moto-ogs/project-phoenix/issues/4063)): the
 `http-router` class in the server root, `cli-config` in the internal tests of
 `cmd`, the shared HTTP runtime `api/common`, the `dev-tools` seeder and
 simulator, and four implementation roles whose use would otherwise need
 aliases: Tenant Runtime's `middleware`, the session token adapter, the
 Worker's application `services/scheduler` (37 symbols) and the analytics
 adapter. Five need a move into their owners
-([#4064](https://github.com/moto-nrw/project-phoenix/issues/4064)):
+([#4064](https://github.com/moto-ogs/project-phoenix/issues/4064)):
 `api/config`, `api/operator`, `api/platform`, `api/pwa` and `api/reminders`.
 The composition surface stays at 139. The evidence record is
 `root-implementation-roles-2750.json`.
@@ -4524,7 +4553,7 @@ codes, error bodies and the route and middleware goldens are unchanged.
 `api -> api/config`, `api/platform`, `api/pwa` and `api/reminders` (#2750)
 leave `legacy.jsonl`, 25 -> 21. `api -> api/operator` stays: the operator
 router mounts the routes of five owners and needs the `http-router` decision
-of [#4063](https://github.com/moto-nrw/project-phoenix/issues/4063). The
+of [#4063](https://github.com/moto-ogs/project-phoenix/issues/4063). The
 composition surface stays at 139. The evidence record is
 `relocate-inbound-packages-4064.json`.
 
@@ -4849,7 +4878,7 @@ longer holds in any base.
 
 The three existing student read projections have one fixed replacement path
 ([ADR 0025](../../docs/adr/0025-replace-student-read-projection-grants.md),
-[#3432](https://github.com/moto-nrw/project-phoenix/issues/3432)). In a reviewed
+[#3432](https://github.com/moto-ogs/project-phoenix/issues/3432)). In a reviewed
 epoch, `parent-message-inbox`, `parent-announcement-audience` and `care-exit-view`
 may replace their base `users.students` grant with exactly
 `users.student_profiles`, `users.student_school_memberships` and
@@ -4867,13 +4896,13 @@ their old packages with a `users.students` grant.
 Reviewed data-less workflow additions may register new workflow owners when
 all their packages are candidate-created and the policy epoch increases
 ([ADR 0013](../../docs/adr/0013-staff-offboarding-is-an-application-workflow.md),
-[#3130](https://github.com/moto-nrw/project-phoenix/issues/3130)). This does not
+[#3130](https://github.com/moto-ogs/project-phoenix/issues/3130)). This does not
 permit adopting existing packages, expanding existing-owner permissions, or
 owning writable data. Those guards are checked independently.
 
 A reviewed epoch may also add owner-agnostic test-infrastructure rules
 ([ADR 0014](../../docs/adr/0014-test-roles-may-import-test-infrastructure.md),
-[#3215](https://github.com/moto-nrw/project-phoenix/issues/3215)): a rule with
+[#3215](https://github.com/moto-ogs/project-phoenix/issues/3215)): a rule with
 no `source_owner`, a test role (`*-test` or `test-support`), and a
 `target_class` of `orm-sql`, `http-router` or `test`. A `*-test` role may not
 carry the production scope under this path. Everything else — owner-specific
@@ -4884,7 +4913,7 @@ rule for these classes would now overlap and fail to load.
 
 A reviewed epoch may also grant the shared fixture owner its four standing
 reaches ([ADR 0039](../../docs/adr/0039-shared-fixtures-reach-their-standing-targets.md),
-[#2748](https://github.com/moto-nrw/project-phoenix/issues/2748)): a rule with
+[#2748](https://github.com/moto-ogs/project-phoenix/issues/2748)): a rule with
 `source_owner` `test-support`, the `test-support` role in production or the
 `e2e-test` role in the test scopes, and a target of `test-support/test-support`,
 `tenant-runtime/public`, `legacy-shared/domain` or `security-runtime/contract`.
@@ -4913,7 +4942,7 @@ and `care-plan/test-support`. A wider scope, another role or another target
 stays a loosening. Epoch 35 registers five rules under it and seven keys fall
 (173 -> 166). `configtest` kept `services/config` then: the settings schema it
 returned carries `models/config` types no contract may expose.
-[#3965](https://github.com/moto-nrw/project-phoenix/issues/3965) needed no
+[#3965](https://github.com/moto-ogs/project-phoenix/issues/3965) needed no
 rule either: no consumer read the schema. Every consumer that took the full
 settings service declares a narrow port; the supervision dashboard's is
 `supervisiondashboard.Resolver` in its public ports, and the group live
@@ -4930,7 +4959,7 @@ and the now unused rules `delivery.application.settings`,
 `calendar-view.adapter.settings-platform-application` and
 `group-live-view.adapter.settings-platform-application` are deleted
 (166 -> 164).
-[#3970](https://github.com/moto-nrw/project-phoenix/issues/3970) gives the
+[#3970](https://github.com/moto-ogs/project-phoenix/issues/3970) gives the
 PostgreSQL tenant runtime bootstrap an owner seam,
 `modules/transactionruntime/compose` (`transaction-runtime`/`compose`), and
 adds it to the shared fixture targets in a narrower shape: only the
@@ -4941,7 +4970,7 @@ Audit context adapters through `modules/auditlog`; `test -> database` falls
 (112 -> 111). The roots `api` and `cmd` build their runtimes and pools there
 too, under two rules anchored to the new package, and
 `services.BindTenantRuntime` is deleted.
-[#3966](https://github.com/moto-nrw/project-phoenix/issues/3966) needed no
+[#3966](https://github.com/moto-ogs/project-phoenix/issues/3966) needed no
 rule either: the People Directory fixtures return test-owned rows (`Person`,
 `Staff`, `Teacher`, `Student`, `GuardianProfile`, `StudentGuardian`, `Guest`,
 `PrivacyConsent`, `ClassListEntry`, `ParentAnnouncement`,
@@ -4956,7 +4985,7 @@ People Directory suites already compose through. Both `test -> models/users`
 keys fall without a new key (111 -> 109), and the rule
 `people-directory.behavior-test.enrollment-support` is deleted with its last
 importer.
-[#4014](https://github.com/moto-nrw/project-phoenix/issues/4014) needed no
+[#4014](https://github.com/moto-ogs/project-phoenix/issues/4014) needed no
 rule either: the fixtures map their `enrollment.care_offerings` row
 (`CareOffering` in `test/care_offering_rows.go`) and take the phase, request,
 child and care-offering values from `modules/enrollment/enrollmenttest` under
@@ -4981,8 +5010,8 @@ domain owner, #4072).
 
 A reviewed epoch may also add the one owner-agnostic shared-kernel rule
 ([ADR 0040](../../docs/adr/0040-every-role-may-import-the-shared-kernel.md),
-[#3447](https://github.com/moto-nrw/project-phoenix/issues/3447),
-[#3448](https://github.com/moto-nrw/project-phoenix/issues/3448)): no
+[#3447](https://github.com/moto-ogs/project-phoenix/issues/3447),
+[#3448](https://github.com/moto-ogs/project-phoenix/issues/3448)): no
 `source_owner`, no `source_owner_kind`, no `source_role`, all three scopes, and
 the target `shared-kernel`/`contract`. Epoch 25 registers it as
 `shared-kernel.contract` and removes the 15 owner-specific rules it subsumes, so
@@ -4993,7 +5022,7 @@ owner-kind target and an external class are still loosenings.
 
 A reviewed epoch may also let a target owner adopt an existing table
 ([ADR 0015](../../docs/adr/0015-owners-adopt-existing-unowned-tables.md),
-[#3235](https://github.com/moto-nrw/project-phoenix/issues/3235)): a new
+[#3235](https://github.com/moto-ogs/project-phoenix/issues/3235)): a new
 `data_objects` entry is accepted when the table has no owner in the base
 policy, the base `legacy.jsonl` records at least one production
 `tables.unclassified` finding for it, and every package those findings name is
@@ -5001,7 +5030,7 @@ classified under the adopting owner in the candidate, no longer exists, or no
 longer reads or writes the table in the candidate's current findings. The last
 case covers a shared legacy package whose access to the table moved to the
 adopting owner while the package itself stays for other tables
-([#3221](https://github.com/moto-nrw/project-phoenix/issues/3221)). The
+([#3221](https://github.com/moto-ogs/project-phoenix/issues/3221)). The
 candidate must remove those findings from the baseline as usual. Transferring
 an owned table, adopting a table with no recorded debt, and adopting while a
 package of another owner still accesses it remain loosenings; after the

@@ -7,8 +7,8 @@ import (
 	"io/fs"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -105,6 +105,16 @@ func TestAccountRetentionRollbackAndOtherSchoolProtection(t *testing.T) {
 	shared := testpkg.CreateTestAccount(t, db, "avatar-other-school")
 	testpkg.UnclaimTestAccount(t, db, shared.ID)
 	testpkg.MapAccountToTenant(t, db, shared.ID, otherSchool)
+	organization := testpkg.CreateTestOrganization(t, db, &testpkg.Organization{Name: "Retention", Slug: fmt.Sprintf("retention-%d", testpkg.UniqueTestTenantID(t))})
+	_, err := db.ExecContext(t.Context(), `INSERT INTO auth.traeger_parent_access (account_id, organization_id, created_at)
+		VALUES (?, ?, NOW() - INTERVAL '31 days'), (?, ?, NOW() - INTERVAL '31 days')`, orphan.ID, organization.ID, shared.ID, organization.ID)
+	require.NoError(t, err)
+	accessAccounts := func() []int64 {
+		var ids []int64
+		require.NoError(t, db.NewRaw(`SELECT account_id FROM auth.traeger_parent_access WHERE organization_id = ? ORDER BY account_id`, organization.ID).Scan(t.Context(), &ids))
+		return ids
+	}
+
 	for _, id := range []int64{orphan.ID, shared.ID} {
 		_, err := db.ExecContext(t.Context(), `UPDATE auth.accounts SET avatar = ? WHERE id = ?`, fmt.Sprintf("/uploads/avatars/global/keep-%d.png", id), id)
 		require.NoError(t, err)
@@ -123,6 +133,7 @@ func TestAccountRetentionRollbackAndOtherSchoolProtection(t *testing.T) {
 		require.ErrorContains(t, err, "ambient transaction")
 		return rollback
 	}), rollback)
+	require.Equal(t, []int64{orphan.ID, shared.ID}, accessAccounts(), "rollback keeps both access records")
 	var pending int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.account_avatar_file_cleanup`).Scan(t.Context(), &pending))
 	require.Zero(t, pending)
@@ -130,6 +141,7 @@ func TestAccountRetentionRollbackAndOtherSchoolProtection(t *testing.T) {
 		_, err := owner.EraseUnusedAccounts(ctx)
 		return err
 	}))
+	require.Equal(t, []int64{shared.ID}, accessAccounts(), "only the erased account loses its Träger access")
 	var avatar string
 	require.NoError(t, db.NewRaw(`SELECT avatar FROM auth.accounts WHERE id = ?`, shared.ID).Scan(t.Context(), &avatar))
 	require.Equal(t, fmt.Sprintf("/uploads/avatars/global/keep-%d.png", shared.ID), avatar)

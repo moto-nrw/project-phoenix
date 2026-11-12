@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -26,6 +26,13 @@ type lifecycleTable struct {
 	Name, Scope, ScopeColumn, Reason, Export, ExportReason    string
 	Parent                                                    *lifecycleParent
 	ExcludeSecretColumns, AllowedSensitiveColumns, PersonKeys map[string]string
+	OpenSealedColumns, ProjectedColumns                       map[string]string
+	SealedBindings                                            map[string]lifecycleSealedBinding
+}
+
+type lifecycleSealedBinding struct {
+	Table, Column string
+	Match         map[string]string
 }
 
 type lifecycleParent struct{ Table, Column, ParentColumn string }
@@ -50,7 +57,7 @@ func readLifecycleCatalog(t *testing.T) lifecycleCatalog {
 // Names are a conservative tripwire, not a proof that JSON/free text contains
 // no secrets. Opaque settings, delivery and credential containers are reviewed
 // and explicitly excluded in the catalog, even without a suspicious name.
-var lifecycleSecretName = regexp.MustCompile(`(^|_)(hash|token|secret|password|api_key|code|credential|pin|key)(_|$)|^token|^secret|^password|^api_key`)
+var lifecycleSecretName = regexp.MustCompile(`(^|_)(hash|token|secret|password|api_key|code|credential|pin|key|sealed|health_data)(_|$)|^token|^secret|^password|^api_key`)
 
 func TestEveryTableHasDataLifecycleClassification(t *testing.T) {
 	t.Parallel()
@@ -107,6 +114,7 @@ func lifecycleClassificationProblems(entries []lifecycleTable, columns []lifecyc
 		}
 		problems = append(problems, lifecycleScopeProblems(entry, catalog, columns, cols)...)
 		problems = append(problems, lifecycleExportProblems(entry, cols)...)
+		problems = append(problems, lifecycleSealedBindingProblems(entry, cols, tables)...)
 		for col, target := range entry.PersonKeys {
 			if col == "tenant_id" || !strings.HasSuffix(target, ".id") {
 				problems = append(problems, entry.Name+"."+col+" is not a person ID reference")
@@ -123,6 +131,24 @@ func lifecycleClassificationProblems(entries []lifecycleTable, columns []lifecyc
 		}
 	}
 	sort.Strings(problems)
+	return problems
+}
+
+// lifecycleSealedBindingProblems keeps a lookup for opening (#6412) on real
+// columns: the bound value lets the owner open a sealed column of the row and
+// may neither shadow a column nor serve a table that opens nothing.
+func lifecycleSealedBindingProblems(entry lifecycleTable, cols map[string]bool, tables map[string]map[string]bool) []string {
+	var problems []string
+	for key, binding := range entry.SealedBindings {
+		target := tables[binding.Table]
+		ok := !cols[key] && len(entry.OpenSealedColumns) > 0 && target[binding.Column] && len(binding.Match) > 0
+		for local, remote := range binding.Match {
+			ok = ok && cols[local] && target[remote]
+		}
+		if !ok {
+			problems = append(problems, entry.Name+"."+key+" needs a sealed binding on existing columns")
+		}
+	}
 	return problems
 }
 
@@ -205,6 +231,20 @@ func lifecycleExportProblems(entry lifecycleTable, cols map[string]bool) []strin
 			}
 		}
 	}
+	for sealed, plain := range entry.OpenSealedColumns {
+		// The ciphertext never leaves; the export writes the opened value
+		// under a name of its own (#3838).
+		if entry.Export != "include" || entry.ExcludeSecretColumns[sealed] == "" || plain == "" || cols[plain] {
+			problems = append(problems, entry.Name+"."+sealed+" needs an export exclusion and a new plaintext column name")
+		}
+	}
+	for container, projection := range entry.ProjectedColumns {
+		// The raw container never leaves; its owner writes a reviewed
+		// projection under a name of its own (#3838).
+		if entry.Export != "include" || entry.ExcludeSecretColumns[container] == "" || projection == "" || cols[projection] || entry.OpenSealedColumns[container] != "" {
+			problems = append(problems, entry.Name+"."+container+" needs an export exclusion and a new projection column name")
+		}
+	}
 	for col := range entry.AllowedSensitiveColumns {
 		if !lifecycleSecretName.MatchString(col) || entry.ExcludeSecretColumns[col] != "" {
 			problems = append(problems, entry.Name+"."+col+" has a stale or conflicting sensitive-name release")
@@ -265,6 +305,36 @@ func TestLifecycleClassificationRejectsGaps(t *testing.T) {
 			return v
 		}, "not a person ID reference"},
 		{"unknown export", func(v []lifecycleTable) []lifecycleTable { v[0].Export = "unknown"; return v }, "unknown export policy"},
+		{"opened ciphertext not excluded", func(v []lifecycleTable) []lifecycleTable {
+			v[0].OpenSealedColumns = map[string]string{"id": "plain_id"}
+			return v
+		}, "needs an export exclusion and a new plaintext column name"},
+		{"opened value overwrites a column", func(v []lifecycleTable) []lifecycleTable {
+			v[0].OpenSealedColumns = map[string]string{"password_hash": "tenant_id"}
+			return v
+		}, "needs an export exclusion and a new plaintext column name"},
+		{"binding shadows a column", func(v []lifecycleTable) []lifecycleTable {
+			v[1].OpenSealedColumns = map[string]string{"parent_id": "plain_parent"}
+			v[1].SealedBindings = map[string]lifecycleSealedBinding{"parent_id": {Table: "sample.parent", Column: "tenant_id", Match: map[string]string{"parent_id": "id"}}}
+			return v
+		}, "needs a sealed binding on existing columns"},
+		{"binding names an absent column", func(v []lifecycleTable) []lifecycleTable {
+			v[0].OpenSealedColumns = map[string]string{"password_hash": "password_plain"}
+			v[0].SealedBindings = map[string]lifecycleSealedBinding{"parent_ref": {Table: "sample.child", Column: "absent", Match: map[string]string{"id": "parent_id"}}}
+			return v
+		}, "needs a sealed binding on existing columns"},
+		{"binding without an opened column", func(v []lifecycleTable) []lifecycleTable {
+			v[1].SealedBindings = map[string]lifecycleSealedBinding{"parent_tenant": {Table: "sample.parent", Column: "tenant_id", Match: map[string]string{"parent_id": "id"}}}
+			return v
+		}, "needs a sealed binding on existing columns"},
+		{"projected container not excluded", func(v []lifecycleTable) []lifecycleTable {
+			v[0].ProjectedColumns = map[string]string{"id": "projected_id"}
+			return v
+		}, "needs an export exclusion and a new projection column name"},
+		{"projection overwrites a column", func(v []lifecycleTable) []lifecycleTable {
+			v[0].ProjectedColumns = map[string]string{"password_hash": "tenant_id"}
+			return v
+		}, "needs an export exclusion and a new projection column name"},
 	}
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {

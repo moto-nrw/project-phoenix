@@ -3,7 +3,7 @@ package settings
 import (
 	"context"
 
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // Existing setting identifiers exposed for platform-contract consumers.
@@ -17,6 +17,7 @@ const (
 // ParentMessagingValueSource is the resolver slice used by ParentMessagingValues.
 type ParentMessagingValueSource interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
+	ResolveString(ctx context.Context, key string) (string, error)
 }
 
 // ParentMessagingValues exposes canonical settings without moving their keys to consumers.
@@ -24,6 +25,9 @@ type ParentMessagingValues interface {
 	ResolveBool(ctx context.Context, key string) (bool, error)
 	ParentMessageStaffNameVisible(ctx context.Context) (bool, error)
 	ParentMessageLeadershipEnabled(ctx context.Context) (bool, error)
+	// CareFacilityTerm is the school's term for its care („OGS“, „GTS“),
+	// named in the guardian's new-message mail (#6082).
+	CareFacilityTerm(ctx context.Context) (string, error)
 }
 
 type parentMessagingValues struct{ source ParentMessagingValueSource }
@@ -46,6 +50,10 @@ func (v parentMessagingValues) ParentMessageStaffNameVisible(ctx context.Context
 
 func (v parentMessagingValues) ParentMessageLeadershipEnabled(ctx context.Context) (bool, error) {
 	return v.source.ResolveBool(ctx, configModel.KeyParentMessageLeadershipEnabled)
+}
+
+func (v parentMessagingValues) CareFacilityTerm(ctx context.Context) (string, error) {
+	return v.source.ResolveString(ctx, configModel.KeyEnrollmentCareFacilityTerm)
 }
 
 // ParentAnnouncementValueSource is the resolver slice used by ParentAnnouncementValues.

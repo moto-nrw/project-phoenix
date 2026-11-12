@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The second factor and both portals' passkey ceremonies live in Identity &
@@ -109,6 +109,16 @@ func newGatedAuthService(t *testing.T, db *bun.DB, mfa identityaccess.AccountMFA
 type gatedAuthService struct {
 	testAuthService
 	TokenAuth *sessiontoken.TokenAuth
+}
+
+// enrollMFA records the e-mail factor of a fixture account the way the
+// enrollment confirm does: with the proof of a redeemed code at the
+// account's current credential generation (#6518).
+func enrollMFA(ctx context.Context, t *testing.T, db bun.IDB, mfa identityaccess.AccountMFAEnrollment, accountID int64) error {
+	t.Helper()
+	var generation int64
+	require.NoError(t, db.NewRaw(`SELECT mfa_reset_generation FROM auth.accounts WHERE id = ?`, accountID).Scan(ctx, &generation))
+	return mfa.EnrollMFA(ctx, identityaccess.VerifiedMFAChallenge{AccountID: accountID, MFAResetGeneration: generation})
 }
 
 // mfaRows arranges and inspects the account MFA rows of a behaviour test

@@ -1,4 +1,4 @@
 {
-  "ogs": "Видно для OGS",
-  "ogsDescription": "Ці дані може бачити ваша OGS."
+  "ogs": "Видно для {careTerm}",
+  "ogsDescription": "Ці дані може бачити ваша {careTerm}."
 }

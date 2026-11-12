@@ -5,7 +5,7 @@ import (
 	"database/sql"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -31,7 +31,7 @@ func TestCallerStaffPreservesPostgresFailure(t *testing.T) {
 				_, err = caller.StaffID(txCtx)
 				return err
 			})
-			require.ErrorContains(t, err, "canceling statement due to lock timeout")
+			require.Equal(t, "55P03", testpkg.PostgresSQLState(err))
 		})
 	}
 }

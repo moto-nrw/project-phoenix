@@ -149,6 +149,7 @@ export const TEMPLATE_ISSUE_LABELS: Record<TemplateIssue, string> = {
   templates_differ: "Bedingungen der Module weichen ab",
   conclusion_automatic: "Bei der Annahme",
   acceptance_missing: "Zustimmung zum Vertrag fehlt",
+  acceptance_missing_renewal: "Zustimmung zur neuen Phase fehlt",
   acceptance_changed: "Bedingungen nach der Anmeldung geändert",
   recipient_missing: "E-Mail-Adresse der Eltern fehlt",
   mail_blocked: "Mail-Adresse gesperrt",
@@ -165,6 +166,8 @@ export const TEMPLATE_ISSUE_REASONS: Partial<Record<TemplateIssue, string>> = {
     "Die Schule ergänzt die E-Mail-Adresse in der Anmeldung. Danach versucht moto es erneut. Bis dahin entsteht kein Vertrag.",
   acceptance_missing:
     "Die Eltern haben in der Anmeldung den Vertragsbedingungen nicht zugestimmt. Es entsteht kein Vertrag. Zum Senden stellen Sie die Schule auf „Später verschicken“.",
+  acceptance_missing_renewal:
+    "Das Kind wurde wieder angemeldet. Die Eltern haben den Bedingungen für den neuen Zeitraum nicht zugestimmt, bevor die Schule angenommen hat. Es entsteht kein Vertrag. Zum Senden stellen Sie die Schule auf „Später verschicken“.",
   acceptance_changed:
     "Sie haben die Bedingungen nach der Anmeldung geändert. Die Eltern haben ihnen nicht zugestimmt. Es entsteht kein Vertrag. Zum Senden stellen Sie die Schule auf „Später verschicken“.",
 };

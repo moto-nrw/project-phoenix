@@ -6,7 +6,7 @@ package ports
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // Shifts is the Dienstplan surface the sick cascade writes through. Compose
@@ -18,6 +18,12 @@ type Shifts interface {
 	// included: the cascade must see an admin cancellation to leave it alone.
 	// A non-nil empty StaffIDs, Dates or OriginShiftIDs matches nothing.
 	ListStaffShifts(ctx context.Context, filter workforce.StaffShiftFilter) ([]workforce.StaffShift, error)
+	// FindStaffShiftSeries reads the current segment bounds before a sick
+	// cancellation is restored.
+	FindStaffShiftSeries(ctx context.Context, id int64) (workforce.StaffShiftSeries, error)
+	// DeleteStaffShift discards an obsolete occurrence, not a deliberate
+	// single-occurrence removal: no permanent series exception is recorded.
+	DeleteStaffShift(ctx context.Context, id int64) error
 	// ApplyCancellation cancels or reactivates one shift and replaces its
 	// full cover set in one unit of work.
 	ApplyCancellation(ctx context.Context, input workforce.CancelStaffShift) (workforce.StaffShiftCancellation, error)

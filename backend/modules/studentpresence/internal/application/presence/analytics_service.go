@@ -3,7 +3,8 @@ package presence
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Analytics and statistics
@@ -76,6 +77,10 @@ func applyLocationMetrics(analytics *DashboardAnalytics, locationData *locationM
 
 // applyDashboardAbsences fills the sick, excused and at-home counts. The
 // absences are optional: a failed count is logged and leaves them empty.
+//
+// Place before status (#6371): a checked-in child counts as present only. Its
+// sick or excused day is a hint and does not enter the sick or excused tile,
+// so present, sick, excused and home name every child once.
 func (s *service) applyDashboardAbsences(ctx context.Context, analytics *DashboardAnalytics, today calendar.Date, studentsPresent map[int64]bool) {
 	statusCounts, err := s.countEffectiveAbsencesForDate(ctx, today)
 	if err != nil {
@@ -84,8 +89,10 @@ func (s *service) applyDashboardAbsences(ctx context.Context, analytics *Dashboa
 		)
 		return
 	}
-	analytics.StudentsSick = statusCounts.Sick
-	analytics.StudentsExcused = statusCounts.Excused
+	analytics.SickCandidateIDs = studentpresence.WithoutCheckedIn(statusCounts.SickIDs, studentsPresent)
+	analytics.ExcusedCandidateIDs = studentpresence.WithoutCheckedIn(statusCounts.ExcusedIDs, studentsPresent)
+	analytics.StudentsSick = len(analytics.SickCandidateIDs)
+	analytics.StudentsExcused = len(analytics.ExcusedCandidateIDs)
 	analytics.HomeCandidateIDs = homeCandidateIDs(statusCounts.UnaccountedIDs, studentsPresent)
 	analytics.StudentsHome = len(analytics.HomeCandidateIDs)
 }
@@ -102,15 +109,15 @@ func (s *service) countEffectiveAbsencesForDate(ctx context.Context, date calend
 		return studentStatusCounts{}, nil
 	}
 	return studentStatusCounts{
-		Sick:           counts.Sick,
-		Excused:        counts.Excused,
+		SickIDs:        counts.SickIDs,
+		ExcusedIDs:     counts.ExcusedIDs,
 		UnaccountedIDs: counts.UnaccountedIDs,
 	}, nil
 }
 
 type studentStatusCounts struct {
-	Sick           int
-	Excused        int
+	SickIDs        []int64
+	ExcusedIDs     []int64
 	UnaccountedIDs []int64
 }
 

@@ -10,8 +10,8 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The children of a family (#5918, 1.15.815): one row per family of the
@@ -97,21 +97,30 @@ func (s *Store) FamilyChildCount(ctx context.Context, organizationID int64, fami
 // family on a contract; a confirmed number stays as it is. The statement and
 // the confirmation take the time of the write, after the lock of the monthly
 // billing, not the start of the transaction: a statement that waited for a
-// confirmation must stay newer than it.
-func (s *Store) StateFamilyChildren(ctx context.Context, organizationID, accountID int64, family string, contractID int64, children int) (int64, error) {
+// confirmation must stay newer than it. A statement made earlier (statedAt,
+// the registration of #6335) never replaces a newer one: applied is false
+// and nothing changes. statedAt is capped at the time of the write.
+func (s *Store) StateFamilyChildren(ctx context.Context, organizationID, accountID int64, family string, contractID int64, children int,
+	statedAt *time.Time) (id int64, applied bool, err error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
-		return 0, err
+		return 0, false, err
 	}
-	var id int64
 	err = db.NewRaw(`INSERT INTO parent_billing.family_child_counts
 			(organization_id, family_email, care_contract_id, stated_children, stated_at, stated_by_account_id)
-		VALUES (?0, ?1, ?2, ?3, clock_timestamp(), ?4)
+		VALUES (?0, ?1, ?2, ?3, LEAST(COALESCE(?5::timestamptz, clock_timestamp()), clock_timestamp()), ?4)
 		ON CONFLICT (organization_id, family_email) DO UPDATE SET care_contract_id = EXCLUDED.care_contract_id,
 			stated_children = EXCLUDED.stated_children, stated_at = EXCLUDED.stated_at,
 			stated_by_account_id = EXCLUDED.stated_by_account_id, updated_at = clock_timestamp()
-		RETURNING id`, organizationID, family, contractID, children, accountOrNull(accountID)).Scan(ctx, &id)
-	return id, familyChildWriteError(err)
+		WHERE family_child_counts.stated_at IS NULL OR family_child_counts.stated_at < EXCLUDED.stated_at
+		RETURNING id`, organizationID, family, contractID, children, accountOrNull(accountID), statedAt).Scan(ctx, &id)
+	if errors.Is(err, sql.ErrNoRows) {
+		return 0, false, nil
+	}
+	if err != nil {
+		return 0, false, familyChildWriteError(err)
+	}
+	return id, true, nil
 }
 
 // ConfirmFamilyChildren stores the number the Abrechnung confirmed for the
@@ -193,10 +202,10 @@ func (s *Store) InsertFamilyChildEvents(ctx context.Context, organizationID int6
 	}
 	account := accountOrNull(event.AccountID)
 	if _, err := db.ExecContext(ctx, `INSERT INTO parent_billing.family_child_count_events
-			(organization_id, care_contract_id, family_child_count_id, action, actor, actor_account_id, children, valid_from, valid_until)
-		SELECT ?, target.contract_id, NULLIF(target.count_id, 0), ?, ?, ?, ?, ?, ?
+			(organization_id, care_contract_id, family_child_count_id, action, actor, actor_account_id, children, valid_from, valid_until, channel)
+		SELECT ?, target.contract_id, NULLIF(target.count_id, 0), ?, ?, ?, ?, ?, ?, NULLIF(?, '')
 		FROM unnest(?::bigint[], ?::bigint[]) AS target(contract_id, count_id)`,
-		organizationID, event.Action, event.Actor, account, event.Children, event.ValidFrom, event.ValidUntil,
+		organizationID, event.Action, event.Actor, account, event.Children, event.ValidFrom, event.ValidUntil, event.Channel,
 		pgdialect.Array(contractIDs), pgdialect.Array(countIDs)); err != nil {
 		return fmt.Errorf("record family child count event: %w", err)
 	}

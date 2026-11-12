@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/classday/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // classDayStatusRank orders the scheduled day statuses. The scale leaves rank
@@ -58,7 +58,7 @@ func (s *dayReports) classDayStatusFacts(ctx context.Context, studentIDs []int64
 	if s.statusDays == nil || len(studentIDs) == 0 {
 		return out, stamps, school, nil
 	}
-	entries, err := s.statusDays.ActiveStatusDays(ctx, studentIDs, date)
+	entries, err := s.statusDays.StandingStatusDays(ctx, studentIDs, date)
 	if err != nil {
 		return nil, nil, nil, fmt.Errorf("class day report: load status days: %w", err)
 	}

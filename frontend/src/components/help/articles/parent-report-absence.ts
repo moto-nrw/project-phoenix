@@ -33,6 +33,8 @@ export function parentReportAbsenceTopic(): HelpTopic {
       "Manche OGS bestätigen jede Meldung erst. Dann steht `Freigabe ausstehend`, und Ihr Kind gilt bis dahin als erwartet.",
       "Am Kind steht danach `Krank` oder `Entschuldigt` mit den Tagen.",
       "Wurde eine Anfrage abgelehnt, steht dort `Abgelehnt`.",
+      // #5698: Schuleinträge überschreibt keine Elternmeldung.
+      "Hat die OGS einen Tag schon eingetragen, etwa ab einer Uhrzeit entschuldigt? Dann geht für diesen Tag eine Anfrage an die OGS. Sie entscheidet. Bis dahin gilt ihr Eintrag. Die anderen Tage meldet moto direkt.",
     ],
     troubleshootingDetails: [
       "moto meldet, für einen Tag liege schon eine Abmeldung vor? Prüfen Sie die bestehende Meldung mit `Anfrage bearbeiten`.",

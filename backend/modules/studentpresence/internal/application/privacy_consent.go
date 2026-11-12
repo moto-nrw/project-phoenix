@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
 )
 
 const (
@@ -48,6 +48,37 @@ func (s *Service) RecordPrivacyConsent(ctx context.Context, value studentpresenc
 		return studentpresence.PrivacyConsent{}, err
 	}
 	return row, nil
+}
+
+// The data import binds the consent batch slice outside Owner (#5552).
+var _ studentpresence.PrivacyConsentBatches = (*Service)(nil)
+
+// RecordPrivacyConsents is RecordPrivacyConsent for many consents in one
+// statement: each value is validated like a single record, then all are
+// written or none. A batch command joins its caller's transaction and never
+// opens one (ADR 0067 addendum of 2026-11-08, point 3); the data import
+// observes it (record_privacy_consents), as with People Directory's
+// CreatePersons.
+func (s *Service) RecordPrivacyConsents(ctx context.Context, values []studentpresence.PrivacyConsent) error {
+	if len(values) == 0 {
+		return nil
+	}
+	rows := make([]studentpresence.PrivacyConsent, len(values))
+	for i, value := range values {
+		rows[i] = studentpresence.PrivacyConsent{
+			StudentID: value.StudentID, PolicyVersion: value.PolicyVersion, Accepted: value.Accepted,
+			AcceptedAt: value.AcceptedAt, ExpiresAt: value.ExpiresAt, DurationDays: value.DurationDays,
+			RenewalRequired: value.RenewalRequired, DataRetentionDays: value.DataRetentionDays, Details: value.Details,
+		}
+		if !validPrivacyConsent(&rows[i]) {
+			return studentpresence.ErrInvalidPrivacyConsent
+		}
+	}
+	if err := s.tx.Require(ctx); err != nil {
+		return err
+	}
+	_, err := s.store.RecordPrivacyConsents(ctx, rows)
+	return err
 }
 
 func (s *Service) ListAcceptedRetentionSettings(ctx context.Context) (rows []studentpresence.StudentRetentionSetting, err error) {

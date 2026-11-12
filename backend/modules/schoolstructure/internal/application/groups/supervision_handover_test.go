@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	schoolStructureCompose "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -41,6 +41,7 @@ func newSupervisionHandoverFixture(t *testing.T) supervisionHandoverFixture {
 	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
 		ActiveSupervisorCreator: testpkg.GroupSupervisorCreator{Repository: reposPresence.GroupSupervisor},
+		StaffBalance:            testpkg.SettingsRuntime(t, db).LockStaffBalance,
 		SupervisionRelease:      presence,
 		Broadcaster:             api.NewGroupEvents(broadcaster, nil),
 	})
@@ -216,6 +217,7 @@ func TestSupervisionReleaseWithoutPresenceBindingIsRefused(t *testing.T) {
 	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
 		ActiveSupervisorCreator: testpkg.GroupSupervisorCreator{Repository: reposPresence.GroupSupervisor},
+		StaffBalance:            testpkg.SettingsRuntime(t, db).LockStaffBalance,
 	})
 	_, accountID := activeTeacher(t, db, "Nora", "Unbound")
 	err := testpkg.TenantCommand2(t, testpkg.Ctx(t), db, module.End, substitutionCaller(t, accountID, false),

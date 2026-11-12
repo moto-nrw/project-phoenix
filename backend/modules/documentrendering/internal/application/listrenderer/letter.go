@@ -19,7 +19,7 @@ import (
 	_ "image/png"
 	"strings"
 
-	listrecords "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
+	listrecords "github.com/moto-ogs/project-phoenix/modules/documentrendering/records"
 	"github.com/signintech/gopdf"
 )
 
@@ -119,11 +119,7 @@ func newLetterChrome(title string) (*pageChrome, error) {
 	if err := pdf.AddTTFFontData(fallbackFontFamily, unifontRegular); err != nil {
 		return nil, fmt.Errorf("embed fallback font: %w", err)
 	}
-	primaryCov, err := newFontCoverage(interRegular)
-	if err != nil {
-		return nil, err
-	}
-	fallbackCov, err := newFontCoverage(unifontRegular)
+	primaryCov, fallbackCov, err := documentCoverages()
 	if err != nil {
 		return nil, err
 	}

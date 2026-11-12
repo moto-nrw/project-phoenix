@@ -4,10 +4,10 @@ import (
 	"errors"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // Error rules classify owner identities; the first matching rule wins.
@@ -20,6 +20,25 @@ func classifyServiceError(err error) render.Renderer {
 // classifyAbsenceError maps known absence business errors to HTTP status codes
 func classifyAbsenceError(err error) render.Renderer {
 	return common.RenderWithRules(err, absenceErrorRules, common.ErrorInternalServer)
+}
+
+// classifyAdminEditError maps service errors to HTTP responses. Validation
+// problems (notes missing, range invalid) land as 400; ownership mismatches
+// and "not found" as 404 to avoid leaking session existence.
+func classifyAdminEditError(err error) render.Renderer {
+	return common.RenderWithRules(err, adminEditErrorRules, common.ErrorInternalServer)
+}
+
+var adminEditErrorRules = []common.ErrorRule{
+	{Match: isAny(workforce.ErrSessionStatusNoteRequired, workforce.ErrSessionTimesNoteRequired,
+		workforce.ErrAdminSessionNoteRequired, workforce.ErrAdminSessionCreateNoteRequired,
+		workforce.ErrTargetStaffRequired, workforce.ErrSessionCheckinRequired, workforce.ErrSessionStaffRequired,
+		workforce.ErrSessionCreatorRequired, workforce.ErrSessionStatusInvalid, workforce.ErrSessionTimeOrder,
+		workforce.ErrSessionCheckoutOrder, workforce.ErrAdminBreakMinutesNegative, workforce.ErrSessionCheckInAfterDate,
+		workforce.ErrBreakMinutesNegative, workforce.ErrBreakDurationNegative, workforce.ErrActiveBreakDurationEdit), Render: common.ErrorInvalidRequest},
+	{Match: isAny(workforce.ErrSessionNotFound, workforce.ErrAdminSessionNotOwned, workforce.ErrBreakNotOwned), Render: common.ErrorNotFound},
+	{Target: workforce.ErrWorkSessionOverlap, Render: conflictWithCode(common.CodeWorkforceWorkSessionOverlap)},
+	{Target: workforce.ErrTimeTrackingInvalid, Render: common.ErrorInvalidRequest},
 }
 
 var serviceErrorRules = []common.ErrorRule{
@@ -45,11 +64,14 @@ var serviceErrorRules = []common.ErrorRule{
 	// staff ID or creator is a server fault and stays a 500.
 	{Match: isAny(workforce.ErrSessionTimeOrder, workforce.ErrBreakMinutesNegative, workforce.ErrSessionCheckoutOrder, workforce.ErrBreakDurationNegative), Render: invalidWithCode(common.CodeWorkforceSessionTimesInvalid)},
 	{Match: isAny(workforce.ErrSessionStatusNoteRequired, workforce.ErrSessionTimesNoteRequired), Render: invalidWithCode(common.CodeWorkforceSessionNoteRequired)},
+	{Target: workforce.ErrSessionCheckInInFuture, Render: invalidWithCode(common.CodeWorkforceSessionCheckInInFuture)},
+	{Target: workforce.ErrSessionCheckInAfterDate, Render: common.ErrorInvalidRequest},
 	{Target: workforce.ErrSessionStatusInvalid, Render: common.ErrorInvalidRequest},
 	{Target: workforce.ErrSessionSourceInvalid, Render: common.ErrorInvalidRequest},
 	{Target: workforce.ErrPlannedBreakDurationInvalid, Render: common.ErrorInvalidRequest},
 	{Target: workforce.ErrBreakNotOwned, Render: common.ErrorInvalidRequest},
 	{Target: workforce.ErrActiveBreakDurationEdit, Render: common.ErrorInvalidRequest},
+	{Target: workforce.ErrTimeTrackingInvalid, Render: common.ErrorInvalidRequest},
 }
 
 var absenceErrorRules = []common.ErrorRule{

@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/domain"
 )
 
 // The owner fakes hold no Träger membership (ADR 0084); the Träger flows are
@@ -31,6 +31,14 @@ func (fakeOwnerStore) UpsertActiveTraegerMembership(context.Context, int64, int6
 }
 
 func (fakeOwnerStore) DeactivateTraegerMembership(context.Context, int64, int64) (bool, domain.OperationStats, error) {
+	return false, domain.OperationStats{}, nil
+}
+
+func (fakeOwnerStore) ListTraegerMemberNames(context.Context, int64, []int64) ([]organizationtenancy.TraegerMemberName, domain.OperationStats, error) {
+	return nil, domain.OperationStats{}, nil
+}
+
+func (fakeOwnerStore) SetTraegerMemberName(context.Context, int64, int64, string) (bool, domain.OperationStats, error) {
 	return false, domain.OperationStats{}, nil
 }
 
@@ -72,6 +80,14 @@ func (fakeOwnerStore) InsertTraegerErasureOrder(context.Context, organizationten
 	return organizationtenancy.TraegerErasureOrder{}, domain.OperationStats{}, nil
 }
 
+func (fakeOwnerStore) UpdateTraegerErasureOrderRecords(context.Context, int64, organizationtenancy.RecordsHandover) (organizationtenancy.TraegerErasureOrder, bool, domain.OperationStats, error) {
+	return organizationtenancy.TraegerErasureOrder{}, false, domain.OperationStats{}, nil
+}
+
 func (fakeOwnerStore) WithdrawTraegerErasureOrder(context.Context, int64, int64) (bool, domain.OperationStats, error) {
+	return false, domain.OperationStats{}, nil
+}
+
+func (fakeOwnerStore) HasRetainedTraegerMembership(context.Context, int64) (bool, domain.OperationStats, error) {
 	return false, domain.OperationStats{}, nil
 }

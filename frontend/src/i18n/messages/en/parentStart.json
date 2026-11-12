@@ -20,7 +20,7 @@
     "emptyDescription": "There is nothing to do right now.",
     "messageTitleOne": "New message",
     "messageTitleMany": "{count} new messages",
-    "messageContext": "OGS · About {name}",
+    "messageContext": "{careTerm} · About {name}",
     "pollContext": "Survey · {school}",
     "declarationContext": "Consent · {school}",
     "newsContext": "Letter to parents · {school}",
@@ -33,7 +33,26 @@
     "loading": "Loading tasks",
     "errorObject": "the full to-do list"
   },
+  "holiday": {
+    "listTitle": "Holiday care",
+    "badgeOpen": "Registration open",
+    "badgeUpcoming": "Registration from {date}",
+    "care": "Care",
+    "registration": "Registration",
+    "range": "{from} to {to}",
+    "until": "until {date}",
+    "lastDay": "Today is the last day",
+    "daysLeft": "{days, plural, one {# day} other {# days}} left",
+    "for": "For",
+    "register": "Register now",
+    "registerLabel": "{name}: Register now",
+    "forChildren": "For {names}",
+    "offeredByTraeger": "Offered by {traeger}",
+    "careLine": "Care {from} to {to}",
+    "registrationLine": "Registration until {date}",
+    "registrationRangeLine": "Registration {from} to {to}"
+  },
   "childrenLoading": "Loading children",
-  "noChildren": "No child is linked to your account yet. Your school's OGS can set this up.",
+  "noChildren": "No child is linked to your account yet. Your school's {careTerm} can set this up.",
   "errorObject": "the overview of your children"
 }

@@ -77,27 +77,20 @@ jobs:
           go-version-file: backend/go.mod
           cache: true
           cache-dependency-path: backend/go.sum
-      - name: Test backend test scripts
-        run: |
-          scripts/backend-affected-packages_test.sh
-          scripts/backend-test-matrix_test.sh
-          scripts/test-changed_test.sh
-          scripts/go-test-link-cache_test.sh
+      # No script self-tests here: this job runs before the backend tests on
+      # the critical path, and those suites took 109 s of its 153 s (#6784).
+      # A change to a selection script or its test sets full-backend-suite
+      # (backend-test-infra in main.yml), which skips this job and runs the
+      # suites in test-backend instead.
       - name: Select and partition backend packages
         id: packages
         working-directory: backend
         env:
-          CHANGED_SCOPE: ${{ inputs.changed-scope }}
           FULL_SUITE: ${{ inputs.full-backend-suite }}
           BASE_REF: ${{ inputs.base_ref }}
         run: |
-          if [ "$CHANGED_SCOPE" = true ] && [ "$FULL_SUITE" = false ] && [ -n "$BASE_REF" ]; then
-            packages=$(../scripts/backend-affected-packages.sh "origin/$BASE_REF")
-            if [ "$packages" = ./... ]; then
-              packages=$(go list ./...)
-              FULL_SUITE=true
-            fi
-          else
+          packages=$(../scripts/backend-affected-packages.sh "origin/$BASE_REF")
+          if [ "$packages" = ./... ]; then
             packages=$(go list ./...)
             FULL_SUITE=true
           fi
@@ -134,6 +127,11 @@ jobs:
           POSTGRES_USER: postgres
           POSTGRES_PASSWORD: postgres
           TZ: Europe/Berlin
+          # As the local test server (docker-compose.example.yml). Six package
+          # binaries hold a pool of twelve each, and every isolated clone adds
+          # its own: with two clones per package the default of 100 answered
+          # "too many clients already" (#6784).
+          POSTGRES_INITDB_ARGS: --set max_connections=300
         ports:
           - 5432:5432
         # Package database drops force checkpoints. These disposable databases
@@ -155,7 +153,10 @@ jobs:
           fetch-depth: 1
           filter: ${{ !(matrix.blobs || matrix.shard == 1) && 'blob:none' || '' }}
 
-      - name: Fetch backend comparison history
+      # Runs in the background while Node, Go and the build cache are set up
+      # (28 s of 383 s in series, #6784); "Finish fetching" below waits for it.
+      # None of the steps in between reads git.
+      - name: Start fetching backend comparison history
         env:
           BASE_REF: ${{ inputs.base_ref }}
         run: |
@@ -165,12 +166,16 @@ jobs:
           fi
           # Full ancestry keeps merge-base intact for the architecture
           # comparisons. Unrelated refs and tags are not test inputs.
-          git fetch --no-tags --unshallow origin "${refs[@]}"
+          (
+            set +e
+            git fetch --no-tags --unshallow origin "${refs[@]}"
+            echo "$?" > "$RUNNER_TEMP/history-status"
+          ) > "$RUNNER_TEMP/history.log" 2>&1 < /dev/null &
 
       - name: Setup Node.js for error-code generator fixtures
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       - name: Setup Go
         id: go
@@ -180,9 +185,24 @@ jobs:
           cache: true
           cache-dependency-path: backend/go.sum
 
+      # The SEPA direct debit file is checked against the official ISO
+      # schema with xmllint (#4697); the runner image does not carry it.
+      # Refresh the package lists only when the cached ones miss it.
+      - name: Install xmllint for the XML schema tests
+        run: |
+          command -v xmllint >/dev/null && exit 0
+          sudo apt-get install -y -qq --no-install-recommends libxml2-utils \
+            || { sudo apt-get update -qq && sudo apt-get install -y -qq --no-install-recommends libxml2-utils; }
+
       # setup-go's go.sum-only key is immutable. It restores dependencies but
       # never saves later source builds on an exact hit. Keep a source-keyed
       # build layer per shard, with the last source build as a warm fallback.
+      # Pull requests only restore: a cache a pull request saves is visible to
+      # that pull request alone, and the 2 GB saves of every run pushed the
+      # repository over its cache limit, so even development's layer was
+      # evicted and every job compiled the whole backend (#6784: test step
+      # 574 s cold, 314 s warm). backend-build-cache.yml saves the layer
+      # pull requests restore, on each push to development.
       - name: Compute backend build cache key
         id: build-cache-key
         env:
@@ -192,11 +212,19 @@ jobs:
           echo "prefix=$BACKEND_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
           echo "key=$BACKEND_CACHE_PREFIX$BACKEND_SOURCE_HASH" >> "$GITHUB_OUTPUT"
       - name: Restore backend build cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: build-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/go-build
           key: ${{ steps.build-cache-key.outputs.key }}
           restore-keys: ${{ steps.build-cache-key.outputs.prefix }}
+
+      - name: Finish fetching backend comparison history
+        timeout-minutes: 5
+        run: |
+          until test -s "$RUNNER_TEMP/history-status"; do sleep 1; done
+          cat "$RUNNER_TEMP/history.log"
+          exit "$(cat "$RUNNER_TEMP/history-status")"
 
       - name: Test backend test scripts
         if: ${{ matrix.shard == 0 && (!inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '') }}
@@ -205,6 +233,7 @@ jobs:
           scripts/backend-test-matrix_test.sh
           scripts/test-changed_test.sh
           scripts/go-test-link-cache_test.sh
+          scripts/go-cache-sweep_test.sh
 
       - name: Verify snapshot roles match migrations
         if: matrix.shard == 0
@@ -247,7 +276,9 @@ jobs:
           CREATE ROLE phoenix_diagnostics NOLOGIN NOINHERIT;
           CREATE ROLE phoenix_school_erasure NOLOGIN NOINHERIT NOBYPASSRLS;
           CREATE ROLE phoenix_billing_retention NOLOGIN NOINHERIT NOBYPASSRLS;
+          CREATE ROLE phoenix_data_return NOLOGIN NOINHERIT NOBYPASSRLS;
           CREATE ROLE phoenix_tenant_export NOLOGIN BYPASSRLS;
+          CREATE ROLE phoenix_holiday_closure_reader NOLOGIN NOINHERIT NOBYPASSRLS;
           GRANT pg_read_all_data TO phoenix_tenant_export;
           GRANT phoenix_tenant TO phoenix_auth;
           GRANT phoenix_admin TO phoenix_auth;
@@ -352,7 +383,21 @@ jobs:
           # Single pass produces junit.xml. No retries: flaky tests should fail
           # loudly, not be hidden. gotestsum propagates race/test failures.
           "${measure[@]}" go tool gotestsum --format pkgname-and-test-fails \
-            --junitfile junit.xml -- "${race_flags[@]}" -count=1 -parallel 8 -p "$PACKAGE_WORKERS" "${packages[@]}"
+            --junitfile junit.xml --jsonfile go-test.json \
+            -- "${race_flags[@]}" -count=1 -parallel 8 -p "$PACKAGE_WORKERS" "${packages[@]}"
+
+      # A package over its budget fails the pull request that made it slower,
+      # not the next unrelated one that crosses Go's timeout (#6784).
+      - name: Check backend package time budgets
+        if: ${{ !cancelled() && !inputs.backend-race && hashFiles('backend/go-test.json') != '' }}
+        run: node scripts/backend-package-budgets.mjs check backend/go-test.json
+
+      - name: Save backend build cache
+        if: ${{ !cancelled() && github.event_name != 'pull_request' && steps.build-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: ${{ steps.build-cache-key.outputs.key }}
 
       - name: Summarize race test resources
         if: ${{ always() && inputs.backend-race }}
@@ -368,7 +413,7 @@ jobs:
           fi
 
       - name: Publish backend test results
-        uses: mikepenz/action-junit-report@6ef3fdcfcd5f0b5d14df3e659ef19b8c6820f93d # v6.6.1
+        uses: mikepenz/action-junit-report@a16be3a69023e9bd7e748ede768b3282ea7b30ce # v6.7.1
         if: ${{ always() && hashFiles('backend/junit.xml') != '' }}
         with:
           report_paths: backend/junit.xml
@@ -406,9 +451,9 @@ jobs:
         run: corepack enable
 
       - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
           cache: "pnpm"
           cache-dependency-path: frontend/pnpm-lock.yaml
 
@@ -546,6 +591,8 @@ jobs:
       TURNSTILE_SECRET_KEY: ${{ matrix.scenario == 'queue' && '2x0000000000000000000000000000000AA' || '1x0000000000000000000000000000000AA' }}
       # The development key ring of .env.example for the holiday health data (#4722).
       HEALTH_DATA_KEYS: dev:bW90by1kZXYtb25seS1oZWFsdGgta2V5LTMyYnl0ZXM=
+      BANK_DATA_KEYS: devbank:bW90by1kZXYtb25seS1iYW5rLWtleSEhISEhISEhISE=
+      BANK_DATA_LEGACY_KEYS: ""
       SCHOOL_URL: http://schule.localhost:3000
       CATERER_URL: http://caterer.localhost:3000
       TRAEGER_URL: http://traeger.localhost:3000
@@ -637,11 +684,13 @@ jobs:
 
       # Downloading the test modules and compiling the coverage ratchet took
       # 12 s after the seed, for a test that runs 0.1 s. It compiles now while
-      # the seeder waits on the server; the ratchet step waits for it.
+      # the seeder waits on the server; the ratchet step waits for it. The
+      # modules download first, before the next step moves the clock.
       - name: Compile the seed coverage ratchet in the background
         if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
+          go list -deps -test ./internal/devtools/seedapi/ > /dev/null
           (
             if go test -c -o "${RUNNER_TEMP}/seed-coverage.test" ./internal/devtools/seedapi/ \
               > "${RUNNER_TEMP}/seed-coverage-build.log" 2>&1; then
@@ -650,6 +699,46 @@ jobs:
               echo failed > "${RUNNER_TEMP}/seed-coverage-build.status"
             fi
           ) > /dev/null 2>&1 &
+
+      # Server, seed, simulation and Postgres read the clock of this VM, and the
+      # server keeps attendance, shifts and blocks per Berlin day. A run that
+      # crossed Berlin midnight checked a child in on one day and failed to
+      # pick it up on the next (runs 41359665512, 42422930038, 42532710545;
+      # #5511). The job therefore starts at the next 07:20 Berlin, before the
+      # first wave of the simulated day, and the simulation moves the clock
+      # through the day with --clock-command up to 12:50. Seed and simulation
+      # then share one Berlin day whenever the job starts. The clock only moves
+      # forward, after every download: TLS certificates stay valid. set-clock
+      # records the shift; "Restore the runner clock" undoes it before the
+      # cache upload.
+      - name: Move the runner clock to the next 07:20 Berlin
+        run: |
+          cat > "${RUNNER_TEMP}/set-clock" <<'SCRIPT'
+          #!/usr/bin/env bash
+          # set-clock <Unix seconds>: sets the VM clock and records in
+          # clock-shift how far it runs ahead of the real time.
+          set -euo pipefail
+          shift_file="${RUNNER_TEMP:?}/clock-shift"
+          now=$(date +%s)
+          offset=$(cat "${shift_file}" 2>/dev/null || echo 0)
+          sudo date -s "@$1" > /dev/null
+          echo $(( now + offset - $1 )) > "${shift_file}.new"
+          mv "${shift_file}.new" "${shift_file}"
+          SCRIPT
+          chmod +x "${RUNNER_TEMP}/set-clock"
+          # Count in calendar days, not seconds: a day of the clock change
+          # has 23 or 25 hours.
+          now=$(date +%s)
+          today=$(TZ=Europe/Berlin date -d "@${now}" +%F)
+          target=$(TZ=Europe/Berlin date -d "${today} 07:20" +%s)
+          if [ "${target}" -le "${now}" ]; then
+            target=$(TZ=Europe/Berlin date -d "$(TZ=Europe/Berlin date -d "${today} +1 day" +%F) 07:20" +%s)
+          fi
+          # Without time synchronisation, which would set the clock back.
+          sudo timedatectl set-ntp false
+          sudo systemctl stop chrony.service systemd-timesyncd.service 2>/dev/null || true
+          "${RUNNER_TEMP}/set-clock" "${target}"
+          echo "VM clock set to $(TZ=Europe/Berlin date '+%A, %F %T %Z')"
 
       - name: Run migrations
         working-directory: backend
@@ -737,7 +826,9 @@ jobs:
         if: ${{ matrix.scenario == 'profiles' }}
         working-directory: backend
         run: |
-          "${RUNNER_TEMP}/devtools" simulate full-day --profile vollbetrieb
+          "${RUNNER_TEMP}/devtools" simulate full-day --profile vollbetrieb \
+            --clock-command "${RUNNER_TEMP}/set-clock"
+          echo "VM clock after the simulation: $(TZ=Europe/Berlin date '+%A, %F %T %Z')"
 
       - name: Verify manual attendance profile
         if: ${{ matrix.scenario == 'profiles' }}
@@ -754,12 +845,15 @@ jobs:
 
       # The public demo (#3456) seeds one such school per visitor into a
       # database that already holds others. The duration is what a visitor
-      # waits for, so it is printed per school.
+      # waits for, so it is printed per school. The second school sorts before
+      # the first by name, as a new order sorts before older demo schools on
+      # the demo server: the Träger pages then list its contracts first, and
+      # its seed must not use rules that only reach the earlier school.
       - name: Seed two demo schools into the same database and simulate their day
         if: ${{ matrix.scenario == 'isolation' }}
         working-directory: backend
         run: |
-          for slug in demo-smoke-eins demo-smoke-zwei; do
+          for slug in demo-smoke-zwei demo-smoke-eins; do
             started=$(date +%s)
             "${RUNNER_TEMP}/devtools" seed \
               --email "${OPERATOR_EMAIL}" \
@@ -773,9 +867,21 @@ jobs:
               --state "${RUNNER_TEMP}/${slug}.seed-state.json"
             seeded=$(date +%s)
             "${RUNNER_TEMP}/devtools" simulate full-day --profile vollbetrieb \
-              --state "${RUNNER_TEMP}/${slug}.seed-state.json"
+              --state "${RUNNER_TEMP}/${slug}.seed-state.json" \
+              --clock-command "${RUNNER_TEMP}/set-clock"
             finished=$(date +%s)
             echo "demo school ${slug}: seed $((seeded - started))s, full day $((finished - seeded))s"
+          done
+          # Both schools share the demo Träger, as every demo order on the
+          # demo server does: each bills its own contracts in a run of its
+          # own and exports that run to DATEV, even though the other school
+          # billed and exported the same months first.
+          for slug in demo-smoke-zwei demo-smoke-eins; do
+            invoices=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM parent_billing.care_invoices i JOIN platform.schools s ON s.id = i.school_id WHERE s.slug = '${slug}'")
+            datev=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM parent_billing.export_files f JOIN parent_billing.care_run_schools r ON r.organization_id = f.organization_id AND r.run_id = f.run_id JOIN platform.schools s ON s.id = r.school_id WHERE f.run_kind = 'care' AND f.format = 'datev' AND s.slug = '${slug}'")
+            echo "demo school ${slug}: ${invoices} monthly invoices, ${datev} DATEV files of its runs"
+            test "${invoices}" -gt 0
+            test "${datev}" -gt 0
           done
 
       - name: Provision and restart the standing demo school
@@ -833,6 +939,17 @@ jobs:
                    WHERE other.account_id = d.visitor_parent_account_id) = 1")
           echo "demo schools with the visitor's parent: ${parents}"
           test "${parents}" = 3
+          # Each ordered school bills its own contracts (#6621): its deferred
+          # seed adds the applications, then the Träger concludes and bills them.
+          billed=$(psql "${DB_DSN}" -At -c "
+            SELECT count(*) FROM platform.demo_school_states d
+            WHERE d.name LIKE 'ogs-smoke-%'
+              AND EXISTS (SELECT 1 FROM parent_billing.care_invoices i WHERE i.school_id = d.tenant_id)
+              AND EXISTS (SELECT 1 FROM parent_billing.export_files f
+                JOIN parent_billing.care_run_schools r ON r.organization_id = f.organization_id AND r.run_id = f.run_id
+                WHERE f.run_kind = 'care' AND f.format = 'datev' AND r.school_id = d.tenant_id)")
+          echo "demo schools with monthly invoices and a DATEV file of their own: ${billed}"
+          test "${billed}" = 3
 
       # Demo visitors are erased (#4048): hide the three schools as the
       # expiry does 14 days after their last use, let the demo process run its
@@ -861,9 +978,15 @@ jobs:
           psql "${DB_DSN}" -v ON_ERROR_STOP=1 -c \
             "UPDATE platform.schools SET deleted_at = NOW() - INTERVAL '2 hours'
              WHERE id IN (SELECT tenant_id FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%')"
-          "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --uploads-root public/uploads --once
-          orders=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%'")
-          echo "demo orders left after the erasure: ${orders}"
+          # The erasure starts no order after 250 ms and leaves the rest to its
+          # next run; with their own contracts and invoices (#6621) three
+          # schools can take two runs.
+          for run in 1 2 3; do
+            "${RUNNER_TEMP}/devtools" demo --url http://localhost:8080 --uploads-root public/uploads --once
+            orders=$(psql "${DB_DSN}" -At -c "SELECT count(*) FROM platform.demo_school_states WHERE name LIKE 'ogs-smoke-%'")
+            echo "demo orders left after erasure run ${run}: ${orders}"
+            test "${orders}" = 0 && break
+          done
           test "${orders}" = 0
           for school in ${schools}; do
             left=$(find public/uploads \( -name "${school}" -o -name "${school}_*" \) | wc -l)
@@ -910,6 +1033,18 @@ jobs:
             exit 1
           fi
           "${RUNNER_TEMP}/seed-coverage.test" -test.run TestSeedCoverageRatchet -test.v
+
+      # Before any upload: the cache service and TLS expect the real time.
+      - name: Restore the runner clock
+        if: always()
+        run: |
+          seconds=$(cat "${RUNNER_TEMP}/clock-shift" 2>/dev/null || echo 0)
+          if [ "${seconds}" -eq 0 ]; then
+            exit 0
+          fi
+          sudo date -s "@$(( $(date +%s) + seconds ))" > /dev/null
+          sudo timedatectl set-ntp true || true
+          echo "VM clock real again: $(TZ=Europe/Berlin date '+%A, %F %T %Z')"
 
       # profiles also compiled the coverage ratchet, so its build cache is the
       # fullest of the three scenarios.

@@ -3,8 +3,8 @@ package domain
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -269,4 +269,46 @@ func TestHistoricalParticipationHonorsRecordedPresenceBeforeTheStart(t *testing.
 		"a day without presence stays out")
 	assert.True(t, HistoricalParticipationOn(ids, students, boundaries, today, today, map[int64]bool{newChild: true})[newChild],
 		"presence today counts as well")
+}
+
+// A child's care ended on 31 October; on 7 November the school resumes it
+// for 1 February (#6073). School Membership keeps the gap, so the days in
+// between are no care days on every later read, also after the activation,
+// while the care before the end and recorded presence in the gap still
+// count.
+func TestParticipationLeavesOutTheCareGapOfAReturningChild(t *testing.T) {
+	t.Parallel()
+	ended, resumes := calendar.Date("2099-10-31"), calendar.Date("2100-02-01")
+	const (
+		pending int64 = iota + 1
+		activated
+		unknown
+	)
+	students := map[int64]CareStudent{
+		pending:   {Status: careplan.StudentStatusPending, EnrolledFrom: &resumes, CarePausedAfter: &ended, CareResumedFrom: &resumes},
+		activated: {Status: careplan.StudentStatusActive, EnrolledFrom: &resumes, CarePausedAfter: &ended, CareResumedFrom: &resumes},
+		unknown:   {Status: careplan.StudentStatusPending, EnrolledFrom: &resumes},
+	}
+	ids := []int64{pending, activated, unknown}
+	boundaries := ParticipationBoundaries(students, nil)
+	for _, today := range []calendar.Date{"2099-11-08", "2100-02-02"} {
+		for _, day := range []calendar.Date{"2099-11-01", "2099-11-06", "2100-01-31"} {
+			if day.After(today) {
+				continue
+			}
+			for _, id := range []int64{pending, activated} {
+				assert.False(t, HistoricalParticipationOn(ids, students, boundaries, day, today, nil)[id],
+					"read %s: %s lies in the gap of child %d", today, day, id)
+				assert.False(t, ParticipatingOn(ids, students, boundaries, day, today, nil)[id], day)
+			}
+		}
+		assert.True(t, HistoricalParticipationOn(ids, students, boundaries, ended, today, nil)[pending],
+			"the last care day before the gap counts")
+		assert.True(t, HistoricalParticipationOn(ids, students, boundaries, "2099-11-03", today, nil)[unknown],
+			"without a known gap a returning child keeps its past days")
+	}
+	assert.True(t, HistoricalParticipationOn(ids, students, boundaries, resumes, "2100-02-02", nil)[activated],
+		"the day care resumes counts")
+	assert.True(t, HistoricalParticipationOn(ids, students, boundaries, "2099-11-04", "2099-11-08", map[int64]bool{pending: true})[pending],
+		"recorded presence in the gap is care")
 }

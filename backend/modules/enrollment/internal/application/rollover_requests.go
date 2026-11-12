@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"time"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type rolloverChildAttributes struct {
@@ -74,22 +74,36 @@ func (s *Rollovers) rollOneRequest(ctx context.Context, input rolloverRequestInp
 }
 
 func (s *Rollovers) createRolloverRequest(ctx context.Context, input rolloverRequestInput, sourceRequest *enrollmentNative.Request) (*enrollmentNative.Request, error) {
+	lifetime, err := resolveStatusTokenExpiry(ctx, s.deps.Settings)
+	if err != nil {
+		return nil, err
+	}
 	statusToken, err := enrollmentNative.NewStatusToken(s.deps.Random)
 	if err != nil {
 		return nil, fmt.Errorf("rollover: generate status token: %w", err)
 	}
+	now := time.Now()
+	expiresAt := now.Add(lifetime)
+	// The new phase gets a new contract per child (ADR 0153 section 2), so
+	// the request carries neither the source's legal evidence
+	// (LegalBlocksSnapshot) nor its consent flags: copied evidence would
+	// show an old acceptance as one for the new phase, and copied flags
+	// would stamp the student's consents again at the approval, or withdraw
+	// one the parents gave since, without anything the parents declared for
+	// this phase. The parents accept the terms of the new phase on the
+	// status page (ConfirmRenewal, #6456).
 	request := &enrollmentNative.Request{
-		PhaseID:           input.newPhase.ID,
-		SchemaID:          input.newPhase.FormSchemaID,
-		GuardianFirstName: sourceRequest.GuardianFirstName,
-		GuardianLastName:  sourceRequest.GuardianLastName,
-		GuardianEmail:     sourceRequest.GuardianEmail,
-		GuardianPhone:     sourceRequest.GuardianPhone,
-		GuardianAccountID: sourceRequest.GuardianAccountID,
-		ConsentFlags:      sourceRequest.ConsentFlags.Clone(),
-		CustomData:        sourceRequest.CustomData.Clone(),
-		StatusToken:       statusToken,
-		SubmittedAt:       time.Now(),
+		PhaseID:            input.newPhase.ID,
+		SchemaID:           input.newPhase.FormSchemaID,
+		GuardianFirstName:  sourceRequest.GuardianFirstName,
+		GuardianLastName:   sourceRequest.GuardianLastName,
+		GuardianEmail:      sourceRequest.GuardianEmail,
+		GuardianPhone:      sourceRequest.GuardianPhone,
+		GuardianAccountID:  sourceRequest.GuardianAccountID,
+		CustomData:         sourceRequest.CustomData.Clone(),
+		StatusToken:        statusToken,
+		StatusTokenExpires: &expiresAt,
+		SubmittedAt:        now,
 	}
 	request.TenantID = input.tenantID
 	if err := s.deps.Requests.InsertRequest(ctx, request); err != nil {
@@ -259,20 +273,53 @@ func (s *Rollovers) renewalMailPayload(ctx context.Context, newPhase *enrollment
 	if newPhase.RolloverDeadline != nil {
 		deadlineStr = newPhase.RolloverDeadline.Format("02.01.2006")
 	}
+	termsRequired, err := s.renewalTermsRequired(ctx, newPhase)
+	if err != nil {
+		return nil, err
+	}
 	return map[string]any{
-		enrollmentNative.EnrollmentPayloadGuardianFirstName: req.GuardianFirstName,
-		enrollmentNative.EnrollmentPayloadGuardianLastName:  req.GuardianLastName,
-		enrollmentNative.EnrollmentPayloadGuardianEmail:     req.GuardianEmail,
-		enrollmentNative.EnrollmentPayloadSchoolName:        brand.SchoolName,
-		enrollmentNative.EnrollmentPayloadPhaseName:         newPhase.Name,
-		enrollmentNative.EnrollmentPayloadStatusURL:         enrollmentNative.StatusURL(s.deps.ParentsURL, req.StatusToken),
-		enrollmentNative.EnrollmentPayloadLogoURL:           brand.LogoURL,
-		enrollmentNative.EnrollmentPayloadMotoLogoURL:       brand.MotoLogoURL,
-		enrollmentNative.EnrollmentPayloadCareFacilityTerm:  brand.CareFacilityTerm,
-		enrollmentNative.EnrollmentPayloadChildNames:        childNames,
-		enrollmentNative.EnrollmentPayloadRecipientEmail:    req.GuardianEmail,
-		enrollmentNative.EnrollmentPayloadRolloverDeadline:  deadlineStr,
+		enrollmentNative.EnrollmentPayloadGuardianFirstName:    req.GuardianFirstName,
+		enrollmentNative.EnrollmentPayloadGuardianLastName:     req.GuardianLastName,
+		enrollmentNative.EnrollmentPayloadGuardianEmail:        req.GuardianEmail,
+		enrollmentNative.EnrollmentPayloadSchoolName:           brand.SchoolName,
+		enrollmentNative.EnrollmentPayloadPhaseName:            newPhase.Name,
+		enrollmentNative.EnrollmentPayloadStatusURL:            enrollmentNative.StatusURL(s.deps.ParentsURL, req.StatusToken),
+		enrollmentNative.EnrollmentPayloadLogoURL:              brand.LogoURL,
+		enrollmentNative.EnrollmentPayloadMotoLogoURL:          brand.MotoLogoURL,
+		enrollmentNative.EnrollmentPayloadCareFacilityTerm:     brand.CareFacilityTerm,
+		enrollmentNative.EnrollmentPayloadChildNames:           childNames,
+		enrollmentNative.EnrollmentPayloadRecipientEmail:       req.GuardianEmail,
+		enrollmentNative.EnrollmentPayloadRolloverDeadline:     deadlineStr,
+		enrollmentNative.EnrollmentPayloadRenewalTermsRequired: termsRequired,
 	}, nil
+}
+
+// renewalTermsRequired reports whether the form of the new phase has
+// required blocks the parents accept on the status page (#6456), resolved as
+// the status page resolves them.
+func (s *Rollovers) renewalTermsRequired(ctx context.Context, phase *enrollmentNative.Phase) (bool, error) {
+	var schema *enrollmentNative.FormSchema
+	if phase.FormSchemaID != nil {
+		loaded, err := s.deps.Phases.Schema(ctx, *phase.FormSchemaID)
+		if err != nil && !s.deps.Runtime.NotFound(err) {
+			return false, fmt.Errorf("rollover: load form of the new phase: %w", err)
+		}
+		schema = loaded
+	}
+	blocks, err := renewalBlocks(schema, func() (enrollmentNative.LegalTexts, error) {
+		if s.deps.Settings == nil {
+			return enrollmentNative.LegalTexts{}, errors.New("rollover: settings not wired")
+		}
+		settings, err := s.deps.Settings.LegalSettings(ctx)
+		if err != nil {
+			return enrollmentNative.LegalTexts{}, err
+		}
+		return tenantLegalTexts(settings), nil
+	})
+	if err != nil {
+		return false, fmt.Errorf("rollover: resolve renewal terms: %w", err)
+	}
+	return len(blocks) > 0, nil
 }
 
 // rolloverSourceOfferings reads the booking every source child has at the

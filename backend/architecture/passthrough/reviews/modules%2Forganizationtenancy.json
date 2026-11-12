@@ -236,6 +236,16 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0189",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoSchoolDatabaseStore.DueDemoSchoolDatabases",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0189",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoSchoolDatabaseStore.EraseDemoSchoolDatabase",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
       "decision": "0148",
       "id": "modules/organizationtenancy/internal/adapters/postgres/DemoSchoolFileStore.RecordDemoSchoolFileErasure",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -354,6 +364,11 @@
       "decision": "0090",
       "id": "modules/organizationtenancy/internal/application/Service.FindSchoolBySubdomain",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0198",
+      "id": "modules/organizationtenancy/internal/application/Service.HasRetainedTraegerMembership",
+      "reason": "ADR 0198, #5974: validation plus the owner transaction/observation wrapper around its Boolean membership store read (ADR 0075 floor 1). No new forwarding debt."
     },
     {
       "decision": "0090",

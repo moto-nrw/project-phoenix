@@ -3,7 +3,7 @@ package postgres
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func TransactionRunInTenantBinding(ctx context.Context, tenantID int64, callback func(context.Context) error, execute0 func(ctx context.Context, id tenant.TenantID, fn func(context.Context) error) error) error {

@@ -49,10 +49,6 @@ describe.concurrent("swr/no-direct-import", () => {
       'import { USER_KEY } from "~/lib/user"; export function useProbe() { return useImmutableSWR(USER_KEY, async () => []); }',
     ],
     [
-      "a useSWRWithId base key",
-      'export function useProbe(id: string) { return useSWRWithId("student", id, async () => []); }',
-    ],
-    [
       "a hook bound to a local",
       'export function useProbe() { const h = useSWRAuth; return h("literal", async () => []); }',
     ],
@@ -78,7 +74,7 @@ describe.concurrent("swr/no-direct-import", () => {
     ],
   ])("rejects a free key: %s", async (_name, body) => {
     const result = await lintSource(
-      `import { useSWRAuth, useImmutableSWR } from "~/lib/swr"; import { useSWRWithId } from "~/lib/swr/hooks"; void useSWRAuth; void useImmutableSWR; void useSWRWithId;\n${body}`,
+      `import { useSWRAuth, useImmutableSWR } from "~/lib/swr"; void useSWRAuth; void useImmutableSWR;\n${body}`,
     );
     expect(result.status, result.output).toBe(1);
     expect(result.output).toContain("swr(no-free-key)");
@@ -88,15 +84,12 @@ describe.concurrent("swr/no-direct-import", () => {
   it("accepts factory keys directly, through locals and in branches", async () => {
     const result = await lintSource(`
       import { useSWRAuth } from "~/lib/swr";
-      import { useSWRWithId } from "~/lib/swr/hooks";
       import { roomKeys } from "~/lib/swr/rooms-keys";
-      import { meKeys } from "~/lib/swr/me-keys";
       export function useProbe(id: string | null) {
         const key = id ? roomKeys.detailKey(id) : null;
         const later = useSWRAuth(listKey, async () => []);
         const listKey = roomKeys.key({ page: 1 });
         void later;
-        void useSWRWithId(meKeys.family, id, async () => []);
         return useSWRAuth(key, async () => []);
       }
     `);

@@ -3,7 +3,7 @@ package carerequests_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
 )
 
 func TestGermanAllowedDepartureModes(t *testing.T) {

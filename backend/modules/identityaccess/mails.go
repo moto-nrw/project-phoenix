@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The mails of the Identity & Access flows (#4082): what each one says, which
@@ -412,6 +412,7 @@ func DemoLeadMail(access DemoAccessMessage, origin string) Mail {
 			"Email":        access.Email,
 			"Source":       access.Source,
 			"ContactOptIn": access.ContactOptIn,
+			"Phone":        access.Phone,
 			"AccessID":     access.AccessID,
 			"LogoURL":      trimmedLogoURL(origin),
 		},

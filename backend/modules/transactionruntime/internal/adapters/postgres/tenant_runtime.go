@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime/protocol"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime/protocol"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 type tenantTxKey struct{}
@@ -60,12 +61,28 @@ func NewDemoPostgresUnitOfWork(db *bun.DB, observePoolWait func(context.Context,
 	return unitOfWork, nil
 }
 
+// rollbackDiagnostic is an operation error whose transaction ROLLBACK failed
+// as well. The rollback failure is diagnostics in the text only: Unwrap
+// yields the operation error, so retry, connectivity and error mapping decide
+// on what the operation itself returned (#6316). The transaction ends either
+// way: ROLLBACK or the broken connection discards it.
+type rollbackDiagnostic struct {
+	err      error
+	rollback error
+}
+
+func (e *rollbackDiagnostic) Error() string {
+	return e.err.Error() + "; unit of work: rollback: " + e.rollback.Error()
+}
+
+func (e *rollbackDiagnostic) Unwrap() error { return e.err }
+
 // IsRetryableTransactionError classifies PostgreSQL deadlock and
 // serialization failures. The UnitOfWork uses it only when the outer command
 // explicitly opts into replay.
 func IsRetryableTransactionError(err error) bool {
-	var state interface{ Field(byte) string }
-	return errors.As(err, &state) && (state.Field('C') == "40P01" || state.Field('C') == "40001")
+	state, ok := operationAs[interface{ Field(byte) string }](err)
+	return ok && (state.Field('C') == "40P01" || state.Field('C') == "40001")
 }
 
 func (r *PostgresUnitOfWork) WithinTenant(ctx context.Context, tenantID int64, fn func(context.Context, any) error) error {
@@ -138,6 +155,42 @@ func (r *PostgresUnitOfWork) WithinTraeger(ctx context.Context, organizationID i
 	})
 }
 
+// WithinAdminThenTenant implements the one-way handoff of ADR 0161 point 2.
+// One transaction runs discover as phoenix_admin, then sets phoenix_tenant
+// and app.current_tenant_id of the discovered school, both transaction-local
+// like WithinTenant, and runs fn. An error from discover rolls back without
+// the switch. fn's context carries only the tenant scope: an administrative
+// join inside it fails as in any school unit, and even a retained
+// administrative context runs as phoenix_tenant after the switch. An ambient
+// transaction and the demo runtime are refused.
+func (r *PostgresUnitOfWork) WithinAdminThenTenant(ctx context.Context, discover func(context.Context, any) (int64, error), fn func(context.Context, any) error) error {
+	if discover == nil || fn == nil {
+		return fmt.Errorf("tenant runtime: callbacks are required")
+	}
+	if _, ok := transactionFromContext(ctx); ok {
+		return fmt.Errorf("tenant runtime: an admin-to-tenant handoff cannot join an ambient transaction")
+	}
+	if r.skipTenantRole {
+		return fmt.Errorf("tenant runtime: the demo runtime opens no admin-to-tenant handoff")
+	}
+	return r.runInTx(ctx, func(txCtx context.Context, tx bun.Tx) error {
+		if _, err := tx.ExecContext(txCtx, "SET LOCAL ROLE phoenix_admin"); err != nil {
+			return fmt.Errorf("tenant runtime: set admin role: %w", err)
+		}
+		tenantID, err := discover(contextWithTransaction(context.WithValue(txCtx, adminTxKey{}, true), &tx), tx)
+		if err != nil {
+			return err
+		}
+		if tenantID <= 0 {
+			return fmt.Errorf("tenant runtime: tenant ID must be positive")
+		}
+		if _, err := tx.NewRaw("SELECT set_config('role', 'phoenix_tenant', true), set_config('app.current_tenant_id', ?, true)", fmt.Sprint(tenantID)).Exec(txCtx); err != nil {
+			return fmt.Errorf("tenant runtime: set tenant role: %w", err)
+		}
+		return fn(contextWithTransaction(context.WithValue(txCtx, tenantTxKey{}, tenantID), &tx), tx)
+	})
+}
+
 func (r *PostgresUnitOfWork) WithinAdmin(ctx context.Context, fn func(context.Context, any) error) error {
 	return r.withinGlobal(ctx, true, fn)
 }
@@ -197,13 +250,19 @@ func (r *PostgresUnitOfWork) runInTx(ctx context.Context, fn func(context.Contex
 		rollbackErr := tx.Rollback()
 		finished = true
 		if rollbackErr != nil && !errors.Is(rollbackErr, sql.ErrTxDone) {
-			return errors.Join(err, fmt.Errorf("unit of work: rollback: %w", rollbackErr))
+			return &rollbackDiagnostic{err: err, rollback: rollbackErr}
 		}
 		return err
 	}
 
 	commitErr := tx.Commit()
 	finished = true
+	// database/sql may finish its automatic rollback before Commit observes
+	// cancellation. Preserve the context error in either ordering; other commit
+	// failures can still have an unknown durable outcome after cancellation.
+	if errors.Is(commitErr, sql.ErrTxDone) && ctx.Err() != nil {
+		commitErr = ctx.Err()
+	}
 	if commitErr == nil || IsRetryableTransactionError(commitErr) {
 		return commitErr
 	}
@@ -251,6 +310,44 @@ func (r *PostgresUnitOfWork) AcquireLock(ctx context.Context, key string, shared
 		return err
 	}
 	_, err := tx.ExecContext(ctx, "SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key)
+	return err
+}
+
+// BoundStatements runs fn with statement_timeout set to limit for the active
+// transaction and restores the previous value after fn succeeds. Reading the
+// previous value and setting the new one share one statement, restoring takes
+// the second. When fn fails, the caller's enclosing savepoint rollback undoes
+// the setting (tenant.WithStatementTimeout).
+func (r *PostgresUnitOfWork) BoundStatements(ctx context.Context, limit time.Duration, fn func(context.Context) error) error {
+	return boundSetting(ctx, "statement_timeout", limit, fn)
+}
+
+// BoundLocks runs fn with lock_timeout set to limit for the active
+// transaction, like BoundStatements. A lock wait the limit ends (55P03,
+// lock_not_available) comes back as protocol.LockNotAvailableError, which
+// tenant.WithLockTimeout reports as tenant.ErrLockWaitExceeded.
+func (r *PostgresUnitOfWork) BoundLocks(ctx context.Context, limit time.Duration, fn func(context.Context) error) error {
+	err := boundSetting(ctx, "lock_timeout", limit, fn)
+	if pgErr, ok := operationAs[pgdriver.Error](err); ok && pgErr.Field('C') == "55P03" {
+		return protocol.NewLockNotAvailableError(err)
+	}
+	return err
+}
+
+func boundSetting(ctx context.Context, setting string, limit time.Duration, fn func(context.Context) error) error {
+	tx, err := savepointTx(ctx)
+	if err != nil {
+		return err
+	}
+	var previous, applied string
+	if err := tx.NewRaw(`SELECT current_setting(?), set_config(?, ?, true)`,
+		setting, setting, fmt.Sprintf("%dms", limit.Milliseconds())).Scan(ctx, &previous, &applied); err != nil {
+		return err
+	}
+	if err := fn(ctx); err != nil {
+		return err
+	}
+	_, err = tx.ExecContext(ctx, `SELECT set_config(?, ?, true)`, setting, previous)
 	return err
 }
 

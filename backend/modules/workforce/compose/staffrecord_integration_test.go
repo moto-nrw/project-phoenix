@@ -7,8 +7,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -77,16 +77,21 @@ func TestStaffMasterDataAndFinancialRowsAreTenantIsolated(t *testing.T) {
 	// --- financial data ---
 	_, err = capability.FindStaffFinancialData(ctx, local.ID)
 	require.ErrorIs(t, err, workforce.ErrStaffFinancialDataNotFound)
-	financial, err := capability.CreateStaffFinancialData(ctx, workforce.StaffFinancialData{StaffID: local.ID, IBAN: new("DE02120300000000202051")})
+	// The record stores the sealed values the personnel administration
+	// passes (#6332); plaintext never reaches the row.
+	financial, err := capability.CreateStaffFinancialData(ctx, workforce.StaffFinancialData{StaffID: local.ID,
+		IBANSealed: []byte("sealed-iban"), IBANMasked: new("•••• 2051"), IBAN: new("DE02120300000000202051")})
 	require.NoError(t, err)
 	assert.Equal(t, testpkg.Tenant(t), financial.TenantID)
-	_, err = capability.CreateStaffFinancialData(foreignCtx, workforce.StaffFinancialData{StaffID: foreign.ID, TaxID: new("12345678901")})
+	assert.Nil(t, financial.IBAN, "the plaintext column stays empty")
+	_, err = capability.CreateStaffFinancialData(foreignCtx, workforce.StaffFinancialData{StaffID: foreign.ID, TaxIDSealed: []byte("sealed-foreign-tax")})
 	require.NoError(t, err)
-	financial.TaxID = new("98765432109")
+	financial.TaxIDSealed = []byte("sealed-tax")
 	stored, err := capability.UpdateStaffFinancialData(ctx, financial)
 	require.NoError(t, err)
-	assert.Equal(t, "98765432109", *stored.TaxID)
-	assert.Equal(t, "DE02120300000000202051", *stored.IBAN)
+	assert.Equal(t, []byte("sealed-tax"), stored.TaxIDSealed)
+	assert.Equal(t, []byte("sealed-iban"), stored.IBANSealed)
+	assert.Equal(t, "•••• 2051", *stored.IBANMasked)
 	_, err = capability.FindStaffFinancialData(ctx, foreign.ID)
 	require.ErrorIs(t, err, workforce.ErrStaffFinancialDataNotFound)
 	_, err = capability.CreateStaffFinancialData(ctx, workforce.StaffFinancialData{})
@@ -269,7 +274,7 @@ func TestStaffQualificationsRetireInsteadOfDelete(t *testing.T) {
 		_, err := tx.NewDelete().TableExpr("users.staff_qualifications").Where("staff_id = ?", staff.ID).Exec(txCtx)
 		return err
 	})
-	require.ErrorContains(t, err, "permission denied", "the tenant role cannot hard-delete qualifications")
+	require.Equal(t, "42501", testpkg.PostgresSQLState(err), "the tenant role cannot hard-delete qualifications")
 }
 
 func TestStaffQualificationReplacementPersistsSubmittedOrder(t *testing.T) {

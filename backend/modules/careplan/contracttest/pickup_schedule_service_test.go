@@ -8,15 +8,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
-	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/careplantest"
+	timetable "github.com/moto-ogs/project-phoenix/modules/timetable"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant/tenanttest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -772,72 +772,6 @@ func TestPickupScheduleService_DeleteStudentPickupException(t *testing.T) {
 		require.NoError(t, findErr)
 		require.NotNil(t, fresh)
 		require.NotNil(t, fresh.ExcusedFrom)
-	})
-}
-
-func TestPickupScheduleService_DeleteAllStudentPickupExceptions(t *testing.T) {
-	t.Parallel()
-
-	db := testpkg.SetupTestDB(t)
-
-	service := setupPickupScheduleService(t, db)
-	ctx := testpkg.Ctx(t)
-
-	t.Run("deletes all exceptions for student", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Test", "Student", "1a")
-
-		// Use consistent base date to avoid timezone edge cases
-		baseDate := calendar.TodayDate()
-		for i := 1; i <= 5; i++ {
-			exception := &careplan.PickupException{
-				StudentID:     student.ID,
-				ExceptionDate: careplan.Date(baseDate.AddDays(i)),
-				Reason:        testpkg.StrPtr("Exception"),
-				CreatedBy:     createPickupServiceTestStaffID(t, db),
-			}
-			err := testpkg.TenantCommand1(t, ctx, db, service.CreateStudentPickupException, exception)
-			require.NoError(t, err)
-		}
-
-		err := testpkg.TenantCommand1(t, ctx, db, service.DeleteAllStudentPickupExceptions, student.ID)
-
-		require.NoError(t, err)
-
-		results, err := testpkg.TenantQuery1(t, ctx, db, service.GetStudentPickupExceptions, student.ID)
-		require.NoError(t, err)
-		assert.Empty(t, results)
-	})
-
-	t.Run("rejects the batch when one exception owns a partial absence", func(t *testing.T) {
-		student := testpkg.CreateTestStudent(t, db, "Partial", fmt.Sprintf("Bulk-%d", time.Now().UnixNano()), "1a")
-		staffID := createPickupServiceTestStaffID(t, db)
-		date := calendar.TodayDate().AddDays(6)
-		ordinary := &careplan.PickupException{
-			StudentID:     student.ID,
-			ExceptionDate: careplan.Date(date.AddDays(-1)),
-			PickupTime:    testpkg.TimePtr(calendar.NormalizeWallClock(time.Date(2000, 1, 1, 15, 0, 0, 0, time.UTC))),
-			CreatedBy:     staffID,
-		}
-		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, service.CreateStudentPickupException, ordinary))
-		from := calendar.NormalizeWallClock(time.Date(2000, 1, 1, 13, 30, 0, 0, time.UTC))
-		partial := &careplan.PickupException{
-			StudentID:             student.ID,
-			ExceptionDate:         careplan.Date(date),
-			PickupTime:            &from,
-			ExcusedFrom:           &from,
-			ExcusedCreatedBy:      &staffID,
-			ExcusedOwnsPickupTime: true,
-			CreatedBy:             staffID,
-		}
-		require.NoError(t, testpkg.TenantCommand1(t, ctx, db, service.CreateStudentPickupException, partial))
-
-		err := testpkg.TenantCommand1(t, ctx, db, service.DeleteAllStudentPickupExceptions, student.ID)
-		require.ErrorIs(t, err, careplan.ErrCareExceptionContainsPartialAbsence)
-		rows, findErr := testpkg.TenantQuery1(t, ctx, db, service.GetStudentPickupExceptions, student.ID)
-		require.NoError(t, findErr)
-		require.Len(t, rows, 2, "the transaction must roll back the ordinary deletion")
-		assert.Equal(t, ordinary.ID, rows[0].ID)
-		require.NotNil(t, rows[1].ExcusedFrom)
 	})
 }
 

@@ -6,8 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // The staff decision on a parent-initiated guardian request: approving it
@@ -20,6 +19,7 @@ func (l *AccountLifecycle) approveInvitation(ctx context.Context, invitationID, 
 		return err
 	}
 
+	readExpiry := invitation.ExpiresAt
 	profile, found, err := l.guardians.FindGuardianProfile(ctx, invitation.GuardianProfileID)
 	if err != nil {
 		return failed(opGuardianInviteApprove, err)
@@ -45,7 +45,7 @@ func (l *AccountLifecycle) approveInvitation(ctx context.Context, invitationID, 
 
 	// No account yet: refresh expiry, clear stale email tracking, dispatch.
 	// The frozen link was never mailed and only its hash is stored (#4902):
-	// the released mail carries a new one.
+	// the released mail carries a new one, for the address on file (#6294).
 	expiry, err := l.delivery.InvitationExpiry(ctx)
 	if err != nil {
 		return failed(opGuardianInviteApprove, err)
@@ -53,11 +53,11 @@ func (l *AccountLifecycle) approveInvitation(ctx context.Context, invitationID, 
 	if err := l.refuseBlockedMail(ctx, invitation.TenantID, profile); err != nil {
 		return failed(opGuardianInviteApprove, err)
 	}
-	invitation.Token = uuid.Must(uuid.NewV4()).String()
+	issueGuardianInvitationLink(&invitation, profile)
 	invitation.ExpiresAt = now.Add(expiry)
 	invitation.EmailSentAt = nil
 	invitation.EmailError = nil
-	if err := l.invitations.UpdateGuardianInvitation(ctx, invitation, domain.GuardianInvitationApprovalPending); err != nil {
+	if err := l.invitations.UpdateGuardianInvitation(ctx, invitation, domain.GuardianInvitationApprovalPending, readExpiry); err != nil {
 		return failed(opGuardianInviteApprove, err)
 	}
 	l.logger.Info("guardian invitation approved",
@@ -75,7 +75,7 @@ func (l *AccountLifecycle) approveInvitation(ctx context.Context, invitationID, 
 // mail cannot be queued (#4602).
 func (l *AccountLifecycle) approveForExistingAccount(ctx context.Context, invitation domain.GuardianInvitation, profile domain.GuardianProfile, approverAccountID int64, now time.Time) error {
 	invitation.AcceptedAt = &now
-	if err := l.invitations.UpdateGuardianInvitation(ctx, invitation, domain.GuardianInvitationApprovalPending); err != nil {
+	if err := l.invitations.UpdateGuardianInvitation(ctx, invitation, domain.GuardianInvitationApprovalPending, invitation.ExpiresAt); err != nil {
 		return failed(opGuardianInviteApprove, err)
 	}
 	l.logger.Info("guardian invitation approved (existing account)",
@@ -93,11 +93,18 @@ func (l *AccountLifecycle) rejectInvitation(ctx context.Context, invitationID, a
 	if err != nil {
 		return err
 	}
+	// Contact edits hold the profile before invalidating invitations. Take
+	// the same order before a rejection that may delete its orphan profile.
+	if invitation.ProfileCreatedForInvitation {
+		if _, _, err := l.guardians.LockGuardianProfile(ctx, invitation.GuardianProfileID); err != nil {
+			return failed(opGuardianInviteReject, err)
+		}
+	}
 	now := time.Now()
 	invitation.ApprovalStatus = domain.GuardianInvitationApprovalRejected
 	invitation.ApprovedBy = &approverAccountID
 	invitation.ApprovedAt = &now
-	if err := l.invitations.UpdateGuardianInvitation(ctx, invitation, domain.GuardianInvitationApprovalPending); err != nil {
+	if err := l.invitations.UpdateGuardianInvitation(ctx, invitation, domain.GuardianInvitationApprovalPending, invitation.ExpiresAt); err != nil {
 		return failed(opGuardianInviteReject, err)
 	}
 

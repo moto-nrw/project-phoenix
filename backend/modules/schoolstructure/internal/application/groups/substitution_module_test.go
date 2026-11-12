@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	schoolStructureCompose "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -57,6 +57,7 @@ func TestAdditionalSupervisionExternalInterface(t *testing.T) {
 	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
+		StaffBalance:            testpkg.SettingsRuntime(t, db).LockStaffBalance,
 		Now:                     func() time.Time { return now },
 	})
 
@@ -156,6 +157,7 @@ func TestAdditionalSupervisionAuthorizationMatrix(t *testing.T) {
 		return api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 			ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
 			ActiveSupervisorCreator: activeService,
+			StaffBalance:            testpkg.SettingsRuntime(t, db).LockStaffBalance,
 
 			CanSeeAll: func(context.Context, bool, bool, bool) (bool, error) { return broad, nil },
 		})
@@ -225,6 +227,7 @@ func TestAdditionalSupervisionAuditFailureRollsBack(t *testing.T) {
 	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
+		StaffBalance:            testpkg.SettingsRuntime(t, db).LockStaffBalance,
 		Audit:                   failingAudit{},
 	})
 	activity := testpkg.CreateTestActivityGroup(t, db, "Rollback activity")
@@ -250,6 +253,7 @@ func TestAdditionalSupervisionTreatsFutureEndDateAsActive(t *testing.T) {
 	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
 		ActiveSupervisorCreator: testpkg.GroupSupervisorCreator{Repository: reposPresence.GroupSupervisor},
+		StaffBalance:            testpkg.SettingsRuntime(t, db).LockStaffBalance,
 	})
 	activity := testpkg.CreateTestActivityGroup(t, db, "Future end activity")
 	room := testpkg.CreateTestRoom(t, db, "Future end room")
@@ -282,6 +286,7 @@ func TestAdditionalSupervisionSignalsOnlyAfterCommit(t *testing.T) {
 	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		ActiveGroups: reposPresence.ActiveGroup, ActiveSupervisors: reposPresence.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
+		StaffBalance:            testpkg.SettingsRuntime(t, db).LockStaffBalance,
 		Broadcaster:             api.NewGroupEvents(broadcaster, nil),
 	})
 	activity := testpkg.CreateTestActivityGroup(t, db, "Signals activity")
@@ -320,6 +325,7 @@ func TestAdditionalSupervisionRejectsConcurrentSessionEnd(t *testing.T) {
 	module := api.NewSubstitutionSuiteModule(repos, testpkg.NewDatabase(t, db), SubstitutionDependencies{
 		ActiveGroups: groups, ActiveSupervisors: reposPresence.GroupSupervisor,
 		ActiveSupervisorCreator: activeService,
+		StaffBalance:            testpkg.SettingsRuntime(t, db).LockStaffBalance,
 	})
 
 	holder, err := db.BeginTx(testpkg.Ctx(t), nil)

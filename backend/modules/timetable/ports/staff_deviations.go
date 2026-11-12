@@ -6,9 +6,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The Änderungsprotokoll event types the deviation writes record; they match
@@ -94,6 +94,7 @@ type StaffDeviationDependencies struct {
 	Protocol        DeviationProtocol
 	ActivityUpdates ActivityUpdateAnnouncer
 	Locks           TransactionLocks
+	SickReports     SickReportReader // nil: a substitute is never sick (#6292)
 	Logger          *slog.Logger
 	Now             func() time.Time
 }

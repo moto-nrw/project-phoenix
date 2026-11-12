@@ -11,6 +11,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0212",
+      "id": "workflows/parentportal/Portal.DiscardChildMessageAttachment",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
       "decision": "0090",
       "id": "workflows/parentportal/Portal.EditExcusedRequest",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -81,6 +86,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0212",
+      "id": "workflows/parentportal/Portal.OpenChildMessageAttachment",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
       "decision": "0132",
       "id": "workflows/parentportal/Portal.PostChildMessage",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
@@ -88,6 +98,11 @@
     {
       "decision": "0132",
       "id": "workflows/parentportal/Portal.PostChildReply",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0212",
+      "id": "workflows/parentportal/Portal.PrepareChildMessageAttachment",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
@@ -337,11 +352,6 @@
     },
     {
       "decision": "0090",
-      "id": "workflows/parentportal/declarationPolicyBinding.ActionAllowed",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
       "id": "workflows/parentportal/declarationPolicyBinding.AllowedActions",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
@@ -501,11 +511,6 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
-      "id": "workflows/parentportal/internal/care/Service.ClearMealParticipationDay",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
       "decision": "0153",
       "id": "workflows/parentportal/internal/care/Service.ContractNoticeOptions",
       "reason": "Workflow step (#4682): it resolves the children whose relationship grants parent_portal.enrollment.submit, the Träger and the account's address, and runs the read in that Träger's transaction."
@@ -521,19 +526,39 @@
       "reason": "Workflow step (#5918): it resolves the children whose relationship grants parent_portal.enrollments.view, the Träger and the account's address, checks the contract in the inbox and reads the number in that Träger's transaction."
     },
     {
+      "decision": "0171",
+      "id": "workflows/parentportal/internal/care/Service.GrantSEPAMandate",
+      "reason": "Workflow step (#4696): it resolves the children whose relationship grants parent_portal.enrollment.submit, checks the contract and its payer and stores the confirmed mandate in that Träger's transaction."
+    },
+    {
+      "decision": "0171",
+      "id": "workflows/parentportal/internal/care/Service.PreviewSEPAMandate",
+      "reason": "Workflow step (#4696): it resolves the children whose relationship grants parent_portal.enrollment.submit, checks the contract and its payer and renders the mandate text in that Träger's transaction."
+    },
+    {
       "decision": "0090",
       "id": "workflows/parentportal/internal/care/Service.RequireCareRunningForUpdate",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
-      "decision": "0090",
-      "id": "workflows/parentportal/internal/care/Service.SetMealParticipationDay",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+      "decision": "0171",
+      "id": "workflows/parentportal/internal/care/Service.RevokeSEPAMandate",
+      "reason": "Workflow step (#4696): it resolves the children whose relationship grants parent_portal.enrollment.submit, checks the contract and its payer and revokes the family's mandate in that Träger's transaction."
+    },
+    {
+      "decision": "0171",
+      "id": "workflows/parentportal/internal/care/Service.SEPAMandate",
+      "reason": "Workflow step (#4696): it resolves the children whose relationship grants parent_portal.enrollments.view, the Träger and the account's address, checks the contract and its payer and reads the mandate in that Träger's transaction."
     },
     {
       "decision": "0088",
       "id": "workflows/parentportal/internal/care/Service.StateFamilyChildren",
       "reason": "Workflow step (#5918): it resolves the children whose relationship grants parent_portal.enrollment.submit, checks the contract in the inbox and stores the parents' number in that Träger's transaction."
+    },
+    {
+      "decision": "0177",
+      "id": "workflows/parentportal/internal/care/Service.WithChildWrite",
+      "reason": "Guard opener (#6529): it opens the child's school unit and runs guardChildWrite before the write; not a forward."
     },
     {
       "decision": "0090",
@@ -624,6 +649,11 @@
       "decision": "0090",
       "id": "workflows/parentportal/internal/care/studentRecords[C, P].SetStudentPhotoConsent",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
+      "decision": "0161",
+      "id": "workflows/parentportal/internal/messaging/AnnouncementAttachments[A, C].OpenGuardianAttachment",
+      "reason": "ADR 0161 step 3: the announcement download hands the row read into the school unit of the gate's switch, then the shared hand-out asks the audience again and opens the bytes; exact evidence, no ADR 0075 floor claimed."
     },
     {
       "decision": "0090",
@@ -768,11 +798,6 @@
     {
       "decision": "0090",
       "id": "workflows/parentportal/requestShareRecordsBinding.CurrentForStudent",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "workflows/parentportal/studentGuardianReads.AccountHasStudentPermission",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {

@@ -66,6 +66,7 @@ vi.mock("~/lib/hooks/use-berlin-today", () => ({
 
 import {
   UebersichtTab,
+  buildWeeklyBalanceSeriesRange,
   countSessionDaysInRange,
   indexSessionNetMinutesByBerlinDate,
 } from "./uebersicht-tab";
@@ -402,5 +403,29 @@ describe("UebersichtTab Anwesenheitstage", () => {
       present: 1,
       homeOffice: 0,
     });
+  });
+});
+
+describe("buildWeeklyBalanceSeriesRange", () => {
+  // 29.03.2026 has 23 hours: the Mondays 23.02. and 30.03. are an hour short
+  // of five full weeks apart.
+  it("keeps the last week of a range across the March clock change", () => {
+    const points = buildWeeklyBalanceSeriesRange(
+      new Map(),
+      [],
+      [],
+      [],
+      new Date(2026, 2, 1),
+      new Date(2026, 2, 31),
+    );
+
+    expect(points.map((point) => point.weekLabel)).toEqual([
+      "KW 9",
+      "KW 10",
+      "KW 11",
+      "KW 12",
+      "KW 13",
+      "KW 14",
+    ]);
   });
 });

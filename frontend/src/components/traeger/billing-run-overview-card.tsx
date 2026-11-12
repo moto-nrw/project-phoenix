@@ -10,7 +10,10 @@
 // Zeilen mit eigener Nummer, Minusbetrag und Bezug auf die Rechnung.
 // Sobald die Schreiben erstellt sind, zeigt ein Klick auf eine Zeile ihr
 // Schreiben als PDF (#5692): ab xl rechts neben der Liste, darunter an ihrer
-// Stelle mit dem Weg zurück zur Liste.
+// Stelle mit dem Weg zurück zur Liste. Was mit einer ausgestellten Rechnung
+// geschah (Ausstellung, Versand, Storno, Lastschrift, jede Exportdatei),
+// zeigt „Versand und Exporte ansehen“ im Menü der Zeile im Seitenpanel
+// (#4693); gelesen wird erst beim Öffnen.
 
 import {
   Download,
@@ -36,6 +39,14 @@ import {
   type OverflowMenuItem,
 } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
+import {
+  SlideOver,
+  SlideOverBody,
+  SlideOverContent,
+  SlideOverDescription,
+  SlideOverHeader,
+  SlideOverTitle,
+} from "~/components/ui/slide-over";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { downloadBlob } from "~/lib/file-download";
@@ -61,6 +72,7 @@ import {
 } from "./billing-format";
 import { formatEuro } from "./contribution-format";
 import { recipientKindLabel } from "./billing-payment-format";
+import { InvoiceExportHistoryCard } from "./invoice-export-history-card";
 import { InvoicePaymentLine } from "./invoice-payment-line";
 
 const logger = createLogger({ component: "BillingRunOverviewCard" });
@@ -145,6 +157,55 @@ function InlineBreakdown({
   );
 }
 
+/**
+ * Only an issued invoice has a history to read: a draft has no number yet,
+ * Storno and Gutschrift stand in the history of their invoice.
+ */
+function hasExportHistory(released: boolean, document: BillingDocument) {
+  return (
+    released &&
+    document.kind === "invoice" &&
+    document.id !== "" &&
+    document.number !== ""
+  );
+}
+
+/** Issue, sending and export files of one issued invoice (#4693). */
+function BillingDocumentExportHistory({
+  document,
+  onClose,
+}: Readonly<{ document: BillingDocument | null; onClose: () => void }>) {
+  return (
+    // oxlint-disable-next-line ui-kit/slide-over-pending -- zeigt den Verlauf nur an und speichert nichts.
+    <SlideOver
+      open={document !== null}
+      onOpenChange={(open) => {
+        if (!open) onClose();
+      }}
+    >
+      {document ? (
+        <SlideOverContent>
+          <SlideOverHeader>
+            <SlideOverTitle>Ausstellung, Versand und Exporte</SlideOverTitle>
+            <SlideOverDescription className="wrap-anywhere">
+              {BILLING_DOCUMENT_KIND_LABELS[document.kind]} {document.number} an{" "}
+              {recipientName(document)}
+            </SlideOverDescription>
+          </SlideOverHeader>
+          <SlideOverBody>
+            <InvoiceExportHistoryCard
+              key={document.id}
+              kind="holiday-documents"
+              invoiceId={document.id}
+              embedded
+            />
+          </SlideOverBody>
+        </SlideOverContent>
+      ) : null}
+    </SlideOver>
+  );
+}
+
 /** The empty letter frame beside the list before a row is chosen. */
 function LetterPreviewPlaceholder() {
   return (
@@ -192,6 +253,8 @@ export function BillingRunOverviewCard({
   // The issued document whose letter shows beside the list (#5692).
   const [previewId, setPreviewId] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
+  // The issued invoice whose history shows in the side panel (#4693).
+  const [historyId, setHistoryId] = useState<string | null>(null);
   const [exporting, setExporting] = useState<BillingRunExportFormat | null>(
     null,
   );
@@ -207,6 +270,12 @@ export function BillingRunOverviewCard({
         (document) => document.id !== "" && document.id === previewId,
       )) ||
     null;
+
+  const historyOf =
+    run.documents.find(
+      (document) =>
+        document.id === historyId && hasExportHistory(released, document),
+    ) ?? null;
 
   // Below xl the letter takes the place of the list; a long list may have
   // scrolled the card's top out of view, so the letter starts in view.
@@ -416,6 +485,14 @@ export function BillingRunOverviewCard({
                     },
                   ]
                 : []),
+              ...(hasExportHistory(released, document)
+                ? [
+                    {
+                      label: "Versand und Exporte ansehen",
+                      onClick: () => setHistoryId(document.id),
+                    },
+                  ]
+                : []),
               ...(onCorrect
                 ? document.children.map((child) => ({
                     label: `Betrag für ${child.firstName} korrigieren`,
@@ -542,6 +619,10 @@ export function BillingRunOverviewCard({
         runId={run.id}
         onClose={() => setShownKey(null)}
         onReissue={onReissue}
+      />
+      <BillingDocumentExportHistory
+        document={historyOf}
+        onClose={() => setHistoryId(null)}
       />
     </SectionCard>
   );

@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -98,6 +98,9 @@ func TestTimeoutCohortAndScanDoNotDeadlock(t *testing.T) {
 			}
 			var ended <-chan error
 			var scanned <-chan *httptest.ResponseRecorder
+			// A scan that commits before the sweep locks A refreshes A's
+			// activity: the sweep must then spare A (#6502).
+			scanCommittedFirst := first == "scan_first"
 			if first == "cleanup_first" {
 				holder := holdRow(t, f.k.db, "SELECT id FROM active.visits WHERE id = ? FOR UPDATE", blocker)
 				ended = startLockOrderCommand(t, cleanup)
@@ -106,8 +109,9 @@ func TestTimeoutCohortAndScanDoNotDeadlock(t *testing.T) {
 				result := make(chan *httptest.ResponseRecorder, 1)
 				done := make(chan error, 1)
 				go func() { result <- <-scan; done <- nil }()
-				_, err := awaitDoneOrWaiting(t, f.k.db, done, pid)
+				finished, err := awaitDoneOrWaiting(t, f.k.db, done, pid)
 				require.NoError(t, err)
+				scanCommittedFirst = finished
 				scanned = result
 				holder.commit(t)
 			} else {
@@ -120,17 +124,36 @@ func TestTimeoutCohortAndScanDoNotDeadlock(t *testing.T) {
 			}
 			testutil.AssertSuccessResponse(t, awaitScan(t, scanned), 200)
 			require.NoError(t, awaitReattach(t, ended))
-			require.Equal(t, 2, count)
 			assertNoLockFailureRollback(t, queries)
 			groups, err := f.k.presence(t).QueryLiveGroups(ctx, studentpresence.LiveGroupFilter{IDs: []int64{source, f.scanStay}})
 			require.NoError(t, err)
 			require.Len(t, groups, 2)
-			for _, group := range groups {
-				require.NotNil(t, group.EndTime)
-			}
 			visits, err := f.k.presence(t).ListVisits(ctx, studentpresence.VisitFilter{ActiveGroupIDs: []int64{source, f.scanStay}, OpenOnly: true})
 			require.NoError(t, err)
-			require.Empty(t, visits)
+			if !scanCommittedFirst {
+				require.Equal(t, 2, count)
+				for _, group := range groups {
+					require.NotNil(t, group.EndTime)
+				}
+				require.Empty(t, visits)
+				return
+			}
+			require.Equal(t, 1, count, "the scan refreshed A before the sweep locked it")
+			for _, group := range groups {
+				if group.ID == source {
+					require.NotNil(t, group.EndTime, "B stays abandoned")
+				} else {
+					require.Nil(t, group.EndTime, "A was resumed by the scan")
+				}
+			}
+			// A keeps the fixture's first child and gains the scanned one.
+			require.Len(t, visits, 2)
+			scannedInA := false
+			for _, visit := range visits {
+				require.Equal(t, f.scanStay, visit.ActiveGroupID)
+				scannedInA = scannedInA || visit.StudentID == f.student
+			}
+			require.True(t, scannedInA)
 		})
 	}
 }

@@ -38,11 +38,11 @@ export function weekProtocolWeekLabel(protocol: {
 
 const BLOCK_STATUS: Record<
   string,
-  { label: string; tone: "gray" | "orange" | "green" | "red" }
+  { label: string; tone: "gray" | "warning" | "green" | "red" }
 > = {
   completed: { label: "Gelaufen", tone: "green" },
   cancelled: { label: "Ausgefallen", tone: "red" },
-  active: { label: "Nicht beendet", tone: "orange" },
+  active: { label: "Nicht beendet", tone: "warning" },
 };
 
 /** Der Stand eines Blocks am Abend seines Tages, wie im PDF. */

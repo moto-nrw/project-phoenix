@@ -2,11 +2,14 @@
 
 // Ferienanmeldungen eines Zeitraums prüfen (#4663): alle Anmeldungen mit
 // Status, Schule, Woche und Zeitmodell, mit Filtern, Hinweis auf mögliche
-// Doppelanmeldungen und Export als CSV oder Excel. Anmeldungen derselben
+// Doppelanmeldungen, Hinweis auf an einer Schule bekannte Kinder (#6683) und
+// Export als CSV oder Excel. Anmeldungen derselben
 // Familie führt das Büro hier als Geschwister zusammen (#5628); gleiche
-// E-Mail oder gleicher Nachname sind nur ein Hinweis.
+// E-Mail oder gleicher Nachname sind nur ein Hinweis. Ausgewählte
+// Anmeldungen bestätigt das Büro hier auch gesammelt (#6674).
 
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, School } from "lucide-react";
+import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import {
   type MouseEvent as ReactMouseEvent,
@@ -29,11 +32,21 @@ import {
   holidayPeriodTabs,
 } from "~/components/traeger/holiday-period-head";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
+import {
+  HOLIDAY_WISH_FILTER_OPTIONS,
+  holidayWishView,
+} from "~/components/traeger/holiday-wish";
+import {
+  knownChildView,
+  knownChildrenKey,
+  useHolidayKnownChildren,
+} from "~/components/traeger/holiday-known-child";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SelectionBar } from "~/components/ui/selection-bar";
 import NavigationLink from "~/components/ui/navigation-link";
 import {
@@ -46,6 +59,16 @@ import type {
   FilterConfig,
 } from "~/components/ui/page-header/types";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { holidayPlacementStatus } from "~/components/traeger/holiday-placement";
+import { HOLIDAY_PDF_HEALTH_KEY } from "~/components/traeger/use-holiday-registration-pdf";
+import { holidayDeletionNotice } from "~/components/traeger/holiday-registration-retention";
+import { HolidayBulkConfirmModal } from "~/components/traeger/holiday-bulk-confirm-modal";
+import {
+  hasPossibleDuplicate,
+  type HolidayBulkPlan,
+  planHolidayBulkConfirmation,
+  registrationCount,
+} from "~/components/traeger/holiday-bulk-confirm-model";
 import { useHolidayPeriodBillingHref } from "~/components/traeger/use-holiday-period-billing-href";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { billingConcept } from "~/lib/concepts/billing";
@@ -55,8 +78,11 @@ import {
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
+import { hasPermission } from "~/lib/auth-utils";
 import { formatBerlinDate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
+import { ApiError } from "~/lib/api-error";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import {
   SIBLING_HINT_LABELS,
   type SiblingHint,
@@ -66,14 +92,17 @@ import {
 import { createLogger } from "~/lib/logger";
 import { useTraegerHolidayPeriod } from "~/components/traeger/use-traeger-resources";
 import {
+  downloadHolidayRegistrationPdfs,
   downloadHolidayRegistrations,
   EMPTY_HOLIDAY_REGISTRATION_FILTER,
   fetchHolidayConfirmationSettings,
   fetchHolidayRegistrations,
   type HolidayRegistrationFilter,
   type HolidayRegistrationList,
+  type HolidayWishFilter,
   type HolidayRegistrationStatus,
   type HolidayRegistrationSummary,
+  TRAEGER_HEALTH_RIGHT,
 } from "~/lib/traeger-holiday-registrations-api";
 import {
   fetchHolidaySiblingGroups,
@@ -87,10 +116,37 @@ const logger = createLogger({ component: "TraegerHolidayRegistrationsPage" });
 
 type StatusChoice = HolidayRegistrationStatus | "all";
 
-const EXPORT_FORMATS: readonly ExportMenuOption[] = exportFormatOptions([
+const LIST_FORMATS: readonly ExportMenuOption[] = exportFormatOptions([
   "xlsx",
   "csv",
 ]);
+
+/**
+ * The entries of the download menu: the list as Excel or CSV, and one PDF
+ * per registration in a ZIP (#6691). The health information is its own
+ * entry, only for a person who may see it on the screen.
+ */
+function exportOptions(
+  filtered: boolean,
+  canSeeHealth: boolean,
+): readonly ExportMenuOption[] {
+  // Not "Auswahl": the ticked rows are for merging siblings and for the
+  // bulk confirmation (#6674), not for this.
+  const scope = filtered ? "Gefilterte" : "Alle";
+  return [
+    ...LIST_FORMATS,
+    { key: "pdf", format: "pdf", label: `${scope} als PDF (ZIP)` },
+    ...(canSeeHealth
+      ? [
+          {
+            key: HOLIDAY_PDF_HEALTH_KEY,
+            format: "pdf" as const,
+            label: `${scope} als PDF mit Gesundheitsangaben (ZIP)`,
+          },
+        ]
+      : []),
+  ];
+}
 
 const STATUS_OPTIONS: { value: StatusChoice; label: string }[] = [
   { value: "all", label: "Alle Status" },
@@ -164,6 +220,8 @@ function columns(
   names: ReadonlyMap<string, string>,
   debtorNumber: boolean,
   siblings: SiblingView,
+  wishRule: boolean,
+  known: ReadonlyMap<string, string>,
 ): DataTableColumn<HolidayRegistrationSummary>[] {
   return [
     {
@@ -212,43 +270,86 @@ function columns(
       header: "Kinder und Wochen",
       render: (registration) => (
         <ul className="space-y-2">
-          {registration.children.map((child) => (
-            <li key={child.id}>
-              <div className="flex flex-wrap items-baseline gap-x-2">
-                <span className="font-medium text-gray-900">
-                  {child.firstName} {child.lastName}
-                </span>
-                <span className="text-gray-500">
-                  {childSchoolLabel(child, names)}
-                </span>
-              </div>
-              {child.duplicateRegistrationIds.length > 0 ? (
-                <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
-                  <StatusBadge tone="orange" label="Mögliche Doppelanmeldung" />
-                  {/* Visible, not only a tooltip: a finger has no hover. */}
-                  <span className="text-sm whitespace-nowrap text-gray-600">
-                    auch in Nr. {child.duplicateRegistrationIds.join(", ")}
+          {registration.children.map((child) => {
+            const wish = holidayWishView(child, wishRule);
+            // A cancelled registration needs no check of the school.
+            const knownChild =
+              registration.status === "cancelled"
+                ? null
+                : knownChildView(child, known.get(child.id), names);
+            const duplicate = child.duplicateRegistrationIds.length > 0;
+            return (
+              <li key={child.id}>
+                <div className="flex flex-wrap items-baseline gap-x-2">
+                  <span className="font-medium text-gray-900">
+                    {child.firstName} {child.lastName}
+                  </span>
+                  <span className="text-gray-500">
+                    {childSchoolLabel(child, names)}
                   </span>
                 </div>
-              ) : null}
-              <ul className="mt-1 space-y-1 text-sm text-gray-500">
-                {child.bookings.map((booking) => (
-                  <li key={booking.weekId} className="tabular-nums">
-                    {formatHolidayWeek(
-                      booking.weekStartsOn,
-                      booking.weekEndsOn,
-                    )}
-                    ,{" "}
-                    {/* Week, school and time on one line where the column
-                        has room; a narrow column breaks after the week or
-                        between school and time, never inside the school
-                        name or the time. */}
-                    {`${unbroken(names.get(booking.hostSchoolId) ?? "Schule nicht mehr vorhanden")}: ${unbroken(booking.timeModelName)}`}
-                  </li>
-                ))}
-              </ul>
-            </li>
-          ))}
+                {wish || knownChild || duplicate ? (
+                  <div className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1">
+                    {wish ? (
+                      <StatusBadge
+                        tone={wish.tone}
+                        label={wish.label}
+                        icon={wish.icon}
+                      />
+                    ) : null}
+                    {knownChild ? (
+                      <StatusBadge
+                        tone={knownChild.tone}
+                        label={knownChild.label}
+                        icon={School}
+                        title={knownChild.title}
+                        wrap
+                      />
+                    ) : null}
+                    {duplicate ? (
+                      <>
+                        <StatusBadge
+                          tone="warning"
+                          label="Mögliche Doppelanmeldung"
+                        />
+                        {/* Visible, not only a tooltip: a finger has no hover. */}
+                        <span className="text-sm whitespace-nowrap text-gray-600">
+                          auch in Nr.{" "}
+                          {child.duplicateRegistrationIds.join(", ")}
+                        </span>
+                      </>
+                    ) : null}
+                  </div>
+                ) : null}
+                <ul className="mt-1 space-y-1 text-sm text-gray-500">
+                  {child.bookings.map((booking) => (
+                    <li key={booking.weekId} className="tabular-nums">
+                      {formatHolidayWeek(
+                        booking.weekStartsOn,
+                        booking.weekEndsOn,
+                      )}
+                      ,{" "}
+                      {/* Week, school and time on one line where the column
+                          has room; a narrow column breaks after the week or
+                          between school and time, never inside the school
+                          name or the time. */}
+                      {`${unbroken(names.get(booking.hostSchoolId) ?? "Schule nicht mehr vorhanden")}: ${unbroken(booking.timeModelName)}`}
+                      {booking.placement === "pending" &&
+                      registration.status !== "cancelled" ? (
+                        <>
+                          {" "}
+                          <StatusBadge
+                            {...holidayPlacementStatus(booking)}
+                            size="xs"
+                          />
+                        </>
+                      ) : null}
+                    </li>
+                  ))}
+                </ul>
+              </li>
+            );
+          })}
         </ul>
       ),
       stacked: "field",
@@ -336,11 +437,7 @@ function matchesRegistration(
 
 /** Registrations with a child that is maybe registered twice. */
 function duplicateCount(list: HolidayRegistrationList | null): number {
-  return (list?.registrations ?? []).filter((registration) =>
-    registration.children.some(
-      (child) => child.duplicateRegistrationIds.length > 0,
-    ),
-  ).length;
+  return (list?.registrations ?? []).filter(hasPossibleDuplicate).length;
 }
 
 export default function TraegerHolidayRegistrationsPage() {
@@ -356,9 +453,12 @@ export default function TraegerHolidayRegistrationsPage() {
   const billingHref = useHolidayPeriodBillingHref(period);
   const [list, setList] = useState<HolidayRegistrationList | null>(null);
   const [groups, setGroups] = useState<readonly HolidaySiblingGroup[]>([]);
-  // The registrations the Träger-Büro picked to merge as siblings (#5628).
+  // The registrations the Träger-Büro picked to merge as siblings (#5628)
+  // or to confirm together (#6674).
   const [selected, setSelected] = useState<ReadonlySet<string>>(new Set());
   const [merging, setMerging] = useState(false);
+  // What the open confirmation dialog confirms; fixed while it is open.
+  const [bulkPlan, setBulkPlan] = useState<HolidayBulkPlan | null>(null);
   const { success } = useToast();
   const [status, setStatus] = useState<StatusChoice>("all");
   const [school, setSchool] = useState("");
@@ -367,8 +467,11 @@ export default function TraegerHolidayRegistrationsPage() {
   // Finds a family while it calls: searches the loaded list, the filters
   // above decide what is loaded.
   const [search, setSearch] = useState("");
+  const [wish, setWish] = useState<HolidayWishFilter>("");
   const [loading, setLoading] = useState(true);
-  const [exporting, setExporting] = useState<"csv" | "xlsx" | null>(null);
+  const [exporting, setExporting] = useState<string | null>(null);
+  const { data: session } = useSession();
+  const canSeeHealth = hasPermission(session, TRAEGER_HEALTH_RIGHT);
   // Each new filter starts a new list; an answer for an older one is dropped.
   const generation = useRef(0);
   const {
@@ -408,17 +511,30 @@ export default function TraegerHolidayRegistrationsPage() {
       school,
       weekId,
       timeModel,
+      wish,
     }),
-    [status, school, weekId, timeModel],
+    [status, school, weekId, timeModel, wish],
   );
 
-  const load = useCallback(async () => {
-    const current = ++generation.current;
-    setLoading(true);
-    try {
+  // Reads the list for generation `current` and sets it; rejects on a
+  // failure. An answer for an older generation is dropped.
+  const readRegistrations = useCallback(
+    async (current: number) => {
+      const discardRefusal = (error: unknown): never => {
+        if (
+          current === generation.current &&
+          error instanceof ApiError &&
+          (error.status === 401 || error.status === 403)
+        ) {
+          setList(null);
+          setGroups([]);
+          setSelected(new Set());
+        }
+        throw error;
+      };
       const [loaded, loadedGroups] = await Promise.all([
-        fetchHolidayRegistrations(periodId, filter),
-        fetchHolidaySiblingGroups(periodId),
+        fetchHolidayRegistrations(periodId, filter).catch(discardRefusal),
+        fetchHolidaySiblingGroups(periodId).catch(discardRefusal),
       ]);
       if (current !== generation.current) return;
       setList(loaded);
@@ -432,6 +548,16 @@ export default function TraegerHolidayRegistrationsPage() {
         const kept = [...selection].filter((id) => shown.has(id));
         return kept.length === selection.size ? selection : new Set(kept);
       });
+    },
+    [periodId, filter],
+  );
+
+  const load = useCallback(async () => {
+    const current = ++generation.current;
+    setLoading(true);
+    try {
+      await readRegistrations(current);
+      if (current !== generation.current) return;
       clearLoadError();
     } catch (err) {
       if (current !== generation.current) return;
@@ -445,11 +571,28 @@ export default function TraegerHolidayRegistrationsPage() {
     } finally {
       if (current === generation.current) setLoading(false);
     }
-  }, [periodId, filter, clearLoadError, showLoadError]);
+  }, [readRegistrations, clearLoadError, showLoadError]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Reload after a merge: a failure there is a load error above the
+  // confirmed rows, not a failed merge (#6652). The rows stay; a reload that
+  // a newer filter overtook fails silently, the newer load answers for it.
+  const afterMerge = useRefreshAfterWrite(
+    "die Anzeige der Ferienanmeldungen",
+    async () => {
+      const current = ++generation.current;
+      try {
+        await readRegistrations(current);
+      } catch (err) {
+        if (current === generation.current) throw err;
+      } finally {
+        if (current === generation.current) setLoading(false);
+      }
+    },
+  );
 
   // A new filter shows other rows; a selection the list no longer shows
   // would be merged unseen.
@@ -472,35 +615,94 @@ export default function TraegerHolidayRegistrationsPage() {
     }
   };
 
+  // One PDF per registration of the filter in a ZIP (#6691).
+  const exportPdfs = async (key: string, withHealth: boolean) => {
+    setExporting(key);
+    try {
+      const file = await downloadHolidayRegistrationPdfs(
+        periodId,
+        filter,
+        withHealth,
+      );
+      downloadBlob(file.blob, file.filename ?? "ferienanmeldungen.zip");
+    } catch (err) {
+      logger.error("traeger_holiday_registrations_pdf_export_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      await showActionError(err, { object: "die PDF-Dateien" });
+    } finally {
+      setExporting(null);
+    }
+  };
+
   const selectExport = (option: ExportMenuOption) => {
     if (option.format === "csv" || option.format === "xlsx") {
       void exportFile(option.format);
+    } else if (option.format === "pdf") {
+      void exportPdfs(option.key, option.key === HOLIDAY_PDF_HEALTH_KEY);
     }
   };
+
+  const deletionNotice = holidayDeletionNotice(list?.registrations ?? []);
 
   const mergeSiblings = async () => {
     if (merging || loading || selected.size < 2) return;
     setMerging(true);
     try {
       await mergeHolidaySiblings(periodId, [...selected]);
-      success("Die Anmeldungen sind als Geschwister zusammengeführt.");
-      setSelected(new Set());
-      await load();
     } catch (err) {
       logger.error("traeger_holiday_siblings_merge_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      await showActionError(err, { object: "die Geschwistergruppe" });
-    } finally {
       setMerging(false);
+      await showActionError(err, { object: "die Geschwistergruppe" });
+      return;
     }
+    success("Die Anmeldungen sind als Geschwister zusammengeführt.");
+    setSelected(new Set());
+    // The selection stays locked until the new rows are there.
+    await afterMerge.refresh();
+    setMerging(false);
   };
 
   const names = schoolNames(schools);
   const needle = foldForSearch(search.trim());
-  const registrationsShown = (list?.registrations ?? []).filter(
-    (registration) => matchesRegistration(registration, needle),
+  const loadedRegistrations = list?.registrations ?? [];
+  const registrationsShown = loadedRegistrations.filter((registration) =>
+    matchesRegistration(registration, needle),
   );
+  // Every loaded registration, also those the search hides: the school
+  // check does not reload per typed letter.
+  const known = useHolidayKnownChildren(
+    periodId,
+    undefined,
+    knownChildrenKey(
+      loadedRegistrations.flatMap((registration) => registration.children),
+    ),
+  );
+
+  const openBulkConfirmation = () => {
+    if (merging || loading || selected.size === 0) return;
+    setBulkPlan(
+      planHolidayBulkConfirmation(
+        loadedRegistrations.filter((registration) =>
+          selected.has(registration.id),
+        ),
+        {
+          debtorNumberRequired: debtorNumberColumn,
+          groups,
+          shown: loadedRegistrations,
+        },
+      ),
+    );
+  };
+
+  const closeBulkConfirmation = (changed: boolean) => {
+    setBulkPlan(null);
+    if (!changed) return;
+    setSelected(new Set());
+    void load();
+  };
   const siblings: SiblingView = {
     groupOf: siblingGroupOf(groups),
     // Hints compare with every loaded registration, also those the search
@@ -526,10 +728,15 @@ export default function TraegerHolidayRegistrationsPage() {
       label: name,
     })),
   ];
-  const filtered = Boolean(status !== "all" || school || weekId || timeModel);
+  // The wish (#4703) is a filter only while the period takes it into account.
+  const wishRule = period?.holidayWishRule ?? false;
+  const filtered = Boolean(
+    status !== "all" || school || weekId || timeModel || wish,
+  );
   const duplicates = duplicateCount(list);
   const loadError =
     listLoad.error ??
+    (!list ? afterMerge.error : null) ??
     metadataLoadError(
       periodError ?? schoolsError,
       Boolean(list && period && schools),
@@ -570,6 +777,19 @@ export default function TraegerHolidayRegistrationsPage() {
       onChange: (value) => setTimeModel(value as string),
       options: timeModelOptions,
     },
+    ...(wishRule || wish
+      ? [
+          {
+            id: "wish",
+            label: "Ferienwunsch",
+            type: "dropdown" as const,
+            value: wish,
+            onChange: (value: string | string[]) =>
+              setWish(value as HolidayWishFilter),
+            options: [...HOLIDAY_WISH_FILTER_OPTIONS],
+          },
+        ]
+      : []),
   ];
   const optionLabel = (
     options: readonly { value: string; label: string }[],
@@ -612,12 +832,22 @@ export default function TraegerHolidayRegistrationsPage() {
           },
         ]
       : []),
+    ...(wish
+      ? [
+          {
+            id: "wish",
+            label: optionLabel(HOLIDAY_WISH_FILTER_OPTIONS, wish),
+            onRemove: () => setWish(""),
+          },
+        ]
+      : []),
   ];
   const clearFilters = () => {
     setStatus("all");
     setSchool("");
     setWeekId("");
     setTimeModel("");
+    setWish("");
   };
 
   return (
@@ -650,6 +880,7 @@ export default function TraegerHolidayRegistrationsPage() {
         periodId,
         "anmeldungen",
         period?.registrationCount,
+        period?.allocationMode,
       )}
       actions={
         <>
@@ -667,7 +898,7 @@ export default function TraegerHolidayRegistrationsPage() {
               the list for the schools and the kitchen. */}
           <ExportMenu
             ariaLabel="Anmeldungen herunterladen"
-            options={EXPORT_FORMATS}
+            options={exportOptions(activeFilters.length > 0, canSeeHealth)}
             busyKey={exporting}
             unavailable={loading || Boolean(loadError)}
             onSelect={selectExport}
@@ -679,6 +910,8 @@ export default function TraegerHolidayRegistrationsPage() {
       onClearAllFilters={clearFilters}
       error={loadError}
     >
+      <LoadErrorAlert error={afterMerge.error} className="mb-4" />
+      {deletionNotice ? <Alert type="info" message={deletionNotice} /> : null}
       {duplicates > 0 ? (
         <Alert
           type="warning"
@@ -689,17 +922,25 @@ export default function TraegerHolidayRegistrationsPage() {
           }
         />
       ) : null}
+
       <DataTable
         // Eight columns: narrower cells give the children and their weeks
         // the room to stand on one line each.
         dense
-        columns={columns(periodId, names, debtorNumberColumn, siblings)}
+        columns={columns(
+          periodId,
+          names,
+          debtorNumberColumn,
+          siblings,
+          wishRule,
+          known,
+        )}
         rows={[...registrationsShown]}
         getRowKey={(registration) => registration.id}
         selection={{
           selectedKeys: selected,
           // While new rows load, the old ones are no choice any more.
-          disabled: merging || loading,
+          disabled: merging || loading || bulkPlan !== null,
           rowLabel: (registration) =>
             `Anmeldung Nr. ${registration.id} von ${registration.guardianFirstName} ${registration.guardianLastName}`,
           onChange: (keys, on) =>
@@ -743,39 +984,58 @@ export default function TraegerHolidayRegistrationsPage() {
         }
       />
       {selected.size > 0 ? (
-        // What the ticked rows are for, and the action, stick at the bottom
+        // What the ticked rows are for, and the actions, stick at the bottom
         // of the screen while the list scrolls.
         <SelectionBar
           aria-label="Ausgewählte Anmeldungen"
           placement="bottom"
           count={selected.size}
-          label={
-            selected.size === 1
-              ? "1 Anmeldung ausgewählt."
-              : `${selected.size} Anmeldungen ausgewählt.`
-          }
+          label={`${registrationCount(selected.size)} ausgewählt.`}
           description={
             selected.size === 1
               ? "Zum Zusammenführen als Geschwister wählen Sie eine weitere Anmeldung derselben Familie."
               : "Als Geschwister zählen ihre Kinder beim Ferienbeitrag zusammen."
           }
           onClear={() => setSelected(new Set())}
-          busy={merging}
+          busy={merging || bulkPlan !== null}
+          // On a phone each row of actions fills the width.
           actions={
-            selected.size > 1 ? (
+            <>
+              {selected.size > 1 ? (
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="compact"
+                  isLoading={merging}
+                  disabled={loading || bulkPlan !== null}
+                  loadingText="Führt zusammen …"
+                  tooltip="Die Kinder zählen dann beim Ferienbeitrag zusammen."
+                  onClick={() => void mergeSiblings()}
+                  className="max-sm:grow"
+                >
+                  Als Geschwister zusammenführen
+                </Button>
+              ) : null}
               <Button
                 type="button"
                 variant="primary"
                 size="compact"
-                isLoading={merging}
-                disabled={loading}
-                loadingText="Führt zusammen …"
-                onClick={() => void mergeSiblings()}
+                disabled={loading || merging}
+                onClick={openBulkConfirmation}
+                className="max-sm:grow"
               >
-                Als Geschwister zusammenführen
+                Ausgewählte bestätigen
               </Button>
-            ) : null
+            </>
           }
+        />
+      ) : null}
+      {bulkPlan ? (
+        <HolidayBulkConfirmModal
+          periodId={periodId}
+          plan={bulkPlan}
+          isOpen
+          onClose={closeBulkConfirmation}
         />
       ) : null}
     </TenantPage>

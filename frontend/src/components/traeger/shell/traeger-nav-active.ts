@@ -30,6 +30,7 @@ const BILLING_AREA_REGISTERS: Readonly<Record<string, readonly string[]>> = {
     "kinderzahl",
     "nachweise",
     "kostentraeger",
+    "exporte",
   ],
   "/traeger/abrechnung/preise": ["preise", "mensa", "ermaessigungen"],
 };

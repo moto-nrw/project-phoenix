@@ -8,15 +8,15 @@ import (
 	"testing"
 	"time"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	delivery "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -73,9 +73,9 @@ func TestMFACodeOutboxCommitsWithChallengeBeforeSynchronousDelivery(t *testing.T
 			})
 			trigger := func() (string, error) {
 				if operator {
-					return module.OperatorMFA.StartOperatorMFAChallenge(ctx, identityID, net.ParseIP("203.0.113.77"))
+					return module.OperatorMFA.StartOperatorMFAChallenge(ctx, identityID, net.ParseIP("203.0.113.77"), nil)
 				}
-				return module.MFA.StartMFAChallenge(ctx, identityID, testpkg.Tenant(t), identityaccess.MFAChallengeScopeTenant, net.ParseIP("203.0.113.77"))
+				return module.MFA.StartMFAChallenge(ctx, identityID, testpkg.Tenant(t), identityaccess.MFAChallengeScopeTenant, net.ParseIP("203.0.113.77"), 0)
 			}
 			_, err = db.NewRaw(`ALTER TABLE platform.email_outbox ADD CONSTRAINT reject_mfa_test_enqueue CHECK (payload->>'Type' NOT IN ('mfa_email_code', 'operator_mfa_email_code'))`).Exec(ctx)
 			require.NoError(t, err)
@@ -196,7 +196,8 @@ func TestTrustedDeviceNoticeOutboxIsAtomicWithDevice(t *testing.T) {
 			}
 			trigger := func() (string, time.Time, error) {
 				if operator {
-					return module.OperatorMFA.IssueOperatorTrustedDevice(ctx, id, "Outbox test", net.ParseIP("203.0.113.78"))
+					// A new operator holds credential generation 1 (#6308).
+					return module.OperatorMFA.IssueOperatorTrustedDevice(ctx, identityaccess.OperatorMFAProof{OperatorID: id, CredentialGeneration: 1}, "Outbox test", net.ParseIP("203.0.113.78"))
 				}
 				return module.MFA.IssueTrustedDevice(ctx, id, testpkg.Tenant(t), "Outbox test", net.ParseIP("203.0.113.78"))
 			}

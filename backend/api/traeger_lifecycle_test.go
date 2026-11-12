@@ -19,12 +19,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	provisioningAPI "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	provisioningAPI "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/inbound/operator"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // traegerLifecycleFixture holds the operator routes over one provisioned
@@ -44,8 +44,11 @@ func newTraegerLifecycleFixture(t *testing.T, label string) (traegerLifecycleFix
 	operatorID := testpkg.CreateTestOperator(t, db).ID
 	organizationID, _ := provisionTestSchool(t, db, service, operatorID, label)
 	resource := provisioningAPI.NewProvisioningResource(provisioningAPI.ProvisioningConfig{Service: service})
+	records, err := provisioningAPI.NewTraegerErasureOrderRecordsResource(service.ErasureOrderRecords)
+	require.NoError(t, err)
 	operator := chi.NewRouter()
 	mountOperatorProvisioningRoutes(operator, resource, nil)
+	mountOperatorErasureOrderRecordsRoute(operator, records)
 	return traegerLifecycleFixture{
 		db: db, ctx: provisioningContext(t, db),
 		operatorID: operatorID, organizationID: organizationID, operator: operator,
@@ -145,7 +148,9 @@ func TestOperatorRecordsAndWithdrawsTheErasureOrderOfADeactivatedTraeger(t *test
 	t.Parallel()
 	f, _ := newTraegerLifecycleFixture(t, "traeger-loeschen")
 	path := fmt.Sprintf("/organizations/%d/erasure-order", f.organizationID)
-	order := map[string]string{"order_reference": "LOESCH-4657", "confirmed_on": "2026-01-02", "erase_not_before": "2099-12-31"}
+	// The customer chose lawful erasure after the AVV Ziff. 8.4 hint (#4720).
+	order := map[string]any{"order_reference": "LOESCH-4657", "confirmed_on": "2026-01-02", "erase_not_before": "2099-12-31",
+		"records_notice_acknowledged": true, "records_choice": "erasure_chosen"}
 
 	rec := f.call(t, http.MethodPost, path, order)
 	assert.Equal(t, http.StatusConflict, rec.Code)
@@ -158,7 +163,11 @@ func TestOperatorRecordsAndWithdrawsTheErasureOrderOfADeactivatedTraeger(t *test
 		"no grace period":            {"order_reference": "LOESCH-4657", "confirmed_on": "2026-01-02", "erase_not_before": "2026-01-03"},
 		"no date":                    {"order_reference": "LOESCH-4657", "confirmed_on": "", "erase_not_before": "2099-12-31"},
 	} {
-		rec = f.call(t, http.MethodPost, path, invalid)
+		body := map[string]any{"records_notice_acknowledged": true, "records_choice": "erasure_chosen"}
+		for key, value := range invalid {
+			body[key] = value
+		}
+		rec = f.call(t, http.MethodPost, path, body)
 		assert.Equal(t, http.StatusBadRequest, rec.Code, "%s: %s", name, rec.Body.String())
 	}
 

@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"time"
 
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 	"github.com/uptrace/bun"
 )
 
@@ -104,17 +105,40 @@ func (s *Store) DeleteExpiredSystemEmails(ctx context.Context, before time.Time,
 		emails, deleteErr := affected("delete expired system email intents")(db.ExecContext(txCtx, `DELETE FROM platform.email_outbox
    WHERE id IN (SELECT id FROM platform.email_outbox
     WHERE tenant_id IS NULL AND status IN ('sent', 'dead_letter', 'cancelled')
-    AND COALESCE(CASE status WHEN 'sent' THEN sent_at WHEN 'dead_letter' THEN dead_letter_at ELSE cancelled_at END, updated_at) < ?
-    ORDER BY id LIMIT ?)`, before, limit))
+    AND NOT (kind = 'holiday_closure_notice' AND (status IN ('sent', 'dead_letter')
+     OR (status = 'cancelled' AND last_error IN (?2, ?3))))
+    AND COALESCE(CASE status WHEN 'sent' THEN sent_at WHEN 'dead_letter' THEN dead_letter_at ELSE cancelled_at END, updated_at) < ?0
+    ORDER BY id LIMIT ?1)`, before, limit, deliveryContract.MailHeldByList, deliveryContract.MailHeldByStop))
 		if deleteErr != nil {
 			return deleteErr
+		}
+		// Failed and unknown closure mail remains recoverable until its
+		// registrations expire; their retention erases all mail copies. Accepted mail
+		// keeps its key and outcome so a delayed reconciliation never retries it;
+		// only registration links remain for the existing erasure contract.
+		cleared, clearErr := affected("clear accepted holiday closure mail")(db.ExecContext(txCtx, `WITH expired AS MATERIALIZED (
+    SELECT id FROM platform.email_outbox
+    WHERE tenant_id IS NULL AND kind = 'holiday_closure_notice' AND status = 'sent' AND sent_at < ?
+     AND (recipient <> '{}'::jsonb OR payload - 'registration_ids' <> '{}'::jsonb)
+    ORDER BY id LIMIT ?
+   ), removed_events AS (
+    DELETE FROM platform.email_delivery_events WHERE outbox_id IN (SELECT id FROM expired)
+   )
+   UPDATE platform.email_outbox
+   SET recipient = '{}'::jsonb, payload = jsonb_build_object('registration_ids', payload->'registration_ids'),
+    provider_result = NULL, last_error = NULL, message_id = NULL, provider_message_id = NULL,
+    delivery_state = NULL, delivery_state_at = NULL, fallback_requested_at = NULL, delivery_checked_at = NULL,
+    delivery_token = uuid_generate_v4()::text
+   WHERE id IN (SELECT id FROM expired)`, before, limit))
+		if clearErr != nil {
+			return clearErr
 		}
 		pushes, deleteErr := affected("delete expired Träger push intents")(db.ExecContext(txCtx, `DELETE FROM platform.push_outbox
    WHERE id IN (SELECT id FROM platform.push_outbox
     WHERE tenant_id IS NULL AND status IN ('sent', 'dead_letter', 'cancelled')
     AND COALESCE(CASE status WHEN 'sent' THEN sent_at WHEN 'dead_letter' THEN dead_letter_at ELSE cancelled_at END, updated_at) < ?
     ORDER BY id LIMIT ?)`, before, limit))
-		count = emails + pushes
+		count = emails + cleared + pushes
 		return deleteErr
 	})
 	return count, err

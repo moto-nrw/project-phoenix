@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
-	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain"
+	scheduleModel "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Sammel-Vertretung across several days (#2284).
@@ -64,8 +64,11 @@ func (s *staffDeviations) ApplyBulkSubstitution(ctx context.Context, in timetabl
 		}
 	}
 
-	plans, err := s.planBulkDays(ctx, in, dates, reason)
+	plans, staff, err := s.planBulkDays(ctx, in, dates, reason)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.lockDeviationStaff(ctx, staff); err != nil {
 		return nil, err
 	}
 	return s.executeBulkPlans(ctx, in.ActorAccountID, plans)
@@ -135,21 +138,22 @@ func staffField(label string) string {
 // plan and stays a no-op. The read sets of all dates load before the first
 // classification (#5808); Phase A writes nothing, so every date still
 // classifies against the rows read after all its locks.
-func (s *staffDeviations) planBulkDays(ctx context.Context, in timetable.BulkSubstitutionInput, dates []calendar.Date, reason *string) ([]bulkDayPlan, error) {
+func (s *staffDeviations) planBulkDays(ctx context.Context, in timetable.BulkSubstitutionInput, dates []calendar.Date, reason *string) ([]bulkDayPlan, []int64, error) {
 	deviations := bulkDeviationInput(in, reason)
 	readSets, err := s.loadBulkDeviationReadSets(ctx, deviations, dates)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
 	plans := make([]bulkDayPlan, 0, len(dates))
 	for i, date := range dates {
 		plan, err := planBulkDay(in, deviations, date, readSets[i])
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
 		plans = append(plans, plan)
 	}
-	return plans, nil
+	// Every date reads the same staff references.
+	return plans, lockableDeviationStaff(deviations, readSets[0]), nil
 }
 
 // bulkDeviationInput is the single-day deviation input every selected date
@@ -211,6 +215,9 @@ func (s *staffDeviations) loadBulkDeviationReadSets(ctx context.Context, in time
 		dayRows := slices.DeleteFunc(slices.Clone(allRows), func(row *scheduleModel.InstanceStaff) bool { return !ids[row.InstanceID] })
 		readSets[i] = newDeviationReadSet(staff, staffIDs, rowsByDate[i], dayInstances, dayRows)
 	}
+	if err := s.markSickStaff(ctx, dates, readSets); err != nil {
+		return nil, err
+	}
 	return readSets, nil
 }
 
@@ -223,8 +230,12 @@ func planBulkDay(in timetable.BulkSubstitutionInput, deviations timetable.ApplyD
 		return bulkDayPlan{date: date, absencePlan: absencePlan}, nil
 	}
 
-	// The substitute must not already be absent in the DB on this date —
-	// the same day-wide rule validateDeviationStaff enforces (#1840).
+	// The substitute must not already be absent in the DB on this date, nor
+	// sick that day — the same day-wide rule validateDeviationStaff enforces
+	// (#1840, #6292).
+	if readSet.sickStaff[*in.SubstituteStaffID] {
+		return bulkDayPlan{}, substituteSickOnDate(date)
+	}
 	for _, row := range readSet.rowsByStaff[*in.SubstituteStaffID] {
 		if row.IsAbsent {
 			return bulkDayPlan{}, timetable.DeviationBadRequest(fmt.Sprintf(
@@ -361,4 +372,12 @@ func bulkDayError(date calendar.Date, err error) error {
 		}
 	}
 	return err
+}
+
+// substituteSickOnDate refuses a substitute a sick report covers on date with
+// the existing "absent on that day" code: a sick person is absent.
+func substituteSickOnDate(date calendar.Date) error {
+	return timetable.DeviationBadRequest(fmt.Sprintf(
+		"die Ersatzperson ist am %s krankgemeldet", date.Format("02.01.2006"))).
+		WithCode(timetable.CodeSubstituteAbsentOnDate).OnField("substitute_staff_id").WithValues(timetable.RefusalValues{Date: date.Format(timetable.RefusalDateLayout)})
 }

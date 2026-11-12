@@ -10,10 +10,10 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -35,9 +35,9 @@ func TestWorkTimeModelDetailProtectedFailures(t *testing.T) {
 		{name: "nonpositive id", id: "0", permission: "time_tracking:manage", status: http.StatusBadRequest, detail: "work time model ID is required", statements: 3},
 		{name: "cancel before transaction", permission: "time_tracking:manage", cancel: true, status: http.StatusInternalServerError, detail: "Internal Server Error", statements: 0},
 		{name: "model read error", permission: "time_tracking:manage", breakTable: "work_time_models", status: http.StatusInternalServerError,
-			detail: `workforce postgres: find work-time model: ERROR: relation "config.work_time_models" does not exist (SQLSTATE=42P01)`, statements: 4},
+			detail: `workforce postgres: find work-time model: `, statements: 4},
 		{name: "nested entry read error", permission: "time_tracking:manage", breakTable: "work_time_model_entries", status: http.StatusInternalServerError,
-			detail: `workforce postgres: load work-time model entries: ERROR: relation "config.work_time_model_entries" does not exist (SQLSTATE=42P01)`, statements: 5},
+			detail: `workforce postgres: load work-time model entries: `, statements: 5},
 		{name: "missing model never reads unavailable entries", permission: "time_tracking:manage", missing: true, breakTable: "work_time_model_entries", status: http.StatusNotFound,
 			detail: "work time model not found", statements: 4},
 	} {
@@ -71,6 +71,14 @@ func TestWorkTimeModelDetailProtectedFailures(t *testing.T) {
 			if id == "" {
 				id = fmt.Sprint(created.ID)
 			}
+			detail := test.detail
+			if test.breakTable != "" && !test.missing {
+				// Probe the same missing relation before query capture. Its SQLSTATE
+				// and localized diagnostic keep the complete wire expectation exact.
+				_, probeErr := db.ExecContext(testpkg.Ctx(t), "SELECT 1 FROM config."+test.breakTable)
+				require.Equal(t, "42P01", testpkg.PostgresSQLState(probeErr))
+				detail += probeErr.Error()
+			}
 			counter := testpkg.CaptureQueries(t, db)
 			request := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/api/work-time-models/"+id, nil, testutil.WithJWTBearer(token))
 			if test.cancel {
@@ -93,7 +101,7 @@ func TestWorkTimeModelDetailProtectedFailures(t *testing.T) {
 			}
 			want, encodeErr := json.Marshal(map[string]any{
 				"type": "https://moto-app.de/help/fehlermeldungen#" + anchor, "title": http.StatusText(test.status),
-				"status": test.status, "detail": test.detail, "instance": "", "code": code,
+				"status": test.status, "detail": detail, "instance": "", "code": code,
 			})
 			require.NoError(t, encodeErr)
 			require.JSONEq(t, string(want), response.Body.String())

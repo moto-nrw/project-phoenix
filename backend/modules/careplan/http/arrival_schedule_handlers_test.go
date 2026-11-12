@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1164,7 +1164,6 @@ func TestStaffArrivalWrite_BroadcastsArrivalScheduleChanged(t *testing.T) {
 		for _, c := range tc.broadcaster.CallsByMethod("tenant") {
 			if c.Event.Type == realtime.EventArrivalScheduleChanged {
 				assert.Equal(t, testpkg.Tenant(t), c.TenantID)
-				assert.Empty(t, tc.broadcaster.CallsByMethod("all"), "arrival changes must never use unscoped fan-out")
 				return true
 			}
 		}

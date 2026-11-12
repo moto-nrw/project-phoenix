@@ -6,14 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"sort"
 	"strings"
 	"sync"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 	"github.com/stretchr/testify/require"
 )
 
@@ -361,7 +363,7 @@ func (s *fakeStore) ListSchoolRoles(context.Context, int64) ([]*domain.SchoolRol
 func (s *fakeStore) FindSchoolRoleByName(context.Context, string, int64) (*domain.SchoolRole, domain.OperationStats, error) {
 	panic("not used")
 }
-func (s *fakeStore) FindRolePermissions(context.Context, int64, int64) ([]string, domain.OperationStats, error) {
+func (s *fakeStore) FindRolePermissionsByRoleIDs(context.Context, []int64, int64) (map[int64][]string, domain.OperationStats, error) {
 	panic("not used")
 }
 func (s *fakeStore) FindInvitedPersonIDs(context.Context, string, int64) ([]int64, domain.OperationStats, error) {
@@ -649,15 +651,16 @@ func (s *fakeStore) ListLiveAccountSessionsForCap(_ context.Context, accountID i
 	return result, stats(), nil
 }
 
-func (s *fakeStore) DeleteAccountSessionsByID(_ context.Context, ids []int64) ([]domain.AccountSession, domain.OperationStats, error) {
+func (s *fakeStore) EvictAccountSessions(_ context.Context, accountID int64, ids []int64, familyIDs []string) ([]domain.AccountSession, domain.OperationStats, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	var deleted []domain.AccountSession
-	for _, id := range ids {
-		if session, ok := s.sessions[id]; ok {
-			deleted = append(deleted, session)
-			delete(s.sessions, id)
+	for id, session := range s.sessions {
+		if session.AccountID != accountID || (!slices.Contains(ids, id) && !slices.Contains(familyIDs, session.FamilyID)) {
+			continue
 		}
+		deleted = append(deleted, session)
+		delete(s.sessions, id)
 	}
 	return deleted, stats(), nil
 }
@@ -691,6 +694,20 @@ func (s *fakeStore) DeleteAccountSessionsByAccount(ctx context.Context, accountI
 			continue
 		}
 		if !cutoff.IsZero() && session.CreatedAt.After(cutoff) {
+			continue
+		}
+		deleted = append(deleted, session)
+		delete(s.sessions, id)
+	}
+	return deleted, stats(), nil
+}
+
+func (s *fakeStore) DeleteAccountSessionsExceptFamily(_ context.Context, accountID int64, keepFamilyID string) ([]domain.AccountSession, domain.OperationStats, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	var deleted []domain.AccountSession
+	for id, session := range s.sessions {
+		if session.AccountID != accountID || (keepFamilyID != "" && session.FamilyID == keepFamilyID) {
 			continue
 		}
 		deleted = append(deleted, session)
@@ -847,7 +864,7 @@ func (c fakeCodec) IssueTokenPair(access domain.SessionClaims, refresh domain.Re
 	return c.encode("access:", access), c.encode("refresh:", refresh), nil
 }
 
-func (c fakeCodec) IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, _ time.Duration) (string, error) {
+func (c fakeCodec) IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, _ time.Duration, _ int64) (string, error) {
 	return fmt.Sprintf("enroll:%d:%d:%s", accountID, tenantID, scope), nil
 }
 
@@ -875,6 +892,16 @@ func (fakeCodec) ParseRefreshToken(token string) (domain.RefreshClaims, error) {
 }
 
 func (fakeCodec) RefreshExpiry() time.Duration { return time.Hour }
+
+// The fake codec signs no setup link (ADR 0216); the real codec is covered
+// in the HTTP tests.
+func (fakeCodec) IssueHolidayParentSetupToken(identityaccess.HolidayParentSetupClaims, time.Duration) (string, error) {
+	return "", errors.New("the fake codec signs no setup link")
+}
+
+func (fakeCodec) ParseHolidayParentSetupToken(string) (identityaccess.HolidayParentSetupClaims, error) {
+	return identityaccess.HolidayParentSetupClaims{}, errors.New("the fake codec reads no setup link")
+}
 
 func decodeAccess(t *testing.T, token string) domain.SessionClaims {
 	t.Helper()
@@ -940,7 +967,7 @@ func (m *fakeMFA) HasEnrollment(context.Context, int64) (bool, error) {
 func (m *fakeMFA) VerifyTrustedDevice(context.Context, int64, int64, string) (bool, error) {
 	return m.trusted, nil
 }
-func (m *fakeMFA) StartChallenge(_ context.Context, _, _ int64, scope, _ string) (string, error) {
+func (m *fakeMFA) StartChallenge(_ context.Context, _, _ int64, scope, _ string, _ int64) (string, error) {
 	m.challenges = append(m.challenges, scope)
 	if m.challengeErr != nil {
 		return "", m.challengeErr
@@ -1141,4 +1168,8 @@ func tenantPasswordLogin(auth *AccountAuthentication, ctx context.Context, email
 		return "", "", err
 	}
 	return result.AccessToken, result.RefreshToken, nil
+}
+
+func (s *fakeStore) FindSchoolEmailIdentities(context.Context, []string, int64) (map[string]int64, map[string][]int64, domain.OperationStats, error) {
+	return nil, nil, domain.OperationStats{}, nil
 }

@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
 )
 
 // CreateGuardianContact adds an accountless contact to the child.
@@ -33,7 +33,7 @@ func (s *Service) CreateGuardianContact(ctx context.Context, accountID, studentI
 	}
 
 	var result *ChildGuardian
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, newContactAccess(input), func(txCtx context.Context) error {
 		created, err := s.createGuardianContactInTx(txCtx, child, accountID, studentID, input)
 		if err != nil || !input.CanPickup {
 			result = created
@@ -58,6 +58,16 @@ func (s *Service) CreateGuardianContact(ctx context.Context, accountID, studentI
 		slog.Int64("tenant_id", child.TenantID),
 	)
 	return result, nil
+}
+
+// newContactAccess is what creating a contact holds until it commits: the
+// edit permission, and the pickup permission for its pickup and emergency
+// flags.
+func newContactAccess(input CreateGuardianContactInput) ChildWriteAccess {
+	if input.CanPickup || input.IsEmergencyContact {
+		return childWriteNeeds(GuardianPermissionGuardianEdit, GuardianPermissionPickupManage)
+	}
+	return childWriteNeeds(GuardianPermissionGuardianEdit)
 }
 
 // checkNewContactFlags gates the pickup and emergency flags of a new contact

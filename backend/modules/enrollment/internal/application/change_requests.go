@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // Change requests (#3565): a family's proposed correction of its enrollment
@@ -64,17 +64,21 @@ type ReviewerNames interface {
 // Decisions, BookingGates, Companions, Reviewers and the People ports are
 // optional where the flow degrades without them.
 type ChangeRequestDependencies struct {
-	Requests           ChangeRequestRecords
-	Children           IntakeChildren
-	Guardians          IntakeGuardians
-	LateInvites        DecisionLateInvites
-	Catalog            IntakeCatalog
-	Offerings          IntakeOfferings
-	Bookings           CareBookingChanges
-	Capacity           enrollmentNative.OfferingCapacity
-	Notifications      enrollmentNative.Notifications
-	Students           StudentMatches
-	GuardianAuthorizer GuardianStudentAuthorizer
+	Requests      ChangeRequestRecords
+	Children      IntakeChildren
+	Guardians     IntakeGuardians
+	LateInvites   DecisionLateInvites
+	Catalog       IntakeCatalog
+	Offerings     IntakeOfferings
+	Bookings      CareBookingChanges
+	Capacity      enrollmentNative.OfferingCapacity
+	Notifications enrollmentNative.Notifications
+	Students      StudentMatches
+	// GuardianHold holds the request identity's authority over every pin
+	// and approved student an approval writes, behind the parent guard,
+	// before the approval's phase locks (#6638). Without it no pin and no
+	// family data is authorized.
+	GuardianHold GuardianStudentHold
 	// Decisions applies an approved change to a child the decision flow
 	// already approved; BookingGates wrap those writes.
 	Decisions    enrollmentNative.ApprovedChildChanges
@@ -86,12 +90,24 @@ type ChangeRequestDependencies struct {
 	People              PeopleDirectory
 	GuardianInvitations GuardianInvitationAvailability
 	Reviewers           ReviewerNames
-	Settings            IntakeSettings
-	Outbox              MailOutbox
-	FrontendURL         string
-	ParentsURL          string
-	Runtime             Runtime
-	Logger              *slog.Logger
+	// LockTemplateRecurrence is the recurrence gate the phase bounds reader
+	// takes before it reads the phase (#6657). The root always binds it.
+	LockTemplateRecurrence func(context.Context) error
+	Settings               IntakeSettings
+	Outbox                 MailOutbox
+	FrontendURL            string
+	ParentsURL             string
+	Runtime                Runtime
+	Logger                 *slog.Logger
+
+	// LateInviteIdentities batch-loads the approval's invitation identities.
+	// The owner composition binds its private store in the same transaction.
+	LateInviteIdentities ApprovalLateInvites
+}
+
+// ApprovalLateInvites loads the invitation identities of a whole approval.
+type ApprovalLateInvites interface {
+	LateInvitesByUsedRequestIDs(context.Context, []int64) ([]*enrollmentNative.LateInvite, error)
 }
 
 // ChangeRequests implements the public ChangeRequests capability.
@@ -115,8 +131,8 @@ func NewChangeRequests(deps ChangeRequestDependencies) *ChangeRequests {
 	deps.FrontendURL = strings.TrimRight(strings.TrimSpace(deps.FrontendURL), "/")
 	intake := NewIntake(IntakeDependencies{
 		Requests: deps.Requests, Children: deps.Children, Catalog: deps.Catalog, Offerings: deps.Offerings,
-		Capacity: deps.Capacity, Students: deps.Students, GuardianAuthorizer: deps.GuardianAuthorizer,
-		Settings: deps.Settings, Runtime: deps.Runtime, Logger: deps.Logger,
+		Capacity: deps.Capacity, Students: deps.Students, GuardianHold: deps.GuardianHold,
+		Settings: deps.Settings, Runtime: deps.Runtime, Logger: deps.Logger, LockTemplateRecurrence: deps.LockTemplateRecurrence,
 	})
 	return &ChangeRequests{deps: deps, intake: intake}
 }
@@ -227,7 +243,7 @@ func (s *ChangeRequests) create(ctx context.Context, token string, input enrollm
 	}
 	var created *ChangeRequest
 	if err := s.deps.Runtime.TenantTx(ctx, tenantID, func(txCtx context.Context) error {
-		row, createErr := s.createInTenant(txCtx, token, submission, input)
+		row, createErr := s.createInTenant(txCtx, token, req.PhaseID, submission, input)
 		created = row
 		return createErr
 	}); err != nil {
@@ -237,13 +253,37 @@ func (s *ChangeRequests) create(ctx context.Context, token string, input enrollm
 	return s.loadAggregateForTenant(ctx, tenantID, created.ID, false, nil)
 }
 
-func (s *ChangeRequests) createInTenant(ctx context.Context, token string, submission SubmitRequest, input enrollmentNative.CreateChangeRequestInput) (*ChangeRequest, error) {
+// lockCreationRequest reads the phase with the phase bounds reader, which
+// takes the recurrence gate before the request and child locks (#6657),
+// and then locks the request behind the token. The phase's own checks keep
+// their place after ensureCanCreate; a phase that is gone leaves them to it.
+func (s *ChangeRequests) lockCreationRequest(ctx context.Context, token string, phaseID int64) (enrollmentNative.LockedPhase, *enrollmentNative.Request, error) {
+	phase, err := s.intake.phaseBounds().LockedPhase(ctx, phaseID)
+	if err != nil && (errors.Is(err, enrollmentNative.ErrPhaseBoundsLock) || !s.deps.Runtime.NotFound(err)) {
+		return phase, nil, err
+	}
 	lockedReq, err := s.deps.Requests.RequestByToken(ctx, strings.TrimSpace(token), true)
 	if err != nil {
 		if !s.deps.Runtime.NotFound(err) {
-			return nil, err
+			return phase, nil, err
 		}
-		return nil, enrollmentNative.ErrRequestNotFound
+		return phase, nil, enrollmentNative.ErrRequestNotFound
+	}
+	if lockedReq.PhaseID != phaseID {
+		return phase, nil, enrollmentNative.ErrRequestNotFound
+	}
+	return phase, lockedReq, nil
+}
+
+// phaseActive reports a phase the reader read that takes requests.
+func phaseActive(phase enrollmentNative.LockedPhase) bool {
+	return phase.Phase() != nil && phase.Phase().IsActive
+}
+
+func (s *ChangeRequests) createInTenant(ctx context.Context, token string, phaseID int64, submission SubmitRequest, input enrollmentNative.CreateChangeRequestInput) (*ChangeRequest, error) {
+	phase, lockedReq, err := s.lockCreationRequest(ctx, token, phaseID)
+	if err != nil {
+		return nil, err
 	}
 	children, err := s.deps.Children.ChildrenForRequest(ctx, lockedReq.ID, true)
 	if err != nil {
@@ -265,7 +305,10 @@ func (s *ChangeRequests) createInTenant(ctx context.Context, token string, submi
 	if err != nil {
 		return nil, err
 	}
-	prepared, err := s.prepareProposed(ctx, lockedReq, children, submission, capabilities, false, true)
+	if !phaseActive(phase) {
+		return nil, enrollmentNative.ErrEnrollmentDisabled
+	}
+	prepared, err := s.prepareProposed(ctx, phase, lockedReq, children, submission, capabilities, false, true)
 	if err != nil {
 		return nil, err
 	}
@@ -303,16 +346,31 @@ func (s *ChangeRequests) listPublic(ctx context.Context, token string) ([]*chang
 		return nil, err
 	}
 	var rows []*ChangeRequest
+	out := make([]*changeRequestCase, 0)
+	var readMessages publicCaseMessageReader
 	if err := s.deps.Runtime.TenantTx(ctx, tenantID, func(txCtx context.Context) error {
 		list, listErr := changeRequestsFromOwner(s.deps.Requests.ChangeRequestsForRequest(txCtx, req.ID))
+		if listErr != nil || len(list) == 0 {
+			return listErr
+		}
 		rows = list
-		return listErr
+		readMessages = s.publicCaseMessages(rows)
+		// The first case owns the listing's tenant frame; later cases keep
+		// independent live frames. This funds the module check without an
+		// extra transaction just to enumerate cases.
+		agg, err := s.loadPublicCase(txCtx, rows[0].ID, readMessages)
+		if err != nil {
+			return err
+		}
+		out = append(out, agg)
+		return nil
 	}); err != nil {
 		return nil, err
 	}
-	out := make([]*changeRequestCase, 0, len(rows))
-	readMessages := s.publicCaseMessages(rows)
-	for _, row := range rows {
+	if len(rows) == 0 {
+		return out, nil
+	}
+	for _, row := range rows[1:] {
 		agg, loadErr := s.loadAggregateForTenant(ctx, tenantID, row.ID, false, readMessages)
 		if loadErr != nil {
 			return nil, loadErr
@@ -488,21 +546,11 @@ func (s *ChangeRequests) requestByID(ctx context.Context, id int64, lock bool) (
 // requestByToken resolves the request behind a status token in the
 // administrative transaction.
 func (s *ChangeRequests) requestByToken(ctx context.Context, token string) (*enrollmentNative.Request, int64, error) {
-	token = strings.TrimSpace(token)
-	if token == "" {
-		return nil, 0, enrollmentNative.ErrRequestNotFound
-	}
 	var req *enrollmentNative.Request
 	if err := s.deps.Runtime.AdminTx(ctx, func(adminCtx context.Context) error {
-		loaded, err := s.deps.Requests.RequestByToken(adminCtx, token, false)
+		loaded, err := s.intake.requestByStatusToken(adminCtx, token, false)
 		if err != nil {
-			if !s.deps.Runtime.NotFound(err) {
-				return err
-			}
-			return enrollmentNative.ErrRequestNotFound
-		}
-		if loaded.StatusTokenExpires != nil && time.Now().After(*loaded.StatusTokenExpires) {
-			return enrollmentNative.ErrRequestNotFound
+			return err
 		}
 		req = loaded
 		return nil

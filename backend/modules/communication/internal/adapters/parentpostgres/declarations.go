@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
@@ -34,14 +34,12 @@ var ErrDeclarationVersionConflict = errors.New("users: declaration version alrea
 type declarationColumns struct {
 	DeclarationKind              *string `bun:"declaration_kind"`
 	DeclarationSigners           *string `bun:"declaration_signers"`
-	DeclarationRevocable         bool    `bun:"declaration_revocable,notnull"`
 	DeclarationRequiresPassword  bool    `bun:"declaration_requires_password,notnull"`
 	DeclarationRequiresSignature bool    `bun:"declaration_requires_signature,notnull"`
 }
 
 func (c declarationColumns) value() domain.DeclarationSettings {
 	settings := domain.DeclarationSettings{
-		Revocable:         c.DeclarationRevocable,
 		RequiresPassword:  c.DeclarationRequiresPassword,
 		RequiresSignature: c.DeclarationRequiresSignature,
 	}
@@ -56,7 +54,6 @@ func (c declarationColumns) value() domain.DeclarationSettings {
 
 func declarationRow(settings domain.DeclarationSettings) declarationColumns {
 	columns := declarationColumns{
-		DeclarationRevocable:         settings.Revocable,
 		DeclarationRequiresPassword:  settings.RequiresPassword,
 		DeclarationRequiresSignature: settings.RequiresSignature,
 	}
@@ -77,7 +74,6 @@ func setDeclarationColumns(query *bun.UpdateQuery, settings domain.DeclarationSe
 	return query.
 		Set("declaration_kind = ?", columns.DeclarationKind).
 		Set("declaration_signers = ?", columns.DeclarationSigners).
-		Set("declaration_revocable = ?", columns.DeclarationRevocable).
 		Set("declaration_requires_password = ?", columns.DeclarationRequiresPassword).
 		Set("declaration_requires_signature = ?", columns.DeclarationRequiresSignature)
 }
@@ -268,7 +264,7 @@ func (s *AnnouncementStore) DeclarationSettings(ctx context.Context, announcemen
 	if err := db.NewSelect().
 		TableExpr(parentAnnouncementTableExpr).
 		ColumnExpr(`"parent_announcement".id, "parent_announcement".declaration_kind,
-			"parent_announcement".declaration_signers, "parent_announcement".declaration_revocable,
+			"parent_announcement".declaration_signers,
 			"parent_announcement".declaration_requires_password,
 			"parent_announcement".declaration_requires_signature`).
 		Where(`"parent_announcement".id IN (?)`, bun.List(announcementIDs)).
@@ -404,14 +400,29 @@ func submissionValues(rows []declarationSubmissionRow) []*domain.DeclarationSubm
 // LockDeclarationChild serializes submissions for one (announcement, child)
 // pair until the caller's transaction ends, so a double click or two guardians
 // declaring at once are decided one after the other against the same history.
+// It also share-locks the announcement row: the rules a declaration is
+// decided under (publication, wording, signers, password, deadline) cannot
+// change until it commits (#6494). A staff retraction, publication or edit
+// updates that row and waits; one committed before is read by the
+// declaration. A missing announcement locks nothing; the caller's re-read
+// reports it.
 func (s *AnnouncementStore) LockDeclarationChild(ctx context.Context, announcementID, studentID int64) error {
-	db, _, err := s.database(ctx)
+	db, scope, err := s.database(ctx)
 	if err != nil {
 		return err
 	}
 	key := fmt.Sprintf("parent-declaration:%d:%d", announcementID, studentID)
 	if _, err := db.NewRaw("SELECT pg_advisory_xact_lock(hashtextextended(?, 0))", key).Exec(ctx); err != nil {
 		return fmt.Errorf("lock parent declaration: %w", err)
+	}
+	var ids []int64
+	query := db.NewSelect().
+		ModelTableExpr(parentAnnouncementTableExpr).
+		Column("parent_announcement.id").
+		Where(`"parent_announcement".id = ?`, announcementID).
+		For("SHARE")
+	if err := withTenant(query, parentAnnouncementAlias, scope).Scan(ctx, &ids); err != nil {
+		return fmt.Errorf("lock parent declaration rules: %w", err)
 	}
 	return nil
 }

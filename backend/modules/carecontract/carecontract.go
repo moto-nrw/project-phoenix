@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The states of a contract (ADR 0088 section 2). The Träger-Büro reaches
@@ -204,16 +204,20 @@ type Candidate struct {
 	// AcceptanceIssue tells why the application gives no proof of the
 	// parents' agreement for a conclusion at the acceptance (Weg b): empty,
 	// SkipAcceptanceMissing or SkipAcceptanceChanged.
-	AcceptanceIssue string        `json:"acceptance_issue"`
-	SchoolName      string        `json:"school_name"`
-	ChildFirstName  string        `json:"child_first_name"`
-	ChildLastName   string        `json:"child_last_name"`
-	GuardianName    string        `json:"guardian_name"`
-	GuardianEmail   string        `json:"guardian_email"`
-	PhaseName       string        `json:"phase_name"`
-	Services        []Service     `json:"services"`
-	EffectiveFrom   calendar.Date `json:"effective_from"`
-	TemplateIssue   string        `json:"template_issue"`
+	AcceptanceIssue string `json:"acceptance_issue"`
+	// Renewal tells that the child was renewed into a new phase: a missing
+	// acceptance then means the parents have not accepted the conditions of
+	// that phase (#6456).
+	Renewal        bool          `json:"renewal"`
+	SchoolName     string        `json:"school_name"`
+	ChildFirstName string        `json:"child_first_name"`
+	ChildLastName  string        `json:"child_last_name"`
+	GuardianName   string        `json:"guardian_name"`
+	GuardianEmail  string        `json:"guardian_email"`
+	PhaseName      string        `json:"phase_name"`
+	Services       []Service     `json:"services"`
+	EffectiveFrom  calendar.Date `json:"effective_from"`
+	TemplateIssue  string        `json:"template_issue"`
 	// ModulesText names the booked modules as the contract does.
 	ModulesText string `json:"modules_text"`
 	// MailBlock names, for a child the conclusion at the acceptance (Weg b)
@@ -258,6 +262,8 @@ type ContractFilter struct {
 }
 
 type ContractSummary struct {
+	// StudentID is the child linked to this contract, nil before takeover.
+	StudentID      *int64   `json:"student_id"`
 	ID             int64    `json:"id"`
 	Status         string   `json:"status"`
 	SchoolID       int64    `json:"school_id"`
@@ -437,8 +443,13 @@ type Contracts interface {
 // Intake creates contracts from the accepted applications and keeps the
 // templates of the offerings. It reads each school in that school's tenant
 // transaction and writes in the Träger transaction, one after the other, so
-// it opens its own units and must be called outside any transaction.
+// its ordinary commands open their own units outside any transaction.
+// PrepareTemplateBatch instead participates in the caller's school unit and
+// returns a command for its later financial Träger unit.
 type Intake interface {
+	// PrepareTemplateBatch validates every template and its school offering
+	// before the caller commits the school copies.
+	PrepareTemplateBatch(ctx context.Context, reviewer Reviewer, schoolID int64, inputs []ModuleTemplateInput) (PreparedTemplates, error)
 	// Candidates lists the accepted application children with booked care
 	// and no contract, over all schools of the Träger.
 	Candidates(ctx context.Context, reviewer Reviewer, schoolID int64) ([]Candidate, error)
@@ -569,3 +580,13 @@ type ContractMailContent struct {
 }
 
 type ContractMailRenderer func(ctx context.Context, payload []byte) (RenderedContractMail, error)
+
+// ModuleTemplateInput names the validated school offering of a template.
+type ModuleTemplateInput struct {
+	CareOfferingID int64
+	Input          TemplateInput
+}
+
+// PreparedTemplates writes owner-validated inputs in the caller's Träger
+// transaction. Preparation runs in the school's transaction; no scope is nested.
+type PreparedTemplates func(context.Context) error

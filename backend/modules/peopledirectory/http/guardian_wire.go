@@ -4,7 +4,7 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // PhoneNumberResponse is one guardian phone number on the wire.
@@ -213,8 +213,10 @@ type GuardianWithRelationship struct {
 
 // guardianAccountStatus derives the staff-facing account status. An open
 // invitation outranks "active_no_access": a pending role-upgrade request
-// must read as pending, not as an actionable no-access state (#2172).
-func guardianAccountStatus(hasAccount, hasPortalAccess, invitationPending bool) string {
+// must read as pending, not as an actionable no-access state (#2172). A
+// guardian without an account whose link ended unused reads as
+// "link_invalid", so staff see that a new invitation is needed (#6294).
+func guardianAccountStatus(hasAccount, hasPortalAccess, invitationPending, invitationLinkEnded bool) string {
 	switch {
 	case hasAccount && hasPortalAccess:
 		return "active"
@@ -222,6 +224,8 @@ func guardianAccountStatus(hasAccount, hasPortalAccess, invitationPending bool) 
 		return "pending"
 	case hasAccount:
 		return "active_no_access"
+	case invitationLinkEnded:
+		return "link_invalid"
 	default:
 		return "none"
 	}

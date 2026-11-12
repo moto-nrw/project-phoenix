@@ -33,6 +33,7 @@ const RUN: CareRunDetail = {
   status: "released",
   createdAt: "2027-01-04T08:00:00Z",
   releasedAt: "2027-01-04T08:00:00Z",
+  discardedAt: null,
   issuedOn: "2027-01-04",
   documentCount: 1,
   totalCents: 9600,
@@ -268,5 +269,52 @@ describe("monthly run page letters card", () => {
     expect(
       within(dialog).getByRole("button", { name: "Freigeben" }),
     ).toBeDisabled();
+  });
+});
+
+describe("monthly run page held by an amended notice", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+    api.fetchCareLetters.mockResolvedValue(letters());
+  });
+
+  it("names the children and leads to a new Jahresbescheid", async () => {
+    api.fetchCareRun.mockResolvedValue({
+      ...RUN,
+      status: "calculated",
+      releasedAt: null,
+      issuedOn: null,
+      feeNoticeHeld: [
+        {
+          contractId: "41",
+          childFirstName: "Mia",
+          childLastName: "Muster",
+          noticeNumber: "MB-0003",
+        },
+      ],
+    });
+    renderPage();
+    expect(
+      await screen.findByText("Durch aufgehobenen Bescheid gesperrt"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Der Jahresbescheid von Mia Muster setzt diesen Monat auf 0,00 €. Der Monat bleibt gesperrt. Dieser Lauf rechnet dafür keine Betreuung ab. Wollen Sie den Monat abrechnen, stellen Sie einen neuen Bescheid aus.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Neuen Bescheid ausstellen" }),
+    ).toHaveAttribute("href", "/traeger/abrechnung/jahresbescheide");
+  });
+
+  it("shows no hint while no notice holds a month", async () => {
+    api.fetchCareRun.mockResolvedValue(RUN);
+    renderPage();
+    expect(
+      await screen.findByRole("link", { name: "Schreiben erstellen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByText("Durch aufgehobenen Bescheid gesperrt"),
+    ).toBeNull();
   });
 });

@@ -1,0 +1,17 @@
+{
+  "newTitle": "Veli hesabı oluştur",
+  "newSubtitle": "Şifrenizi belirleyin. O zaman {traeger} kurumundaki tatil kayıtlarınızı görürsünüz.",
+  "accountFor": "Hesap sahibi",
+  "submit": "Hesap oluştur",
+  "submitting": "Oluşturuluyor …",
+  "doneTitle": "Veli hesabınız hazır",
+  "doneText": "Şimdi {email} ve yeni şifrenizle giriş yapın.",
+  "login": "Giriş yap",
+  "opening": "Bir dakika …",
+  "existsTitle": "Zaten bir veli hesabınız var",
+  "existsSubtitle": "Giriş yapın. O zaman {traeger} kurumundaki tatil kayıtlarınızı da görürsünüz.",
+  "invalidTitle": "Bu bağlantı artık geçerli değil",
+  "invalidText": "Bağlantının süresi dolmuş veya bağlantı eksik.",
+  "invalidNext": "Zaten bir veli hesabınız var mı? O zaman giriş yapın. Yoksa kurumdan yeni bir bağlantı isteyin.",
+  "errorObject": "veli hesabınız"
+}

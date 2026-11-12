@@ -6,6 +6,10 @@ import (
 	"time"
 )
 
+// MaxSickAbsenceRangeDays bounds the synchronous sick-report plan cascade.
+// Workflows use the same limit before expanding its lock scope.
+const MaxSickAbsenceRangeDays = 366
+
 // Canonical staff absence types. A school-defined Abwesenheitsart never
 // changes the arithmetic: the row still carries one of these, and every
 // calculation keeps reading it.
@@ -28,6 +32,13 @@ const (
 	AbsenceStatusDeclined  = "declined"
 	AbsenceStatusCanceled  = "canceled"
 )
+
+// RangeBlockingAbsenceStatuses are the statuses with which an absence holds
+// its range: an overlapping entry merges with it or conflicts, and a sick
+// report takes plan effect. Declined and canceled entries do neither.
+func RangeBlockingAbsenceStatuses() []string {
+	return []string{AbsenceStatusReported, AbsenceStatusRequested, AbsenceStatusQuestion, AbsenceStatusApproved}
+}
 
 // Date columns a retention cleanup may address on staff absences.
 const (

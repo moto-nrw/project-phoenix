@@ -6,18 +6,18 @@ import (
 	"errors"
 	"log/slog"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
-	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	owner0 "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/realtime"
 
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ExcusedRequestTestOptions are the Care Plan inputs of the excused-absence
@@ -28,6 +28,8 @@ type ExcusedRequestTestOptions struct {
 	Scope    carePlanCompose.ReviewScopeResolver
 	Logger   *slog.Logger
 	Today    func() timezone.Date
+	// PartialAbsences lets an approval replace partial absences (#5698).
+	PartialAbsences careplan.PartialAbsenceService
 }
 
 // ExcusedRequestTestPeople are the People Directory rows the workflow binds.
@@ -53,6 +55,6 @@ func NewTestExcusedAbsenceRequests(
 	}
 	return owners.NewExcusedAbsenceRequestService(
 		options.CarePlan, people.Students, people.Persons, scope, emitter, broadcaster,
-		people.Events, nil, nil, nil, options.Logger, options.Today,
+		people.Events, nil, nil, nil, options.Logger, options.Today, options.PartialAbsences,
 	)
 }

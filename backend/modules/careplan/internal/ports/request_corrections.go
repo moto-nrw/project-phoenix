@@ -3,8 +3,8 @@ package ports
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
 )
 
 type RequestCorrectionRecords interface {
@@ -37,4 +37,10 @@ type RequestCorrectionPlans interface {
 	ApplyPickup(context.Context, *carerequests.Request, *string, bool) (carerequests.PickupApplied, error)
 	ApplyPickupPermission(context.Context, *carerequests.Request) error
 	RevertPickupPermission(context.Context, *carerequests.Request) error
+}
+
+// RequestCorrectionExcusal releases the attendance still owned by a pickup
+// exception before the correction deletes it in the same transaction.
+type RequestCorrectionExcusal interface {
+	ReleaseBeforeDelete(context.Context, *careplan.PickupException) error
 }

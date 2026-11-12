@@ -5,9 +5,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // mfaFlows is what New composes from the MFA dependencies. Its members are
@@ -97,7 +97,7 @@ func (unavailableAccountMFA) IsTrustedDeviceEnabled(context.Context, int64) bool
 
 func (unavailableAccountMFA) TrustedDeviceDays(context.Context, int64) int { return 0 }
 
-func (unavailableAccountMFA) StartMFAChallenge(context.Context, int64, int64, string, net.IP) (string, error) {
+func (unavailableAccountMFA) StartMFAChallenge(context.Context, int64, int64, string, net.IP, int64) (string, error) {
 	return "", errAccountMFAUnavailable
 }
 
@@ -117,7 +117,9 @@ func (unavailableAccountMFA) ResendMFAChallengeForScope(context.Context, string,
 	return "", errAccountMFAUnavailable
 }
 
-func (unavailableAccountMFA) EnrollMFA(context.Context, int64) error { return errAccountMFAUnavailable }
+func (unavailableAccountMFA) EnrollMFA(context.Context, identityaccess.VerifiedMFAChallenge) error {
+	return errAccountMFAUnavailable
+}
 
 func (unavailableAccountMFA) DisableMFA(context.Context, int64) error {
 	return errAccountMFAUnavailable

@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	ports "github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	ports "github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -68,7 +68,10 @@ func TestStaffImportConfig_PreloadReferenceData_LoadsRoleDisplayNamesAndSchool(t
 	require.NoError(t, config.PreloadReferenceData(ctx))
 
 	assert.Equal(t, []string{"Betreuung", "koordination"}, config.roleDisplayNames)
-	assert.Equal(t, "OGS Phoenix", config.schoolName)
+	// The school's name is read with the first invitation (#6702), once.
+	assert.False(t, config.schoolNameRead, "the preload reads no school name")
+	assert.Equal(t, "OGS Phoenix", config.invitationSchoolName(ctx))
+	assert.True(t, config.schoolNameRead)
 }
 
 func TestStaffImportConfig_Validate_ResolvesGermanDisplayRole(t *testing.T) {

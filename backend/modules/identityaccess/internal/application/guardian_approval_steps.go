@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 func (l *AccountLifecycle) attachApprovalAccount(ctx context.Context, profile *domain.GuardianProfile) error {
@@ -105,6 +105,7 @@ func (l *AccountLifecycle) requeueRoleUpgrade(ctx context.Context, req domain.In
 		approvalStatus == domain.GuardianInvitationApprovalPending &&
 		openInvitation.ApprovalStatus != domain.GuardianInvitationApprovalPending {
 		readStatus := openInvitation.ApprovalStatus
+		readExpiry := openInvitation.ExpiresAt
 		openInvitation.ApprovalStatus = domain.GuardianInvitationApprovalPending
 		openInvitation.ApprovedBy = nil
 		openInvitation.ApprovedAt = nil
@@ -120,7 +121,7 @@ func (l *AccountLifecycle) requeueRoleUpgrade(ctx context.Context, req domain.In
 		if req.RequestedByParentAccountID != nil {
 			openInvitation.RequestedByAccountID = req.RequestedByParentAccountID
 		}
-		if err := l.invitations.UpdateGuardianInvitation(ctx, openInvitation, readStatus); err != nil {
+		if err := l.invitations.UpdateGuardianInvitation(ctx, openInvitation, readStatus, readExpiry); err != nil {
 			return domain.GuardianInvitation{}, failed(opGuardianInviteToStudent, err)
 		}
 	}

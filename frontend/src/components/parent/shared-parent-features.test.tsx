@@ -23,7 +23,10 @@ import {
   useSharedParentFeatures,
 } from "./child-requests-context";
 vi.unmock("swr");
-vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => null,
+  useTenantSafe: () => null,
+}));
 
 const children = [{ student_id: "42", tenant_id: "7" }] as api.Child[];
 const features = {

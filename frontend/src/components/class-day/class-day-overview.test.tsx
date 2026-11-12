@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render as rtlRender,
   screen,
@@ -6,6 +7,10 @@ import {
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import "@testing-library/jest-dom/vitest";
+import { deferred } from "~/test/helpers/form-modal-pending";
+import { ApiError } from "~/lib/api-error";
+import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import type { ClassDayReport } from "~/lib/class-day-api";
 import type { SchoolDayReport } from "~/lib/school-class-day-api";
 import { setTestClock } from "~/test/clock";
@@ -437,6 +442,50 @@ describe("ClassDayOverview: Meldung nachtragen", () => {
     await waitFor(() => expect(reportAbsence).toHaveBeenCalled());
     await waitFor(() => expect(fetchSchoolDay).toHaveBeenCalledTimes(2));
     expect(await screen.findByText("Fehlen ohne Meldung: 0")).toBeVisible();
+  });
+
+  it("does not claim a rejected report was saved when recovery also fails", async () => {
+    navigation.search = "tag=2026-09-09&liste=ohne-meldung";
+    const reload = new ApiError("down", 503, { code: "general.unavailable" });
+    const refused = new ApiError("not missing", 409, {
+      code: "general.business_rejection",
+    });
+    const recovery = deferred<SchoolDayReport>();
+    const fetchSchoolDay = vi
+      .fn()
+      .mockResolvedValueOnce(unreportedDay("2026-09-09", null))
+      .mockReturnValueOnce(recovery.promise);
+    render(
+      <ClassDayOverview
+        fetchClasses={classes}
+        fetchClassDay={(_, date) => Promise.resolve(report(date))}
+        fetchSchoolDay={fetchSchoolDay}
+        reportAbsence={() => Promise.reject(refused)}
+        withdrawAbsenceReport={vi.fn()}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", {
+        name: "Meldung für Dana Dorn eintragen",
+      }),
+    );
+    fireEvent.click(await screen.findByRole("menuitem", { name: "Krank" }));
+    expect(
+      await screen.findByText(
+        catalogText("general.business_rejection", "die Meldung"),
+      ),
+    ).toBeVisible();
+    await waitFor(() => expect(fetchSchoolDay).toHaveBeenCalledTimes(2));
+    await act(async () => recovery.reject(reload));
+    // Anker: the refused report remains the visible error after recovery.
+    expect(
+      screen.getByText(
+        catalogText("general.business_rejection", "die Meldung"),
+      ),
+    ).toBeVisible();
+    expect(
+      screen.queryByText((text) => text.endsWith(SAVED_BUT_STALE_SUFFIX)),
+    ).not.toBeInTheDocument();
   });
 
   it("shows a failed withdrawal once, in the dialog", async () => {

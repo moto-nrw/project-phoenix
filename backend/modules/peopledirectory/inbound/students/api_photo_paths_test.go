@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	"github.com/moto-nrw/project-phoenix/modules/settings"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -147,6 +147,41 @@ func TestUpdateStudent_PhotoConsentWithdrawal_DeletesFile(t *testing.T) {
 	// Tenant-scoped broadcast must fire so other tabs refetch.
 	require.GreaterOrEqual(t, len(tc.broadcaster.Events()), eventCount+1,
 		"consent withdrawal must emit at least one broadcast event")
+}
+
+// TestUpdateStudent_PhotoConsentWithdrawalWhilePhotosAreOff pins the school
+// path for parents without the parent portal (#6650): with the school's
+// photos switched off (the default), staff still withdraw a standing
+// consent through the update endpoint. The consent ends and the trail
+// records the withdrawal by the school, with the acting account.
+func TestUpdateStudent_PhotoConsentWithdrawalWhilePhotosAreOff(t *testing.T) {
+	t.Parallel()
+
+	tc := setupStudentsRoute(t)
+	student := testpkg.CreateTestStudent(t, tc.db, "PhotoOff", "Student", "PO1")
+	ctx := testpkg.Ctx(t)
+	_, err := tc.db.ExecContext(ctx,
+		`UPDATE users.student_profiles SET photo_consent_given_at = now() WHERE id = ?`, student.ID)
+	require.NoError(t, err, "set a standing consent")
+
+	body := map[string]interface{}{"photo_consent_given": false}
+	req := testutil.NewAuthenticatedRequest(t, "PUT", fmt.Sprintf("/%d", student.ID), body)
+	rr := authExec(t, tc, req, testutil.AdminTestClaims(1), []string{"admin:*"})
+
+	require.Equal(t, http.StatusOK, rr.Code, "Body: %s", rr.Body.String())
+	assert.False(t, readConsentTimestamp(t, tc, student.ID),
+		"the withdrawal must end the consent although photos are off")
+	var trail []struct {
+		Action string `bun:"action"`
+		Source string `bun:"source"`
+		Actor  *int64 `bun:"actor_account_id"`
+	}
+	require.NoError(t, tc.db.NewRaw(`SELECT action, source, actor_account_id FROM audit.student_consent_changes
+		WHERE student_id = ? AND consent_key = 'photo' ORDER BY id`, student.ID).Scan(ctx, &trail))
+	require.Len(t, trail, 1, "one effective withdrawal")
+	assert.Equal(t, "withdrawn", trail[0].Action)
+	assert.Equal(t, "tenant_portal", trail[0].Source)
+	assert.NotNil(t, trail[0].Actor, "the trail names the staff account that entered it")
 }
 
 // TestUpdateStudent_PhotoConsentGrant_StampsAuditFields verifies that

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -71,5 +71,5 @@ func TestHolidayPeriodsFollowTheTraegerPolicy(t *testing.T) {
 			VALUES (?, 'Fremd', '2027-05-03', '2027-06-04')`, own)
 		return err
 	})
-	assert.ErrorContains(t, err, "row-level security", "a Träger cannot write a period for another Träger")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "a Träger cannot write a period for another Träger")
 }

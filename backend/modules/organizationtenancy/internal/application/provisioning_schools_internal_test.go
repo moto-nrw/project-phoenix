@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -660,6 +660,9 @@ func TestProvisioningSoftDeleteSchool(t *testing.T) {
 	for name, tc := range map[string]struct {
 		seed  func(*provisioningHarness)
 		check func(*testing.T, error)
+		// revokedFirst: the sessions end before the school is deleted
+		// (#6305), so a failed deletion rolls their revocation back with it.
+		revokedFirst bool
 	}{
 		"missing school": {
 			check: func(t *testing.T, err error) {
@@ -680,6 +683,7 @@ func TestProvisioningSoftDeleteSchool(t *testing.T) {
 			},
 		},
 		"concurrent deletion maps to already deleted": {
+			revokedFirst: true,
 			seed: func(h *provisioningHarness) {
 				h.addOrg(1, "Talent", "talent", false)
 				h.addSchool(10, 1, "Burbach", "burbach")
@@ -699,6 +703,7 @@ func TestProvisioningSoftDeleteSchool(t *testing.T) {
 			check: func(t *testing.T, err error) { require.ErrorIs(t, err, errBoom) },
 		},
 		"unknown owner error": {
+			revokedFirst: true,
 			seed: func(h *provisioningHarness) {
 				h.addSchool(10, 1, "Burbach", "burbach")
 				h.engine.fail["SoftDeleteSchool"] = errBoom
@@ -716,7 +721,12 @@ func TestProvisioningSoftDeleteSchool(t *testing.T) {
 			err := h.svc.SoftDeleteSchool(context.Background(), 10, testOperatorID, operatorIP)
 
 			tc.check(t, err)
-			assert.Empty(t, h.identity.revoked)
+			if tc.revokedFirst {
+				assert.Equal(t, []int64{10}, h.identity.revoked)
+				require.Error(t, h.tx.lastErr, "the revocation rolls back with the failed deletion")
+			} else {
+				assert.Empty(t, h.identity.revoked)
+			}
 			assert.Empty(t, h.identity.invalidated)
 			assert.Empty(t, h.audit.entries)
 		})

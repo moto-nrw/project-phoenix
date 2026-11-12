@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
 )
 
 func (s *Scheduler) startWorkerJob(ctx context.Context, operation string) (context.Context, error) {
@@ -343,8 +343,7 @@ func (s *Scheduler) runJobCheck(task *ScheduledTask, check func(context.Context,
 }
 
 // stoppedByShutdown reports whether the run only failed because the
-// scheduler stopped under it. Like a request the client canceled, that is no
-// defect and no Sentry event.
+// scheduler stopped under it. That is no defect and no Sentry event.
 func stoppedByShutdown(ctx context.Context, err error) bool {
 	return ctx.Err() != nil && onlyCancellationErrors(err)
 }

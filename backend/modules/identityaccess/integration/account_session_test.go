@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func newAccountSessionAccess(t *testing.T, db *bun.DB) ports.AccountSessionAccess {
@@ -326,7 +326,7 @@ func TestAccountSessionRevocations(t *testing.T) {
 	_, err = access.FindAccountSession(testpkg.TenantContext(otherTenant), foreign.Token)
 	require.NoError(t, err, "the other school's session survives a tenant-scoped revocation")
 
-	all, err := access.RevokeAllAccountSessions(ctx, account.ID)
+	all, err := access.RevokeAllAccountSessions(ctx, account.ID, "")
 	require.NoError(t, err)
 	require.Len(t, all, 1, "the account-wide wipe ignores the caller's tenant")
 	assert.Equal(t, foreign.ID, all[0].ID)
@@ -354,11 +354,16 @@ func TestAccountSessionRevocations(t *testing.T) {
 	require.Len(t, remaining, 1)
 	assert.Equal(t, newFamily, remaining[0].FamilyID)
 
-	byTenant, err := access.RevokeTenantAccountSessions(ctx, testpkg.Tenant(t))
-	require.NoError(t, err)
-	require.Len(t, byTenant, 1)
-	_, err = access.RevokeTenantAccountSessions(ctx, 0)
-	require.ErrorIs(t, err, identityaccess.ErrTenantRequired)
+	// Ending a school's sessions locks accounts and the school across
+	// schools; its callers supply an administrative unit (#6305).
+	require.NoError(t, testpkg.WithinAdminContext(t, ctx, db, func(adminCtx context.Context) error {
+		byTenant, err := access.RevokeTenantAccountSessions(adminCtx, testpkg.Tenant(t))
+		require.NoError(t, err)
+		require.Len(t, byTenant, 1)
+		_, err = access.RevokeTenantAccountSessions(adminCtx, 0)
+		require.ErrorIs(t, err, identityaccess.ErrTenantRequired)
+		return nil
+	}))
 }
 
 func TestAccountSessionExpirySweepAndReconciliation(t *testing.T) {
@@ -664,14 +669,14 @@ func TestAccountRevocationRollsBackWithItsCaller(t *testing.T) {
 	assert.Equal(t, 1, latest.Generation)
 
 	require.NoError(t, testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
-		_, err := access.RevokeAllAccountSessions(txCtx, account.ID)
+		_, err := access.RevokeAllAccountSessions(txCtx, account.ID, "")
 		return err
 	}), "the retry revokes from the clean state")
 	_, err = access.LatestAccountSessionInFamily(testpkg.Ctx(t), familyID)
 	require.ErrorIs(t, err, identityaccess.ErrAccountSessionNotFound)
 
 	require.NoError(t, testpkg.WithAdminTx(t, ctx, db, func(txCtx context.Context, _ bun.Tx) error {
-		deleted, err := access.RevokeAllAccountSessions(txCtx, account.ID)
+		deleted, err := access.RevokeAllAccountSessions(txCtx, account.ID, "")
 		assert.Empty(t, deleted, "an idempotent retry deletes nothing")
 		return err
 	}))

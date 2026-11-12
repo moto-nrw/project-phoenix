@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The already-enrolled check of open and linked_parents phases (#6053).
@@ -57,19 +57,39 @@ func isParentPin(child *enrollmentNative.RequestChild) bool {
 // relationship to the pinned child, because the school removed or narrowed
 // it after the submission. The pin was authorized at submission only, so
 // every approval and every later edit asks again before it links guardians,
-// grants portal access, invites or applies form data. Without the
-// authorizer the pin counts as lapsed.
+// grants portal access, invites or applies form data. The approval holds
+// that authority behind the parent guard until it commits (#6638); further
+// students the approval writes, such as the office's choice, are locked with
+// the pinned child in ascending order. Without the hold the pin counts as
+// lapsed.
 //
 // A pin requires current authority, even if the audience changed since
 // submission or the account was attached later. Submission pins only for an
 // account or a late invite, so those identities are asked: an accountless
 // pin with the address its late invite was issued to (#6173). Staff manual
 // enrollment stays the one bypass.
-func (d *Decisions) parentPinLapsed(ctx context.Context, request *enrollmentNative.Request, child *enrollmentNative.RequestChild) (bool, error) {
+func (d *Decisions) parentPinLapsed(ctx context.Context, request *enrollmentNative.Request, child *enrollmentNative.RequestChild, others ...int64) (bool, error) {
 	if !isParentPin(child) || !pinningIdentity(request) {
 		return false, nil
 	}
-	return d.parentStudentAuthorityLapsed(ctx, request, child.ID, *child.MatchedStudentID)
+	return d.parentStudentAuthorityLapsed(ctx, request, child.ID, *child.MatchedStudentID, others...)
+}
+
+// parentPinLapsedOnRead is parentPinLapsed for the office's detail read: it
+// reads without locks and writes nothing.
+func (d *Decisions) parentPinLapsedOnRead(ctx context.Context, request *enrollmentNative.Request, child *enrollmentNative.RequestChild) (bool, error) {
+	if !isParentPin(child) || !pinningIdentity(request) {
+		return false, nil
+	}
+	submitter, err := reEnrollmentSubmitterForPersistedRequest(ctx, d.deps.LateInvites, request)
+	if err != nil {
+		return false, fmt.Errorf("decision: resolve re-enrollment identity of child %d: %w", child.ID, err)
+	}
+	granted, err := submitterMayRenewStudent(ctx, d.deps.GuardianAuthorizer, submitter, *child.MatchedStudentID, request.TenantID)
+	if err != nil {
+		return false, fmt.Errorf("decision: verify relationship of child %d: %w", child.ID, err)
+	}
+	return !granted, nil
 }
 
 // pinningIdentity reports whether the request has an identity a submission
@@ -80,9 +100,12 @@ func pinningIdentity(request *enrollmentNative.Request) bool {
 }
 
 // parentStudentAuthorityLapsed checks a parent pin before its approval and
-// the approved student of every later edit. Neither a past approval nor a
+// the approved student of every later edit, behind the parent guard: the
+// identity's membership, the student, the relationship and its permission
+// stay locked until the caller's transaction commits (#6638). A withdrawal
+// committed before counts; a later one waits. Neither a past approval nor a
 // rollover grants authority for new family data after revocation.
-func (d *Decisions) parentStudentAuthorityLapsed(ctx context.Context, request *enrollmentNative.Request, childID, studentID int64) (bool, error) {
+func (d *Decisions) parentStudentAuthorityLapsed(ctx context.Context, request *enrollmentNative.Request, childID, studentID int64, others ...int64) (bool, error) {
 	if request == nil {
 		return false, nil
 	}
@@ -90,11 +113,21 @@ func (d *Decisions) parentStudentAuthorityLapsed(ctx context.Context, request *e
 	if err != nil {
 		return false, fmt.Errorf("decision: resolve re-enrollment identity of child %d: %w", childID, err)
 	}
-	granted, err := submitterMayRenewStudent(ctx, d.deps.GuardianAuthorizer, submitter, studentID, request.TenantID)
-	if err != nil {
-		return false, fmt.Errorf("decision: verify relationship of child %d: %w", childID, err)
+	if submitter.AdminManaged {
+		return false, nil
 	}
-	return !granted, nil
+	// Change-request approval held every identity/student before dedup and
+	// match locks. Reuse that verdict, including refusals; an unheld pair
+	// fails closed instead of taking new locks after those phase locks.
+	if reads, _ := ctx.Value(approvalAuthorityReadsKey{}).(*approvalAuthorityReads); reads != nil {
+		key := approvalAuthorityKey{tenantID: request.TenantID, submitter: submitterKey(submitter)}
+		return !reads.holds[key][studentID], nil
+	}
+	grants, err := submitterHoldsRenewal(ctx, d.deps.GuardianHold, submitter, append([]int64{studentID}, others...), nil, request.TenantID)
+	if err != nil {
+		return false, fmt.Errorf("decision: hold relationship of child %d: %w", childID, err)
+	}
+	return !grants[studentID], nil
 }
 
 // existingChildCandidates lists the enrolled children that may be the
@@ -152,7 +185,11 @@ func (d *Decisions) resolveExistingChildChoice(ctx context.Context, target *deci
 		return nil
 	}
 	child := target.child
-	lapsed, err := d.parentPinLapsed(ctx, target.request, child)
+	var chosen []int64
+	if input.ExistingStudentID != nil {
+		chosen = append(chosen, *input.ExistingStudentID)
+	}
+	lapsed, err := d.parentPinLapsed(ctx, target.request, child, chosen...)
 	if err != nil {
 		return err
 	}
@@ -204,7 +241,7 @@ func (d *Decisions) applyEnrolledChildChoice(ctx context.Context, target *decisi
 	}
 	if chosen == nil {
 		if lapsed || len(candidates) > 0 {
-			return fmt.Errorf("%w: child %d has %d candidates", enrollmentNative.ErrChildPossiblyEnrolled, child.ID, len(candidates))
+			return enrollmentNative.NewChildPossiblyEnrolledError(fmt.Sprintf("child %d has %d candidates", child.ID, len(candidates)), candidates)
 		}
 		return nil
 	}
@@ -218,6 +255,11 @@ func (d *Decisions) applyEnrolledChildChoice(ctx context.Context, target *decisi
 // phase-wide guard proves no other active request renews it.
 func (d *Decisions) pinChosenStudent(ctx context.Context, target *decisionTarget, phase *enrollmentNative.Phase, studentID int64) error {
 	child := target.child
+	// Renewals hold the student before the phase lock. Take the same order
+	// before the pin's foreign-key check needs a lock on that student.
+	if _, err := d.readEnrollmentStudent(ctx, studentID, "update"); err != nil {
+		return fmt.Errorf("decision: lock chosen student %d: %w", studentID, err)
+	}
 	if err := d.deps.Requests.AcquireExistingStudentMatchLock(ctx, phase.ID); err != nil {
 		return fmt.Errorf("decision: acquire existing-student match lock: %w", err)
 	}
@@ -251,7 +293,7 @@ func (d *Decisions) childAsksTheOffice(ctx context.Context, request *enrollmentN
 	if child.CreatedStudentID != nil {
 		return false, nil
 	}
-	return d.parentPinLapsed(ctx, request, child)
+	return d.parentPinLapsedOnRead(ctx, request, child)
 }
 
 // dropLapsedPin clears a lapsed parent pin before the office's "create new"

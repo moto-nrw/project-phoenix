@@ -147,6 +147,29 @@ describe("DeleteDeviceModal", () => {
     });
   });
 
+  // #6652: the deletion is done once the write holds. The reload runs after
+  // the dialog closed; it never decides whether the deletion shows as done.
+  it("closes after the deletion while the reload still runs", async () => {
+    mockDeleteDevice.mockResolvedValue(undefined);
+    const onClose = vi.fn();
+    const onDeleted = vi.fn(() => new Promise<boolean>(() => undefined));
+
+    render(
+      <DeleteDeviceModal
+        device={makeDevice()}
+        onClose={onClose}
+        onDeleted={onDeleted}
+      />,
+    );
+
+    fireEvent.click(screen.getByText("Ja, löschen"));
+    fireEvent.click(screen.getByText("Endgültig löschen"));
+
+    await waitFor(() => expect(onClose).toHaveBeenCalledTimes(1));
+    expect(onDeleted).toHaveBeenCalledTimes(1);
+    expect(mockDeleteDevice).toHaveBeenCalledTimes(1);
+  });
+
   it("surfaces the API error message and keeps the modal open on failure", async () => {
     mockDeleteDevice.mockRejectedValue(
       new ApiError("device in use", 409, {

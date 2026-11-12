@@ -16,12 +16,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationtenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	careContractCompose "github.com/moto-ogs/project-phoenix/modules/carecontract/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	organizationtenancyCompose "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 type queuedTraegerPush struct {
@@ -172,7 +172,7 @@ func TestDocumentPushChecksFindNothingOfAnotherTraegerBeneathRLS(t *testing.T) {
 	contract := pushContract(t, f.db, f.office.organization, f.office.schools[0], chain.StudentID, chain.Email)
 
 	documents := organizationtenancyCompose.NewSharedTraegerDocuments()
-	contracts := careContractCompose.NewInbox()
+	contracts := careContractCompose.NewInbox(nil)
 	parent := organizationtenancy.TraegerDocumentParent{AccountID: chain.AccountID, Schools: map[int64][]int64{f.office.schools[0]: {}}}
 	unit := tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, f.db))
 	check := func(organization int64) (releaseFound, isNew, contractFound bool) {

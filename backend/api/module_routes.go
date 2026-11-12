@@ -3,7 +3,7 @@ package api
 import (
 	"strings"
 
-	settings "github.com/moto-nrw/project-phoenix/modules/settings"
+	settings "github.com/moto-ogs/project-phoenix/modules/settings"
 )
 
 // moduleRouteBasis marks a route of moto Basis: every school has it, no
@@ -50,6 +50,9 @@ var moduleRouteRules = []moduleRouteRule{
 	// #4679: the one-time link to sign a care contract of a Träger. The
 	// contract lives at the Träger, not at a booked school module.
 	{"/public/care-contract-signing", moduleRouteBasis},
+	// The return of a school's or Träger's data on a change of provider
+	// (Data Act, ADR 0201) belongs to every contract, whatever its modules.
+	{"/public/data-return", moduleRouteBasis},
 	{"/public/enrollment-legal-documents", settings.ModuleOnlineAnmeldung},
 	{"/public/enrollment-form-legal-documents", settings.ModuleOnlineAnmeldung},
 	// #5199: public period PDFs, no person data or school membership.
@@ -67,6 +70,8 @@ var moduleRouteRules = []moduleRouteRule{
 	{"/school", settings.ModuleUnterrichtVormittag},
 	{"/school/auth", settings.ModuleUnterrichtVormittag},
 	{"/school-sse", settings.ModuleUnterrichtVormittag},
+	// Fotos und Dateien des Team-Chats im Schulportal (#6685).
+	{"/school-staff-messages", settings.ModuleUnterrichtVormittag},
 	{"/traeger", moduleRouteBasis},
 	{"/api/iot", settings.ModuleNFCAnwesenheit},
 	{"/api/iot/staff-clock", settings.ModuleZeiterfassung},
@@ -114,6 +119,9 @@ var moduleRouteRules = []moduleRouteRule{
 	// Staff and parent surveys (#4781); see docs/reference/modulschalter.md.
 	{"/api/surveys", moduleRouteBasis},
 	{"/api/timetable", moduleRouteBasis},
+	// The notices of changed school closing days (ADR 0196) belong to the
+	// closing days of the timetable page.
+	{"/api/holiday-closure-notices", moduleRouteBasis},
 	// Documents the Träger shared (#4692); see docs/reference/modulschalter.md.
 	{"/api/traeger-documents", moduleRouteBasis},
 	{"/api/users", moduleRouteBasis},

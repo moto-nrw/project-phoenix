@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 const accountTrustedDeviceColumns = "id, account_id, tenant_id, token_hash, user_agent, ip_address, expires_at, last_used_at, revoked_at, created_at, updated_at"
@@ -21,6 +21,11 @@ func deviceSchool(tenantID int64) *int64 {
 	return &tenantID
 }
 
+// trustedDeviceCurrentCredential admits a remembered device only while the
+// account's credential generation is the one it was remembered under: every
+// credential write ends it at every school (#6289).
+const trustedDeviceCurrentCredential = `credential_generation = (SELECT credential_account.mfa_reset_generation FROM auth.accounts AS credential_account WHERE credential_account.id = account_id)`
+
 func (r *AccountMFARecords) CreateTrustedDevice(ctx context.Context, device domain.AccountTrustedDevice) (domain.AccountTrustedDevice, error) {
 	if device.AccountID == 0 || device.TokenHash == "" || device.ExpiresAt.IsZero() {
 		return domain.AccountTrustedDevice{}, fmt.Errorf("trusted device requires account, hash and expiry")
@@ -31,9 +36,9 @@ func (r *AccountMFARecords) CreateTrustedDevice(ctx context.Context, device doma
 	}
 	var row domain.AccountTrustedDevice
 	err = db.NewRaw(`INSERT INTO auth.mfa_trusted_devices
- (account_id, tenant_id, token_hash, user_agent, ip_address, expires_at, last_used_at, revoked_at)
- VALUES (?, ?, ?, ?, ?, ?, ?, ?) RETURNING `+accountTrustedDeviceColumns,
-		device.AccountID, deviceSchool(device.TenantID), device.TokenHash, device.UserAgent, nullableMFAIPAddress(device.IPAddress), device.ExpiresAt, device.LastUsedAt, device.RevokedAt).Scan(ctx, &row)
+ (account_id, tenant_id, token_hash, user_agent, ip_address, expires_at, last_used_at, revoked_at, credential_generation)
+ VALUES (?, ?, ?, ?, ?, ?, ?, ?, (SELECT mfa_reset_generation FROM auth.accounts WHERE id = ?)) RETURNING `+accountTrustedDeviceColumns,
+		device.AccountID, deviceSchool(device.TenantID), device.TokenHash, device.UserAgent, nullableMFAIPAddress(device.IPAddress), device.ExpiresAt, device.LastUsedAt, device.RevokedAt, device.AccountID).Scan(ctx, &row)
 	return row, err
 }
 
@@ -44,7 +49,8 @@ func (r *AccountMFARecords) FindActiveTrustedDevice(ctx context.Context, account
 	}
 	var row domain.AccountTrustedDevice
 	err = db.NewRaw("SELECT "+accountTrustedDeviceColumns+` FROM auth.mfa_trusted_devices
- WHERE account_id = ? AND COALESCE(tenant_id, 0) = ? AND token_hash = ? AND revoked_at IS NULL AND expires_at > ? LIMIT 1`,
+ WHERE account_id = ? AND COALESCE(tenant_id, 0) = ? AND token_hash = ? AND revoked_at IS NULL AND expires_at > ?
+ AND `+trustedDeviceCurrentCredential+` LIMIT 1`,
 		accountID, tenantID, tokenHash, time.Now()).Scan(ctx, &row)
 	return row, err == nil, err
 }
@@ -57,6 +63,7 @@ func (r *AccountMFARecords) ListActiveTrustedDevices(ctx context.Context, accoun
 	rows := make([]domain.AccountTrustedDevice, 0)
 	err = db.NewRaw("SELECT "+accountTrustedDeviceColumns+` FROM auth.mfa_trusted_devices
  WHERE account_id = ? AND COALESCE(tenant_id, 0) = ? AND revoked_at IS NULL AND expires_at > ?
+ AND `+trustedDeviceCurrentCredential+`
  ORDER BY last_used_at DESC NULLS LAST, created_at DESC`, accountID, tenantID, time.Now()).Scan(ctx, &rows)
 	return rows, err
 }

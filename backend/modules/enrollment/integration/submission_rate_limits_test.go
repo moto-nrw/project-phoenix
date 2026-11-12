@@ -7,15 +7,15 @@ import (
 	"testing"
 	"time"
 
-	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCapability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // uniqueKeyValue avoids tenant_id+key_type+key_value collisions between
@@ -116,7 +116,7 @@ func TestSubmissionRateLimitRejectsForeignTenantWrite(t *testing.T) {
 		_, incrementErr := module.IncrementAttempts(ctx, otherTenantID, enrollmentCapability.SubmissionRateLimitKeyTypeIP, "foreign-tenant", time.Hour)
 		return incrementErr
 	})
-	require.ErrorContains(t, err, "row-level security")
+	require.Equal(t, "42501", testpkg.PostgresSQLState(err))
 }
 
 func TestSubmissionRateLimitRepository_IncrementAttempts_FirstCallReturnsOne(t *testing.T) {

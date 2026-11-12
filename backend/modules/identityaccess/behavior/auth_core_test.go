@@ -11,10 +11,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -51,6 +51,7 @@ func authTestFactoryConfig(rateLimitEnabled bool) owners.ServiceConfig {
 		OperatorHostname: "operator.localhost:3000",
 		RateLimitEnabled: rateLimitEnabled,
 		HealthDataKeys:   testpkg.TestHealthDataKeys,
+		BankDataKeys:     testpkg.TestBankDataKeys,
 	}
 }
 
@@ -178,7 +179,7 @@ func (s *fixtureOwnedAuthService) DeactivateAccount(ctx context.Context, account
 }
 
 func (s *fixtureOwnedAuthService) ChangePassword(ctx context.Context, accountID int, currentPassword, newPassword string) error {
-	return s.administration.ChangeAccountPassword(ctx, int64(accountID), currentPassword, newPassword)
+	return s.administration.ChangeAccountPassword(ctx, identityaccess.OwnPasswordChange{AccountID: int64(accountID), CurrentPassword: currentPassword, NewPassword: newPassword})
 }
 
 // managedAccountModel is the retained account shape the assertions read.
@@ -2559,8 +2560,14 @@ func TestAuthService_RevokeTokensByTenantID_Success(t *testing.T) {
 
 	testpkg.CreateTestTokenForTenant(t, db, tenantID, account.ID)
 
-	// ACT
-	count, err := service.RevokeTokensByTenantID(ctx, tenantID)
+	// ACT — ending a school's sessions joins the administrative unit its
+	// callers (soft delete, demo restart) run in (#6305).
+	var count int
+	err := testpkg.WithinAdminContext(t, ctx, db, func(adminCtx context.Context) error {
+		var revokeErr error
+		count, revokeErr = service.RevokeTokensByTenantID(adminCtx, tenantID)
+		return revokeErr
+	})
 
 	// ASSERT
 	require.NoError(t, err)
@@ -2579,8 +2586,14 @@ func TestAuthService_RevokeTokensByTenantID_NoTokens(t *testing.T) {
 	testpkg.EnsureTestTenant(t, db, tenantID)
 	ctx := testpkg.TenantContext(tenantID)
 
-	// ACT
-	count, err := service.RevokeTokensByTenantID(ctx, tenantID)
+	// ACT — ending a school's sessions joins the administrative unit its
+	// callers (soft delete, demo restart) run in (#6305).
+	var count int
+	err := testpkg.WithinAdminContext(t, ctx, db, func(adminCtx context.Context) error {
+		var revokeErr error
+		count, revokeErr = service.RevokeTokensByTenantID(adminCtx, tenantID)
+		return revokeErr
+	})
 
 	// ASSERT
 	require.NoError(t, err)

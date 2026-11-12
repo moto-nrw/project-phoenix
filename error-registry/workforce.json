@@ -319,6 +319,18 @@
       "legacy": "workforce.replacement_outside_origin"
     },
     {
+      "code": "workforce.replacement_staff_absent",
+      "class": "input",
+      "parameters": [],
+      "legacy": "workforce.replacement_staff_absent"
+    },
+    {
+      "code": "workforce.session_check_in_in_future",
+      "class": "input",
+      "parameters": [],
+      "legacy": "workforce.session_check_in_in_future"
+    },
+    {
       "code": "workforce.session_not_found",
       "class": "business_rejection",
       "parameters": [],

@@ -2,6 +2,7 @@ package communication
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"time"
 )
@@ -49,7 +50,9 @@ type ParentGroupMessage struct {
 	ID              int64
 	SenderName      string
 	Body            string
-	CreatedAt       time.Time
+	// Attachments is the stored snapshot of the message's files (#6685).
+	Attachments json.RawMessage
+	CreatedAt   time.Time
 }
 
 // ParentGroupChildRead is one child a group thread reached and whether one

@@ -13,9 +13,9 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	device "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/adapters/deviceauth"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	device "github.com/moto-ogs/project-phoenix/modules/devicefleet/internal/adapters/deviceauth"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // Middleware is the shape every device route group mounts.

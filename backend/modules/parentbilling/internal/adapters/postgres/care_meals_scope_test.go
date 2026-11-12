@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The Mensa's own filters keep a Träger to its rows below row level
@@ -74,6 +74,10 @@ func TestCareMealFiltersKeepTheTraegerBelowRLS(t *testing.T) {
 		invoices, err := store.CareRunInvoices(ctx, own.organization, own.released)
 		require.NoError(t, err)
 		require.Len(t, invoices, 1)
+		_, history, _, err := store.InvoiceHistory(ctx, own.organization, parentbilling.HistoryCareInvoice, invoices[0].ID)
+		require.NoError(t, err)
+		require.NotEmpty(t, history)
+		assert.Equal(t, len(invoices[0].Positions)+len(invoices[0].MealPositions), history[0].Positions, "combined invoices count care and Mensa positions")
 		assert.Equal(t, []parentbilling.CareMealPosition{{SchoolID: own.school, StudentID: 9501, MealMonth: august,
 			Mode: parentbilling.MealModePerMeal, Quantity: 2, UnitCents: 480, AmountCents: 960, ReleaseVersion: 1}}, invoices[0].MealPositions,
 			"CareRunInvoices reads the invoice's own Mensa months")

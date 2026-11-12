@@ -1,19 +1,14 @@
 {
-  "switcherLabel": "Kind auswählen",
   "overviewKicker": "Kinder im Überblick",
   "overviewDescription": "Wählen Sie ein Kind aus, um Betreuung, Daten und Kontakte zu sehen.",
-  "ogsLabel": "OGS",
   "careEnded": {
     "title": "Betreuung beendet",
-    "body": "Ihr Kind wird in dieser OGS nicht mehr betreut. Alles Bisherige können Sie weiter ansehen. Neue Meldungen sind nicht mehr möglich."
+    "body": "Ihr Kind wird in dieser {careTerm} nicht mehr betreut. Alles Bisherige können Sie weiter ansehen. Neue Meldungen sind nicht mehr möglich."
   },
   "notFound": "Zu dieser Adresse gibt es kein Kind in Ihrem Konto. Bitte wählen Sie Ihr Kind in der Übersicht.",
-  "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Die OGS Ihrer Schule kann das einrichten.",
+  "noChildren": "Mit Ihrem Konto ist noch kein Kind verknüpft. Die {careTerm} Ihrer Schule kann das einrichten.",
   "sections": {
-    "today": "Heute",
-    "care": "Betreuung in der OGS",
-    "data": "Angaben zum Kind",
-    "people": "Eltern und Abholberechtigte"
+    "today": "Heute"
   },
   "areas": {
     "label": "Bereiche zum Kind",
@@ -45,14 +40,15 @@
     "pickupUnknown": "Die Abholzeit ist gerade nicht abrufbar"
   },
   "care": {
-    "weekTitle": "Dein OGS Wochenplan",
+    "weekTitle": "Dein {careTerm} Wochenplan",
     "absenceTitle": "Abwesenheiten"
   },
   "consents": {
     "title": "Einwilligungen und Bestätigungen",
     "description": "Hier sehen Sie, was für Ihr Kind gespeichert ist.",
-    "staffDescription": "Nur zur Information. Eltern ändern die Foto-Einwilligung im Elternportal.",
+    "staffDescription": "Eltern ändern die Foto-Einwilligung im Elternportal. Eltern ohne Elternportal sagen es Ihnen. Dann entfernen Sie unter „Bearbeiten“ beim Foto den Haken.",
     "photoDescription": "Die Foto-Einwilligung können Sie hier ändern.",
+    "photoViaCareDescription": "Die Foto-Einwilligung widerrufen Sie bei der {careTerm}.",
     "items": {
       "agb": "Allgemeine Geschäftsbedingungen (AGB)",
       "data_processing": "Datenschutz zur Kenntnis genommen",
@@ -81,7 +77,7 @@
     "grantButton": "Foto-Einwilligung erneut geben",
     "grantButtonShort": "Erneut geben",
     "grantConfirmTitle": "Foto-Einwilligung erneut geben?",
-    "grantConfirmBody": "Die OGS darf danach wieder ein Foto hinterlegen.",
+    "grantConfirmBody": "Die {careTerm} darf danach wieder ein Foto hinterlegen.",
     "grantConfirmButton": "Einwilligung geben",
     "granting": "Wird gespeichert",
     "grantSuccess": "Die Foto-Einwilligung wurde erneut gegeben.",

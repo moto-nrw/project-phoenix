@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -93,7 +93,6 @@ func TestRoomsWCAliasUniqueUp_NoDuplicates(t *testing.T) {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 
 	dropWCAliasIndex(t, db)
 	wcID := insertWCAliasRoom(t, db, tenantID, "WC")
@@ -114,7 +113,6 @@ func TestRoomsWCAliasUniqueUp_PreservesActiveUsage(t *testing.T) {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 
 	dropWCAliasIndex(t, db)
 	wcID := insertWCAliasRoom(t, db, tenantID, "WC")
@@ -147,7 +145,6 @@ func TestRoomsWCAliasUniqueUp_PrefersCanonicalWC(t *testing.T) {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 
 	dropWCAliasIndex(t, db)
 	wcID := insertWCAliasRoom(t, db, tenantID, "WC")
@@ -169,7 +166,6 @@ func TestRoomsWCAliasUniqueUp_Idempotent(t *testing.T) {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 
 	dropWCAliasIndex(t, db)
 	insertWCAliasRoom(t, db, tenantID, "WC")
@@ -200,7 +196,6 @@ func TestRoomsWCAliasUniqueUp_IndexBlocksFutureDuplicates(t *testing.T) {
 
 	tenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantID)
-	testpkg.OwnTenantRows(t, db, tenantID)
 
 	// Index already exists from SetupTestDB's prior migration run.
 	insertWCAliasRoom(t, db, tenantID, "WC")
@@ -225,9 +220,7 @@ func TestRoomsWCAliasUniqueUp_TenantIsolation(t *testing.T) {
 	tenantA := testpkg.UniqueTestTenantID(t)
 	tenantB := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, tenantA)
-	testpkg.OwnTenantRows(t, db, tenantA)
 	testpkg.EnsureTestTenant(t, db, tenantB)
-	testpkg.OwnTenantRows(t, db, tenantB)
 
 	insertWCAliasRoom(t, db, tenantA, "WC")
 	insertWCAliasRoom(t, db, tenantB, "WC")

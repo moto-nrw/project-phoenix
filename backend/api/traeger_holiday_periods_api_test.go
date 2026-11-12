@@ -16,9 +16,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 type holidayTimeModelBody struct {
@@ -46,8 +46,10 @@ type holidayPeriodBody struct {
 	RegistrationClosesOn string            `json:"registration_closes_on"`
 	Binding              bool              `json:"binding"`
 	Notes                string            `json:"notes"`
+	AcceptanceMailText   string            `json:"acceptance_mail_text,omitempty"`
 	Status               string            `json:"status,omitempty"`
 	PublishedAt          *string           `json:"published_at,omitempty"`
+	AllocationMode       string            `json:"allocation_mode,omitempty"`
 	Weeks                []holidayWeekBody `json:"weeks"`
 }
 
@@ -80,6 +82,7 @@ func newTraegerOffice(t *testing.T, db *bun.DB, router *traegerPortalHandler, na
 	organization := traegerOrganization(t, db, name, true)
 	testpkg.OwnTraegerHolidayPeriods(t, db, organization)
 	testpkg.OwnTraegerContributionRules(t, db, organization)
+	testpkg.OwnTraegerClosingDays(t, db, organization)
 	schools := []int64{
 		testpkg.CreateTestSchoolInOrganization(t, db, organization, name+" OGS Nord"),
 		testpkg.CreateTestSchoolInOrganization(t, db, organization, name+" OGS Süd"),

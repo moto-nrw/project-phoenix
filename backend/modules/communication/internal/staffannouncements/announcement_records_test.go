@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	values "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
-	records "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements"
+	values "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
+	records "github.com/moto-ogs/project-phoenix/modules/communication/internal/staffannouncements"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -43,7 +43,7 @@ func TestNativeAnnouncementWritePreservesCompleteSnapshotsAndPartialErrors(t *te
 	at := time.Date(2026, 10, 17, 10, 11, 12, 123456000, time.UTC)
 	ref := int64(9007199254740993)
 	class, link, system, reminder := "2b", "https://example.test/path", "system", " reminder "
-	row := values.StaffParentAnnouncement{ID: 11, CreatedAt: at, UpdatedAt: at.Add(time.Second), TenantID: 13, Title: " title ", Body: " body ", Priority: "important", LinkURL: &link, RequiresAcknowledgement: true, SendEmail: true, PublishedAt: &at, ExpiresAt: &at, Active: true, CreatedBy: 17, ResponseType: "multi_choice", ResponseDeadline: &at, DeliveryMode: "declaration", EmailAudience: "all_contacts", SystemKind: &system, ReminderAt: &at, ReminderText: &reminder, ReminderSentAt: &at, Targets: []*values.StaffParentAnnouncementTarget{{TenantID: 13, ID: 19, AnnouncementID: 11, TargetType: "class", TargetRefID: &ref, TargetRefText: &class, CreatedAt: at}, nil}, Options: []*values.StaffParentAnnouncementOption{{TenantID: 13, ID: 23, AnnouncementID: 11, Label: " option ", Position: 2, CreatedAt: at}, nil}, Declaration: values.StaffAnnouncementDeclarationSettings{Kind: "consent", Signers: "all", Revocable: true, RequiresPassword: true}}
+	row := values.StaffParentAnnouncement{ID: 11, CreatedAt: at, UpdatedAt: at.Add(time.Second), TenantID: 13, Title: " title ", Body: " body ", Priority: "important", LinkURL: &link, RequiresAcknowledgement: true, SendEmail: true, PublishedAt: &at, ExpiresAt: &at, Active: true, CreatedBy: 17, ResponseType: "multi_choice", ResponseDeadline: &at, DeliveryMode: "declaration", EmailAudience: "all_contacts", SystemKind: &system, ReminderAt: &at, ReminderText: &reminder, ReminderSentAt: &at, Targets: []*values.StaffParentAnnouncementTarget{{TenantID: 13, ID: 19, AnnouncementID: 11, TargetType: "class", TargetRefID: &ref, TargetRefText: &class, CreatedAt: at}, nil}, Options: []*values.StaffParentAnnouncementOption{{TenantID: 13, ID: 23, AnnouncementID: 11, Label: " option ", Position: 2, CreatedAt: at}, nil}, Declaration: values.StaffAnnouncementDeclarationSettings{Kind: "consent", Signers: "all", RequiresPassword: true}}
 	expected := row
 	expected.ID = 29
 	expected.TenantID = 31
@@ -57,7 +57,7 @@ func TestNativeAnnouncementWritePreservesCompleteSnapshotsAndPartialErrors(t *te
 	repo := records.NewRepository(nativeAnnouncementProbe{create: func(got context.Context, record *communication.PortalParentAnnouncement) error {
 		calls++
 		assert.Same(t, ctx, got)
-		assert.Equal(t, communication.PortalParentAnnouncement{Poll: true, DeclarationMode: true, ID: 11, CreatedAt: at, UpdatedAt: at.Add(time.Second), TenantID: 13, Title: " title ", Body: " body ", Priority: "important", LinkURL: &link, RequiresAcknowledgement: true, SendEmail: true, PublishedAt: &at, ExpiresAt: &at, Active: true, CreatedBy: 17, ResponseType: "multi_choice", ResponseDeadline: &at, DeliveryMode: "declaration", EmailAudience: "all_contacts", SystemKind: &system, ReminderAt: &at, ReminderText: &reminder, ReminderSentAt: &at, Targets: []*communication.PortalParentAnnouncementTarget{{TenantID: 13, ID: 19, AnnouncementID: 11, TargetType: "class", TargetRefID: &ref, TargetRefText: &class, CreatedAt: at}, nil}, Options: []*communication.PortalParentAnnouncementOption{{TenantID: 13, ID: 23, AnnouncementID: 11, Label: " option ", Position: 2, CreatedAt: at}, nil}, Declaration: communication.PortalAnnouncementDeclarationSettings{Kind: "consent", Signers: "all", Revocable: true, RequiresPassword: true}}, *record)
+		assert.Equal(t, communication.PortalParentAnnouncement{Poll: true, DeclarationMode: true, ID: 11, CreatedAt: at, UpdatedAt: at.Add(time.Second), TenantID: 13, Title: " title ", Body: " body ", Priority: "important", LinkURL: &link, RequiresAcknowledgement: true, SendEmail: true, PublishedAt: &at, ExpiresAt: &at, Active: true, CreatedBy: 17, ResponseType: "multi_choice", ResponseDeadline: &at, DeliveryMode: "declaration", EmailAudience: "all_contacts", SystemKind: &system, ReminderAt: &at, ReminderText: &reminder, ReminderSentAt: &at, Targets: []*communication.PortalParentAnnouncementTarget{{TenantID: 13, ID: 19, AnnouncementID: 11, TargetType: "class", TargetRefID: &ref, TargetRefText: &class, CreatedAt: at}, nil}, Options: []*communication.PortalParentAnnouncementOption{{TenantID: 13, ID: 23, AnnouncementID: 11, Label: " option ", Position: 2, CreatedAt: at}, nil}, Declaration: communication.PortalAnnouncementDeclarationSettings{Kind: "consent", Signers: "all", RequiresPassword: true}}, *record)
 		record.ID, record.TenantID, record.CreatedAt, record.UpdatedAt, record.Body = expected.ID, expected.TenantID, expected.CreatedAt, expected.UpdatedAt, expected.Body
 		record.Targets = nil
 		record.Options = []*communication.PortalParentAnnouncementOption{}

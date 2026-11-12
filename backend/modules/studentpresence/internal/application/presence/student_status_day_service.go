@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // StudentStatusDayService owns status-day persistence and the absence-overview
@@ -58,4 +58,28 @@ func (s *StudentStatusDayService) lockStatusDate(ctx context.Context, studentID 
 		return errors.New("careplanning: exception-day lock is not bound for database")
 	}
 	return s.lockExceptionDay(ctx, studentID, date)
+}
+
+// ValidateProfileStatusChange preserves the explicit-switch contract even
+// when a parent/planned/school report has no corresponding live flag.
+func (s *StudentStatusDayService) ValidateProfileStatusChange(ctx context.Context, studentID int64, day calendar.Date, sick, excused *bool) error {
+	setsSick := sick != nil && *sick
+	setsExcused := excused != nil && *excused
+	if !setsSick && !setsExcused {
+		return nil
+	}
+	if err := s.lockStatusDate(ctx, studentID, day.String()); err != nil {
+		return err
+	}
+	rows, err := s.repo.FindSignedOffByStudentIDsAndDate(ctx, []int64{studentID}, day)
+	if err != nil {
+		return err
+	}
+	for _, row := range rows {
+		if (setsSick && row.Status == absencerecords.StudentStatusDayExcused && (excused == nil || *excused)) ||
+			(setsExcused && row.Status == absencerecords.StudentStatusDaySick && (sick == nil || *sick)) {
+			return absencerecords.ErrSickExcusedConflict
+		}
+	}
+	return nil
 }

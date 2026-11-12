@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	activeService "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	activeService "github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -38,13 +38,15 @@ type retentionDeleteFault struct {
 	deleted     int64
 }
 
-func (p *retentionDeleteFault) DeleteCompletedVisitsBefore(ctx context.Context, id int64, policy studentpresence.VisitRetentionPolicy, cutoff time.Time) (int64, error) {
-	count, err := p.PresenceRetention.DeleteCompletedVisitsBefore(ctx, id, policy, cutoff)
+func (p *retentionDeleteFault) DeleteExpiredVisits(ctx context.Context, students []studentpresence.VisitRetentionCount, now time.Time) (map[int64]int64, error) {
+	deleted, err := p.PresenceRetention.DeleteExpiredVisits(ctx, students, now)
 	if err == nil {
-		p.deleted += count
+		for _, count := range deleted {
+			p.deleted += count
+		}
 		err = p.afterDelete
 	}
-	return count, err
+	return deleted, err
 }
 
 func TestVisitRetentionRollsBackDeletionAndAuditThenRetries(t *testing.T) {

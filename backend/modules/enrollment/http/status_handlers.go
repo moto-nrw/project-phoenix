@@ -11,13 +11,13 @@ import (
 	"strings"
 	"time"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // --- status / edit / withdraw handlers (token-gated, public) ---
@@ -56,6 +56,20 @@ type StatusResponse struct {
 	// page's fixed texts (#6042). The token page runs on the parents host
 	// without a school context, so it travels with the status.
 	CareFacilityTerm string `json:"care_facility_term"`
+	// RenewalTerms are the required blocks of the form in force for a
+	// renewal, which the parents accept for the new phase (#6456). Left out
+	// while no child waits for its renewal.
+	RenewalTerms *StatusRenewalTermsResponse `json:"renewal_terms,omitempty"`
+}
+
+// StatusRenewalTermsResponse is the renewal's terms: the form version the
+// page sends back with the ticks, the blocks, and when the parents last
+// accepted exactly these.
+type StatusRenewalTermsResponse struct {
+	FormSchemaID     string       `json:"form_schema_id"`
+	TermsFingerprint string       `json:"terms_fingerprint"`
+	Blocks           []LegalBlock `json:"blocks"`
+	ConfirmedAt      *time.Time   `json:"confirmed_at,omitempty"`
 }
 
 // StatusGuardianResponse is one additional guardian on the public status
@@ -126,6 +140,7 @@ type EditDraftChildResponse struct {
 	DateOfBirth       string                         `json:"date_of_birth"`
 	TargetGradeLevel  *int16                         `json:"target_grade_level,omitempty"`
 	TargetSchoolClass *string                        `json:"target_school_class,omitempty"`
+	HolidayCareWish   *bool                          `json:"holiday_care_wish,omitempty"`
 	CustomData        capability.FormValues          `json:"custom_data"`
 	OfferingIDs       []string                       `json:"offering_ids"`
 	OfferingDays      []EditDraftOfferingDayResponse `json:"offering_days,omitempty"`
@@ -207,6 +222,7 @@ type statusView struct {
 	guardians []*capability.RequestGuardian
 	editMode  string
 	careTerm  string
+	terms     *capability.RenewalTerms
 	proof     *SignatureProof
 	signature *StatusSignature
 	// signatureUnavailable means the optional status read failed. The public
@@ -226,7 +242,7 @@ func (rs *Resource) loadStatusView(ctx context.Context, token string) (view stat
 	if serverErr != nil {
 		return view, nil, fmt.Errorf("status: compute status page: %w", serverErr)
 	}
-	view.editMode, view.careTerm = page.EditMode, page.CareFacilityTerm
+	view.editMode, view.careTerm, view.terms = page.EditMode, page.CareFacilityTerm, page.RenewalTerms
 	rs.loadStatusGuardians(ctx, token, &view)
 	return view, nil, nil
 }
@@ -282,6 +298,7 @@ func (rs *Resource) respondStatus(w http.ResponseWriter, r *http.Request, token 
 	req := view.req
 	resp, anyLocked := newStatusResponse(req, view.editMode, view.children, view.guardians)
 	resp.CareFacilityTerm = view.careTerm
+	resp.RenewalTerms = newStatusRenewalTerms(view.terms)
 	if view.signatureUnavailable {
 		resp.SignatureRequired = true
 	} else if view.signature != nil {
@@ -292,6 +309,23 @@ func (rs *Resource) respondStatus(w http.ResponseWriter, r *http.Request, token 
 		resp.HasParentAccount, resp.ParentPortalAccess = rs.statusParentAccount(r.Context(), token, req.ID)
 	}
 	common.Respond(w, r, http.StatusOK, resp, "Status retrieved")
+}
+
+// newStatusRenewalTerms maps the renewal terms; nil without any.
+func newStatusRenewalTerms(terms *capability.RenewalTerms) *StatusRenewalTermsResponse {
+	if terms == nil {
+		return nil
+	}
+	blocks := terms.Blocks
+	if blocks == nil {
+		blocks = []LegalBlock{}
+	}
+	return &StatusRenewalTermsResponse{
+		FormSchemaID:     strconv.FormatInt(terms.FormSchemaID, 10),
+		TermsFingerprint: terms.TermsFingerprint,
+		Blocks:           blocks,
+		ConfirmedAt:      terms.ConfirmedAt,
+	}
 }
 
 // newStatusResponse maps a request to the public status payload and reports
@@ -464,6 +498,7 @@ func toEditDraftChildResponse(child *capability.RequestChild, offeringLinks []*R
 		DateOfBirth:       string(child.DateOfBirth),
 		TargetGradeLevel:  child.TargetGradeLevel,
 		TargetSchoolClass: child.TargetSchoolClass,
+		HolidayCareWish:   child.HolidayCareWish,
 		CustomData:        child.CustomData,
 		OfferingIDs:       []string{},
 		Locked:            ChildTakenOver(child),
@@ -533,18 +568,7 @@ func (rs *Resource) patchStatus(w http.ResponseWriter, r *http.Request) {
 		return rs.RequestService.Edit(adminCtx, token, patch)
 	})
 	if err != nil {
-		switch {
-		case errors.Is(err, capability.ErrRequestNotFound):
-			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentStatusLinkInvalid))
-		case errors.Is(err, capability.ErrEditNotAllowed):
-			common.RenderError(w, r, common.ErrorForbiddenWithCode(err, common.CodeEnrollmentEditNotAllowed))
-		case errors.Is(err, capability.ErrInvalidGuardianPhone):
-			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentInvalidPhone))
-		case errors.Is(err, capability.ErrSignatureRequired):
-			common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeEnrollmentSignatureRequired))
-		default:
-			common.RenderError(w, r, common.ErrorInternalServerWrap("enrollment operation failed", err))
-		}
+		mapEditError(w, r, err)
 		return
 	}
 	common.Respond(w, r, http.StatusOK, map[string]string{"message": "updated"}, "Request updated")
@@ -648,13 +672,38 @@ func (rs *Resource) withdrawStatus(w http.ResponseWriter, r *http.Request) {
 	common.RespondNoContent(w, r)
 }
 
+// ConfirmRenewalRequest carries the parents' ticks of the renewal terms and
+// the form version and content fingerprint the page showed (#6456).
+type ConfirmRenewalRequest struct {
+	ConsentFlags map[string]any `json:"consent_flags"`
+	// FormSchemaID is the renewal_terms.form_schema_id the page showed; "0"
+	// for the tenant-wide blocks.
+	FormSchemaID     string `json:"form_schema_id"`
+	TermsFingerprint string `json:"terms_fingerprint"`
+}
+
 // ConfirmRenewalResponse reports how many child rows were transitioned
 // from pending_renewal to submitted.
 type ConfirmRenewalResponse struct {
 	Confirmed int `json:"confirmed"`
 }
 
-// confirmRenewal handles POST /requests/{statusToken}/confirm-renewal.
+// renewalConfirmation decodes the body; a missing or malformed form
+// version is a bad request.
+func renewalConfirmation(r *http.Request) (capability.RenewalConfirmation, error) {
+	body := ConfirmRenewalRequest{}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		return capability.RenewalConfirmation{}, fmt.Errorf("decode renewal confirmation: %w", err)
+	}
+	formSchemaID, err := strconv.ParseInt(strings.TrimSpace(body.FormSchemaID), 10, 64)
+	if err != nil || formSchemaID < 0 {
+		return capability.RenewalConfirmation{}, errors.New("form_schema_id is required")
+	}
+	return capability.RenewalConfirmation{ConsentFlags: formValues(body.ConsentFlags), DisplayedFormSchemaID: formSchemaID, TermsFingerprint: body.TermsFingerprint}, nil
+}
+
+// confirmRenewal handles POST /requests/{statusToken}/confirm-renewal: the
+// parents accept the renewal terms and confirm an opt-in renewal.
 // Public — gated only by status token possession, the same way the
 // other parent-facing /requests endpoints are.
 func (rs *Resource) confirmRenewal(w http.ResponseWriter, r *http.Request) {
@@ -668,9 +717,15 @@ func (rs *Resource) confirmRenewal(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	confirmation, err := renewalConfirmation(r)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return
+	}
+
 	var confirmed int
-	err := withinAdmin(r.Context(), func(adminCtx context.Context) error {
-		c, runErr := rs.RequestService.ConfirmRenewal(adminCtx, token)
+	err = withinAdmin(r.Context(), func(adminCtx context.Context) error {
+		c, runErr := rs.RequestService.ConfirmRenewal(adminCtx, token, confirmation)
 		confirmed = c
 		return runErr
 	})
@@ -678,6 +733,8 @@ func (rs *Resource) confirmRenewal(w http.ResponseWriter, r *http.Request) {
 		switch {
 		case errors.Is(err, capability.ErrRequestNotFound):
 			common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeEnrollmentStatusLinkInvalid))
+		case common.HasInputRejection(err):
+			common.RenderError(w, r, common.ErrorInputRejection(err))
 		default:
 			common.RenderError(w, r, common.ErrorInternalServerWrap("enrollment operation failed", err))
 		}

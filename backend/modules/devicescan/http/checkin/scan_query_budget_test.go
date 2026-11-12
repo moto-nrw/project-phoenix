@@ -7,10 +7,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/settings"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 // Query budgets of the three kiosk scans (#5004): a check-in, a checkout at
@@ -18,6 +19,24 @@ import (
 // runs once with three and once with eight children present and must issue
 // the same statements both times. The count covers the request transaction;
 // device authentication runs before it and shows as Server-Timing "auth".
+// The scans run on scanBudgetClock: on a care weekday the scan reads the
+// day's pickup plan, on a weekend it does not, so a wall clock would make
+// the count depend on the day the suite runs (#6266).
+
+// scanBudgetClock pins the scans to a school Monday at noon.
+func scanBudgetClock() time.Time {
+	return calendar.NewDate(2026, time.August, 24).BerlinMidnight().Add(12 * time.Hour)
+}
+
+// budgetRoomWithSession is roomWithSession with the session started an hour
+// before scanBudgetClock.
+func budgetRoomWithSession(t *testing.T, k *kiosk, name string) (roomID, sessionID int64) {
+	t.Helper()
+	room := testpkg.CreateTestRoom(t, k.db, name)
+	activity := testpkg.CreateTestActivityGroup(t, k.db, name+" Activity")
+	session := testpkg.CreateTestActiveGroupAt(t, k.db, activity.ID, room.ID, scanBudgetClock().Add(-time.Hour))
+	return room.ID, session.ID
+}
 
 // stayBefore gives the scanned child its stay before the scan.
 type stayBefore func(t *testing.T, k *kiosk, studentID, kioskSessionID int64)
@@ -26,13 +45,13 @@ func noStay(*testing.T, *kiosk, int64, int64) {}
 
 func stayInKioskRoom(t *testing.T, k *kiosk, studentID, kioskSessionID int64) {
 	t.Helper()
-	testpkg.CreateTestVisit(t, k.db, studentID, kioskSessionID, time.Now().Add(-30*time.Minute), nil)
+	testpkg.CreateTestVisit(t, k.db, studentID, kioskSessionID, scanBudgetClock().Add(-30*time.Minute), nil)
 }
 
 func stayInOtherRoom(t *testing.T, k *kiosk, studentID, _ int64) {
 	t.Helper()
-	_, _, otherSession := k.roomWithSession(t, fmt.Sprintf("Budget Origin %d", studentID))
-	testpkg.CreateTestVisit(t, k.db, studentID, otherSession, time.Now().Add(-30*time.Minute), nil)
+	_, otherSession := budgetRoomWithSession(t, k, fmt.Sprintf("Budget Origin %d", studentID))
+	testpkg.CreateTestVisit(t, k.db, studentID, otherSession, scanBudgetClock().Add(-30*time.Minute), nil)
 }
 
 // measureScan runs the scan at a kiosk with three and then eight children
@@ -40,17 +59,17 @@ func stayInOtherRoom(t *testing.T, k *kiosk, studentID, _ int64) {
 // statements of the larger run.
 func measureScan(t *testing.T, before stayBefore, action string, requestMemo ...bool) testpkg.QueryMeasurement {
 	t.Helper()
-	k := setupCheckinRoute(t)
+	k := setupCheckinRoute(t, scanBudgetClock)
 	device, deviceID := k.deviceRow(t, "budget-"+action)
 	staff, _, _ := k.staff(t, "Budget", "Staff")
-	roomID, _, sessionID := k.roomWithSession(t, "Budget Kiosk Room")
+	roomID, sessionID := budgetRoomWithSession(t, k, "Budget Kiosk Room")
 	testpkg.LinkDeviceToActiveGroup(t, k.db, sessionID, deviceID)
 	present := 0
 	addPresent := func(count int) {
 		for range count {
 			present++
 			peer := testpkg.CreateTestStudent(t, k.db, fmt.Sprintf("Peer%d", present), "Budget", "1a")
-			testpkg.CreateTestVisit(t, k.db, peer.ID, sessionID, time.Now().Add(-time.Hour), nil)
+			testpkg.CreateTestVisit(t, k.db, peer.ID, sessionID, scanBudgetClock().Add(-time.Hour), nil)
 		}
 	}
 	counter := testpkg.CaptureQueriesForContext(t, k.db)

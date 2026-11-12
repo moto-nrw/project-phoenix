@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	directoryPorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	directoryPorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -17,10 +17,10 @@ import (
 func newCareExitBaselineModule(t *testing.T, db *bun.DB, sessions timetable.SessionFacts) timetable.Owner {
 	t.Helper()
 	module, err := New(Dependencies{
-		Provenance:          testpkg.EnrollmentProvenance{},
-		LockStaffAssignment: func(context.Context, int64) error { return nil },
-		DB:                  db,
-		Students:            directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) { return nil, nil }),
+		Provenance:           testpkg.EnrollmentProvenance{},
+		LockStaffAssignments: func(context.Context, []int64) error { return nil },
+		DB:                   db,
+		Students:             directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) { return nil, nil }),
 		Rooms: timetable.RoomDirectoryFunc(func(context.Context, []int64) ([]timetable.RoomRef, error) {
 			return nil, nil
 		}),

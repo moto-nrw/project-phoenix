@@ -5,28 +5,28 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
-	internalports "github.com/moto-nrw/project-phoenix/modules/timetable/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain"
+	internalports "github.com/moto-ogs/project-phoenix/modules/timetable/internal/ports"
 )
 
 type Service struct {
-	store               internalports.Store
-	tx                  internalports.Transaction
-	students            internalports.StudentDirectory
-	rooms               internalports.RoomDirectory
-	sessions            internalports.SessionFacts
-	today               func() string
-	observe             internalports.Observer
-	lockStaffAssignment func(context.Context, int64) error
-	provenance          internalports.EnrollmentProvenanceStore
+	store                internalports.Store
+	tx                   internalports.Transaction
+	students             internalports.StudentDirectory
+	rooms                internalports.RoomDirectory
+	sessions             internalports.SessionFacts
+	today                func() string
+	observe              internalports.Observer
+	lockStaffAssignments func(context.Context, []int64) error
+	provenance           internalports.EnrollmentProvenanceStore
 }
 
-func New(store internalports.Store, tx internalports.Transaction, students internalports.StudentDirectory, rooms internalports.RoomDirectory, sessions internalports.SessionFacts, lockStaffAssignment func(context.Context, int64) error, today func() string, observe internalports.Observer, provenance internalports.EnrollmentProvenanceStore) *Service {
-	if store == nil || tx == nil || students == nil || rooms == nil || sessions == nil || lockStaffAssignment == nil || today == nil || observe == nil || provenance == nil {
+func New(store internalports.Store, tx internalports.Transaction, students internalports.StudentDirectory, rooms internalports.RoomDirectory, sessions internalports.SessionFacts, lockStaffAssignments func(context.Context, []int64) error, today func() string, observe internalports.Observer, provenance internalports.EnrollmentProvenanceStore) *Service {
+	if store == nil || tx == nil || students == nil || rooms == nil || sessions == nil || lockStaffAssignments == nil || today == nil || observe == nil || provenance == nil {
 		panic("timetable application: all dependencies are required")
 	}
-	return &Service{store: store, tx: tx, students: students, rooms: rooms, sessions: sessions, lockStaffAssignment: lockStaffAssignment, today: today, observe: observe, provenance: provenance}
+	return &Service{store: store, tx: tx, students: students, rooms: rooms, sessions: sessions, lockStaffAssignments: skipHeldStaffRows(lockStaffAssignments), today: today, observe: observe, provenance: provenance}
 }
 
 // idSet answers membership questions the session facts port returns as lists.
@@ -226,7 +226,9 @@ func (s *Service) FindGroupForUpdate(ctx context.Context, id int64) (result time
 	}
 
 	err = s.observeOperation(ctx, "find_group_for_update", func(ctx context.Context, stats *domain.OperationStats) error {
-		value, found, queryStats, findErr := s.store.FindGroup(ctx, id, "UPDATE")
+		// NO KEY UPDATE: a supervisor row a concurrent writer inserts takes
+		// a key share on the group and must not wait for this check.
+		value, found, queryStats, findErr := s.store.FindGroup(ctx, id, "NO KEY UPDATE")
 		stats.Add(queryStats)
 		if findErr != nil {
 			return findErr

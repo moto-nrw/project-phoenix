@@ -8,15 +8,15 @@ import (
 	"testing"
 	"time"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -329,6 +329,38 @@ func TestCaregiverCapability_EnableCreatesOperationalProfile(t *testing.T) {
 	assert.Equal(t, true, after["has_person"])
 	assert.Equal(t, true, after["has_user_role"])
 	assert.Equal(t, true, after["has_teacher"])
+}
+
+func TestCaregiverCapability_EnableCreatesProfileForExistingStaff(t *testing.T) {
+	t.Parallel()
+
+	db, factory := setupCaregiverFactory(t)
+	ctx := testpkg.Ctx(t)
+	staff, account := testpkg.CreateTestStaffWithAccount(t, db, "Ada", "Lovelace")
+	testpkg.EnsureAccountTenant(t, db, account.ID, testpkg.Tenant(t))
+
+	before, err := testpkg.TenantQuery1(t, ctx, db, factory.CaregiverCapability.GetCaregiverCapability, account.ID)
+	require.NoError(t, err)
+	require.True(t, before.HasStaff)
+	require.False(t, before.HasCaregiverProfile)
+
+	state, err := factory.CaregiverCapability.EnableCaregiverCapability(ctx, account.ID,
+		peopleValues.EnableCaregiverCapabilityInput{Position: "Betreuungskraft"})
+	require.NoError(t, err)
+	require.NotNil(t, state.StaffID)
+	assert.Equal(t, staff.ID, *state.StaffID)
+	assert.True(t, state.HasCaregiverProfile)
+	assert.True(t, state.IsActiveCaregiver)
+	assert.True(t, accountHasSystemRole(t, db, account.ID, testpkg.Tenant(t), "user"))
+
+	teacher, err := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Teacher.FindByStaffID(ctx, staff.ID)
+	require.NoError(t, err)
+	require.NotNil(t, teacher)
+	assert.Equal(t, "Betreuungskraft", teacher.Role)
+
+	event := loadLatestAuthEvent(t, db, account.ID, testpkg.AuditEventTypeCaregiverCapabilityEnabled)
+	assert.Equal(t, true, event.Metadata["teacher_created"])
+	assert.NotContains(t, event.Metadata, "staff_created")
 }
 
 func TestCaregiverCapability_DisableRemovesUserRoleWithoutDeletingProfile(t *testing.T) {

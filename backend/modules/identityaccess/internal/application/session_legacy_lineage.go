@@ -3,7 +3,7 @@ package application
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // capLegacyLineage ends a refresh family issued before the switch link

@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.dataimport.student_batch.update",
+  "max": 262,
+  "exact": false,
+  "description": "Ten-row student update that moves every child to another city and its pickup to a later time; the preceding create is not measured. Unchanged rows cost the same today, because every matched row is rewritten. Measured by TestStudentImportUpdateAndUpsertBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110). The batch path writes each row without a row savepoint, because a failed row aborts its whole chunk (#5552, ADR 0067 addendum step 3)."
+}

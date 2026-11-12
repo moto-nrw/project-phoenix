@@ -6,6 +6,8 @@
 
 import { isValidISODate, parseISODate } from "~/lib/date-helpers";
 import type {
+  HolidayAllocationMode,
+  HolidayBookingUnit,
   HolidayPeriod,
   HolidayPeriodInput,
   HolidayTimeModel,
@@ -34,6 +36,8 @@ export interface WeekDraft {
   readonly endsOn: string;
   readonly hostSchoolId: string;
   readonly timeModels: readonly TimeModelDraft[];
+  /** Whole week or single days (#4701); the price is per week or per day. */
+  readonly bookingUnit?: HolidayBookingUnit;
 }
 
 export interface HolidayPeriodDraft {
@@ -42,10 +46,21 @@ export interface HolidayPeriodDraft {
   readonly registrationClosesOn: string;
   readonly binding: boolean;
   readonly notes: string;
+  /** The Träger's text in the acceptance mail to the parents (#6672). */
+  readonly acceptanceMailText: string;
+  readonly holidayWishRule: boolean;
+  /** Care days per child as typed; empty is no bound (#4701). */
+  readonly maxDaysPerChild: string;
+  /** In the order of arrival or by the office after criteria (#4700). */
+  readonly allocationMode: HolidayAllocationMode;
   readonly weeks: readonly WeekDraft[];
 }
 
 const MAX_WEEK_DAYS = 7;
+/** The backend's bound of care days per child (holiday_days.go). */
+const MAX_DAYS_PER_CHILD = 366;
+/** The backend's bound of the acceptance mail text (holiday_acceptance.go). */
+export const MAX_ACCEPTANCE_MAIL_TEXT = 2000;
 /** The backend's limits of one period (holiday_periods.go). */
 export const MAX_HOLIDAY_WEEKS = 26;
 export const MAX_TIME_MODELS_PER_WEEK = 10;
@@ -76,7 +91,13 @@ export function emptyWeek(): WeekDraft {
     endsOn: "",
     hostSchoolId: "",
     timeModels: [emptyTimeModel()],
+    bookingUnit: "week",
   };
+}
+
+/** A week is booked once a booking or a rebooking names a time model. */
+export function weekBooked(week: WeekDraft): boolean {
+  return week.timeModels.some((model) => model.protected);
 }
 
 export function emptyHolidayPeriod(): HolidayPeriodDraft {
@@ -86,6 +107,10 @@ export function emptyHolidayPeriod(): HolidayPeriodDraft {
     registrationClosesOn: "",
     binding: true,
     notes: "",
+    acceptanceMailText: "",
+    holidayWishRule: false,
+    maxDaysPerChild: "",
+    allocationMode: "arrival",
     weeks: [emptyWeek()],
   };
 }
@@ -125,6 +150,7 @@ function weekDraft(week: HolidayWeek): WeekDraft {
     endsOn: week.endsOn,
     hostSchoolId: week.hostSchoolId,
     timeModels: week.timeModels.map(timeModelDraft),
+    bookingUnit: week.bookingUnit ?? "week",
   };
 }
 
@@ -135,6 +161,11 @@ export function draftFromPeriod(period: HolidayPeriod): HolidayPeriodDraft {
     registrationClosesOn: period.registrationClosesOn,
     binding: period.binding,
     notes: period.notes,
+    acceptanceMailText: period.acceptanceMailText ?? "",
+    holidayWishRule: period.holidayWishRule,
+    maxDaysPerChild:
+      period.maxDaysPerChild == null ? "" : String(period.maxDaysPerChild),
+    allocationMode: period.allocationMode ?? "arrival",
     weeks: period.weeks.map(weekDraft),
   };
 }
@@ -147,11 +178,18 @@ export function inputFromDraft(draft: HolidayPeriodDraft): HolidayPeriodInput {
     registrationClosesOn: draft.registrationClosesOn,
     binding: draft.binding,
     notes: draft.notes.trim(),
+    acceptanceMailText: draft.acceptanceMailText.trim(),
+    holidayWishRule: draft.holidayWishRule,
+    maxDaysPerChild: draft.maxDaysPerChild.trim()
+      ? Number(draft.maxDaysPerChild.trim())
+      : null,
+    allocationMode: draft.allocationMode,
     weeks: draft.weeks.map((week) => ({
       id: week.id,
       startsOn: week.startsOn,
       endsOn: week.endsOn,
       hostSchoolId: week.hostSchoolId,
+      bookingUnit: week.bookingUnit,
       timeModels: week.timeModels.map((model) => ({
         id: model.id,
         name: model.name.trim(),
@@ -266,6 +304,19 @@ export function validateHolidayPeriod(
     errors.name = "Bitte geben Sie einen Namen ein.";
   }
   checkRegistration(draft, errors);
+  const limit = draft.maxDaysPerChild.trim();
+  if (
+    limit &&
+    (!/^\d{1,3}$/.test(limit) ||
+      Number(limit) < 1 ||
+      Number(limit) > MAX_DAYS_PER_CHILD)
+  ) {
+    errors.max_days_per_child = `Bitte eine Zahl von 1 bis ${MAX_DAYS_PER_CHILD} eingeben oder das Feld leer lassen.`;
+  }
+  // Characters as the backend counts them, not UTF-16 units.
+  if ([...draft.acceptanceMailText.trim()].length > MAX_ACCEPTANCE_MAIL_TEXT) {
+    errors.acceptance_mail_text = `Der Text darf höchstens ${MAX_ACCEPTANCE_MAIL_TEXT} Zeichen lang sein.`;
+  }
   draft.weeks.forEach((week, index) => {
     const prefix = `weeks.${index}`;
     checkWeekDates(week, prefix, errors);

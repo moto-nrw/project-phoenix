@@ -3,11 +3,12 @@ package parentpostgres
 import (
 	"context"
 	"database/sql"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 	"github.com/uptrace/bun"
 )
 
@@ -58,13 +59,14 @@ type groupMessageRow struct {
 	ClientMessageID string `bun:"client_message_id,nullzero"`
 	SendReplayed    bool   `bun:"send_replayed,scanonly"`
 	bun.BaseModel   `bun:"table:users.parent_group_messages,alias:gm"`
-	ID              int64     `bun:"id,pk,autoincrement"`
-	TenantID        int64     `bun:"tenant_id,notnull"`
-	ThreadID        int64     `bun:"thread_id,notnull"`
-	SenderAccountID *int64    `bun:"sender_account_id"`
-	SenderName      string    `bun:"sender_name,notnull"`
-	Body            string    `bun:"body,notnull"`
-	CreatedAt       time.Time `bun:"created_at,nullzero,notnull,default:clock_timestamp()"`
+	ID              int64           `bun:"id,pk,autoincrement"`
+	TenantID        int64           `bun:"tenant_id,notnull"`
+	ThreadID        int64           `bun:"thread_id,notnull"`
+	SenderAccountID *int64          `bun:"sender_account_id"`
+	SenderName      string          `bun:"sender_name,notnull"`
+	Body            string          `bun:"body,notnull"`
+	Attachments     json.RawMessage `bun:"attachments,type:jsonb,nullzero,default:'[]'"`
+	CreatedAt       time.Time       `bun:"created_at,nullzero,notnull,default:clock_timestamp()"`
 }
 
 func (r *groupMessageRow) value() communication.ParentGroupMessage {
@@ -72,7 +74,7 @@ func (r *groupMessageRow) value() communication.ParentGroupMessage {
 	if r.SenderAccountID != nil {
 		sender = *r.SenderAccountID
 	}
-	return communication.ParentGroupMessage{SenderAccountID: sender, ClientMessageID: r.ClientMessageID, SendReplayed: r.SendReplayed, ID: r.ID, SenderName: r.SenderName, Body: r.Body, CreatedAt: r.CreatedAt}
+	return communication.ParentGroupMessage{SenderAccountID: sender, ClientMessageID: r.ClientMessageID, SendReplayed: r.SendReplayed, ID: r.ID, SenderName: r.SenderName, Body: r.Body, Attachments: communication.MessageAttachmentSnapshot(r.Attachments), CreatedAt: r.CreatedAt}
 }
 
 type groupRecipientRow struct {
@@ -141,7 +143,11 @@ func (s *GroupThreadStore) AppendMessage(ctx context.Context, threadID int64, se
 	if err != nil {
 		return nil, err
 	}
-	row := &groupMessageRow{ClientMessageID: communication.MessageSendID(ctx), TenantID: tenantID, ThreadID: threadID, SenderAccountID: sender, SenderName: senderName, Body: body}
+	attachmentIDs, snapshot, err := reserveGroupAttachments(ctx, db, tenantID, sender)
+	if err != nil {
+		return nil, err
+	}
+	row := &groupMessageRow{ClientMessageID: communication.MessageSendID(ctx), TenantID: tenantID, ThreadID: threadID, SenderAccountID: sender, SenderName: senderName, Body: body, Attachments: snapshot}
 	result, err := db.NewInsert().Model(row).
 		On("CONFLICT (tenant_id, sender_account_id, client_message_id) WHERE client_message_id IS NOT NULL DO UPDATE").
 		Set("client_message_id = EXCLUDED.client_message_id").
@@ -160,6 +166,9 @@ func (s *GroupThreadStore) AppendMessage(ctx context.Context, threadID int64, se
 	if row.SendReplayed {
 		value := row.value()
 		return &value, nil
+	}
+	if err := claimMessageAttachments(ctx, db, db.NewUpdate().TableExpr("users.message_attachments AS attachment").Set("parent_group_message_id = ?", row.ID), tenantID, attachmentIDs); err != nil {
+		return nil, err
 	}
 	if len(recipients) > 0 {
 		rows := make([]groupRecipientRow, 0, len(recipients))
@@ -185,6 +194,15 @@ func (s *GroupThreadStore) AppendMessage(ctx context.Context, threadID int64, se
 	}
 	message := row.value()
 	return &message, nil
+}
+
+// reserveGroupAttachments locks the uploads the staff sender named for the
+// message; a message without a sender account carries none.
+func reserveGroupAttachments(ctx context.Context, db bun.IDB, tenantID int64, sender *int64) ([]int64, json.RawMessage, error) {
+	if sender == nil {
+		return nil, nil, nil
+	}
+	return reserveMessageAttachments(ctx, db, tenantID, *sender)
 }
 
 // CloseThread closes an open thread. It reports false when the thread was
@@ -256,13 +274,13 @@ func (s *GroupThreadStore) ListMessages(ctx context.Context, threadID int64) ([]
 // status below.
 const staffThreadListSQL = `
 SELECT gt.*,
-	COALESCE(latest.body, '') AS last_message_body,
+	COALESCE(latest.preview, '') AS last_message_body,
 	COALESCE(stats.message_count, 0) AS message_count,
 	COALESCE(families.family_count, 0) AS family_count,
 	COALESCE(families.read_count, 0) AS read_count
 FROM users.parent_group_threads AS gt
 LEFT JOIN LATERAL (
-	SELECT gm.body FROM users.parent_group_messages AS gm
+	SELECT COALESCE(NULLIF(btrim(gm.body), ''), '📎 ' || (gm.attachments -> 0 ->> 'filename'), '') AS preview FROM users.parent_group_messages AS gm
 	WHERE gm.thread_id = gt.id AND gm.tenant_id = gt.tenant_id
 	ORDER BY gm.id DESC LIMIT 1
 ) AS latest ON TRUE

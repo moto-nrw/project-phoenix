@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // CareOfferingSelection is one booked care offering of the current care period.
@@ -90,31 +90,28 @@ const (
 // parent_portal.access only: seeing the booking is part of seeing the child,
 // independent of whether change requests are switched on.
 func (s *Service) GetChildCareOfferings(ctx context.Context, accountID, studentID int64) (*ChildCareOfferings, error) {
-	child, err := s.ResolveOwnedChild(ctx, accountID, studentID)
-	if err != nil {
-		return nil, err
-	}
 	view := &ChildCareOfferings{
 		Offerings: []CareOfferingSelection{},
 	}
-	today := s.todayDate()
-	var period *CarePeriod
+	var today calendar.Date
 	var canRequest bool
 	var changesDisabledReason string
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
-		resolved, loadErr := s.loadChildCareOfferings(txCtx, studentID, today, view)
-		if loadErr != nil {
-			return loadErr
+	err := s.WithPermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess, func(*Child) error {
+		today = s.todayDate()
+		return nil
+	}, func(txCtx context.Context, child *Child) error {
+		period, loadErr := s.loadChildCareOfferings(txCtx, studentID, today, view)
+		if loadErr == nil {
+			loadErr = s.loadOfferingChangeState(txCtx, accountID, studentID, view)
 		}
-		period = resolved
-		if err := s.loadOfferingChangeState(txCtx, accountID, studentID, view); err != nil {
-			return err
+		if loadErr != nil {
+			return fmt.Errorf("parent: get child care offerings: %w", loadErr)
 		}
 		canRequest, changesDisabledReason = s.resolveOfferingChangeAvailabilityForStudent(txCtx, child, studentID, period, today)
 		return nil
 	})
-	if txErr != nil {
-		return nil, fmt.Errorf("parent: get child care offerings: %w", txErr)
+	if err != nil {
+		return nil, err
 	}
 	view.CanRequest, view.ChangesDisabledReason = canRequest, changesDisabledReason
 	return view, nil
@@ -218,27 +215,22 @@ func (s *Service) GetChildOfferingCatalogAt(
 	accountID, studentID int64,
 	effectiveFrom calendar.Date,
 ) (*OfferingChangeCatalog, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionRequestSubmit)
+	var catalog *OfferingChangeCatalog
+	err := s.WithPermittedChild(ctx, accountID, studentID, GuardianPermissionRequestSubmit, func(child *Child) error {
+		if err := child.RequireCareRunning(); err != nil {
+			return err
+		}
+		if s.OfferingChanges == nil {
+			return s.CarePlanPolicy.Error(CarePlanOfferingChangeDisabled)
+		}
+		return nil
+	}, func(txCtx context.Context, _ *Child) error {
+		var resolveErr error
+		catalog, resolveErr = s.OfferingChanges.CatalogAt(txCtx, studentID, effectiveFrom)
+		return resolveErr
+	})
 	if err != nil {
 		return nil, err
-	}
-	if err := child.RequireCareRunning(); err != nil {
-		return nil, err
-	}
-	if s.OfferingChanges == nil {
-		return nil, s.CarePlanPolicy.Error(CarePlanOfferingChangeDisabled)
-	}
-	var catalog *OfferingChangeCatalog
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
-		resolved, resolveErr := s.OfferingChanges.CatalogAt(txCtx, studentID, effectiveFrom)
-		if resolveErr != nil {
-			return resolveErr
-		}
-		catalog = resolved
-		return nil
-	})
-	if txErr != nil {
-		return nil, txErr
 	}
 	return catalog, nil
 }
@@ -271,7 +263,7 @@ func (s *Service) CreateOfferingChangeRequest(
 	if strings.TrimSpace(note) == "" && s.GuardianReasonRequired(ctx, child.TenantID) {
 		return nil, excusedrequests.ErrParentRequestReasonRequired
 	}
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, childWriteNeeds(GuardianPermissionRequestSubmit), func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err
@@ -334,7 +326,7 @@ func (s *Service) EditOfferingChangeRequest(
 	if strings.TrimSpace(note) == "" && s.GuardianReasonRequired(ctx, child.TenantID) {
 		return nil, excusedrequests.ErrParentRequestReasonRequired
 	}
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, childWriteNeeds(GuardianPermissionRequestSubmit), func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err

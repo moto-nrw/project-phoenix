@@ -3,12 +3,11 @@ package devices
 import (
 	"errors"
 	"net/http"
-	"strings"
 
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func testRuntime() Runtime {
@@ -42,7 +41,8 @@ func testRuntime() Runtime {
 			})
 		},
 		ConstraintViolation: func(err error) bool {
-			return strings.Contains(err.Error(), "violates foreign key constraint") || strings.Contains(err.Error(), "violates not-null constraint")
+			state := testpkg.PostgresSQLState(err)
+			return state == "23503" || state == "23502"
 		},
 	}
 }

@@ -12,11 +12,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // The participant lists of the hosting school (#4665, ADR 0116), mounted at
@@ -30,20 +30,23 @@ import (
 type HolidayHostResource struct {
 	participants  capability.HolidayHostParticipants
 	schoolNames   capability.HolidayHostSchoolNames
+	requireWeeks  common.Middleware
 	requireRead   common.Middleware
 	requireHealth common.Middleware
 	guests        capability.HolidayGuests
 	requireAssign common.Middleware
 }
 
-// NewHolidayHostResource builds the routes. requireRead is the school
-// permission that opens the participant lists; requireHealth the one that
-// opens the health information of a child of the school (#4722).
-func NewHolidayHostResource(participants capability.HolidayHostParticipants, schoolNames capability.HolidayHostSchoolNames, requireRead, requireHealth common.Middleware) *HolidayHostResource {
-	if participants == nil || schoolNames == nil || requireRead == nil || requireHealth == nil {
+// NewHolidayHostResource builds the routes. requireWeeks is the school
+// permission that opens the list of hosted weeks: dates, care window and
+// counts, no child; the planning views show it. requireRead opens the
+// participant lists; requireHealth the health information of a child of the
+// school (#4722).
+func NewHolidayHostResource(participants capability.HolidayHostParticipants, schoolNames capability.HolidayHostSchoolNames, requireWeeks, requireRead, requireHealth common.Middleware) *HolidayHostResource {
+	if participants == nil || schoolNames == nil || requireWeeks == nil || requireRead == nil || requireHealth == nil {
 		panic("enrollment holiday host resource: participants, school names and the permissions are required")
 	}
-	return &HolidayHostResource{participants: participants, schoolNames: schoolNames, requireRead: requireRead, requireHealth: requireHealth}
+	return &HolidayHostResource{participants: participants, schoolNames: schoolNames, requireWeeks: requireWeeks, requireRead: requireRead, requireHealth: requireHealth}
 }
 
 // Router mounts the routes behind the school session.
@@ -51,12 +54,14 @@ func (rs *HolidayHostResource) Router(protectedTenantRoutes func(chi.Router, fun
 	r := chi.NewRouter()
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	protectedTenantRoutes(r, func(r chi.Router, withTx common.Middleware) {
-		r.With(rs.requireRead, withTx).Get("/", rs.listWeeks)
+		r.With(rs.requireWeeks, withTx).Get("/", rs.listWeeks)
 		read := r.With(rs.requireRead, rs.withSchoolNames, withTx)
 		read.Get("/{weekId}/participants", rs.getParticipants)
 		read.Get("/{weekId}/participants/export", rs.exportParticipants)
 		r.With(rs.requireHealth, withTx).Get("/students/{studentId}/health", rs.getStudentHealth)
 		if rs.guests != nil {
+			r.With(rs.requireHealth, withTx).Get("/students/{studentId}/registration", rs.getStudentRegistration)
+			r.With(rs.requireRead, withTx).Get("/{weekId}/own-children", rs.listOwnChildAssignments)
 			r.With(rs.requireRead, rs.requireAssign, withTx).Put("/{weekId}/guest-group", rs.assignGuestGroup)
 		}
 	})
@@ -275,10 +280,13 @@ var holidayParticipantColumns = []lists.Column{
 }
 
 // holidayParticipantExtraColumns adds to the minimum fields the second
-// guardian, when a child has one, and one column per shared question
-// (#5202). A list without either keeps exactly the columns of before.
+// guardian, when a child has one, the booked dates of a day offer, and one
+// column per shared question (#5202).
 func holidayParticipantExtraColumns(list capability.HolidayParticipantList) []lists.Column {
 	columns := append([]lists.Column{}, holidayParticipantColumns...)
+	if list.Week.BookingUnit == capability.HolidayBookingUnitDay {
+		columns = append(columns, lists.Column{ID: "days", Label: "Tage"})
+	}
 	for _, participant := range list.Participants {
 		if participant.SecondGuardian != nil {
 			columns = append(columns,
@@ -325,6 +333,11 @@ func holidayParticipantDocument(list capability.HolidayParticipantList, names ho
 			"birth_date": participant.BirthDate.Format("02.01.2006"), "home_school": names.participantSchool(participant),
 			"time_model": models[participant.TimeModelID],
 		}
+		days := make([]string, len(participant.Days))
+		for j, day := range participant.Days {
+			days[j] = day.Format("02.01.2006")
+		}
+		values["days"] = strings.Join(days, ", ")
 		if participant.SecondGuardian != nil {
 			values["second_guardian"] = participant.SecondGuardian.Name
 			values["second_guardian_phone"] = participant.SecondGuardian.Phone

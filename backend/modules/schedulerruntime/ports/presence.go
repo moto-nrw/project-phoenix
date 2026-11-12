@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // DailySessionsEnded is what ending a school's daily sessions reports.
@@ -59,12 +59,18 @@ type PresenceCleanup interface {
 	CleanupStaleAttendance(ctx context.Context) (*StaleAttendanceCleanup, error)
 }
 
-// StudentStatusFlagArchiver archives a school's legacy end-of-day status flag
-// into the students' status days for date and clears the flag (Care Plan).
-// Care Plan decides the archived status and its source. Column names must be
-// trusted constants, never user input.
+// StudentStatusFlagArchiver keeps a school's live status flags and status
+// days in step (Care Plan). A flag stands for the status day of its since
+// timestamp. Care Plan decides the archived status and its source. Column
+// names must be trusted constants, never user input.
+//
+// ArchiveEndOfDayStatusFlag closes the status day of every flag reported
+// before before and clears the flag; date is the status day of a flag
+// without a since timestamp. CarryStatusFlag lets every flag reported before
+// date stand for date as well and keeps it set.
 type StudentStatusFlagArchiver interface {
-	ArchiveEndOfDayStatusFlag(ctx context.Context, flagColumn, sinceColumn string, date calendar.Date, reportedFallback time.Time) (int64, error)
+	ArchiveEndOfDayStatusFlag(ctx context.Context, flagColumn, sinceColumn string, before time.Time, date calendar.Date, at time.Time) (int64, error)
+	CarryStatusFlag(ctx context.Context, flagColumn, sinceColumn string, date calendar.Date, at time.Time) (int64, error)
 }
 
 // PWAUsageCleanupResult reports the retention sweep of a school's standalone

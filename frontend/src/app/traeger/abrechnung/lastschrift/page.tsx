@@ -16,10 +16,12 @@ import {
   SepaMandatesCard,
   useSepaMandates,
 } from "~/components/traeger/sepa-mandates-card";
+import { ButtonLink } from "~/components/ui/button";
 import type { FilterConfig } from "~/components/ui/page-header/types";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { ListSkeleton } from "~/components/ui/page-skeletons";
 import { hasPermission } from "~/lib/auth-utils";
+import { traegerPath } from "~/lib/traeger-url";
 
 type Show = "in_force" | "revoked" | "all";
 
@@ -37,7 +39,7 @@ const SHOW_OPTIONS: { value: Show; label: string }[] = [
 ];
 
 const INFO =
-  "Mit einem SEPA-Mandat buchen Sie den Beitrag einer Familie ab. Ein neues Mandat erfassen Sie beim Vertrag der Familie. Ihre Gläubiger-ID steht unter Einstellungen → Abrechnungsvorgaben.";
+  "Mit einem SEPA-Mandat buchen Sie den Beitrag einer Familie ab. Ein neues Mandat erfassen Sie beim Vertrag der Familie. Mandate aus einem anderen Programm übernehmen Sie mit „Mandate importieren“. Ihre Gläubiger-ID steht unter Einstellungen → Abrechnungsvorgaben.";
 
 export default function TraegerLastschriftPage() {
   const { data: session } = useSession();
@@ -86,6 +88,17 @@ export default function TraegerLastschriftPage() {
       title={billingAreaTitle("lastschrift")}
       info={INFO}
       tabs={billingTabs("lastschrift")}
+      actions={
+        canBill ? (
+          <ButtonLink
+            href={traegerPath("/traeger/abrechnung/lastschrift/import")}
+            variant="outline"
+            size="md"
+          >
+            Mandate importieren
+          </ButtonLink>
+        ) : null
+      }
       error={error}
       // A list loads in the shape of its rows.
       loading={

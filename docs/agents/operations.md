@@ -35,7 +35,7 @@ through `devbox run` when the current process has not loaded the project environ
 | Backend unit-only loop | `cd backend && ../scripts/run-go-toolchain.sh go test -short ./...` (skips DB tests) |
 | Changed-code tests | `scripts/run-go-toolchain.sh scripts/test-changed.sh origin/development` |
 | Fast inner loop | `scripts/run-go-toolchain.sh scripts/test-changed.sh --fast origin/development` (enough before push; CI runs the full closure). Live output lists package results; a failure adds a summary and keeps the full output in the printed `test-changed-go.log.gz` |
-| Before push | `scripts/run-go-toolchain.sh scripts/check-changed.mjs [base]`: the pre-push static checks (`scripts/pre-push.sh --worktree`) and `test-changed.sh --fast` for committed, uncommitted and untracked changes. Steps run side by side only while the load average is below half the CPUs, each with a timeout (`PHX_CHECK_TIMEOUT_MINUTES`, default 30); a rerun with byte-identical inputs prints the last passing summary |
+| Before push | `scripts/run-go-toolchain.sh scripts/check-changed.mjs [base]`: the pre-push static checks (`scripts/pre-push.sh --worktree`), `test-changed.sh --fast` and, when a Go, `go.mod`/`go.sum`, `backend/architecture/` or architecture-checker path changed, `scripts/backend-architecture.sh check` without the base comparison (import policy for production and test packages, about 30 s; CI adds the comparison with the base), for committed, uncommitted and untracked changes. Two steps run side by side only while the load average is below half the CPUs, each with a timeout (`PHX_CHECK_TIMEOUT_MINUTES`, default 30); a rerun with byte-identical inputs prints the last passing summary |
 | Red PR check | `node scripts/ci-failures.mjs [branch or PR]`: failed jobs and steps, their error lines, the local reproduction, and a warning when the previous push failed in the same job |
 | Generate route docs | `scripts/dev-native.sh backend go run . gendoc --routes` |
 | Standalone background jobs | `scripts/dev-native.sh backend go run . worker` with a free `PORT`; it waits in standby while `serve` leads (lease, cutover and rollback: [worker lease runbook](../operations/worker-lease-2726.md)) |
@@ -178,7 +178,7 @@ Next writes its `.next`, lock, `next-env.d.ts` and TypeScript changes
 only there. Local env files are not copied. Changing suite or ports therefore
 never reuses another run's compilation, and the native dev loop can keep running
 in the same worktree without losing its warm cache or generated files
-([#5371](https://github.com/moto-nrw/project-phoenix/issues/5371)). Source edits
+([#5371](https://github.com/moto-ogs/project-phoenix/issues/5371)). Source edits
 made after startup take effect on the next run, not in the current snapshot.
 Readiness compiles the tenant login page, not just a health endpoint, before
 browser action timeouts begin. Retries, assertions and test timeouts are unchanged.
@@ -292,10 +292,12 @@ that worktree and continue in a new managed sibling:
    original T3 thread remains bound to its original checkout.
 
 Keep the original worktree, its changes, services and persistent data until
-their owner decides otherwise. `wt remove` runs `.wtconfig` teardown, which
-deletes the managed target's Compose and test-server volumes; it is not an
-adoption or harmless handoff step. Never prune or remove another worktree's
-networks or volumes to make setup succeed.
+their owner decides otherwise. `wt remove` runs `.wtconfig` teardown,
+`scripts/worktree-teardown.sh`: it deletes the containers, networks and volumes
+of the target's own Compose project from `.wt.env`, including its databases;
+it is not an adoption or harmless handoff step. `--dry-run` lists them first.
+Fixed-name caches and networks and the [test servers](#test-database) stay.
+Never prune or remove another worktree's networks or volumes to make setup succeed.
 
 For **tests only**, no app setup or sibling is needed: supply `TEST_DB_DSN`
 through a private process environment, pointing to a local test server, then
@@ -455,6 +457,17 @@ Tests start a postgres-test server for the configured `TEST_DB_PORT`, prepare
 migration-hash templates, and clone a database per package. Package exit drops
 its clone; generation GC cleans interrupted runs. The wrapper also sweeps at
 exit. Worktrees using the same port share a server; different ports are isolated.
+The server keeps its data in a tmpfs inside the Docker VM, like the CI service.
+A stopped server starts empty, and the next test run rebuilds the template
+(about 10 s per migration hash). Clone churn on the VM disk made macOS Docker
+VMs stall every host connection into the VM for up to 2.5 s, so 5-second
+fixture deadlines failed with `i/o timeout`
+([measurement](../research/6491-testdb-host-vm-stalls.md)).
+Test servers belong to the harness, not to a worktree: `wt add` keeps the
+source checkout's `TEST_DB_PORT` and `TEST_DB_DSN`, and `wt remove` neither
+stops a test server nor deletes its volume. A per-port server that no checkout
+uses any more is removed only by its owner, as in
+[Rebuild a disposable test cluster](#rebuild-a-disposable-test-cluster).
 
 ### Test DSN source and credential drift
 
@@ -485,10 +498,11 @@ A database reset alone cannot fix cluster-global role drift. Only the server
 owner may rebuild a broken disposable cluster, after coordinating with every
 session using that server and confirming they have finished:
 
-1. Stop and remove that server's `postgres-test` container. Remove only its
-   `postgres_test` volume, identified by the exact Compose project. Do not
-   remove application databases, other projects' volumes or an active shared
-   server. The test data and cached templates in that volume will be lost.
+1. Stop and remove that server's `postgres-test` container; its tmpfs data
+   and cached templates go with it. A server created before #6491 still has a
+   `postgres_test` volume: remove only that volume, identified by the exact
+   Compose project. Do not remove application databases, other projects'
+   volumes or an active shared server.
 2. In the owning checkout, use the authoritative root `.env` and remove any
    stale exported DSN override. Start the normal test command, or explicitly
    bootstrap from the repository root:
@@ -507,7 +521,8 @@ session using that server and confirming they have finished:
 
 ### Server cannot find its checkpoint record
 
-A test server whose start logs
+This affects only servers created before #6491 with a `postgres_test` volume;
+a tmpfs server starts from an empty data directory. A test server whose start logs
 `PANIC:  could not locate a valid checkpoint record` lost writes after
 PostgreSQL had already shut down cleanly. The test servers run with
 `fsync=off`, so data stays in the Docker VM's page cache until the guest writes
@@ -534,7 +549,8 @@ Free disk space first, or the fresh server will fail the same way.
 
 On macOS and Linux (including WSL), new managed test servers stop automatically
 after 15 minutes without a protected test process, checked every 30 seconds.
-The next test starts the server again. Containers and volumes are retained.
+The next test starts the server again. Containers are retained; their tmpfs
+data is not.
 Each DB test binary holds a kernel lease before connecting, including the
 `PHX_TEST_TEMPLATE` fast path. Exit, failure, Ctrl-C and SIGKILL release leases;
 paused or CPU-only test processes remain protected. Cleanup and startup share
@@ -550,6 +566,14 @@ receive process leases, so an existing watcher cannot stop a live test.
 Registration and lease errors remain failures rather than bypassing protection.
 CI, remote Docker engines and native Windows are unchanged. Use WSL for
 Windows-local cleanup.
+
+The tmpfs is part of the container's `mem_limit` and is freed when the server
+stops. A server that is still running keeps the configuration it was created
+with. Compose recreates it from the current file at the next start after an
+idle stop; the harness never recreates a running server. Compose keeps the old
+`<project>_postgres_test` volume attached underneath the tmpfs, where it stays
+unused. Its owner may remove container and volume once no session uses the
+server, as in [Rebuild a disposable test cluster](#rebuild-a-disposable-test-cluster).
 
 Inspect registered servers without stopping anything:
 
@@ -617,8 +641,8 @@ refusal a human has to resolve registers that same check next to its `Up`.
 
 All encrypted files must have identical keys and match `.env.example` except
 the script's dev-only whitelist. The shared `.env` supplies Compose interpolation
-only. Each service receives an explicit environment allowlist; `migrate` alone
-receives the privileged DSN. Read [runtime environment boundaries](../operations/runtime-environment-boundaries.md)
+only. Each service receives an explicit environment allowlist; only the explicit
+maintenance jobs `migrate` and `bank-data-rekey` receive the privileged DSN. Read [runtime environment boundaries](../operations/runtime-environment-boundaries.md)
 before changing deployment environments or maintenance jobs.
 
 CI uses `SOPS_AGE_KEY`, `STAGING_SSH_*`, `PRODUCTION_SSH_*`, and `DEMO_SSH_*` secrets;
@@ -641,6 +665,12 @@ the app server. That one Caddy serves production, staging, Grafana and
 PyrePortal, so every rollout touches production. The Cloudflare DNS token stays
 in `/etc/caddy/cloudflare.env` on the server and reaches the file only as
 `{env.CLOUDFLARE_API_TOKEN}`. Client-IP rules: [contracts](contracts.md#client-ip-and-rate-limits).
+
+Maintenance page: while a frontend upstream is down (every deploy), the
+`(maintenance-html)` snippet answers 502/503 with the page in its heredoc. It
+rolls out with the Caddyfile; no file on the server belongs to it. Preview a
+change by serving the snippet from the server's Caddy version in Docker with a
+dead upstream, and attach desktop and phone screenshots to the PR.
 
 Checks: `node scripts/check-caddyfile.mjs` (CI, on every change) verifies that
 each `reverse_proxy` imports `client_ip_upstream`; `--cloudflare` also compares
@@ -841,7 +871,11 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
   12:50. Every stamp lies before the browser's 13:30, and `set-clock` keeps the
   shift to the real time in `clock-shift` for the restore. Without
   `--clock-command` (a local run) all waves run at once on the plan's times
-  and carry the real time.
+  and carry the real time. A run simulates the Berlin day it started on; if
+  the clock crosses midnight, it stops before its next action, because the
+  server keeps attendance per day (#5511). The seed smoke in `test.yml`
+  therefore also moves its runner clock forward to the next 07:20 Berlin
+  before migrating and drives the waves with `--clock-command`.
   Text that depends on the time of day must therefore not be rendered on the
   server: the home greeting uses `useTimeBasedGreeting` (`src/lib/greeting.ts`).
 - Adding a shot: the list follows the help flows and PostHog usage (#3764),
@@ -878,7 +912,7 @@ cd frontend && pnpm run test:screenshots        # pipeline test against the runn
   attaches the output as the artifact `product-screenshots-<version>` (7 days)
   and as `product-screenshots-<version>.zip` to the GitHub release `v<version>`,
   plus the same file as `product-screenshots.zip`: the newest images are always
-  at `https://github.com/moto-nrw/project-phoenix/releases/latest/download/product-screenshots.zip`
+  at `https://github.com/moto-ogs/project-phoenix/releases/latest/download/product-screenshots.zip`
   (PyrePortal does the same for the kiosk). A rerun of the same version replaces
   both ZIPs. Pull requests into `main` that
   touch the pipeline run the capture without the release asset; pull requests

@@ -5,8 +5,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
+	"github.com/uptrace/bun/dialect/pgdialect"
+
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/domain"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // Träger memberships (ADR 0084, #4649). platform.organization_accounts has no
@@ -19,6 +22,7 @@ type traegerMembershipRow struct {
 	Status         string     `bun:"status"`
 	ActivatedAt    *time.Time `bun:"activated_at"`
 	CreatedAt      time.Time  `bun:"created_at"`
+	DisplayName    string     `bun:"display_name"`
 }
 
 func (r traegerMembershipRow) toDomain() organizationtenancy.TraegerMembership {
@@ -91,7 +95,8 @@ func (s *Store) ListTraegerBillingKeyDateCounts(ctx context.Context, organizatio
 	return billingKeyDateCounts(rows), stats, nil
 }
 
-const listTraegerMembershipsQuery = `SELECT organization_id, account_id, status, activated_at, created_at
+const listTraegerMembershipsQuery = `SELECT organization_id, account_id, status, activated_at, created_at,
+		COALESCE(display_name, '') AS display_name
 	FROM platform.organization_accounts
 	WHERE organization_id = ?
 	ORDER BY created_at, id`
@@ -124,7 +129,7 @@ const upsertActiveTraegerMembershipQuery = `INSERT INTO platform.organization_ac
 			activated_at = CASE WHEN platform.organization_accounts.status = 'active'
 				THEN platform.organization_accounts.activated_at ELSE CURRENT_TIMESTAMP END,
 			deactivated_at = NULL
-	RETURNING organization_id, account_id, status, activated_at, created_at`
+	RETURNING organization_id, account_id, status, activated_at, created_at, COALESCE(display_name, '') AS display_name`
 
 // UpsertActiveTraegerMembership creates the membership active or reactivates
 // it; an active membership keeps its activation time.
@@ -162,4 +167,86 @@ func (s *Store) DeactivateTraegerMembership(ctx context.Context, organizationID,
 	}
 	stats.Rows, _ = result.RowsAffected()
 	return stats.Rows == 1, stats, nil
+}
+
+// listTraegerMemberNamesQuery reads the set names of the accounts at the
+// Träger, from memberships in any state (#4693). The administrative
+// transaction reads the table; the Träger transaction has no grant on it and
+// reads through platform.traeger_member_names, which answers only for the
+// Träger of app.current_org_id.
+const listTraegerMemberNamesQuery = `SELECT account_id, display_name FROM platform.organization_accounts
+	WHERE organization_id = ? AND account_id = ANY(?) AND display_name IS NOT NULL
+	ORDER BY account_id`
+
+const listTraegerMemberNamesInTraegerQuery = `SELECT account_id, display_name FROM platform.traeger_member_names(?, ?::bigint[])
+	ORDER BY account_id`
+
+// ListTraegerMemberNames returns the names of the accounts at the Träger in
+// one statement.
+func (s *Store) ListTraegerMemberNames(ctx context.Context, organizationID int64, accountIDs []int64) ([]organizationtenancy.TraegerMemberName, domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return nil, domain.OperationStats{}, err
+	}
+	var rows []struct {
+		AccountID   int64  `bun:"account_id"`
+		DisplayName string `bun:"display_name"`
+	}
+	started := time.Now()
+	if tenant.IsAdminTx(ctx) {
+		err = db.NewRaw(listTraegerMemberNamesQuery, organizationID, pgdialect.Array(accountIDs)).Scan(ctx, &rows)
+	} else {
+		err = db.NewRaw(listTraegerMemberNamesInTraegerQuery, organizationID, pgdialect.Array(accountIDs)).Scan(ctx, &rows)
+	}
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(rows))}
+	if err != nil {
+		return nil, stats, fmt.Errorf("organization tenancy postgres: list Träger member names: %w", err)
+	}
+	names := make([]organizationtenancy.TraegerMemberName, 0, len(rows))
+	for _, row := range rows {
+		names = append(names, organizationtenancy.TraegerMemberName{AccountID: row.AccountID, Name: row.DisplayName})
+	}
+	return names, stats, nil
+}
+
+const setTraegerMemberNameQuery = `UPDATE platform.organization_accounts
+	SET display_name = ?
+	WHERE organization_id = ? AND account_id = ? AND status = 'active'`
+
+// SetTraegerMemberName sets the name of an active membership and reports
+// whether one was active (#4693).
+func (s *Store) SetTraegerMemberName(ctx context.Context, organizationID, accountID int64, name string) (bool, domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return false, domain.OperationStats{}, err
+	}
+	started := time.Now()
+	result, err := db.NewRaw(setTraegerMemberNameQuery, name, organizationID, accountID).Exec(ctx)
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return false, stats, fmt.Errorf("organization tenancy postgres: set Träger member name: %w", err)
+	}
+	stats.Rows, _ = result.RowsAffected()
+	return stats.Rows == 1, stats, nil
+}
+
+// HasRetainedTraegerMembership uses the narrow tenant capability for school
+// callers. Administrative callers already have the table grant (ADR 0084).
+func (s *Store) HasRetainedTraegerMembership(ctx context.Context, accountID int64) (bool, domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return false, domain.OperationStats{}, err
+	}
+	var retained bool
+	started := time.Now()
+	if tenant.IsAdminTx(ctx) {
+		err = db.NewRaw(`SELECT EXISTS (SELECT 1 FROM platform.organization_accounts WHERE account_id = ? AND status IN ('pending', 'active'))`, accountID).Scan(ctx, &retained)
+	} else {
+		err = db.NewRaw(`SELECT platform.account_has_retained_traeger_membership(?)`, accountID).Scan(ctx, &retained)
+	}
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: 1}
+	if err != nil {
+		return false, stats, fmt.Errorf("organization tenancy postgres: retained Träger membership: %w", err)
+	}
+	return retained, stats, nil
 }

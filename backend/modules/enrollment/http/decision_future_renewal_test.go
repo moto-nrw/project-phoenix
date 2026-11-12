@@ -10,18 +10,18 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/uptrace/bun"
 )
 
@@ -234,7 +234,7 @@ func TestPhaseService_Update_ReschedulesPendingWeeklyPlans(t *testing.T) {
 
 			failure := errors.New("after phase update")
 			err = testpkg.WithTenantTx(t, ctx, r.env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-				if err := phases.UpdatePhase(txCtx, phase); err != nil {
+				if err := phaseEdit(phases)(txCtx, phase); err != nil {
 					return err
 				}
 				return failure
@@ -247,7 +247,7 @@ func TestPhaseService_Update_ReschedulesPendingWeeklyPlans(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, enrollmentNative.Date(r.start), storedPhase.ServiceStartDate)
 
-			require.NoError(t, testpkg.TenantCommand1(t, ctx, r.env.db, phases.UpdatePhase, phase))
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, r.env.db, phaseEdit(phases), phase))
 			rescheduled, err := testpkg.TenantQuery1(t, ctx, r.env.db, module.ChildWeeklyPlan, r.childID)
 			require.NoError(t, err)
 			plan.On = phase.ServiceStartDate
@@ -264,7 +264,7 @@ func TestPhaseService_Update_ReschedulesPendingWeeklyPlans(t *testing.T) {
 				r.student(t).AllowedDepartureModes.DepartureDays().ModeFor(peopleValues.PickupDayMonday))
 
 			phase.ServiceStartDate = enrollmentNative.Date(newStart.AddDays(1))
-			require.NoError(t, testpkg.TenantCommand1(t, ctx, r.env.db, phases.UpdatePhase, phase))
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, r.env.db, phaseEdit(phases), phase))
 			applied, err := testpkg.TenantQuery1(t, ctx, r.env.db, module.ChildWeeklyPlan, r.childID)
 			require.NoError(t, err)
 			assert.Nil(t, applied, "a phase change never recreates an applied plan")

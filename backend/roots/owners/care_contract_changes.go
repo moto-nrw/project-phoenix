@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // careContractChangeSettingReasonPolicy is the school's rule whether a
@@ -59,9 +59,9 @@ func (b CareContractChangeRequests) PendingChanges(ctx context.Context, studentI
 			if previewErr != nil {
 				return nil, nil, false, careContractChangeError(previewErr)
 			}
-			view.Diff = preview.Diff
+			view.Diff, view.Unchanged = preview.Diff, preview.Unchanged
 		}
-		request, mapErr := careContractChangeRequest(*view.Request, view.Diff)
+		request, mapErr := careContractChangeRequest(*view.Request, view.Diff, view.Unchanged)
 		if mapErr != nil {
 			return nil, nil, false, mapErr
 		}
@@ -111,7 +111,10 @@ func (b CareContractChangeRequests) reasonRequired(ctx context.Context) (bool, e
 	return parentrequests.ReasonRequired(policy, parentrequests.ReasonSideStaff), nil
 }
 
-func careContractChangeRequest(request careplan.OfferingChangeRequest, diff []careplan.OfferingChangeDiffEntry) (carecontract.ChangeRequest, error) {
+// careContractChangeRequest maps the request with its changed lines and the
+// modules it keeps as they are ("Bleibt gebucht", #6334). A module appears
+// once, as its changed line if Care Plan reports both.
+func careContractChangeRequest(request careplan.OfferingChangeRequest, diff, unchanged []careplan.OfferingChangeDiffEntry) (carecontract.ChangeRequest, error) {
 	effectiveFrom, err := calendar.ParseDate(request.EffectiveFrom)
 	if err != nil {
 		return carecontract.ChangeRequest{}, fmt.Errorf("care contract changes: effective day of request %d: %w", request.ID, err)
@@ -123,9 +126,21 @@ func careContractChangeRequest(request careplan.OfferingChangeRequest, diff []ca
 	if request.ParentNote != nil {
 		result.ParentNote = *request.ParentNote
 	}
+	seen := make(map[int64]bool, len(diff)+len(unchanged))
 	for _, entry := range diff {
+		seen[entry.OfferingID] = true
 		result.Lines = append(result.Lines, carecontract.ChangeLine{
 			CareOfferingID: entry.OfferingID, ModuleName: entry.Label, State: careContractChangeState(entry),
+			BeforeDays: nonNilDays(entry.OldDays), AfterDays: nonNilDays(entry.NewDays),
+		})
+	}
+	for _, entry := range unchanged {
+		if seen[entry.OfferingID] {
+			continue
+		}
+		seen[entry.OfferingID] = true
+		result.Lines = append(result.Lines, carecontract.ChangeLine{
+			CareOfferingID: entry.OfferingID, ModuleName: entry.Label, State: carecontract.ChangeModuleUnchanged,
 			BeforeDays: nonNilDays(entry.OldDays), AfterDays: nonNilDays(entry.NewDays),
 		})
 	}

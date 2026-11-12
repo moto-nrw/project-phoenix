@@ -4,12 +4,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	organizationcompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	presencecompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	organizationcompose "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	presencecompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 type DemoSchoolRecord struct {
@@ -50,9 +50,11 @@ type demoAccessExpiry interface {
 	ExpireDemoAccesses(ctx context.Context) (int, []string, error)
 }
 
-// demoSchoolFiles is the owner's file erasure of retired demo schools (#5544).
-type demoSchoolFiles interface {
+// demoSchoolErasure is the owner's erasure of retired demo schools: their
+// files (#5544), then their database rows (#5559).
+type demoSchoolErasure interface {
 	EraseRetiredDemoSchoolFiles(ctx context.Context) (schools int, files int64, err error)
+	EraseRetiredDemoSchoolDatabases(ctx context.Context) (erased, busy int, err error)
 }
 
 // DemoRuntime composes only the owner capabilities needed by the sidecar.
@@ -61,8 +63,9 @@ type demoSchoolFiles interface {
 // NewDemoRuntime, so the dev tools import no owner's public package besides
 // Delivery's uploads store, which they bind for the file erasure (ADR 0148).
 type DemoRuntime struct {
-	// demoSchoolFiles removes the uploads of retired demo schools (#5544).
-	demoSchoolFiles
+	// demoSchoolErasure removes the uploads (#5544) and then the database
+	// rows (#5559) of retired demo schools.
+	demoSchoolErasure
 	seedAdapter  func(string, bool) seedCommandAdapter
 	schools      demoSchoolStore
 	queue        demoSchoolQueue
@@ -85,7 +88,7 @@ func NewDemoRuntime(db transactionruntime.Database, now func() time.Time, seedAd
 	if err != nil {
 		return nil, err
 	}
-	expiry, files, err := newDemoCleanup(db, now, uploadsRoot)
+	expiry, erasure, err := newDemoCleanup(db, now, uploadsRoot)
 	if err != nil {
 		return nil, err
 	}
@@ -98,9 +101,9 @@ func NewDemoRuntime(db transactionruntime.Database, now func() time.Time, seedAd
 		return nil, err
 	}
 	return &DemoRuntime{
-		seedAdapter:     seedAdapter,
-		demoSchoolFiles: files,
-		schools:         schools, queue: queue, expiry: expiry, transactions: db.UnitOfWork(),
+		seedAdapter:       seedAdapter,
+		demoSchoolErasure: erasure,
+		schools:           schools, queue: queue, expiry: expiry, transactions: db.UnitOfWork(),
 		loadSchool: func(ctx context.Context, name string) (*DemoSchoolRecord, error) {
 			state, err := schools.LoadDemoSchool(ctx, name)
 			if state == nil || err != nil {
@@ -139,18 +142,19 @@ func NewDemoRuntime(db transactionruntime.Database, now func() time.Time, seedAd
 }
 
 // newDemoCleanup composes what the hourly expiry removes: the demo accesses
-// past their end (#3470) and the uploads of retired demo schools, from the
-// demo server's uploads store (#5544, ADR 0148).
-func newDemoCleanup(db transactionruntime.Database, now func() time.Time, uploadsRoot string) (demoAccessExpiry, demoSchoolFiles, error) {
+// past their end (#3470), the uploads of retired demo schools from the demo
+// server's uploads store (#5544, ADR 0148) and their database rows (#5559,
+// ADR 0189).
+func newDemoCleanup(db transactionruntime.Database, now func() time.Time, uploadsRoot string) (demoAccessExpiry, demoSchoolErasure, error) {
 	expiry, err := identityaccessCompose.NewDemoAccessExpiry(db.Pool(), now)
 	if err != nil {
 		return nil, nil, err
 	}
-	files, err := organizationcompose.NewDemoSchoolFiles(db.Pool(), objects.NewLocal(uploadsRoot))
+	erasure, err := organizationcompose.NewDemoSchoolErasure(db.Pool(), objects.NewLocal(uploadsRoot))
 	if err != nil {
 		return nil, nil, err
 	}
-	return expiry, files, nil
+	return expiry, erasure, nil
 }
 
 // ExpireDemoAccesses deletes the demo accesses 14 days past their last use

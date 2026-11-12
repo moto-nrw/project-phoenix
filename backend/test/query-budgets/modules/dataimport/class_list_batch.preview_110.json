@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.dataimport.class_list_batch.preview_110",
+  "max": 224,
+  "exact": true,
+  "description": "110-row class-list preview like class_list_batch.preview. Measured by TestClassListImportBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110)."
+}

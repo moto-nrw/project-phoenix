@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan"
-	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // releaseStore is the store of the release guards: what is released, the
@@ -58,7 +58,7 @@ func (s *releaseStore) InsertRelease(_ context.Context, organizationID, _ int64,
 	return month.ReleasedAt, nil
 }
 
-func (s *releaseStore) TraegerMonths(context.Context, int64, calendar.Date) ([]domain.ReleasedMealRow, error) {
+func (s *releaseStore) TraegerMonths(context.Context, int64, calendar.Date, calendar.Date) ([]domain.ReleasedMealRow, error) {
 	return nil, nil
 }
 

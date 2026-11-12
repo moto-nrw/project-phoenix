@@ -3,10 +3,82 @@ import { render, screen, fireEvent, act } from "@testing-library/react";
 import { useState, type ReactNode } from "react";
 import { FormModal } from "./form-modal";
 import { ModalProvider } from "./modal-context";
+import {
+  useFormModalPending,
+  type FormModalOperation,
+  type FormModalPending,
+} from "./use-form-modal-pending";
 
 // Wrapper component with portal target
 function TestWrapper({ children }: { children: ReactNode }) {
   return <ModalProvider>{children}</ModalProvider>;
+}
+
+function deferred() {
+  let resolve!: () => void;
+  let reject!: (error: Error) => void;
+  const promise = new Promise<void>((res, rej) => {
+    resolve = res;
+    reject = rej;
+  });
+  return { promise, resolve, reject };
+}
+
+// Lets a second trigger reach the running contract, as Enter in a form would.
+let lastPending: FormModalPending | null = null;
+let lastTask: ((op: FormModalOperation) => Promise<void>) | null = null;
+function EnterSubmit() {
+  return (
+    <button
+      type="button"
+      onClick={() => {
+        if (lastPending && lastTask) void lastPending.run(lastTask);
+      }}
+    >
+      Nochmal
+    </button>
+  );
+}
+
+function PendingHarness({
+  isOpen = true,
+  context,
+  onClose,
+  task,
+}: {
+  isOpen?: boolean;
+  context?: string;
+  onClose: () => void;
+  task: (op: FormModalOperation) => Promise<void>;
+}) {
+  const save = useFormModalPending(isOpen, context);
+  const [note, setNote] = useState("");
+  lastPending = save;
+  lastTask = task;
+  return (
+    <FormModal
+      isOpen={isOpen}
+      onClose={onClose}
+      title="Test"
+      pending={save}
+      footer={
+        <>
+          <button type="button" onClick={onClose}>
+            Abbrechen
+          </button>
+          <button type="button" onClick={() => void save.run(task)}>
+            Speichern
+          </button>
+        </>
+      }
+    >
+      <p>Content</p>
+      <label>
+        Notiz
+        <textarea value={note} onChange={(e) => setNote(e.target.value)} />
+      </label>
+    </FormModal>
+  );
 }
 
 describe("FormModal", () => {
@@ -294,41 +366,178 @@ describe("FormModal", () => {
     expect(close.className).not.toMatch(/scale-/);
   });
 
-  it("blocks close icon, backdrop, and Escape while closeDisabled", async () => {
+  it("blocks close icon, backdrop, Escape and footer while a save is pending", async () => {
     const onClose = vi.fn();
+    const save = deferred();
     render(
       <TestWrapper>
-        <FormModal isOpen={true} onClose={onClose} title="Test" closeDisabled>
-          <p>Content</p>
-        </FormModal>
+        <PendingHarness onClose={onClose} task={() => save.promise} />
       </TestWrapper>,
     );
-
     await act(async () => {
       vi.advanceTimersByTime(20);
     });
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    const dialog = screen.getByRole("dialog", { name: "Test" });
+    expect(dialog).toHaveAttribute("aria-busy", "true");
+    expect(
+      screen.getByRole("button", { name: "Modal schließen" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: /hintergrund.*schließen/i }),
+    ).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Abbrechen" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
 
     fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
     fireEvent.click(
       screen.getByRole("button", { name: /hintergrund.*schließen/i }),
     );
     fireEvent.keyDown(document, { key: "Escape" });
-
+    // The footer actions are disabled through the fieldset; browsers send
+    // disabled controls no click, happy-dom would, so the test reads the state.
     await act(async () => {
       vi.advanceTimersByTime(300);
     });
 
     expect(onClose).not.toHaveBeenCalled();
-    expect(screen.getByText("Test")).toBeInTheDocument();
+    expect(dialog).not.toHaveClass("animate-modalExit");
+    expect(screen.getByText("Content")).toBeInTheDocument();
+  });
+
+  // A link (ButtonLink) ignores the disabled fieldset; leaving the page
+  // mid-save would look like a cancel too (#6594, as SlideOver in #6593).
+  it("keeps a footer link from leaving while a save is pending", async () => {
+    const save = deferred();
+    const onNavigate = vi.fn();
+    function DialogWithLink() {
+      const pending = useFormModalPending(true);
+      return (
+        <FormModal
+          isOpen
+          onClose={vi.fn()}
+          title="Test"
+          pending={pending}
+          footer={
+            <>
+              <a href="#weiter" onClick={onNavigate}>
+                Weiter
+              </a>
+              <button
+                type="button"
+                onClick={() => void pending.run(() => save.promise)}
+              >
+                Speichern
+              </button>
+            </>
+          }
+        >
+          <p>Content</p>
+        </FormModal>
+      );
+    }
+    render(
+      <TestWrapper>
+        <DialogWithLink />
+      </TestWrapper>,
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    const notBlocked = fireEvent.click(
+      screen.getByRole("link", { name: "Weiter" }),
+    );
+
+    expect(notBlocked).toBe(false);
+    expect(onNavigate).not.toHaveBeenCalled();
+    await act(async () => {
+      save.resolve();
+    });
+    fireEvent.click(screen.getByRole("link", { name: "Weiter" }));
+    expect(onNavigate).toHaveBeenCalledTimes(1);
+  });
+
+  it("unlocks every path after a failed save and keeps the input", async () => {
+    const onClose = vi.fn();
+    const save = deferred();
+    render(
+      <TestWrapper>
+        <PendingHarness
+          onClose={onClose}
+          task={async () => {
+            await save.promise.catch(() => undefined);
+          }}
+        />
+      </TestWrapper>,
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+    fireEvent.change(screen.getByRole("textbox", { name: "Notiz" }), {
+      target: { value: "Entwurf" },
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(screen.getByRole("button", { name: "Abbrechen" })).toBeDisabled();
+    await act(async () => {
+      save.reject(new Error("offline"));
+    });
+
+    const dialog = screen.getByRole("dialog", { name: "Test" });
+    expect(dialog).not.toHaveAttribute("aria-busy");
+    expect(screen.getByRole("textbox", { name: "Notiz" })).toHaveValue(
+      "Entwurf",
+    );
+    expect(screen.getByRole("button", { name: "Abbrechen" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Modal schließen" }),
+    ).toBeEnabled();
+    fireEvent.keyDown(document, { key: "Escape" });
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(onClose).toHaveBeenCalledTimes(1);
+  });
+
+  it("keeps focus in the busy dialog and hands it back after a failure", async () => {
+    const save = deferred();
+    render(
+      <TestWrapper>
+        <PendingHarness
+          onClose={vi.fn()}
+          task={async () => {
+            await save.promise.catch(() => undefined);
+          }}
+        />
+      </TestWrapper>,
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+    const saveButton = screen.getByRole("button", { name: "Speichern" });
+    saveButton.focus();
+
+    fireEvent.click(saveButton);
+    // The disabled button would drop focus to the page; the dialog keeps it.
+    expect(saveButton).toBeDisabled();
+    expect(screen.getByRole("dialog", { name: "Test" })).toHaveFocus();
+
+    await act(async () => {
+      save.reject(new Error("offline"));
+    });
+    expect(saveButton).toBeEnabled();
+    expect(saveButton).toHaveFocus();
   });
 
   it("cancels a queued close when a save starts during the exit delay", async () => {
     const onClose = vi.fn();
-    const { rerender } = render(
+    const save = deferred();
+    render(
       <TestWrapper>
-        <FormModal isOpen={true} onClose={onClose} title="Test">
-          <p>Content</p>
-        </FormModal>
+        <PendingHarness onClose={onClose} task={() => save.promise} />
       </TestWrapper>,
     );
 
@@ -337,15 +546,12 @@ describe("FormModal", () => {
     });
 
     fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
+    expect(document.querySelector('[role="dialog"]')).toHaveClass(
+      "animate-modalExit",
+    );
 
     // Save clicked within the 250ms exit delay: the request is now in flight
-    rerender(
-      <TestWrapper>
-        <FormModal isOpen={true} onClose={onClose} title="Test" closeDisabled>
-          <p>Content</p>
-        </FormModal>
-      </TestWrapper>,
-    );
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
 
     await act(async () => {
       vi.advanceTimersByTime(300);
@@ -360,19 +566,17 @@ describe("FormModal", () => {
 
   it("keeps the modal open when a save queued during the exit delay fails fast", async () => {
     const onClose = vi.fn();
-    const modal = (closeDisabled: boolean) => (
+    const save = deferred();
+    render(
       <TestWrapper>
-        <FormModal
-          isOpen={true}
+        <PendingHarness
           onClose={onClose}
-          title="Test"
-          closeDisabled={closeDisabled}
-        >
-          <p>Content</p>
-        </FormModal>
-      </TestWrapper>
+          task={async () => {
+            await save.promise.catch(() => undefined);
+          }}
+        />
+      </TestWrapper>,
     );
-    const { rerender } = render(modal(false));
 
     await act(async () => {
       vi.advanceTimersByTime(20);
@@ -381,13 +585,15 @@ describe("FormModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
 
     // Save clicked within the 250ms exit delay ...
-    rerender(modal(true));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await act(async () => {
       vi.advanceTimersByTime(50);
     });
-    // ... and the request fails fast, resetting closeDisabled before the
-    // queued close would have fired.
-    rerender(modal(false));
+    // ... and the request fails fast, lifting the lock before the queued
+    // close would have fired.
+    await act(async () => {
+      save.reject(new Error("offline"));
+    });
 
     await act(async () => {
       vi.advanceTimersByTime(300);
@@ -402,19 +608,17 @@ describe("FormModal", () => {
 
   it("clears an earlier queued close when dismissed again during the exit delay", async () => {
     const onClose = vi.fn();
-    const modal = (closeDisabled: boolean) => (
+    const save = deferred();
+    render(
       <TestWrapper>
-        <FormModal
-          isOpen={true}
+        <PendingHarness
           onClose={onClose}
-          title="Test"
-          closeDisabled={closeDisabled}
-        >
-          <p>Content</p>
-        </FormModal>
-      </TestWrapper>
+          task={async () => {
+            await save.promise.catch(() => undefined);
+          }}
+        />
+      </TestWrapper>,
     );
-    const { rerender } = render(modal(false));
 
     await act(async () => {
       vi.advanceTimersByTime(20);
@@ -429,13 +633,15 @@ describe("FormModal", () => {
     fireEvent.click(screen.getByRole("button", { name: "Modal schließen" }));
 
     // Save clicked within the exit delay ...
-    rerender(modal(true));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     await act(async () => {
       vi.advanceTimersByTime(50);
     });
     // ... and the request fails fast: only the tracked (newest) timer was
     // cancelled — the first dismissal's timer must not close the modal now.
-    rerender(modal(false));
+    await act(async () => {
+      save.reject(new Error("offline"));
+    });
 
     await act(async () => {
       vi.advanceTimersByTime(400);
@@ -446,6 +652,156 @@ describe("FormModal", () => {
     expect(document.querySelector('[role="dialog"]')).toHaveClass(
       "animate-modalEnter",
     );
+  });
+
+  it("lets a late answer leave a reopened dialog alone", async () => {
+    const onClose = vi.fn();
+    const save = deferred();
+    const answers: boolean[] = [];
+    const harness = (isOpen: boolean) => (
+      <TestWrapper>
+        <PendingHarness
+          isOpen={isOpen}
+          onClose={onClose}
+          task={async (op) => {
+            await save.promise;
+            answers.push(op.isCurrent());
+            if (op.isCurrent()) onClose();
+          }}
+        />
+      </TestWrapper>
+    );
+    const { rerender } = render(harness(true));
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(screen.getByRole("dialog", { name: "Test" })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+
+    // The parent closes and reopens the same mounted dialog meanwhile.
+    rerender(harness(false));
+    rerender(harness(true));
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+    const reopened = screen.getByRole("dialog", { name: "Test" });
+    expect(reopened).not.toHaveAttribute("aria-busy");
+    expect(screen.getByRole("button", { name: "Abbrechen" })).toBeEnabled();
+
+    await act(async () => {
+      save.resolve();
+    });
+
+    expect(answers).toEqual([false]);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Test" })).toBeInTheDocument();
+  });
+
+  it("lets a late answer leave the dialog alone after its context switched", async () => {
+    const onClose = vi.fn();
+    const save = deferred();
+    const answers: boolean[] = [];
+    const harness = (context: string) => (
+      <TestWrapper>
+        <PendingHarness
+          context={context}
+          onClose={onClose}
+          task={async (op) => {
+            await save.promise;
+            answers.push(op.isCurrent());
+            if (op.isCurrent()) onClose();
+          }}
+        />
+      </TestWrapper>
+    );
+    const { rerender } = render(harness("block-1"));
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(screen.getByRole("dialog", { name: "Test" })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+
+    // The dialog stays open but now works on another block.
+    rerender(harness("block-2"));
+    expect(screen.getByRole("button", { name: "Abbrechen" })).toBeEnabled();
+
+    await act(async () => {
+      save.resolve();
+    });
+
+    expect(answers).toEqual([false]);
+    expect(onClose).not.toHaveBeenCalled();
+    expect(screen.getByRole("dialog", { name: "Test" })).not.toHaveAttribute(
+      "aria-busy",
+    );
+  });
+
+  it("lets a late answer after unmount close nothing", async () => {
+    const onClose = vi.fn();
+    const save = deferred();
+    const answers: boolean[] = [];
+    const { unmount } = render(
+      <TestWrapper>
+        <PendingHarness
+          onClose={onClose}
+          task={async (op) => {
+            await save.promise;
+            answers.push(op.isCurrent());
+            if (op.isCurrent()) onClose();
+          }}
+        />
+      </TestWrapper>,
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(screen.getByRole("dialog", { name: "Test" })).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
+
+    unmount();
+    await act(async () => {
+      save.resolve();
+    });
+
+    expect(answers).toEqual([false]);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
+  it("runs one save at a time and closes after a current success", async () => {
+    const onClose = vi.fn();
+    const save = deferred();
+    const task = vi.fn(async (op: FormModalOperation) => {
+      await save.promise;
+      if (op.isCurrent()) onClose();
+    });
+    render(
+      <TestWrapper>
+        <PendingHarness onClose={onClose} task={task} />
+        <EnterSubmit />
+      </TestWrapper>,
+    );
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    // A second trigger that bypasses the disabled button (Enter in a form).
+    fireEvent.click(screen.getByRole("button", { name: "Nochmal" }));
+    await act(async () => {
+      save.resolve();
+    });
+
+    expect(task).toHaveBeenCalledTimes(1);
+    expect(onClose).toHaveBeenCalledTimes(1);
   });
 
   it("should render footer when provided", async () => {

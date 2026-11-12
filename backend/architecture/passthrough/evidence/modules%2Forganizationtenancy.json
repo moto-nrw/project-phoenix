@@ -331,6 +331,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (s *DemoSchoolDatabaseStore) DueDemoSchoolDatabases(ctx context.Context, limit int) ([]int64, error) {\n\tids := []int64{}\n\tif err := s.db.NewRaw(`SELECT id FROM platform.retired_demo_schools_due_for_database_erasure(?) AS id`, limit).Scan(ctx, \u0026ids); err != nil {\n\t\treturn nil, fmt.Errorf(\"list retired demo schools due for database erasure: %w\", err)\n\t}\n\treturn ids, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoSchoolDatabaseStore.DueDemoSchoolDatabases",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *DemoSchoolDatabaseStore) EraseDemoSchoolDatabase(ctx context.Context, schoolID int64) (string, string, error) {\n\tvar data string\n\tif err := s.db.NewRaw(`SELECT platform.erase_retired_demo_school(?)::text`, schoolID).Scan(ctx, \u0026data); err != nil {\n\t\treturn \"\", \"\", fmt.Errorf(\"erase retired demo school: %w\", err)\n\t}\n\tvar result struct {\n\t\tStatus    string `json:\"status\"`\n\t\tErrorCode string `json:\"error_code\"`\n\t}\n\tif err := json.Unmarshal([]byte(data), \u0026result); err != nil {\n\t\treturn \"\", \"\", fmt.Errorf(\"decode demo school erasure result: %w\", err)\n\t}\n\treturn result.Status, result.ErrorCode, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/adapters/postgres/DemoSchoolDatabaseStore.EraseDemoSchoolDatabase",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
       "evidence": "func (s *DemoSchoolFileStore) RecordDemoSchoolFileErasure(ctx context.Context, standingSlug string, schoolID int64, counts map[string]int64) (bool, error) {\n\tdata, err := json.Marshal(counts)\n\tif err != nil {\n\t\treturn false, fmt.Errorf(\"encode demo school file counts: %w\", err)\n\t}\n\tresult, err := s.db.NewRaw(recordDemoSchoolFileErasure, string(data), schoolID, standingSlug).Exec(ctx)\n\tif err != nil {\n\t\treturn false, fmt.Errorf(\"record demo school file erasure: %w\", err)\n\t}\n\trows, err := result.RowsAffected()\n\treturn rows == 1, err\n}",
       "form": "unclassified-evidence",
       "id": "modules/organizationtenancy/internal/adapters/postgres/DemoSchoolFileStore.RecordDemoSchoolFileErasure",
@@ -495,6 +509,13 @@
       "evidence": "func (s *Service) FindSchoolBySubdomain(ctx context.Context, subdomain string) (result organizationtenancy.School, err error) {\n\tsubdomain = strings.TrimSpace(strings.ToLower(subdomain))\n\tif err := organizationtenancy.ValidateSubdomain(subdomain); err != nil {\n\t\treturn organizationtenancy.School{}, err\n\t}\n\treturn s.findSchool(ctx, \"find_school_by_subdomain\", func(txCtx context.Context) (organizationtenancy.School, bool, domain.OperationStats, error) {\n\t\treturn s.store.FindSchoolBySubdomain(txCtx, subdomain)\n\t})\n}",
       "form": "unclassified-evidence",
       "id": "modules/organizationtenancy/internal/application/Service.FindSchoolBySubdomain",
+      "owner": "modules/organizationtenancy"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s *Service) HasRetainedTraegerMembership(ctx context.Context, accountID int64) (retained bool, err error) {\n\tif accountID \u003c= 0 {\n\t\treturn false, organizationtenancy.ErrInvalidOrganization\n\t}\n\terr = s.runRead(ctx, \"has_retained_traeger_membership\", func(txCtx context.Context, stats *domain.OperationStats) error {\n\t\tvar queryStats domain.OperationStats\n\t\tretained, queryStats, err = s.store.HasRetainedTraegerMembership(txCtx, accountID)\n\t\tstats.Add(queryStats)\n\t\treturn err\n\t})\n\treturn retained, err\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/organizationtenancy/internal/application/Service.HasRetainedTraegerMembership",
       "owner": "modules/organizationtenancy"
     },
     {

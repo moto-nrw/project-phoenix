@@ -7,7 +7,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 )
 
 // offeringDecisionRecencyDays bounds how long a decided request keeps being
@@ -33,7 +33,7 @@ func (s *OfferingChanges) GetForStudent(ctx context.Context, studentID int64) (*
 	if pending == nil {
 		return view, nil
 	}
-	diff, diffErr := s.diffForRequest(ctx, *pending)
+	diff, unchanged, diffErr := s.diffForRequest(ctx, *pending)
 	if diffErr != nil {
 		// A diff that cannot be built must not hide the request itself: the
 		// guardian still needs to see that one is open.
@@ -43,7 +43,7 @@ func (s *OfferingChanges) GetForStudent(ctx context.Context, studentID int64) (*
 		)
 		return view, nil
 	}
-	view.Diff = diff
+	view.Diff, view.Unchanged = diff, unchanged
 	return view, nil
 }
 

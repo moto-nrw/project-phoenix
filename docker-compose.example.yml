@@ -67,6 +67,8 @@ services:
       TURNSTILE_SITE_KEY: ${TURNSTILE_SITE_KEY}
       TURNSTILE_SECRET_KEY: ${TURNSTILE_SECRET_KEY}
       HEALTH_DATA_KEYS: ${HEALTH_DATA_KEYS}
+      BANK_DATA_KEYS: ${BANK_DATA_KEYS}
+      BANK_DATA_LEGACY_KEYS: ${BANK_DATA_LEGACY_KEYS}
       FRONTEND_URL: ${FRONTEND_URL}
       NEXT_PUBLIC_API_URL: ${NEXT_PUBLIC_API_URL}
       PARENTS_URL: ${PARENTS_URL}
@@ -92,7 +94,6 @@ services:
       POSTHOG_HOST: ${POSTHOG_HOST}
       CLEANUP_SCHEDULER_ENABLED: ${CLEANUP_SCHEDULER_ENABLED}
       SESSION_END_SCHEDULER_ENABLED: ${SESSION_END_SCHEDULER_ENABLED}
-      STUDENT_DAILY_CHECKOUT_TIME: ${STUDENT_DAILY_CHECKOUT_TIME}
       OPERATOR_EMAIL: ${OPERATOR_EMAIL}
       OPERATOR_PASSWORD: ${OPERATOR_PASSWORD}
       OPERATOR_DISPLAY_NAME: ${OPERATOR_DISPLAY_NAME}
@@ -123,8 +124,6 @@ services:
       NEXTAUTH_URL: ${NEXTAUTH_URL}
       NEXTAUTH_SECRET: ${NEXTAUTH_SECRET}
       METRICS_BEARER_TOKEN: ${METRICS_BEARER_TOKEN}
-      # Trust the Host header from reverse proxy (required when behind nginx/caddy/traefik)
-      AUTH_TRUST_HOST: ${AUTH_TRUST_HOST}
       # Skip env validation in Docker
       SKIP_ENV_VALIDATION: ${SKIP_ENV_VALIDATION}
       NEXT_TELEMETRY_DISABLED: ${NEXT_TELEMETRY_DISABLED}
@@ -155,7 +154,6 @@ services:
       - ./frontend/pnpm-lock.yaml:/app/pnpm-lock.yaml
       - ./frontend/next.config.js:/app/next.config.js
       - ./frontend/tsconfig.json:/app/tsconfig.json
-      - ./frontend/tailwind.config.ts:/app/tailwind.config.ts
       - ./frontend/postcss.config.mjs:/app/postcss.config.mjs
       # Preserve Next.js incremental build artifacts across container rebuilds
       - next_cache:/app/.next/cache
@@ -218,24 +216,28 @@ services:
     image: postgres:17-alpine
     profiles: ["test"]
     restart: "no"
-    mem_limit: 1536m
+    # Der tmpfs zählt zum Speicher des Containers: 1 GB für Postgres selbst,
+    # der Rest für Templates und gleichzeitig lebende Klone (je ~42 MB).
+    mem_limit: 3584m
     labels:
       de.moto.testdb.lifecycle: "1"
     ports:
       - "${TEST_DB_PORT}:5432"
-    volumes:
-      - postgres_test:/var/lib/postgresql/data
+    # Daten im RAM der Docker-VM statt auf ihrer Platte, wie der CI-Service.
+    # Jeder Klon schreibt und löscht ~3.400 Dateien. Auf der VM-Platte erzeugt
+    # das Schreib- und Flush-Spitzen, während derer macOS-Docker-VMs (gemessen:
+    # OrbStack) jede Host-TCP-Verbindung in die VM bis zu 2,5 s anhalten; die
+    # 5-s-Fixture-Fristen liefen dann mit "i/o timeout" ab (#6491). Ein
+    # gestoppter Server startet leer; die Harness baut das Template neu (~10 s).
+    tmpfs:
+      - /var/lib/postgresql/data:size=2560m
     environment:
       TZ: ${TZ}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: phoenix_test
-    # Wegwerf-Datenbank: Durability aus, Speed an. fsync=off heißt: nach einem
-    # unsauberen Stop der Docker-VM (Crash, Force-Quit, volle Platte) kann das
-    # Cluster kaputt sein. Startet es mit "could not locate a valid checkpoint
-    # record", baut die Harness Container und postgres_test-Volume beim nächsten
-    # Testlauf selbst neu auf (#6230). Andere Fälle nur nach Absprache, wenn keine
-    # Testsitzung den Server nutzt: Nur diesen Container und sein Volume entfernen,
-    # dann Tests oder testdb bootstrap starten. Kein APP_ENV=test migrate reset.
+    # Wegwerf-Datenbank: Durability aus, Speed an. Auf tmpfs überlebt nichts
+    # einen Stop, also kann auch kein halb geschriebenes Cluster liegen bleiben
+    # (#6230). Kein APP_ENV=test migrate reset.
     # Details: docs/agents/operations.md#test-database.
     # CI läuft NICHT über diese Datei (GitHub-Actions-Service-Container).
     command:
@@ -255,6 +257,9 @@ services:
       - -c
       - max_wal_senders=0
       - -c
+      # WAL liegt mit im tmpfs: begrenzen, damit er ihn nicht füllt.
+      - max_wal_size=256MB
+      - -c
       # 300, nicht 200: `go test` startet bis zu -p Package-Binaries, jedes
       # mit (-parallel + Reserve) Verbindungen plus einem Keeper. Ein nacktes
       # `go test ./...` auf 16 Kernen landet damit bei 16 x 17 = 272.
@@ -268,7 +273,6 @@ services:
 
 volumes:
   postgres:
-  postgres_test:
   # Go caches carry a fixed name so every compose project (worktrees started
   # with their own -p / COMPOSE_PROJECT_NAME) shares one concurrent-safe copy.
   go_mod_cache:

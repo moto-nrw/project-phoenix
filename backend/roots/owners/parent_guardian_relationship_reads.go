@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 func NewParentStudentGuardianReads(source peopledirectory.GuardianRelationshipReads) parentportal.StudentGuardianReads {
@@ -37,7 +37,6 @@ func NewParentStudentGuardianReads(source peopledirectory.GuardianRelationshipRe
 			}
 			return result, err
 		},
-		Permission: source.AccountHasStudentPermission,
 	})
 }
 

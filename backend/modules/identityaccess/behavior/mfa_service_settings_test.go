@@ -13,11 +13,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 	"github.com/uptrace/bun"
 
 	"github.com/stretchr/testify/assert"
@@ -215,9 +215,9 @@ func TestMFAService_StartChallenge_DispatchesEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-dispatch-challenge")
-	require.NoError(t, fix.svc.EnrollMFA(ctx, acc.ID))
+	require.NoError(t, enrollMFA(ctx, t, fix.db, fix.svc, acc.ID))
 
-	_, err := fix.svc.StartMFAChallenge(ctx, acc.ID, fix.tenantID, identityaccess.MFAChallengeScopeTenant, net.ParseIP("203.0.113.42"))
+	_, err := fix.svc.StartMFAChallenge(ctx, acc.ID, fix.tenantID, identityaccess.MFAChallengeScopeTenant, net.ParseIP("203.0.113.42"), 0)
 	require.NoError(t, err)
 
 	templates := fix.mailer.Templates()
@@ -235,7 +235,7 @@ func TestMFAService_IssueTrustedDevice_DispatchesAddedEmail(t *testing.T) {
 	db := testpkg.SetupTestDB(t)
 
 	acc := testpkg.CreateTestAccount(t, db, "mfa-dispatch-trusted-added")
-	require.NoError(t, fix.svc.EnrollMFA(ctx, acc.ID))
+	require.NoError(t, enrollMFA(ctx, t, fix.db, fix.svc, acc.ID))
 
 	cookie, _, err := fix.svc.IssueTrustedDevice(ctx, acc.ID, fix.tenantID,
 		"Mozilla/5.0 (Macintosh; Intel Mac OS X) Chrome/120.0",

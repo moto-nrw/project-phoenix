@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Sentinels of the admin decision flow. The HTTP adapters classify them; the
@@ -401,3 +401,23 @@ type ApprovedChildChanges interface {
 	// the student the approval created.
 	SyncApprovedChildData(ctx context.Context, input ApprovedChildSync) (*RequestChild, error)
 }
+
+// ChildPossiblyEnrolledError is ErrChildPossiblyEnrolled with the enrolled
+// children the office may choose from (#6148): a form that approves in the
+// same step, like the manual enrollment, offers them without a detail read.
+type ChildPossiblyEnrolledError struct {
+	Candidates []ExistingChildCandidate
+	detail     string
+}
+
+// NewChildPossiblyEnrolledError wraps ErrChildPossiblyEnrolled with the
+// candidates and the diagnostic detail.
+func NewChildPossiblyEnrolledError(detail string, candidates []ExistingChildCandidate) *ChildPossiblyEnrolledError {
+	return &ChildPossiblyEnrolledError{Candidates: candidates, detail: detail}
+}
+
+func (e *ChildPossiblyEnrolledError) Error() string {
+	return ErrChildPossiblyEnrolled.Error() + ": " + e.detail
+}
+
+func (e *ChildPossiblyEnrolledError) Unwrap() error { return ErrChildPossiblyEnrolled }

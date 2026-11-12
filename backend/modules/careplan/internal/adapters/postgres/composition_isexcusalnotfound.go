@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/internal/careplanning"
+	"github.com/moto-ogs/project-phoenix/internal/careplanning"
 )
 
 func IsExcusalNotFound(err error) bool {

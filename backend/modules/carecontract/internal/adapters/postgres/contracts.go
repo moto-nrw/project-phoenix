@@ -11,9 +11,9 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type versionRow struct {
@@ -293,7 +293,7 @@ func (Store) DeleteDraft(ctx context.Context, organizationID, contractID int64) 
 // inboxSQL reads the contracts sent to an address, with the first send to
 // it. Names, modules and date come from the version whose PDF was sent last
 // to the address, so the list matches the PDF the parents open (#4681).
-const inboxSQL = `SELECT c.id, v.child_first_name, v.child_last_name, ` + moduleNamesSQL + ` AS module_names, v.school_name,
+const inboxSQL = `SELECT c.id, c.school_id, v.child_first_name, v.child_last_name, ` + moduleNamesSQL + ` AS module_names, v.school_name,
 	v.effective_from, v.status = '` + carecontract.VersionReplaced + `' AS replaced, m.first_sent AS sent_at, c.status, c.ends_on,
 	(c.status = '` + carecontract.StatusSent + `' AND ` + inboxChildScopeSQL + ` AND EXISTS (SELECT 1 FROM care_contract.contract_signing_links AS l
 		WHERE l.organization_id = c.organization_id AND l.contract_id = c.id)) AS can_sign,
@@ -323,6 +323,7 @@ func (Store) InboxContracts(ctx context.Context, organizationID int64, reader ca
 	}
 	var rows []struct {
 		ID             int64          `bun:"id"`
+		SchoolID       int64          `bun:"school_id"`
 		ChildFirstName string         `bun:"child_first_name"`
 		ChildLastName  string         `bun:"child_last_name"`
 		ModuleNames    []string       `bun:"module_names,array"`
@@ -349,7 +350,7 @@ func (Store) InboxContracts(ctx context.Context, organizationID int64, reader ca
 	}
 	result := make([]ports.InboxRow, len(rows))
 	for i, row := range rows {
-		result[i].InformedAt = row.InformedAt
+		result[i].SchoolID, result[i].InformedAt = row.SchoolID, row.InformedAt
 		if row.ConcludedAt != nil && row.Method != nil {
 			result[i].Concluded = &carecontract.Concluded{Method: *row.Method, At: *row.ConcludedAt}
 		}

@@ -19,6 +19,7 @@ import {
   CareAmendmentHistoryCard,
 } from "~/components/traeger/care-invoice-amendments";
 import { formatEuro } from "~/components/traeger/contribution-format";
+import { InvoiceExportHistoryCard } from "~/components/traeger/invoice-export-history-card";
 import { Alert } from "~/components/ui/alert";
 import { ButtonLink } from "~/components/ui/button";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -258,6 +259,12 @@ function CareInvoiceAmendPage() {
                 editable={open}
                 onDraft={setDraft}
               />
+              {!open && invoice.id ? (
+                <InvoiceExportHistoryCard
+                  kind="care-invoices"
+                  invoiceId={invoice.id}
+                />
+              ) : null}
               {someOff ? (
                 <p className="px-1 text-sm text-gray-600">
                   Weitere Änderungen schaltet Ihr Träger in den Einstellungen

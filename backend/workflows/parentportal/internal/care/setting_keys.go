@@ -1,11 +1,12 @@
 package care
 
-import "github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+import "github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
 
 // These keys and policy values are the guardian workflow's settings protocol.
 // The root binds the port to the tenant registry; no defaults are supplied here.
 const (
 	KeyEnrollmentBookingsAuthoritative  = "enrollment.bookings_authoritative"
+	KeyEnrollmentCareFacilityTerm       = "enrollment.care_facility_term"
 	KeyEnrollmentCareOfferingsEnabled   = "enrollment.care_offerings_enabled"
 	KeyEnrollmentOfferingChangesEnabled = "enrollment.offering_changes_enabled"
 	KeyGuardianParentCanRemove          = "guardians.parent_can_remove"
@@ -27,6 +28,7 @@ const (
 	KeyParentSickNoteEnabled            = "operations.parent_sick_note_enabled"
 	KeyParentSickReportsEnabled         = "operations.parent_sick_reports_enabled"
 	KeyParentSickRequiresApproval       = "operations.parent_sick_requires_approval"
+	KeySessionEndTime                   = "operations.session_end_time"
 	ParentInviteModeDirect              = "direct"
 	ParentInviteModeDisabled            = "disabled"
 	ParentInviteModeStaffApproval       = "staff_approval"

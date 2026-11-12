@@ -5,31 +5,31 @@ import (
 	"maps"
 	"slices"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	settingsValues "github.com/moto-ogs/project-phoenix/modules/settings"
 
-	realtime "github.com/moto-nrw/project-phoenix/realtime"
+	realtime "github.com/moto-ogs/project-phoenix/realtime"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
-	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	careContractCompose "github.com/moto-ogs/project-phoenix/modules/carecontract/compose"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	communicationCompose "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	deliveryModule "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	parentBillingCompose "github.com/moto-ogs/project-phoenix/modules/parentbilling/compose"
+	calendarService "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // DeliveryNotifications are Delivery's notification side (#1845): the
@@ -109,20 +109,20 @@ func BuildDeliveryNotifications(
 func BuildDeliveryWorker(
 	db transactionruntime.Database, env RootEnvironment, mailSender email.Mailer, mailFrom email.Email, pushVAPID deliveryCompose.VAPIDConfig, mailIdentity email.ReplyToResolver,
 	delivery DeliveryRuntime, appointments deliveryCompose.MailRenderer, identityRenderers map[string]deliveryCompose.MailRenderer, reminders CalendarReminderSource,
-	modules settingsValues.ModuleBookingReader, documents parentportal.DocumentNotices,
+	modules settingsValues.ModuleBookingReader, documents parentportal.DocumentNotices, accounts HolidayAcceptanceAccounts,
 ) (*deliveryModule.Worker, error) {
 	subscriptions := deliveryCompose.NewPushSubscriptionRepository(db.Pool())
 	tenants := deliveryCompose.NewTenantTransactions(db.Pool())
 	push := deliveryCompose.NewWebPushSender(deliveryContract.WebPushConfig{
 		Subscriber: pushVAPID.Subscriber, PublicKey: pushVAPID.PublicKey, PrivateKey: pushVAPID.PrivateKey,
 	}, deliveryCompose.NewExpiredPushSubscriptionCleaner(tenants, subscriptions))
-	return buildDeliveryWorker(db, env, mailSender, mailFrom, mailIdentity, delivery, appointments, identityRenderers, reminders, modules, documents, push)
+	return buildDeliveryWorker(db, env, mailSender, mailFrom, mailIdentity, delivery, appointments, identityRenderers, reminders, modules, documents, push, accounts)
 }
 
 func buildDeliveryWorker(
 	db transactionruntime.Database, env RootEnvironment, mailSender email.Mailer, mailFrom email.Email, mailIdentity email.ReplyToResolver,
 	delivery DeliveryRuntime, appointments deliveryCompose.MailRenderer, identityRenderers map[string]deliveryCompose.MailRenderer, reminders CalendarReminderSource,
-	modules settingsValues.ModuleBookingReader, documents parentportal.DocumentNotices, push deliveryContract.PushSender,
+	modules settingsValues.ModuleBookingReader, documents parentportal.DocumentNotices, push deliveryContract.PushSender, accounts HolidayAcceptanceAccounts,
 ) (*deliveryModule.Worker, error) {
 	defaultFrom := mailFrom
 	renderers := map[string]deliveryCompose.MailRenderer{
@@ -142,7 +142,7 @@ func buildDeliveryWorker(
 		carecontract.MailKindNotice: careContractNoticeMailRenderer(careContractCompose.NewNoticeMailRenderer(), defaultFrom),
 	}
 	enrollmentKinds := []string{}
-	for kind, renderer := range enrollmentMailRenderers(enrollmentCompose.NewMailRenderers(), defaultFrom) {
+	for kind, renderer := range enrollmentMailRenderers(enrollmentCompose.NewMailRenderers(newHolidayAcceptanceAccounts(accounts, env.Links.ParentsURL), env.Links.ParentsURL), defaultFrom) {
 		renderers[kind] = renderer
 		enrollmentKinds = append(enrollmentKinds, kind)
 	}

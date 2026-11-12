@@ -3,7 +3,7 @@ package timetable
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // SessionRecords is the native read and command seam for retained session consumers.
@@ -16,6 +16,9 @@ type SessionRecords interface {
 	// and active. The existing joined adapter also owns the tenant identity.
 	CreateMirroredSessionInstance(context.Context, ScheduledInstance) (int64, error)
 	AddSessionInstanceStaff(context.Context, int64, int64) error
+	// LockSessionInstanceStaff takes the staff rows of a mirrored session's
+	// people, ascending, before its first assignment (#6702).
+	LockSessionInstanceStaff(context.Context, []int64) error
 }
 
 // TemplateCatalog reads templates with their categories using the established listing.

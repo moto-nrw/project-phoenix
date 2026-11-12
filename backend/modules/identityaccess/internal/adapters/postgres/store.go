@@ -11,7 +11,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/uptrace/bun"
 )
 
@@ -127,23 +127,29 @@ func (s *Store) LockLiveGuardianAccount(ctx context.Context, accountID int64) (b
 	return len(accountIDs) == 1, nil
 }
 
-// EnsureActiveTenantMapping is an upsert on the (account, tenant) key: a
-// missing mapping is inserted active, an inactive one is reactivated and its
-// deactivation cleared.
+// EnsureActiveTenantMapping holds an active mapping until commit, inserts a
+// missing mapping or reactivates an inactive one and clears its deactivation.
 func (s *Store) EnsureActiveTenantMapping(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error) {
+	active, stats, err := s.holdActiveGuardianTenantMapping(ctx, accountID, tenantID)
+	if err != nil || active {
+		return stats, err
+	}
 	db, err := s.database(ctx)
 	if err != nil {
-		return domain.OperationStats{}, err
+		return stats, err
 	}
 	// Account lifecycle commands lock account before mapping and roles. Take
 	// that same lock before the upsert, otherwise its mapping lock can cycle
 	// with offboarding and the role insert's account foreign-key lock.
+	// NO KEY UPDATE still excludes lifecycle writers, but accepts the parent
+	// guards' KEY SHARE holds. UPDATE would make guarded grants in two schools
+	// wait for each other's account hold while upgrading their own lock.
 	started := time.Now()
 	var lockedIDs []int64
 	err = db.NewRaw(`SELECT id FROM auth.accounts
 		WHERE id = ? AND personal_data_erased_at IS NULL
-		FOR UPDATE`, accountID).Scan(ctx, &lockedIDs)
-	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+		FOR NO KEY UPDATE`, accountID).Scan(ctx, &lockedIDs)
+	stats.Add(domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)})
 	if err != nil {
 		return stats, fmt.Errorf("identity access postgres: lock account for guardian grant: %w", err)
 	}
@@ -162,6 +168,38 @@ func (s *Store) EnsureActiveTenantMapping(ctx context.Context, accountID, tenant
 	})
 	stats.Add(mappingStats)
 	return stats, err
+}
+
+// An active mapping needs no write. Keep the account KEY SHARE and mapping
+// SHARE locks compatible with parent guards. Taking NO KEY UPDATE first can
+// deadlock with a same-school approval that already holds the mapping and
+// later grants access; upserting the active mapping also upgrades its hold.
+func (s *Store) holdActiveGuardianTenantMapping(ctx context.Context, accountID, tenantID int64) (bool, domain.OperationStats, error) {
+	db, err := s.database(ctx)
+	if err != nil {
+		return false, domain.OperationStats{}, err
+	}
+	var accounts []struct {
+		Refused bool `bun:"refused"`
+	}
+	started := time.Now()
+	err = db.NewRaw(`SELECT EXISTS (SELECT 1 FROM auth.caterer_accounts WHERE account_id = a.id) AS refused
+		FROM auth.accounts a WHERE a.id = ? AND a.personal_data_erased_at IS NULL
+		FOR KEY SHARE OF a`, accountID).Scan(ctx, &accounts)
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return false, stats, fmt.Errorf("identity access postgres: hold account for guardian grant: %w", err)
+	}
+	if len(accounts) == 0 {
+		return false, stats, domain.ErrAccountNotFound
+	}
+	if accounts[0].Refused {
+		return false, stats, domain.ErrCatererAccountJoinsNoSchool
+	}
+	active, mappingStats, err := s.LockActiveTenantMappingShared(ctx, accountID, tenantID)
+	mappingStats.Rows = 0 // The hold changes no rows.
+	stats.Add(mappingStats)
+	return active, stats, err
 }
 
 // FindRoleByName prefers the tenant's own role over the system role of the

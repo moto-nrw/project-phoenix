@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // renewal names what a binding serves. A sign-in or switch mints; a refresh
@@ -244,6 +244,18 @@ var sessionPolicies = map[domain.SessionKind]sessionPolicy{
 	domain.SessionKind(domain.PortalParent.Name): {
 		before: requireLiveSchool,
 		facts: func(ctx context.Context, s *AccountAuthentication, b sessionBinding, r factReads) (heldFacts, error) {
+			if r.locked && b.tenantID <= 0 {
+				// Parent tokens name no school. Resolve the successor's
+				// school under the account lock before locking it (#6305).
+				var err error
+				b.tenantID, _, err = s.resolveAccountTenantDefaultInTransaction(ctx, b.accountID)
+				if err != nil {
+					return heldFacts{}, err
+				}
+			}
+			if err := liveSchoolUnderLock(ctx, s, b, r); err != nil {
+				return heldFacts{}, err
+			}
 			guardianSchools, err := s.guardianSchoolsInTx(ctx, b.accountID, r.locked)
 			return heldFacts{guardianSchools: guardianSchools}, err
 		},
@@ -295,14 +307,17 @@ var sessionPolicies = map[domain.SessionKind]sessionPolicy{
 			}
 			return nil
 		},
-		facts: func(ctx context.Context, s *AccountAuthentication, b sessionBinding, _ factReads) (heldFacts, error) {
-			return heldFacts{}, s.traegerGrantsSchool(ctx, b.accountID, b.orgID, b.tenantID)
+		facts: func(ctx context.Context, s *AccountAuthentication, b sessionBinding, r factReads) (heldFacts, error) {
+			return heldFacts{}, s.traegerGrantsSchool(ctx, b.accountID, b.orgID, b.tenantID, r)
 		},
 		claims: func(ctx context.Context, s *AccountAuthentication, b sessionBinding, account domain.LoginAccount, _ heldFacts) (*domain.AccountClaimsPayload, error) {
 			return s.traegerSchoolClaims(ctx, account, b.tenantID, b.orgID)
 		},
 		keptAt: tokenSchool,
 	},
+	// A parent session at a Träger has no school and no guardian role; its
+	// facts are the access and the Träger instead (ADR 0216 point 7).
+	domain.SessionKindTraegerParent: traegerParentPolicy,
 }
 
 // requireLiveSchool refuses the renewal of a school-bound session whose
@@ -335,6 +350,9 @@ func requireLiveSchool(ctx context.Context, s *AccountAuthentication, b sessionB
 // the scope claim renews it as a parent session. The guard always read the
 // roles without a lock.
 func tenantFacts(ctx context.Context, s *AccountAuthentication, b sessionBinding, r factReads) (heldFacts, error) {
+	if err := liveSchoolUnderLock(ctx, s, b, r); err != nil {
+		return heldFacts{}, err
+	}
 	if b.tenantID > 0 {
 		mapped, err := r.mapping(ctx, s, b.accountID, b.tenantID)
 		if err != nil {
@@ -353,6 +371,47 @@ func tenantFacts(ctx context.Context, s *AccountAuthentication, b sessionBinding
 		return heldFacts{}, failed(b.op, refusal)
 	}
 	return heldFacts{roles: roles}, nil
+}
+
+// liveSchoolUnderLock re-reads, in a mint or refresh, the school the session
+// is kept at under a share lock, after the account lock (#6305). Ending a
+// school's sessions holds the school until its deletion commits
+// (auth.revoke_school_sessions): a mint or refresh that comes later waits and
+// finds the school gone, so no session survives the end of its school. The
+// validation writes nothing and reads the school before its facts.
+func liveSchoolUnderLock(ctx context.Context, s *AccountAuthentication, b sessionBinding, r factReads) error {
+	if !r.locked || b.tenantID <= 0 {
+		return nil
+	}
+	school, found, err := r.school(ctx, s, b.tenantID)
+	if err != nil {
+		return fmt.Errorf("re-check school %d of a session: %w", b.tenantID, err)
+	}
+	if !found || !school.Live() {
+		return b.refuse(s, "tenant_deleted", failed(b.op, identityaccess.ErrTenantNotFound))
+	}
+	return nil
+}
+
+// requireLiveSessionSchool locks the school a new session row is kept at,
+// right before the row is written and under the account lock the mint or
+// refresh took first (#6305). It is the one place every session kind passes,
+// the caterer's storage school included: a school whose sessions are ending
+// is held by auth.revoke_school_sessions until its deletion commits, so a
+// session written here either exists before the revocation deletes it or
+// waits and finds the school gone.
+func (s *AccountAuthentication) requireLiveSessionSchool(ctx context.Context, schoolID int64) error {
+	if schoolID <= 0 {
+		return nil
+	}
+	school, found, err := s.schools.LockSchoolShared(ctx, schoolID)
+	if err != nil {
+		return fmt.Errorf("lock school %d of a new session: %w", schoolID, err)
+	}
+	if !found || !school.Live() {
+		return failed("write session", identityaccess.ErrTenantNotFound)
+	}
+	return nil
 }
 
 // schoolFacts: the school is alive and active, the mapping is active and
@@ -416,10 +475,11 @@ func tokenSchool(s *AccountAuthentication, b sessionBinding) successorTenant {
 
 // sameTraeger reports whether a stored session names the Träger its token
 // names: a Träger session its Träger, a Träger school session the Träger it
-// came through (#4654); a session of every other kind names none.
+// came through (#4654), a parent session at a Träger its Träger (ADR 0216);
+// a session of every other kind names none.
 func sameTraeger(kind domain.SessionKind, orgID int64, session domain.AccountSession) bool {
 	namesTraeger := func(k domain.SessionKind) bool {
-		return k == domain.SessionKindTraegerSchool || k == domain.SessionKind(domain.PortalOrg.Name)
+		return k == domain.SessionKindTraegerSchool || k == domain.SessionKindTraegerParent || k == domain.SessionKind(domain.PortalOrg.Name)
 	}
 	stored := session.SessionKind()
 	if namesTraeger(kind) || namesTraeger(stored) {

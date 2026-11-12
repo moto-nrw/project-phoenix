@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -62,8 +62,19 @@ func (f guardianFixture) activeStatusDays(t *testing.T) []careplan.StudentStatus
 
 func (f guardianFixture) seedStatus(t *testing.T, date careplan.Date, status string) {
 	t.Helper()
+	f.seedStatusFrom(t, date, status, careplan.StudentStatusSourceManual)
+}
+
+// seedStatusFrom seeds a status day of the given source; a family's own
+// earlier report is source parent, everything else the school set.
+func (f guardianFixture) seedStatusFrom(t *testing.T, date careplan.Date, status, source string) {
+	t.Helper()
+	var guardian *int64
+	if source == careplan.StudentStatusSourceParent {
+		guardian = &f.accountID
+	}
 	_, err := f.module.UpsertStudentStatusDay(f.ctx, careplan.StudentStatusDay{
-		StudentID: f.studentID, Date: date, Status: status, ReportedAt: time.Now(), Source: careplan.StudentStatusSourceManual,
+		StudentID: f.studentID, Date: date, Status: status, ReportedAt: time.Now(), Source: source, GuardianAccountID: guardian,
 	})
 	require.NoError(t, err)
 }
@@ -81,7 +92,9 @@ func TestGuardianAbsenceReportReplacesOtherStatusesAndReturnsOnlySubmittedDays(t
 	f := newGuardianFixture(t)
 	absences, err := NewGuardianAbsences(f.module)
 	require.NoError(t, err)
-	f.seedStatus(t, guardianMonday, careplan.StudentStatusDayExcused)
+	// The family replaces its own earlier report; a school status is never
+	// replaced by a family (#5698, see TestGuardianAbsenceReportRefusesSchoolStatus).
+	f.seedStatusFrom(t, guardianMonday, careplan.StudentStatusDayExcused, careplan.StudentStatusSourceParent)
 	f.seedStatus(t, guardianTuesday, careplan.StudentStatusDayExcused)
 
 	report := f.report(careplan.StudentStatusDaySick, guardianWednesday, guardianMonday)
@@ -108,6 +121,21 @@ func TestGuardianAbsenceReportReplacesOtherStatusesAndReturnsOnlySubmittedDays(t
 		guardianTuesday.String() + " " + careplan.StudentStatusDayExcused,
 		guardianWednesday.String() + " " + careplan.StudentStatusDaySick,
 	}, active, "the Monday excusal is cleared, the unsubmitted Tuesday stays")
+}
+
+func TestGuardianAbsenceReportRefusesSchoolStatus(t *testing.T) {
+	t.Parallel()
+	f := newGuardianFixture(t)
+	absences, err := NewGuardianAbsences(f.module)
+	require.NoError(t, err)
+	f.seedStatus(t, guardianMonday, careplan.StudentStatusDayClassTrip)
+
+	_, err = absences.ReportGuardianAbsence(f.ctx, f.report(careplan.StudentStatusDaySick, guardianMonday, guardianWednesday))
+	require.ErrorIs(t, err, careplan.ErrSchoolStatusDayConflict)
+
+	rows := f.activeStatusDays(t)
+	require.Len(t, rows, 1, "the refusal happens before any status is cleared or written")
+	assert.Equal(t, careplan.StudentStatusDayClassTrip, rows[0].Status)
 }
 
 func TestGuardianAbsenceReportRefusesManualPartialAbsence(t *testing.T) {

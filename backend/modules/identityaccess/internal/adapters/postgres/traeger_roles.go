@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/uptrace/bun"
 )
 
@@ -33,27 +33,33 @@ func (s *Store) ListTraegerRoles(ctx context.Context, organizationID, accountID 
 	return roles, stats, nil
 }
 
-const lockLiveTraegerAccountQuery = `SELECT id FROM auth.accounts
+const lockLiveTraegerAccountQuery = `SELECT active FROM auth.accounts
 	WHERE id = ? AND personal_data_erased_at IS NULL
 	FOR UPDATE`
 
 // LockLiveTraegerAccount locks the account row until the grant commits and
-// reports whether the account is still live. auth.erase_unused_accounts locks
-// with SKIP LOCKED and passes over it; when the erasure locked first, the
-// re-checked row is erased and the grant finds no live account.
-func (s *Store) LockLiveTraegerAccount(ctx context.Context, accountID int64) (bool, domain.OperationStats, error) {
+// reports whether the account is still live and, if so, whether it is
+// active. auth.erase_unused_accounts locks with SKIP LOCKED and passes over
+// it; when the erasure locked first, the re-checked row is erased and the
+// grant finds no live account. When an offboarding locked first and
+// deactivated the account, the grant reads the committed deactivation
+// (#6535).
+func (s *Store) LockLiveTraegerAccount(ctx context.Context, accountID int64) (live, active bool, stats domain.OperationStats, err error) {
 	db, err := s.database(ctx)
 	if err != nil {
-		return false, domain.OperationStats{}, err
+		return false, false, domain.OperationStats{}, err
 	}
-	var ids []int64
+	var states []bool
 	started := time.Now()
-	err = db.NewRaw(lockLiveTraegerAccountQuery, accountID).Scan(ctx, &ids)
-	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(ids))}
+	err = db.NewRaw(lockLiveTraegerAccountQuery, accountID).Scan(ctx, &states)
+	stats = domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(states))}
 	if err != nil {
-		return false, stats, fmt.Errorf("identity access postgres: lock Träger account: %w", err)
+		return false, false, stats, fmt.Errorf("identity access postgres: lock Träger account: %w", err)
 	}
-	return len(ids) == 1, stats, nil
+	if len(states) != 1 {
+		return false, false, stats, nil
+	}
+	return true, states[0], stats, nil
 }
 
 const insertTraegerRoleQuery = `INSERT INTO auth.organization_account_roles (organization_id, account_id, role)

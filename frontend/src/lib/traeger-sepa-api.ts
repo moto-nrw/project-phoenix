@@ -48,6 +48,10 @@ export interface SepaMandate {
   readonly source: MandateSource;
   /** Calendar date the revocation arrived; null while in force. */
   readonly revokedOn: string | null;
+  /** Day of the last collection moto counted (#4697); null before one. */
+  readonly lastCollectedOn: string | null;
+  /** First day the mandate no longer holds: 36 months without a collection (#4697). */
+  readonly expiresOn: string | null;
   readonly createdAt: string;
 }
 
@@ -72,6 +76,8 @@ export interface SepaMandateEvent {
   /** The account that acted; null once the account is deleted. */
   readonly accountId: string | null;
   readonly occurredAt: string;
+  readonly importFile: string | null;
+  readonly importLine: number | null;
 }
 
 interface BackendCreditor {
@@ -98,6 +104,8 @@ interface BackendMandate {
   bic: string;
   source: MandateSource;
   revoked_on: string | null;
+  last_collected_on?: string | null;
+  expires_on?: string | null;
   created_at: string;
 }
 
@@ -108,6 +116,8 @@ interface BackendEvent {
   fields: string[] | null;
   account_id: number | null;
   occurred_at: string;
+  import_file?: string;
+  import_line?: number;
 }
 
 function creditorFromBackend(creditor: BackendCreditor): SepaCreditor {
@@ -137,6 +147,8 @@ function mandateFromBackend(mandate: BackendMandate): SepaMandate {
     bic: mandate.bic,
     source: mandate.source,
     revokedOn: mandate.revoked_on,
+    lastCollectedOn: mandate.last_collected_on ?? null,
+    expiresOn: mandate.expires_on || null,
     createdAt: mandate.created_at,
   };
 }
@@ -234,5 +246,7 @@ export async function fetchSepaMandateHistory(
     fields: event.fields ?? [],
     accountId: event.account_id === null ? null : String(event.account_id),
     occurredAt: event.occurred_at,
+    importFile: event.import_file ?? null,
+    importLine: event.import_line ?? null,
   }));
 }

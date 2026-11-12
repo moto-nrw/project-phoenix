@@ -8,18 +8,18 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	contractcompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
-	deliverycompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	mail "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	deliveryruntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationcompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	billingcompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	contractcompose "github.com/moto-ogs/project-phoenix/modules/carecontract/compose"
+	deliverycompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	delivery "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	mail "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	deliveryruntime "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	organizationcompose "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	billingcompose "github.com/moto-ogs/project-phoenix/modules/parentbilling/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -80,7 +80,7 @@ func newBillingPushFixture(t *testing.T) (*billingPushFixture, testpkg.ParentCha
 	}})
 	require.NoError(t, err)
 	f.worker, err = buildDeliveryWorker(testpkg.NewDatabase(t, db), RootEnvironment{Logger: slog.Default()}, nil,
-		mail.Email{}, nil, DeliveryRuntime{Runtime: f.runtime}, nil, nil, nil, cancelledModules{}, nil, f.transport)
+		mail.Email{}, nil, DeliveryRuntime{Runtime: f.runtime}, nil, nil, nil, cancelledModules{}, nil, f.transport, nil)
 	require.NoError(t, err)
 	return f, chain
 }
@@ -137,7 +137,7 @@ func TestBillingDevicePushRechecksCurrentObjectAndExactRelationship(t *testing.T
 				assert.Equal(t, []string{"pending", "pending"}, f.states(t))
 				assert.Equal(t, 2, f.transport.calls)
 				f.transport.err = nil
-				_, err := f.db.ExecContext(f.ctx, `UPDATE platform.push_outbox SET next_retry_at = NOW() WHERE tenant_id = ?`, chain.TenantID)
+				_, err := f.db.ExecContext(f.ctx, `UPDATE platform.push_outbox SET next_retry_at = 'epoch'::timestamptz WHERE tenant_id = ?`, chain.TenantID)
 				require.NoError(t, err)
 			}
 			switch scenario {
@@ -226,7 +226,7 @@ func TestBillingPushObjectScopeWithoutRLS(t *testing.T) {
 	school := testpkg.CreateTestSchoolInOrganization(t, f.db, f.organization, "Another push school")
 	var otherGroup int64
 	require.NoError(t, f.db.NewRaw(`INSERT INTO education.groups (tenant_id,name) VALUES (?,'Other group') RETURNING id`, chain.TenantID).Scan(f.ctx, &otherGroup))
-	contractOwner := contractcompose.NewInbox()
+	contractOwner := contractcompose.NewInbox(nil)
 	releaseOwner := organizationcompose.NewSharedTraegerDocuments()
 	for _, organization := range []int64{f.organization, foreign} {
 		require.NoError(t, (ParentPortalRuntime{}).WithinTraeger(f.ctx, organization, func(ctx context.Context) error {
@@ -302,7 +302,7 @@ func TestContractDevicePushRechecksVersionAndExactChild(t *testing.T) {
 				f.runWorker(t)
 				require.Equal(t, 2, f.transport.calls)
 				f.transport.err = nil
-				_, err := f.db.ExecContext(f.ctx, `UPDATE platform.push_outbox SET next_retry_at=NOW() WHERE tenant_id=?`, chain.TenantID)
+				_, err := f.db.ExecContext(f.ctx, `UPDATE platform.push_outbox SET next_retry_at='epoch'::timestamptz WHERE tenant_id=?`, chain.TenantID)
 				require.NoError(t, err)
 			}
 			switch scenario {
@@ -368,7 +368,7 @@ func TestReleasedDocumentDevicePushRechecksReleaseAndCurrentAudience(t *testing.
 				f.runWorker(t)
 				require.Equal(t, 2, f.transport.calls)
 				f.transport.err = nil
-				_, err = f.db.ExecContext(f.ctx, `UPDATE platform.push_outbox SET next_retry_at=NOW() WHERE tenant_id=?`, chain.TenantID)
+				_, err = f.db.ExecContext(f.ctx, `UPDATE platform.push_outbox SET next_retry_at='epoch'::timestamptz WHERE tenant_id=?`, chain.TenantID)
 				require.NoError(t, err)
 			}
 			switch scenario {

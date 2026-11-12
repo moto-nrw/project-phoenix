@@ -1,8 +1,8 @@
 package parentportal
 
 import (
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/care"
 )
 
 type CarePlanError care.CarePlanError
@@ -11,6 +11,7 @@ const (
 	CarePlanCourseRequestsDisabled         CarePlanError = CarePlanError(care.CarePlanCourseRequestsDisabled)
 	CarePlanOfferingChangeDisabled         CarePlanError = CarePlanError(care.CarePlanOfferingChangeDisabled)
 	CarePlanManualPartialAbsenceConflict   CarePlanError = CarePlanError(care.CarePlanManualPartialAbsenceConflict)
+	CarePlanSchoolStatusDayConflict        CarePlanError = CarePlanError(care.CarePlanSchoolStatusDayConflict)
 	CarePlanGuardianPickupExceptionRaced   CarePlanError = CarePlanError(care.CarePlanGuardianPickupExceptionRaced)
 	CarePlanPickupExceptionStaffOwned      CarePlanError = CarePlanError(care.CarePlanPickupExceptionStaffOwned)
 	CarePlanStudentDataRequestFieldPending CarePlanError = CarePlanError(care.CarePlanStudentDataRequestFieldPending)

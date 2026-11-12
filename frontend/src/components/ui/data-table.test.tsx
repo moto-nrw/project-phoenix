@@ -10,6 +10,7 @@ import { describe, it, expect, vi } from "vitest";
 
 import {
   DESKTOP_WIDTH,
+  PHONE_WIDTH,
   setViewportWidth,
   usePhoneViewport,
 } from "~/test/helpers/viewport";
@@ -32,6 +33,42 @@ const columns: DataTableColumn<Row>[] = [
 ];
 
 describe("DataTable keyboard navigation", () => {
+  it("opens only the rows canClickRow names, on desktop and phone", () => {
+    const onRowClick = vi.fn();
+    const table = (
+      <DataTable
+        columns={columns}
+        rows={rows}
+        getRowKey={(row) => row.id}
+        onRowClick={onRowClick}
+        canClickRow={(row) => row.id === "1"}
+        stackedOnMobile
+      />
+    );
+    setViewportWidth(DESKTOP_WIDTH);
+    const { unmount } = render(table);
+
+    const beta = screen.getByText("Beta").closest("tr")!;
+    expect(beta).not.toHaveAttribute("role");
+    expect(beta).not.toHaveClass("cursor-pointer");
+    fireEvent.click(beta);
+    expect(onRowClick).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Alpha").closest("tr")!);
+    expect(onRowClick).toHaveBeenCalledWith(rows[0]);
+    unmount();
+
+    onRowClick.mockReset();
+    setViewportWidth(PHONE_WIDTH);
+    render(table);
+    const stackedBeta = screen.getByText("Beta").closest("li")!;
+    expect(stackedBeta).not.toHaveAttribute("role");
+    fireEvent.click(stackedBeta);
+    expect(onRowClick).not.toHaveBeenCalled();
+    fireEvent.click(screen.getByText("Alpha").closest("li")!);
+    expect(onRowClick).toHaveBeenCalledWith(rows[0]);
+    setViewportWidth(DESKTOP_WIDTH);
+  });
+
   it("invokes onRowClick when Enter is pressed on a clickable row", () => {
     const onRowClick = vi.fn();
 

@@ -2,10 +2,12 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func (w *ExcusedRequests) reviewScope(ctx context.Context) (careplan.ReviewScope, error) {
@@ -30,7 +32,7 @@ func (w *ExcusedRequests) requireReviewer(ctx context.Context, student *careplan
 // validateAbsenceApproval keeps every path that writes parent-sourced status
 // days behind the same lifecycle, conflict, and guardian-access checks.
 func (w *ExcusedRequests) validateAbsenceApproval(
-	ctx context.Context, req *careplan.ExcusedAbsenceRequest, student *careplan.ReviewStudent,
+	ctx context.Context, req *careplan.ExcusedAbsenceRequest, student *careplan.ReviewStudent, replacePartial bool,
 ) error {
 	today := w.today()
 	if student.Alumnus || student.CareEndedOn(today) {
@@ -44,7 +46,7 @@ func (w *ExcusedRequests) validateAbsenceApproval(
 	if requestExtendsBeyondCare(req, student) {
 		return careplan.ErrExcusedRequestNotFound
 	}
-	if err := w.ensureNoPartialAbsence(ctx, req.StudentID, req.Dates); err != nil {
+	if err := w.ensureNoPartialAbsence(ctx, req.StudentID, req.Dates, replacePartial); err != nil {
 		return err
 	}
 	// Refuse to apply when the submitting guardian has lost access to the
@@ -66,89 +68,129 @@ func (w *ExcusedRequests) validateAbsenceApproval(
 	return w.ensureNoNewerStatus(ctx, req)
 }
 
+// absenceEligibility is the bulk verdict of one request plus the manual
+// partial absences on its days, which the review card names (#5698).
+type absenceEligibility struct {
+	eligible    bool
+	code, text  string
+	partialFrom map[string]string
+}
+
 // excusedBulkEligibility answers whether this request can ride a bulk
 // approval. It takes the already-resolved status view so the queue reads the
 // child's current days exactly once per request, whichever branch decides.
-func (w *ExcusedRequests) excusedBulkEligibility(ctx context.Context, req *careplan.ExcusedAbsenceRequest, student careplan.ReviewStudent, view currentStatusView, today careplan.Date, facts absenceReviewFacts) (bool, string, string, error) {
+func (w *ExcusedRequests) excusedBulkEligibility(ctx context.Context, req *careplan.ExcusedAbsenceRequest, student careplan.ReviewStudent, view currentStatusView, today careplan.Date, facts absenceReviewFacts) (absenceEligibility, error) {
+	beyondCare := requestExtendsBeyondCare(req, &student)
+	// The card names the partial absences whenever a single approval is
+	// still possible, also when an earlier day of the request has passed.
+	var partialFrom map[string]string
+	if !beyondCare && !parentRequestIsPast(excusedScopeEnd(req), today) {
+		var err error
+		if partialFrom, err = facts.manualPartialAbsences(ctx, w, req.StudentID, req.Dates); err != nil {
+			return absenceEligibility{}, err
+		}
+	}
 	if !absenceBulkEligible(req.Dates, today) {
-		return false, careplan.BulkIneligiblePast, "Mindestens ein Tag ist vorbei.", nil
+		return absenceEligibility{code: careplan.BulkIneligiblePast, text: "Mindestens ein Tag ist vorbei.", partialFrom: partialFrom}, nil
 	}
-	if requestExtendsBeyondCare(req, &student) {
-		return false, careplan.BulkIneligibleChildUnavailable, "Mindestens ein Tag liegt nach dem Betreuungsende.", nil
+	if beyondCare {
+		return absenceEligibility{code: careplan.BulkIneligibleChildUnavailable, text: "Mindestens ein Tag liegt nach dem Betreuungsende."}, nil
 	}
-	partial, err := facts.manualPartialAbsence(ctx, w, req.StudentID, req.Dates)
-	if err != nil {
-		return false, "", "", err
-	}
-	if partial {
-		return false, careplan.BulkIneligibleConflict, "Für mindestens einen Tag ist bereits eine Teilabwesenheit eingetragen.", nil
+	if len(partialFrom) > 0 {
+		// Replacing a partial absence is a deliberate single decision.
+		return absenceEligibility{
+			code: careplan.BulkIneligibleConflict, text: "Für mindestens einen Tag ist bereits eine Teilabwesenheit eingetragen.",
+			partialFrom: partialFrom,
+		}, nil
 	}
 	if w.messenger != nil {
 		hasAccess, accessErr := w.messenger.GuardianHasChildAccess(ctx, req.StudentID, req.SubmittedBy)
 		if accessErr != nil {
-			return false, "", "", accessErr
+			return absenceEligibility{}, accessErr
 		}
 		if !hasAccess {
-			return false, careplan.BulkIneligibleAccessRevoked, "Der Zugang der einreichenden Person ist nicht mehr aktiv.", nil
+			return absenceEligibility{code: careplan.BulkIneligibleAccessRevoked, text: "Der Zugang der einreichenden Person ist nicht mehr aktiv."}, nil
 		}
 	}
 	if view.changedSinceRequest {
-		return false, careplan.BulkIneligibleStale, "Für mindestens einen Tag gibt es einen neueren Abwesenheitsstatus.", nil
+		return absenceEligibility{code: careplan.BulkIneligibleStale, text: "Für mindestens einen Tag gibt es einen neueren Abwesenheitsstatus."}, nil
 	}
-	return true, "", "", nil
+	return absenceEligibility{eligible: true}, nil
 }
 
-func (w *ExcusedRequests) hasManualPartialAbsence(ctx context.Context, studentID int64, dates []careplan.Date) (bool, error) {
+// manualPartialAbsences returns the staff-entered partial absences on the
+// requested days as date -> "HH:MM" (the time the excusal starts).
+func (w *ExcusedRequests) manualPartialAbsences(ctx context.Context, studentID int64, dates []careplan.Date) (map[string]string, error) {
 	if len(dates) == 0 {
-		return false, nil
+		return nil, nil
 	}
 	rows, err := w.carePlan.ListPickupExceptions(ctx, careplan.StudentScheduleFilter{
 		StudentIDs: []int64{studentID}, From: dates[0], To: dates[len(dates)-1],
 	})
 	if err != nil {
-		return false, err
+		return nil, err
 	}
-	return manualPartialAbsenceInRows(dates, rows), nil
+	return manualPartialAbsenceFrom(dates, rows), nil
 }
 
-func manualPartialAbsenceInRows(dates []careplan.Date, rows []careplan.PickupException) bool {
+func manualPartialAbsenceFrom(dates []careplan.Date, rows []careplan.PickupException) map[string]string {
 	requested := make(map[careplan.Date]struct{}, len(dates))
 	for _, date := range dates {
 		requested[date] = struct{}{}
 	}
+	var out map[string]string
 	for _, row := range rows {
 		// Only manual partial absences conflict; auto-derived excusals
 		// (pulled-forward pickup time) coexist with a full-day status.
-		if _, ok := requested[row.ExceptionDate]; ok && row.ExcusedFrom != nil && !row.ExcusedAuto {
-			return true
+		if _, ok := requested[row.ExceptionDate]; !ok || !row.HasManualPartialAbsence() {
+			continue
 		}
+		if out == nil {
+			out = make(map[string]string)
+		}
+		out[row.ExceptionDate.String()] = calendar.NormalizeWallClock(*row.ExcusedFrom).Format("15:04")
 	}
-	return false
+	return out
 }
 
-// ensureNoPartialAbsence locks every requested care day in the canonical
-// order (student row first, then care-day) and refuses when a manual
-// partial-day excusal already owns one of the dates.
-func (w *ExcusedRequests) ensureNoPartialAbsence(ctx context.Context, studentID int64, dates []careplan.Date) error {
-	if len(dates) == 0 {
-		return nil
-	}
+// lockRequestedDays locks every requested care day in the canonical order
+// (student row first, then care-day) and returns the sorted days.
+func (w *ExcusedRequests) lockRequestedDays(ctx context.Context, studentID int64, dates []careplan.Date) ([]careplan.Date, error) {
 	// Sort before locking so multi-day writers always take care-day keys in
 	// the same order (avoids AB-BA deadlocks across concurrent requests).
 	sortedDates := dedupeSortedDates(dates)
 	for _, date := range sortedDates {
 		if err := w.carePlan.LockStudentAndExceptionDay(ctx, studentID, date.String()); err != nil {
-			return err
+			return nil, err
 		}
 	}
-	partial, err := w.hasManualPartialAbsence(ctx, studentID, sortedDates)
+	return sortedDates, nil
+}
+
+// ensureNoPartialAbsence locks every requested care day and refuses when a
+// manual partial-day excusal already owns one of the dates. With replace set,
+// the reviewer confirmed replacing those partial absences (#5698): Care Plan
+// removes them under the same locks, restoring blocks and pickup time exactly
+// like deleting them, before the approval writes the full-day status.
+func (w *ExcusedRequests) ensureNoPartialAbsence(ctx context.Context, studentID int64, dates []careplan.Date, replace bool) error {
+	if len(dates) == 0 {
+		return nil
+	}
+	sortedDates, err := w.lockRequestedDays(ctx, studentID, dates)
 	if err != nil {
 		return err
 	}
-	if partial {
+	partial, err := w.manualPartialAbsences(ctx, studentID, sortedDates)
+	if err != nil || len(partial) == 0 {
+		return err
+	}
+	if !replace {
 		return careplan.ErrExcusedRequestStatusConflict
 	}
-	return nil
+	if w.partialAbsences == nil {
+		return errors.New("care plan: partial absence replacement is not configured")
+	}
+	return w.partialAbsences.ReplaceManualPartialAbsences(ctx, studentID, calendarDates(sortedDates))
 }
 
 // ensureNoNewerStatus refuses the approval when any active status day on a

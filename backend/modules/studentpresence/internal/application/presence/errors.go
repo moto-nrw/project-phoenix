@@ -1,6 +1,6 @@
 package presence
 
-import "github.com/moto-nrw/project-phoenix/modules/studentpresence"
+import "github.com/moto-ogs/project-phoenix/modules/studentpresence"
 
 // Common service errors. Every sentinel is the owner's public value so every
 // consumer classifies it without this package.

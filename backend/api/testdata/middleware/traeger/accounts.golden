@@ -7,4 +7,5 @@ api.requestIDs.# > api/common.ProblemResponseMiddleware > api/common.TenantRunti
 	GET /traeger/accounts/
 	GET /traeger/accounts/history
 	POST /traeger/accounts/invitations
+	PUT /traeger/accounts/{accountId}/name
 	PUT /traeger/accounts/{accountId}/roles

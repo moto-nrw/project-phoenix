@@ -4,21 +4,25 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // RequestChild is the intake record, distinct from any materialized student.
 type RequestChild struct {
-	ID                    int64          `json:"id"`
-	TenantID              int64          `json:"tenant_id"`
-	CreatedAt             time.Time      `json:"created_at"`
-	UpdatedAt             time.Time      `json:"updated_at"`
-	RequestID             int64          `json:"request_id"`
-	FirstName             string         `json:"first_name"`
-	LastName              string         `json:"last_name"`
-	DateOfBirth           calendar.Date  `json:"date_of_birth"`
-	TargetGradeLevel      *int16         `json:"target_grade_level,omitempty"`
-	TargetSchoolClass     *string        `json:"target_school_class,omitempty"`
+	ID                int64         `json:"id"`
+	TenantID          int64         `json:"tenant_id"`
+	CreatedAt         time.Time     `json:"created_at"`
+	UpdatedAt         time.Time     `json:"updated_at"`
+	RequestID         int64         `json:"request_id"`
+	FirstName         string        `json:"first_name"`
+	LastName          string        `json:"last_name"`
+	DateOfBirth       calendar.Date `json:"date_of_birth"`
+	TargetGradeLevel  *int16        `json:"target_grade_level,omitempty"`
+	TargetSchoolClass *string       `json:"target_school_class,omitempty"`
+	// HolidayCareWish is the parents' answer whether the child needs care
+	// in the holidays (#4703), nil when the form did not ask. It counts for
+	// the school year of the phase once the child is approved.
+	HolidayCareWish       *bool          `json:"holiday_care_wish,omitempty"`
 	CustomData            FormValues     `json:"custom_data"`
 	Status                string         `json:"status"`
 	StatusReason          *string        `json:"status_reason,omitempty"`

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/ports"
 )
 
 // NewMessageObservation binds query attribution and completion to a store operation.

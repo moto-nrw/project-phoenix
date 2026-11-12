@@ -11,9 +11,9 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/sepa"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/sepa"
 )
 
 // The SEPA mandates of the families and the creditor of the Träger (#4695,
@@ -66,6 +66,11 @@ type MandateStore interface {
 	SEPAMandateEvents(ctx context.Context, organizationID, id int64) ([]parentbilling.SEPAMandateEvent, error)
 	// SealedSEPAMandates reads mandates with their sealed IBAN.
 	SealedSEPAMandates(ctx context.Context, organizationID int64, ids []int64) ([]parentbilling.SealedSEPAMandate, error)
+	// SEPADebitsOfMandate reads the debits of a mandate, newest first,
+	// without the account (#4697).
+	SEPADebitsOfMandate(ctx context.Context, organizationID, mandateID int64) ([]parentbilling.SealedSEPADebit, error)
+	// MandateImportStore records the imports of existing mandates (#6198).
+	MandateImportStore
 }
 
 // SEPAMandates serves parentbilling.SEPAMandates. The family of a contract
@@ -75,17 +80,21 @@ type SEPAMandates struct {
 	store     MandateStore
 	contracts parentbilling.CareContracts
 	cipher    parentbilling.BankDataCipher
+	formats   parentbilling.DebtorNumberFormats
 	today     func() calendar.Date
 }
 
 var _ parentbilling.SEPAMandates = (*SEPAMandates)(nil)
 
-// NewSEPAMandates builds the mandates.
-func NewSEPAMandates(store MandateStore, contracts parentbilling.CareContracts, cipher parentbilling.BankDataCipher, today func() calendar.Date) *SEPAMandates {
-	if store == nil || contracts == nil || cipher == nil || today == nil {
-		panic("parent billing: the store, the care contracts, the cipher and the clock are required")
+// NewSEPAMandates builds the mandates; their import checks a debtor number
+// in the format of the Träger (#6675).
+func NewSEPAMandates(store MandateStore, contracts parentbilling.CareContracts, cipher parentbilling.BankDataCipher,
+	formats parentbilling.DebtorNumberFormats, today func() calendar.Date,
+) *SEPAMandates {
+	if store == nil || contracts == nil || cipher == nil || formats == nil || today == nil {
+		panic("parent billing: the store, the care contracts, the cipher, the debtor number format and the clock are required")
 	}
-	return &SEPAMandates{store: store, contracts: contracts, cipher: cipher, today: today}
+	return &SEPAMandates{store: store, contracts: contracts, cipher: cipher, formats: formats, today: today}
 }
 
 // ibanContext binds a sealed IBAN to its Träger and mandate reference, so a
@@ -541,6 +550,38 @@ func (m *SEPAMandates) SEPAMandateDebits(ctx context.Context, reviewer parentbil
 	if err := m.store.InsertSEPAMandateEvents(ctx, reviewer.OrganizationID, reviewer.AccountID, mandateReveal,
 		parentbilling.MandateFromOffice, nil, mandates); err != nil {
 		return nil, fmt.Errorf("parent billing: record the reveal of the SEPA mandates: %w", err)
+	}
+	return debits, nil
+}
+
+// SEPAMandateCollections lists the debits of a mandate of the Träger: what
+// was collected, what is pending and what stays out of a file and why. It
+// names no bank data.
+func (m *SEPAMandates) SEPAMandateCollections(ctx context.Context, reviewer parentbilling.HolidayReviewer, id int64,
+) ([]parentbilling.SEPADebit, error) {
+	if err := validReviewer(reviewer); err != nil {
+		return nil, err
+	}
+	if id <= 0 {
+		return nil, parentbilling.ErrSEPAMandateNotFound
+	}
+	if _, err := m.store.SEPAMandate(ctx, reviewer.OrganizationID, id, false); err != nil {
+		return nil, err
+	}
+	stored, err := m.store.SEPADebitsOfMandate(ctx, reviewer.OrganizationID, id)
+	if err != nil {
+		return nil, err
+	}
+	earliest := m.today().AddDays(1)
+	debits := make([]parentbilling.SEPADebit, len(stored))
+	for i, entry := range stored {
+		debit := entry.Debit
+		if debit.Status == parentbilling.DebitPending {
+			debit.AmountCents += entry.CreditedCents
+			debit.CollectOn = max(debit.DueOn, earliest)
+			debit.Left = pendingDebitLeft(entry, debit.AmountCents, debit.CollectOn)
+		}
+		debits[i] = debit
 	}
 	return debits, nil
 }

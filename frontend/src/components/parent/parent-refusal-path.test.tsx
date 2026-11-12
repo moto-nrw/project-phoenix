@@ -10,7 +10,10 @@ import {
   useParentToday,
 } from "~/lib/hooks/use-parent-resources";
 vi.unmock("swr");
-vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => null,
+  useTenantSafe: () => null,
+}));
 const apiSignals = vi.fn();
 beforeEach(() => {
   apiSignals.mockClear();

@@ -64,7 +64,7 @@ notification ports; the root translates those values to Delivery's contract
 (ADR 0067), rather than importing its private package.
 
 ```go
-import "github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications"
+import "github.com/moto-ogs/project-phoenix/modules/delivery/internal/notifications"
 
 err := notifier.Notify(ctx, notifications.Event{
     Type:     "pickup_upcoming",              // stable, feature-defined type
@@ -102,6 +102,14 @@ dispatches many such events of one tenant in one after-commit hook — it
 resolves the feature flag and the window once, and hands the whole batch to
 channels that implement `BatchChannel` (Web Push does; it resolves every
 recipient's devices in ONE tenant transaction).
+
+`NotifyEach` / `NotifyEachDurably(ctx, events)` (public:
+`NotifyEvents` / `NotifyEventsDurably`) send the language variants of one
+guardian push (#5869, #5876). Unlike `NotifyBatch`, each event keeps exactly
+its own `Notify` or `NotifyDurably` call: validation, tenant gates, durable
+intents, after-commit dispatch and error, in order; the first error ends the
+series. Only the guardian device read is shared, once per series and only
+inside the caller's transaction.
 
 ## GDPR contract
 

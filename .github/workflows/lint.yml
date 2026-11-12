@@ -46,9 +46,9 @@ jobs:
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
       - name: Check error code registry and generated files
         run: |
           node --test scripts/generate-error-codes.test.mjs
@@ -63,6 +63,21 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          filter: blob:none
+      # This job already runs for every migration change. Fail before Go setup.
+      # development -> main promotes migrations already checked on development;
+      # it is a release, not a stack whose additions must exceed development.
+      - name: Check new migration versions against current base tips
+        if: github.event_name == 'pull_request' && !(github.base_ref == 'main' && github.head_ref == 'development' && github.event.pull_request.head.repo.full_name == github.repository)
+        env:
+          BASE_REF: ${{ github.base_ref }}
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          # The default checkout is shallow and may be a synthetic merge.
+          git fetch --no-tags --filter=blob:none --unshallow origin "$HEAD_SHA"
+          node scripts/check-migration-versions.mjs "origin/$BASE_REF" "$HEAD_SHA"
+
       - name: Setup Go with cache
         id: go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
@@ -136,6 +151,13 @@ jobs:
       # build.yml's binary build, so lint started cold. Keep a source-keyed
       # layer with the last source build as a warm fallback, as test.yml does.
       # The golangci-lint action's own cache key is also immutable per week.
+      # Pull requests only restore. Each pull request run saved about 240 MB
+      # that only its own later runs could read, and those saves pushed
+      # development's entry out of the cache within hours: after the nightly
+      # save at 02:13 every first run of a pull request from 06:49 on linted
+      # cold, 200-310 s against 35 s (#6784, 12.11.2026).
+      # backend-build-cache.yml saves the entry pull requests restore, on each
+      # push to development; its key must stay identical to this one.
       - name: Compute backend lint cache key
         id: lint-cache-key
         env:
@@ -146,7 +168,8 @@ jobs:
           echo "prefix=$LINT_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
           echo "key=$LINT_CACHE_PREFIX$LINT_SOURCE_HASH" >> "$GITHUB_OUTPUT"
       - name: Restore backend lint cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: lint-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: |
             ~/.cache/go-build
@@ -165,13 +188,21 @@ jobs:
           echo "Linting ${#packages[@]} backend package target(s): ${packages[*]}"
           printf 'args=%s\n' "${packages[*]}" >> "$GITHUB_OUTPUT"
       - name: golang ci lint
-        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v6
+        uses: golangci/golangci-lint-action@ba0d7d2ec06a0ea1cb5fa41b2e4a3ab91d21278a # v9.3.0
         with:
           version: v2.14.0
           args: --timeout 10m ${{ steps.packages.outputs.args }}
           working-directory: backend
           # The step above owns the lint cache.
           skip-cache: true
+      - name: Save backend lint cache
+        if: ${{ !cancelled() && github.event_name != 'pull_request' && steps.lint-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: |
+            ~/.cache/go-build
+            ~/.cache/golangci-lint
+          key: ${{ steps.lint-cache-key.outputs.key }}
 
   frontend-quality:
     name: Frontend quality
@@ -187,9 +218,9 @@ jobs:
         run: corepack enable
 
       - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
           cache: "pnpm"
           cache-dependency-path: "frontend/pnpm-lock.yaml"
 
@@ -223,9 +254,9 @@ jobs:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
 
       - name: React Doctor (new issues vs base)
         working-directory: frontend
@@ -290,9 +321,9 @@ jobs:
         run: corepack enable
 
       - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
           cache: "pnpm"
           cache-dependency-path: "frontend/pnpm-lock.yaml"
 

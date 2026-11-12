@@ -6,16 +6,16 @@ import (
 	"net/http"
 	"strings"
 
-	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
+	settingsFacts "github.com/moto-ogs/project-phoenix/modules/settings"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // SchoolSupervisionRouter is the assignment-bound supervision surface of the
@@ -27,7 +27,7 @@ import (
 //
 //  1. SchoolScopeMiddleware (via ProtectedSchoolRoutes) admits only school-scope
 //     tokens, so a tenant token cannot reach these routes and a school token
-//     still reaches nothing under /api (TestSchoolScopeRejectedOnAllAPIRoutes).
+//     still reaches nothing under /api (the school scope matrix in TestFullProductionRouterGolden).
 //  2. permissions.SupervisionOwn instead of SchedulesRead: the permission says
 //     "own", and the planner stays shut.
 //  3. The day list runs in PlannedNowScopeDay, which filters to the caller's

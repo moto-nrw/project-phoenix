@@ -41,7 +41,7 @@ SettingAuditRepository → config.setting_audit (append-only)
 
 ### Registered Settings
 
-**The authoritative list is the code**: `config.Register()` calls in `backend/modules/settings/internal/defaults/*.go`, guarded by `defaults_test.go`. Do not use a hand-maintained setting count:
+**The authoritative list is the code**: `config.Register()` calls in `backend/modules/settings/internal/defaults/*.go`, guarded by `defaults_test.go`. Do not use a hand-maintained setting count. The table shows examples, not every defaults file:
 
 | File | Group | Tab(s) |
 |------|-------|--------|
@@ -53,7 +53,7 @@ SettingAuditRepository → config.setting_audit (append-only)
 | `devices.go` | NFC/device behavior, device online window | devices |
 | `tracking.go`, `feedback.go`, `invitations.go` | indicators, feedback, guardian invite expiry | operations, gdpr, system |
 
-Tabs in use today: `operations`, `enrollment`, `system`, `gdpr`, `devices`, `security` (dynamic — a new `Tab:` value creates a new tab).
+Tabs are the `Tab:` values the defaults declare (dynamic — a new value creates a new tab). List them with `rg -o 'Tab: +"[a-z_]+"' backend/modules/settings/internal/defaults`.
 
 ### Value Resolution
 
@@ -93,7 +93,7 @@ Every `Resolve*`/`HasTenantOverride` call funnels through `ResolveMany`, which
 consults (in order): an explicit context snapshot (`WithSettingsSnapshot`,
 used by scheduler/prefetch paths), then a **request-scoped memo cache**
 (`WithSettingsRequestCache`, attached by `RequestSettingsCacheMiddleware`
-router-wide in `api/base.go` and group-wide in `ProtectedTenantGroup`), then
+router-wide in `api/serve_middleware.go` and group-wide in `ProtectedTenantRoutes`), then
 the repository. Within one HTTP request each (tenant_id, key) pair is loaded
 from PostgreSQL at most once; a full cache hit in `Resolve*ForTenant` skips
 the tenant transaction entirely.
@@ -145,7 +145,7 @@ GetLoginImageURL / SetLoginImageURL / ClearLoginImageURL(ctx, tenantID, ...) // 
 
 ### Frontend
 
-The settings page is auto-generated from the backend schema: field components render by `type`, auto-save (debounced for text/number/time, immediate for boolean/select, explicit save for password), conditional visibility via `depends_on`, passwords masked. Exceptions that are hand-written: the personalization tab (login image upload) and the enrollment link panel. For embedding settings tabs in other layouts use `useSettingsTabs()` (exported from `settings-page.tsx`; returns `null` without settings access, else `{ tabs, renderTab }`).
+The settings page is auto-generated from the backend schema: field components render by `type`, auto-save (debounced for text/number/time, immediate for boolean/select, explicit save for password), conditional visibility via `depends_on`, passwords masked. Exceptions that are hand-written: the personalization tab (login image upload), the enrollment link panel, and the Träger's debtor number length (`parent_billing.debtor_number_min_digits` and `_max_digits`, #6675): `components/settings/debtor-number-length-field.tsx` renders both keys as one paired "von … bis … Ziffern" field under `parent_billing.debtor_number_digits_only` with a live example number, which two generated number fields cannot show. The keys are defined only there; it saves each key through the settings API like a generated field. For embedding settings tabs in other layouts use `useSettingsTabs()` (exported from `settings-page.tsx`; returns `null` without settings access, else `{ tabs, renderTab }`).
 
 ### When to Use Settings vs Environment Variables
 
@@ -211,7 +211,7 @@ either read error, and issuance requires a readable, positive lifetime.
 Availability/display hints stay restrictive on read errors. Lockout-policy
 errors remain fatal before code comparison: no consumed challenge, session,
 tokens or cookie. These entries supersede the trusted-device rows in
-[PR #4631's inventory](https://github.com/moto-nrw/project-phoenix/pull/4631#literal-fallback-inventar);
+[PR #4631's inventory](https://github.com/moto-ogs/project-phoenix/pull/4631#literal-fallback-inventar);
 other inventoried debt remains unchanged.
 
 **Known exceptions, not patterns for new code:**
@@ -223,7 +223,7 @@ other inventoried debt remains unchanged.
   not proof that every required port is already checked at startup.
 - Existing operational readers still use literals on errors or nil resolvers.
   The complete per-reader classification, including nil-only cases, lives in
-  [PR #4631, Literal-Fallback-Inventar](https://github.com/moto-nrw/project-phoenix/pull/4631#literal-fallback-inventar).
+  [PR #4631, Literal-Fallback-Inventar](https://github.com/moto-ogs/project-phoenix/pull/4631#literal-fallback-inventar).
   The #3841 device-PIN chain is now removed; other inventoried debt remains.
   The inventory is not permission to add a fallback.
 

@@ -6,13 +6,13 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/internal/careplanning"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	careplanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/internal/careplanning"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	careplanPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -47,28 +47,23 @@ func New(dependencies Dependencies) (careplan.Owner, error) {
 		Store:            store, Requests: postgres.NewRequestStore(store, dependencies.StudentDirectory),
 		StatusDays:  postgres.NewStatusDayStore(store, dependencies.StatusStudents, dependencies.StatusSlots),
 		Withdrawals: postgres.NewDirectoryStore(store, dependencies.StudentDirectory), Observe: dependencies.Observe, People: dependencies.People,
-		Runtime: engineRuntime{db: dependencies.DB},
+		Runtime: engineRuntime{EngineLocks: postgres.EngineLocks{DB: dependencies.DB}},
 	}), nil
 }
 
-// engineRuntime binds the service's tenant commands and locks to the tenant
-// runtime and the database.
-type engineRuntime struct{ db *bun.DB }
+type AmbientDatabase func(context.Context) (bun.IDB, error)
+
+// engineRuntime binds the registered transaction boundary to the database locks.
+type engineRuntime struct{ postgres.EngineLocks }
 
 func (r engineRuntime) WithinTenant(ctx context.Context, command func(context.Context) error) error {
 	return postgres.EngineRuntimeWithinTenantBinding(ctx, command, tenant.WithinTenant)
 }
 
-func (r engineRuntime) LockStudentAndExceptionDay(ctx context.Context, studentID int64, date string) error {
-	return postgres.LockEngineStudentDay(ctx, r.db, studentID, date)
+// NewExceptionBatch builds a participant over the caller's tenant transaction.
+func NewExceptionBatch(observe func(Observation)) careplan.ExceptionBatchCommands {
+	if observe == nil {
+		panic("care plan exception batch: observer is required")
+	}
+	return application.NewExceptionQueryService(postgres.New(postgres.AmbientCarePlanDatabase), observe)
 }
-
-func (r engineRuntime) LockExceptionDay(ctx context.Context, studentID int64, date string) error {
-	return careplanning.LockExceptionDay(ctx, r.db, studentID, date)
-}
-
-func (r engineRuntime) LockStudent(ctx context.Context, studentID int64) error {
-	return careplanning.LockStudent(ctx, r.db, studentID)
-}
-
-type AmbientDatabase func(context.Context) (bun.IDB, error)

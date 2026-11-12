@@ -9,9 +9,9 @@ import (
 	"strings"
 	"sync"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // systemRoleDisplayNames maps system role raw names to their German display
@@ -95,13 +95,30 @@ type StaffImportConfig struct {
 	// rolesByID keeps the resolved roles so Create can decide whether the row
 	// needs a caregiver profile without a second lookup.
 	rolesByID map[int64]*importModels.SchoolRole
-	// schoolName is the tenant's display name, shown in invitation emails.
-	schoolName string
+	// roleIndex and rolePermissions serve the role validation of one
+	// validation transaction (staff_import_roles.go, #5887).
+	roleIndex           map[string][]*importModels.SchoolRole
+	namedRoles          []int64
+	rolePermissions     map[int64][]string
+	rolePermissionsRead bool
+	// rolePermissionsLost is a failed savepoint statement of that read: the
+	// validation transaction can no longer be trusted (E19).
+	rolePermissionsLost error
+	// schoolName is the tenant's display name, shown in invitation emails;
+	// it is read with the first invitation (schoolNameRead).
+	schoolName     string
+	schoolNameRead bool
 
 	// Existing staff of the tenant, keyed for FindExisting: by lowercased
 	// personnel number and by lowercased "vorname|nachname".
 	staffByPersonnelNumber map[string]*indexedStaff
 	staffByName            map[string][]*indexedStaff
+
+	// lockedStaff and emailMatches belong to the write chunk being applied
+	// (BatchWriteConfig, staff_import_write_batch.go).
+	lockedStaff   map[int64]ports.Staff
+	emailMatches  map[string]staffEmailMatch
+	emailAccounts map[string]int64
 }
 
 // indexedStaff is the in-memory match key of one existing staff member:
@@ -281,6 +298,7 @@ func parseOptionalQualificationDate(raw string) (*timezone.Date, error) {
 // ValidateBatch validates invariants that can only be checked across the full
 // uploaded file: duplicate e-mails and duplicate personnel numbers.
 func (c *StaffImportConfig) ValidateBatch(_ context.Context, rows []importModels.StaffImportRow) map[int][]importModels.ValidationError {
+	c.prepareRolePermissions(rows)
 	seenEmail := make(map[string]int, len(rows))
 	seenPN := make(map[string]int, len(rows))
 	errs := make(map[int][]importModels.ValidationError)
@@ -337,10 +355,10 @@ func (c *StaffImportConfig) validateRole(ctx context.Context, row *importModels.
 	}
 
 	// Existing role names take precedence over display-name aliases.
-	role, err := c.Roles.FindSchoolRoleByName(ctx, name)
+	role, err := c.findRole(ctx, name)
 	if (err == nil && role == nil) || errors.Is(err, importModels.ErrRoleNotFound) {
 		if raw, ok := displayNameToRawRole[strings.ToLower(name)]; ok && raw != name {
-			role, err = c.Roles.FindSchoolRoleByName(ctx, raw)
+			role, err = c.findRole(ctx, raw)
 		}
 	}
 	if err == nil && role != nil {
@@ -373,7 +391,7 @@ func (c *StaffImportConfig) FindExisting(ctx context.Context, row importModels.S
 		}
 	}
 
-	if id, err := c.findStaffByLoginEmail(ctx, row.Email); err != nil || id != nil {
+	if id, err := c.matchedEmail(ctx, row.Email); err != nil || id != nil {
 		return id, err
 	}
 
@@ -592,8 +610,8 @@ func (c *StaffImportConfig) validateResolvedStaffRole(ctx context.Context, row *
 		}}
 	}
 	row.RoleID = role.ID
-	if c.FindRolePermissions != nil {
-		role.Permissions, err = c.FindRolePermissions(ctx, role.ID)
+	if c.FindRolePermissionsByRoleIDs != nil {
+		role.Permissions, err = c.rolePermissionsOf(ctx, role.ID)
 		if err != nil {
 			return []importModels.ValidationError{{
 				Field:    "role",

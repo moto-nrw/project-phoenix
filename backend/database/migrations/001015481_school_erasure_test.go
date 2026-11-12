@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -133,12 +133,26 @@ func TestSchoolErasurePlanCoversCatalogAndDeleteTriggers(t *testing.T) {
 		// removes it (the demo erasure deletes the invoice). Träger data
 		// (scope organization), outside the plan of a school.
 		"parent_billing.care_invoice_corrections:parent_billing.refuse_care_invoice_correction_change",
+		// ADR 0187: a stored PAIN.008 file goes with its members (debits,
+		// notices of its installments, mandates). All are
+		// organization-scoped, outside the school erasure plan; no edge.
+		"parent_billing.care_notices:parent_billing.drop_sepa_debit_files_with_their_members",
 		// #5628: drops a sibling group of a Träger left with one holiday
 		// registration; Träger data, outside the plan of a school.
 		"parent_billing.holiday_sibling_group_members:parent_billing.drop_lone_holiday_sibling_group",
+		"parent_billing.sepa_debits:parent_billing.drop_sepa_debit_files_with_their_members",
+		"parent_billing.sepa_mandates:parent_billing.drop_sepa_debit_files_with_their_members",
+		// ADR 0203: refuses to delete the root of a school or Träger while a
+		// released return package of it is not purged; it writes nothing, so
+		// the plan needs no edge. The data-return grants carry no FK.
+		"platform.organizations:platform.data_return_refuse_open_delete",
+		"platform.schools:platform.data_return_refuse_open_delete",
 		"schedule.activity_instances:calendar.capture_activity_instance_feed_tombstones",
 		"schedule.instance_staff:calendar.capture_instance_staff_feed_tombstone",
 		"schedule.staff_shifts:calendar.capture_staff_shift_feed_tombstone",
+		// #6685: queues the object of a deleted message attachment; the
+		// plan orders the cleanup intents after the attachments.
+		"users.message_attachments:users.queue_message_attachment_cleanup",
 	}, triggers, "review new DELETE side effects and add their sinks to the plan's dependency edges")
 	var foreignKeys int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM pg_constraint WHERE contype='f' AND conrelid='platform.school_erasures'::regclass`).Scan(t.Context(), &foreignKeys))
@@ -489,6 +503,9 @@ func TestEveryTenantTableHasASchoolErasureWriteFence(t *testing.T) {
 func TestSchoolErasureMigrationRoundTripPreservesEvidence(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
+	// The message attachments (1.15.936, #6685) extend the erasure functions
+	// this test restores; they go first.
+	require.NoError(t, messageAttachmentsDown(t.Context(), db))
 	// Roll back the holiday guests first (#4666): their tables and foreign
 	// keys extend the erasure functions the older migrations restore.
 	rollBackHolidayGuests(t, db)

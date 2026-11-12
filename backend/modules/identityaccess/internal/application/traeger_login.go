@@ -6,8 +6,8 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // Träger-Portal sign-in (ADR 0084, #4649). The Träger session has scope org,
@@ -211,13 +211,18 @@ func (s *AccountAuthentication) AssignTraegerRole(ctx context.Context, organizat
 		return identityaccess.ErrTraegerTransactionRequired
 	}
 	// The membership and this grant commit together; an account the erasure
-	// of unused accounts already anonymized gets no Träger access.
-	live, _, err := s.store.LockLiveTraegerAccount(ctx, accountID)
+	// of unused accounts already anonymized gets no Träger access, and a
+	// deactivated one is not reactivated by it (#6535). Both are read under
+	// the account lock, so an offboarding that committed first is seen.
+	live, active, _, err := s.store.LockLiveTraegerAccount(ctx, accountID)
 	if err != nil {
 		return err
 	}
 	if !live {
 		return identityaccess.ErrAccountNotFound
+	}
+	if !active {
+		return identityaccess.ErrAccountInactive
 	}
 	_, err = s.store.InsertTraegerRole(ctx, organizationID, accountID, role)
 	return err
@@ -263,4 +268,13 @@ func (s *AccountAuthentication) EndTraegerSessions(ctx context.Context, organiza
 		return 0, failed("end Träger sessions", err)
 	}
 	return ended, nil
+}
+
+// hasRetainedTraegerMembership is an account lifecycle fact, independent of
+// the stricter membership and organization eligibility used by sign-in.
+func (s *AccountAuthentication) hasRetainedTraegerMembership(ctx context.Context, accountID int64) (bool, error) {
+	if s.traeger == nil {
+		return false, errTraegerMembershipsUnavailable
+	}
+	return s.traeger.HasRetainedTraegerMembership(ctx, accountID)
 }

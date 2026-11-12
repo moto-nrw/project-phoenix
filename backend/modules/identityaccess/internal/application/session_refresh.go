@@ -12,9 +12,9 @@ import (
 
 	"github.com/gofrs/uuid"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 func (s *AccountAuthentication) parseRefreshClaims(refreshToken string) (domain.RefreshClaims, error) {
@@ -85,8 +85,15 @@ func (s *AccountAuthentication) doRefreshTokenWithAudit(ctx context.Context, ref
 		return nil, failed("generate tokens", err)
 	}
 	// Filed at the school the successor is kept at, which the refresh
-	// validated: the route carries no tenant.
-	s.auditSession(ctx, rotated.account.ID, mintAudit{event: domain.AuthEventTokenRefresh, ipAddress: ipAddress, userAgent: userAgent, schoolID: rotated.newSession.TenantID})
+	// validated: the route carries no tenant. A parent session at a Träger
+	// has none, and its account may have none either (ADR 0216).
+	audit := &mintAudit{event: domain.AuthEventTokenRefresh, ipAddress: ipAddress, userAgent: userAgent, schoolID: rotated.newSession.TenantID}
+	if rotated.newSession.SessionKind() == domain.SessionKindTraegerParent {
+		audit = s.schoollessAudit(ctx, rotated.account.ID, domain.AuthEventTokenRefresh, ipAddress, userAgent)
+	}
+	if audit != nil {
+		s.auditSession(ctx, rotated.account.ID, *audit)
+	}
 	return &refreshResult{accessToken: accessToken, refreshToken: refreshTokenString}, nil
 }
 
@@ -154,6 +161,7 @@ type refreshRotation struct {
 	plan              refreshPlan
 	account           domain.LoginAccount
 	payload           *domain.AccountClaimsPayload
+	catererSchoolID   int64
 	newSession        domain.AccountSession
 	recovered         bool
 	rejectAfterCommit error
@@ -215,7 +223,10 @@ func (r *refreshRotation) lockAccount(ctx context.Context) error {
 		return err
 	}
 	r.payload, err = r.service.eligibleClaims(ctx, r.plan.eligible, r.account)
-	return err
+	if err != nil || r.plan.portal.Name != domain.PortalCaterer.Name {
+		return err
+	}
+	return r.lockCatererSessionSchool(ctx, unlocked)
 }
 
 func (r *refreshRotation) presentedSession(ctx context.Context) (domain.AccountSession, error) {
@@ -270,9 +281,13 @@ func (r *refreshRotation) reject(ctx context.Context, session domain.AccountSess
 }
 
 func (r *refreshRotation) persist(ctx context.Context, current domain.AccountSession, wasRecovered bool, now time.Time) error {
-	effectiveTenantID, err := r.plan.successor(ctx, r.account.ID, current)
-	if err != nil {
-		return err
+	effectiveTenantID := r.catererSchoolID
+	if effectiveTenantID == 0 {
+		var err error
+		effectiveTenantID, err = r.plan.successor(ctx, r.account.ID, current)
+		if err != nil {
+			return err
+		}
 	}
 	capped := capLegacyLineage(&current)
 	r.recovered = wasRecovered
@@ -292,7 +307,7 @@ func (r *refreshRotation) persist(ctx context.Context, current domain.AccountSes
 			return err
 		}
 	}
-	_, err = r.service.stampLiveAccount(ctx, r.account.ID)
+	_, err := r.service.stampLiveAccount(ctx, r.account.ID)
 	return err
 }
 
@@ -355,6 +370,9 @@ func (s *AccountAuthentication) createAndPersistSuccessor(ctx context.Context, p
 		MFAVerified:          predecessor.MFAVerified,
 		CreatedAt:            now,
 		UpdatedAt:            now,
+	}
+	if err := s.requireLiveSessionSchool(ctx, tenantID); err != nil {
+		return domain.AccountSession{}, err
 	}
 	created, err := s.sessions.CreateAccountSession(ctx, ports.AccountSession(successor))
 	if err != nil {

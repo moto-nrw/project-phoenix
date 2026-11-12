@@ -3,11 +3,11 @@ package api
 import (
 	"context"
 
-	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
-	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	mealplanModule "github.com/moto-ogs/project-phoenix/modules/mealplan"
+	mealplanCompose "github.com/moto-ogs/project-phoenix/modules/mealplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // parentBillingCareMeals translates the released Mensa months of Meal Plan
@@ -28,8 +28,8 @@ func (m parentBillingCareMeals) MealAttendanceFrom(ctx context.Context, schoolID
 	return m.attendance(ctx, schoolIDs)
 }
 
-func (m parentBillingCareMeals) ReleasedMealMonths(ctx context.Context, organizationID int64, until calendar.Date) ([]parentbilling.CareMealRelease, error) {
-	months, err := m.months.ReleasedMealMonths(ctx, organizationID, until)
+func (m parentBillingCareMeals) ReleasedMealMonths(ctx context.Context, organizationID int64, from, until calendar.Date) ([]parentbilling.CareMealRelease, error) {
+	months, err := m.months.ReleasedMealMonths(ctx, organizationID, from, until)
 	if err != nil {
 		return nil, err
 	}

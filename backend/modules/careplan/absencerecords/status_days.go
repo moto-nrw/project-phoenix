@@ -9,11 +9,15 @@
 package absencerecords
 
 import (
+	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
+
+// ErrSickExcusedConflict rejects a profile patch that leaves both statuses effective.
+var ErrSickExcusedConflict = errors.New("a student cannot be both sick and excused at the same time")
 
 // Broad day statuses. The values are the persisted column values.
 const (
@@ -79,10 +83,12 @@ type StudentStatusDay struct {
 	Note *string `json:"note,omitempty"`
 }
 
-// StudentStatusCounts is the effective dashboard absence count of one day.
+// StudentStatusCounts is the effective dashboard absence buckets of one day.
+// SickIDs and ExcusedIDs are the active students of each bucket, before the
+// dashboard drops the checked-in ones (place before status, #6371).
 type StudentStatusCounts struct {
-	Sick    int
-	Excused int
+	SickIDs    []int64
+	ExcusedIDs []int64
 	// Total is every active student of the tenant, absent or not.
 	Total int
 	// UnaccountedIDs are the active students counted in Total but in neither

@@ -6,15 +6,16 @@ import (
 	"fmt"
 	"log/slog"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // lifecyclePeople are the People Directory commands the lifecycle writes
@@ -228,6 +229,25 @@ func (d staffDirectory) FindStaffByPerson(ctx context.Context, personID int64) (
 		ID: latestRetired.ID, TenantID: latestRetired.TenantID, PersonID: latestRetired.PersonID, Deleted: true,
 		StartedAt: latestRetired.CreatedAt, RetiredAt: latestRetired.DeletedAt, Erased: latestRetired.PersonalDataErasedAt != nil,
 	}, true, nil
+}
+
+// LockStaffPersonMerge shares the school's staff person merge gate, admitted
+// in the unit of work's lock order first (tenant.LockStaffPersonMerge, #6702).
+func (staffDirectory) LockStaffPersonMerge(ctx context.Context) error {
+	return LockStaffPersonMergeShared(ctx)
+}
+
+// LockStaffPersonMergeShared shares the merge gate of the school in context
+// for a writer that creates or adopts a person's staff row (#6702).
+func LockStaffPersonMergeShared(ctx context.Context) error {
+	schoolID := tenant.FromContext(ctx)
+	if tenant.HoldsLock(ctx, tenant.LockStaffPersonMerge, tenant.LockIDKey(schoolID)) {
+		return nil
+	}
+	if err := tenant.OrderLock(ctx, tenant.LockStaffPersonMerge, tenant.LockIDKey(schoolID)); err != nil {
+		return err
+	}
+	return tenant.AcquireLock(ctx, peopledirectory.StaffPersonMergeLockKey(schoolID), true)
 }
 
 // CreateStaff creates the staff row at the school in context, which is the

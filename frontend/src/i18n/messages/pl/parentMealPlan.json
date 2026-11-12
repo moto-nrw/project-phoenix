@@ -1,5 +1,5 @@
 {
-  "kicker": "Posiłki w OGS",
+  "kicker": "Posiłki w {careTerm}",
   "title": "Obiad",
   "subtitle": "Tu widzą Państwo, kiedy Państwa dziecko je obiad i co będzie podane.",
   "subtitleMealsOnly": "Tu widzą Państwo, co będzie podane.",
@@ -14,7 +14,7 @@
   "loading": "Ładowanie jadłospisu",
   "emptyThisWeekTitle": "Na ten tydzień nie ma jeszcze jadłospisu",
   "emptyNextWeekTitle": "Na przyszły tydzień nie ma jeszcze jadłospisu",
-  "emptyWeek": "Gdy OGS wpisze jadłospis, zobaczą go Państwo tutaj.",
+  "emptyWeek": "Gdy {careTerm} wpisze jadłospis, zobaczą go Państwo tutaj.",
   "weekNavigation": "Zmień tydzień",
   "previousWeek": "Poprzedni tydzień",
   "calendarWeek": "Tydzień {week}",
@@ -46,7 +46,7 @@
   "notRegistered": "Niezapisane na obiad",
   "cancelledBySickNote": "Wypisane przez zgłoszenie choroby",
   "cancelledByAbsence": "Wypisane, bo dziecko jest nieobecne",
-  "closedDay": "W tym dniu świetlica jest zamknięta",
+  "closedDay": "W tym dniu {careTerm} jest zamknięta",
   "participationUnavailable": "Zapis nie został wczytany",
   "mealUnavailable": "Posiłek nie został wczytany",
   "singleChange": "Zmienione tylko na ten dzień",
@@ -76,7 +76,5 @@
   "registerWeekDone": "Zapisano na cały tydzień.",
   "registerWeekLocked": "Termin zapisu na te dni minął, pozostają niezapisane: {days}.",
   "errorObjectWeekCancel": "wypisania z tygodnia",
-  "errorObjectWeekRegister": "zapisu na tydzień",
-  "participationCutoffLead": "Zapis można zmienić do godziny {time} {days, plural, one {w dniu roboczym przed posiłkiem} few {# dni robocze przed posiłkiem} many {# dni roboczych przed posiłkiem} other {# dnia roboczego przed posiłkiem}}.",
-  "participationSicknessLead": "Potwierdzone zgłoszenie choroby do godziny {time} {days, plural, one {w dniu roboczym przed posiłkiem} few {# dni robocze przed posiłkiem} many {# dni roboczych przed posiłkiem} other {# dnia roboczego przed posiłkiem}} wypisuje Państwa dziecko z obiadu. Po tym terminie zapis pozostaje bez zmian."
+  "errorObjectWeekRegister": "zapisu na tydzień"
 }

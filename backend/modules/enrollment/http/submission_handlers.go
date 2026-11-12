@@ -8,13 +8,13 @@ import (
 	"strconv"
 	"strings"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // SubmitChildRequest is the wire shape for a single child within the
@@ -35,6 +35,7 @@ type SubmitChildRequest struct {
 	DateOfBirth       string                  `json:"date_of_birth"`
 	TargetGradeLevel  *int16                  `json:"target_grade_level,omitempty"`
 	TargetSchoolClass *string                 `json:"target_school_class,omitempty"`
+	HolidayCareWish   *bool                   `json:"holiday_care_wish,omitempty"`
 	CustomData        map[string]any          `json:"custom_data,omitempty"`
 	OfferingIDs       []int64                 `json:"offering_ids,omitempty"`
 	OfferingDays      []SubmitOfferingDaysRow `json:"offering_days,omitempty"`
@@ -247,6 +248,7 @@ func buildServiceRequest(wireReq *SubmitEnrollmentRequest, tenantID int64, remot
 			DateOfBirth:       dob,
 			TargetGradeLevel:  c.TargetGradeLevel,
 			TargetSchoolClass: c.TargetSchoolClass,
+			HolidayCareWish:   c.HolidayCareWish,
 			CustomData:        formValues(c.CustomData),
 			OfferingIDs:       c.OfferingIDs,
 			OfferingDays:      offeringDays,

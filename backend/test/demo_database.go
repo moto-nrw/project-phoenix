@@ -7,10 +7,10 @@ import (
 	"os"
 	"testing"
 
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	"github.com/moto-nrw/project-phoenix/internal/testdb"
+	"github.com/moto-ogs/project-phoenix/internal/testdb"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
@@ -61,5 +61,5 @@ func AssertRestrictedDemoUnit(t *testing.T, db *bun.DB) {
 	}))
 	regular := NewDatabase(t, db)
 	ctx = tenant.WithUnitOfWork(t.Context(), regular.UnitOfWork())
-	require.ErrorContains(t, tenant.WithinAdmin(ctx, func(context.Context) error { return nil }), "permission denied to set role")
+	require.Equal(t, "42501", PostgresSQLState(tenant.WithinAdmin(ctx, func(context.Context) error { return nil })))
 }

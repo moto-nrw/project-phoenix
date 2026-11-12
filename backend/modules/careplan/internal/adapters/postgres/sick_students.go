@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
@@ -21,8 +21,10 @@ type sickStudents struct {
 	admin       func(context.Context) bool
 }
 
+// sickDayStudentIDsSQL reads the sick days that stand for the day: active or
+// archived at its end, as the dashboard and the day log read them (#6291).
 const sickDayStudentIDsSQL = `SELECT DISTINCT tenant_id, student_id AS id FROM active.student_status_days
-WHERE tenant_id = ANY(?) AND date = ?::date AND status = 'sick' AND cleared_at IS NULL`
+WHERE tenant_id = ANY(?) AND date = ?::date AND status = 'sick' AND (cleared_at IS NULL OR source = '` + statusSourceEndDay + `')`
 
 const sickFlagMembershipIDsSQL = `SELECT tenant_id, membership_id AS id FROM users.student_care_profiles
 WHERE tenant_id = ANY(?) AND sick`

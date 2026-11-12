@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // whileHoldingGates takes the tenant gates with hold on one connection, runs
@@ -68,6 +68,34 @@ func gatedDecisionTest(t *testing.T) (*decisionTestEnv, func(context.Context) er
 	bookings := newBookingsForTest(base.rolloverTestEnv, nil, lock, nil)
 	decision := newDecisionServiceForTestWithBookings(t, base.rolloverTestEnv, bookings, nil, lock, nil, nil)
 	return &decisionTestEnv{rolloverTestEnv: base.rolloverTestEnv, decision: decision, bookings: bookings}, lock
+}
+
+// A standalone sync must wait for the gates before its parent guard locks
+// the student. A class writer already holding the gates still needs that row.
+func TestApprovedChildSyncTakesGatesBeforeGuardianAuthority(t *testing.T) {
+	t.Parallel()
+	testpkg.SetupIsolatedTestDB(t)
+	rig := setupPinGuardRig(t, "SyncGates")
+	rig.decideOutcome(t, rig.approval())
+	lock := owners.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, rig.db)).LockRecurrenceWrites
+	bookings := newBookingsForTest(rig.rolloverTestEnv, nil, lock, nil)
+	decision := newDecisionServiceForTestWithBookings(t, rig.rolloverTestEnv, bookings, nil, lock, nil, nil)
+	applier := enrollmentAPI.ChangeRequestApplierForTest(decisionOwner(t, decision))
+
+	classErr, syncErr := whileHoldingGates(t, rig.db, bookings.LockOfferingDerivedWrites,
+		func(ctx context.Context) error {
+			_, err := applier.SyncApprovedChildData(ctx, enrollmentAPI.SyncApprovedChildDataInput{
+				RequestID: rig.submitted.Request.ID, ChildID: rig.submitted.Children[0].ID, ActorAccountID: rig.creatorID,
+			})
+			return err
+		},
+		func(ctx context.Context) error {
+			_, err := rig.repos.Student.FindByIDForUpdate(ctx, rig.f.studentID)
+			return err
+		},
+	)
+	require.NoError(t, classErr, "the class writer must acquire the student without a deadlock")
+	require.NoError(t, syncErr, "the sync must finish after the class writer commits")
 }
 
 // A change-request approval and the approval of a sibling child of the same

@@ -8,12 +8,12 @@ import (
 	"log/slog"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
-	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync/internal/application"
-	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync/ports"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/workflows/shiftplansync"
+	"github.com/moto-ogs/project-phoenix/workflows/shiftplansync/internal/application"
+	"github.com/moto-ogs/project-phoenix/workflows/shiftplansync/ports"
 )
 
 // SickCascadeDependencies are the surfaces the #1843 cascade writes across:
@@ -41,6 +41,7 @@ type SickCascadeDependencies struct {
 	Planning        workforce.StaffShiftPlanning
 	Workforce       workforce.Capability
 	LockStaffShifts func(ctx context.Context, staffID int64) error
+	LockStaff       func(ctx context.Context, staffIDs []int64) error
 
 	// Deviations are the Timetable owner's sick-report writes
 	// (timetable.StaffDeviations satisfies them).
@@ -63,22 +64,21 @@ func NewSickCascade(deps SickCascadeDependencies) (shiftplansync.SickCascade, er
 	if missing := application.MissingNames(map[string]bool{
 		"Planning":        deps.Planning != nil,
 		"Workforce":       deps.Workforce != nil,
-		"LockStaffShifts": deps.LockStaffShifts != nil,
-		"Deviations":      deps.Deviations != nil,
-		"TimetableData":   deps.TimetableData != nil,
-		"InstanceStaff":   deps.InstanceStaff != nil,
+		"LockStaffShifts": deps.LockStaffShifts != nil, "LockStaff": deps.LockStaff != nil,
+		"Deviations":    deps.Deviations != nil,
+		"TimetableData": deps.TimetableData != nil,
+		"InstanceStaff": deps.InstanceStaff != nil,
 	}); len(missing) > 0 {
 		return nil, fmt.Errorf("shift plan sync compose: sick cascade needs %s", strings.Join(missing, ", "))
 	}
 	return application.NewSickCascade(application.SickCascadeDependencies{
 		Shifts: application.Shifts{StaffShiftPlanning: deps.Planning, Lock: deps.LockStaffShifts,
 			ShiftQuery: deps.Workforce, StaffShiftCommand: deps.Workforce},
-		Deviations:    deps.Deviations,
+		Absences: deps.Workforce, Deviations: deps.Deviations,
 		TimetableData: deps.TimetableData,
 		InstanceStaff: deps.InstanceStaff,
-		Broadcaster:   deps.Broadcaster,
-		Logger:        deps.Logger,
-		Today:         deps.Today,
+		Broadcaster:   deps.Broadcaster, Logger: deps.Logger,
+		Today: deps.Today, LockStaff: deps.LockStaff,
 	}), nil
 }
 

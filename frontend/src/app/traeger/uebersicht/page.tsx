@@ -38,7 +38,7 @@ import {
 } from "~/components/traeger/use-open-traeger-school";
 import { useTraegerSchoolsAlerts } from "~/components/traeger/use-traeger-schools-alerts";
 import { SpinnerIcon } from "~/components/ui/icons";
-import { useMediaQuery } from "~/lib/hooks/use-media-query";
+import { between, useMediaQuery } from "~/lib/hooks/use-media-query";
 import {
   ALERT_LABELS,
   alertSentence,
@@ -281,9 +281,8 @@ function figureColumns(
         <span className="text-sm text-gray-900 tabular-nums">
           {hasAlert(alerts, school, "sick_children") ? (
             <StatusBadge
-              tone="orange"
+              tone="warning"
               size="xs"
-              icon={TriangleAlert}
               label={String(school.figures.childrenSick)}
               accessibleLabel=", erreicht Ihre Grenze"
             />
@@ -302,9 +301,8 @@ function figureColumns(
         <span className="text-sm text-gray-900 tabular-nums">
           {hasAlert(alerts, school, "staff_shortage") ? (
             <StatusBadge
-              tone="orange"
+              tone="warning"
               size="xs"
-              icon={TriangleAlert}
               label={String(school.figures.staffPresent)}
               accessibleLabel=", erreicht Ihre Grenze"
             />
@@ -335,9 +333,8 @@ function figureColumns(
           <span className="text-sm font-semibold text-gray-900 tabular-nums">
             {hasAlert(alerts, school, "staff_shortage") ? (
               <StatusBadge
-                tone="orange"
+                tone="warning"
                 size="xs"
-                icon={TriangleAlert}
                 label={formatRatio(school.figures.careRatio)}
                 accessibleLabel=", erreicht Ihre Grenze"
               />
@@ -366,9 +363,8 @@ function figureColumns(
           <span className="text-sm text-gray-900 tabular-nums">
             {hasAlert(alerts, school, "open_enrollments") ? (
               <StatusBadge
-                tone="orange"
+                tone="warning"
                 size="xs"
-                icon={TriangleAlert}
                 label={String(open)}
                 accessibleLabel=", erreicht Ihre Grenze"
               />
@@ -473,9 +469,7 @@ export default function TraegerDashboardPage() {
   // Between md and xl the table has no room for the action's words: the
   // figures would slide under the pinned column. The icon keeps its full
   // name for screen readers and as a tooltip.
-  const iconAction = useMediaQuery(
-    "(min-width: 768px) and (max-width: 1279px)",
-  );
+  const iconAction = useMediaQuery(between("md", "xl"));
   const columns = useMemo<DataTableColumn<TraegerSchoolToday>[]>(() => {
     const figures = figureColumns(alertsBySchool, alerts !== null);
     return canOpen
@@ -598,7 +592,7 @@ export default function TraegerDashboardPage() {
           titleBadge={
             affected.length > 0 ? (
               <StatusBadge
-                tone="orange"
+                tone="warning"
                 label={schoolCountLabel(affected.length)}
               />
             ) : undefined

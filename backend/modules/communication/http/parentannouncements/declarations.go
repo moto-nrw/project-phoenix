@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	announcementService "github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	announcementService "github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // Erklärungen (#3430): the staff status and the proof export.
@@ -19,7 +19,6 @@ import (
 type declarationSettingsRequest struct {
 	Kind             string `json:"declaration_kind,omitempty"`
 	Signers          string `json:"declaration_signers,omitempty"`
-	Revocable        bool   `json:"declaration_revocable,omitempty"`
 	RequiresPassword bool   `json:"declaration_requires_password,omitempty"`
 	// RequiresSignature asks guardians to sign their consent (#4785).
 	RequiresSignature bool `json:"declaration_requires_signature,omitempty"`
@@ -32,7 +31,6 @@ func (d declarationSettingsRequest) settings() announcementService.ParentDeclara
 type declarationSettingsResponse struct {
 	Kind              string `json:"declaration_kind,omitempty"`
 	Signers           string `json:"declaration_signers,omitempty"`
-	Revocable         *bool  `json:"declaration_revocable,omitempty"`
 	RequiresPassword  *bool  `json:"declaration_requires_password,omitempty"`
 	RequiresSignature *bool  `json:"declaration_requires_signature,omitempty"`
 	LockedAttachments *bool  `json:"declaration_locked_attachments,omitempty"`
@@ -42,11 +40,11 @@ func toDeclarationSettingsResponse(a *announcementService.ParentAnnouncement) de
 	if a.Declaration.Kind == "" {
 		return declarationSettingsResponse{}
 	}
-	revocable, password, locked := a.Declaration.Revocable, a.Declaration.RequiresPassword, a.DeclarationFrozen
+	password, locked := a.Declaration.RequiresPassword, a.DeclarationFrozen
 	signature := a.Declaration.RequiresSignature
 	return declarationSettingsResponse{
 		Kind: a.Declaration.Kind, Signers: a.Declaration.Signers,
-		Revocable: &revocable, RequiresPassword: &password, RequiresSignature: &signature, LockedAttachments: &locked,
+		RequiresPassword: &password, RequiresSignature: &signature, LockedAttachments: &locked,
 	}
 }
 
@@ -127,7 +125,6 @@ func toDeclarationSignatureResponse(s *announcementService.DeclarationSignature)
 type declarationStatusResponse struct {
 	Kind              string                          `json:"kind"`
 	Signers           string                          `json:"signers"`
-	Revocable         bool                            `json:"revocable"`
 	RequiresPassword  bool                            `json:"requires_password"`
 	RequiresSignature bool                            `json:"requires_signature"`
 	Deadline          *time.Time                      `json:"deadline"`
@@ -160,7 +157,7 @@ func toDeclarationVersionResponse(v announcementService.DeclarationVersion) decl
 
 func toDeclarationStatusResponse(s *announcementService.ParentDeclarationStatus) declarationStatusResponse {
 	out := declarationStatusResponse{
-		Kind: s.Settings.Kind, Signers: s.Settings.Signers, Revocable: s.Settings.Revocable,
+		Kind: s.Settings.Kind, Signers: s.Settings.Signers,
 		RequiresPassword: s.Settings.RequiresPassword, RequiresSignature: s.Settings.RequiresSignature,
 		Deadline: s.Deadline, IntegrityOK: s.IntegrityAllGood,
 		Versions: []declarationVersionResponse{}, Children: []declarationChildResponse{},

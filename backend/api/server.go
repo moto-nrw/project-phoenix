@@ -12,20 +12,20 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/deviceauth"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/analytics"
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
-	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/analytics"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	schedulerPorts "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/observability"
+	"github.com/moto-ogs/project-phoenix/realtime"
 	"github.com/spf13/viper"
 )
 
@@ -252,13 +252,14 @@ func composeProcess(config ServeConfig, db transactionruntime.Database, tracker 
 	observability.RegisterDBStatsProvider(func() observability.DBStats {
 		stats := db.Capacity()
 		return observability.DBStats{
-			OpenConnections:   stats.OpenConnections,
-			InUse:             stats.InUse,
-			Idle:              stats.Idle,
-			WaitCount:         stats.WaitCount,
-			WaitDuration:      stats.WaitDuration,
-			MaxIdleClosed:     stats.MaxIdleClosed,
-			MaxLifetimeClosed: stats.MaxLifetimeClosed,
+			MaxOpenConnections: stats.MaxOpenConnections,
+			OpenConnections:    stats.OpenConnections,
+			InUse:              stats.InUse,
+			Idle:               stats.Idle,
+			WaitCount:          stats.WaitCount,
+			WaitDuration:       stats.WaitDuration,
+			MaxIdleClosed:      stats.MaxIdleClosed,
+			MaxLifetimeClosed:  stats.MaxLifetimeClosed,
 		}
 	})
 	documentPermissions := studentDocumentPermissions()

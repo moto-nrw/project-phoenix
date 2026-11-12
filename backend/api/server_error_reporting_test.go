@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"database/sql"
 	"errors"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -12,7 +14,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/common"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -121,6 +123,7 @@ func TestServerErrorsBecomeExactlyOneSentryEvent(t *testing.T) {
 			require.Len(t, events, 1, "a 5xx answer must produce exactly one Sentry event")
 			event := events[0]
 			assert.Equal(t, sentry.LevelError, event.Level)
+			assert.NotContains(t, event.Tags, "client_canceled")
 			assert.Equal(t, "/api/students/{id}", event.Transaction)
 			if tc.exception != "" {
 				require.NotEmpty(t, event.Exception)
@@ -133,7 +136,9 @@ func TestServerErrorsBecomeExactlyOneSentryEvent(t *testing.T) {
 	}
 }
 
-// Client errors and requests the client gave up on are no server errors.
+// Client errors and the 499 for a request the client gave up on are no
+// server errors. A 5xx after the client canceled still is one; see
+// TestClientCanceledServerErrorsBecomeOneWarningEvent.
 func TestClientErrorsAndCanceledRequestsProduceNoSentryEvent(t *testing.T) {
 	t.Parallel()
 
@@ -164,22 +169,68 @@ func TestClientErrorsAndCanceledRequestsProduceNoSentryEvent(t *testing.T) {
 			assert.Empty(t, events)
 		})
 	}
+}
 
-	t.Run("500 after the client canceled", func(t *testing.T) {
-		t.Parallel()
+// A 5xx answer stays a server error when the client went away meanwhile: the
+// owner wants every one in Sentry. It arrives as a warning tagged
+// client_canceled, so it can be filtered and does not page like a defect.
+// Production answered these with the cause the unit of work gave for the
+// commit it could no longer finish, or with context.Canceled itself.
+func TestClientCanceledServerErrorsBecomeOneWarningEvent(t *testing.T) {
+	t.Parallel()
 
-		ctx, cancel := context.WithCancel(context.Background())
-		req := httptest.NewRequest(http.MethodGet, "/api/students/42", nil).WithContext(ctx)
-		code, events := serveWithRecordingSentry(t, func(router chi.Router) {
-			router.Get("/api/students/{id}", func(w http.ResponseWriter, _ *http.Request) {
-				cancel()
-				http.Error(w, "canceled", http.StatusInternalServerError)
-			})
-		}, req)
+	cases := []struct {
+		name    string
+		cause   error
+		message string
+	}{
+		{
+			name:    "commit outcome unknown",
+			cause:   fmt.Errorf("unit of work: commit outcome unknown: %w", sql.ErrTxDone),
+			message: "unit of work: commit outcome unknown: sql: transaction has already been committed or rolled back",
+		},
+		{
+			name:    "context canceled",
+			cause:   context.Canceled,
+			message: "context canceled",
+		},
+		{
+			name: "no recorded cause",
+		},
+	}
 
-		require.Equal(t, http.StatusInternalServerError, code)
-		assert.Empty(t, events)
-	})
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			t.Parallel()
+
+			ctx, cancel := context.WithCancel(context.Background())
+			req := httptest.NewRequest(http.MethodGet, "/api/sse/events", nil).WithContext(ctx)
+			code, events := serveWithRecordingSentry(t, func(router chi.Router) {
+				router.Get("/api/sse/events", func(w http.ResponseWriter, r *http.Request) {
+					cancel()
+					if tc.cause == nil {
+						http.Error(w, "canceled", http.StatusInternalServerError)
+						return
+					}
+					common.RenderError(w, r, common.ErrorInternalServer(tc.cause))
+				})
+			}, req)
+
+			require.Equal(t, http.StatusInternalServerError, code, "the answer itself does not change")
+			require.Len(t, events, 1, "a 5xx answer must produce exactly one Sentry event, also after the client canceled")
+			event := events[0]
+			assert.Equal(t, sentry.LevelWarning, event.Level)
+			assert.Equal(t, "true", event.Tags["client_canceled"])
+			assert.Equal(t, "500", event.Tags["http.status_code"])
+			assert.Equal(t, "/api/sse/events", event.Transaction)
+			if tc.cause == nil {
+				assert.Equal(t, "HTTP 500 GET /api/sse/events", event.Message)
+				return
+			}
+			require.NotEmpty(t, event.Exception)
+			assert.Equal(t, tc.message, event.Exception[len(event.Exception)-1].Value)
+		})
+	}
 }
 
 // Issue #3645: the error-report relay's 502 for an unreachable Sentry is the

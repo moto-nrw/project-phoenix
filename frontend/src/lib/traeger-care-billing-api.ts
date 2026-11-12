@@ -42,7 +42,7 @@ import {
 } from "./traeger-billing-api";
 
 export type CareWeekday = "mon" | "tue" | "wed" | "thu" | "fri" | "sat" | "sun";
-export type CareRunStatus = "calculated" | "released";
+export type CareRunStatus = "calculated" | "released" | "discarded";
 export type CareMonthRule = "version_on_first" | "pro_rata";
 
 export const CARE_WEEKDAYS: readonly CareWeekday[] = [
@@ -141,6 +141,8 @@ export interface CareRun {
   readonly schoolIds: readonly string[];
   /** The invoice date of the run; null takes the day of the release. */
   readonly invoiceDate: string | null;
+  /** When the Abrechnung discarded the empty open run (#6626). */
+  readonly discardedAt: string | null;
 }
 
 export interface CareRunList {
@@ -425,6 +427,18 @@ export interface CareRunDetail extends CareRun {
   readonly legalRemedyMissing?: boolean;
   /** What each cost bearer pays of the invoices (#4687). */
   readonly costBearers: readonly CareCostBearerTotal[];
+  /**
+   * Children whose Jahresbescheid an amendment set to 0,00 € for the month:
+   * the month stays locked, only a new notice bills it (ADR 0182, #6219).
+   */
+  readonly feeNoticeHeld?: readonly CareFeeNoticeHold[];
+}
+
+export interface CareFeeNoticeHold {
+  readonly contractId: string;
+  readonly childFirstName: string;
+  readonly childLastName: string;
+  readonly noticeNumber: string;
 }
 
 interface BackendModule {
@@ -474,6 +488,7 @@ interface BackendRun {
   month_rule: CareMonthRule | "";
   school_ids?: number[] | null;
   invoice_date?: string | null;
+  discarded_at?: string | null;
 }
 
 interface BackendInvoice {
@@ -686,6 +701,14 @@ export interface BackendRunDetail extends BackendRun {
         amount_cents: number;
       }[]
     | null;
+  fee_notice_held?:
+    | {
+        contract_id: number;
+        child_first_name: string;
+        child_last_name: string;
+        notice_number: string;
+      }[]
+    | null;
 }
 
 const TARIFFS_PATH = "/api/traeger/care-tariffs";
@@ -746,6 +769,7 @@ function runFromBackend(run: BackendRun): CareRun {
     monthRule: run.month_rule,
     schoolIds: (run.school_ids ?? []).map(id),
     invoiceDate: run.invoice_date ?? null,
+    discardedAt: run.discarded_at ?? null,
   };
 }
 
@@ -887,6 +911,12 @@ export function detailFromBackend(detail: BackendRunDetail): CareRunDetail {
       invoiceCount: total.invoice_count,
       amountCents: total.amount_cents,
     })),
+    feeNoticeHeld: (detail.fee_notice_held ?? []).map((hold) => ({
+      contractId: id(hold.contract_id),
+      childFirstName: hold.child_first_name,
+      childLastName: hold.child_last_name,
+      noticeNumber: hold.notice_number,
+    })),
   };
 }
 
@@ -1001,6 +1031,20 @@ export async function releaseCareRun(
   );
 }
 
+/**
+ * Discards an open run that has nothing to issue or to settle (#6626). The
+ * server checks under the lock of the release; a run with content is refused
+ * (409).
+ */
+export async function discardCareRun(runId: string): Promise<CareRunDetail> {
+  return detailFromBackend(
+    await traegerRequest<BackendRunDetail>(
+      `${RUNS_PATH}/${encodeURIComponent(runId)}/discard`,
+      { method: "POST" },
+    ),
+  );
+}
+
 // The letters of a released monthly run (#4684): one letter per invoice and
 // per Storno of a sent invoice, the mail of each letter, the print and the
 // Storno itself.
@@ -1067,7 +1111,7 @@ export interface CareLetterMailing {
  * The letters of a run by the state of their last mail. `notSent` includes
  * `withoutEmail`, the letters of families without an address.
  */
-export interface CareLetterSummary {
+interface CareLetterSummary {
   readonly letters: number;
   readonly sent: number;
   readonly queued: number;

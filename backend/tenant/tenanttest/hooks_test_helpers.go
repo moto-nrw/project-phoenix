@@ -10,7 +10,7 @@ package tenanttest
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/tenant/internal/testseam"
+	"github.com/moto-ogs/project-phoenix/tenant/internal/testseam"
 )
 
 // WithTransaction installs an adapter transaction for tests that need to
@@ -25,23 +25,8 @@ func WithTransaction(ctx context.Context, tx any) context.Context {
 // tenant.RegisterAfterCommit without a real database. The returned drain runs
 // the queued hooks the same way the outermost transaction does on COMMIT.
 func WithAfterCommitHooks(ctx context.Context) (context.Context, func()) {
-	requireLinked(testseam.WithTransactionHooks != nil)
-	newCtx, commit, _ := testseam.WithTransactionHooks(ctx)
-	return newCtx, commit
-}
-
-// WithTransactionHooks exposes both transaction outcomes to tests of
-// components that must compensate an external side effect on rollback.
-func WithTransactionHooks(ctx context.Context) (context.Context, func(), func()) {
-	requireLinked(testseam.WithTransactionHooks != nil)
-	return testseam.WithTransactionHooks(ctx)
-}
-
-// RegisterAfterRollback queues fn to run if the surrounding tenant transaction
-// does not commit. Outside a transaction the callback is ignored.
-func RegisterAfterRollback(ctx context.Context, fn func()) {
-	requireLinked(testseam.RegisterAfterRollback != nil)
-	testseam.RegisterAfterRollback(ctx, fn)
+	requireLinked(testseam.WithAfterCommitHooks != nil)
+	return testseam.WithAfterCommitHooks(ctx)
 }
 
 // requireLinked fails loudly when the tenant package, whose init fills

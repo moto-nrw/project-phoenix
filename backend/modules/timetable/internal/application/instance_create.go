@@ -8,13 +8,13 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
-	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain"
+	scheduleModel "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // CreateInstance inserts a block and optionally pre-assigns staff and children. The
@@ -67,6 +67,9 @@ func (s *InstanceLifecycleService) createInTenantTransaction(
 	if err != nil {
 		return nil, &ports.ScheduleError{Op: "create instance: validate references", Err: err}
 	}
+	if err := s.lockCreatedInstanceDayAndStaff(ctx, req); err != nil {
+		return nil, err
+	}
 	inst := newActivityInstance(tenantID, req, idempotencyFingerprint)
 	inst.TemplateType = templateType
 	result, inserted, err := s.insertCreatedInstance(ctx, inst)
@@ -78,6 +81,24 @@ func (s *InstanceLifecycleService) createInTenantTransaction(
 	}
 	s.logCreatedInstance(ctx, inst, req)
 	return inst, nil
+}
+
+// lockCreatedInstanceDayAndStaff takes the block's day and then every
+// submitted person, ascending, before the block row and its first
+// assignment (#6702). A spontaneous start takes the day again right after
+// the create, and a day after a staff row is against the lock order; two
+// creates naming the same people in another order would otherwise hold one
+// each and wait for the other.
+func (s *InstanceLifecycleService) lockCreatedInstanceDayAndStaff(ctx context.Context, req timetable.CreateInstanceInput) error {
+	if s.deps.Database != nil {
+		if err := s.acquireSubstituteDayLock(ctx, req.Date); err != nil {
+			return &ports.ScheduleError{Op: "create instance: lock day", Err: err}
+		}
+	}
+	if err := lockStaffRows(ctx, s.deps.InstanceStaffRepo, domain.UniquePositiveIDs(req.StaffIDs)); err != nil {
+		return &ports.ScheduleError{Op: "create instance: lock staff", Err: err}
+	}
+	return nil
 }
 
 // replayIdempotentCreate returns the block an earlier request with the same
@@ -209,11 +230,16 @@ func (s *InstanceLifecycleService) findCreateByIdempotencyKey(ctx context.Contex
 }
 
 func (s *InstanceLifecycleService) assignCreatedInstanceRoster(ctx context.Context, inst *scheduleModel.ActivityInstance, req timetable.CreateInstanceInput, tenantID int64) error {
+	day := calendar.Date(inst.Date)
+	sickDays, err := sickDaysIn(ctx, s.deps.SickReports, day)
+	if err != nil {
+		return err
+	}
 	for _, staffID := range domain.UniquePositiveIDs(req.StaffIDs) {
 		// A nil RoomID falls back to the block's room at runtime.
 		row := &scheduleModel.InstanceStaff{InstanceID: inst.ID, StaffID: staffID, IsPrimary: false}
 		row.SetTenantID(tenantID)
-		if err := createLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, row); err != nil {
+		if err := writeStaffAssignment(ctx, s.deps.InstanceStaffRepo, row, day, sickDays, false); err != nil {
 			return &ports.ScheduleError{Op: "create instance: assign staff", Err: err}
 		}
 	}

@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -28,6 +28,9 @@ const (
 // TestVisitorTraceCountsCountEveryRowHoldingTheVisitor fails when a row
 // leaveVisitorTraces writes holds the name and no count reads it (#6015).
 var visitorTraceCounts = map[string]string{
+	"calendar.holiday_closure_proposals":      `SELECT count(*) FROM calendar.holiday_closure_proposals WHERE tenant_id = ?0`,
+	"calendar.holiday_closure_events":         `SELECT count(*) FROM calendar.holiday_closure_events WHERE tenant_id = ?0`,
+	"calendar.holiday_closure_authorizations": `SELECT count(*) FROM calendar.holiday_closure_authorizations WHERE tenant_id = ?0`,
 	"users.persons": `SELECT count(*) FROM users.persons
 		WHERE tenant_id = ?0 AND first_name = '` + visitorFirst + `' AND last_name = '` + visitorLast + `'`,
 	"users.guardian_profiles": `SELECT count(*) FROM users.guardian_profiles
@@ -81,6 +84,15 @@ var visitorTraceCounts = map[string]string{
 	// (ADR 0158 E5); the visitor's child carries the visitor's last name.
 	"parent_billing.care_run_holds": `SELECT count(*) FROM parent_billing.care_run_holds
 		WHERE school_ids @> ARRAY[?0]::bigint[] AND child_last_name = '` + visitorLast + `'`,
+	// The Jahresbescheid of the contract copies child and recipient (#6219)
+	// and outlives the contract; its month keeps the recipient in its
+	// snapshot. A notice without a name and the read of its run name no one;
+	// careNoticeRows counts them.
+	"parent_billing.care_notices": `SELECT count(*) FROM parent_billing.care_notices
+		WHERE school_id = ?0 AND recipient->>'first_name' = '` + visitorFirst + `' AND recipient->>'last_name' = '` + visitorLast + `'`,
+	"parent_billing.care_notice_months": `SELECT count(*) FROM parent_billing.care_notice_months AS month
+		JOIN parent_billing.care_notices AS notice ON notice.organization_id = month.organization_id AND notice.id = month.notice_id
+		WHERE notice.school_id = ?0 AND month.snapshot->'invoice'->'recipient'->>'last_name' = '` + visitorLast + `'`,
 	// The Mensa month the school released (#4686) copies the names of its
 	// children; the visitor's child carries the visitor's last name. It
 	// belongs to the Träger and outlives the school.
@@ -137,6 +149,7 @@ func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccount
 	require.NoError(t, err)
 	_, err = db.NewRaw(`UPDATE users.guardian_profiles SET account_id = ?, has_account = true WHERE id = ?`, parent.ID, guardian.ID).Exec(ctx)
 	require.NoError(t, err)
+	leaveVisitorClosureAuthorization(t, db, schoolID, caregiver.ID)
 	testpkg.CreateTestStudentGuardianLinkForTenant(t, db, schoolID, student.ID, guardian.ID, "primary_guardian")
 	for _, statement := range []string{
 		`WITH phase AS (
@@ -239,6 +252,42 @@ func leaveVisitorTraces(t *testing.T, db *bun.DB, schoolID int64) visitorAccount
 			RETURNING id, organization_id, care_contract_id)
 		INSERT INTO parent_billing.family_billing_events (organization_id, family_billing_id, care_contract_id, action)
 		SELECT organization_id, id, care_contract_id, 'save' FROM family`,
+		// The Träger assessed Mia's year in a Jahresbescheid (#6219): one
+		// notice names the visitor, a second one of another year names no
+		// one; the read of the run names the contract.
+		`WITH contract AS (
+			SELECT id, organization_id FROM care_contract.contracts WHERE school_id = ?0),
+		run AS (
+			INSERT INTO parent_billing.care_notice_runs (organization_id, billing_year, period_from, period_until, school_ids,
+				status, released_at, issued_on, notice_count, total_cents)
+			SELECT organization_id, 2026, DATE '2026-09-01', DATE '2026-12-31', ARRAY[?0]::bigint[], 'released', NOW(),
+				DATE '2026-09-24', 2, 12800
+			FROM contract RETURNING id, organization_id),
+		event AS (
+			INSERT INTO parent_billing.care_notice_run_events (organization_id, run_id, action, details)
+			SELECT run.organization_id, run.id, 'read', jsonb_build_object('contract_ids', jsonb_build_array(contract.id))
+			FROM run JOIN contract ON contract.organization_id = run.organization_id),
+		notice AS (
+			INSERT INTO parent_billing.care_notices (organization_id, run_id, number, number_year, number_sequence, issued_on,
+				billing_year, kind, care_contract_id, school_id, school_name, child_first_name, child_last_name, recipient_email,
+				family_email, recipient, payment_method, period_from, period_until, lines, previous_cents, total_cents,
+				delta_cents, legal_remedy)
+			SELECT run.organization_id, run.id, 'JB-' || ?0 || '-' || year.y, year.y, ?0::bigint * 10 + year.y - 2025,
+				DATE '2026-09-24', year.y, 'initial', contract.id, ?0, 'OGS', year.child, year.last, '', '',
+				CASE WHEN year.named THEN jsonb_build_object('first_name', '` + visitorFirst + `', 'last_name', '` + visitorLast + `')
+					ELSE '{}'::jsonb END,
+				'direct_debit', make_date(year.y, 9, 1), make_date(year.y, 12, 31), '[]'::jsonb, 0, 12800, 12800,
+				'Widerspruch binnen eines Monats.'
+			FROM run JOIN contract ON contract.organization_id = run.organization_id
+			CROSS JOIN (VALUES (2026, 'Mia', 'Schneider', true), (2027, '', '', false)) AS year(y, child, last, named)
+			RETURNING id, organization_id, care_contract_id, billing_year)
+		INSERT INTO parent_billing.care_notice_months (organization_id, notice_id, care_contract_id, billing_month, due_on,
+			immediately_due, previous_cents, amount_cents, snapshot)
+		SELECT organization_id, id, care_contract_id, make_date(billing_year, 9, 1), make_date(billing_year, 9, 24), true, 0, 3200,
+			CASE WHEN billing_year = 2026
+				THEN jsonb_build_object('invoice', jsonb_build_object('recipient', jsonb_build_object('last_name', '` + visitorLast + `')))
+				ELSE '{"invoice": {}}'::jsonb END
+		FROM notice`,
 		// The visitor gave a SEPA mandate for the contract (#4695). Its
 		// account holder is sealed like the IBAN, so the row names no one and
 		// visitorTraceCounts has no entry for it; sepaMandateRows proves the
@@ -355,7 +404,7 @@ func leaveVisitorHolidayRegistration(t *testing.T, db *bun.DB, schoolID int64) {
 			SELECT organization_id, id, run_id, 'brief.pdf', '\x255044'::bytea FROM document),
 		outbox AS (
 			INSERT INTO platform.email_outbox (organization_id, kind, recipient, payload, status)
-			SELECT organization_id, 'billing_letter', jsonb_build_object('address', 'besuch@example.org', 'name', '` + visitorFull + `'),
+			SELECT organization_id, 'parent_billing_letter', jsonb_build_object('address', 'besuch@example.org', 'name', '` + visitorFull + `'),
 				jsonb_build_object('guardian_name', '` + visitorFull + `'), 'pending' FROM document
 			RETURNING organization_id, id),
 		push AS (
@@ -500,8 +549,7 @@ func TestDemoSchoolQueueErasesTheVisitorsOfRetiredAndFailedOrders(t *testing.T) 
 	// The expiry deletes the accesses and hides the school of the other order.
 	_, err = db.NewRaw(`DELETE FROM auth.demo_accesses WHERE school_slug IN (?, ?)`, failed, retired).Exec(ctx)
 	require.NoError(t, err)
-	hidden, erased, err = queue.RetireDemoSchools(ctx, []string{retired})
-	require.NoError(t, err)
+	hidden, erased = retireAtLeast(t, db, queue, []string{retired}, 1, 2)
 	assert.Equal(t, 1, hidden)
 	assert.Equal(t, 2, erased, "the school hidden right now and the failed order")
 	assert.Equal(t, []string{waiting}, demoOrderNames(t, db))
@@ -558,8 +606,7 @@ func TestDemoSchoolQueueErasesVisitorOutboxWithoutDelivery(t *testing.T) {
 	}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(t.Context(), slug, accounts.caregiver, accounts.parent))
 
-	_, erased, err := queue.RetireDemoSchools(t.Context(), []string{slug})
-	require.NoError(t, err)
+	_, erased := retireAtLeast(t, db, queue, []string{slug}, 0, 1)
 	assert.Equal(t, 1, erased)
 	var remaining int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM platform.email_outbox WHERE id = ?`, orphanedOutboxID).Scan(t.Context(), &remaining))
@@ -612,8 +659,7 @@ func TestDemoSchoolQueueErasesEveryMailOfTheRetiredSchool(t *testing.T) {
 	}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, accounts.caregiver, accounts.parent))
 
-	_, erased, err := queue.RetireDemoSchools(ctx, []string{slug})
-	require.NoError(t, err)
+	_, erased := retireAtLeast(t, db, queue, []string{slug}, 0, 1)
 	assert.Equal(t, 1, erased)
 	var remaining []int64
 	require.NoError(t, db.NewRaw(`SELECT id FROM platform.email_outbox WHERE id IN (?) ORDER BY id`,
@@ -642,19 +688,23 @@ func retireVisitorOrder(t *testing.T, db *bun.DB, schoolID int64, accounts visit
 		VisitorAccountID: accounts.caregiver, VisitorParentAccountID: accounts.parent,
 	}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, accounts.caregiver, accounts.parent))
-	_, erased, err := queue.RetireDemoSchools(ctx, []string{slug})
-	require.NoError(t, err)
+	_, erased := retireAtLeast(t, db, queue, []string{slug}, 0, 1)
 	require.Equal(t, 1, erased)
 }
 
 // visitorMail writes a mail to address into the school (nil: no school) and
-// the Träger (nil: none) and returns its id.
+// the Träger (nil: none) and returns its id. A mail of the Träger takes one
+// of its declared kinds (chk_email_outbox_traeger_kind), with no contract.
 func visitorMail(t *testing.T, db *bun.DB, schoolID, organizationID *int64, address string) int64 {
 	t.Helper()
+	kind := "transactional_mail"
+	if organizationID != nil {
+		kind = "care_contract"
+	}
 	var id int64
 	require.NoError(t, db.NewRaw(`INSERT INTO platform.email_outbox (tenant_id, organization_id, kind, recipient, payload, status)
-		VALUES (?, ?, 'transactional_mail', jsonb_build_object('address', ?), '{}'::jsonb, 'pending') RETURNING id`,
-		schoolID, organizationID, address).Scan(t.Context(), &id))
+		VALUES (?, ?, ?, jsonb_build_object('address', ?), '{}'::jsonb, 'pending') RETURNING id`,
+		schoolID, organizationID, kind, address).Scan(t.Context(), &id))
 	return id
 }
 
@@ -757,8 +807,7 @@ func TestDemoSchoolQueueRecoversVisitorAccountsAfterTheirStateWriteFails(t *test
 	}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, 0, 0))
 
-	_, erased, err := queue.RetireDemoSchools(ctx, []string{slug})
-	require.NoError(t, err)
+	_, erased := retireAtLeast(t, db, queue, []string{slug}, 0, 1)
 	assert.Equal(t, 1, erased)
 	assert.Equal(t, everyTrace(0), visitorTraces(t, db, schoolID))
 }
@@ -801,8 +850,7 @@ func TestDemoSchoolQueueAnonymizesExclusiveVisitorAccounts(t *testing.T) {
 	}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, accounts.caregiver, accounts.parent))
 
-	_, erased, err := queue.RetireDemoSchools(ctx, []string{slug})
-	require.NoError(t, err)
+	_, erased := retireAtLeast(t, db, queue, []string{slug}, 0, 1)
 	assert.Equal(t, 1, erased)
 	var remaining int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM auth.account_tenants WHERE account_id IN (?, ?)`, accounts.caregiver, accounts.parent).Scan(ctx, &remaining))
@@ -862,8 +910,7 @@ func TestDemoSchoolQueueRevokesSharedVisitorAccessOnlyInRetiredSchools(t *testin
 	}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(ctx, slug, accounts.caregiver, accounts.parent))
 
-	_, erased, err := queue.RetireDemoSchools(ctx, []string{slug})
-	require.NoError(t, err)
+	_, erased := retireAtLeast(t, db, queue, []string{slug}, 0, 1)
 	assert.Equal(t, 1, erased)
 	for _, table := range []string{"auth.account_tenants", "auth.account_roles", "auth.tokens"} {
 		var hidden, outside int
@@ -973,6 +1020,54 @@ func careMonthRows(t *testing.T, db *bun.DB, schoolID int64) (positions, reads [
 	return positions, reads
 }
 
+// careNoticeRows are the Jahresbescheide of the school's contracts, with and
+// without a name, their months and the reads of their runs (#6219).
+func careNoticeRows(t *testing.T, db *bun.DB, schoolID int64) (notices, months, reads []int64) {
+	t.Helper()
+	require.NoError(t, db.NewRaw(`SELECT id FROM parent_billing.care_notices WHERE school_id = ? ORDER BY id`, schoolID).
+		Scan(t.Context(), &notices))
+	require.NoError(t, db.NewRaw(`SELECT month.id FROM parent_billing.care_notice_months AS month
+		JOIN parent_billing.care_notices AS notice ON notice.organization_id = month.organization_id AND notice.id = month.notice_id
+		WHERE notice.school_id = ? ORDER BY month.id`, schoolID).Scan(t.Context(), &months))
+	require.NoError(t, db.NewRaw(`SELECT event.id FROM parent_billing.care_notice_run_events AS event
+		WHERE EXISTS (SELECT 1 FROM care_contract.contracts AS contract
+			WHERE contract.school_id = ? AND event.details->'contract_ids' @> to_jsonb(contract.id))
+		ORDER BY event.id`, schoolID).Scan(t.Context(), &reads))
+	return notices, months, reads
+}
+
+// The Jahresbescheide of a retired demo school go with the visitor
+// (1.15.823), the one that names nobody too: the school decides, not the
+// name. Their months go with them, the reads of their runs before the
+// contracts they name. A school of the same Träger that is still open keeps
+// all of them.
+func TestDemoSchoolQueueErasesTheFeeNoticesOfTheRetiredSchool(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	openID := schoolOfOrganization(t, db, schoolID, false)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	leaveVisitorTraces(t, db, openID)
+	notices, months, reads := careNoticeRows(t, db, schoolID)
+	require.Len(t, notices, 2, "the fixture leaves a notice with and one without a name")
+	require.Len(t, months, 2)
+	require.Len(t, reads, 1)
+	var unnamed int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM parent_billing.care_notices
+		WHERE school_id = ? AND child_first_name = '' AND recipient = '{}'::jsonb`, schoolID).Scan(t.Context(), &unnamed))
+	require.Equal(t, 1, unnamed, "one notice names nobody")
+	openNotices, openMonths, openReads := careNoticeRows(t, db, openID)
+
+	retireVisitorOrder(t, db, schoolID, accounts)
+
+	assert.Zero(t, remainingRows(t, db, "parent_billing.care_notices", notices), "no notice of the retired school, named or not")
+	assert.Zero(t, remainingRows(t, db, "parent_billing.care_notice_months", months), "no month of its notices")
+	assert.Zero(t, remainingRows(t, db, "parent_billing.care_notice_run_events", reads), "no read naming its contracts")
+	assert.Equal(t, len(openNotices), remainingRows(t, db, "parent_billing.care_notices", openNotices))
+	assert.Equal(t, len(openMonths), remainingRows(t, db, "parent_billing.care_notice_months", openMonths))
+	assert.Equal(t, len(openReads), remainingRows(t, db, "parent_billing.care_notice_run_events", openReads))
+}
+
 // familyBillingRows are the deviations of the school's contracts and their
 // trail (#4689); the trail and a deviation to the registration name no one.
 func familyBillingRows(t *testing.T, db *bun.DB, schoolID int64) (families, events []int64) {
@@ -1023,11 +1118,111 @@ func TestDemoSchoolQueueErasesTheFamilyBillingOfTheRetiredSchool(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, schools.RememberDemoSchool(t.Context(), slug, organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{}`)}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(t.Context(), slug, accounts.caregiver, accounts.parent))
-	_, erased, err := queue.RetireDemoSchools(t.Context(), []string{slug})
-	require.NoError(t, err)
+	_, erased := retireAtLeast(t, db, queue, []string{slug}, 0, 1)
 	require.Equal(t, 1, erased)
 	assert.Zero(t, remainingRows(t, db, "parent_billing.family_billing", families), "no deviation stays")
 	assert.Zero(t, remainingRows(t, db, "parent_billing.family_billing_events", events), "no trail stays")
+}
+
+// leaveFamilyDebtorNumbers remembers debtor numbers of the Träger of the
+// school the way a holiday registration does (#6692): one at the visitor's
+// family without a contract, one at the contract row of the visitor that a
+// registration used, one of a family whose second registration names no
+// retired school, and one of a family that never registered. It answers
+// the rows and the trail of the visitor's two, then those of the others.
+func leaveFamilyDebtorNumbers(t *testing.T, db *bun.DB, schoolID int64) (visitorFamilies, visitorEvents, keptFamilies, keptEvents []int64) {
+	t.Helper()
+	ctx := t.Context()
+	tx, err := db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = tx.Rollback() }()
+	_, err = tx.NewRaw(`CREATE TEMP TABLE closed_school ON COMMIT DROP AS
+		SELECT deleted_at FROM platform.schools WHERE id = ?`, schoolID).Exec(ctx)
+	require.NoError(t, err)
+	for _, statement := range []string{
+		`UPDATE platform.schools SET deleted_at = NULL WHERE id = ?0`,
+		// The family of the siblings registered one child of the retired
+		// school and once more without one: that registration stays.
+		`WITH period AS (
+			SELECT registration.organization_id, registration.holiday_period_id AS id
+			FROM enrollment.holiday_registrations AS registration
+			JOIN enrollment.holiday_registration_children AS child
+				ON child.organization_id = registration.organization_id AND child.holiday_registration_id = registration.id
+			WHERE child.home_school_id = ?0),
+		registration AS (
+			INSERT INTO enrollment.holiday_registrations (organization_id, holiday_period_id, guardian_first_name, guardian_last_name,
+				guardian_email, guardian_phone, privacy_consent_at)
+			SELECT organization_id, id, 'Gabi', 'Geschwister', ' Geschwister@Example.org', '0151 0000008', NOW()
+			FROM period, generate_series(1, 2)
+			RETURNING organization_id, holiday_period_id, id)
+		INSERT INTO enrollment.holiday_registration_children (organization_id, holiday_period_id, holiday_registration_id,
+			position, first_name, last_name, birth_date, home_school_id)
+		SELECT organization_id, holiday_period_id, min(id), 1, 'Ben', 'Geschwister', DATE '2019-02-03', ?0
+		FROM registration GROUP BY organization_id, holiday_period_id`,
+		`UPDATE platform.schools SET deleted_at = (SELECT deleted_at FROM closed_school) WHERE id = ?0`,
+		// A holiday registration used the deviation of the visitor's
+		// contract: the deletion of the contract alone would keep its row.
+		`UPDATE parent_billing.family_billing SET last_used_on = DATE '2026-07-31'
+		WHERE care_contract_id IN (SELECT id FROM care_contract.contracts WHERE school_id = ?0)`,
+		`WITH family AS (
+			INSERT INTO parent_billing.family_billing (organization_id, family_email, care_contract_id, recipient_kind,
+				debtor_number, holder_first_name, holder_last_name, last_used_on)
+			SELECT organization_id, family.email, NULL, 'applicant', family.number, family.first_name, family.last_name, DATE '2026-07-31'
+			FROM platform.schools,
+				(VALUES ('besuch@example.org', 'D-' || ?0, '` + visitorFirst + `', '` + visitorLast + `'),
+					('geschwister@example.org', 'G-' || ?0, 'Gabi', 'Geschwister'),
+					('andere-' || ?0 || '@example.org', 'A-' || ?0, 'Olaf', 'Ohne')) AS family(email, number, first_name, last_name)
+			WHERE id = ?0
+			RETURNING id, organization_id)
+		INSERT INTO parent_billing.family_billing_events (organization_id, family_billing_id, care_contract_id, action)
+		SELECT organization_id, id, NULL, 'save' FROM family`,
+	} {
+		_, err := tx.NewRaw(statement, schoolID).Exec(ctx)
+		require.NoError(t, err, statement)
+	}
+	require.NoError(t, tx.Commit())
+
+	families := func(visitor bool) (rows, events []int64) {
+		filter := `family.family_email = 'besuch@example.org'
+			OR family.care_contract_id IN (SELECT id FROM care_contract.contracts WHERE school_id = ?0)`
+		if !visitor {
+			filter = `family.family_email IN ('geschwister@example.org', 'andere-' || ?0 || '@example.org')`
+		}
+		organization := `family.organization_id = (SELECT organization_id FROM platform.schools WHERE id = ?0) AND (` + filter + `)`
+		require.NoError(t, db.NewRaw(`SELECT family.id FROM parent_billing.family_billing AS family
+			WHERE `+organization+` ORDER BY family.id`, schoolID).Scan(ctx, &rows))
+		require.NoError(t, db.NewRaw(`SELECT event.id FROM parent_billing.family_billing_events AS event
+			JOIN parent_billing.family_billing AS family ON family.organization_id = event.organization_id AND family.id = event.family_billing_id
+			WHERE `+organization+` ORDER BY event.id`, schoolID).Scan(ctx, &events))
+		return rows, events
+	}
+	visitorFamilies, visitorEvents = families(true)
+	keptFamilies, keptEvents = families(false)
+	return visitorFamilies, visitorEvents, keptFamilies, keptEvents
+}
+
+// The debtor numbers the holiday care remembers at the visitor's family go
+// with the visitor (#6812): the row without a contract, named after the
+// visitor, and the contract row a registration used, which the deletion of
+// the contract would only detach (trg_family_billing_detach), each with its
+// trail. A family that keeps a registration keeps its number, and so does
+// a family the retired school never knew.
+func TestDemoSchoolQueueErasesTheFamilyDebtorNumbersOfTheVisitor(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	schoolID, _ := testpkg.CreateTestTenant(t, db)
+	accounts := leaveVisitorTraces(t, db, schoolID)
+	visitorFamilies, visitorEvents, keptFamilies, keptEvents := leaveFamilyDebtorNumbers(t, db, schoolID)
+	require.Len(t, visitorFamilies, 2, "the fixture leaves the visitor's row without a contract and the used contract row")
+	require.Len(t, visitorEvents, 2, "the fixture leaves the trail of both")
+	require.Len(t, keptFamilies, 2, "the fixture leaves the siblings and a family without a registration")
+	require.Len(t, keptEvents, 2)
+
+	retireVisitorOrder(t, db, schoolID, accounts)
+	assert.Zero(t, remainingRows(t, db, "parent_billing.family_billing", visitorFamilies), "no debtor number of the visitor stays")
+	assert.Zero(t, remainingRows(t, db, "parent_billing.family_billing_events", visitorEvents), "no trail of the visitor stays")
+	assert.Equal(t, 2, remainingRows(t, db, "parent_billing.family_billing", keptFamilies), "the other families keep their numbers")
+	assert.Equal(t, 2, remainingRows(t, db, "parent_billing.family_billing_events", keptEvents), "and their trail")
 }
 
 // sepaMandateRows are the SEPA mandates of the school's contracts and their
@@ -1081,8 +1276,7 @@ func TestDemoSchoolQueueErasesTheSEPAMandatesOfTheRetiredSchool(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, schools.RememberDemoSchool(t.Context(), slug, organizationtenancy.DemoSchoolState{SchoolID: schoolID, SeedJSON: []byte(`{}`)}))
 	require.NoError(t, queue.FinishDemoSchoolOrder(t.Context(), slug, accounts.caregiver, accounts.parent))
-	_, erased, err := queue.RetireDemoSchools(t.Context(), []string{slug})
-	require.NoError(t, err)
+	_, erased := retireAtLeast(t, db, queue, []string{slug}, 0, 1)
 	require.Equal(t, 1, erased)
 	assert.Zero(t, remainingRows(t, db, "parent_billing.sepa_mandates", mandates), "no mandate stays")
 	assert.Zero(t, remainingRows(t, db, "parent_billing.sepa_mandate_events", events), "no trail stays")

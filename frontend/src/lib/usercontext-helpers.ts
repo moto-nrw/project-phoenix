@@ -6,16 +6,6 @@ import type { EducationalGroup } from "./user-context-types";
 // user-context BFF route — single definition in user-context-types.ts)
 export type { EducationalGroup };
 
-export interface ActivityGroup {
-  id: string;
-  name: string;
-  room_id?: string;
-  room?: {
-    id: string;
-    name: string;
-  };
-}
-
 export interface ActiveGroup {
   id: string;
   name: string;
@@ -24,14 +14,6 @@ export interface ActiveGroup {
     id: string;
     name: string;
   };
-}
-
-export interface UserProfile {
-  id: string;
-  email: string;
-  username: string;
-  name: string;
-  active: boolean;
 }
 
 interface Person {
@@ -49,12 +31,6 @@ export interface Staff {
   emergency_contact?: string;
   emergency_phone?: string;
   person?: Person;
-}
-
-export interface Teacher {
-  id: string;
-  staff_id: string;
-  staff?: Staff;
 }
 
 // Backend types (what comes from the API)
@@ -80,16 +56,6 @@ export interface NavigationEducationalGroup {
   leaders?: string[];
 }
 
-export interface BackendActivityGroup {
-  id: number;
-  name: string;
-  room_id?: number;
-  room?: {
-    id: number;
-    name: string;
-  };
-}
-
 export interface BackendActiveGroup {
   id: number;
   name: string;
@@ -98,14 +64,6 @@ export interface BackendActiveGroup {
     id: number;
     name: string;
   };
-}
-
-export interface BackendUserProfile {
-  id: number;
-  email: string;
-  username: string;
-  name: string;
-  active: boolean;
 }
 
 export interface BackendPerson {
@@ -123,12 +81,6 @@ export interface BackendStaff {
   emergency_contact?: string;
   emergency_phone?: string;
   person?: BackendPerson;
-}
-
-export interface BackendTeacher {
-  id: number;
-  staff_id: number;
-  staff?: BackendStaff;
 }
 
 // Helper functions to transform backend data to frontend types
@@ -193,24 +145,8 @@ function mapGroupWithRoom<
   };
 }
 
-export function mapActivityGroupResponse(
-  data: BackendActivityGroup,
-): ActivityGroup {
-  return mapGroupWithRoom(data);
-}
-
 export function mapActiveGroupResponse(data: BackendActiveGroup): ActiveGroup {
   return mapGroupWithRoom(data);
-}
-
-export function mapUserProfileResponse(data: BackendUserProfile): UserProfile {
-  return {
-    id: data.id.toString(),
-    email: data.email,
-    username: data.username,
-    name: data.name,
-    active: data.active,
-  };
 }
 
 export function mapPersonResponse(data: BackendPerson): Person {
@@ -231,13 +167,5 @@ export function mapStaffResponse(data: BackendStaff): Staff {
     emergency_contact: data.emergency_contact,
     emergency_phone: data.emergency_phone,
     person: data.person ? mapPersonResponse(data.person) : undefined,
-  };
-}
-
-export function mapTeacherResponse(data: BackendTeacher): Teacher {
-  return {
-    id: data.id.toString(),
-    staff_id: data.staff_id.toString(),
-    staff: data.staff ? mapStaffResponse(data.staff) : undefined,
   };
 }

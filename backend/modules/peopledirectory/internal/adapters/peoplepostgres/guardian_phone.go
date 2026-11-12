@@ -6,11 +6,11 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
 	"github.com/uptrace/bun"
 
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
+	users "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
 )
 
 // Error messages and SQL fragments

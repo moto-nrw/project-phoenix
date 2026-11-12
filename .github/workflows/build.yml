@@ -37,8 +37,8 @@ permissions: {}
 
 env:
   REGISTRY: ghcr.io
-  BACKEND_IMAGE: ghcr.io/moto-nrw/phoenix-server
-  FRONTEND_IMAGE: ghcr.io/moto-nrw/phoenix-frontend
+  BACKEND_IMAGE: ghcr.io/moto-ogs/phoenix-server
+  FRONTEND_IMAGE: ghcr.io/moto-ogs/phoenix-frontend
   GOTOOLCHAIN: local
 
 jobs:
@@ -46,6 +46,7 @@ jobs:
   check-environment:
     name: Check environment
     runs-on: ubuntu-latest
+    timeout-minutes: 1
     outputs:
       should_deploy: ${{ steps.check.outputs.should_deploy }}
       environment: ${{ steps.check.outputs.environment }}
@@ -89,6 +90,7 @@ jobs:
   validate-migrations:
     name: Validate migrations
     runs-on: ubuntu-latest
+    timeout-minutes: 4
     needs: [check-environment]
     if: needs.check-environment.outputs.should_deploy == 'true'
     permissions:
@@ -112,6 +114,7 @@ jobs:
   build-backend:
     name: Build backend image
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 3
     needs: [check-environment, validate-migrations]
     if: needs.check-environment.outputs.should_deploy == 'true'
     # Cancel superseded builds on rapid pushes to the same ref. Deploy jobs
@@ -128,14 +131,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Blacksmith Docker builder
-        uses: useblacksmith/setup-docker-builder@19215110ab936351210feebdfa5b440b4493e184 # v2.2.0
+        uses: useblacksmith/setup-docker-builder@06dd9c83a5d541274d2e3ac67625560979275267 # v2.3.0
         with:
           # Required since v2. Scopes the sticky-disk layer cache to this
           # Dockerfile; must differ from the frontend job to avoid cache thrash.
           cache-key: backend/Dockerfile
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -181,6 +184,7 @@ jobs:
   build-frontend:
     name: Build frontend image
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 20
     needs: [check-environment, validate-migrations]
     if: needs.check-environment.outputs.should_deploy == 'true'
     # Cancel superseded builds on rapid pushes to the same ref. Deploy jobs
@@ -197,14 +201,14 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Set up Blacksmith Docker builder
-        uses: useblacksmith/setup-docker-builder@19215110ab936351210feebdfa5b440b4493e184 # v2.2.0
+        uses: useblacksmith/setup-docker-builder@06dd9c83a5d541274d2e3ac67625560979275267 # v2.3.0
         with:
           # Required since v2. Scopes the sticky-disk layer cache to this
           # Dockerfile; must differ from the backend job to avoid cache thrash.
           cache-key: frontend/Dockerfile.prod
 
       - name: Log in to GitHub Container Registry
-        uses: docker/login-action@81c6f93d4bc991e510b342a00b419b3bb4efc5c6 # v4.7.0
+        uses: docker/login-action@8aa5831fb8d48d8f76594c7ddde61ae58019f550 # v4.8.0
         with:
           registry: ${{ env.REGISTRY }}
           username: ${{ github.actor }}
@@ -313,9 +317,9 @@ jobs:
         run: corepack enable
 
       - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
           cache: "pnpm"
           cache-dependency-path: frontend/pnpm-lock.yaml
 
@@ -426,6 +430,8 @@ jobs:
       group: deploy-staging
       cancel-in-progress: false
     runs-on: ubuntu-latest
+    # Allow six minutes for deployment, five for Sentry and notification headroom.
+    timeout-minutes: 15
     permissions:
       contents: read
       pull-requests: read
@@ -436,8 +442,12 @@ jobs:
           ref: ${{ github.sha }}
 
       - name: Install SOPS
+        # -f: an HTTP error (e.g. a 504 page from the release CDN) fails the
+        # step instead of being saved as the binary; the checksum is the one
+        # published in sops-v3.12.1.checksums.txt.
         run: |
-          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          curl -fLsS --retry 5 --retry-all-errors --retry-delay 5 https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          echo "cf3136d20a6004405c986a48e179c3c7a731f777fbf105a37bd5dac5c9047100  /usr/local/bin/sops" | sha256sum -c -
           chmod +x /usr/local/bin/sops
 
       - name: Decrypt staging environment
@@ -530,6 +540,8 @@ jobs:
       group: deploy-production
       cancel-in-progress: false
     runs-on: ubuntu-latest
+    # Allow six minutes for deployment, five for Sentry and notification headroom.
+    timeout-minutes: 15
     environment:
       name: production
     permissions:
@@ -556,8 +568,12 @@ jobs:
           fi
 
       - name: Install SOPS
+        # -f: an HTTP error (e.g. a 504 page from the release CDN) fails the
+        # step instead of being saved as the binary; the checksum is the one
+        # published in sops-v3.12.1.checksums.txt.
         run: |
-          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          curl -fLsS --retry 5 --retry-all-errors --retry-delay 5 https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          echo "cf3136d20a6004405c986a48e179c3c7a731f777fbf105a37bd5dac5c9047100  /usr/local/bin/sops" | sha256sum -c -
           chmod +x /usr/local/bin/sops
 
       - name: Decrypt production environment
@@ -650,6 +666,9 @@ jobs:
       group: deploy-demo
       cancel-in-progress: false
     runs-on: ubuntu-latest
+    # Normal maximum: 106 s. Preserve the 20-minute order-smoke step and
+    # its failure notification, plus the separately bounded Sentry report.
+    timeout-minutes: 30
     environment:
       name: demo
     permissions:
@@ -676,8 +695,12 @@ jobs:
           fi
 
       - name: Install SOPS
+        # -f: an HTTP error (e.g. a 504 page from the release CDN) fails the
+        # step instead of being saved as the binary; the checksum is the one
+        # published in sops-v3.12.1.checksums.txt.
         run: |
-          curl -LsS https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          curl -fLsS --retry 5 --retry-all-errors --retry-delay 5 https://github.com/getsops/sops/releases/download/v3.12.1/sops-v3.12.1.linux.amd64 -o /usr/local/bin/sops
+          echo "cf3136d20a6004405c986a48e179c3c7a731f777fbf105a37bd5dac5c9047100  /usr/local/bin/sops" | sha256sum -c -
           chmod +x /usr/local/bin/sops
 
       - name: Decrypt demo environment
@@ -721,8 +744,9 @@ jobs:
 
       # Health checks stayed green on 2026-10-27 while every visitor's demo
       # order failed. One order proves the order path of the new release. A
-      # failure alarms in Slack; it rolls nothing back, the demo runtime
-      # cannot roll back by design (deploy-remote.sh).
+      # failure alarms in Slack and turns the run red in the last step; it
+      # rolls nothing back, the demo runtime cannot roll back by design
+      # (deploy-remote.sh).
       - name: Order a demo school
         id: smoke
         continue-on-error: true
@@ -787,10 +811,20 @@ jobs:
           commit_url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
           sha: ${{ github.sha }}
 
+      # Last step: "Order a demo school" continues on error so cleanup, Sentry
+      # and Slack still run. "Notify Slack" above therefore still reports the
+      # deploy itself as successful; only this step marks the run as failed.
+      - name: Fail the run when the demo order failed
+        if: steps.smoke.outcome == 'failure'
+        run: |
+          echo "::error::Demo deployed, but the test order of a demo school failed; visitors get no demo."
+          exit 1
+
   # Summary job for branch protection
   build-status:
     name: Build status
     runs-on: ubuntu-latest
+    timeout-minutes: 1
     needs: [check-environment, validate-migrations, build-backend, build-frontend]
     if: always() && needs.check-environment.outputs.should_deploy == 'true'
     steps:

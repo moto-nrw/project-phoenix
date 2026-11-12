@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	"github.com/uptrace/bun"
 )
 
@@ -99,4 +99,34 @@ func (s *Store) RestoreCareOfferingBookings(ctx context.Context, restores []care
 		inserted += count
 	}
 	return inserted, nil
+}
+
+// MoveCareOfferingBookingBounds writes the bounds a phase edit moved. The
+// caller holds the bookings' locks; a row whose bounds changed anyway is a
+// failure, never a silent overwrite.
+func (s *Store) MoveCareOfferingBookingBounds(ctx context.Context, changes []careplan.CareOfferingBookingBounds) error {
+	db, tenantID, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	for _, change := range changes {
+		result, err := db.NewUpdate().Model((*careOfferingBookingRow)(nil)).
+			Set("valid_from = ?", bookingDateToStorage(change.ValidFrom)).
+			Set("valid_until = ?", bookingDateToStorage(change.ValidUntil)).
+			Set("updated_at = NOW()").
+			Where("tenant_id = ? AND id = ? AND request_child_id = ?", tenantID, change.ID, change.RequestChildID).
+			Where("(valid_from = ?::date OR (valid_from IS NULL AND ?::date IS NULL))", bookingDateToStorage(change.ValidFromWas), bookingDateToStorage(change.ValidFromWas)).
+			Where("(valid_until = ?::date OR (valid_until IS NULL AND ?::date IS NULL))", bookingDateToStorage(change.ValidUntilWas), bookingDateToStorage(change.ValidUntilWas)).Exec(ctx)
+		if err != nil {
+			return err
+		}
+		rows, err := result.RowsAffected()
+		if err != nil {
+			return err
+		}
+		if rows != 1 {
+			return fmt.Errorf("care offering booking %d changed during the phase edit", change.ID)
+		}
+	}
+	return nil
 }

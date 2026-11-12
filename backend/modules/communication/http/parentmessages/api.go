@@ -13,9 +13,9 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // Resource is the staff messaging HTTP resource.
@@ -147,6 +147,8 @@ type MessageResponse struct {
 	// message answers (#4784).
 	GroupThreadID    string `json:"group_thread_id,omitempty"`
 	GroupThreadTitle string `json:"group_thread_title,omitempty"`
+	// Attachments are the photos and files of the message (#6685).
+	Attachments json.RawMessage `json:"attachments,omitempty"`
 }
 
 type ThreadDetailResponse struct {
@@ -188,12 +190,16 @@ type StartThreadRequest struct {
 	GuardianAccountID string `json:"guardian_account_id"`
 	Body              string `json:"body"`
 	Audience          string `json:"audience,omitempty"`
+	// AttachmentIDs names the uploads the message carries (#6685).
+	AttachmentIDs []string `json:"attachment_ids,omitempty"`
 }
 
 type PostMessageRequest struct {
 	ClientMessageID      string `json:"client_message_id,omitempty"`
 	Body                 string `json:"body"`
 	HandledUpToMessageID string `json:"handled_up_to_message_id,omitempty"`
+	// AttachmentIDs names the uploads the message carries (#6685).
+	AttachmentIDs []string `json:"attachment_ids,omitempty"`
 }
 
 type OpenThreadRequest struct {
@@ -233,6 +239,7 @@ func toMessageResponses(messages []communication.ParentMessage, viewer ...int64)
 			ReadByGuardian:   m.ReadByGuardian,
 			GroupThreadID:    optionalIDString(m.GroupThreadID),
 			GroupThreadTitle: m.GroupThreadTitle,
+			Attachments:      m.Attachments,
 		})
 	}
 	return out
@@ -409,12 +416,13 @@ func (rs *Resource) postMessage(w http.ResponseWriter, r *http.Request) {
 		}
 		handledUpToMessageID = parsed
 	}
-	if len(req.ClientMessageID) > 128 {
-		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCodeAndDetails("client_message_id exceeds 128 bytes", common.CodeGeneralInput, map[string]any{"max_bytes": 128}))
+	attachmentIDs, ok := common.ParseMessageSend(w, r, req.ClientMessageID, req.AttachmentIDs, communication.MaxMessageAttachments)
+	if !ok {
 		return
 	}
+	sendCtx := communication.WithMessageSend(r.Context(), req.ClientMessageID, attachmentIDs)
 
-	messages, err := rs.Service.PostParentMessage(communication.WithMessageSendID(r.Context(), req.ClientMessageID), threadID, req.Body, handledUpToMessageID)
+	messages, err := rs.Service.PostParentMessage(sendCtx, threadID, req.Body, handledUpToMessageID)
 	if err != nil {
 		renderMessagingError(w, r, err)
 		return
@@ -438,12 +446,13 @@ func (rs *Resource) startThread(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid guardian ID")))
 		return
 	}
-	if len(req.ClientMessageID) > 128 {
-		common.RenderError(w, r, common.ErrorInvalidRequestMessageWithCodeAndDetails("client_message_id exceeds 128 bytes", common.CodeGeneralInput, map[string]any{"max_bytes": 128}))
+	attachmentIDs, ok := common.ParseMessageSend(w, r, req.ClientMessageID, req.AttachmentIDs, communication.MaxMessageAttachments)
+	if !ok {
 		return
 	}
+	sendCtx := communication.WithMessageSend(r.Context(), req.ClientMessageID, attachmentIDs)
 
-	detail, err := rs.Service.StartParentMessageThread(communication.WithMessageSendID(r.Context(), req.ClientMessageID), studentID, guardianID, req.Body, req.Audience)
+	detail, err := rs.Service.StartParentMessageThread(sendCtx, studentID, guardianID, req.Body, req.Audience)
 	if err != nil {
 		renderMessagingError(w, r, err)
 		return
@@ -523,6 +532,10 @@ func renderMessagingError(w http.ResponseWriter, r *http.Request, err error) {
 		return
 	}
 	switch {
+	case errors.Is(err, communication.ErrMessageAttachmentLimit):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeFilesAttachmentLimitReached))
+	case errors.Is(err, communication.ErrMessageAttachmentUnavailable):
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
 	case errors.Is(err, communication.ErrParentMessageThreadNotFound):
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, communication.ErrParentMessagingDisabled):

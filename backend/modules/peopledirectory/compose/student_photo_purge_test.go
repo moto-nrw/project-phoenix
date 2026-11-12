@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/tenant/tenanttest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -155,4 +155,13 @@ func TestLockStudentPhotoFeatureIsVisibleToOtherTransactions(t *testing.T) {
 	require.NoError(t, after.NewRaw(`SELECT pg_try_advisory_xact_lock(?, ?)`,
 		lockClass, int32(testpkg.Tenant(t))).Scan(ctx, &acquired))
 	assert.True(t, acquired, "the gate is bound to the tenant, not the connection, and is free again")
+}
+
+func (r *enabledPhotoRuntime) QueueUnlinkStoredPhotos(ctx context.Context, urls []string) error {
+	for _, url := range urls {
+		if err := r.QueueUnlinkStoredPhoto(ctx, url); err != nil {
+			return err
+		}
+	}
+	return nil
 }

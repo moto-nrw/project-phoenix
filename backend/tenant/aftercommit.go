@@ -10,9 +10,8 @@ import (
 type afterCommitKey struct{}
 
 type afterCommitHooks struct {
-	mu          sync.Mutex
-	fns         []func()
-	rollbackFns []func()
+	mu  sync.Mutex
+	fns []func()
 }
 
 func (h *afterCommitHooks) add(fn func()) {
@@ -67,23 +66,17 @@ func runAfterCommitHooks(h *afterCommitHooks) {
 	h.mu.Lock()
 	fns := h.fns
 	h.fns = nil
-	h.rollbackFns = nil
 	h.mu.Unlock()
 	for _, fn := range fns {
 		fn()
 	}
 }
 
-func runAfterRollbackHooks(h *afterCommitHooks) {
+func discardAfterCommitHooks(h *afterCommitHooks) {
 	if h == nil {
 		return
 	}
 	h.mu.Lock()
-	fns := h.rollbackFns
 	h.fns = nil
-	h.rollbackFns = nil
 	h.mu.Unlock()
-	for i := len(fns) - 1; i >= 0; i-- {
-		fns[i]()
-	}
 }

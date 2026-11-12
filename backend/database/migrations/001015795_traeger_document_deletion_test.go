@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // TestTraegerDocumentDeletionKeepsTheRowAndEndsTheAccess pins migration
@@ -65,8 +65,7 @@ func TestTraegerDocumentDeletionKeepsTheRowAndEndsTheAccess(t *testing.T) {
 		"never changes", "a deletion always removes the file")
 	assert.ErrorContains(t, asTraeger(`UPDATE platform.traeger_documents SET content = '%PDF-1.5'::bytea WHERE id = ?`, document),
 		"never changes", "the file of a document is never replaced")
-	assert.ErrorContains(t, asTraeger(`UPDATE platform.traeger_documents SET content = NULL, deleted_at = NOW(), title = 'anders' WHERE id = ?`, document),
-		"permission denied", "the request role changes nothing but the deletion's columns")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(asTraeger(`UPDATE platform.traeger_documents SET content = NULL, deleted_at = NOW(), title = 'anders' WHERE id = ?`, document)), "the request role changes nothing but the deletion's columns")
 	_, err := db.ExecContext(ctx, `UPDATE platform.traeger_documents SET content = NULL, deleted_at = NOW(), title = 'anders' WHERE id = ?`, document)
 	assert.ErrorContains(t, err, "never changes", "not even the migration role changes more than the deletion")
 	require.NoError(t, asTraeger(`UPDATE platform.traeger_documents SET content = NULL, deleted_at = NOW(), deleted_by = ? WHERE id = ?`, account.ID, document),

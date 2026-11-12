@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // EmailProviderSettings are the configuration values of the mail provider. Plain
@@ -52,8 +52,6 @@ type ServiceConfig struct {
 	AppEnv                     string
 	InvitationTokenExpiryHours int
 	PasswordResetExpiryMinutes int
-	PostHogAPIKey              string
-	PostHogHost                string
 	RateLimitEnabled           bool
 	JWTSecret                  string
 	JWTExpiry                  time.Duration
@@ -63,10 +61,11 @@ type ServiceConfig struct {
 	VAPIDPublicKey             string
 	VAPIDPrivateKey            string
 	VAPIDSubscriber            string
-	StudentDailyCheckoutTime   string
 	// HealthDataKeys is the key ring the health information of the holiday
 	// registrations is sealed with (#4722): "id:base64key[,id:base64key]".
-	HealthDataKeys string
+	HealthDataKeys     string
+	BankDataKeys       string
+	BankDataLegacyKeys string
 }
 
 type AuditAppendObserver func(eventType string, duration time.Duration, rows int, err error)

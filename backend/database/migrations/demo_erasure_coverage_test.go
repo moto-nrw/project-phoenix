@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -31,8 +31,9 @@ import (
 // is out of scope: a visitor is never one of them.
 //
 // Each table in scope is erased by the function itself (DELETE or a
-// rewriting UPDATE in its current definition), goes by ON DELETE CASCADE
-// with a table the function deletes, or names its reason in
+// rewriting UPDATE in its current definition or in a function it performs),
+// goes by ON DELETE CASCADE with a table the function deletes, or names its
+// reason in
 // demoErasureExceptions (test/demo_erasure_ratchet_test.go). The demo
 // school itself stays soft-deleted, so most school tables are such
 // exceptions until the full erasure of retired demo schools (#5559) deletes
@@ -52,9 +53,11 @@ func (noImports) Import(path string) (*types.Package, error) {
 	return nil, fmt.Errorf("the register needs no import, not %s", path)
 }
 
-// readDemoErasureRegister evaluates the register with go/types, as the
-// ratchet does: its reasons are constant expressions of that file.
-func readDemoErasureRegister(t *testing.T) (map[string]string, int) {
+// readDemoErasureRegister evaluates the registers with go/types, as the
+// ratchet does: their reasons are constant expressions of that file. It
+// returns the table register with its budget and the outbox kind register
+// of #6342 with its budget.
+func readDemoErasureRegister(t *testing.T) (demoErasureRegister, demoErasureRegister) {
 	t.Helper()
 	fset := token.NewFileSet()
 	file, err := parser.ParseFile(fset, demoErasureRegisterFile, nil, 0)
@@ -62,8 +65,7 @@ func readDemoErasureRegister(t *testing.T) (map[string]string, int) {
 	info := &types.Info{Types: map[ast.Expr]types.TypeAndValue{}, Defs: map[*ast.Ident]types.Object{}}
 	config := types.Config{Importer: noImports{}, Error: func(error) {}}
 	_, _ = config.Check(file.Name.Name, fset, []*ast.File{file}, info)
-	exceptions := map[string]string{}
-	budget := -1
+	maps, budgets := map[string]map[string]string{}, map[string]int{}
 	for _, declaration := range file.Decls {
 		general, ok := declaration.(*ast.GenDecl)
 		if !ok {
@@ -74,27 +76,43 @@ func readDemoErasureRegister(t *testing.T) (map[string]string, int) {
 			if !ok || len(value.Names) != 1 || len(value.Values) != 1 {
 				continue
 			}
-			switch value.Names[0].Name {
-			case "demoErasureExceptionBudget":
+			switch name := value.Names[0].Name; name {
+			case "demoErasureExceptionBudget", "demoErasureOutboxKindExceptionBudget":
 				number, exact := constant.Int64Val(info.Types[value.Values[0]].Value)
-				require.True(t, exact, "the budget is an integer constant")
-				budget = int(number)
-			case "demoErasureExceptions":
+				require.True(t, exact, "the budget %s is an integer constant", name)
+				budgets[name] = int(number)
+			case "demoErasureExceptions", "demoErasureOutboxKindExceptions":
 				literal, ok := value.Values[0].(*ast.CompositeLit)
-				require.True(t, ok, "the register is a map literal")
+				require.True(t, ok, "the register %s is a map literal", name)
+				entries := map[string]string{}
 				for _, element := range literal.Elts {
 					entry := element.(*ast.KeyValueExpr)
 					key, reason := info.Types[entry.Key].Value, info.Types[entry.Value].Value
-					require.NotNil(t, key, "a key of the register is a constant")
-					require.NotNil(t, reason, "a reason of the register is a constant")
-					exceptions[constant.StringVal(key)] = constant.StringVal(reason)
+					require.NotNil(t, key, "a key of %s is a constant", name)
+					require.NotNil(t, reason, "a reason of %s is a constant", name)
+					entries[constant.StringVal(key)] = constant.StringVal(reason)
 				}
+				maps[name] = entries
 			}
 		}
 	}
-	require.GreaterOrEqual(t, budget, 0, "%s declares demoErasureExceptionBudget", demoErasureRegisterFile)
-	require.NotEmpty(t, exceptions, "%s declares demoErasureExceptions", demoErasureRegisterFile)
-	return exceptions, budget
+	for _, name := range []string{"demoErasureExceptionBudget", "demoErasureOutboxKindExceptionBudget"} {
+		_, declared := budgets[name]
+		require.True(t, declared, "%s declares %s", demoErasureRegisterFile, name)
+	}
+	for _, name := range []string{"demoErasureExceptions", "demoErasureOutboxKindExceptions"} {
+		_, declared := maps[name]
+		require.True(t, declared, "%s declares %s", demoErasureRegisterFile, name)
+	}
+	require.NotEmpty(t, maps["demoErasureExceptions"], "%s declares demoErasureExceptions", demoErasureRegisterFile)
+	return demoErasureRegister{Exceptions: maps["demoErasureExceptions"], Budget: budgets["demoErasureExceptionBudget"]},
+		demoErasureRegister{Exceptions: maps["demoErasureOutboxKindExceptions"], Budget: budgets["demoErasureOutboxKindExceptionBudget"]}
+}
+
+// demoErasureRegister is one register of exceptions with its budget.
+type demoErasureRegister struct {
+	Exceptions map[string]string
+	Budget     int
 }
 
 type cascadeEdge struct{ Child, Parent string }
@@ -117,6 +135,14 @@ var sqlErasureStatement = regexp.MustCompile(`(?i)\b(DELETE\s+FROM|UPDATE)\s+(?:
 // there is never read as a statement. Dollar quotes stay: the function body
 // itself is one.
 func sqlWithoutCommentsAndStrings(sql string) string {
+	masked, _ := maskedSQL(sql)
+	return masked
+}
+
+// maskedSQL is sqlWithoutCommentsAndStrings that keeps the literals apart:
+// the n-th literal reads 'n' in the text and literals[n] holds its value.
+// A predicate can name a literal; text inside one is never a statement.
+func maskedSQL(sql string) (masked string, literals []string) {
 	var out strings.Builder
 	for i := 0; i < len(sql); i++ {
 		switch {
@@ -142,23 +168,44 @@ func sqlWithoutCommentsAndStrings(sql string) string {
 			out.WriteByte(' ')
 		case sql[i] == '\'':
 			escapes := i > 0 && (sql[i-1] == 'E' || sql[i-1] == 'e')
+			var value strings.Builder
 			for i++; i < len(sql); i++ {
-				if escapes && sql[i] == '\\' {
+				if escapes && sql[i] == '\\' && i+1 < len(sql) {
 					i++
+					value.WriteByte(sql[i])
 				} else if sql[i] == '\'' {
 					if i+1 < len(sql) && sql[i+1] == '\'' {
 						i++
+						value.WriteByte('\'')
 						continue
 					}
 					break
+				} else {
+					value.WriteByte(sql[i])
 				}
 			}
-			out.WriteString("''")
+			fmt.Fprintf(&out, "'%d'", len(literals))
+			literals = append(literals, value.String())
 		default:
 			out.WriteByte(sql[i])
 		}
 	}
-	return out.String()
+	return out.String(), literals
+}
+
+var sqlPerformedFunction = regexp.MustCompile(`(?i)\bPERFORM\s+([a-z_][a-z0-9_]*\.[a-z_][a-z0-9_]*)\s*\(`)
+
+// demoErasureCalledFunctions returns the schema-qualified functions the
+// erasure performs, outside pg_catalog. Comments and literals call none.
+func demoErasureCalledFunctions(functionSQL string) []string {
+	var called []string
+	for _, match := range sqlPerformedFunction.FindAllStringSubmatch(sqlWithoutCommentsAndStrings(functionSQL), -1) {
+		name := strings.ToLower(match[1])
+		if !strings.HasPrefix(name, "pg_catalog.") && !slices.Contains(called, name) {
+			called = append(called, name)
+		}
+	}
+	return called
 }
 
 // demoErasureTargets returns the tables the function deletes from and the
@@ -258,18 +305,41 @@ func demoErasureCoverageOfSchema(t *testing.T) demoErasureCoverage {
 	}
 	var functionSQL string
 	require.NoError(t, db.NewRaw(`SELECT pg_get_functiondef('platform.erase_closed_demo_visitors()'::regprocedure)`).Scan(ctx, &functionSQL))
+	// A function the erasure performs erases as part of it (#6812).
+	read := map[string]bool{}
+	for queue := demoErasureCalledFunctions(functionSQL); len(queue) > 0; queue = queue[1:] {
+		if read[queue[0]] {
+			continue
+		}
+		read[queue[0]] = true
+		var definitions []string
+		require.NoError(t, db.NewRaw(`SELECT pg_get_functiondef(p.oid) FROM pg_proc AS p
+			JOIN pg_namespace AS n ON n.oid = p.pronamespace
+			WHERE n.nspname || '.' || p.proname = ? AND p.prokind = 'f'`, queue[0]).Scan(ctx, &definitions))
+		require.NotEmpty(t, definitions, "the erasure performs %s, which exists", queue[0])
+		for _, definition := range definitions {
+			functionSQL += "\n" + definition
+			queue = append(queue, demoErasureCalledFunctions(definition)...)
+		}
+	}
 	var cascades []cascadeEdge
 	require.NoError(t, db.NewRaw(`
 		SELECT DISTINCT cn.nspname || '.' || cc.relname AS child, pn.nspname || '.' || pc.relname AS parent
 		FROM pg_constraint AS f
 		JOIN pg_class AS cc ON cc.oid = f.conrelid JOIN pg_namespace AS cn ON cn.oid = cc.relnamespace
 		JOIN pg_class AS pc ON pc.oid = f.confrelid JOIN pg_namespace AS pn ON pn.oid = pc.relnamespace
-		WHERE f.contype = 'f' AND f.confdeltype = 'c'`).Scan(ctx, &cascades))
+		WHERE f.contype = 'f' AND f.confdeltype = 'c'
+		  -- A row that may outlive its parent by another foreign key to it
+		  -- (ON DELETE SET NULL or SET DEFAULT) does not go with the parent:
+		  -- the cascade holds only some of its rows (#6812).
+		  AND NOT EXISTS (SELECT 1 FROM pg_constraint AS kept
+			WHERE kept.contype = 'f' AND kept.conrelid = f.conrelid AND kept.confrelid = f.confrelid
+			  AND kept.confdeltype IN ('n', 'd'))`).Scan(ctx, &cascades))
 	sort.Strings(inScope)
-	exceptions, budget := readDemoErasureRegister(t)
+	register, _ := readDemoErasureRegister(t)
 	return demoErasureCoverage{
 		InScope: inScope, FunctionSQL: functionSQL, Cascades: cascades,
-		Exceptions: exceptions, Budget: budget,
+		Exceptions: register.Exceptions, Budget: register.Budget,
 	}
 }
 
@@ -292,6 +362,34 @@ func TestDemoErasureGuardCatchesTheContractGapOfPR6000(t *testing.T) {
 	for _, table := range []string{"care_contract.contracts", "care_contract.contract_parties", "care_contract.contract_documents", "care_contract.contract_mailings"} {
 		require.Contains(t, problems, table+" holds personal data of the demo school or its visitor")
 	}
+}
+
+// The gap of #6812 is caught: a row of parent_billing.family_billing that a
+// holiday registration used only loses its contract when the contract goes
+// (ON DELETE SET NULL), and a row without a contract never had one, so the
+// cascade of the contract no longer counts for the table.
+func TestDemoErasureGuardCatchesTheFamilyGapOf6812(t *testing.T) {
+	t.Parallel()
+	coverage := demoErasureCoverageOfSchema(t)
+	withoutFamilies := regexp.MustCompile(`(?i)DELETE\s+FROM\s+parent_billing\.family_billing\b(\s+AS\s+family)`)
+	require.True(t, withoutFamilies.MatchString(coverage.FunctionSQL), "the erasure deletes the families of the visitor (1.15.951)")
+	coverage.FunctionSQL = withoutFamilies.ReplaceAllString(coverage.FunctionSQL, "SELECT 1 FROM parent_billing.family_billing$1")
+	require.Contains(t, strings.Join(demoErasureCoverageProblems(coverage), "\n"),
+		"parent_billing.family_billing holds personal data of the demo school or its visitor")
+}
+
+func TestDemoErasureCalledFunctions(t *testing.T) {
+	t.Parallel()
+	called := demoErasureCalledFunctions(`BEGIN
+		PERFORM pg_advisory_xact_lock(1);
+		PERFORM pg_catalog.pg_sleep(0);
+		-- PERFORM care.in_a_comment(hidden_schools);
+		RAISE LOG 'PERFORM care.in_a_literal(1)';
+		PERFORM Care.Families(hidden_schools);
+		PERFORM 1 FROM care.contracts;
+		PERFORM care.families (hidden_schools);
+	END`)
+	require.Equal(t, []string{"care.families"}, called)
 }
 
 func coverageFixture() demoErasureCoverage {

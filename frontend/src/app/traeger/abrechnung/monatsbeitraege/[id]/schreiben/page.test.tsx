@@ -12,6 +12,7 @@ import type {
 const { api, push } = vi.hoisted(() => ({
   api: {
     fetchCareRun: vi.fn(),
+    printCareLetters: vi.fn(),
     fetchCareLetters: vi.fn(),
     fetchCareRuns: vi.fn(),
     startCareRun: vi.fn(),
@@ -29,7 +30,15 @@ vi.mock("next/navigation", () => ({
 }));
 vi.mock("~/lib/traeger-url", () => ({ traegerPath: (path: string) => path }));
 
+vi.mock("~/lib/file-download", () => ({ downloadBlob: vi.fn() }));
+
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { catalogText } from "~/test/error-catalog-text";
 import TraegerCareRunLettersPage from "./page";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 const RUN: CareRunDetail = {
   id: "7",
@@ -37,6 +46,7 @@ const RUN: CareRunDetail = {
   status: "released",
   createdAt: "2027-01-04T08:00:00Z",
   releasedAt: "2027-01-04T08:00:00Z",
+  discardedAt: null,
   issuedOn: "2027-01-04",
   documentCount: 1,
   totalCents: 9600,
@@ -133,6 +143,52 @@ describe("monthly invoice reissue", () => {
     api.fetchCareRun.mockResolvedValue(RUN);
     api.fetchCareRuns.mockResolvedValue({ runs: [] });
   });
+
+  it.each([403, 503])(
+    "handles a %s letters reload after printing without exposing refused letters (#6801)",
+    async (status) => {
+      api.fetchCareLetters.mockResolvedValue({
+        ...letters([]),
+        letters: {
+          paymentDueOn: "2026-09-23",
+          notes: "Privater Hinweis",
+          createdAt: "2026-09-09T08:00:00Z",
+        },
+        summary: { ...letters([]).summary, letters: 1, notSent: 1 },
+      });
+      api.printCareLetters.mockResolvedValue({
+        blob: new Blob(),
+        filename: "letters.pdf",
+      });
+      renderPage();
+      expect(await screen.findByText("Privater Hinweis")).toBeVisible();
+      resetPageReloads();
+      api.fetchCareLetters.mockRejectedValueOnce(
+        new ApiError("failed", status),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Schreiben drucken" }),
+      );
+      fireEvent.click(
+        await screen.findByRole("menuitem", { name: /Alle Schreiben drucken/ }),
+      );
+      if (status === 403) {
+        // #6801: the page loads anew and shows the refusal without letters.
+        await expectPageReloadedAfterRefusal();
+        expect(api.printCareLetters).toHaveBeenCalledTimes(1);
+        return;
+      }
+      expect(
+        await screen.findByText(
+          `${catalogText("general.unavailable", "die Anzeige der Schreiben")} ${SAVED_BUT_STALE_SUFFIX}`,
+        ),
+      ).toBeVisible();
+      expect(screen.getByText("Privater Hinweis")).toBeVisible();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(await screen.findByText("Privater Hinweis")).toBeVisible();
+      expect(api.printCareLetters).toHaveBeenCalledTimes(1);
+    },
+  );
 
   it("hides reissue when every cancellation has a released replacement", async () => {
     api.fetchCareLetters.mockResolvedValue(

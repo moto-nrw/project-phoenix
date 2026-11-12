@@ -4,15 +4,25 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/erasureledger"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	transactionCompose "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	organizationCompose "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/erasureledger"
+	parentBillingCompose "github.com/moto-ogs/project-phoenix/modules/parentbilling/compose"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	securityRuntimeCompose "github.com/moto-ogs/project-phoenix/modules/securityruntime/compose"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	studentDirectoryViewCompose "github.com/moto-ogs/project-phoenix/modules/studentdirectoryview/compose"
+	transactionCompose "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 func init() { RootCmd.AddCommand(newTenantCommand()) }
@@ -73,7 +83,7 @@ func newTenantCommand() *cobra.Command {
 			return json.NewEncoder(cmd.OutOrStdout()).Encode(results[0])
 		}}
 	receipt.Flags().Int64Var(&receiptID, "id", 0, "Erasure evidence ID")
-	parent.AddCommand(erase, receipt, newErasureLedgerInitCommand())
+	parent.AddCommand(erase, receipt, newErasureLedgerInitCommand(), newTenantReturnCommand())
 	return parent
 }
 
@@ -90,7 +100,7 @@ func tenantCommand(run func(*cobra.Command, organizationtenancy.TenantExportOpti
 	parent := &cobra.Command{Use: "tenant", Short: "Internal tenant data lifecycle procedures"}
 	options := organizationtenancy.TenantExportOptions{}
 	export := &cobra.Command{
-		Use: "export", Short: "Return one school's data to a new private local directory", Args: cobra.NoArgs,
+		Use: "export", Short: "Return one school's or one Träger's data to a new private local directory", Args: cobra.NoArgs,
 		SilenceErrors: true, SilenceUsage: true,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			if cmd.Flags().Changed("person") && options.Person == "" {
@@ -100,35 +110,94 @@ func tenantCommand(run func(*cobra.Command, organizationtenancy.TenantExportOpti
 		},
 	}
 	export.Flags().Int64Var(&options.SchoolID, "school", 0, "Authorized school ID")
+	export.Flags().Int64Var(&options.OrganizationID, "organization", 0, "Authorized Träger ID: the Träger package, without the data its schools hold")
+	export.Flags().Int64Var(&options.OperatorID, "operator", 0, "Active operator ID for the operator audit; required")
 	export.Flags().StringVar(&options.Output, "out", "", "New private output directory")
 	export.Flags().StringVar(&options.Uploads, "uploads", "", "Complete stable uploads root")
 	export.Flags().StringVar(&options.Person, "person", "", "Internal review only: kind:<profile ID>, guardian:<profile ID>, staff:<school membership ID>")
+	export.MarkFlagsMutuallyExclusive("school", "organization")
+	export.MarkFlagsMutuallyExclusive("organization", "person")
 	parent.AddCommand(export)
 	return parent
 }
 
 func runTenantExport(cmd *cobra.Command, options organizationtenancy.TenantExportOptions) error {
-	if options.SchoolID <= 0 || options.Output == "" || options.Uploads == "" {
-		return errors.New("tenant export: --school, --out and --uploads are required")
+	if (options.SchoolID <= 0 && options.OrganizationID <= 0) || options.Output == "" || options.Uploads == "" {
+		return errors.New("tenant export: --school or --organization, --out and --uploads are required")
+	}
+	if options.OperatorID <= 0 {
+		return errors.New("tenant export: --operator is required for the operator audit")
 	}
 	db, err := transactionCompose.OpenDatabase()
 	if err != nil {
 		return errors.New("tenant export: database unavailable")
 	}
 	defer func() { _ = db.Close() }()
-	exporter, err := organizationCompose.NewTenantExporter(db.Pool(), organizationtenancy.ExportFingerprints{
-		Bytes: securityruntime.Fingerprint, Reader: securityruntime.ReaderFingerprint,
-	})
+	sealed, err := tenantExportSealedFields()
 	if err != nil {
 		return err
 	}
-	if err := exporter.Export(cmd.Context(), options); err != nil {
+	exporter, err := newTenantExporter(db, sealed, tenantExportProjectedFields(), options.OrganizationID > 0)
+	if err != nil {
 		return err
 	}
-	message := "Tenant export complete; verify COMPLETE and manifest before handover."
+	if err := exporter.Export(tenant.WithUnitOfWork(cmd.Context(), db.UnitOfWork()), options); err != nil {
+		return err
+	}
+	message := "Tenant export complete and in the operator audit; verify COMPLETE and manifest before handover."
+	if options.OrganizationID > 0 {
+		message = "Träger package complete and in the operator audit; it holds FULL BANK DATA. Verify COMPLETE and manifest; hand over encrypted only."
+	}
 	if options.Person != "" {
 		message = "Person review workspace created; completeness, third-party review and school approval REQUIRED before handover."
 	}
 	_, err = fmt.Fprintln(cmd.OutOrStdout(), message)
 	return err
+}
+
+// tenantExportSealedFields binds each field-sealed table to the owner that
+// sealed it (#3838, #6412): the return carries IBAN, account holder, tax and
+// social security numbers, mandate text and health information as entered,
+// not their ciphertext. Without either key ring of
+// the source installation the export refuses (ADR 0192, ADR 0193).
+func tenantExportSealedFields() (organizationtenancy.TenantExportSealedFieldsByTable, error) {
+	bankData, err := securityRuntimeCompose.NewBankDataCipher(viper.GetString("bank_data_keys"), viper.GetString("bank_data_legacy_keys"))
+	if err != nil {
+		return nil, errors.New("tenant export: BANK_DATA_KEYS / BANK_DATA_LEGACY_KEYS configuration invalid")
+	}
+	healthKeys := strings.TrimSpace(viper.GetString("health_data_keys"))
+	if healthKeys == "" {
+		return nil, errors.New("tenant export: HEALTH_DATA_KEYS is required to open the health information")
+	}
+	healthData, err := securityRuntimeCompose.NewFieldCipher(healthKeys)
+	if err != nil {
+		return nil, errors.New("tenant export: HEALTH_DATA_KEYS configuration invalid")
+	}
+	sepa := parentBillingCompose.NewSEPAExportFields(bankData)
+	holiday := enrollmentCompose.NewHolidayHealthExportFields(healthData)
+	return organizationtenancy.TenantExportSealedFieldsByTable{
+		"parent_billing.sepa_mandates":             sepa,
+		"parent_billing.sepa_debits":               sepa,
+		"parent_billing.sepa_mandate_consents":     sepa,
+		"users.guardian_financial_data":            peopleCompose.NewGuardianBankExportFields(bankData),
+		"users.staff_financial_data":               workforceCompose.NewStaffBankExportFields(bankData),
+		"users.student_care_profiles":              studentDirectoryViewCompose.NewReader(healthData),
+		"enrollment.holiday_registrations":         holiday,
+		"enrollment.holiday_registration_children": holiday,
+		"enrollment.holiday_guests":                holiday,
+	}, nil
+}
+
+// tenantExportProjectedFields binds each untyped container to the owner that
+// knows its secrets (#3838, ADR 0193): settings keep their non-secret values,
+// a school keeps its branding images; nothing of a container leaves raw.
+func tenantExportProjectedFields() organizationtenancy.TenantExportProjectedFieldsByTable {
+	settingValues := settingsCompose.NewExportFields()
+	return organizationtenancy.TenantExportProjectedFieldsByTable{
+		"config.setting_values":         settingValues,
+		"config.setting_audit":          settingValues,
+		"config.traeger_setting_values": settingValues,
+		"config.traeger_setting_audit":  settingValues,
+		"platform.schools":              organizationtenancy.SchoolSettingsExportFields{},
+	}
 }

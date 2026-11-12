@@ -1,6 +1,6 @@
 package parentportal
 
-import "github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
+import "github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/care"
 
 // Care Plan values the portal hands across its boundary. They name the
 // workflow's own snapshots, so a field cannot be lost between two copies

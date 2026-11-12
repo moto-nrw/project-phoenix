@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/domain"
 )
 
 func (s *Service) RetireStaff(ctx context.Context, staffID int64, revision string) (result schoolmembership.Retirement, err error) {
@@ -110,6 +110,9 @@ func (s *Service) lockRetirementAssignments(ctx context.Context, snapshot *retir
 	if err := s.lockRetirementTeacher(ctx, snapshot, stats); err != nil {
 		return err
 	}
+	if err := admitLeaf(ctx, true, "education.class_teachers"); err != nil {
+		return err
+	}
 	classes, queryStats, err := s.store.ListClassAssignments(ctx, schoolmembership.ClassAssignmentFilter{StaffIDs: []int64{snapshot.StaffID}}, true)
 	snapshot.Classes = classes
 	stats.Add(queryStats)
@@ -125,6 +128,9 @@ func (s *Service) lockRetirementTeacher(ctx context.Context, snapshot *retiremen
 	if err != nil || !found {
 		return err
 	}
+	if err := admitLeaf(ctx, true, "users.teachers"); err != nil {
+		return err
+	}
 	teacher, found, teacherStats, err = s.store.FindTeacher(ctx, teacher.ID, "UPDATE")
 	stats.Add(teacherStats)
 	if err != nil || !found {
@@ -134,6 +140,9 @@ func (s *Service) lockRetirementTeacher(ctx context.Context, snapshot *retiremen
 		return schoolmembership.ErrOffboardingConflict
 	}
 	snapshot.Teacher = teacher
+	if err := admitLeaf(ctx, true, "education.group_teacher"); err != nil {
+		return err
+	}
 	groups, queryStats, err := s.store.ListGroupAssignments(ctx, schoolmembership.GroupAssignmentFilter{TeacherIDs: []int64{teacher.ID}}, true)
 	snapshot.Groups = groups
 	stats.Add(queryStats)
@@ -202,7 +211,7 @@ func revisionRows[Row, Revision any](rows []Row, convert func(Row) Revision) []R
 // lockStaffForRetirement locks the live membership and composes the whole
 // staff member: the work-time binding is part of the revision.
 func (s *Service) lockStaffForRetirement(ctx context.Context, staffID int64, stats *domain.OperationStats) (schoolmembership.Staff, bool, error) {
-	staff, found, queryStats, err := s.store.FindStaff(ctx, staffID, "UPDATE", false)
+	staff, found, queryStats, err := s.findStaffRow(ctx, staffID, "UPDATE", false)
 	stats.Add(queryStats)
 	if err != nil || !found {
 		return schoolmembership.Staff{}, found, err

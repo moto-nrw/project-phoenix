@@ -34,3 +34,14 @@ type NotificationCommands interface {
 	NotifyEvent(context.Context, NotificationEvent) error
 	NotifyEventDurably(context.Context, NotificationEvent) (int, error)
 }
+
+// NotificationSeriesCommands sends several events in order, each exactly as
+// its own NotifyEvent or NotifyEventDurably call, with one device read for
+// the guardians of all of them (#5869). The first error ends the series.
+type NotificationSeriesCommands interface {
+	// NotifyEvents returns how many events were accepted before the error.
+	NotifyEvents(context.Context, []NotificationEvent) (int, error)
+	// NotifyEventsDurably returns the receipt of each event accepted before
+	// the error.
+	NotifyEventsDurably(context.Context, []NotificationEvent) ([]int, error)
+}

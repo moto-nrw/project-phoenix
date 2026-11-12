@@ -17,11 +17,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	provisioningHTTP "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
-	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	provisioningHTTP "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/inbound/operator"
+	settingsHTTP "github.com/moto-ogs/project-phoenix/modules/settings/inbound/operator"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 // These route-sized routers use the serving root's real owners, operator JWT
@@ -34,7 +34,7 @@ func operatorListBudgetRouter(t *testing.T, db *bun.DB) (chi.Router, identityacc
 	operatorID := testpkg.CreateTestOperator(t, db).ID
 	auth, err := NewConfiguredSessionAuth(viper.GetString("auth_jwt_secret"), viper.GetDuration("auth_jwt_expiry"), viper.GetDuration("auth_jwt_refresh_expiry"))
 	require.NoError(t, err)
-	token, _, err := identity.IssueTokensForAuthenticatedOperator(provisioningContext(t, db), operatorID, "127.0.0.1", "operator-list-budget")
+	token, _, err := identity.IssueTokensForAuthenticatedOperator(provisioningContext(t, db), operatorID, nil, "127.0.0.1", "operator-list-budget")
 	require.NoError(t, err)
 	routes := newOperatorIdentity(auth, identity).routes()
 	resource := provisioningHTTP.NewProvisioningResource(provisioningHTTP.ProvisioningConfig{Service: provisioning})
@@ -195,8 +195,10 @@ func TestOperatorIdentityListsPositiveGrowthQueryBudget(t *testing.T) {
 			require.NoError(t, db.NewRaw(`INSERT INTO platform.operator_passkey_credentials (operator_id, user_handle, credential_id, credential_json, name) VALUES (?, ?, ?, ?, ?) RETURNING id`,
 				operatorID, []byte("budget-operator"), []byte(fmt.Sprintf("budget-%d-%d", operatorID, i)), `{"id":"registered"}`, fmt.Sprintf("Key %d", i)).Scan(ctx, &keyID))
 			passkeys = append(passkeys, fmt.Sprint(keyID))
-			require.NoError(t, db.NewRaw(`INSERT INTO platform.operator_mfa_trusted_devices (operator_id, token_hash, expires_at) VALUES (?, ?, ?) RETURNING id`,
-				operatorID, fmt.Sprintf("budget-token-%d-%d", operatorID, i), time.Now().Add(time.Hour)).Scan(ctx, &deviceID))
+			// A device of the operator's current password (#6308).
+			require.NoError(t, db.NewRaw(`INSERT INTO platform.operator_mfa_trusted_devices (operator_id, token_hash, expires_at, credential_generation)
+				VALUES (?, ?, ?, (SELECT credential_generation FROM platform.operators WHERE id = ?)) RETURNING id`,
+				operatorID, fmt.Sprintf("budget-token-%d-%d", operatorID, i), time.Now().Add(time.Hour), operatorID).Scan(ctx, &deviceID))
 			devices = append(devices, fmt.Sprint(deviceID))
 		}
 		for _, tc := range []struct {

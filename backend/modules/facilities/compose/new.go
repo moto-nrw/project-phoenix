@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/facilities/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/facilities/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/facilities/internal/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 

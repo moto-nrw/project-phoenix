@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.dataimport.opening_balance_batch.preview",
+  "max": 199,
+  "exact": true,
+  "description": "Ten-row opening-balance preview with hours, entitlement, carryover and remaining days for staff matched by name. Measured by TestOpeningBalanceImportBatchQueryBudget after two warmups (ADR 0067 addendum 2026-11-08, Messplan N10/N110)."
+}

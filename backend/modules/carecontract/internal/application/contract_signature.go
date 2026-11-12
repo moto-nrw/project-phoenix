@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
 )
 
 // The signature on the contracts of the Träger-Büro (#4679): every send
@@ -132,7 +132,10 @@ func (c *Contracts) signatureOf(ctx context.Context, organizationID int64, recor
 		signature.Intact = signature.Intact && stored.PaperIntact
 		return signature, nil
 	}
-	ends := withdrawalEnd(stored.SignedAt)
+	ends, err := c.periods.withdrawalEnd(ctx, record.Summary.SchoolID, stored.SignedAt)
+	if err != nil {
+		return carecontract.ContractSignature{}, err
+	}
 	signature.WithdrawalEndsOn = &ends
 	if stored.AuditSignatureID == nil {
 		signature.Intact = false

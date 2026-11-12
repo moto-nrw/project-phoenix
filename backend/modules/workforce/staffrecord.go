@@ -77,14 +77,20 @@ type StaffQualification struct {
 // StaffFinancialData is the 1:1 bank and tax record of a staff member. Only
 // the staff:financial code path may read it.
 type StaffFinancialData struct {
-	ID                   int64
-	TenantID             int64
-	StaffID              int64
-	IBAN                 *string
-	TaxID                *string
-	SocialSecurityNumber *string
-	CreatedAt            time.Time
-	UpdatedAt            time.Time
+	ID       int64
+	TenantID int64
+	StaffID  int64
+	// IBAN, TaxID and SocialSecurityNumber are opened values (#6332): the
+	// store keeps them only sealed with the bank ring, plus the IBAN mask.
+	IBAN                       *string
+	TaxID                      *string
+	SocialSecurityNumber       *string
+	IBANSealed                 []byte
+	IBANMasked                 *string
+	TaxIDSealed                []byte
+	SocialSecurityNumberSealed []byte
+	CreatedAt                  time.Time
+	UpdatedAt                  time.Time
 }
 
 // StaffDocument is one uploaded personnel file of a staff member (#1424):

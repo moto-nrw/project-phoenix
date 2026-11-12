@@ -1,7 +1,7 @@
 package defaults
 
 import (
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 func init() {
@@ -22,8 +22,8 @@ func init() {
 // --- Sichtbereich für Gruppen und laufende Betreuungen (#2801) ---
 // --- Abweichende Ankunftszeit für eine Klasse (#2962) ---
 // --- Zeiterfassung ---
-// Break auto-end interval is NOT registered here. It controls a global ticker
-// and is configured via BREAK_AUTO_END_INTERVAL_SECONDS env var only.
+// Break auto-end interval is NOT registered here. It is one global ticker,
+// fixed at 60 seconds in the scheduler runtime (#6463).
 // --- Status flag auto-clear (Krank / Entschuldigt badge lifecycle) ---
 // --- Anwesenheits-Modus (presence tracking model, operator-only) ---
 // --- Bundesland (public-holiday calendar, operator-only, #1418 3a) ---
@@ -451,7 +451,7 @@ var operations_init_abwesenheit_8Definitions = []config.Definition{
 	{
 		Key:             config.KeySickClearMode,
 		Label:           "Krankmeldung automatisch beenden",
-		Description:     "Legt fest, wann eine Krankmeldung von selbst endet. „Am Ende des Tages“ heißt: um 18 Uhr. Bei „Beim nächsten Einchecken“ bleibt sie auch nach dem Enddatum stehen, bis das Kind wieder da ist.",
+		Description:     "Legt fest, wann eine Krankmeldung von selbst endet. „Am Ende des Tages“ heißt: um 18 Uhr. Eine Meldung nach 18 Uhr endet um Mitternacht. Bei „Beim nächsten Einchecken“ bleibt sie auch nach dem Enddatum stehen, bis das Kind wieder da ist.",
 		Type:            config.FieldSelect,
 		Default:         config.ClearModeEndOfDay,
 		ReadPermission:  "config:read",
@@ -464,7 +464,7 @@ var operations_init_abwesenheit_8Definitions = []config.Definition{
 	{
 		Key:             config.KeyExcusedClearMode,
 		Label:           "Entschuldigung automatisch beenden",
-		Description:     "Legt fest, wann eine Entschuldigung von selbst endet. „Am Ende des Tages“ heißt: um 18 Uhr.",
+		Description:     "Legt fest, wann eine Entschuldigung von selbst endet. „Am Ende des Tages“ heißt: um 18 Uhr. Eine Meldung nach 18 Uhr endet um Mitternacht.",
 		Type:            config.FieldSelect,
 		Default:         config.ClearModeEndOfDay,
 		ReadPermission:  "config:read",

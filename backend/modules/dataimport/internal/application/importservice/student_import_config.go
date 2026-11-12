@@ -10,8 +10,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 )
 
 var (
@@ -46,6 +46,9 @@ type requestScopedResolver interface {
 // NewStudentImportConfig creates a new student import configuration.
 func NewStudentImportConfig(deps ports.StudentImportDeps) *StudentImportConfig {
 	deps.Persons = ports.ObservePersonDirectory(deps.Persons)
+	deps.PersonBatches = ports.ObservePersonBatches(deps.PersonBatches)
+	deps.GuardianBatches = ports.ObserveNewGuardianBatches(deps.GuardianBatches)
+	deps.EnrollmentBatches = ports.ObserveEnrollmentBatches(deps.EnrollmentBatches)
 	deps.Students = ports.ObserveStudentDirectory(deps.Students)
 	deps.Guardians = ports.ObserveGuardianDirectory(deps.Guardians)
 	deps.Schedules = ports.ObserveStudentSchedules(deps.Schedules)

@@ -7,18 +7,19 @@ import (
 	"log/slog"
 	"testing"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -50,13 +51,23 @@ func newChangeRequestServiceForTestWithAuthorizer(
 		GuardianProfileRepo: repoFactory.GuardianProfile,
 		GuardianPhoneRepo:   repoFactory.GuardianPhoneNumber,
 		StudentRepo:         repoFactory.Student,
-		GuardianAuthorizer:  authorizer,
+		GuardianHold:        guardianHoldFor(env, authorizer),
 		Settings:            env.settings,
 		OutboxEnqueuer:      env.outbox,
 		FrontendURL:         "http://localhost:3000",
 		ParentsURL:          "http://parents.localhost:3000",
 		Logger:              slog.Default(),
 	})
+}
+
+// guardianHoldFor holds through a recording authorizer that answers the
+// held variants as well, and through the suite's People Directory rows
+// otherwise.
+func guardianHoldFor(env *requestTestEnv, authorizer enrollmentCompose.GuardianStudentAuthorizer) owners.EnrollmentGuardianHold {
+	if hold, ok := authorizer.(owners.EnrollmentGuardianHold); ok {
+		return hold
+	}
+	return testGuardianHold(env.db, env.repos)
 }
 
 func TestChangeRequestService_ApproveLateInviteRenewalUsesInviteEmailForAuthorization(t *testing.T) {
@@ -102,9 +113,10 @@ func newChangeRequestServiceWithDecisionAndIntakeForTest(
 	t *testing.T,
 	env *decisionTestEnv,
 	requests enrollmentCompose.ChangeRequestRecords,
+	companions ...enrollmentCompose.CompanionGraphCoordinator,
 ) enrollmentAPI.ChangeRequestService {
 	t.Helper()
-	return newTestChangeRequestService(owners.EnrollmentChangeRequestSources{
+	cfg := owners.EnrollmentChangeRequestSources{
 		Bookings:            requestTestBookingCommands(),
 		Requests:            requests,
 		Children:            env.repos.Enrollment(),
@@ -116,7 +128,7 @@ func newChangeRequestServiceWithDecisionAndIntakeForTest(
 		GuardianProfileRepo: env.repos.GuardianProfile,
 		GuardianPhoneRepo:   env.repos.GuardianPhoneNumber,
 		StudentRepo:         env.repos.Student,
-		GuardianAuthorizer:  env.repos.StudentGuardian,
+		GuardianHold:        testGuardianHold(env.db, env.repos),
 		Decisions:           decisionOwner(t, env.decision),
 		BookingGates:        env.bookings,
 		Settings:            env.settings,
@@ -124,7 +136,16 @@ func newChangeRequestServiceWithDecisionAndIntakeForTest(
 		FrontendURL:         "http://localhost:3000",
 		ParentsURL:          "http://parents.localhost:3000",
 		Logger:              slog.Default(),
-	})
+	}
+	if len(companions) > 0 {
+		cfg.CompanionGraphLocker = companions[0]
+		// The guard locks the companion graph in its children slot, as
+		// the root binds it (#6638).
+		if locks, ok := companions[0].(careplan.CompanionLocks); ok {
+			cfg.GuardianHold = owners.NewEnrollmentGuardianHold(testpkg.MustDatabase(env.db), env.repos.StudentGuardian, env.repos.Student, env.repos.GuardianProfile, locks)
+		}
+	}
+	return newTestChangeRequestService(cfg)
 }
 
 type failAdminAuditChangeRequestIntake struct {
@@ -147,7 +168,7 @@ func (r failAdminAuditChangeRequestIntake) InsertChangeRequest(ctx context.Conte
 // then the stamp goes back on before the decision runs.
 func liftTakeoverStamp(t *testing.T, env *decisionTestEnv, requestID int64) func() {
 	t.Helper()
-	ctx := testpkg.TenantContext(env.sourcePhase.TenantID)
+	ctx := testpkg.Ctx(t)
 	children, err := enrollmentAPI.ReadOwnerRequestChildrenForTest(ctx, env.repos.Enrollment(), requestID)
 	require.NoError(t, err)
 	stamps := make(map[int64]int64, len(children))

@@ -117,6 +117,30 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.care_notice_letter_mailings",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_notice_letters",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_notice_months",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_notice_run_events",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_notice_runs",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_notices",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.care_run_holds",
       "write_owner": "parent-billing"
     },
@@ -153,6 +177,14 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.cost_centers",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.datev_booked_documents",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.document_letters",
       "write_owner": "parent-billing"
     },
@@ -162,6 +194,18 @@
     },
     {
       "name": "parent_billing.documents",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.export_file_invoices",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.export_files",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.export_mappings",
       "write_owner": "parent-billing"
     },
     {
@@ -229,7 +273,23 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.revenue_accounts",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.sepa_creditors",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.sepa_debit_files",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.sepa_debits",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.sepa_mandate_consents",
       "write_owner": "parent-billing"
     },
     {
@@ -238,6 +298,26 @@
     },
     {
       "name": "parent_billing.sepa_mandates",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.beleg_clarification_reviews",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.beleg_deletions",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.beleg_retention_instructions",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.beleg_retention_suspensions",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.beleg_retentions",
       "write_owner": "parent-billing"
     }
   ],

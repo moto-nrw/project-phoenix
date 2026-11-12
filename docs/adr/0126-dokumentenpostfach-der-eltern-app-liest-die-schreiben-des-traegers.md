@@ -4,8 +4,8 @@ status: accepted
 
 # Dokumentenpostfach der Eltern-App liest die Schreiben des Trägers
 
-Entscheidung vom 27.10.2026 zu [#4671](https://github.com/moto-nrw/project-phoenix/issues/4671),
-Etappe 1 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung vom 27.10.2026 zu [#4671](https://github.com/moto-ogs/project-phoenix/issues/4671),
+Etappe 1 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 93 und 96. Sie ist der fünfte Bau-Schnitt der Elternabrechnung
 aus [ADR 0088](0088-betreuungsvertrag-und-elternabrechnung-sind-eigene-owner-beim-traeger.md)
 nach [ADR 0123](0123-bestaetigungsschreiben-gehen-als-mail-des-traegers-ueber-die-outbox.md).
@@ -123,3 +123,15 @@ nicht. Den Zahler gibt es erst mit Etappe 2.
 - Wie jeder Typ ist „Neues Dokument vom Träger“ aus, bis die Eltern ihn in
   den Einstellungen einschalten (keine Entscheidung heißt aus). Die Hilfe
   nennt den Schalter.
+
+## Nachtrag 11.11.2026: Postfach eines Kontos mit Ferienanmeldung (#6673)
+
+Seit [ADR 0216](0216-ferienanmeldung-kennt-das-elternkonto-und-eltern-ohne-schule-bekommen-ein-konto-am-traeger.md) öffnet das Postfach zusätzlich den Träger, bei dem ein Konto eine
+verknüpfte Ferienanmeldung hat, wenn die Beziehungen des Kontos keinen
+Träger öffnen. Die Bedingung der Adresse bleibt: Das Postfach zeigt nur
+Schreiben an die Adresse des Kontos. Bekannte Lücke: Öffnen die Beziehungen
+eines Kontos schon einen Träger, liest es keinen weiteren Träger einer
+Ferienanmeldung; das Budget der Abfragen ließ dafür keinen Platz. Eine
+Person, deren Beziehungen nur das Abholen erlauben und die eine
+Ferienanmeldung hat, öffnet so den Träger der Anmeldung und liest dort nur
+die Schreiben an ihre eigene Adresse.

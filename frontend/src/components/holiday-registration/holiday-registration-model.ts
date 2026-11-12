@@ -2,6 +2,7 @@
 // Die Feldnamen folgen dem Backend ("children.0.first_name"), damit Fehler
 // vom Server am selben Feld landen wie die eigene Prüfung.
 
+import { holidayCareDays } from "~/lib/holiday-days";
 import { bookedWeeksOverlap } from "~/lib/holiday-week-groups";
 import {
   buildFieldsByKey,
@@ -28,9 +29,12 @@ import type {
  * Version of the consent texts the translations of this form belong to
  * (#4722, #5626). The German texts come with the offer and bind; a
  * translation is shown below them only while the offer has this version.
- * Version 3 adds the custody and the name as the declaration.
+ * Version 3 adds the custody and the name as the declaration. Version 4
+ * names the retention of the Träger in days instead of three months (#6691).
+ * Version 5 says that the Träger keeps the customer number of the Gemeinde
+ * (Debitorennummer) for later registrations and when it goes (#6692).
  */
-export const HOLIDAY_CONSENT_VERSION = 3;
+export const HOLIDAY_CONSENT_VERSION = 5;
 
 /** Bounds the typed name like the name of the parent. */
 export const DECLARATION_NAME_MAX_LENGTH = 100;
@@ -59,10 +63,23 @@ export interface ChildDraft {
   readonly healthNotes: string;
   /** Week ID → time model ID; a missing week is not booked. */
   readonly bookings: Readonly<Record<string, string>>;
+  /**
+   * Week ID → chosen days ("YYYY-MM-DD") of a week by days (#4701). Only
+   * the days of a booked week count.
+   */
+  readonly days?: Readonly<Record<string, readonly string[]>>;
   /** The child of the parent's account this draft started from (#4662). */
   readonly knownStudentId?: string;
+  /**
+   * The sealed statement of the known child's holiday care wish (#4703). It
+   * counts only while name, date of birth and school stay as the school
+   * knows them; the backend checks that.
+   */
+  readonly wishProof?: string;
   /** Answers to the Träger's questions per child, by key (#5198). */
   readonly answers: Readonly<Record<string, unknown>>;
+  /** Yes/no to the criteria per child, by criterion ID (#4700). */
+  readonly criteria?: Readonly<Record<string, boolean>>;
 }
 
 export interface ContactDraft {
@@ -109,6 +126,18 @@ export interface RegistrationDraft {
   readonly benefitsProofs: readonly NewUploadValue[];
   /** Answers to the Träger's questions per family, by key (#5198). */
   readonly answers: Readonly<Record<string, unknown>>;
+  /** Yes/no to the criteria of the family, by criterion ID (#4700). */
+  readonly criteria?: Readonly<Record<string, boolean>>;
+  /**
+   * The answer to „Möchten Sie ein Elternkonto anlegen?“ (#6673); absent
+   * until the parent chose. Only asked without a parent session.
+   */
+  readonly parentAccountRequested?: boolean;
+  /**
+   * The sealed proof of the signed-in parent's account from the prefill
+   * (#6673, ADR 0216). With it the question is not asked.
+   */
+  readonly parentAccountProof?: string;
 }
 
 /** Hint of a refused field, translated, or undefined. */
@@ -122,6 +151,8 @@ export type FieldErrorKey =
   | "school"
   | "weeks"
   | "weeksOverlap"
+  | "days"
+  | "dayLimit"
   | "privacy"
   | "health"
   | "binding"
@@ -192,7 +223,12 @@ export function registrationFromFamily(
   family: HolidayKnownFamily | null,
 ): RegistrationDraft {
   const draft = emptyRegistration();
-  return family ? { ...draft, guardian: { ...family.guardian } } : draft;
+  if (!family) return draft;
+  return {
+    ...draft,
+    guardian: { ...family.guardian },
+    ...(family.accountProof ? { parentAccountProof: family.accountProof } : {}),
+  };
 }
 
 function childFromKnown(
@@ -208,7 +244,19 @@ function childFromKnown(
       ? known.schoolId
       : "",
     knownStudentId: known.studentId,
+    ...(known.holidayWishProof ? { wishProof: known.holidayWishProof } : {}),
   };
+}
+
+/**
+ * A known child the period refuses (#4703): only children with a holiday
+ * care wish may register, and the school knows the parents said no.
+ */
+export function knownChildRefused(
+  known: HolidayKnownChild,
+  offer: HolidayRegistrationOffer,
+): boolean {
+  return offer.holidayWishMode === "wish_only" && known.holidayWish === "no";
 }
 
 function isUntouched(child: ChildDraft): boolean {
@@ -256,7 +304,9 @@ export function toggleKnownChild(
       children: children.length > 0 ? children : [emptyChild()],
     };
   }
-  if (!hasRoomForKnownChild(draft)) return draft;
+  if (!hasRoomForKnownChild(draft) || knownChildRefused(known, offer)) {
+    return draft;
+  }
   const children = draft.children.filter((child) => !isUntouched(child));
   return { ...draft, children: [...children, childFromKnown(known, offer)] };
 }
@@ -397,6 +447,52 @@ function childAnswersToSend(
   );
 }
 
+/**
+ * The criteria of one scope as yes/no questions (#4700): required, keyed by
+ * the criterion's ID, so the answer fields of the form can show them.
+ */
+export function criterionQuestions(
+  offer: HolidayRegistrationOffer,
+  scope: "family" | "child",
+): HolidayFormField[] {
+  if (offer.allocationMode !== "criteria") return [];
+  return (offer.criteria ?? [])
+    .filter((criterion) => criterion.scope === scope)
+    .map((criterion, index) => ({
+      sort_order: index + 1,
+      key: criterion.id,
+      label: criterion.question,
+      type: "boolean",
+      required: true,
+    }));
+}
+
+/** Every criterion of the scope needs a yes or a no. */
+function requireCriteria(
+  errors: Record<string, FieldErrorKey>,
+  prefix: string,
+  questions: readonly HolidayFormField[],
+  answers: Readonly<Record<string, boolean>> | undefined,
+) {
+  for (const field of questions) {
+    if (typeof answers?.[field.key] !== "boolean") {
+      errors[`${prefix}criteria.${field.key}`] = "yesNo";
+    }
+  }
+}
+
+/** The answers the backend reads: only the current criteria of the scope. */
+function criteriaToSend(
+  questions: readonly HolidayFormField[],
+  answers: Readonly<Record<string, boolean>> | undefined,
+): Record<string, boolean> {
+  return Object.fromEntries(
+    questions
+      .filter((field) => typeof answers?.[field.key] === "boolean")
+      .map((field) => [field.key, answers?.[field.key] === true]),
+  );
+}
+
 function requireAnswers(
   errors: Record<string, FieldErrorKey>,
   prefix: string,
@@ -414,15 +510,45 @@ function requireAnswers(
   }
 }
 
-/** The bookings of a child in the order of the period's weeks. */
+/**
+ * The bookings of a child in the order of the period's weeks; a week by days
+ * carries its chosen care days in order (#4701).
+ */
 export function bookedWeeks(
   child: ChildDraft,
   offer: HolidayRegistrationOffer,
-): { weekId: string; timeModelId: string }[] {
+): { weekId: string; timeModelId: string; days: readonly string[] }[] {
   return offer.weeks.flatMap((week) => {
     const timeModelId = child.bookings[week.id];
-    return timeModelId ? [{ weekId: week.id, timeModelId }] : [];
+    if (!timeModelId) return [];
+    const chosen = child.days?.[week.id] ?? [];
+    const days =
+      week.bookingUnit === "day"
+        ? (week.careDays ?? []).filter((day) => chosen.includes(day))
+        : [];
+    return [{ weekId: week.id, timeModelId, days }];
   });
+}
+
+/**
+ * The care days a child books, as the backend counts them against the bound
+ * of the period (#4701): the chosen days of a week by days, every care day
+ * (Monday to Friday) of a whole week.
+ */
+export function bookedDayCount(
+  child: ChildDraft,
+  offer: HolidayRegistrationOffer,
+): number {
+  return bookedWeeks(child, offer).reduce((count, booking) => {
+    const week = offer.weeks.find((w) => w.id === booking.weekId);
+    if (!week) return count;
+    return (
+      count +
+      (week.bookingUnit === "day"
+        ? booking.days.length
+        : holidayCareDays(week.startsOn, week.endsOn).length)
+    );
+  }, 0);
 }
 
 /** Matches the canonical optional contact formats of Enrollment intake. */
@@ -545,6 +671,20 @@ export function validateRegistration(
       )
     ) {
       errors[`${prefix}.bookings`] = "weeksOverlap";
+    } else if (
+      booked.some(
+        (booking) =>
+          booking.days.length === 0 &&
+          offer.weeks.find((w) => w.id === booking.weekId)?.bookingUnit ===
+            "day",
+      )
+    ) {
+      errors[`${prefix}.bookings`] = "days";
+    } else if (
+      offer.maxDaysPerChild != null &&
+      bookedDayCount(child, offer) > offer.maxDaysPerChild
+    ) {
+      errors[`${prefix}.bookings`] = "dayLimit";
     }
     requireAnswers(
       errors,
@@ -583,6 +723,22 @@ export function validateRegistration(
     visibleQuestions(offer.form, false, familyContext(draft, offer.form)),
     draft.answers,
   );
+  // The criteria follow the questions in the form (#4700).
+  requireCriteria(
+    errors,
+    "",
+    criterionQuestions(offer, "family"),
+    draft.criteria,
+  );
+  const childCriteria = criterionQuestions(offer, "child");
+  draft.children.forEach((child, index) => {
+    requireCriteria(
+      errors,
+      `children.${index}.`,
+      childCriteria,
+      child.criteria,
+    );
+  });
   validateContacts(errors, draft.contacts);
   if (!draft.privacyConsent) errors.privacy_consent = "privacy";
   if (hasHealthInfo(draft, offer.form) && !draft.healthConsent) {
@@ -617,6 +773,7 @@ export function quoteBookings(
   return bookedWeeks(child, offer).map((booking) => ({
     week_id: Number(booking.weekId),
     time_model_id: Number(booking.timeModelId),
+    ...(booking.days.length > 0 ? { days: booking.days } : {}),
   }));
 }
 
@@ -678,6 +835,15 @@ export function payloadFromDraft(
         health_notes: child.healthNotes.trim(),
         bookings: quoteBookings(child, offer),
         custom_data: childAnswersToSend(draft, child, offer.form),
+        ...(child.wishProof && !guest ? { wish_proof: child.wishProof } : {}),
+        ...(offer.allocationMode === "criteria"
+          ? {
+              criteria: criteriaToSend(
+                criterionQuestions(offer, "child"),
+                child.criteria,
+              ),
+            }
+          : {}),
       };
     }),
     emergency_contacts: draft.contacts
@@ -704,6 +870,23 @@ export function payloadFromDraft(
     form_version: offer.form.version,
     // The version of the texts the form showed, as the offer named them.
     consent_version: offer.consentTexts.version,
+    // The retention its privacy text named; the server refuses another one.
+    retention_days: offer.consentTexts.retentionDays,
     custom_data: familyAnswersToSend(draft, offer.form),
+    ...(offer.allocationMode === "criteria"
+      ? {
+          criteria: criteriaToSend(
+            criterionQuestions(offer, "family"),
+            draft.criteria,
+          ),
+        }
+      : {}),
+    // The account of a signed-in parent travels as its proof; anyone else
+    // answered the question at the end of the form (#6673).
+    parent_account_requested:
+      !draft.parentAccountProof && draft.parentAccountRequested === true,
+    ...(draft.parentAccountProof
+      ? { parent_account_proof: draft.parentAccountProof }
+      : {}),
   };
 }

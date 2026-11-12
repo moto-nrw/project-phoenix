@@ -9,7 +9,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -118,8 +118,9 @@ func TestSeedFeedbackHistoryStepWritesOneBatchOnce(t *testing.T) {
 			}
 		})
 		runtime := &Runtime{
-			Client:     newTestClient(srv.URL, false),
-			TenantAuth: AuthRef{Kind: AuthBearer, Token: "tenant-token"},
+			Client:      newTestClient(srv.URL, false),
+			TenantAuth:  AuthRef{Kind: AuthBearer, Token: "tenant-token"},
+			FixedSeeder: &FixedSeeder{seedDay: todaySeedDate()},
 		}
 		step := seedFeedbackHistoryStep{seeder: &Seeder{definition: fullOperationProfileDefinition()}}
 

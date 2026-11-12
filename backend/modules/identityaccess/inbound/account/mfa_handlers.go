@@ -9,10 +9,10 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 var errMFAServiceUnavailable = errors.New("mfa service is not configured for this deployment")
@@ -100,7 +100,7 @@ func (rs *Resource) mfaEnrollStart(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorUnauthorized(common.ErrUnauthorized))
 		return
 	}
-	challengeToken, err := rs.MFAService.StartMFAChallenge(r.Context(), claims.AccountID, claims.TenantID, identityaccess.MFAChallengeScopeTenant, common.ParseClientIP(r))
+	challengeToken, err := rs.MFAService.StartMFAChallenge(r.Context(), claims.AccountID, claims.TenantID, identityaccess.MFAChallengeScopeTenant, common.ParseClientIP(r), claims.CredentialGeneration)
 	if err != nil {
 		mapMFAError(w, r, err)
 		return
@@ -135,8 +135,10 @@ func (rs *Resource) mfaEnrollConfirm(w http.ResponseWriter, r *http.Request) {
 		mapMFAError(w, r, err)
 		return
 	}
-	// A retried confirm must still produce a session.
-	if err := rs.MFAService.EnrollMFA(ctx, claims.AccountID); err != nil && !errors.Is(err, identityaccess.ErrMFAAlreadyEnrolled) {
+	// A retried confirm must still produce a session. The enrollment holds
+	// the redeemed code's credential generation, so a password change or MFA
+	// reset since then records nothing and mints nothing (#6518).
+	if err := rs.MFAService.EnrollMFA(ctx, verified); err != nil && !errors.Is(err, identityaccess.ErrMFAAlreadyEnrolled) {
 		mapMFAError(w, r, err)
 		return
 	}

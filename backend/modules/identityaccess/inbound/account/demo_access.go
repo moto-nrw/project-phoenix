@@ -12,9 +12,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
 )
 
 // DemoAccesses is the Identity & Access capability behind the public demo
@@ -95,6 +95,7 @@ type demoAccessRequestBody struct {
 	FirstName    string `json:"first_name"`
 	LastName     string `json:"last_name"`
 	ContactOptIn bool   `json:"contact_opt_in"`
+	Phone        string `json:"phone"`
 	Source       string `json:"src"`
 	// Role preselects the demo role; the entry page then skips its cards.
 	Role string `json:"role"`
@@ -111,7 +112,7 @@ func (rs *DemoResource) requestAccess(w http.ResponseWriter, r *http.Request) {
 	// token out of every server and proxy log.
 	err := rs.accesses.RequestDemoAccess(r.Context(), identityaccess.DemoAccessRequest{
 		Email: body.Email, FirstName: body.FirstName, LastName: body.LastName, SchoolName: body.SchoolName,
-		Source: body.Source, ContactOptIn: body.ContactOptIn, Role: body.Role, ClientIP: common.GetClientIPString(r),
+		Source: body.Source, ContactOptIn: body.ContactOptIn, Phone: body.Phone, Role: body.Role, ClientIP: common.GetClientIPString(r),
 		EntryURLPrefix: rs.origins.Waiting + "/demo#token=",
 	})
 	if err != nil {

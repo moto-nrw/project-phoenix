@@ -5,16 +5,16 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // EnrollmentDecisionPeople is the People Directory the decision flow writes
@@ -294,8 +294,17 @@ type guardianInvitationReader interface {
 	ListOpenGuardianInvitations(context.Context, []int64) ([]identityaccess.GuardianInvitation, error)
 }
 
+type guardianProfileAddressReader interface {
+	FindByIDs(ctx context.Context, ids []int64) (map[int64]*peopledirectory.GuardianProfileSnapshot, error)
+}
+
+// enrollmentGuardianInvitationAvailability reports whether the family can
+// still redeem a link: only one issued for the address the profile has now
+// works (#6294). A legacy link without a recorded recipient, or one mailed to
+// an address since corrected, is refused at redemption.
 type enrollmentGuardianInvitationAvailability struct {
 	invitations guardianInvitationReader
+	profiles    guardianProfileAddressReader
 }
 
 func (a enrollmentGuardianInvitationAvailability) HasRedeemableGuardianInvitation(ctx context.Context, profileID int64) (bool, error) {
@@ -303,8 +312,19 @@ func (a enrollmentGuardianInvitationAvailability) HasRedeemableGuardianInvitatio
 	if err != nil {
 		return false, err
 	}
+	if len(invitations) == 0 {
+		return false, nil
+	}
+	profiles, err := a.profiles.FindByIDs(ctx, []int64{profileID})
+	if err != nil {
+		return false, err
+	}
+	address := ""
+	if profile := profiles[profileID]; profile != nil && profile.Email != nil {
+		address = *profile.Email
+	}
 	for _, invitation := range invitations {
-		if invitation.ApprovalAllowsRedemption() {
+		if invitation.AddressedTo(address) && invitation.ApprovalAllowsRedemption() {
 			return true, nil
 		}
 	}

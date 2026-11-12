@@ -2,17 +2,18 @@ package application
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/selection"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // ReplaceEditable rewrites the editable payload of a request while every
@@ -29,9 +30,12 @@ func (s *Intake) ReplaceEditable(ctx context.Context, token string, incoming enr
 
 // replacePlan is the state of one replacement edit inside its transaction.
 type replacePlan struct {
+	renewalHolds    renewalHolds
+	renewalMatches  [][]int64
 	req             *enrollmentNative.Request
 	children        []*enrollmentNative.RequestChild
 	phase           *enrollmentNative.Phase
+	locked          enrollmentNative.LockedPhase
 	duplicatePolicy string
 	capabilities    enrollmentNative.FormCapabilities
 	openByID        map[int64]*offeringContract.CareOfferingRecord
@@ -52,20 +56,20 @@ func (s *Intake) replaceEditable(ctx context.Context, token string, incoming Sub
 	if token == "" {
 		return nil, enrollmentNative.ErrRequestNotFound
 	}
-	var tenantID int64
+	var tenantID, phaseID int64
 	if err := s.deps.Runtime.AdminTx(ctx, func(adminCtx context.Context) error {
 		req, err := s.requestByStatusToken(adminCtx, token, false)
 		if err != nil {
 			return err
 		}
-		tenantID = req.TenantID
+		tenantID, phaseID = req.TenantID, req.PhaseID
 		return nil
 	}); err != nil {
 		return nil, err
 	}
 	outcome := &submitOutcome{}
 	if err := s.deps.Runtime.TenantTx(ctx, tenantID, func(txCtx context.Context) error {
-		return s.replaceInTenant(txCtx, token, tenantID, incoming, outcome)
+		return s.replaceInTenant(txCtx, token, tenantID, phaseID, incoming, outcome)
 	}); err != nil {
 		return nil, err
 	}
@@ -77,8 +81,8 @@ func (s *Intake) replaceEditable(ctx context.Context, token string, incoming Sub
 	return outcome, nil
 }
 
-func (s *Intake) replaceInTenant(ctx context.Context, token string, tenantID int64, incoming SubmitRequest, outcome *submitOutcome) error {
-	plan, editReq, err := s.lockEditableRequest(ctx, token, tenantID, incoming)
+func (s *Intake) replaceInTenant(ctx context.Context, token string, tenantID, phaseID int64, incoming SubmitRequest, outcome *submitOutcome) error {
+	plan, editReq, err := s.lockReplacement(ctx, token, tenantID, phaseID, incoming)
 	if err != nil {
 		return err
 	}
@@ -122,6 +126,29 @@ func (s *Intake) replaceInTenant(ctx context.Context, token string, tenantID int
 	return nil
 }
 
+// lockReplacement reads the phase with the phase bounds reader, which takes
+// the recurrence gate before the request and child locks (#6657), so a
+// phase edit open now finishes first. Then it locks the request. The edit's
+// own checks keep their order: editability, then the phase.
+func (s *Intake) lockReplacement(ctx context.Context, token string, tenantID, phaseID int64, incoming SubmitRequest) (*replacePlan, SubmitRequest, error) {
+	locked, err := s.phaseBounds().LockedPhase(ctx, phaseID)
+	if err != nil {
+		if errors.Is(err, enrollmentNative.ErrPhaseBoundsLock) {
+			return nil, incoming, err
+		}
+		return nil, incoming, fmt.Errorf("%w: phase %d not found", enrollmentNative.ErrInvalidSubmission, phaseID)
+	}
+	plan, editReq, err := s.lockEditableRequest(ctx, token, tenantID, incoming)
+	if err != nil {
+		return nil, incoming, err
+	}
+	if plan.req.PhaseID != phaseID {
+		return nil, incoming, fmt.Errorf("%w: request moved to another phase", enrollmentNative.ErrRequestNotFound)
+	}
+	plan.phase, plan.locked = locked.Phase(), locked
+	return plan, editReq, nil
+}
+
 // lockEditableRequest locks the request and its children, checks the edit is
 // allowed and binds the incoming payload to the stored request.
 func (s *Intake) lockEditableRequest(ctx context.Context, token string, tenantID int64, incoming SubmitRequest) (*replacePlan, SubmitRequest, error) {
@@ -151,14 +178,14 @@ func (s *Intake) lockEditableRequest(ctx context.Context, token string, tenantID
 	return &replacePlan{req: req, children: children}, editReq, nil
 }
 
-// planReplacementCatalog loads the phase, the duplicate policy, the
-// capabilities and the open catalog and materializes the new picks.
+// planReplacementCatalog loads the duplicate policy, the capabilities and
+// the open catalog of the locked phase and materializes the new picks.
 func (s *Intake) planReplacementCatalog(ctx context.Context, editReq *SubmitRequest, plan *replacePlan) error {
-	phase, err := s.loadPhaseForEditableRequest(ctx, plan.req.PhaseID)
-	if err != nil {
+	if err := s.checkEditablePhase(ctx, plan.phase); err != nil {
 		return err
 	}
-	plan.phase = phase
+	phase := plan.phase
+	var err error
 	if plan.duplicatePolicy, err = s.deps.Settings.DuplicateHandling(ctx); err != nil {
 		return fmt.Errorf("edit replace: resolve duplicate handling: %w", err)
 	}
@@ -232,6 +259,9 @@ func mergeReplacementAnswers(schema *enrollmentNative.FormSchema, editReq *Submi
 // the capacity gate.
 func (s *Intake) prepareReplacementWrite(ctx context.Context, editReq *SubmitRequest, plan *replacePlan) error {
 	plan.matchedExisting = matchExistingChildrenBySubmittedIdentity(plan.children, editReq.Children)
+	if err := s.holdReplacementCandidates(ctx, editReq, plan); err != nil {
+		return err
+	}
 	emailLC := guardianEmailKey(plan.req.GuardianEmail)
 	if err := s.deps.Requests.AcquireSubmissionDedupLock(ctx, plan.phase.ID, enrollmentNative.SubmissionDedupLockKey(emailLC)); err != nil {
 		return fmt.Errorf("edit replace: acquire dedup lock: %w", err)
@@ -258,6 +288,23 @@ func (s *Intake) prepareReplacementWrite(ctx context.Context, editReq *SubmitReq
 	if plan.capabilities.CareOfferingsEnabled {
 		plan.overrides, err = s.applyCapacityOverflow(ctx, plan.phase, editReq.Children, preservedClaims(activeLinks), nil)
 	}
+	return err
+}
+
+// holdReplacementCandidates holds the children an edit may renew before
+// its phase locks (holdRenewalCandidates): the pins it carries over and the
+// children its identities match, as the stored request's identity.
+func (s *Intake) holdReplacementCandidates(ctx context.Context, editReq *SubmitRequest, plan *replacePlan) error {
+	carried := make([]*int64, len(editReq.Children))
+	for i, child := range editReq.Children {
+		if matched := plan.matchedExisting[i]; matched != nil && matched.RolloverSourceChildID == nil && sameSubmittedIdentity(matched, child) {
+			carried[i] = matched.MatchedStudentID
+		}
+	}
+	var err error
+	plan.renewalHolds, err = s.holdRenewalCandidates(ctx, plan.req.TenantID, plan.phase, editReq.Children, carried, func() (reEnrollmentSubmitter, error) {
+		return reEnrollmentSubmitterForPersistedRequest(ctx, s.deps.LateInvites, plan.req)
+	})
 	return err
 }
 
@@ -359,6 +406,11 @@ func (s *Intake) checkReplacementDuplicates(ctx context.Context, plan *replacePl
 }
 
 func (s *Intake) createReplacementChildren(ctx context.Context, editReq *SubmitRequest, plan *replacePlan) ([]*enrollmentNative.RequestChild, error) {
+	var err error
+	plan.renewalMatches, err = s.finalRenewalMatches(ctx, plan.req.TenantID, plan.phase, editReq.Children)
+	if err != nil {
+		return nil, err
+	}
 	created := make([]*enrollmentNative.RequestChild, 0, len(editReq.Children))
 	for i, child := range editReq.Children {
 		row := newSubmittedChild(plan.req.ID, i, child, plan.overrides)
@@ -379,7 +431,7 @@ func (s *Intake) createReplacementChildren(ctx context.Context, editReq *SubmitR
 		if err := s.deps.Children.InsertChild(ctx, row); err != nil {
 			return nil, fmt.Errorf("edit replace: create request child %d: %w", i, err)
 		}
-		if err := s.recordOfferingSubmission(ctx, row.ID, plan.selections[i], plan.phase.ServiceStartDate, plan.phase.ServiceEndDate); err != nil {
+		if err := s.recordOfferingSubmission(ctx, row.ID, plan.selections[i], plan.locked); err != nil {
 			return nil, fmt.Errorf("edit replace: record child offerings: %w", err)
 		}
 		created = append(created, row)
@@ -400,7 +452,7 @@ func (s *Intake) replacementStudentPin(ctx context.Context, plan *replacePlan, i
 		pin = matched.MatchedStudentID
 	}
 	if plan.phase.Audience == enrollmentNative.PhaseAudienceExistingStudents {
-		resolved, err := s.resolveMatchedStudentID(ctx, req.TenantID, plan.phase, i, child)
+		resolved, err := matchedRenewalStudent(plan.phase, plan.renewalMatches[i], i)
 		if err != nil {
 			return nil, err
 		}
@@ -412,18 +464,17 @@ func (s *Intake) replacementStudentPin(ctx context.Context, plan *replacePlan, i
 		return nil, err
 	}
 	submitter := reEnrollmentSubmitterFor(req.SubmissionSource, req.GuardianAccountID, req.GuardianEmail)
-	pin, err := s.enrolledChildPinUnlessPinned(ctx, req.TenantID, plan.phase, child, submitter, pin)
-	if err != nil {
-		return nil, err
-	}
-	if pin != nil {
-		resolvedSubmitter, err := reEnrollmentSubmitterForPersistedRequest(ctx, s.deps.LateInvites, req)
+	if pin == nil {
+		resolved, err := matchedRenewalStudent(plan.phase, plan.renewalMatches[i], i)
 		if err != nil {
-			return nil, fmt.Errorf("edit replace: resolve re-enrollment identity: %w", err)
+			return nil, err
 		}
-		submitter = resolvedSubmitter
+		pin, err = s.resolveEnrolledChildPin(ctx, plan.phase, resolved, submitter, plan.renewalHolds, i)
+		if err != nil {
+			return nil, err
+		}
 	}
-	if err := s.assertGuardianMayReEnrollStudent(ctx, submitter, pin, req.TenantID, i); err != nil {
+	if err := s.holdGuardianReEnrollment(plan.renewalHolds, pin, i); err != nil {
 		return nil, err
 	}
 	if err := s.guardMatchedStudentUnique(ctx, plan.phase.ID, pin, 0, i); err != nil {

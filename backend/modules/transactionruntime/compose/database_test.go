@@ -10,9 +10,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // A root holds one Database value and hands its parts to the owner
@@ -73,6 +73,7 @@ func TestDatabaseLogsQueriesAndReportsCapacity(t *testing.T) {
 	assert.Contains(t, logged.String(), `"operation":"SELECT"`, "the logger sees the statements of the pool")
 
 	assert.GreaterOrEqual(t, database.Capacity().OpenConnections, 1, "the snapshot counts the connection the query opened")
+	assert.Positive(t, database.Capacity().MaxOpenConnections, "the snapshot carries the configured pool limit the utilization alert divides by")
 }
 
 func TestDatabaseRequiresAPool(t *testing.T) {

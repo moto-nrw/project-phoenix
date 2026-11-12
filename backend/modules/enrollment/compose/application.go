@@ -5,11 +5,11 @@ import (
 	"database/sql"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/adapters/turnstile"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment/internal/adapters/turnstile"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -33,8 +33,7 @@ type (
 
 // Application services the composition root hands to its consumers beyond their public contract.
 type (
-	// Phases is the phase administration; the rollover also uses its
-	// eligibility guard.
+	// Phases is the phase administration; the rollover also uses its eligibility guard.
 	Phases = application.Phases
 	// PhaseExpirySnapshots reads the owner's phase-expiry report for the tenant in context.
 	PhaseExpirySnapshots = application.PhaseExpiryProjection
@@ -42,8 +41,7 @@ type (
 	ApprovedOfferingProjection = application.ApprovedOfferingProjection
 )
 
-// PhaseDependencies bind the phase administration to its owners. Calendar,
-// Settings and the three response ports are optional in focused tests.
+// PhaseDependencies bind the phase administration to its owners; Calendar, Settings and the response ports are optional in tests.
 type PhaseDependencies struct {
 	Records                         PhaseRecords
 	Offerings                       PhaseOfferings
@@ -52,6 +50,9 @@ type PhaseDependencies struct {
 	ValidateCareOfferingPhaseChange func(context.Context, int64, *enrollment.Phase) error
 	// Resyncer keeps the templates sourcing the phase's offerings in step.
 	Resyncer       enrollment.SourcedTemplateResyncer
+	Students       enrollment.PhaseStudents
+	Bookings       enrollment.PhaseBookings
+	CareStudents   enrollment.PhaseCareStudents
 	Settings       CollectionSettings
 	Roster         enrollment.PhaseResponseRoster
 	CareExits      enrollment.PhaseResponseCareExits
@@ -60,8 +61,7 @@ type PhaseDependencies struct {
 	Today          func() calendar.Date
 }
 
-// NewResyncingPhases composes the phase administration in the ambient tenant transaction over the
-// sourced-template resyncer; a missing resyncer, record or offering port or recurrence lock is a construction error.
+// NewResyncingPhases composes the phase administration in the ambient tenant transaction over the sourced-template resyncer; a missing resyncer, record or offering port or recurrence lock is a construction error.
 func NewResyncingPhases(deps PhaseDependencies) (*Phases, error) {
 	var responses *application.PhaseResponseSources
 	if deps.Roster != nil || deps.CareExits != nil || deps.PortalAccounts != nil {
@@ -72,16 +72,16 @@ func NewResyncingPhases(deps PhaseDependencies) (*Phases, error) {
 		LockTemplateRecurrence:          deps.LockTemplateRecurrence,
 		ValidateCareOfferingPhaseChange: deps.ValidateCareOfferingPhaseChange,
 		Resyncer:                        deps.Resyncer,
-		Settings:                        deps.Settings,
-		Responses:                       responses,
-		Runtime:                         tenantRuntime(),
-		Logger:                          deps.Logger,
-		Today:                           deps.Today,
+		Students:                        deps.Students, Bookings: deps.Bookings, CareStudents: deps.CareStudents,
+		Settings:  deps.Settings,
+		Responses: responses,
+		Runtime:   tenantRuntime(), TraegerCopies: newStore(),
+		Logger: deps.Logger,
+		Today:  deps.Today,
 	})
 }
 
-// NewFormSchemas composes form-schema publishing. Every write runs in the
-// caller's tenant transaction, or opens one for a standalone caller.
+// NewFormSchemas composes form-schema publishing; writes join the caller's tenant transaction or open one.
 func NewFormSchemas(records FormSchemaRecords, settings CollectionSettings, logger *slog.Logger) enrollment.FormSchemaAdministration {
 	runtime := tenantRuntime()
 	return application.NewTransactionalFormSchemas(application.NewFormSchemas(application.FormSchemaDependencies{
@@ -99,8 +99,7 @@ func NewPhaseExpiryWarnings(snapshots application.PhaseExpirySnapshots) enrollme
 	return application.NewPhaseExpiryWarnings(snapshots)
 }
 
-// NewCaptcha composes captcha verification against Cloudflare Turnstile. An empty verifyURL
-// uses Turnstile's siteverify endpoint; tests point it at a local provider.
+// NewCaptcha composes Cloudflare Turnstile verification; an empty verifyURL uses siteverify, tests point it at a local provider.
 func NewCaptcha(settings CaptchaSettings, verifyURL string, logger *slog.Logger) enrollment.CaptchaVerifier {
 	return application.NewCaptcha(settings, turnstile.New(nil, verifyURL), logger)
 }
@@ -124,9 +123,9 @@ func NewNotifications(deps NotificationDependencies) enrollment.Notifications {
 	})
 }
 
-// NewMailRenderers returns Enrollment's mail renderers.
-func NewMailRenderers() enrollment.MailRenderers {
-	return application.NewMailRenderers()
+// NewMailRenderers binds account eligibility and the parents URL to Enrollment's renderers.
+func NewMailRenderers(accounts enrollment.HolidayAcceptanceAccounts, parentsURL string) enrollment.MailRenderers {
+	return application.NewMailRenderers(accounts, parentsURL)
 }
 
 // NewApprovedOfferingProjection composes the approved-offering projection.
@@ -157,4 +156,13 @@ func tenantRuntime() application.Runtime {
 		WithoutTransaction: tenant.ContextWithoutTransaction,
 		DetachTransaction:  application.NewDetachedContext(tenant.ContextWithoutAfterCommitHooks, tenant.ContextWithoutTransaction),
 	}
+}
+
+// NewCareOfferingValues binds the values to the catalog.
+func NewCareOfferingValues(catalog CareOfferingCatalogAdministration) *CareOfferingValues {
+	return &CareOfferingValues{CareOfferingValues: application.CareOfferingValues{CareOfferingRows: NewCareOfferingRows(catalog)}}
+}
+
+type CareOfferingValues struct {
+	application.CareOfferingValues
 }

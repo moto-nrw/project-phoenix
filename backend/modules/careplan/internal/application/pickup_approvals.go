@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type PickupApprovals struct {
@@ -179,7 +179,7 @@ func (s *PickupApprovals) SaveApprovedException(ctx context.Context, tenantID, s
 		return 0, fmt.Errorf("schedule: load pickup exception for request: %w", err)
 	}
 	if existing != nil {
-		if existing.Source == careplan.ExceptionSourceStaff || (existing.ExcusedFrom != nil && !existing.ExcusedAuto) {
+		if careplan.SchoolOwnedException(existing.Source) || (existing.ExcusedFrom != nil && !existing.ExcusedAuto) {
 			return 0, carerequests.ErrPickupChangeConflict
 		}
 		clock := calendar.NormalizeWallClock(pickup)

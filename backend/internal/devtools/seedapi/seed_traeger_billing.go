@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // seedBillingNumberPattern is the number range of the holiday invoices the
@@ -15,8 +15,9 @@ const seedBillingNumberPattern = "FE-{JJJJ}-{NNNN}"
 // seedBillingRunDetail is what the seed reads of a run: the sums of the
 // preview and the first child of the first invoice.
 type seedBillingRunDetail struct {
-	PreviewCount int   `json:"preview_count"`
-	PreviewCents int64 `json:"preview_cents"`
+	PreviewCount int    `json:"preview_count"`
+	PreviewCents int64  `json:"preview_cents"`
+	Fingerprint  string `json:"fingerprint"`
 	Documents    []struct {
 		RegistrationID int64 `json:"registration_id"`
 		Children       []struct {
@@ -68,25 +69,12 @@ func seedHolidayBillingRun(client *Client, auth AuthRef, periodID, costBearerID 
 		return 0, err
 	}
 	if _, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/billing-runs/%d/release", runID), map[string]any{
-		"document_count": run.PreviewCount, "total_cents": run.PreviewCents,
+		"document_count": run.PreviewCount, "total_cents": run.PreviewCents, "fingerprint": run.Fingerprint,
 	}); err != nil {
 		return 0, fmt.Errorf("release the billing run: %w", err)
 	}
-	// The overview for the Kämmerei (#4672) is downloaded once, so the trail
-	// of the run shows a download.
-	overview, err := client.GetWithAuth(auth, fmt.Sprintf("/traeger/billing-runs/%d/export?format=csv", runID))
-	if err != nil {
-		return 0, fmt.Errorf("download the overview of the billing run: %w", err)
-	}
-	if len(overview) == 0 {
-		return 0, fmt.Errorf("the overview of the billing run is empty")
-	}
-	// The list for the reimbursement by the cost bearer (#5627) is
-	// downloaded once too.
-	if costBearerID > 0 {
-		if _, err := client.GetWithAuth(auth, fmt.Sprintf("/traeger/billing-runs/%d/cost-takeovers/%d/export?format=csv", runID, costBearerID)); err != nil {
-			return 0, fmt.Errorf("download the list of the cost bearer: %w", err)
-		}
+	if err := seedHolidayRunDownloads(client, auth, runID, costBearerID); err != nil {
+		return 0, err
 	}
 	fmt.Printf("  Abrechnung: holiday run released with %d invoice(s) and one correction, overview downloaded\n", run.PreviewCount)
 	return runID, nil

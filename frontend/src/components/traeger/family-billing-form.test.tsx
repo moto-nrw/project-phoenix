@@ -100,9 +100,27 @@ describe("FamilyBillingForm", () => {
         payerAddress: null,
         paymentMethod: "direct_debit",
         dueDay: null,
+        debtorNumber: "",
       }),
     );
     await waitFor(() => expect(onSaved).toHaveBeenCalledWith(null));
+  });
+
+  it("saves a debtor number of the family alone (#4693)", async () => {
+    saveFamilyBilling.mockResolvedValue(null);
+    renderModal();
+    fireEvent.change(screen.getByLabelText(/Debitorennummer/), {
+      target: { value: "10 4711" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(saveFamilyBilling).toHaveBeenCalledWith(
+        expect.objectContaining({
+          recipientKind: "applicant",
+          debtorNumber: "10 4711",
+        }),
+      ),
+    );
   });
 
   it("starts from the stored deviation", () => {
@@ -119,10 +137,121 @@ describe("FamilyBillingForm", () => {
       payerAddress: { street: "Weg 1", postalCode: "12345", city: "Ort" },
       paymentMethod: "",
       dueDay: 15,
+      debtorNumber: "10 4711",
       updatedAt: "2026-09-01T10:00:00Z",
     });
     expect(screen.getByLabelText(/Vorname/)).toHaveValue("Carla");
+    expect(screen.getByLabelText(/Debitorennummer/)).toHaveValue("10 4711");
     expect(screen.getByLabelText(/Postleitzahl/)).toHaveValue("12345");
+  });
+});
+
+describe("FamilyBillingForm and the family's debtor number", () => {
+  beforeEach(() => {
+    saveFamilyBilling.mockReset();
+  });
+
+  const STORED: FamilyBilling = {
+    id: "5",
+    familyEmail: "anna@example.org",
+    contractId: "42",
+    recipientKind: "applicant",
+    secondFirstName: "",
+    secondLastName: "",
+    payerFirstName: "",
+    payerLastName: "",
+    payerEmail: "",
+    payerAddress: null,
+    paymentMethod: "direct_debit",
+    dueDay: null,
+    debtorNumber: "40300",
+    updatedAt: "2026-09-01T10:00:00Z",
+  };
+
+  // #6692: the number belongs to the family, not to the contract. Going back
+  // to the contract must not drop a number the holiday care remembered.
+  it("keeps the number on „Wieder wie im Vertrag“", async () => {
+    saveFamilyBilling.mockResolvedValue(STORED);
+    renderModal(STORED);
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Felder wie im Vertrag ausfüllen" }),
+    );
+    expect(screen.getByLabelText(/Debitorennummer/)).toHaveValue("40300");
+    expect(
+      screen.queryByRole("button", { name: "Felder wie im Vertrag ausfüllen" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(saveFamilyBilling).toHaveBeenCalledWith(
+        expect.objectContaining({
+          recipientKind: "applicant",
+          paymentMethod: "",
+          debtorNumber: "40300",
+        }),
+      ),
+    );
+  });
+
+  it("saves unrelated edits with an unchanged legacy number after the format tightens", async () => {
+    saveFamilyBilling.mockResolvedValue(STORED);
+    render(
+      <ToastProvider>
+        <FamilyBillingForm
+          target={target}
+          existing={{ ...STORED, debtorNumber: "LEGACY 1" }}
+          format={{ digitsOnly: true, minDigits: 5, maxDigits: 5 }}
+          onCancel={vi.fn()}
+          onSaved={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+    fireEvent.click(screen.getByRole("radio", { name: "Überweisung" }));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(saveFamilyBilling).toHaveBeenCalledWith(
+        expect.objectContaining({
+          paymentMethod: "transfer",
+          debtorNumber: "LEGACY 1",
+        }),
+      ),
+    );
+    saveFamilyBilling.mockClear();
+    fireEvent.change(screen.getByLabelText(/Debitorennummer/), {
+      target: { value: "LEGACY 2" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    expect(
+      await screen.findByText(
+        "Die Debitorennummer hat 5 Ziffern, zum Beispiel 20815.",
+      ),
+    ).toBeInTheDocument();
+    expect(saveFamilyBilling).not.toHaveBeenCalled();
+  });
+
+  it("refuses a number in another format of the Träger (#6675)", async () => {
+    render(
+      <ToastProvider>
+        <FamilyBillingForm
+          target={target}
+          existing={null}
+          format={{ digitsOnly: true, minDigits: 5, maxDigits: 5 }}
+          onCancel={vi.fn()}
+          onSaved={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+    const field = screen.getByLabelText(/Debitorennummer/);
+    expect(field).toHaveAttribute("inputmode", "numeric");
+    fireEvent.change(field, { target: { value: "40 300" } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        "Die Debitorennummer hat 5 Ziffern, zum Beispiel 20815.",
+      ),
+    ).toBeInTheDocument();
+    expect(saveFamilyBilling).not.toHaveBeenCalled();
   });
 });
 
@@ -143,6 +272,7 @@ describe("family billing request", () => {
       postalCode: "12345",
       city: "Ort",
       dueDay: "15",
+      debtorNumber: " 10 4711 ",
     };
     expect(familyBillingErrors(draft)).toEqual({});
     expect(familyBillingBody(familyBillingInput("42", draft))).toEqual({
@@ -156,6 +286,7 @@ describe("family billing request", () => {
       payer_address: { street: "Weg 1", postal_code: "12345", city: "Ort" },
       payment_method: "",
       due_day: 15,
+      debtor_number: "10 4711",
     });
   });
 });

@@ -24,7 +24,7 @@ func isCanonicalDateAlias(root, source, spelling string) bool {
 	if err != nil {
 		return false
 	}
-	const modulePrefix = "github.com/moto-nrw/project-phoenix/"
+	const modulePrefix = "github.com/moto-ogs/project-phoenix/"
 	importPath := dateAliasImportPath(consumer, parts[0])
 	if importPath == modulePrefix+"sharedkernel/calendar" && parts[1] == "Date" {
 		return true
@@ -93,8 +93,8 @@ func TestCalendarDateAliasTypeIdentity(t *testing.T) {
 		name, imported, declaration string
 		want                        bool
 	}{
-		{"shared kernel alias", "github.com/moto-nrw/project-phoenix/sharedkernel/calendar", "type Date = clock.Date", true},
-		{"shared kernel named type", "github.com/moto-nrw/project-phoenix/sharedkernel/calendar", "type Date clock.Date", false},
+		{"shared kernel alias", "github.com/moto-ogs/project-phoenix/sharedkernel/calendar", "type Date = clock.Date", true},
+		{"shared kernel named type", "github.com/moto-ogs/project-phoenix/sharedkernel/calendar", "type Date clock.Date", false},
 		{"timestamp alias", "time", "type Date = clock.Time", false},
 		{"lookalike package", "example.com/timezone", "type Date = clock.Date", false},
 	} {
@@ -112,7 +112,7 @@ func TestCalendarDateAliasTypeIdentity(t *testing.T) {
 			}
 			write(filepath.Join(dir, "date.go"), "package ports\nimport clock "+strconv.Quote(tc.imported)+"\n"+tc.declaration)
 			consumer := "modules/example/row.go"
-			write(filepath.Join(root, consumer), "package example\nimport calendar \"github.com/moto-nrw/project-phoenix/modules/example/ports\"\n")
+			write(filepath.Join(root, consumer), "package example\nimport calendar \"github.com/moto-ogs/project-phoenix/modules/example/ports\"\n")
 			for _, spelling := range []string{"calendar.Date", "*calendar.Date"} {
 				if got := isCanonicalDateAlias(root, consumer, spelling); got != tc.want {
 					t.Errorf("%s: canonical date alias = %v, want %v", spelling, got, tc.want)
@@ -128,7 +128,7 @@ func TestCanonicalCalendarDateTypeIdentity(t *testing.T) {
 		name, imported string
 		want           bool
 	}{
-		{"shared kernel", "github.com/moto-nrw/project-phoenix/sharedkernel/calendar", true},
+		{"shared kernel", "github.com/moto-ogs/project-phoenix/sharedkernel/calendar", true},
 		{"lookalike package", "example.com/calendar", false},
 		{"timestamp package", "time", false},
 	} {

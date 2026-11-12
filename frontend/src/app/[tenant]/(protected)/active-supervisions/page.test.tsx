@@ -7,6 +7,7 @@
  * student/timetable API stubs), so they stay separate.
  * Tests that can share this header belong here.
  */
+import { setViewportWidth } from "~/test/helpers/viewport";
 import {
   render as rtlRender,
   renderHook,
@@ -147,7 +148,6 @@ vi.mock("~/components/ui/modal", () => ({
 // Mock activeService
 vi.mock("~/lib/active-api", () => ({
   activeService: {
-    getActiveGroupVisitsWithDisplay: vi.fn(() => Promise.resolve([])),
     getActiveGroupSupervisors: vi.fn(() => Promise.resolve([])),
     endSupervision: vi.fn(() => Promise.resolve()),
     claimActiveGroup: vi.fn(() => Promise.resolve()),
@@ -4603,11 +4603,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     global.fetch = vi.fn();
 
     // Set mobile viewport so tabs are rendered (isDesktop = false when < 1024)
-    Object.defineProperty(window, "innerWidth", {
-      writable: true,
-      configurable: true,
-      value: 500,
-    });
+    setViewportWidth(500);
 
     // Override PageHeaderSearchLayout to render tabs with onTabChange
     const mod =
@@ -4647,11 +4643,7 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
 
   afterEach(() => {
     cleanup();
-    Object.defineProperty(window, "innerWidth", {
-      writable: true,
-      configurable: true,
-      value: originalInnerWidth,
-    });
+    setViewportWidth(originalInnerWidth);
   });
 
   it("switches to a different room when tab is clicked and loads visits", async () => {
@@ -5108,8 +5100,6 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
   });
 
   it("does not switch when clicking the already-selected room tab", async () => {
-    const { activeService } = await import("~/lib/active-api");
-
     const dashboardData = {
       supervisedGroups: [
         {
@@ -5171,12 +5161,6 @@ describe("ID-based selection coverage: switchToRoom via tab click", () => {
     // Click the already-selected first room tab
     const tabA = screen.getByRole("tab", { name: "Raum A" });
     fireEvent.click(tabA);
-
-    // switchToRoom early-returns because roomId === selectedRoomId
-    // loadRoomVisits should NOT be called (only the initial load triggers it via SWR)
-    expect(
-      activeService.getActiveGroupVisitsWithDisplay,
-    ).not.toHaveBeenCalled();
   });
 });
 
@@ -5727,11 +5711,7 @@ describe("ID-based selection coverage: forbidden-session 403 handling", () => {
     global.fetch = vi.fn();
 
     // Set mobile viewport so tabs are rendered (isDesktop = false when < 1024)
-    Object.defineProperty(window, "innerWidth", {
-      writable: true,
-      configurable: true,
-      value: 500,
-    });
+    setViewportWidth(500);
 
     // Override PageHeaderSearchLayout to render tabs
     const mod =
@@ -5768,11 +5748,7 @@ describe("ID-based selection coverage: forbidden-session 403 handling", () => {
 
   afterEach(() => {
     cleanup();
-    Object.defineProperty(window, "innerWidth", {
-      writable: true,
-      configurable: true,
-      value: originalInnerWidth,
-    });
+    setViewportWidth(originalInnerWidth);
   });
 
   it("shows permission error for 403 and clears students", async () => {

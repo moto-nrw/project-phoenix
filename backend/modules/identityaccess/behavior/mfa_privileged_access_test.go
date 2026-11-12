@@ -6,8 +6,8 @@ import (
 	"os"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -69,7 +69,7 @@ func TestStaffDataMFAPermissionRequiresEnrollment(t *testing.T) {
 			assert.Empty(t, result.RefreshToken)
 			_, _, err = service.RefreshTokenWithAudit(context.Background(), legacyRefresh, "", "", "")
 			require.ErrorIs(t, err, identityaccess.ErrInvalidToken, "old password-only sessions cannot bypass the extended floor")
-			require.NoError(t, module.MFA.EnrollMFA(testpkg.TenantContext(school), accountID))
+			require.NoError(t, enrollMFA(testpkg.TenantContext(school), t, db, module.MFA, accountID))
 			result, err = service.LoginWithMFAGate(context.Background(), email, testPassword, "", "", slug, "")
 			require.NoError(t, err)
 			assert.Equal(t, identityaccess.LoginStatusMFARequired, result.Status)
@@ -123,7 +123,7 @@ func TestSchoolPrivilegedMFAEnrollmentPrecedesTrustedDevice(t *testing.T) {
 	result, err := service.LoginSchoolWithMFAGate(ctx, email, testPassword, "", "", cookie)
 	require.NoError(t, err)
 	assert.Equal(t, identityaccess.LoginStatusMFAEnrollmentRequired, result.Status, "old device proof must not skip missing enrollment")
-	require.NoError(t, module.MFA.EnrollMFA(testpkg.TenantContext(school), accountID))
+	require.NoError(t, enrollMFA(testpkg.TenantContext(school), t, db, module.MFA, accountID))
 	result, err = service.LoginSchoolWithMFAGate(ctx, email, testPassword, "", "", "")
 	require.NoError(t, err)
 	assert.Equal(t, identityaccess.LoginStatusMFARequired, result.Status)

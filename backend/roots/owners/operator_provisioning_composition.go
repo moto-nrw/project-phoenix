@@ -6,18 +6,18 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	organizationCompose "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // newOperatorProvisioning composes Organisation & Tenancy's provisioning
@@ -27,10 +27,12 @@ import (
 func newOperatorProvisioning(
 	organizations organizationtenancy.Capability, identity identityaccess.Owner, accounts OperatorAccountDirectory,
 	adapters OperatorProvisioningAdapters, settings settingsCompose.SettingsService, logger *slog.Logger,
-) (organizationtenancy.Provisioning, error) {
+) (organizationtenancy.OperatorProvisioning, error) {
 	return organizationCompose.NewProvisioning(organizationCompose.ProvisioningDependencies{
 		PWAUsageWindowDays: deliveryCompose.PWAUsageWindowDays,
 		Organizations:      organizations,
+		// The observer of the owner's records command (#4720).
+		Observe: observeOrganizationTenancy,
 		Identity: ProvisioningIdentity{
 			Sessions: identity, Invitations: identity, Provisioning: identity,
 			Administration: identity, SchoolIdentity: identity, Roles: identity, Accounts: accounts,
@@ -301,6 +303,8 @@ func (p ProvisioningIdentity) AssignTraegerRole(ctx context.Context, organizatio
 		return organizationtenancy.ErrInvalidTraegerRole
 	case errors.Is(err, identityaccess.ErrAccountNotFound):
 		return organizationtenancy.ErrTraegerAccountNotFound
+	case errors.Is(err, identityaccess.ErrAccountInactive):
+		return organizationtenancy.ErrTraegerAccountInactive
 	}
 	return err
 }

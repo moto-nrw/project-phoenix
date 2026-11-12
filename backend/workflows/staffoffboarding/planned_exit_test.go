@@ -3,16 +3,20 @@ package staffoffboarding_test
 import (
 	"context"
 	"errors"
+	"fmt"
+	"slices"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	membershipcompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	membershipcompose "github.com/moto-ogs/project-phoenix/modules/schoolmembership/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/workflows/staffoffboarding"
 	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
 )
 
 // plannerFixture runs the planned exit of #4809 on the offboarding fixture
@@ -20,16 +24,31 @@ import (
 // changes, the notices and the access steps.
 type plannerFixture struct {
 	fixture
-	today      string
-	now        time.Time
-	blocked    bool
-	notify     bool
-	changes    []staffoffboarding.ExitPlanChange
-	notices    []staffoffboarding.ExitNotice
-	accessRuns int
-	deletion   []staffoffboarding.Actor
-	// beforeRunPlan changes a listed plan immediately before DueExits locks it.
+	today        string
+	now          time.Time
+	blocked      bool
+	notify       bool
+	changes      []staffoffboarding.ExitPlanChange
+	notices      []staffoffboarding.ExitNotice
+	accessRuns   int
+	accountLocks [][]int64
+	deletion     []staffoffboarding.Actor
+	// beforeRunPlan changes a listed plan and commits immediately before
+	// DueExits opens the exit's transaction.
 	beforeRunPlan func(context.Context) error
+	// failLockOf makes the lock step of that staff member's exit fail with a
+	// database error that aborts the exit's transaction.
+	failLockOf int64
+	// units counts the exit transactions the runs opened.
+	units int
+	// account is the subject's sign-in account.
+	account int64
+	// lockWait bounds the lock waits of an exit (30 s when zero).
+	lockWait time.Duration
+	// breakUnit makes the savepoint control of that exit transaction (1 is
+	// the first of the fixture) fail after its work.
+	breakUnit int
+	logs      *lockedBuffer
 	// failDeletion makes the offboarding's audit append fail, which rolls
 	// the offboarding back like any owner failure.
 	failDeletion bool
@@ -37,8 +56,9 @@ type plannerFixture struct {
 }
 
 // testPlanner plans through the workflow's Planner and runs the due exits
-// the way the scheduler does: inside one school transaction, every planned
-// exit in a savepoint. lastRun keeps the failures the run reported.
+// the way the scheduler does: the plans are listed inside one school
+// transaction, every planned exit runs in a transaction of its own. lastRun
+// keeps what the run reported.
 type testPlanner struct {
 	*staffoffboarding.Planner
 	t       *testing.T
@@ -64,6 +84,16 @@ func (p *testPlanner) RunDue(ctx context.Context) error {
 	})
 }
 
+func (p *testPlanner) failedExits() map[int64]error {
+	failed := map[int64]error{}
+	for _, exit := range p.lastRun.Exits {
+		if exit.Outcome == staffoffboarding.ExitFailed {
+			failed[exit.StaffID] = exit.Err
+		}
+	}
+	return failed
+}
+
 func isolate(ctx context.Context, fn func(context.Context) error) (failed, err error) {
 	failed = tenant.WithSavepoint(ctx, fn)
 	if errors.Is(failed, tenant.ErrSavepointControl) {
@@ -72,17 +102,70 @@ func isolate(ctx context.Context, fn func(context.Context) error) (failed, err e
 	return failed, nil
 }
 
+// within runs one exit in a transaction of its own, as the Worker binds it
+// (api.PlannedExitTransaction).
+func within(ctx context.Context, fn func(context.Context) error) (failed, err error) {
+	err = tenant.WithinCurrentTenant(tenant.ContextWithoutTransaction(ctx), fn)
+	switch {
+	case err == nil:
+		return nil, nil
+	case tenant.IsSavepointControlFailure(err), tenant.TransactionResult(err) != tenant.UnitOfWorkRolledBack:
+		return nil, err
+	}
+	return err, nil
+}
+
+// boundLockWaits defers an exit whose locks another transaction holds, as
+// the Worker binds it (api.BoundPlannedExitLockWaits).
+func boundLockWaits(limit time.Duration) func(context.Context, func(context.Context) error) error {
+	return func(ctx context.Context, fn func(context.Context) error) error {
+		err := tenant.WithLockTimeout(ctx, limit, fn)
+		if errors.Is(err, tenant.ErrLockWaitExceeded) {
+			return fmt.Errorf("%w: %w", staffoffboarding.ErrExitLocked, err)
+		}
+		return err
+	}
+}
+
+// failTransaction runs a statement that fails in the transaction of ctx, so
+// the transaction is aborted like after any database error.
+func failTransaction(ctx context.Context) error {
+	tx, ok := tenant.TransactionFromContext(ctx)
+	if !ok {
+		return errors.New("no transaction")
+	}
+	var db bun.IDB
+	switch typed := tx.(type) {
+	case bun.Tx:
+		db = typed
+	case *bun.Tx:
+		db = typed
+	default:
+		return fmt.Errorf("unexpected transaction %T", tx)
+	}
+	_, err := db.ExecContext(ctx, "SELECT 1 / 0")
+	return err
+}
+
 func newPlannerFixture(t *testing.T) (*plannerFixture, *testPlanner) {
 	t.Helper()
-	f := &plannerFixture{fixture: newFixture(t), today: "2027-10-01", notify: true,
+	f := &plannerFixture{fixture: newFixture(t), today: "2027-10-01", notify: true, logs: &lockedBuffer{},
 		now: calendar.NewDate(2027, 10, 1).BerlinMidnight().Add(9 * time.Hour)}
 	db := testpkg.SetupTestDB(t)
 	account := testpkg.CreateTestAccount(t, db, "planned-exit-subject@example.org")
 	f.linkAccount(t, account.ID)
+	f.account = account.ID
 	retirement, err := membershipcompose.NewOffboarding(membershipcompose.Dependencies{DB: db, Observe: func(membershipcompose.Observation) {}, Employment: staffEmployment(t, db)})
 	require.NoError(t, err)
 	f.exits = retirement.PlannedExits
 	f.deps.Today = func() string { return f.today }
+	listStaff := f.deps.ListStaff
+	f.deps.ListStaff = func(ctx context.Context, filter schoolmembership.StaffFilter) ([]schoolmembership.Staff, error) {
+		if f.failLockOf != 0 && slices.Contains(filter.IDs, f.failLockOf) {
+			return nil, failTransaction(ctx)
+		}
+		return listStaff(ctx, filter)
+	}
 	lock := f.deps.LockSupervision
 	f.deps.LockSupervision = func(ctx context.Context, staffID int64, day string) ([]int64, error) {
 		if f.blocked {
@@ -92,6 +175,10 @@ func newPlannerFixture(t *testing.T) (*plannerFixture, *testPlanner) {
 	}
 	f.deps.PreviewAccess = func(context.Context, int64) (staffoffboarding.AccessPreview, error) {
 		return staffoffboarding.AccessPreview{Revision: "access"}, nil
+	}
+	f.deps.LockAccounts = func(_ context.Context, ids []int64) error {
+		f.accountLocks = append(f.accountLocks, slices.Clone(ids))
+		return nil
 	}
 	f.deps.ExecuteAccess = func(_ context.Context, id int64, revision string) (staffoffboarding.AccessResult, error) {
 		require.Equal(t, account.ID, id)
@@ -123,17 +210,30 @@ func newPlannerFixture(t *testing.T) (*plannerFixture, *testPlanner) {
 			}
 			return f.notify, nil
 		},
-		Isolate: func(ctx context.Context, fn func(context.Context) error) (failed, err error) {
+		Within: func(ctx context.Context, fn func(context.Context) error) (failed, err error) {
 			if f.beforeRunPlan != nil {
 				before := f.beforeRunPlan
 				f.beforeRunPlan = nil
-				if err := before(ctx); err != nil {
-					return err, nil
+				if failed, err := within(ctx, before); failed != nil || err != nil {
+					return errors.Join(failed, err), nil
 				}
 			}
-			return isolate(ctx, fn)
+			f.units++
+			if f.units == f.breakUnit {
+				return within(ctx, func(txCtx context.Context) error { return errors.Join(fn(txCtx), breakSavepoint(txCtx)) })
+			}
+			return within(ctx, fn)
 		},
-		Now: func() time.Time { return f.now },
+		BoundLockWaits: func(ctx context.Context, fn func(context.Context) error) error {
+			limit := f.lockWait
+			if limit == 0 {
+				limit = 30 * time.Second
+			}
+			return boundLockWaits(limit)(ctx, fn)
+		},
+		Isolate: isolate,
+		Now:     func() time.Time { return f.now },
+		Logger:  newTestLogger(f.logs),
 	})
 	require.NoError(t, err)
 	return f, &testPlanner{Planner: planner, t: t, due: due}
@@ -348,7 +448,7 @@ func TestFailingPlannedExitClosesAccessAndIsReported(t *testing.T) {
 	f.today = "2027-10-02"
 	f.now = calendar.NewDate(2027, 10, 2).BerlinMidnight().Add(5 * time.Minute)
 	require.NoError(t, planner.RunDue(ctx))
-	require.Contains(t, planner.lastRun.Failed, f.staffID)
+	require.Contains(t, planner.failedExits(), f.staffID)
 	require.False(t, f.retired(t), "the failed offboarding rolled back")
 	require.Equal(t, 2, f.accessRuns, "the rolled-back offboarding ran the access step, then the lock-out closed sign-in for good")
 	require.Empty(t, f.notices, "only a blocked exit has a notice of its own")
@@ -357,4 +457,66 @@ func TestFailingPlannedExitClosesAccessAndIsReported(t *testing.T) {
 	require.NotNil(t, plan.AccessLockedAt)
 	require.NotNil(t, plan.NextAttemptAt)
 	require.True(t, plan.NextAttemptAt.Equal(f.now.Add(time.Hour)))
+}
+
+// Two exits due in one run. Each runs in a transaction of its own, so no
+// transaction holds the first exit's membership row when the second
+// offboarding takes its staff-shift gate (#6583, #6703); in one shared
+// transaction the lock order refused the second exit, and it failed every
+// hour.
+func TestTwoPlannedExitsDueInOneRunBothComplete(t *testing.T) {
+	t.Parallel()
+	f, planner := newPlannerFixture(t)
+	ctx := testpkg.Ctx(t)
+	other := testpkg.CreateTestStaff(t, testpkg.SetupTestDB(t), "Lifecycle", "Second")
+	_, err := planner.Plan(ctx, f.staffID, plannedExitDate("2027-10-10"))
+	require.NoError(t, err)
+	_, err = planner.Plan(ctx, other.ID, plannedExitDate("2027-10-10"))
+	require.NoError(t, err)
+
+	f.today = "2027-10-11"
+	require.NoError(t, planner.RunDue(ctx))
+	require.Empty(t, planner.failedExits(), "both exits complete")
+	require.Equal(t, 2, f.units, "each exit ran in its own transaction")
+	require.True(t, f.retired(t))
+	_, err = f.membership.FindStaff(ctx, other.ID)
+	require.ErrorIs(t, err, schoolmembership.ErrStaffNotFound, "the second exit retired its member too")
+}
+
+// A report edit holds its subject's balance and absence gates before it
+// locks a substitute's shift gate. A reminder run must not hold the
+// substitute's shift gate while waiting for the report subject's gates: each
+// exit takes only its own person's gates, absences before the shift, in a
+// transaction of its own that ends before the next exit's begins.
+func TestPlannedExitRemindersLockOnePersonPerTransaction(t *testing.T) {
+	t.Parallel()
+	f, planner := newPlannerFixture(t)
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	other := testpkg.CreateTestStaff(t, db, "Reminder", "Second")
+	require.Less(t, f.staffID, other.ID)
+	for _, id := range []int64{f.staffID, other.ID} {
+		_, err := planner.Plan(ctx, id, plannedExitDate("2027-10-10"))
+		require.NoError(t, err)
+	}
+	f.today = "2027-10-03"
+	counter := testpkg.CaptureQueriesForContext(t, db)
+	require.NoError(t, planner.RunDue(counter.Context(ctx)))
+	require.Empty(t, planner.failedExits())
+	require.Len(t, f.notices, 2)
+	require.Equal(t, 2, f.units, "each reminder ran in its own transaction")
+	require.Equal(t, [][]int64{{f.account}}, f.accountLocks, "only the first subject has a sign-in account")
+	require.False(t, f.retired(t), "a reminder keeps the membership live")
+	queries := counter.Queries()
+	index := func(kind string, staffID int64) int {
+		key := fmt.Sprintf("'%s:%d:%d'", kind, testpkg.Tenant(t), staffID)
+		i := slices.IndexFunc(queries, func(query string) bool { return strings.Contains(query, key) })
+		require.NotEqual(t, -1, i, "missing gate %s", key)
+		return i
+	}
+	for _, id := range []int64{f.staffID, other.ID} {
+		require.Less(t, index("staff-balance", id), index("staff-shift", id), "the balance gate precedes the shift gate")
+		require.Less(t, index("staff-absence", id), index("staff-shift", id), "the absence gate precedes the shift gate")
+	}
+	require.Less(t, index("staff-shift", f.staffID), index("staff-balance", other.ID), "the second exit locks after the first")
 }

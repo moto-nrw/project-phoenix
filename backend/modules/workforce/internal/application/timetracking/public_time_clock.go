@@ -5,9 +5,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // timeClock serves workforce.TimeClock from the work session service.
@@ -236,7 +236,8 @@ func MapTimeTrackingError(err error) error {
 	case matchesTimeTrackingError(err, workforce.ErrSessionStatusInvalid, workforce.ErrSessionSourceInvalid,
 		workforce.ErrSessionStatusNoteRequired, workforce.ErrSessionTimesNoteRequired, workforce.ErrBreakMinutesNegative,
 		workforce.ErrBreakDurationNegative, workforce.ErrSessionTimeOrder, workforce.ErrSessionCheckoutOrder,
-		workforce.ErrPlannedBreakDurationInvalid, workforce.ErrBreakNotOwned, workforce.ErrActiveBreakDurationEdit):
+		workforce.ErrPlannedBreakDurationInvalid, workforce.ErrBreakNotOwned, workforce.ErrActiveBreakDurationEdit,
+		workforce.ErrSessionCheckInInFuture, workforce.ErrSessionCheckInAfterDate):
 		return &workforce.TimeTrackingError{Kind: workforce.ErrTimeTrackingInvalid, Cause: err}
 	default:
 		return err

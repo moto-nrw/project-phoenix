@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The guards of the signature (#4679) over the real store: the Träger
@@ -35,7 +35,7 @@ func (guardSender) WithdrawalReach(context.Context, int64) (carecontract.Withdra
 func (f raceFixture) signatures() *Signatures {
 	return NewSignatures(postgres.NewStore(), SignaturePorts{
 		Ledger: struct{ carecontract.SignatureLedger }{}, Links: f.contracts.links, Sender: guardSender{},
-		Post: &racePost{next: time.Now().UnixNano()}, Runtime: raceRuntime{},
+		Post: &racePost{next: time.Now().UnixNano()}, Runtime: raceRuntime{}, Holidays: schoolHolidays{}, Families: familyNumbersDouble{},
 	}, Clock{Now: time.Now}, f.contracts)
 }
 

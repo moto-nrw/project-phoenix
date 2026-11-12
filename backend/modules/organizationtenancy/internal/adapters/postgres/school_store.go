@@ -7,8 +7,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
+	"github.com/moto-ogs/project-phoenix/tenant"
+
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
@@ -116,6 +118,14 @@ func (s *Store) FindSchoolByID(ctx context.Context, id int64, lock string) (orga
 		return organizationtenancy.School{}, false, domain.OperationStats{}, err
 	}
 	row := &schoolRow{}
+	if lock == "SHARE" && tenant.FromContext(ctx) == id {
+		// A school's own transaction may only read platform.schools; it
+		// holds its school through the lock function (#6305).
+		if _, err := db.NewRaw(`SELECT platform.lock_tenant_school_for_share(?)`, id).Exec(ctx); err != nil {
+			return organizationtenancy.School{}, false, domain.OperationStats{Queries: 1}, fmt.Errorf("organization tenancy postgres: lock school for share: %w", err)
+		}
+		lock = ""
+	}
 	return scanSchool(ctx, row, schoolSelect(db, row).Where(`"school".id = ?`, id), lock)
 }
 

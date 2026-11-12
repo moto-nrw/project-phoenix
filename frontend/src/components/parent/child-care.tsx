@@ -18,6 +18,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { Trash2 } from "lucide-react";
 import type { MotoConcept } from "~/lib/moto-concepts";
 import { Modal } from "~/components/ui/modal";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import {
@@ -63,7 +64,10 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
-import { formatLocalizedDate } from "~/lib/localized-date-format";
+import {
+  formatCalendarDate,
+  formatLocalizedDate,
+} from "~/lib/localized-date-format";
 import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
 import { useMessagesActivity } from "~/lib/hooks/use-messages-activity";
 import type { SignatureValue } from "~/lib/signature";
@@ -76,6 +80,7 @@ import { pickupConcept } from "~/lib/concepts/pickup";
 import { sickConcept } from "~/lib/concepts/sick";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { SectionLabel } from "~/components/ui/section-label";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "ChildCare" });
 
@@ -93,7 +98,11 @@ class ChildCareRefreshError extends Error {
 const MAX_SICK_DAYS = 60;
 const MAX_NOTE_LEN = 2000;
 
-export type AbsenceSubmissionOutcome = "applied" | "pending";
+/**
+ * How a report landed: written directly, sent as a request for every day, or
+ * written for the free days with a request for days the school holds (#5698).
+ */
+export type AbsenceSubmissionOutcome = "applied" | "pending" | "partly_pending";
 
 // Stable empty default for SickStatusSummary's optional excusedRequests prop —
 // a fresh [] literal per render would break referential equality (oxlint
@@ -320,7 +329,7 @@ export function useChildCare(studentId: string): ChildCare {
     (sharedFeatures && !sharedFeatures.data?.[studentId]
       ? sharedFeatures.error
       : undefined);
-  const tChild = useTranslations("parentChild");
+  const tChild = useCareTermTranslations("parentChild");
   const { failure: sharedFeatureError } = useSwrResourceLoadError(
     [{ data: sharedFeatures?.data?.[studentId], error: sharedFailure }],
     tChild("errorObjectCare"),
@@ -576,7 +585,7 @@ export function useChildCare(studentId: string): ChildCare {
       status: StudentStatusKind,
       recipientGuardianProfileIds: string[] = [],
     ) => {
-      const { status_days } = await submitSickNote(
+      const { status_days, pending_request } = await submitSickNote(
         studentId,
         dates,
         reason,
@@ -616,7 +625,7 @@ export function useChildCare(studentId: string): ChildCare {
           setTodayAbsent(true);
           setWeekPlanDate(berlinTodayISO());
         }
-        return "applied" as const;
+        if (!pending_request) return "applied" as const;
       }
       // Empty status days means the school gated this absence: the backend
       // created a pending request instead. Reload authoritatively to surface
@@ -633,7 +642,9 @@ export function useChildCare(studentId: string): ChildCare {
         // idempotently, so it won't create a duplicate request (#1845 review).
         throw new ChildCareRefreshError();
       }
-      return "pending" as const;
+      return status_days.length > 0
+        ? ("partly_pending" as const)
+        : ("pending" as const);
     },
     [studentId, load],
   );
@@ -721,9 +732,10 @@ export function useChildCare(studentId: string): ChildCare {
 // --- sick-note modal ---
 
 /**
- * The two failures the absence dialog explains itself: the report went
- * through but the list did not reload, and the request overlaps an open one.
- * Every other failure goes through the shared error path.
+ * The failures the absence dialog explains itself: the report went through
+ * but the list did not reload, the request overlaps an open one, and the
+ * school already excused the child from a time on one of the days. Every
+ * other failure goes through the shared error path.
  */
 function knownSickErrorKey(err: unknown): string | null {
   if (err instanceof ChildCareRefreshError) {
@@ -732,8 +744,23 @@ function knownSickErrorKey(err: unknown): string | null {
   if (err instanceof ApiError && err.code === "care.excused_request_overlap") {
     return "sick.overlapError";
   }
+  if (err instanceof ApiError && err.code === "care.care_exception_conflict") {
+    return "sick.schoolPartialConflict";
+  }
   return null;
 }
+
+const NO_CARE_EXCEPTIONS: readonly CareException[] = [];
+const NO_STATUS_DAYS: readonly StatusDay[] = [];
+/** A day the school already holds: from a time, or (`time` null) sick. */
+type SchoolDay = { readonly date: string; readonly time: string | null };
+// "Mittwoch, 11.11.2026": parents plan absences by weekday.
+const SCHOOL_DAY_FORMAT = {
+  weekday: "long",
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+} as const;
 
 const SICK_REASON_FIELD = "absence-reason";
 
@@ -746,6 +773,8 @@ export function SickNoteModal({
   sickEnabled = true,
   excusedEnabled = true,
   reasonRequired = true,
+  careExceptions = NO_CARE_EXCEPTIONS,
+  sickDays = NO_STATUS_DAYS,
 }: Readonly<{
   studentId?: string;
   onClose: () => void;
@@ -761,8 +790,19 @@ export function SickNoteModal({
   excusedRequiresApproval?: boolean;
   /** Ob die OGS einen Grund verlangt (requiresGuardianReason). */
   reasonRequired?: boolean;
+  /**
+   * Die Tagesänderungen des Kindes. Für Tage mit einer Teil-Abwesenheit der
+   * OGS (`excused_from`) geht die Meldung als Anfrage an die OGS (#5698).
+   */
+  careExceptions?: readonly CareException[];
+  /**
+   * Die Abwesenheiten, die Eltern sehen. Eine Krankmeldung der OGS
+   * (`source` nicht `parent`) ist ein Schuleintrag wie eine Teil-Abwesenheit.
+   */
+  sickDays?: readonly StatusDay[];
 }>) {
-  const t = useTranslations("parentChildCare");
+  const t = useCareTermTranslations("parentChildCare");
+  const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
   const initial = berlinTodayISO();
   const [from, setFrom] = useState(initial);
@@ -776,7 +816,9 @@ export function SickNoteModal({
         : selectedStatus;
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
-  const [submitted, setSubmitted] = useState(false);
+  const [submitted, setSubmitted] = useState<
+    Exclude<AbsenceSubmissionOutcome, "applied"> | false
+  >(false);
   const [recipientIds, setRecipientIds] = useState<string[]>([]);
   // Fehler aus dem offenen Dialog stehen im Dialog: ein Toast läge
   // unsichtbar unter ihm.
@@ -785,6 +827,38 @@ export function SickNoteModal({
   const errorId = useId();
   const reasonError = form.fieldError(SICK_REASON_FIELD);
   const dates = useMemo(() => enumerateDates(from, to), [from, to]);
+  // Entries read for exactly the chosen days after the server refused one:
+  // the school may have entered it after the page loaded, or beyond the
+  // window the page reads.
+  const [reloadedExceptions, setReloadedExceptions] =
+    useState<readonly CareException[]>(NO_CARE_EXCEPTIONS);
+  // Only a manual partial absence is a school entry; the backend ignores
+  // automatic excusals from a pulled-forward pickup time, and so does the
+  // read that fills excused_from. Such days go to the school as a request.
+  const schoolExcusedFrom = useMemo(
+    () =>
+      new Map(
+        [...careExceptions, ...reloadedExceptions].flatMap((day) =>
+          day.excused_from ? [[day.date, day.excused_from] as const] : [],
+        ),
+      ),
+    [careExceptions, reloadedExceptions],
+  );
+  const schoolSickDates = useMemo(
+    () =>
+      new Set(
+        sickDays
+          .filter((day) => day.source !== "parent")
+          .map((day) => day.date),
+      ),
+    [sickDays],
+  );
+  const schoolDays = dates.flatMap((date): SchoolDay[] => {
+    const time = schoolExcusedFrom.get(date);
+    if (time) return [{ date, time }];
+    return schoolSickDates.has(date) ? [{ date, time: null }] : [];
+  });
+  const freeDayCount = dates.length - schoolDays.length;
   const noteMissing = reason.trim() === "";
   const requiresApproval =
     status === "sick" ? sickRequiresApproval : excusedRequiresApproval;
@@ -797,11 +871,18 @@ export function SickNoteModal({
         ? "sick.kindHintExcused"
         : "sick.kindHintExcusedUnknown";
   const dayCopy =
-    requiresApproval === undefined
-      ? t("sick.unknownDaysCount", { count: dates.length })
-      : requiresApproval
-        ? t("sick.requestDaysCount")
-        : t("sick.daysCount", { count: dates.length });
+    schoolDays.length > 0 && requiresApproval === false
+      ? freeDayCount === 0
+        ? null
+        : t("sick.freeDaysCount", {
+            count: freeDayCount,
+            total: dates.length,
+          })
+      : requiresApproval === undefined
+        ? t("sick.unknownDaysCount", { count: dates.length })
+        : requiresApproval
+          ? t("sick.requestDaysCount")
+          : t("sick.daysCount", { count: dates.length });
 
   const handleSubmit = async () => {
     if (!sickEnabled && !excusedEnabled) return;
@@ -819,11 +900,25 @@ export function SickNoteModal({
     form.clear();
     try {
       const outcome = await onSubmit(dates, reason, status, recipientIds);
-      if (outcome === "pending") setSubmitted(true);
+      if (outcome === "pending" || outcome === "partly_pending")
+        setSubmitted(outcome);
       else onClose();
     } catch (err) {
       const known = knownSickErrorKey(err);
-      if (known) {
+      if (known === "sick.schoolPartialConflict" && studentId) {
+        form.invalid(t(known));
+        // The school entered a day while the dialog was open. Once the
+        // notice names it, sending again turns that day into a request.
+        const reloaded = await listCareExceptions(studentId, {
+          from: dates[0]!,
+          to: dates[dates.length - 1]!,
+        }).catch(() => NO_CARE_EXCEPTIONS);
+        setReloadedExceptions(reloaded);
+        if (
+          reloaded.some((day) => day.excused_from && dates.includes(day.date))
+        )
+          form.clear();
+      } else if (known) {
         form.invalid(t(known));
       } else {
         // Wiederholen sendet die Angaben, die jetzt im Dialog stehen.
@@ -845,7 +940,13 @@ export function SickNoteModal({
     <Modal
       isOpen
       onClose={onClose}
-      title={submitted ? t("sick.requestSentTitle") : t("sick.title")}
+      title={
+        submitted === "partly_pending"
+          ? t("sick.requestSentPartlyTitle")
+          : submitted
+            ? t("sick.requestSentTitle")
+            : t("sick.title")
+      }
       closeLabel={t("close")}
       mobileSheet
       footer={
@@ -879,7 +980,11 @@ export function SickNoteModal({
     >
       {submitted ? (
         <p role="status" className="text-sm leading-6 text-gray-700">
-          {t("sick.requestSentBody")}
+          {submitted === "partly_pending"
+            ? t("sick.requestSentPartlyBody")
+            : requiresApproval === false
+              ? t("sick.requestSentSchoolBody")
+              : t("sick.requestSentBody")}
         </p>
       ) : (
         <div className="space-y-4">
@@ -933,7 +1038,46 @@ export function SickNoteModal({
               />
             </div>
           </fieldset>
-          <p className="text-sm text-gray-600">{dayCopy}</p>
+          {schoolDays.length > 0 && requiresApproval !== true && (
+            <Alert
+              type="info"
+              title={t("sick.schoolPartialTitle", {
+                count: schoolDays.length,
+              })}
+              message={
+                <ul className="space-y-0.5 tabular-nums">
+                  {schoolDays.map((day) => (
+                    <li key={day.date}>
+                      {day.time
+                        ? t("sick.schoolPartialDay", {
+                            date: formatCalendarDate(
+                              day.date,
+                              locale,
+                              SCHOOL_DAY_FORMAT,
+                            ),
+                            time: day.time,
+                          })
+                        : t("sick.schoolSickDay", {
+                            date: formatCalendarDate(
+                              day.date,
+                              locale,
+                              SCHOOL_DAY_FORMAT,
+                            ),
+                          })}
+                    </li>
+                  ))}
+                </ul>
+              }
+              details={
+                <p className="mt-2">
+                  {t("sick.schoolPartialRequest", {
+                    count: schoolDays.length,
+                  })}
+                </p>
+              }
+            />
+          )}
+          {dayCopy && <p className="text-sm text-gray-600">{dayCopy}</p>}
           <Textarea
             label={t("sick.reasonLabelRequired")}
             value={reason}
@@ -1023,6 +1167,7 @@ export function PickupTimeModal({
   reasonRequired = true,
   cutoffTime,
   todayClosed = false,
+  careDayEnded = false,
   onCutoffPassed,
 }: Readonly<{
   studentId?: string;
@@ -1044,11 +1189,16 @@ export function PickupTimeModal({
   cutoffTime?: string;
   /** Die Frist für heute ist vorbei; heute ist für Eltern gesperrt. */
   todayClosed?: boolean;
-  /** Der Server hat die Frist gemeldet: Daten neu laden. */
+  /**
+   * Die Betreuung ist für heute zu Ende (Betreuungsende der Schule, #5710);
+   * heute ist für Eltern gesperrt, auch wenn das Kind noch im Unterricht ist.
+   */
+  careDayEnded?: boolean;
+  /** Der Server hat die Frist oder das Betreuungsende gemeldet: Daten neu laden. */
   onCutoffPassed?: () => void;
 }>) {
-  const t = useTranslations("parentChildCare");
-  const tModes = useTranslations("parentMasterData");
+  const t = useCareTermTranslations("parentChildCare");
+  const tModes = useCareTermTranslations("parentMasterData");
   const tTimePicker = useTranslations("datePicker.timePicker");
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
@@ -1056,6 +1206,8 @@ export function PickupTimeModal({
   // Meldet der Server die Frist, bevor die Merkmale neu geladen sind, sperrt
   // der Dialog heute sofort, statt dieselbe Absage noch einmal zu zeigen.
   const [cutoffReported, setCutoffReported] = useState(false);
+  // Dasselbe für das Betreuungsende (#5710).
+  const [careDayEndReported, setCareDayEndReported] = useState(false);
   // Ist das Aendern abgeschaltet, oeffnet der Dialog auf dem einzigen Tag, den
   // die Eltern noch bearbeiten koennen. Ein offener Antrag geht dabei vor: er
   // ist der Tag mit dem Zuruecknehmen-Knopf, und ohne diese Vorauswahl stuende
@@ -1087,7 +1239,7 @@ export function PickupTimeModal({
   const [pickupPersonId, setPickupPersonId] = useState("");
   const [signature, setSignature] = useState<SignatureValue | null>(null);
   const contacts = useDayPickupContacts(studentId);
-  const tPermission = useTranslations("parentPickupPermission");
+  const tPermission = useCareTermTranslations("parentPickupPermission");
   const [reason, setReason] = useState("");
   const [submitting, setSubmitting] = useState(false);
   // Fehler aus dem offenen Dialog stehen im Dialog: ein Toast läge
@@ -1103,7 +1255,8 @@ export function PickupTimeModal({
     remove: () => undefined,
   });
   const [recipientIds, setRecipientIds] = useState<string[]>([]);
-  const [editing, setEditing] = useState(false);
+  const [editingRequestId, setEditingRequestId] = useState<string | null>(null);
+  const editing = editingRequestId !== null;
   // „Änderung zurücknehmen“ löscht die eigene Abholzeit des Tages: der Klick
   // im Footer öffnet erst die Rückfrage, entfernt wird im Dialog (#3109).
   const [confirmingReset, setConfirmingReset] = useState(false);
@@ -1119,8 +1272,11 @@ export function PickupTimeModal({
     [careExceptions, date],
   );
   const request = useMemo(
-    () => pickupChangeRequests.find((entry) => entry.date === date),
-    [date, pickupChangeRequests],
+    () =>
+      pickupChangeRequests.find((entry) =>
+        editingRequestId ? entry.id === editingRequestId : entry.date === date,
+      ),
+    [date, editingRequestId, pickupChangeRequests],
   );
   const pending = request?.status === "pending";
   const staffOwned = existing?.pickup_source === "staff";
@@ -1155,7 +1311,11 @@ export function PickupTimeModal({
   const alreadyHome = date === today && childToday?.state === "left";
   // Nach der Frist ist heute für Eltern ganz zu: nicht anfragen, nicht
   // bearbeiten, nicht zurücknehmen. Spätere Tage bleiben offen (#3163).
-  const todayLocked = date === today && (todayClosed || cutoffReported);
+  // Ab Betreuungsende ist heute ebenso zu (#5710); der Server entscheidet das.
+  const todayCareDayEnded =
+    date === today && (careDayEnded || careDayEndReported);
+  const todayLocked =
+    todayCareDayEnded || (date === today && (todayClosed || cutoffReported));
   // Eine offene eigene Anfrage wird geändert, nicht zurückgezogen (#2267).
   const canEditRequest =
     pending && studentId !== undefined && request?.is_self !== false;
@@ -1198,6 +1358,10 @@ export function PickupTimeModal({
           return t("pickup.reasonTooLong");
         case "care.care_request_already_pending":
           return t("pickup.statusPending");
+        case "care.pickup_change_care_day_ended":
+          setCareDayEndReported(true);
+          onCutoffPassed?.();
+          return t("pickup.careDayEnded");
         case "care.pickup_change_cutoff_passed":
           setCutoffReported(true);
           onCutoffPassed?.();
@@ -1223,24 +1387,38 @@ export function PickupTimeModal({
     void target.show(err, { object: t("pickup.errorObject"), retry });
   };
 
-  // When the selected date already has an override, prefill the fields so the
-  // parent edits rather than blindly overwrites.
+  // Refetches replace record objects even when their values have not changed.
+  // Keep an active edit attached to its request and never refill its draft.
+  // Saved values belong to their date; empty days keep the current draft.
+  const prefillDate = request || existing ? date : "";
+  const prefillTime = request?.pickup_time ?? existing?.pickup_time ?? "";
+  const prefillMode =
+    request?.departure_mode && request.departure_mode !== "accompanied"
+      ? request.departure_mode
+      : "";
+  const prefillReason = request?.reason ?? existing?.reason ?? "";
+  const prefillPerson = request?.pickup_person_guardian_profile_id ?? "";
   useEffect(() => {
-    setPickupTime(request?.pickup_time ?? existing?.pickup_time ?? "");
-    setDepartureMode(
-      request?.departure_mode && request.departure_mode !== "accompanied"
-        ? request.departure_mode
-        : "",
-    );
-    setReason(request?.reason ?? existing?.reason ?? "");
-    setPickupPersonId(request?.pickup_person_guardian_profile_id ?? "");
+    if (editing) return;
+    setPickupTime(prefillTime);
+    setDepartureMode(prefillMode);
+    setReason(prefillReason);
+    setPickupPersonId(prefillPerson);
     setSignature(null);
     clearForm();
     setInvalidField(null);
-  }, [clearForm, existing, request]);
+  }, [
+    clearForm,
+    editing,
+    prefillDate,
+    prefillTime,
+    prefillMode,
+    prefillReason,
+    prefillPerson,
+  ]);
 
-  // A date is part of the signed declaration even when neither date has an
-  // existing override, so the prefill effect above does not run.
+  // The date remains part of the signed declaration while editing an existing
+  // request, when prefill deliberately leaves the draft untouched.
   useEffect(() => {
     setSignature(null);
   }, [date]);
@@ -1506,7 +1684,7 @@ export function PickupTimeModal({
 
         {/* Der Hinweis nennt eine noch offene Möglichkeit; nach der Frist
             würde er an einem anderen Tag falsch klingen. */}
-        {date === today && cutoffTime && !todayClosed && !cutoffReported && (
+        {date === today && cutoffTime && !todayLocked && (
           <p className="text-sm text-gray-600">
             {t("pickup.cutoffHint", { time: cutoffTime })}
           </p>
@@ -1518,9 +1696,11 @@ export function PickupTimeModal({
             framed
             className="text-sm text-gray-600"
           >
-            {cutoffTime
-              ? t("pickup.cutoffClosed", { time: cutoffTime })
-              : t("pickup.cutoffClosedGeneric")}
+            {todayCareDayEnded
+              ? t("pickup.careDayEnded")
+              : cutoffTime
+                ? t("pickup.cutoffClosed", { time: cutoffTime })
+                : t("pickup.cutoffClosedGeneric")}
           </InsetPanel>
         )}
 
@@ -1571,7 +1751,7 @@ export function PickupTimeModal({
                 type="button"
                 variant="outline"
                 size="md"
-                onClick={() => setEditing(true)}
+                onClick={() => request && setEditingRequestId(request.id)}
               >
                 {t("pickup.edit")}
               </Button>
@@ -1782,7 +1962,7 @@ function PickupProofButton({
   /** Der Fehler steht im offenen Dialog, nicht in einem Toast darunter. */
   onError: (err: unknown) => void;
 }>) {
-  const tPermission = useTranslations("parentPickupPermission");
+  const tPermission = useCareTermTranslations("parentPickupPermission");
   const [busy, setBusy] = useState(false);
   return (
     <Button
@@ -1832,7 +2012,7 @@ export function SickStatusSummary({
   /** Nach einer geänderten Anfrage: die Liste neu laden. */
   onEdited?: () => void;
 }>) {
-  const t = useTranslations("parentChildCare");
+  const t = useCareTermTranslations("parentChildCare");
   const locale = useLocale();
   const [editing, setEditing] = useState<ExcusedRequest | null>(null);
 

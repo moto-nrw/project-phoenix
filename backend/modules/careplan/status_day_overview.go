@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // StatusDayOverview asks for one page of the status-day overview: the days
@@ -73,21 +73,47 @@ func statusDayWindowsFilter(children []StatusDayWindow) StudentScheduleQueryFilt
 	return first
 }
 
-// EndOfDayStatusFlagArchive is the end-of-day archive of a live status flag:
-// the sick flag becomes a sick day, the excused flag an excused day, both
-// with the end-of-day source. Any other flag is refused.
-func EndOfDayStatusFlagArchive(flagColumn, sinceColumn string, date Date, fallback time.Time) (StatusFlagArchive, error) {
-	var status string
-	switch flagColumn {
-	case "sick":
-		status = StudentStatusDaySick
-	case "excused":
-		status = StudentStatusDayExcused
-	default:
-		return StatusFlagArchive{}, fmt.Errorf("unsupported status flag column %q", flagColumn)
+// EndOfDayStatusFlagArchive is the end-of-day archive of the live status
+// flags reported before before: the sick flag stands for a sick day, the
+// excused flag for an excused day, a day without a row gets the end-of-day
+// source. date is the status day of a flag without a since timestamp. Any
+// other flag is refused.
+func EndOfDayStatusFlagArchive(flagColumn, sinceColumn string, before time.Time, date Date, fallback time.Time) (StatusFlagArchive, error) {
+	status, err := statusFlagStatus(flagColumn)
+	if err != nil {
+		return StatusFlagArchive{}, err
 	}
 	return StatusFlagArchive{
 		FlagColumn: flagColumn, SinceColumn: sinceColumn, Status: status, Date: date,
-		ReportedFallback: fallback, Source: excusedrequests.StudentStatusSourceEndOfDay,
+		ReportedFallback: fallback, Source: excusedrequests.StudentStatusSourceEndOfDay, Before: before,
 	}, nil
+}
+
+// StatusFlagCarry carries the live status flags that outlast their status
+// day into date: a flag reported before that day stands for it as well. The
+// carried day keeps the source of the flag's latest earlier day; without one
+// it is the OGS's own manual entry.
+func StatusFlagCarry(flagColumn, sinceColumn string, date Date, at time.Time) (StatusFlagArchive, error) {
+	status, err := statusFlagStatus(flagColumn)
+	if err != nil {
+		return StatusFlagArchive{}, err
+	}
+	day, err := calendar.ParseDate(string(date))
+	if err != nil {
+		return StatusFlagArchive{}, fmt.Errorf("status flag carry date: %w", err)
+	}
+	return StatusFlagArchive{
+		FlagColumn: flagColumn, SinceColumn: sinceColumn, Status: status, Date: date,
+		ReportedFallback: at, Source: excusedrequests.StudentStatusSourceManual, Before: day.BerlinMidnight(), Carry: true,
+	}, nil
+}
+
+func statusFlagStatus(flagColumn string) (string, error) {
+	switch flagColumn {
+	case "sick":
+		return StudentStatusDaySick, nil
+	case "excused":
+		return StudentStatusDayExcused, nil
+	}
+	return "", fmt.Errorf("unsupported status flag column %q", flagColumn)
 }

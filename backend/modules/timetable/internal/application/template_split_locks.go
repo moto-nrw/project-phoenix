@@ -5,9 +5,97 @@ import (
 	"errors"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
+
+// Lock old and successor people together before capping any supervisor or
+// writing the successor. The later deviation snapshot is too late: it could
+// wait for A while holding B or a supervisor row offboarding needs from A.
+func (s *TemplateSplitService) lockSplitStaff(ctx context.Context, in TemplateSplitInput, supervisors []*activityContract.SupervisorPlanned, until *calendar.Date) error {
+	from := in.EffectiveDate.String()
+	spontaneous := false
+	instances, err := listLegacyInstances(ctx, s.deps.InstanceRepo.Reads, ports.LegacyInstanceFilter{
+		ActivityGroupID: &in.TemplateID, FromDate: &from, Status: "planned", IsSpontaneous: &spontaneous,
+	}, "split template: load old occurrences")
+	if err != nil {
+		return err
+	}
+	rows, err := staffOfInstances(ctx, s.deps.InstanceStaff, instanceRowIDs(instances))
+	if err != nil {
+		return err
+	}
+	staffIDs := make([]int64, 0, len(rows)+len(supervisors))
+	for _, row := range rows {
+		staffIDs = append(staffIDs, row.StaffID)
+	}
+	for _, row := range supervisors {
+		staffIDs = append(staffIDs, row.StaffID)
+	}
+	for _, row := range buildSuccessorStaffRows(in, supervisors, until) {
+		staffIDs = append(staffIDs, row.StaffID)
+	}
+	// The split then materializes its window across every template: its
+	// supervisors join the same ascending batch (#6702).
+	materialized, err := s.liveMaterializationStaff(ctx, in)
+	if err != nil {
+		return err
+	}
+	staffIDs = append(staffIDs, materialized...)
+	if err := lockStaffRows(ctx, s.deps.InstanceStaff, staffIDs); err != nil {
+		return &ports.ScheduleError{Op: "split template: lock staff", Err: err}
+	}
+	return nil
+}
+
+// liveMaterializationStaff lists the live people the split's
+// materialization window can plan; without a window it plans nobody.
+func (s *TemplateSplitService) liveMaterializationStaff(ctx context.Context, in TemplateSplitInput) ([]int64, error) {
+	from, to, ok := splitMaterializationWindow(in)
+	if !ok {
+		return nil, nil
+	}
+	// A materialization without the roster (a test double) locks nobody;
+	// the real one would refuse a later lower person in its own pre-lock.
+	roster, ok := s.deps.Materialization.(materializationStaffRoster)
+	if !ok {
+		return nil, nil
+	}
+	candidates, err := roster.staffForMaterialization(ctx, from, to)
+	if err != nil || len(candidates) == 0 {
+		return nil, err
+	}
+	live, err := s.deps.Directories.StaffPersons(ctx, candidates, false)
+	if err != nil {
+		return nil, &ports.ScheduleError{Op: "split template: load materialization staff", Err: err}
+	}
+	ids := make([]int64, 0, len(live))
+	for id := range live {
+		ids = append(ids, id)
+	}
+	return ids, nil
+}
+
+// validateSplitCatalogue pins the successor's category and a changed
+// planning track, catalogue rows of the lock order, before the split's days
+// and staff rows (#6702).
+func (s *TemplateSplitService) validateSplitCatalogue(ctx context.Context, in TemplateSplitInput) error {
+	if err := validateAssignableCategory(ctx, s.deps.CategoryRepo, in.CategoryID, "split template: validate category"); err != nil {
+		return err
+	}
+	if !in.PlanningTrackIDProvided {
+		return nil
+	}
+	old, err := s.loadTemplate(ctx, in.TemplateID)
+	if err != nil {
+		return err
+	}
+	if samePlanningTrackID(in.PlanningTrackID, old.PlanningTrackID) {
+		return nil
+	}
+	return validateAssignablePlanningTrack(ctx, s.deps.PlanningTracks, in.PlanningTrackID, old.PlanningTrackID)
+}
 
 // lockSplitDays runs under recurrence, BEFORE any split writes. The mandatory
 // order is recurrence (when needed) -> all affected days ascending -> rows.

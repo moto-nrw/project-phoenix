@@ -10,8 +10,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/gitfixture"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/internal/gitfixture"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 const legacyKey = "production|imports.forbidden|example.test/architecture-fixture/source|example.test/architecture-fixture/target"
@@ -39,7 +39,7 @@ func TestAuditDeduplicatesLegacyIssuesAndIgnoresRuleIssues(t *testing.T) {
 			defer server.Close()
 			policy := mutatePolicy(t, readFile(t, fixturePath(t, "rules-stale.json")), func(doc map[string]any) {
 				rules := doc["rules"].([]any)
-				rules[0].(map[string]any)["issue"] = "https://github.com/moto-nrw/project-phoenix/issues/2736"
+				rules[0].(map[string]any)["issue"] = "https://github.com/moto-ogs/project-phoenix/issues/2736"
 			})
 			path := filepath.Join(t.TempDir(), "policy.json")
 			writeFile(t, path, policy)
@@ -113,7 +113,7 @@ func TestLegacyBaselineJSONOmitsLocations(t *testing.T) {
 			Source: "example.test/architecture-fixture/source", Target: "example.test/architecture-fixture/target",
 			Locations: []Location{{File: "source/source.go", Line: 3, Declaration: "import example.test/architecture-fixture/target"}},
 		},
-		Issue: "https://github.com/moto-nrw/project-phoenix/issues/2583",
+		Issue: "https://github.com/moto-ogs/project-phoenix/issues/2583",
 	}
 	encoded, err := json.Marshal(entry)
 	if err != nil {
@@ -912,11 +912,11 @@ func TestAuditIssuesRejectsClosedDebtIssue(t *testing.T) {
 	t.Parallel()
 
 	server := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
-		if r.URL.Path != "/repos/moto-nrw/project-phoenix/issues/2583" {
+		if r.URL.Path != "/repos/moto-ogs/project-phoenix/issues/2583" {
 			w.WriteHeader(testpkg.HTTPStatusNotFound)
 			return
 		}
-		_, _ = w.Write([]byte(`{"state":"closed","html_url":"https://github.com/moto-nrw/project-phoenix/issues/2583"}`))
+		_, _ = w.Write([]byte(`{"state":"closed","html_url":"https://github.com/moto-ogs/project-phoenix/issues/2583"}`))
 	})
 	defer server.Close()
 
@@ -949,11 +949,11 @@ func TestAuditIssuesCoversConvertedImportDebt(t *testing.T) {
 		t.Run(state, func(t *testing.T) {
 			t.Parallel()
 			server := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, r *testpkg.HTTPRequest) {
-				if r.URL.Path != "/repos/moto-nrw/project-phoenix/issues/2743" {
+				if r.URL.Path != "/repos/moto-ogs/project-phoenix/issues/2743" {
 					w.WriteHeader(testpkg.HTTPStatusNotFound)
 					return
 				}
-				_, _ = w.Write([]byte(`{"state":"` + state + `","html_url":"https://github.com/moto-nrw/project-phoenix/issues/2743"}`))
+				_, _ = w.Write([]byte(`{"state":"` + state + `","html_url":"https://github.com/moto-ogs/project-phoenix/issues/2743"}`))
 			})
 			defer server.Close()
 			output, err := runArchitecture(t, "audit-issues", "--policy", fixturePath(t, "vertical-allowed.json"), "--baseline", manifest, "--api-url", server.URL)
@@ -972,7 +972,7 @@ func TestAuditIssuesAcceptsOneOpenIssueForMultipleEntries(t *testing.T) {
 	t.Parallel()
 
 	server := testpkg.NewHTTPTestServer(func(w testpkg.HTTPResponseWriter, _ *testpkg.HTTPRequest) {
-		_, _ = w.Write([]byte(`{"state":"open","html_url":"https://github.com/moto-nrw/project-phoenix/issues/2583"}`))
+		_, _ = w.Write([]byte(`{"state":"open","html_url":"https://github.com/moto-ogs/project-phoenix/issues/2583"}`))
 	})
 	defer server.Close()
 	manifest := legacyRecordWithTarget(2583, "example.test/architecture-fixture/another") + legacyRecord(2583)
@@ -999,7 +999,7 @@ func TestAuditIssuesDoesNotForwardGitHubTokenToCustomAPI(t *testing.T) {
 			requests := 0
 			client := issueClientFunc(func(_ context.Context, request IssueRequest) (IssueResponse, error) {
 				requests++
-				if want := tc.apiURL + "/repos/moto-nrw/project-phoenix/issues/2583"; request.URL != want {
+				if want := tc.apiURL + "/repos/moto-ogs/project-phoenix/issues/2583"; request.URL != want {
 					t.Fatalf("issue URL = %q, want %q", request.URL, want)
 				}
 				if got := request.Headers["Authorization"]; got != tc.authorization {
@@ -1053,13 +1053,13 @@ func TestCheckRejectsNonCanonicalIssueURLs(t *testing.T) {
 	t.Parallel()
 
 	for _, issue := range []string{
-		"https://github.com/moto-nrw/project-phoenix/issues/2583/",
-		"https://user@github.com/moto-nrw/project-phoenix/issues/2583",
-		"https://github.com/moto-nrw/project-phoenix/pulls/2583",
-		"https://github.com/moto-nrw/project-phoenix/issues/02583",
+		"https://github.com/moto-ogs/project-phoenix/issues/2583/",
+		"https://user@github.com/moto-ogs/project-phoenix/issues/2583",
+		"https://github.com/moto-ogs/project-phoenix/pulls/2583",
+		"https://github.com/moto-ogs/project-phoenix/issues/02583",
 	} {
 		t.Run(issue, func(t *testing.T) {
-			manifest := strings.Replace(legacyRecord(2583), "https://github.com/moto-nrw/project-phoenix/issues/2583", issue, 1)
+			manifest := strings.Replace(legacyRecord(2583), "https://github.com/moto-ogs/project-phoenix/issues/2583", issue, 1)
 			output, err := runArchitecture(t, "check", "--project", fixturePath(t, "valid"), "--policy", fixturePath(t, "vertical-forbidden.json"), "--baseline", writeManifest(t, manifest))
 			if err == nil || !strings.Contains(output, "migration issue") {
 				t.Fatalf("non-canonical issue URL was accepted: %v\n%s", err, output)
@@ -1073,7 +1073,7 @@ func legacyRecord(issue int) string {
 }
 
 func legacyRecordWithTarget(issue int, target string) string {
-	return fmt.Sprintf("{\"scope\":\"production\",\"rule\":\"imports.forbidden\",\"source\":\"example.test/architecture-fixture/source\",\"target\":%q,\"issue\":\"https://github.com/moto-nrw/project-phoenix/issues/%d\"}\n", target, issue)
+	return fmt.Sprintf("{\"scope\":\"production\",\"rule\":\"imports.forbidden\",\"source\":\"example.test/architecture-fixture/source\",\"target\":%q,\"issue\":\"https://github.com/moto-ogs/project-phoenix/issues/%d\"}\n", target, issue)
 }
 
 func writeManifest(t *testing.T, contents string) string {
@@ -1229,5 +1229,73 @@ func writeFile(t *testing.T, path, contents string) {
 	}
 	if err := os.WriteFile(path, []byte(contents), 0o644); err != nil {
 		t.Fatalf("write %s: %v", path, err)
+	}
+}
+
+// A base migration that only names a table a later migration creates, behind
+// to_regclass (1.15.843 for #6361), does not hold it: the candidate migration
+// that creates the table may assign its owner. A base migration that creates
+// it still holds it, also through Prepare or a call the parser does not know
+// (review of 9d0709ae69: Prepare let an unbacked owner assignment through).
+func TestCheckSeparatesForwardReferencesFromBaseTables(t *testing.T) {
+	t.Parallel()
+	const adopted = "data object ghost.records was newly assigned to owner module"
+	for _, tt := range []struct {
+		name, base, want string
+	}{
+		{name: "guarded forward reference", base: `db.NewRaw(%q)`, want: ""},
+		{name: "base creates the table", base: `db.NewRaw("DO $$ BEGIN CREATE TABLE ghost.records (id bigint); END $$")`, want: adopted},
+		{name: "base prepares the create", base: `db.Prepare("CREATE TABLE ghost.records (id bigint)")`, want: adopted},
+		{name: "base prepares the create with a context", base: `db.PrepareContext(nil, "CREATE TABLE ghost.records (id bigint)")`, want: adopted},
+		{name: "base creates through a helper", base: `run(db, "CREATE TABLE ghost.records (id bigint)")`, want: adopted},
+		{name: "forward reference beside a helper create", base: `db.NewRaw(%q); run(db, "CREATE TABLE ghost.records (id bigint)")`, want: adopted},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			base := tt.base
+			if strings.Contains(base, "%q") {
+				base = fmt.Sprintf(base, "DO $$ BEGIN IF to_regclass('ghost.records') IS NOT NULL THEN DELETE FROM ghost.records; END IF; END $$")
+			}
+			repo, baseRef, policy := ratchetRepositoryWithMigrationPackage(t, `package migrations
+type rawDB struct{}
+func (rawDB) NewRaw(string) {}
+func (rawDB) Prepare(string) {}
+func (rawDB) PrepareContext(any, string) {}
+func run(rawDB, string) {}
+func base(db rawDB) { `+base+` }
+`)
+			writeFile(t, filepath.Join(repo, "architecture", "policy.json"), policyWithDataObject(t, policy, "ghost.records", "module"))
+			writeFile(t, filepath.Join(repo, "database", "migrations", "002_new.go"),
+				"package migrations\nfunc create(db rawDB) { db.NewRaw(\"CREATE TABLE IF NOT EXISTS ghost.records (id bigint)\") }\n")
+			output, err := runRepositoryCheck(t, repo, baseRef)
+			if tt.want == "" && err != nil {
+				t.Fatalf("forward reference held the table: %v\n%s", err, output)
+			}
+			if tt.want != "" && (err == nil || !strings.Contains(output, tt.want)) {
+				t.Fatalf("table of the base was adopted: %v\n%s", err, output)
+			}
+		})
+	}
+}
+
+// A candidate migration that creates a table through Prepare needs a write
+// owner like any other create (review of 9d0709ae69).
+func TestCheckRequiresAnOwnerForAPreparedCreate(t *testing.T) {
+	t.Parallel()
+	for _, call := range []string{`db.Prepare("CREATE TABLE ghost.records (id bigint)")`,
+		`db.PrepareContext(nil, "CREATE TABLE ghost.records (id bigint)")`} {
+		t.Run(call, func(t *testing.T) {
+			t.Parallel()
+			repo, baseRef, _ := ratchetRepositoryWithMigrationPackage(t, `package migrations
+type rawDB struct{}
+func (rawDB) Prepare(string) {}
+func (rawDB) PrepareContext(any, string) {}
+`)
+			writeFile(t, filepath.Join(repo, "database", "migrations", "002_new.go"), "package migrations\nfunc create(db rawDB) { "+call+" }\n")
+			output, err := runRepositoryCheck(t, repo, baseRef)
+			if err == nil || !strings.Contains(output, "new writable data object ghost.records has no write owner") {
+				t.Fatalf("a prepared create without an owner was accepted: %v\n%s", err, output)
+			}
+		})
 	}
 }

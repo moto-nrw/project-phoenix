@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
+	reminder "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery"
 )
 
 // ReminderStaffIdentity adapts the request-memoized caller identity without

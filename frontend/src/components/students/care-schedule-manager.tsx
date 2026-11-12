@@ -604,9 +604,32 @@ export function CareScheduleManager({
   });
 
   const refreshCareData = useCallback(async () => {
-    await fetchCareDataInto(claimCareDataRequest());
+    const requestId = claimCareDataRequest();
+    try {
+      await fetchCareDataInto(requestId);
+    } catch (err) {
+      // Writes have already committed. Retrying here must only reload, not
+      // repeat the mutation and potentially create another exception.
+      logger.error("care_schedule_refresh_failed", {
+        error: err instanceof Error ? err.message : String(err),
+        student_id: studentId,
+      });
+      if (isFresherThanRendered(requestId)) {
+        await showLoadError(err, {
+          object: "die Übersicht der Betreuungszeiten",
+          retry: () => void loadCareDataRef.current(),
+        });
+      }
+    }
     onUpdate?.();
-  }, [claimCareDataRequest, fetchCareDataInto, onUpdate]);
+  }, [
+    claimCareDataRequest,
+    fetchCareDataInto,
+    isFresherThanRendered,
+    onUpdate,
+    showLoadError,
+    studentId,
+  ]);
 
   useEffect(() => {
     // loadCareData reports its own failure in place; nothing is left to catch.
@@ -1583,7 +1606,7 @@ function CareBoundaryRow({
             <span className="min-w-0 break-words">{boundary.value}</span>
             {boundary.marker && boundary.markerTone === "warning" ? (
               <StatusBadge
-                tone="orange"
+                tone="warning"
                 compact
                 label={boundary.marker}
                 title={boundary.markerTitle}

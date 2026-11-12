@@ -42,8 +42,20 @@ export function calendarPeriodsTopic(): HelpTopic {
           "Gehen Sie zum Abschnitt `Schließtage`.",
           "Wählen Sie `Schließtag anlegen`.",
           "Tragen Sie `Grund`, `Von` und `Bis` ein, zum Beispiel `Herbstferien`.",
+          "Richtet Ihre OGS in dieser Zeit Ferienbetreuung für den Träger aus, zeigt der Dialog die Woche und wie viele Kinder gebucht haben. Die Buchungen bleiben.",
           "Wählen Sie `Speichern`.",
           "Stehen an diesen Tagen schon Termine, fragt moto nach. Sagen Sie sie ab wie im nächsten Abschnitt.",
+        ],
+      },
+      {
+        title: "Eltern der Ferienbetreuung informieren",
+        description:
+          "Liegt ein Schließtag in einer gebuchten Ferienwoche, bekommen die Eltern nicht von selbst eine E-Mail. Das gilt auch, wenn Sie den Schließtag ändern, verschieben oder löschen. Den Versand lösen Sie oder das Träger-Büro aus.",
+        steps: [
+          "Öffnen Sie `Schuljahr und Kalender`.",
+          "Oben steht die Karte `Eltern der Ferienbetreuung informieren`. Dort stehen der Grund, die Tage und wie viele Familien gebucht haben.",
+          "Wählen Sie `Eltern informieren`. Ein Klick genügt.",
+          "Der Hinweis zeigt den Versandstand: `Wird gesendet`, `Gesendet` oder `Keine E-Mail nötig`.",
         ],
       },
       {
@@ -81,7 +93,8 @@ export function calendarPeriodsTopic(): HelpTopic {
       },
       {
         title: "Termine an Schließtagen absagen",
-        description: "Für Termine, die schon vor dem Schließtag geplant waren.",
+        description:
+          "Für Termine, die schon vor dem Schließtag geplant waren. Das geht auch bei Schließtagen mit `Vom Träger`.",
         steps: [
           "Wählen Sie beim Schließtag die drei Punkte.",
           "Wählen Sie `Termine absagen`.",
@@ -97,6 +110,7 @@ export function calendarPeriodsTopic(): HelpTopic {
       "Ein Zeitraum, den noch nichts benutzt, trägt `Nicht verwendet`.",
       "Ferienbetreuung an Schließtagen: Wählen Sie beim Speichern der Serie `Auch an Schließtagen planen`. Tragen Sie bei `Letzter Tag` den letzten Ferientag ein. Dann endet die Serie mit den Ferien.",
       "Schicht-Serien im Dienstplan lassen Ferien und Schließtage aus.",
+      "Ein Schließtag mit `Vom Träger` hat Ihr Träger geplant. Er gilt wie Ihre eigenen Schließtage. Ändern kann ihn nur das Träger-Büro.",
       "Mit `Auch in den Ferien und an Schließtagen planen` planen Sie auch dann Schichten.",
       "An gesetzlichen Feiertagen plant eine Serie nie Schichten.",
       "Schichten, die schon geplant waren, bleiben stehen.",
@@ -104,10 +118,15 @@ export function calendarPeriodsTopic(): HelpTopic {
       "Der Hinweis zu den Ferien zählt nur Termine, die schon im Plan stehen. Serien mit `Auch an Schließtagen planen` und Serien in einem Zeitraum der Art `Ferien` zählt er nicht mit.",
     ],
     differences: [
+      "Ein verschobener Schließtag nennt `Neu` und `Vorher`. Die Eltern erfahren in einer E-Mail, welche Tage geschlossen und welche doch geöffnet sind.",
+      "Ein gelöschter Schließtag steht mit `Gelöscht` in der Karte. Die Eltern erfahren, dass die Tage wieder geöffnet sind.",
       "Legen Sie eine Schicht auf einen Schließtag, fragt moto vorher nach.",
       "Sie sehen `Termine absagen` nicht? Dann fehlt Ihnen das Recht, den Betreuungsplan zu bearbeiten.",
     ],
     troubleshootingDetails: [
+      "Der Hinweis zeigt `Nicht angekommen`? Wählen Sie noch einmal `Eltern informieren`. Familien, die schon eine E-Mail haben, bekommen keine zweite.",
+      "Der Hinweis zeigt `Ergebnis unbekannt`? Schreiben Sie dem moto-Team. Es prüft den Versand.",
+      "Nach dem Klick steht, der Schließtag wurde geändert? Prüfen Sie den Hinweis und wählen Sie noch einmal `Eltern informieren`.",
       "Der Betreuungsplan sagt `Noch kein Planungszeitraum`? Dann fehlt für diese Woche ein Zeitraum.",
     ],
     related: [

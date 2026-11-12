@@ -7,28 +7,26 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func (s *Service) ListPickupChangeRequests(ctx context.Context, accountID, studentID int64) ([]carerequests.Request, error) {
-	child, err := s.ResolveOwnedChild(ctx, accountID, studentID)
-	if err != nil {
-		return nil, err
-	}
-	if s.CareRequests == nil {
-		return nil, errors.New("parent: pickup change request service not configured")
-	}
 	var rows []carerequests.Request
-	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err := s.WithPermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess, func(*Child) error {
+		if s.CareRequests == nil {
+			return errors.New("parent: pickup change request service not configured")
+		}
+		return nil
+	}, func(txCtx context.Context, _ *Child) error {
 		var listErr error
 		rows, listErr = s.CareRequests.ListPickupChangeRequests(txCtx, studentID, time.Now().AddDate(0, -2, 0))
 		if listErr != nil {
-			return listErr
+			return fmt.Errorf("parent: list pickup change requests: %w", listErr)
 		}
 		visibility, visibilityErr := s.RequestSharing.LoadRequestShareVisibility(txCtx, studentID)
 		if visibilityErr != nil {
-			return visibilityErr
+			return fmt.Errorf("parent: list pickup change requests: %w", visibilityErr)
 		}
 		visible := rows[:0]
 		for _, row := range rows {
@@ -41,7 +39,7 @@ func (s *Service) ListPickupChangeRequests(ctx context.Context, accountID, stude
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("parent: list pickup change requests: %w", err)
+		return nil, err
 	}
 	return rows, nil
 }

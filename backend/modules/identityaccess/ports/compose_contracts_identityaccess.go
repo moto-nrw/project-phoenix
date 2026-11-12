@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // PersonDirectory reads the person name of an account in the tenant the
@@ -131,10 +131,11 @@ type PasskeyDependencies struct {
 // compositions without them report ErrAccountMFAUnavailable and
 // ErrOperatorMFAUnavailable.
 type MFADependencies struct {
-	Settings MFASettings
-	Codec    MFAChallengeCodec
-	Codes    ShortCodeHasher
-	Mail     MFAMail
+	PermissionGranted func(required string, granted []string) bool
+	Settings          MFASettings
+	Codec             MFAChallengeCodec
+	Codes             ShortCodeHasher
+	Mail              MFAMail
 	// ResetNotice mails the caterer the operator's reset of its second
 	// factor (#4497); nil leaves the reset unavailable.
 	ResetNotice   CatererMFAResetNotice
@@ -165,9 +166,10 @@ type InvitationOwnerTokens interface {
 // the session and lifecycle dependencies: the flows reuse the school
 // directory, the role storage and the identity chain.
 type SchoolInvitationDependencies struct {
-	EmploymentReset *EmploymentResetCommands
-	Grants          InvitationGrantPolicy
-	Owners          InvitationOwnerTokens
+	PermissionGranted func(required string, granted []string) bool
+	EmploymentReset   *EmploymentResetCommands
+	Grants            InvitationGrantPolicy
+	Owners            InvitationOwnerTokens
 	// DeliveryFor builds the delivery over the recorder of its outcome; the
 	// composition calls it once.
 	DeliveryFor func(identityaccess.SchoolInvitationDeliveryRecorder) SchoolInvitationDelivery

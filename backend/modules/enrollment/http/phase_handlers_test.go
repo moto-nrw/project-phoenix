@@ -11,15 +11,16 @@ import (
 	"testing"
 	"time"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 type mockPhaseService struct {
@@ -37,6 +38,7 @@ type mockPhaseService struct {
 	createResult      *capability.Phase
 	createErr         error
 	updateInput       *capability.Phase
+	updateReport      capability.PhaseUpdateReport
 	updateErr         error
 	deleteID          int64
 	deleteErr         error
@@ -67,9 +69,9 @@ func (m *mockPhaseService) CreatePhase(_ context.Context, phase *capability.Phas
 	m.createInput = phase
 	return m.createResult, m.createErr
 }
-func (m *mockPhaseService) UpdatePhase(_ context.Context, phase *capability.Phase) error {
+func (m *mockPhaseService) UpdatePhase(_ context.Context, phase *capability.Phase) (capability.PhaseUpdateReport, error) {
 	m.updateInput = phase
-	return m.updateErr
+	return m.updateReport, m.updateErr
 }
 func (m *mockPhaseService) DeletePhase(_ context.Context, id int64) error {
 	m.deleteID = id
@@ -361,6 +363,37 @@ func TestUpdatePhaseHandler_HappyPathRefetchesAfterUpdate(t *testing.T) {
 	assert.Equal(t, int64(1234), mock.getByIDID, "refetch must call GetByID after the update")
 }
 
+// A shortened phase names the confirmed children whose care now runs past
+// its end, with both days (#6598); without such children the list is empty,
+// never missing.
+func TestUpdatePhaseHandler_ReportsCareBeyondShortenedEnd(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockPhaseService{getByIDResult: makePhaseModel(1234, "Updated"), updateReport: capability.PhaseUpdateReport{
+		CareBeyondEnd: []capability.CareBeyondPhaseEnd{{
+			StudentID: 77, FirstName: "Mia", LastName: "Lang", SchoolClass: "2b",
+			CareEnd: calendar.Date("2028-07-31"), PhaseEnd: calendar.Date("2028-06-30"),
+		}},
+	}}
+	w := executePhaseJSON(t, buildPhaseRouter(mock), http.MethodPut, "/enrollment/phases/1234", validPhaseBody("Updated"))
+	require.Equal(t, http.StatusOK, w.Code)
+	var body struct {
+		Data struct {
+			ID            string                  `json:"id"`
+			CareBeyondEnd []CareBeyondEndResponse `json:"care_beyond_end"`
+		} `json:"data"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, "1234", body.Data.ID, "the saved phase stays the response body")
+	assert.Equal(t, []CareBeyondEndResponse{{
+		StudentID: "77", FirstName: "Mia", LastName: "Lang", SchoolClass: "2b", CareEnd: "2028-07-31", PhaseEnd: "2028-06-30",
+	}}, body.Data.CareBeyondEnd)
+
+	plain := executePhaseJSON(t, buildPhaseRouter(&mockPhaseService{getByIDResult: makePhaseModel(1234, "Updated")}), http.MethodPut, "/enrollment/phases/1234", validPhaseBody("Updated"))
+	require.Equal(t, http.StatusOK, plain.Code)
+	assert.Contains(t, plain.Body.String(), `"care_beyond_end":[]`)
+}
+
 func TestUpdatePhaseHandler_OmittedCalendarPeriodIDPreservesExistingLink(t *testing.T) {
 	t.Parallel()
 
@@ -439,6 +472,66 @@ func TestUpdatePhaseHandler_DuplicateNameReturns409(t *testing.T) {
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("X"))
 	assert.Equal(t, http.StatusConflict, w.Code)
+}
+
+// A window edit that would end a pending child's window before it starts is
+// refused with its own code (#6505).
+func TestUpdatePhaseHandler_PendingChildWindowConflictReturns409(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockPhaseService{
+		getByIDResult: makePhaseModel(1234, "Updated"),
+		updateErr:     fmt.Errorf("phase update: %w", capability.ErrPhasePendingChildWindowConflict),
+	}
+	router := buildPhaseRouter(mock)
+	w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("X"))
+	assert.Equal(t, http.StatusConflict, w.Code)
+
+	var body struct {
+		Code string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+	assert.Equal(t, "enrollment.phase_pending_child_window_conflict", body.Code)
+}
+
+// A window edit that would leave a care offering booking empty is refused
+// with its own code and the child's name, so the form says whose offerings
+// to adjust (#6597). Without a name the code stays.
+func TestUpdatePhaseHandler_BookingBoundsConflictReturns409(t *testing.T) {
+	t.Parallel()
+
+	for name, tc := range map[string]struct {
+		err     error
+		details map[string]any
+	}{
+		"named child": {
+			err:     &capability.PhaseBookingBoundsConflictError{RequestChildID: 7, ChildName: "Sophie Sharma"},
+			details: map[string]any{"child": "Sophie Sharma"},
+		},
+		"no name": {err: capability.ErrPhaseBookingBoundsConflict},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			mock := &mockPhaseService{
+				getByIDResult: makePhaseModel(1234, "Updated"),
+				updateErr:     fmt.Errorf("phase update: move booking bounds: %w", tc.err),
+			}
+			router := buildPhaseRouter(mock)
+			w := executePhaseJSON(t, router, http.MethodPut, "/enrollment/phases/1234", validPhaseBody("X"))
+			assert.Equal(t, http.StatusConflict, w.Code)
+			var body struct {
+				Code    string         `json:"code"`
+				Details map[string]any `json:"details"`
+			}
+			require.NoError(t, json.Unmarshal(w.Body.Bytes(), &body))
+			assert.Equal(t, "enrollment.phase_booking_bounds_conflict", body.Code)
+			if tc.details == nil {
+				assert.Empty(t, body.Details)
+			} else {
+				assert.Equal(t, tc.details, body.Details)
+			}
+		})
+	}
 }
 
 func TestUpdatePhaseHandler_CareOfferingConflictReturns409(t *testing.T) {
@@ -602,6 +695,18 @@ func TestDeletePhaseHandler_NotFoundReturns404(t *testing.T) {
 	router := buildPhaseRouter(mock)
 	w := executePhaseJSON(t, router, http.MethodDelete, "/enrollment/phases/1234", nil)
 	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+// A phase whose bookings still apply is refused with 409 and its own code, so
+// the dialog names the reason (#6505).
+func TestDeletePhaseHandler_EffectiveBookingsReturns409(t *testing.T) {
+	t.Parallel()
+
+	mock := &mockPhaseService{deleteErr: fmt.Errorf("%w: 2 children", capability.ErrPhaseHasEffectiveBookings)}
+	router := buildPhaseRouter(mock)
+	w := executePhaseJSON(t, router, http.MethodDelete, "/enrollment/phases/1234", nil)
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"enrollment.phase_has_effective_bookings"`)
 }
 
 func TestDeletePhaseHandler_GenericErrorReturns500(t *testing.T) {

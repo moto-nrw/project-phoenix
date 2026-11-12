@@ -537,7 +537,20 @@ describe("RejectReasonModal", () => {
     expect(onRejected).not.toHaveBeenCalled();
   });
 
-  it("tells the office when the notice could not go out", async () => {
+  it.each([
+    [
+      "missing_student",
+      "Der Vertrag ist mit keinem Kind aus den „Kinderdaten“ der Schule verknüpft.",
+    ],
+    [
+      "no_permitted_address",
+      "Keine Adresse des Vertrags gehört noch einer Bezugsperson, die für das Kind handeln darf.",
+    ],
+    [
+      undefined,
+      "moto hat keine Adresse gefunden, an die die Mitteilung gehen darf.",
+    ],
+  ] as const)("explains the unsent notice: %s", async (reason, explanation) => {
     mocks.fetchContractNoticeOptions.mockResolvedValue({
       ...active,
       status: "gekuendigt",
@@ -555,6 +568,7 @@ describe("RejectReasonModal", () => {
         endDecidedAt: "2026-11-09T10:00:00Z",
         endNoticeText: "Der Vertrag endet am 31.12.2026.",
         endNoticeSent: false,
+        endNoticeNotSentReason: reason,
       },
     } satisfies ContractNoticeOptions);
     render(
@@ -567,8 +581,28 @@ describe("RejectReasonModal", () => {
     );
     expect(
       await screen.findByText(
-        /Die Mitteilung zum Vertragsende ging nicht raus/,
+        "Die Mitteilung zum Vertragsende ging nicht raus",
       ),
     ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        `${explanation} Schicken Sie den Eltern die Mitteilung unten per Brief.`,
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("figure", {
+        name: "Mitteilung zum Vertragsende (nicht verschickt)",
+      }),
+    ).toHaveTextContent("Der Vertrag endet am 31.12.2026.");
+    expect(
+      screen.queryByRole("figure", {
+        name: "Mitteilung zum Vertragsende, wie sie verschickt wurde",
+      }),
+    ).not.toBeInTheDocument();
+    if (reason !== "no_permitted_address") {
+      expect(
+        screen.queryByText(/Keine Adresse des Vertrags gehört/),
+      ).not.toBeInTheDocument();
+    }
   });
 });

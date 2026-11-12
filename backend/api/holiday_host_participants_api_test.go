@@ -20,14 +20,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 type hostedWeekBody struct {
@@ -36,6 +36,14 @@ type hostedWeekBody struct {
 	StartsOn     string `json:"starts_on"`
 	EndsOn       string `json:"ends_on"`
 	Participants int    `json:"participants"`
+	CareStartsAt string `json:"care_starts_at"`
+	CareEndsAt   string `json:"care_ends_at"`
+	// DayParticipants maps each booked day of a week by days to its
+	// confirmed children.
+	DayParticipants []struct {
+		Date         string `json:"date"`
+		Participants int    `json:"participants"`
+	} `json:"day_participants"`
 }
 
 type participantListBody struct {
@@ -110,6 +118,13 @@ func newHolidayHostFixture(t *testing.T, name string) holidayHostFixture {
 
 	today := &atomic.Value{}
 	today.Store(calendar.NewDate(2099, 7, 1))
+	return holidayHostFixture{holidayRegistrationFixture: f, office: office, offer: offer, link: link.PublicToken, siblings: siblings, school: newHolidayHostRouter(t, f, today), today: today}
+}
+
+// newHolidayHostRouter mounts the routes of the hosting school at
+// /api/holiday-weeks with the service clock today.
+func newHolidayHostRouter(t *testing.T, f holidayRegistrationFixture, today *atomic.Value) http.Handler {
+	t.Helper()
 	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, f.db))
 	require.NoError(t, err)
 	resource := NewHolidayHostHTTP(organizations, owners.MustNewPeopleDirectory(testpkg.NewDatabase(t, f.db)),
@@ -123,7 +138,7 @@ func newHolidayHostFixture(t *testing.T, name string) holidayHostFixture {
 		})
 	})
 	router.Mount("/api/holiday-weeks", resource.Router(ProtectedTenantRoutes))
-	return holidayHostFixture{holidayRegistrationFixture: f, office: office, offer: offer, link: link.PublicToken, siblings: siblings, school: testpkg.SessionVerifier(router), today: today}
+	return testpkg.SessionVerifier(router)
 }
 
 // staffOf signs a staff member of the school in, with the given permissions.
@@ -212,7 +227,10 @@ func TestHolidayHostSeesOnlyConfirmedChildrenOfItsWeek(t *testing.T) {
 
 	weeks := f.weeks(t, host)
 	require.Len(t, weeks, 1, "the school sees the week it hosts, not the other school's week")
-	assert.Equal(t, hostedWeekBody{ID: week, PeriodName: "Sommerferien 2099", StartsOn: "2099-07-06", EndsOn: "2099-07-10"}, weeks[0])
+	assert.Equal(t, hostedWeekBody{ID: week, PeriodName: "Sommerferien 2099", StartsOn: "2099-07-06", EndsOn: "2099-07-10",
+		CareStartsAt: "08:00", CareEndsAt: "16:00", DayParticipants: weeks[0].DayParticipants}, weeks[0],
+		"the care window runs from the earliest start to the latest end of the week's time models")
+	assert.Empty(t, weeks[0].DayParticipants, "a week booked as a whole counts no single days")
 	empty := f.participants(t, host, week)
 	assert.Empty(t, empty.Participants, "without a confirmed booking the school sees no child")
 
@@ -299,6 +317,34 @@ func TestHolidayHostSeesOnlyConfirmedChildrenOfItsWeek(t *testing.T) {
 
 	f.confirm(t, f.siblings, "cancel")
 	assert.Empty(t, f.participants(t, host, week).Participants, "a cancelled booking ends the access at once")
+}
+
+// TestHolidayHostWeeksOpenToThePlanningViews pins who reads the list of
+// hosted weeks: the Betreuungsplan (schedules:read) and the Dienstplan
+// (time_tracking:manage) show the week with its care window and how many
+// children come, so the team can staff it. The participant list with the
+// children stays behind config:read, and a permission outside planning
+// opens neither.
+func TestHolidayHostWeeksOpenToThePlanningViews(t *testing.T) {
+	t.Parallel()
+	f := newHolidayHostFixture(t, "Träger Ausrichtung Planung")
+	nord := f.office.schools[0]
+	week := f.offer.Weeks[0].ID
+	f.confirm(t, f.siblings, "confirm")
+	for _, permission := range []string{permissions.SchedulesRead, permissions.TimeTrackingManage} {
+		planner := f.staffOf(t, nord, permission)
+		weeks := f.weeks(t, planner)
+		require.Len(t, weeks, 1, permission)
+		assert.Equal(t, 2, weeks[0].Participants, permission)
+		assert.Equal(t, "08:00", weeks[0].CareStartsAt, permission)
+		assert.Equal(t, "16:00", weeks[0].CareEndsAt, permission)
+		for _, path := range []string{"/participants", "/participants/export?format=csv"} {
+			assert.Equal(t, http.StatusForbidden, f.get(t, planner, fmt.Sprintf("/%d%s", week, path)).Code,
+				"%s does not open the children of the week (%s)", permission, path)
+		}
+	}
+	assert.Equal(t, http.StatusForbidden, f.get(t, f.staffOf(t, nord, permissions.StudentsRead), "/").Code)
+	assert.Empty(t, f.accessLog(t, nord), "reading the weeks reads no child and logs nothing")
 }
 
 func TestHolidayHostAccessEndsAfterTheWeek(t *testing.T) {

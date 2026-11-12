@@ -60,9 +60,16 @@ func TestDemoLeadMailRenders(t *testing.T) {
 		} {
 			assert.Contains(t, part, snippet)
 		}
+		assert.NotContains(t, part, "Telefon", "no phone line without a number")
 	}
 
-	data["Source"], data["ContactOptIn"] = "", false
+	data["Phone"] = "+49 211 123456"
+	html, text = renderDemoMail(t, "demo-lead.html", data)
+	// The number is free text from a public form; the HTML part escapes it.
+	assert.Contains(t, html, "Telefon: &#43;49 211 123456")
+	assert.Contains(t, text, "Telefon: +49 211 123456")
+
+	data["Source"], data["ContactOptIn"], data["Phone"] = "", false, ""
 	_, text = renderDemoMail(t, "demo-lead.html", data)
 	assert.Contains(t, text, "Quelle: keine Angabe")
 	assert.Contains(t, text, "Kontakt erlaubt: nein")

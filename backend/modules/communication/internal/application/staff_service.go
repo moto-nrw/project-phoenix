@@ -13,23 +13,23 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 type service struct {
-	deliveryPolicy   ParentDeliveryPolicy
-	runtime          Runtime
-	repo             ParentAnnouncementRepository
-	settings         Settings
-	outbox           OutboxEnqueuer
-	pushOutbox       PushOutboxCanceller
-	notifier         NotificationSender
-	reminderNotifier DurableNotificationSender
-	preferences      NotificationPreferences
-	deliveries       DeliveryRecorder
-	fingerprints     Fingerprints
-	signatures       DeclarationSignatures
-	parentsURL       string
+	deliveryPolicy ParentDeliveryPolicy
+	runtime        Runtime
+	repo           ParentAnnouncementRepository
+	settings       Settings
+	outbox         OutboxEnqueuer
+	pushOutbox     PushOutboxCanceller
+	notifier       NotificationSender
+	series         communication.NotificationSeries
+	preferences    NotificationPreferences
+	deliveries     DeliveryRecorder
+	fingerprints   Fingerprints
+	signatures     DeclarationSignatures
+	parentsURL     string
 	// attachments is the file side of #2890, injected after construction (the
 	// two services point at each other).
 	attachments AttachmentPurger
@@ -350,7 +350,9 @@ func (s *service) notifyAnnouncementGuardiansAs(ctx context.Context, a *StaffPar
 	if s.notifier == nil {
 		return 0, nil
 	}
-	accepted, err := s.notifyAnnouncementGuardiansWith(ctx, a, shape, NewSingleReceiptSender(s.notifier))
+	// The publication counts one receipt per language variant the router
+	// accepted, never a channel receipt.
+	accepted, err := s.notifyAnnouncementGuardiansWith(ctx, a, shape, s.notifyEach)
 	if s.deliveryPolicy.IsNotificationsDisabled(err) || s.deliveryPolicy.IsOutsideActiveWindow(err) {
 		return accepted, nil
 	}
@@ -361,13 +363,13 @@ func (s *service) notifyAnnouncementGuardiansAs(ctx context.Context, a *StaffPar
 // must roll back when neither Web Push nor the selected e-mail channel queued
 // a delivery; a successful router call alone is not evidence of that.
 func (s *service) notifyReminderGuardians(ctx context.Context, a *StaffParentAnnouncement, shape pushShape) (int, error) {
-	if s.reminderNotifier == nil {
+	if s.series.NotifyDurably == nil {
 		return 0, nil
 	}
-	return s.notifyAnnouncementGuardiansWith(ctx, a, shape, s.reminderNotifier)
+	return s.notifyAnnouncementGuardiansWith(ctx, a, shape, s.notifyEachDurably)
 }
 
-func (s *service) notifyAnnouncementGuardiansWith(ctx context.Context, a *StaffParentAnnouncement, shape pushShape, notify DurableNotificationSender) (int, error) {
+func (s *service) notifyAnnouncementGuardiansWith(ctx context.Context, a *StaffParentAnnouncement, shape pushShape, notifyEach func(context.Context, []communication.NotificationEvent) (int, error)) (int, error) {
 	priority := PriorityNormal
 	if a.Priority == StaffParentAnnouncementPriorityImportant {
 		priority = PriorityHigh
@@ -385,14 +387,11 @@ func (s *service) notifyAnnouncementGuardiansWith(ctx context.Context, a *StaffP
 		return 0, err
 	}
 
-	groups := make(map[string][]int64)
-	for _, accountID := range accountIDs {
-		groups[localeByAccount[accountID]] = append(groups[localeByAccount[accountID]], accountID)
-	}
-	accepted := 0
-	for locale, group := range groups {
+	locales, groups := localeGroups(accountIDs, localeByAccount)
+	events := make([]communication.NotificationEvent, 0, len(locales))
+	for _, locale := range locales {
 		title, body := s.deliveryPolicy.ParentAnnouncementCopy(locale, copyKind)
-		count, err := notify.NotifyDurably(ctx, NotificationEvent{
+		events = append(events, NotificationEvent{
 			Type: notificationType,
 			// The push outbox deduplicates by tenant and key. Each locale is a
 			// distinct payload and audience, so it needs its own replay-safe key.
@@ -405,21 +404,21 @@ func (s *service) notifyAnnouncementGuardiansWith(ctx context.Context, a *StaffP
 			Audience: NotificationAudience{
 				TenantID:           a.GetTenantID(),
 				Scope:              ScopeGuardian,
-				GuardianAccountIDs: group,
+				GuardianAccountIDs: groups[locale],
 			},
 		}.Public())
-		if s.deliveryPolicy.IsNotificationsDisabled(err) || s.deliveryPolicy.IsOutsideActiveWindow(err) {
-			s.logger.Info("parent announcement push suppressed by tenant notification gate",
-				slog.Int64("announcement_id", a.ID),
-				slog.Int("recipient_count", len(accountIDs)),
-				slog.String("reason", err.Error()),
-			)
-			return accepted, err
-		}
-		if err != nil {
-			return accepted, fmt.Errorf("notify guardian audience: %w", err)
-		}
-		accepted += count
+	}
+	accepted, err := notifyEach(ctx, events)
+	if s.deliveryPolicy.IsNotificationsDisabled(err) || s.deliveryPolicy.IsOutsideActiveWindow(err) {
+		s.logger.Info("parent announcement push suppressed by tenant notification gate",
+			slog.Int64("announcement_id", a.ID),
+			slog.Int("recipient_count", len(accountIDs)),
+			slog.String("reason", err.Error()),
+		)
+		return accepted, err
+	}
+	if err != nil {
+		return accepted, fmt.Errorf("notify guardian audience: %w", err)
 	}
 	return accepted, nil
 }

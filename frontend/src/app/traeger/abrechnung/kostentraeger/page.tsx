@@ -71,7 +71,7 @@ function ShareStatus({ share }: Readonly<{ share: CareCostShare }>) {
     case "expiring":
       return (
         <StatusBadge
-          tone="orange"
+          tone="warning"
           label={`Endet am ${formatDate(share.validUntil)}`}
         />
       );

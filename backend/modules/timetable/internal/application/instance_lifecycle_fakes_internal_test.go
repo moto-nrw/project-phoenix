@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 )
 
 // Package-local doubles of the lifecycle's consumer-owned ports

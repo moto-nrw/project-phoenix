@@ -5,9 +5,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // Service is the School Membership owner. It validates every input at the
@@ -75,7 +76,7 @@ func (s *Service) findStaff(ctx context.Context, id int64, lock string) (result 
 	err = run(ctx, "find_staff", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats
-		result, found, queryStats, err = s.store.FindStaff(txCtx, id, lock, false)
+		result, found, queryStats, err = s.findStaffRow(txCtx, id, lock, false)
 		stats.Add(queryStats)
 		if err == nil && !found {
 			result = schoolmembership.Staff{}
@@ -127,6 +128,9 @@ func (s *Service) ListStaff(ctx context.Context, filter schoolmembership.StaffFi
 	filter.IDs = uniquePositive(filter.IDs)
 	filter.PersonIDs = uniquePositive(filter.PersonIDs)
 	filter.TenantIDs = uniquePositive(filter.TenantIDs)
+	if filter.ForMutation {
+		return s.listStaffForMutation(ctx, filter)
+	}
 	err = s.runRead(ctx, "list_staff", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var queryStats domain.OperationStats
 		result, queryStats, err = s.store.ListStaff(txCtx, filter)
@@ -149,11 +153,17 @@ func (s *Service) CreateStaff(ctx context.Context, input schoolmembership.Create
 	fields := input.StaffFields
 	err = s.runStaffWrite(ctx, "create_staff", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var createStats domain.OperationStats
+		if err := admitStaffPersonMerge(txCtx); err != nil {
+			return err
+		}
 		result, createStats, err = s.store.CreateStaff(txCtx, fields.PersonID)
 		stats.Add(createStats)
 		if err != nil {
 			return err
 		}
+		// The inserted row is held: a caregiver profile or employment written
+		// next locks it again without waiting (#6702).
+		tenant.HoldInserted(txCtx, tenant.LockStaffRows, tenant.LockIDKey(result.ID))
 		result, err = s.saveEmployment(txCtx, result, fields, stats)
 		return err
 	})
@@ -343,6 +353,9 @@ func (s *Service) UpdateTeacher(ctx context.Context, input schoolmembership.Upda
 		if err := s.requireStaffLocked(txCtx, fields.StaffID, stats); err != nil {
 			return err
 		}
+		if err := admitLeaf(txCtx, true, "users.teachers"); err != nil {
+			return err
+		}
 		_, found, queryStats, err := s.store.FindTeacher(txCtx, id, "UPDATE")
 		stats.Add(queryStats)
 		if err != nil {
@@ -365,6 +378,9 @@ func (s *Service) DeleteTeacher(ctx context.Context, id int64) error {
 		return invalid("teacher ID is required")
 	}
 	return s.runWrite(ctx, "delete_teacher", func(txCtx context.Context, stats *domain.OperationStats) error {
+		if err := admitLeaf(txCtx, true, "users.teachers"); err != nil {
+			return err
+		}
 		_, found, queryStats, err := s.store.FindTeacher(txCtx, id, "UPDATE")
 		stats.Add(queryStats)
 		if err != nil {
@@ -455,6 +471,9 @@ func (s *Service) UpdateExternalCaregiverRecord(ctx context.Context, input schoo
 	}
 	id, fields := input.ID, input.ExternalCaregiverRecordFields
 	err = s.runWrite(ctx, "update_external_caregiver_record", func(txCtx context.Context, stats *domain.OperationStats) error {
+		if err := admitLeaf(txCtx, true, "users.external_caregivers"); err != nil {
+			return err
+		}
 		_, found, queryStats, err := s.store.FindExternalCaregiverRecord(txCtx, id, "UPDATE")
 		stats.Add(queryStats)
 		if err != nil {
@@ -486,7 +505,7 @@ func (s *Service) DeleteExternalCaregiverRecord(ctx context.Context, id int64) e
 // --- plumbing ---
 
 func (s *Service) requireStaffLocked(ctx context.Context, id int64, stats *domain.OperationStats) error {
-	_, found, queryStats, err := s.store.FindStaff(ctx, id, "UPDATE", false)
+	_, found, queryStats, err := s.findStaffRow(ctx, id, "UPDATE", false)
 	stats.Add(queryStats)
 	if err != nil {
 		return err

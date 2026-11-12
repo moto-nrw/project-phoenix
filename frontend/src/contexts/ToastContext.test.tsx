@@ -10,6 +10,7 @@ import {
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 import { releaseFakeTimers } from "~/test/clock";
+import { AT_LEAST_MD, BELOW_MD } from "~/lib/hooks/use-media-query";
 import { ToastProvider, useToast } from "./ToastContext";
 
 // Helper to create a wrapper with ToastProvider
@@ -25,7 +26,7 @@ describe("ToastContext", () => {
     Object.defineProperty(globalThis, "matchMedia", {
       writable: true,
       value: vi.fn().mockImplementation((query: string) => ({
-        matches: query === "(min-width: 768px)", // Desktop by default
+        matches: query === AT_LEAST_MD, // Desktop by default
         media: query,
         onchange: null,
         addListener: vi.fn(), // Deprecated
@@ -178,7 +179,7 @@ describe("ToastContext", () => {
 
     it("renders mobile notifications as non-blocking toast bars", async () => {
       vi.mocked(globalThis.matchMedia).mockImplementation((query: string) => ({
-        matches: query === "(max-width: 767px)",
+        matches: query === BELOW_MD,
         media: query,
         onchange: null,
         addListener: vi.fn(),
@@ -215,7 +216,7 @@ describe("ToastContext", () => {
 
     it("uses the document language for mobile toast labels", async () => {
       vi.mocked(globalThis.matchMedia).mockImplementation((query: string) => ({
-        matches: query === "(max-width: 767px)",
+        matches: query === BELOW_MD,
         media: query,
         onchange: null,
         addListener: vi.fn(),
@@ -337,7 +338,7 @@ describe("ToastContext", () => {
       }) => {
         vi.mocked(globalThis.matchMedia).mockImplementation(
           (query: string) => ({
-            matches: query === "(max-width: 767px)",
+            matches: query === BELOW_MD,
             media: query,
             onchange: null,
             addListener: vi.fn(),
@@ -377,7 +378,7 @@ describe("ToastContext", () => {
 
     it("keeps remaining mobile toast bars visible after dismissing one", async () => {
       vi.mocked(globalThis.matchMedia).mockImplementation((query: string) => ({
-        matches: query === "(max-width: 767px)",
+        matches: query === BELOW_MD,
         media: query,
         onchange: null,
         addListener: vi.fn(),
@@ -420,7 +421,7 @@ describe("ToastContext", () => {
 
     it("runs a mobile toast action without blocking the page", async () => {
       vi.mocked(globalThis.matchMedia).mockImplementation((query: string) => ({
-        matches: query === "(max-width: 767px)",
+        matches: query === BELOW_MD,
         media: query,
         onchange: null,
         addListener: vi.fn(),
@@ -506,6 +507,159 @@ describe("ToastContext", () => {
       fireEvent.click(action);
 
       expect(onAction).toHaveBeenCalledOnce();
+    });
+  });
+
+  // #6454: Rückmeldungen gehen bei offenen Fehlern und schnellen
+  // Wiederholungen nicht verloren.
+  describe("Fehlerstau und Wiederholen", () => {
+    let api: ReturnType<typeof useToast> | undefined;
+    function Probe() {
+      api = useToast();
+      return <p>Toast-Bereich bereit</p>;
+    }
+    function renderProbe() {
+      render(
+        <ToastProvider>
+          <Probe />
+        </ToastProvider>,
+      );
+      expect(screen.getByText("Toast-Bereich bereit")).toBeInTheDocument();
+      return api!;
+    }
+
+    it("shows a success toast next to three open errors without evicting one", () => {
+      const toast = renderProbe();
+      act(() => {
+        toast.error("Fehler A");
+        toast.error("Fehler B");
+        toast.error("Fehler C");
+        toast.success("Gespeichert");
+      });
+
+      const success = screen.getByRole("status", {
+        name: "Erfolgreich!: Gespeichert",
+      });
+      expect(success).toHaveAttribute("aria-live", "polite");
+      expect(screen.getAllByRole("alert")).toHaveLength(3);
+      for (const message of ["Fehler A", "Fehler B", "Fehler C"]) {
+        expect(
+          screen.getByRole("alert", { name: `Fehler: ${message}` }),
+        ).toHaveAttribute("aria-live", "assertive");
+      }
+    });
+
+    it("keeps only the newest non-error toast in the extra slot", () => {
+      const toast = renderProbe();
+      act(() => {
+        toast.error("Fehler A");
+        toast.error("Fehler B");
+        toast.error("Fehler C");
+        toast.success("Gespeichert");
+        toast.info("Liste aktualisiert", { duration: 0 });
+      });
+
+      expect(
+        screen.getByRole("status", {
+          name: "Information: Liste aktualisiert",
+        }),
+      ).toBeInTheDocument();
+      expect(screen.getAllByRole("status")).toHaveLength(1);
+      expect(screen.getAllByRole("alert")).toHaveLength(3);
+    });
+
+    it("keeps the newest non-error toast visible when another error arrives", () => {
+      const toast = renderProbe();
+      act(() => {
+        toast.error("Fehler A");
+        toast.success("Gespeichert");
+        toast.error("Fehler B");
+        toast.error("Fehler C");
+      });
+
+      expect(
+        screen.getByRole("status", { name: "Erfolgreich!: Gespeichert" }),
+      ).toBeInTheDocument();
+      expect(screen.getAllByRole("alert")).toHaveLength(3);
+    });
+
+    it("still drops the oldest non-error toast when errors leave room", () => {
+      const toast = renderProbe();
+      act(() => {
+        toast.error("Fehler A");
+        toast.info("Eins", { duration: 0 });
+        toast.info("Zwei", { duration: 0 });
+        toast.info("Drei", { duration: 0 });
+      });
+
+      expect(
+        screen.getByRole("alert", { name: "Fehler: Fehler A" }),
+      ).toBeInTheDocument();
+      expect(
+        screen
+          .getAllByRole("status")
+          .map((item) => item.getAttribute("aria-label")),
+      ).toEqual(["Information: Zwei", "Information: Drei"]);
+    });
+
+    it("still drops the same message fired twice within two seconds", () => {
+      const toast = renderProbe();
+      act(() => {
+        toast.error("Die Gruppe konnte nicht gespeichert werden.");
+        toast.error("Die Gruppe konnte nicht gespeichert werden.");
+      });
+
+      expect(screen.getAllByRole("alert")).toHaveLength(1);
+    });
+
+    it("shows a quickly failing retry as a new error toast", () => {
+      vi.useFakeTimers();
+      const message = "Die Gruppe konnte nicht gespeichert werden.";
+      const toast = renderProbe();
+      const retry = vi.fn(() => toast.error(message, { action }));
+      const action = { label: "Wiederholen", onClick: retry };
+      act(() => toast.error(message, { action }));
+      const first = screen.getByRole("alert", { name: `Fehler: ${message}` });
+
+      act(() => vi.advanceTimersByTime(500));
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+      expect(retry).toHaveBeenCalledOnce();
+      // Genau ein aktueller Fehler für die Aktion, als neues Element, damit
+      // ein Screenreader die Meldung erneut ansagt.
+      const alerts = screen.getAllByRole("alert", {
+        name: `Fehler: ${message}`,
+      });
+      expect(alerts).toHaveLength(1);
+      expect(alerts[0]).not.toBe(first);
+      expect(alerts[0]).toHaveAttribute("aria-live", "assertive");
+
+      // Die neue Meldung bleibt, auch nach dem Ausblenden der alten.
+      act(() => vi.advanceTimersByTime(10_000));
+      expect(screen.getByRole("alert", { name: `Fehler: ${message}` })).toBe(
+        alerts[0],
+      );
+    });
+
+    it("still drops a duplicate the retry itself fires twice", () => {
+      const message = "Die Gruppe konnte nicht gespeichert werden.";
+      const toast = renderProbe();
+      const retry = vi.fn(() => {
+        toast.error(message);
+        toast.error(message);
+      });
+      act(() =>
+        toast.error(message, {
+          action: { label: "Wiederholen", onClick: retry },
+        }),
+      );
+
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+
+      expect(retry).toHaveBeenCalledOnce();
+      expect(
+        screen.getAllByRole("alert", { name: `Fehler: ${message}` }),
+      ).toHaveLength(1);
     });
   });
 

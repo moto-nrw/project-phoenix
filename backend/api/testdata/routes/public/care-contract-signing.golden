@@ -1,3 +1,5 @@
 GET /public/care-contract-signing/{link}
 GET /public/care-contract-signing/{link}/document
+GET /public/care-contract-signing/{link}/family-children
 POST /public/care-contract-signing/{link}/sign
+PUT /public/care-contract-signing/{link}/family-children

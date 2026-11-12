@@ -5,15 +5,16 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
-	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain"
+	scheduleModel "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 type instanceAutoEnd struct {
@@ -50,6 +51,10 @@ func (s *instanceAutoEnd) RunForTenant(ctx context.Context, now time.Time, grace
 	if err != nil {
 		return result, fmt.Errorf("load active activity instances: %w", err)
 	}
+	// Successful completions keep their day locks until the batch commits.
+	slices.SortStableFunc(instances, func(a, b *scheduleModel.ActivityInstance) int {
+		return a.Date.Compare(b.Date)
+	})
 	for _, instance := range instances {
 		result.Checked++
 		err := s.completeIfDueIsolated(ctx, instance, now, grace, result)

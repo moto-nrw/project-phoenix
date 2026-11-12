@@ -7,8 +7,8 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -101,6 +101,37 @@ func TestGradeTransitionWorkflow_Apply_RemapsClassTeachers(t *testing.T) {
 		"revert must carry the promoted assignments back")
 	assert.Equal(t, []string{class3}, staffClassNames(t, db, ctx, graduateTeacher.ID),
 		"revert must restore the graduated class assignment from the ledger, like it reactivates the students")
+}
+
+func TestGradeTransitionWorkflow_ClassTeachersWithDescendingStaffIDs(t *testing.T) {
+	t.Parallel()
+
+	db := testpkg.SetupTestDB(t)
+	f := newTransitionFixture(t, db)
+	wf := f.workflow(t)
+	ctx, cancel := context.WithTimeout(testpkg.Ctx(t), 30*time.Second)
+	defer cancel()
+
+	const class1, class2, class3 = "1a", "2a", "3a"
+	testpkg.CreateTestStudent(t, db, "Ordered", "FirstChild", class1)
+	testpkg.CreateTestStudent(t, db, "Ordered", "SecondChild", class2)
+	lower := testpkg.CreateTestStaff(t, db, "Ordered", "LowerID")
+	higher := testpkg.CreateTestStaff(t, db, "Ordered", "HigherID")
+	require.Less(t, lower.ID, higher.ID)
+	testpkg.CreateTestClassTeacher(t, db, higher.ID, class1)
+	testpkg.CreateTestClassTeacher(t, db, lower.ID, class2)
+	testpkg.CreateTestClassTeacher(t, db, higher.ID, class2)
+
+	transitionID := f.createDraft(t, ctx, "2026-2027", promote(class1, class2), promote(class2, class3))
+	_, err := wf.Apply(ctx, transitionID, "")
+	require.NoError(t, err)
+	assert.Equal(t, []string{class2, class3}, staffClassNames(t, db, ctx, higher.ID))
+	assert.Equal(t, []string{class3}, staffClassNames(t, db, ctx, lower.ID))
+
+	_, err = wf.Revert(ctx, transitionID)
+	require.NoError(t, err)
+	assert.Equal(t, []string{class1, class2}, staffClassNames(t, db, ctx, higher.ID))
+	assert.Equal(t, []string{class2}, staffClassNames(t, db, ctx, lower.ID))
 }
 
 // Teacher rows move under exactly the same condition as the students: an

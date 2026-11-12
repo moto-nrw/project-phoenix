@@ -44,7 +44,9 @@
     "schoolClass": "Klasa konkrete",
     "schoolClassOpen": "Klasa ende e pacaktuar",
     "choose": "Ju lutemi zgjidhni",
-    "grade": "Klasa {grade}"
+    "grade": "Klasa {grade}",
+    "holidayCareWish": "A ka nevojë fëmija për kujdes gjatë pushimeve?",
+    "holidayCareWishHint": "Organizatori e përdor këtë për të planifikuar kujdesin gjatë pushimeve. Nëse një javë pushimesh është plot, fëmijët që kanë nevojë për kujdes mund të kenë përparësi."
   },
   "actions": {
     "addChild": "Shto fëmijë tjetër",

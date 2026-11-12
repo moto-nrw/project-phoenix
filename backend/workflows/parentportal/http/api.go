@@ -22,9 +22,9 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	calendarService "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // Resource bundles the parent-portal HTTP handlers + their deps.
@@ -52,6 +52,9 @@ type Resource struct {
 	Reports ReportRenderer
 	// SupportedLocale is bound to the shared language catalog by the root.
 	SupportedLocale func(string) bool
+	// MessageAttachmentFiles moves the bytes of the photos and files in
+	// messages (#6685); nil answers 500 on their routes.
+	MessageAttachmentFiles common.MessageAttachmentFileStorage
 }
 
 // ResourceConfig lists the parent-portal collaborators. The composition root
@@ -87,6 +90,9 @@ type ResourceConfig struct {
 	Reports ReportRenderer
 	// SupportedLocale is bound to the shared language catalog by the root.
 	SupportedLocale func(string) bool
+	// MessageAttachmentFiles moves the bytes of the photos and files in
+	// messages (#6685).
+	MessageAttachmentFiles common.MessageAttachmentFileStorage
 }
 
 // NewResource builds the parent-portal resource.
@@ -100,21 +106,22 @@ func NewResource(cfg ResourceConfig) *Resource {
 		}
 	}
 	return &Resource{
-		Auth:                  cfg.Auth,
-		Resets:                cfg.Resets,
-		ParentService:         cfg.Parent,
-		RequestSharing:        sharing,
-		CalendarService:       cfg.Calendar,
-		Conferences:           cfg.Conferences,
-		EnrollmentForms:       cfg.Enrollment,
-		GuardianProfileLoader: cfg.GuardianProfileLoader,
-		SchoolService:         cfg.Schools,
-		HolidayLinks:          cfg.HolidayLinks,
-		PushService:           cfg.Push,
-		PreferenceService:     cfg.Preferences,
-		PWAUsageService:       cfg.PWAUsage,
-		Reports:               cfg.Reports,
-		SupportedLocale:       cfg.SupportedLocale,
+		Auth:                   cfg.Auth,
+		Resets:                 cfg.Resets,
+		ParentService:          cfg.Parent,
+		RequestSharing:         sharing,
+		CalendarService:        cfg.Calendar,
+		Conferences:            cfg.Conferences,
+		EnrollmentForms:        cfg.Enrollment,
+		GuardianProfileLoader:  cfg.GuardianProfileLoader,
+		SchoolService:          cfg.Schools,
+		HolidayLinks:           cfg.HolidayLinks,
+		PushService:            cfg.Push,
+		PreferenceService:      cfg.Preferences,
+		PWAUsageService:        cfg.PWAUsage,
+		Reports:                cfg.Reports,
+		SupportedLocale:        cfg.SupportedLocale,
+		MessageAttachmentFiles: cfg.MessageAttachmentFiles,
 	}
 }
 
@@ -144,7 +151,7 @@ func (rs *Resource) RouterWithAuthRateLimiter(authRateLimiter func(http.Handler)
 	r.Group(func(r chi.Router) {
 		configureSession(r)
 
-		rs.mountAccountRoutes(r)
+		rs.mountAccountRoutes(r, authRateLimiter)
 		rs.mountCalendarRoutes(r)
 		rs.mountEnrollmentRoutes(r)
 		rs.mountChildStatusRoutes(r)

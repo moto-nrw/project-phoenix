@@ -7,12 +7,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	scheduleModel "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -395,9 +395,20 @@ func deleteUnitService(instanceRepo *deleteUnitInstanceRepo, exceptionRepo *dele
 	return &InstanceLifecycleService{deps: ports.InstanceLifecycleDependencies{
 		InstanceRepo:  fakeInstanceRows(instanceRepo),
 		ExceptionRepo: exceptionRepo,
+		Database:      deleteUnitDatabase{},
 		Logger:        slog.New(slog.DiscardHandler),
 	}}
 }
+
+// deleteUnitDatabase grants the day lock the delete takes; the real lock is
+// exercised by the delete races in compose/httpintegration.
+type deleteUnitDatabase struct{}
+
+func (deleteUnitDatabase) InTenant(ctx context.Context, _ int64, fn func(context.Context) error) error {
+	return fn(ctx)
+}
+
+func (deleteUnitDatabase) AcquireTransactionLock(context.Context, string) error { return nil }
 
 func deleteUnitInstance(id int64, groupID *int64, date calendar.Date, status string, spontaneous bool) *scheduleModel.ActivityInstance {
 	inst := &scheduleModel.ActivityInstance{

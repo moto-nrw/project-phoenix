@@ -11,15 +11,26 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	calendarService "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 func (f *fakeParentService) ParentConferenceChild(_ context.Context, _, _ int64, book bool) (*parentService.Child, error) {
 	f.gotConferenceBook = append(f.gotConferenceBook, book)
 	return f.conferenceChild, f.conferenceChildErr
+}
+
+// WithParentConferenceBooking resolves the child like ParentConferenceChild
+// with the booking permission and runs write in the test's context, as the
+// workflow runs it in the child's guarded school unit.
+func (f *fakeParentService) WithParentConferenceBooking(ctx context.Context, accountID, studentID int64, write func(context.Context, *parentService.Child) error) error {
+	child, err := f.ParentConferenceChild(ctx, accountID, studentID, true)
+	if err != nil {
+		return err
+	}
+	return write(ctx, child)
 }
 
 // fakeConferences records what the Elternsprechtag routes handed to the

@@ -10,7 +10,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // The sign-in, code and switch forms show a text per code (#2517); these
@@ -98,6 +98,7 @@ func TestMFARefusals(t *testing.T) {
 		identityaccess.ErrMFAChallengeTokenInvalid: {http.StatusUnauthorized, "identity.mfa_code_invalid"},
 		identityaccess.ErrMFACodeInvalid:           {http.StatusUnauthorized, "identity.mfa_code_invalid"},
 		identityaccess.ErrMFAUnsupportedScope:      {http.StatusUnauthorized, "identity.mfa_code_invalid"},
+		identityaccess.ErrInvalidCredentials:       {http.StatusUnauthorized, "identity.invalid_credentials"},
 		identityaccess.ErrMFALocked:                {http.StatusTooManyRequests, "identity.mfa_blocked"},
 		identityaccess.ErrMFARateLimited:           {http.StatusTooManyRequests, "identity.mfa_blocked"},
 		identityaccess.ErrMFAStatusUnavailable:     {http.StatusServiceUnavailable, "identity.mfa_status_unavailable"},

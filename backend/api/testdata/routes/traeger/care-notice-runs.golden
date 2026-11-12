@@ -1,0 +1,12 @@
+GET /traeger/care-notice-runs/
+GET /traeger/care-notice-runs/{id}
+GET /traeger/care-notice-runs/{id}/letters
+GET /traeger/care-notice-runs/{id}/letters/print
+GET /traeger/care-notice-runs/{id}/notices/{contractID}/letter
+GET /traeger/care-notice-runs/{id}/notices/{contractID}/pdf
+POST /traeger/care-notice-runs/
+POST /traeger/care-notice-runs/{id}/discard
+POST /traeger/care-notice-runs/{id}/letters
+POST /traeger/care-notice-runs/{id}/letters/mail
+POST /traeger/care-notice-runs/{id}/notices/{contractID}/mail
+POST /traeger/care-notice-runs/{id}/release

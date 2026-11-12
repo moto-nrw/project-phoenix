@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // The portal names who settled a child under "any" together with the date,
@@ -37,6 +37,30 @@ func TestDeclarationResponseCarriesOtherSignerSubmittedAt(t *testing.T) {
 	assert.JSONEq(t, `[
 		{"first_name":"Sabine","last_name":"Muster","action":"agreed","submitted_at":"2026-09-20T08:30:00Z"},
 		{"first_name":"Tom","last_name":"Muster","action":null,"submitted_at":null}
+	]`, string(raw))
+}
+
+// A consent to an older wording reaches the portal with that wording and the
+// version id the revocation names (#6303); without one the field is null.
+func TestDeclarationResponseCarriesTheEarlierConsentWording(t *testing.T) {
+	t.Parallel()
+	at := time.Date(2026, 9, 20, 8, 30, 0, 0, time.UTC)
+	out := toDeclarationResponse(&parentService.AnnouncementFeedDeclaration{
+		Children: []*parentService.AnnouncementFeedDeclarationChild{
+			{StudentID: 7, EarlierConsent: &parentService.DeclarationEarlierConsent{
+				Version:     &parentService.DeclarationVersion{ID: 11, VersionNo: 1, Title: "Zoo", Body: "Alter Text", ContentHash: "ab"},
+				SubmittedAt: at, AllowedActions: []string{parentService.DeclarationActionRevoked},
+			}},
+			{StudentID: 8},
+		},
+	})
+
+	raw, err := json.Marshal([]any{out.Children[0].EarlierConsent, out.Children[1].EarlierConsent})
+	require.NoError(t, err)
+	assert.JSONEq(t, `[
+		{"version":{"id":"11","version_no":1,"content_hash":"ab","title":"Zoo","body":"Alter Text"},
+		 "submitted_at":"2026-09-20T08:30:00Z","allowed_actions":["revoked"]},
+		null
 	]`, string(raw))
 }
 

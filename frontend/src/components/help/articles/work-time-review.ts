@@ -34,7 +34,8 @@ export function workTimeReviewTopic(): HelpTopic {
           "Öffnen Sie `Mitarbeiter` und wählen Sie die Person.",
           "Wählen Sie den Reiter `Zeiterfassung`.",
           "Öffnen Sie den Eintrag, den Sie ändern möchten.",
-          "Ändern Sie die Zeiten und wählen Sie `Speichern`.",
+          "Ändern Sie die Zeiten. Unter `Pausen` ändern Sie jede Dauer einzeln.",
+          "Tragen Sie eine `Begründung` ein. Wählen Sie `Änderungen speichern`.",
         ],
       },
       {
@@ -50,6 +51,8 @@ export function workTimeReviewTopic(): HelpTopic {
     result:
       "Die Person sieht die Entscheidung sofort in ihrer eigenen Zeiterfassung.",
     notes: [
+      "Bei Einträgen ohne einzelne Pausen ändern Sie `Pause (Minuten)`.",
+      "Laufende Pausen muss die Person zuerst beenden.",
       "Nachträge sind der Leitung vorbehalten. Ihr Team kann Zeiten nicht selbst nachtragen.",
       "Wochensaldo und Stundenkonto rechnen gegen das hinterlegte Arbeitszeitmodell.",
       "`Team` → `Zeiterfassung` zeigt nur Ihre eigene Stempeluhr, nicht die des Teams.",
@@ -58,6 +61,7 @@ export function workTimeReviewTopic(): HelpTopic {
     ],
     differences: [
       "Fehlt der Reiter `Mitarbeitende`? Dann dürfen Sie keine Anträge entscheiden.",
+      "Weicht das `Ist` von den gestempelten Zeiten ab? Dann gelten Wegpackzeit oder Rundung aus den Einstellungen. Die Zeile zeigt das als Hinweis. Korrigieren Sie nur die Uhrzeiten, moto rechnet die Zugabe neu.",
     ],
     troubleshootingDetails: [
       "Der Saldo einer Person stimmt nicht? Prüfen Sie ihr `Arbeitszeitmodell` in der Personalakte.",

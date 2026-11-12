@@ -8,12 +8,12 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
+	schedule "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // Materialization (WP-B8) behind timetable.MaterializationCapability.
@@ -48,6 +48,13 @@ import (
 //
 //   - Duplicate template-slot races are absorbed via INSERT ... ON CONFLICT DO
 //     NOTHING and counted as raced, not fatal.
+//
+//   - Sick reports apply to new rows (#6292). A supervisor planned on a full
+//     day of an open sick report is inserted absent with the report's stamp,
+//     like the rows the sick cascade marked when the report came in. A
+//     sick-report write takes the recurrence gate before it writes (#6232),
+//     so the run reads every report committed before it or the report's
+//     cascade sees the rows the run committed; past days included.
 
 const materializeForTenantOp = "materialize for tenant"
 
@@ -63,6 +70,7 @@ type materializationService struct {
 	staffRepo      timetable.InstanceStaffCapability
 	studentRepo    ports.ParticipantRows
 	careBounds     ports.CareBoundReader
+	sickReports    ports.SickReportReader          // nil marks no supervisor sick (#6292)
 	nonWorkingDays timetable.NonWorkingDayCalendar // nil skips no holidays or closing days (#3594)
 	exceptionRepo  timetable.ActivityExceptionQuery
 	timeframeRepo  timetable.TimeframeQuery
@@ -93,6 +101,7 @@ func NewMaterialization(deps ports.MaterializationDependencies) (timetable.Mater
 		staffRepo:      deps.StaffRepo,
 		studentRepo:    deps.StudentRepo,
 		careBounds:     deps.CareBounds,
+		sickReports:    deps.SickReports,
 		nonWorkingDays: deps.NonWorkingDays,
 		exceptionRepo:  deps.ExceptionRepo,
 		timeframeRepo:  deps.TimeframeRepo,
@@ -190,6 +199,9 @@ type materializationWorld struct {
 	existingIdx   map[existingKey]struct{}
 	exceptionIdx  map[exceptionKey]*schedule.ActivityException
 	timeframeByID map[int64]*schedule.Timeframe
+	// sickDays names the report behind every full sick day of a staff member
+	// in the window (#6292).
+	sickDays map[staffDay]int64
 	// weekendFollowsFriday materializes Saturday and Sunday from Friday's
 	// schedules (#3921).
 	weekendFollowsFriday bool
@@ -229,6 +241,9 @@ func (s *materializationService) materializeForTenantLocked(
 	}
 	people, err := s.loadTemplatesPeople(ctx, scheduledTemplateIDs(templates, schedules), "materialize template")
 	if err != nil {
+		return result, err
+	}
+	if err := s.lockMaterializationStaff(ctx, templates, schedules, people, world); err != nil {
 		return result, err
 	}
 
@@ -338,6 +353,11 @@ func (s *materializationService) loadMaterializationWorld(
 		return nil, &ports.ScheduleError{Op: "materialize for tenant: load existing instances", Err: err}
 	}
 	world.existingIdx = buildExistingIndex(existing)
+	// Past days included: the run stamps every block it creates (I-1).
+	world.sickDays, err = sickDaysIn(ctx, s.sickReports, daysBetween(from, to)...)
+	if err != nil {
+		return nil, err
+	}
 	return world, nil
 }
 
@@ -628,7 +648,7 @@ func (s *materializationService) materializeCandidate(
 	); err != nil {
 		return err
 	}
-	return s.copySupervisors(ctx, instance.ID, roster.supervisors, date, period.ID, planWeekday(date, world.weekendFollowsFriday), result)
+	return s.copySupervisors(ctx, instance.ID, roster.supervisors, date, period.ID, planWeekday(date, world.weekendFollowsFriday), world.sickDays, result)
 }
 
 // createInstanceError names the candidate whose insert failed, so a
@@ -721,6 +741,8 @@ func (s *materializationService) copyExpectedStudents(
 	return nil
 }
 
+// copySupervisors inserts the occurrence's supervisor rows; sickDays names
+// the supervisors on a full sick day (#6292).
 func (s *materializationService) copySupervisors(
 	ctx context.Context,
 	instanceID int64,
@@ -728,6 +750,7 @@ func (s *materializationService) copySupervisors(
 	date calendar.Date,
 	periodID int64,
 	planWeekday int,
+	sickDays map[staffDay]int64,
 	result *timetable.MaterializationResult,
 ) error {
 	primaryStaffID, hasPrimary := effectivePrimarySupervisor(supervisors, date, periodID, planWeekday)
@@ -758,7 +781,9 @@ func (s *materializationService) copySupervisors(
 			IsSubstitute: false,
 			IsAbsent:     false,
 		}
-		if err := createLegacyInstanceStaff(ctx, s.staffRepo, row); err != nil {
+		// A supervisor on a full sick day is planned absent, exactly as the
+		// sick cascade marks rows that existed when the report came in.
+		if err := writeStaffAssignment(ctx, s.staffRepo, row, date, sickDays, false); err != nil {
 			return &ports.ScheduleError{Op: "materialize template: copy supervisor", Err: err}
 		}
 		result.InstanceStaffCreated++

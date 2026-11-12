@@ -5,28 +5,37 @@ import (
 
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // mapSubmitError translates service-layer sentinel errors into HTTP
 // status codes. Unknown errors fall through to 500.
 func mapSubmitError(w http.ResponseWriter, r *http.Request, err error) {
 	renderer := submitErrorRenderer(err)
-	if resp, ok := renderer.(*common.ErrResponse); ok && resp.Code == common.CodeEnrollmentSubmissionRateLimited {
-		setRateLimitRetryAfter(w)
+	if resp, ok := renderer.(*common.ErrResponse); ok {
+		switch resp.Code {
+		case common.CodeEnrollmentSubmissionRateLimited:
+			setRateLimitRetryAfter(w, rateLimitRetryAfterSeconds)
+		case common.CodeEnrollmentSubmissionEmailRateLimited:
+			setRateLimitRetryAfter(w, emailRateLimitRetryAfterSeconds)
+		}
 	}
 	common.RenderError(w, r, renderer)
 }
 
-// rateLimitRetryAfterSeconds is the Retry-After hint of every refused
-// public submission, upload and holiday registration. It is fixed on purpose:
-// it does not leak the remaining time of the bucket that refused.
-const rateLimitRetryAfterSeconds = "3600"
+// The Retry-After hints of a refused public submission, upload and holiday
+// registration are the windows of their buckets: an hour for the IP address
+// and the uploads, a day for the e-mail address (#6726). They are fixed on
+// purpose: they do not leak the remaining time of the bucket that refused.
+const (
+	rateLimitRetryAfterSeconds      = "3600"
+	emailRateLimitRetryAfterSeconds = "86400"
+)
 
 // setRateLimitRetryAfter sets the Retry-After hint of a rate-limit refusal.
-func setRateLimitRetryAfter(w http.ResponseWriter) {
-	w.Header().Set("Retry-After", rateLimitRetryAfterSeconds)
+func setRateLimitRetryAfter(w http.ResponseWriter, seconds string) {
+	w.Header().Set("Retry-After", seconds)
 }
 
 // submitErrorRenderer classifies a refused submission. The first matching
@@ -121,9 +130,12 @@ func submitConflictErrorRules() []common.ErrorRule {
 		// missed it). Distinct German message so parents understand the
 		// child is already being re-enrolled.
 		conflictWithCode(capability.ErrExistingStudentAlreadyRequested, common.CodeEnrollmentChildAlreadyRequested),
-		// 429 Too Many Requests; mapSubmitError adds the retry hint.
+		// 429 Too Many Requests; mapSubmitError adds the retry hints.
 		{Target: capability.ErrRateLimited, Render: func(err error) render.Renderer {
 			return common.ErrorTooManyRequestsWithCode(err, common.CodeEnrollmentSubmissionRateLimited)
+		}},
+		{Target: capability.ErrEmailRateLimited, Render: func(err error) render.Renderer {
+			return common.ErrorTooManyRequestsWithCode(err, common.CodeEnrollmentSubmissionEmailRateLimited)
 		}},
 		invalidWithCode(capability.ErrCaptchaRequired, common.CodeEnrollmentCaptchaRequired),
 		invalidWithCode(capability.ErrCaptchaFailed, common.CodeEnrollmentCaptchaFailed),

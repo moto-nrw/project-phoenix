@@ -5,21 +5,24 @@ import (
 	time "time"
 
 	chi "github.com/go-chi/chi/v5"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	permissions "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	realtime "github.com/moto-nrw/project-phoenix/realtime"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	permissions "github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	settingsFacts "github.com/moto-ogs/project-phoenix/modules/settings"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	realtime "github.com/moto-ogs/project-phoenix/realtime"
 )
 
 type ResourceConfig struct {
-	AbsenceNotifier         studentpresence.AbsenceNotifier
-	ActiveService           StudentPresence
-	Broadcaster             realtime.Broadcaster
-	Logger                  *slog.Logger
-	Now                     func() time.Time
-	ParentEventEmitter      GuardianWake
+	AbsenceNotifier    studentpresence.AbsenceNotifier
+	ActiveService      StudentPresence
+	Broadcaster        realtime.Broadcaster
+	Logger             *slog.Logger
+	Now                func() time.Time
+	ParentEventEmitter GuardianWake
+	// PartialAbsences replaces confirmed partial absences inside the status
+	// write (#5698). Nil refuses every replacement request.
+	PartialAbsences         PartialAbsenceReplacer
 	PeopleDirectory         peopleModule.Capability
 	Persons                 PersonRecords
 	PrivacyConsents         PrivacyConsentCapability

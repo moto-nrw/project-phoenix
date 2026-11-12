@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // SchoolInvitationStore is the persistence port over auth.invitation_tokens
@@ -40,9 +40,9 @@ type SchoolInvitationStore interface {
 	// works.
 	EnsureAccountTenant(ctx context.Context, accountID, tenantID int64) (domain.OperationStats, error)
 
-	// SetAccountPassword replaces the credential of the account a dormant
-	// invitee is restoring, and reports whether the account is live.
-	SetAccountPassword(ctx context.Context, accountID int64, hash string) (bool, domain.OperationStats, error)
+	// WriteAccountCredential is the one credential writer (#6289): it moves
+	// the credential generation on with every write; see the adapter.
+	WriteAccountCredential(ctx context.Context, accountID int64, write domain.CredentialWrite) (bool, domain.OperationStats, error)
 	// SetAccountActive re-enables the account offboarding disabled. Only a
 	// dormant account is restored this way (#3376); an account disabled
 	// while it still holds school access stays disabled.

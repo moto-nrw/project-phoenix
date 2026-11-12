@@ -13,9 +13,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 var (
@@ -169,7 +169,7 @@ func (s *Service) CreateSignedCareScheduleRequest(ctx context.Context, accountID
 		return nil, err
 	}
 	view := &ChildCareSchedule{CanRequest: capabilities.Any(), RequestCapabilities: capabilities}
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, weeklyRequestAccess(alone), func(txCtx context.Context) error {
 		signed, err := s.signWeeklyAlone(txCtx, child, accountID, studentID, alone, signature)
 		if err != nil {
 			return err
@@ -371,7 +371,7 @@ func (s *Service) EditSignedCareScheduleRequest(
 		return nil, ErrInvalidCareRequestPayload
 	}
 	view := &ChildCareSchedule{CanRequest: capabilities.Any(), RequestCapabilities: capabilities}
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, weeklyRequestAccess(alone), func(txCtx context.Context) error {
 		student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 		if err != nil {
 			return err
@@ -509,6 +509,16 @@ func weeklyAloneRequest(payload map[string]any, signature *PickupSignatureInput)
 		return nil, nil, ErrPickupSignatureRequired
 	}
 	return payload, alone, nil
+}
+
+// weeklyRequestAccess is what a weekly plan request holds until it commits:
+// parent_portal.request.submit, and parent_portal.pickup.manage for weekdays
+// alone.
+func weeklyRequestAccess(alone []int) ChildWriteAccess {
+	if len(alone) > 0 {
+		return childWriteNeeds(GuardianPermissionRequestSubmit, GuardianPermissionPickupManage)
+	}
+	return childWriteNeeds(GuardianPermissionRequestSubmit)
 }
 
 // resolveWeeklyRequestChild resolves the child for a weekly plan request;

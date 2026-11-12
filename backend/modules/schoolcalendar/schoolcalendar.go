@@ -167,6 +167,10 @@ type ClosingDay struct {
 	StartDate string    `json:"start_date"`
 	EndDate   string    `json:"end_date"`
 	Reason    string    `json:"reason"`
+	// Traeger marks a closing day the school's Träger planned for it
+	// (#4702). It counts like the school's own; the school reads it but
+	// cannot change it, and its ID is one of the Träger's closing days.
+	Traeger bool `json:"traeger"`
 }
 
 type ClosingDayFields struct {

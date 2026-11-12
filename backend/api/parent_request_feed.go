@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed"
-	requestFeedCompose "github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/compose"
-	parentRequestFeedView "github.com/moto-nrw/project-phoenix/modules/parentrequestfeedprojection/compose"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/requestfeed"
+	requestFeedCompose "github.com/moto-ogs/project-phoenix/modules/careplan/requestfeed/compose"
+	parentRequestFeedView "github.com/moto-ogs/project-phoenix/modules/parentrequestfeedprojection/compose"
 )
 
 // parentRequestFeed binds Care Plan's request feed to the parent request feed

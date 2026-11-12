@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Review of the holiday registrations of a Träger (spec #4611 user stories 35
@@ -95,6 +95,17 @@ type HolidayRegistrationFilter struct {
 	School    string
 	WeekID    int64
 	TimeModel string
+	// Wish is HolidayWishFilterCheck, HolidayWishFilterYes or
+	// HolidayWishFilterNo: registrations with such a child (#4703).
+	Wish string
+}
+
+// HolidayBookingReplacement identifies a week replaced by a rebooking.
+// The review reconstructs these ranges from its durable audit trail.
+type HolidayBookingReplacement struct {
+	WeekID       int64
+	WeekStartsOn calendar.Date
+	WeekEndsOn   calendar.Date
 }
 
 // HolidayRegistrationBooking is the time model a child books in one week.
@@ -105,9 +116,21 @@ type HolidayRegistrationBooking struct {
 	HostSchoolID  int64         `json:"host_school_id"`
 	TimeModelID   int64         `json:"time_model_id"`
 	TimeModelName string        `json:"time_model_name"`
-	// PriceCents is the price the time model has now. The contribution a
-	// confirmation freezes is the Elternabrechnung's (#4664).
+	// PriceCents is the price the booking has now: the price of the time
+	// model, times the booked days in a week by days (#4701). The
+	// contribution a confirmation freezes is the Elternabrechnung's (#4664).
 	PriceCents int64 `json:"price_cents"`
+	// Days are the booked days of a week by days, empty for a whole week
+	// (#4701).
+	Days []calendar.Date `json:"days,omitempty"`
+	// Placement is HolidayPlacementPlaced, HolidayPlacementWaitlisted
+	// (#4699) or HolidayPlacementPending (#4700); WaitlistPosition is the place in the waiting list of the
+	// week, from 1, for a waitlisted booking of a registration that counts.
+	Placement        string     `json:"placement"`
+	WaitlistPosition *int       `json:"waitlist_position,omitempty"`
+	PromotedAt       *time.Time `json:"promoted_at,omitempty"`
+	// ReplacedWeeks is an internal projection for contribution calculation.
+	ReplacedWeeks []HolidayBookingReplacement `json:"-"`
 }
 
 // HolidayRegistrationChild is one child of a reviewed registration. A nil
@@ -123,6 +146,15 @@ type HolidayRegistrationChild struct {
 	GuestSchoolName          string                       `json:"guest_school_name"`
 	Bookings                 []HolidayRegistrationBooking `json:"bookings"`
 	DuplicateRegistrationIDs []int64                      `json:"duplicate_registration_ids"`
+	// HolidayWish and HolidayWishSource are what is known of the child's
+	// holiday care wish (#4703): yes or no from the prefill of a parent with
+	// an account or from the office, empty when unknown. HolidayWishCheck
+	// marks a child of a school of the Träger whose wish the office still
+	// has to check in a period that takes the wish into account. Only the
+	// review of the Träger-Büro shows them.
+	HolidayWish       string `json:"holiday_wish"`
+	HolidayWishSource string `json:"holiday_wish_source"`
+	HolidayWishCheck  bool   `json:"holiday_wish_check"`
 }
 
 // HolidayRegistrationSummary is a registration in the list. It carries no
@@ -148,6 +180,14 @@ type HolidayRegistrationSummary struct {
 	// Träger, entered when the Träger-Büro confirms; empty without one
 	// (#5621). The letter names it as the reference to pay with.
 	DebtorNumber string `json:"debtor_number"`
+
+	// RetentionDays are the days after the last week of the period the
+	// registration stays, as its privacy text says (#6691). DeletesOn is the
+	// day the retention deletes it, HealthDeletesOn the day its health
+	// information goes; both are nil for a period without weeks.
+	RetentionDays   int            `json:"retention_days"`
+	DeletesOn       *calendar.Date `json:"deletes_on"`
+	HealthDeletesOn *calendar.Date `json:"health_deletes_on"`
 }
 
 // HolidayRegistrationList is the list of a period: the registrations of the
@@ -183,6 +223,14 @@ type HolidayRegistrationContact struct {
 type HolidayBookingChange struct {
 	WeekID      int64 `json:"week_id"`
 	TimeModelID int64 `json:"time_model_id"`
+	// Waitlisted marks a booking the rebooking replaced while it waited for
+	// a place (#4699); the host school's care windows skip it.
+	Waitlisted bool `json:"waitlisted,omitempty"`
+	// PromotedAt preserves the earliest care day when rebooking removes the booking.
+	PromotedAt *time.Time `json:"promoted_at,omitempty"`
+	// Days are the booked days of a week by days (#4701); the host school's
+	// care windows of the trail keep to them.
+	Days []calendar.Date `json:"days,omitempty"`
 }
 
 // HolidayDebtorNumberChange is the debtor number before and after a
@@ -197,7 +245,8 @@ type HolidayDebtorNumberChange struct {
 // and after a rebooking, the debtor number a confirmation entered or a
 // change changed, the changed fields of an edit as field paths such as
 // "guardian.phone" or "children.0.last_name" (#5629), the other
-// registrations of a sibling merge or split (#5628).
+// registrations of a sibling merge or split (#5628), a decision on a place
+// and a check of an answer by criteria (#4700).
 type HolidayRegistrationEventDetails struct {
 	From         string                     `json:"from,omitempty"`
 	ChildID      int64                      `json:"child_id,omitempty"`
@@ -206,6 +255,16 @@ type HolidayRegistrationEventDetails struct {
 	DebtorNumber *HolidayDebtorNumberChange `json:"debtor_number,omitempty"`
 	Fields       []string                   `json:"fields,omitempty"`
 	Siblings     []int64                    `json:"siblings,omitempty"`
+	// WeekIDs, Placement, Proposal and Reason name a decision of the Büro by
+	// criteria (#4700), Checks its checks of the parents' answers.
+	WeekIDs   []int64                 `json:"week_ids,omitempty"`
+	Placement string                  `json:"placement,omitempty"`
+	Proposal  string                  `json:"proposal,omitempty"`
+	Reason    string                  `json:"reason,omitempty"`
+	Checks    []HolidayCriterionCheck `json:"checks,omitempty"`
+	// Wish is the office's decision on a child's holiday care wish, From the
+	// wish before, empty when unknown (#4703).
+	Wish string `json:"wish,omitempty"`
 }
 
 // HolidayRegistrationEvent is one change in the history of a registration.
@@ -269,6 +328,13 @@ type HolidayRegistrationDetail struct {
 	// recipients of the Elternabrechnung carry it (#5627), no answer does.
 	BenefitsProofAttached bool                       `json:"-"`
 	History               []HolidayRegistrationEvent `json:"history"`
+	// Criteria are the answers to the criteria of a period by criteria
+	// (#4700), empty for a period by arrival. Only the detail names them.
+	Criteria []HolidayRegistrationCriterion `json:"criteria"`
+	// Promotions are the bookings of other registrations that moved up from
+	// the waiting list because of the change that answers with this detail:
+	// a cancellation or a rebooking (#4699). A read has none.
+	Promotions []HolidayPromotion `json:"promotions,omitempty"`
 }
 
 // HolidayRegistrationExportRow is one booking of the export: one row per

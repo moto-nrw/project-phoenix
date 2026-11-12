@@ -14,13 +14,13 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 // This is the actual operator issuer, not a tenant JWT with elevated flags.
@@ -30,7 +30,7 @@ func TestRBACPlatformCatalogueDenialsQueryBudget(t *testing.T) {
 	t.Parallel()
 	f := newRBACBudgetFixture(t)
 	operator := testpkg.CreateTestOperator(t, f.db)
-	token, refresh, err := f.module.Auth.IssueTokensForAuthenticatedOperator(context.Background(), operator.ID, "", "")
+	token, refresh, err := f.module.Auth.IssueTokensForAuthenticatedOperator(context.Background(), operator.ID, nil, "", "")
 	require.NoError(t, err)
 	family := rbacPlatformClaims(t, token, operator.ID)
 	stored, err := f.module.Auth.FindOperator(context.Background(), operator.ID)

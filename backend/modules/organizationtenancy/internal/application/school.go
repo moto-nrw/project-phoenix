@@ -4,8 +4,8 @@ import (
 	"context"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/domain"
 )
 
 func (s *Service) CreateSchool(ctx context.Context, input organizationtenancy.CreateSchool) (result organizationtenancy.School, err error) {
@@ -159,9 +159,12 @@ func (s *Service) findSchoolByID(ctx context.Context, id int64, lock string) (re
 		return organizationtenancy.School{}, invalidSchool("school ID is required")
 	}
 	run := s.runRead
-	if lock != "" {
+	if lock != "" && lock != "SHARE" {
 		run = s.run
 	}
+	// A share lock joins the caller's unit, administrative or the school's
+	// own: a school transaction holds its school between account and
+	// profile (#6305). Locking outside a unit holds nothing.
 	err = run(ctx, "find_school", func(txCtx context.Context, stats *domain.OperationStats) error {
 		var found bool
 		var queryStats domain.OperationStats

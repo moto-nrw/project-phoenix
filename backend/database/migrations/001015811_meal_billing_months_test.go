@@ -6,21 +6,11 @@ import (
 	"strings"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
-
-// mealBillingErasureStatement is what 1.15.811 adds to the erasure of 1.15.809.
-const mealBillingErasureStatement = `					-- A Mensa month a school released keeps its children with
-					-- their meals (#4686); it goes with the school.
-					DELETE FROM schedule.meal_billing_months
-					WHERE school_id = ANY (hidden_schools);
-					-- How far the retention deleted its attendance (#4686).
-					DELETE FROM active.attendance_retention_marks
-					WHERE school_id = ANY (hidden_schools);
-`
 
 // TestMealBillingErasureExtendsTheErasureOf809 keeps the erasure of 1.15.811
 // the erasure of 1.15.809 with the statements for the Mensa months and the
@@ -91,25 +81,25 @@ func TestMealBillingMonthsBelongToTheReleasingSchool(t *testing.T) {
 		require.NoError(t, err)
 		_, err = tx.ExecContext(ctx, `INSERT INTO schedule.meal_billing_months (organization_id, school_id, billing_month, child_count, meal_count)
 			VALUES (?, ?, '2026-04-01', 0, 0)`, f.other, f.ownSchool)
-		assert.ErrorContains(t, err, "row-level security", "a release names the school's own Träger")
+		assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "a release names the school's own Träger")
 		_, err = tx.ExecContext(ctx, `ROLLBACK TO SAVEPOINT s`)
 		require.NoError(t, err)
 		_, err = tx.ExecContext(ctx, `INSERT INTO schedule.meal_billing_months (organization_id, school_id, billing_month, child_count, meal_count)
 			VALUES (?, ?, '2026-04-01', 0, 0)`, f.other, f.otherSchool)
-		assert.ErrorContains(t, err, "row-level security", "a school releases no month of another school")
+		assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "a school releases no month of another school")
 		_, err = tx.ExecContext(ctx, `ROLLBACK TO SAVEPOINT s`)
 		require.NoError(t, err)
 		_, err = tx.ExecContext(ctx, `INSERT INTO schedule.meal_billing_month_children
 			(organization_id, month_id, student_id, first_name, last_name, registered_days, meal_days) VALUES (?, ?, 8, 'X', 'Y', 1, 1)`, f.other, f.otherMonth)
-		assert.ErrorContains(t, err, "row-level security", "a school adds no child to another school's release")
+		assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "a school adds no child to another school's release")
 		_, err = tx.ExecContext(ctx, `ROLLBACK TO SAVEPOINT s`)
 		require.NoError(t, err)
 		_, err = tx.ExecContext(ctx, `UPDATE schedule.meal_billing_month_children SET meal_days = 3 WHERE month_id = ?`, f.ownMonth)
-		assert.ErrorContains(t, err, "permission denied", "a release never changes")
+		assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "a release never changes")
 		_, err = tx.ExecContext(ctx, `ROLLBACK TO SAVEPOINT s`)
 		require.NoError(t, err)
 		_, err = tx.ExecContext(ctx, `DELETE FROM schedule.meal_billing_months WHERE id = ?`, f.ownMonth)
-		assert.ErrorContains(t, err, "permission denied", "a school deletes no release")
+		assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "a school deletes no release")
 		_, err = tx.ExecContext(ctx, `ROLLBACK TO SAVEPOINT s`)
 		require.NoError(t, err)
 		var none []int64
@@ -191,7 +181,7 @@ func TestMealPositionsBillAChildMonthOnceAndNeverChange(t *testing.T) {
 		require.NoError(t, err)
 		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.care_meal_tariffs (organization_id, school_id, valid_from, mode, amount_cents)
 			VALUES (?, ?, '2026-01-01', 'per_meal', 480)`, f.other, f.otherSchool)
-		assert.ErrorContains(t, err, "row-level security", "the Träger sets no price of another Träger")
+		assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "the Träger sets no price of another Träger")
 	})
 	asRole(t, db, "app.current_org_id", f.other, func(tx bun.Tx) {
 		assert.Zero(t, countRows(t, tx, `SELECT COUNT(*) FROM parent_billing.care_meal_positions`), "another Träger sees no Mensa position")

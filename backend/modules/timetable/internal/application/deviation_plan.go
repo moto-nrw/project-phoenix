@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	scheduleModel "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Phase A of a deviations save: lock the day, read every referenced row
@@ -65,6 +65,9 @@ type deviationPlan struct {
 	finalAck     bool
 	finalAckNote *string
 	ackChanged   bool
+	// staff are the referenced staff members whose rows Phase B locks
+	// before its first block row (#6583).
+	staff []int64
 }
 
 // deviationProjection is the projected staff state of every touched
@@ -84,6 +87,27 @@ type deviationReadSet struct {
 	rowsByStaff    map[int64][]*scheduleModel.InstanceStaff
 	instances      map[int64]*scheduleModel.ActivityInstance
 	rowsByInstance map[int64][]*scheduleModel.InstanceStaff
+	// sickStaff marks the referenced staff a full-day sick report covers on
+	// the date: they are absent the whole day and never cover anyone (#6292).
+	sickStaff map[int64]bool
+}
+
+// markSickStaff reads the open sick reports of the dates, inside the day
+// locks the save already holds, and marks the sick staff in each read set.
+func (s *staffDeviations) markSickStaff(ctx context.Context, dates []calendar.Date, readSets []*deviationReadSet) error {
+	sickDays, err := sickDaysIn(ctx, s.deps.SickReports, dates...)
+	if err != nil {
+		return timetable.DeviationInternal("load sick reports failed", err)
+	}
+	for i, readSet := range readSets {
+		readSet.sickStaff = make(map[int64]bool)
+		for key := range sickDays {
+			if key.date == dates[i] {
+				readSet.sickStaff[key.staffID] = true
+			}
+		}
+	}
+	return nil
 }
 
 func (s *staffDeviations) loadDeviationReadSet(
@@ -110,7 +134,11 @@ func (s *staffDeviations) loadDeviationReadSet(
 	if err != nil {
 		return nil, timetable.DeviationInternal("load instance staff failed", err)
 	}
-	return newDeviationReadSet(staff, staffIDs, rows, instances, allRows), nil
+	readSet := newDeviationReadSet(staff, staffIDs, rows, instances, allRows)
+	if err := s.markSickStaff(ctx, []calendar.Date{date}, []*deviationReadSet{readSet}); err != nil {
+		return nil, err
+	}
+	return readSet, nil
 }
 
 // newDeviationReadSet indexes the rows of one date's Phase A read.
@@ -187,6 +215,20 @@ func deviationInputStaffIDs(in timetable.ApplyDeviationsInput) []int64 {
 	return set.ids
 }
 
+// lockableDeviationStaff lists the referenced staff members that exist:
+// Phase B updates their rows, adds their rows and names them in the
+// Änderungsprotokoll (whose foreign key takes a key share), so it takes their
+// staff rows first. A missing reference fails classification anyway.
+func lockableDeviationStaff(in timetable.ApplyDeviationsInput, readSet *deviationReadSet) []int64 {
+	staff := make([]int64, 0, len(readSet.staffExists))
+	for _, staffID := range deviationInputStaffIDs(in) {
+		if readSet.staffExists[staffID] {
+			staff = append(staff, staffID)
+		}
+	}
+	return staff
+}
+
 func deviationInputInstanceIDs(instanceID int64, in timetable.ApplyDeviationsInput, rows []*scheduleModel.InstanceStaff) []int64 {
 	set := newOrderedIDs()
 	set.add(instanceID)
@@ -234,6 +276,7 @@ func (s *staffDeviations) planDeviations(ctx context.Context, instanceID int64, 
 		return nil, err
 	}
 	plan.instance = locked
+	plan.staff = lockableDeviationStaff(in, readSet)
 
 	// Restoring a persisted absence must not orphan an already-assigned
 	// substitute (over-staffing). Reject before any write (#1840).

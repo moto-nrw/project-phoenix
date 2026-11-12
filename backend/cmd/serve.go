@@ -11,9 +11,9 @@ import (
 	"time"
 
 	"github.com/getsentry/sentry-go"
-	"github.com/moto-nrw/project-phoenix/api"
-	appmiddleware "github.com/moto-nrw/project-phoenix/middleware"
-	observabilityCompose "github.com/moto-nrw/project-phoenix/observability/compose"
+	"github.com/moto-ogs/project-phoenix/api"
+	appmiddleware "github.com/moto-ogs/project-phoenix/middleware"
+	observabilityCompose "github.com/moto-ogs/project-phoenix/observability/compose"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -228,6 +228,7 @@ type serveConfig struct {
 	SentryDSN, SentryPyrePortalDSN                             string
 	TurnstileSiteKey, TurnstileSecretKey                       string
 	HealthDataKeys                                             string
+	BankDataKeys, BankDataLegacyKeys                           string
 	LogLevel                                                   string
 	LogTextLogging, EnableCORS                                 bool
 }
@@ -244,7 +245,8 @@ func currentServeConfig() serveConfig {
 		SentryDSN: viper.GetString("sentry_dsn"), SentryPyrePortalDSN: viper.GetString("sentry_pyreportal_dsn"),
 		TurnstileSiteKey: viper.GetString("turnstile_site_key"), TurnstileSecretKey: viper.GetString("turnstile_secret_key"),
 		HealthDataKeys: viper.GetString("health_data_keys"),
-		LogLevel:       viper.GetString("log_level"), EnableCORS: viper.GetBool("enable_cors"),
+		BankDataKeys:   viper.GetString("bank_data_keys"), BankDataLegacyKeys: viper.GetString("bank_data_legacy_keys"),
+		LogLevel: viper.GetString("log_level"), EnableCORS: viper.GetBool("enable_cors"),
 	}
 }
 
@@ -261,6 +263,7 @@ func validateServeConfig(config serveConfig) error {
 		// The health information of the holiday registrations is sealed
 		// with this key ring (#4722); without it nothing could open it.
 		"HEALTH_DATA_KEYS": config.HealthDataKeys,
+		"BANK_DATA_KEYS":   config.BankDataKeys,
 	}
 
 	var missing []string
@@ -302,6 +305,9 @@ func validateServeConfig(config serveConfig) error {
 // validateServeSecrets checks the health key ring and the JWT settings.
 func validateServeSecrets(config serveConfig) error {
 	if _, err := api.HealthDataCipher(config.HealthDataKeys); err != nil {
+		return err
+	}
+	if _, err := api.BankDataCipher(config.BankDataKeys, config.BankDataLegacyKeys); err != nil {
 		return err
 	}
 	if config.JWTSecret == "random" {

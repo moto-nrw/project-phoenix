@@ -53,7 +53,7 @@
 # `anwesenheit-ueberblick` bleibt aus dem Tracer (#3761), weil eine ID die
 # Dateinamen in Drive bestimmt.
 #
-# Ergänzung: Motive, die die Website (moto-nrw/website) zeigt und die die
+# Ergänzung: Motive, die die Website (moto-ogs/website) zeigt und die die
 # Shot-Liste nicht hatte. Ihre Zeile nennt das Motiv der Website.
 shots:
   # --- Tagesbetrieb ---------------------------------------------------------
@@ -307,7 +307,9 @@ shots:
     rolle: admin
     pfad: /admin/enrollments
     vorbereitung:
-      - klicken: 'article:has-text("Anmeldung Schuljahr") >> role=link[name="Anmeldungen ansehen"]'
+      # Die Phasenkarte ist ein InsetPanel ohne eigene Rolle: vom Titel zur
+      # Karte, dann ihr Link.
+      - klicken: 'h3:has-text("Anmeldung Schuljahr") >> xpath=ancestor::div[contains(@class, "rounded-xl")][1] >> role=link[name="Anmeldungen ansehen"]'
       - warten_auf: 'text=Freie Plätze je Angebot'
   # Website: Platzentscheidung. Luka Berisha ist im Seed noch offen; der Shot
   # zeigt nur die Auswahl und speichert nichts.
@@ -317,13 +319,15 @@ shots:
     rolle: admin
     pfad: /admin/enrollments
     vorbereitung:
-      - klicken: 'article:has-text("Anmeldung Schuljahr") >> role=link[name="Anmeldungen ansehen"]'
+      # Die Phasenkarte ist ein InsetPanel ohne eigene Rolle: vom Titel zur
+      # Karte, dann ihr Link.
+      - klicken: 'h3:has-text("Anmeldung Schuljahr") >> xpath=ancestor::div[contains(@class, "rounded-xl")][1] >> role=link[name="Anmeldungen ansehen"]'
       - warten_auf: 'text=Freie Plätze je Angebot'
       - klicken: 'tr:has-text("Luka Berisha") >> role=link[name="Anmeldung ansehen"]'
       - warten_auf: 'text=Entscheidung speichern'
       # Die Karte des Kindes oben: Name, Angebote und die Entscheidung mit
       # allen Knöpfen stehen auf beiden Geräten ganz im Bild.
-      - scrollen: 'article:has-text("Luka Berisha")'
+      - scrollen: 'xpath=//h3[normalize-space()="Luka Berisha"][following-sibling::div[contains(., "Geburtsdatum")]]/ancestor::section[1]'
 
   # --- Elternkommunikation --------------------------------------------------
   # Website: Elternbrief mit Rückmeldung; Stand der Einverständnisse
@@ -435,7 +439,7 @@ shots:
       - klicken: 'main button:has-text("Felix abmelden")'
       - warten_auf: '[role="dialog"]'
       # Entschuldigung für morgen mit Grund; abgeschickt wird nicht.
-      - klicken: '[role="dialog"] [aria-label="Grund der Abwesenheit"]'
+      - klicken: '[role="dialog"] >> role=combobox[name="Grund der Abwesenheit"]'
       - klicken: 'role=listbox >> role=option[name="Entschuldigen"s]'
       - klicken: '[role="dialog"] >> role=button[name="Erster Tag"s]'
       - klicken: 'td[data-today] ~ td:not([data-disabled]) button, tr:has(td[data-today]) + tr td:not([data-disabled]) button'
@@ -458,7 +462,7 @@ shots:
       - klicken: '[role="dialog"] >> role=button[name="Tag"s]'
       - klicken: 'td[data-today] ~ td:not([data-disabled]) button, tr:has(td[data-today]) + tr td:not([data-disabled]) button'
       - tippen:
-          feld: '[role="dialog"] label:has-text("Abholzeit") input'
+          feld: '[role="dialog"] >> role=textbox[name="Abholzeit"]'
           text: '14:30'
       - tippen:
           feld: '[role="dialog"] textarea'
@@ -650,7 +654,7 @@ shots:
     titel: Sprache der Eltern-App wählen
     portal: eltern
     rolle: eltern
-    pfad: /settings
+    pfad: /settings?tab=language
     vorbereitung:
       - klicken: '[aria-haspopup="listbox"][aria-label="Sprache"]'
       - warten_auf: 'role=listbox'

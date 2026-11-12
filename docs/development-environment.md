@@ -94,8 +94,9 @@ the current two-worker budget and later architecture-test changes.
    API calls from the frontend still need a running backend.
 2. During a fix, run a named test/package or
    `scripts/test-changed.sh --fast origin/development`. The fast mode omits
-   transitive importers and repository-wide ratchets. Run without `--fast`
-   before pushing; it is not a replacement for the full gate.
+   transitive importers and repository-wide ratchets. Before pushing, run
+   `scripts/run-go-toolchain.sh scripts/check-changed.mjs`; CI runs the full
+   affected closure.
 3. Run only one full backend suite or whole-repository analysis at a time
    across your worktrees. Each command has its own budget, not a shared
    machine-wide limit. Extra language-server sessions also keep their own
@@ -112,7 +113,7 @@ them to nested commands. Explicit caller values remain intact.
 lets worktrees share the Go build cache. Without it, Go adds each package's
 absolute directory to the cache key, so every new worktree compiles the
 backend again and stores a second copy. With it, `runtime.Caller` reports
-module-relative paths such as `github.com/moto-nrw/project-phoenix/api/...`.
+module-relative paths such as `github.com/moto-ogs/project-phoenix/api/...`.
 Code that locates repository files must therefore walk up from the working
 directory to `go.mod` (see `routetest.BackendRoot`), not from its source file.
 

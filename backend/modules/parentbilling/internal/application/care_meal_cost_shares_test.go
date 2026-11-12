@@ -6,7 +6,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // mealShareMonth is Mia's April with one module, Monday until 14:00 (32,00 €),
@@ -195,4 +195,36 @@ func TestCareCostShareListShowsTheBaseOfTheScope(t *testing.T) {
 	assert.Equal(t, int64(4160), costShareBaseCents(invoice, parentbilling.CostShareScopeBoth))
 	assert.Equal(t, "100 % für die Mensa", costShareText(invoice.CostShares[0]))
 	assert.Equal(t, "50 %", costShareText(invoice.CostShares[1]))
+}
+
+func TestCareCostShareExportNamesTheBaseForCareAndMeals(t *testing.T) {
+	t.Parallel()
+	for _, tc := range []struct {
+		scope, base, amount string
+		cents               int64
+	}{
+		{parentbilling.CostShareScopeCare, "32,00", "16,00", 1600},
+		{parentbilling.CostShareScopeMeal, "9,60", "4,80", 480},
+		{parentbilling.CostShareScopeBoth, "41,60", "20,80", 2080},
+	} {
+		t.Run(tc.scope, func(t *testing.T) {
+			t.Parallel()
+			invoice := parentbilling.CareInvoice{ContractID: contractMia, TotalCents: 4160 - tc.cents,
+				MealPositions: []parentbilling.CareMealPosition{{AmountCents: 960}},
+				CostShares: []parentbilling.CareInvoiceCostShare{{CostBearerID: bearerJobcenter,
+					Kind: parentbilling.CostShareEducationParticipation, Scope: tc.scope, AmountCents: tc.cents, ShareBasisPoints: ptr(5000)}}}
+			table, contracts := careCostShareTable(parentbilling.CareRunDetail{BillingMonth: day(t, mealRunMonth),
+				Invoices: []parentbilling.CareInvoice{invoice}}, parentbilling.CostBearer{ID: bearerJobcenter}, nil)
+			require.Len(t, table.Rows, 2)
+			assert.Equal(t, tc.base, table.Rows[0]["contribution"])
+			assert.Equal(t, tc.amount, table.Rows[0]["amount"])
+			assert.Equal(t, tc.amount, table.Rows[1]["amount"])
+			assert.Equal(t, []int64{contractMia}, contracts)
+			for _, column := range table.Columns {
+				if column.ID == "contribution" {
+					assert.Equal(t, "Berechnungsgrundlage in Euro", column.Label)
+				}
+			}
+		})
+	}
 }

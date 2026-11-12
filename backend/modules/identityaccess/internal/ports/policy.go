@@ -5,8 +5,8 @@ import (
 	"net"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // The rules the flows consult: credentials, tokens, the second factor and the rotation bounds.
@@ -19,13 +19,19 @@ type PasswordVerifier interface {
 // TokenCodec signs and parses the session JWTs.
 type TokenCodec interface {
 	IssueTokenPair(access domain.SessionClaims, refresh domain.RefreshClaims) (accessToken, refreshToken string, err error)
-	IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration) (string, error)
+	// IssueMFAEnrollmentToken names the credential generation the password
+	// check read; operators, which have none, pass zero.
+	IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration, credentialGeneration int64) (string, error)
 	// ParseAccessToken verifies the signature and expiry of an access JWT.
 	ParseAccessToken(token string) (domain.SessionClaims, error)
 	// ParseRefreshToken verifies the signature of a refresh JWT and refuses
 	// challenge, enrollment and preview tokens.
 	ParseRefreshToken(token string) (domain.RefreshClaims, error)
 	RefreshExpiry() time.Duration
+	// IssueHolidayParentSetupToken and ParseHolidayParentSetupToken sign and
+	// read the setup link of a parent account at a Träger (ADR 0216).
+	IssueHolidayParentSetupToken(claims identityaccess.HolidayParentSetupClaims, ttl time.Duration) (string, error)
+	ParseHolidayParentSetupToken(token string) (identityaccess.HolidayParentSetupClaims, error)
 }
 
 // MFAPolicy is a resolved MFA verdict waiting for the permission set it applies to.
@@ -42,7 +48,9 @@ type MFAGate interface {
 	ResolvePolicyInTx(ctx context.Context, accountID, tenantID int64) (MFAPolicy, error)
 	HasEnrollment(ctx context.Context, accountID int64) (bool, error)
 	VerifyTrustedDevice(ctx context.Context, accountID, tenantID int64, cookie string) (bool, error)
-	StartChallenge(ctx context.Context, accountID, tenantID int64, scope, ipAddress string) (string, error)
+	// StartChallenge is bound to the credential generation the sign-in's
+	// password check read (#6289).
+	StartChallenge(ctx context.Context, accountID, tenantID int64, scope, ipAddress string, credentialGeneration int64) (string, error)
 	IsTrustedDeviceEnabled(ctx context.Context, tenantID int64) bool
 	TrustedDeviceDays(ctx context.Context, tenantID int64) int
 }
@@ -66,7 +74,9 @@ type OperatorMFAGate interface {
 	Configured() bool
 	HasOperatorMFAEnrollment(ctx context.Context, operatorID int64) (bool, error)
 	VerifyOperatorTrustedDevice(ctx context.Context, operatorID int64, cookie string) (bool, error)
-	StartOperatorMFAChallenge(ctx context.Context, operatorID int64, ip net.IP) (string, error)
+	// StartOperatorMFAChallenge issues nothing unless the operator still
+	// holds credentialGeneration, the generation the password check read.
+	StartOperatorMFAChallenge(ctx context.Context, operatorID int64, ip net.IP, credentialGeneration *int64) (string, error)
 	OperatorTrustedDeviceDays() int
 }
 

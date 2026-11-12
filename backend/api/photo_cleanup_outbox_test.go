@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	fileStorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	fileStorageCompose "github.com/moto-ogs/project-phoenix/modules/filestorage/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -200,4 +200,13 @@ func TestLegalDocumentCleanupOutboxIsAtomicWithSetting(t *testing.T) {
 	n, err = db.NewSelect().TableExpr("documents.file_cleanup").Where("tenant_id = ? AND object_kind = ?", tenantID, "enrollment-legal-documents").Count(ctx)
 	require.NoError(t, err)
 	assert.EqualValues(t, 1, n)
+}
+
+func (r photoCleanupRuntime) QueueUnlinkStoredPhotos(ctx context.Context, urls []string) error {
+	for _, url := range urls {
+		if err := r.QueueUnlinkStoredPhoto(ctx, url); err != nil {
+			return err
+		}
+	}
+	return nil
 }

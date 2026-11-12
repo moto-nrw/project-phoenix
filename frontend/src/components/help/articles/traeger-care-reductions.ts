@@ -48,7 +48,7 @@ export function traegerCareReductionsTopic(): HelpTopic {
       {
         title: "Kinderzahl der Familie prüfen",
         description:
-          "Eltern geben im Vertrag an, wie viele Kinder ihre Familie hat. Sie bestätigen die Zahl. Erst dann zählt sie.",
+          "Eltern geben an, wie viele Kinder ihre Familie hat: bei der Anmeldung, über den Link aus der Vertragsmail oder im Vertrag in der Eltern-App. Die Zahl aus der Anmeldung kommt mit dem Vertrag. Sie bestätigen die Zahl. Erst dann zählt sie.",
         steps: [
           "Wählen Sie `Familien und Zahlung` und dann den Reiter `Kinderzahl`.",
           "Unter `Zu prüfen` stehen neue Angaben der Eltern und Zahlen, die bald ablaufen.",

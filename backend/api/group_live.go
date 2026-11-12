@@ -18,22 +18,24 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	groupLiveHTTP "github.com/moto-nrw/project-phoenix/modules/grouplive/http"
+	groupLiveHTTP "github.com/moto-ogs/project-phoenix/modules/grouplive/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/grouplive"
-	groupliveCompose "github.com/moto-nrw/project-phoenix/modules/grouplive/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	educationService "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	settingsplatform "github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/grouplive"
+	groupliveCompose "github.com/moto-ogs/project-phoenix/modules/grouplive/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	educationService "github.com/moto-ogs/project-phoenix/modules/schoolstructure/contract"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	settingsplatform "github.com/moto-ogs/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // GroupLiveCallerContext is the Identity & Access caller context the
@@ -42,6 +44,7 @@ type GroupLiveCallerContext interface {
 	HasCurrentStaff(context.Context) (bool, error)
 	HasFullStudentAccess(context.Context) bool
 	MyGroupRecords(context.Context) ([]grouplive.GroupRecord, error)
+	MyGroupIDs(context.Context) ([]int64, error)
 	GetSubstitutedGroupIDs(context.Context) (map[int64]bool, error)
 }
 
@@ -61,9 +64,10 @@ type groupLiveSessions interface {
 }
 
 // groupLiveStatusDays is the Student Presence read of the scheduled day
-// statuses.
+// statuses that stand for a day: active, or archived at the end of their day
+// (#6291), as the day log and the class day read them.
 type groupLiveStatusDays interface {
-	FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*absencerecords.StudentStatusDay, error)
+	FindSignedOffByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*absencerecords.StudentStatusDay, error)
 }
 
 // groupLiveGroups is the School Structure read of the groups, their rooms
@@ -96,6 +100,12 @@ type (
 	}
 )
 
+// groupLiveHolidayGroups is the Enrollment read of the Feriengruppen of the
+// school's hosted holiday weeks (ADR 0120, Nachtrag 2026-11-11).
+type groupLiveHolidayGroups interface {
+	HolidayGuestGroups(ctx context.Context, schoolID int64) ([]enrollment.HolidayGuestGroup, error)
+}
+
 // groupLiveSources are the owner reads the root binds to the live-group
 // projection. Logger, Now, ExcusedRequests and Handovers are optional; every
 // other source is required.
@@ -115,6 +125,7 @@ type groupLiveSources struct {
 	ExcusedRequests   grouplive.PendingExcusedReader
 	Handovers         grouplive.HandoverReader
 	StatusDays        groupLiveStatusDays
+	HolidayGroups     groupLiveHolidayGroups
 	Logger            *slog.Logger
 	Now               func() time.Time
 }
@@ -131,7 +142,7 @@ func newGroupLive(sources groupLiveSources, hints peopledirectory.SchoolDayHintQ
 		sources.Substitutions == nil || sources.UserContext == nil || sources.Active == nil ||
 		sources.Settings == nil || sources.Pickups == nil || sources.Arrivals == nil ||
 		sources.PlannedStudentIDs == nil || sources.CareDays == nil || sources.CareParticipation == nil ||
-		sources.StatusDays == nil {
+		sources.StatusDays == nil || sources.HolidayGroups == nil {
 		return nil, errGroupLiveSources
 	}
 	if sources.Now == nil {
@@ -149,6 +160,7 @@ func newGroupLive(sources groupLiveSources, hints peopledirectory.SchoolDayHintQ
 		ExcusedRequests: sources.ExcusedRequests,
 		TeacherHints:    groupLiveTeacherHints(hints),
 		Handovers:       sources.Handovers,
+		HolidayGroups:   groupLiveHolidayGroupWeeks{groups: sources.HolidayGroups},
 		Logger:          sources.Logger,
 	}), nil
 }
@@ -222,6 +234,42 @@ type groupLiveDirectory struct {
 
 func (d groupLiveDirectory) SupervisedGroups(ctx context.Context) ([]grouplive.GroupRecord, error) {
 	return d.userContext.MyGroupRecords(ctx)
+}
+
+// SupervisedGroupIDs marks the caller's groups from the IDs the identity
+// chain holds, without reading their rows again.
+func (d groupLiveDirectory) SupervisedGroupIDs(ctx context.Context) (map[int64]bool, error) {
+	ids, err := d.userContext.MyGroupIDs(ctx)
+	if err != nil {
+		return nil, err
+	}
+	marked := make(map[int64]bool, len(ids))
+	for _, id := range ids {
+		marked[id] = true
+	}
+	return marked, nil
+}
+
+// groupLiveHolidayGroupWeeks reads the Feriengruppen of the school whose
+// tenant transaction the request holds.
+type groupLiveHolidayGroupWeeks struct{ groups groupLiveHolidayGroups }
+
+func (h groupLiveHolidayGroupWeeks) HolidayGroupWeeks(ctx context.Context) ([]grouplive.HolidayGroupWeek, error) {
+	schoolID, err := tenant.TenantFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+	groups, err := h.groups.HolidayGuestGroups(ctx, schoolID.Int64())
+	if err != nil {
+		return nil, err
+	}
+	weeks := make([]grouplive.HolidayGroupWeek, len(groups))
+	for i, group := range groups {
+		weeks[i] = grouplive.HolidayGroupWeek{
+			GroupID: group.GroupID, StartsOn: grouplive.Date(group.StartsOn.String()), EndsOn: grouplive.Date(group.EndsOn.String()),
+		}
+	}
+	return weeks, nil
 }
 
 func (d groupLiveDirectory) TenantGroups(ctx context.Context) ([]grouplive.GroupRecord, error) {
@@ -391,7 +439,7 @@ func (p groupLivePresence) EffectiveStatuses(ctx context.Context, studentIDs []i
 	if err != nil {
 		return nil, err
 	}
-	rows, err := p.statusDays.FindActiveByStudentIDsAndDate(ctx, studentIDs, day)
+	rows, err := p.statusDays.FindSignedOffByStudentIDsAndDate(ctx, studentIDs, day)
 	if err != nil {
 		return nil, err
 	}

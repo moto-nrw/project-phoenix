@@ -7,6 +7,23 @@ import {
 } from "./enrollment-change-request-diff";
 
 describe("buildEnrollmentChangeRequestDiffGroups", () => {
+  it("names a change of the child's holiday care wish", () => {
+    const groups = buildEnrollmentChangeRequestDiffGroups({
+      baseSnapshot: { children: [{ holiday_care_wish: true }] },
+      proposedSnapshot: { children: [{ holiday_care_wish: false }] },
+      diff: { changed: ["children"] },
+    });
+
+    expect(groups[0]?.rows).toEqual([
+      {
+        id: "Kind-0-holiday_care_wish",
+        label: "Kind 1 · Ferienwunsch",
+        before: true,
+        after: false,
+      },
+    ]);
+  });
+
   it("renders top-level guardian fields as changed rows", () => {
     const groups = buildEnrollmentChangeRequestDiffGroups({
       baseSnapshot: { guardian_first_name: "Daniela" },

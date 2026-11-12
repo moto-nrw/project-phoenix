@@ -6,10 +6,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
-	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
 // DemoAccess runs the demo access of the public demo (#3462): a prospect
@@ -54,7 +54,8 @@ func NewDemoAccess(deps DemoAccessDependencies) (*DemoAccess, error) {
 // answer tells nothing about the address. Every request stores its own
 // access: earlier links stay valid until they expire, and the prospect's
 // latest details are kept. An address inside its cooldown gets nothing new.
-// The team hears of a first access and of a changed contact consent. An
+// The team hears of a first access, of a changed contact consent and of
+// every request with a phone number, which no table keeps. An
 // address whose school did not fail gets no second school (#3463): the new
 // link leads into the school it already has.
 //
@@ -111,7 +112,7 @@ func (d *DemoAccess) request(ctx context.Context, access domain.DemoAccess, entr
 		if err := d.mail.SendDemoAccessLink(txCtx, access, entryURL); err != nil {
 			return err
 		}
-		if !found || known.ContactOptIn != access.ContactOptIn {
+		if !found || known.ContactOptIn != access.ContactOptIn || access.Phone != "" {
 			return d.mail.SendDemoLead(txCtx, access)
 		}
 		return nil
@@ -265,24 +266,22 @@ func (d *DemoAccess) Reset(ctx context.Context, token, clientIP string) (domain.
 	return access, nil
 }
 
-// replaceSchool hides the access's school, queues its successor, moves every
-// access along and ends the old school's sessions. A failed school has no
-// sessions to end.
+// replaceSchool ends the old school's sessions, hides the access's school,
+// queues its successor and moves every access along. The sessions end
+// first, in the lock order of a sign-in: their accounts, then the school,
+// which stays held until commit (#6305). A failed school has no sessions to
+// end.
 func (d *DemoAccess) replaceSchool(ctx context.Context, access domain.DemoAccess, entry domain.DemoSchoolEntry) error {
+	if entry.TenantID != 0 {
+		if _, err := d.sessions.RevokeTokensByTenantID(ctx, entry.TenantID); err != nil {
+			return fmt.Errorf("end the sessions of the hidden demo school: %w", err)
+		}
+	}
 	newSlug, err := d.schools.ReplaceDemoSchool(ctx, access.SchoolSlug, access.SchoolName, access.FirstName, access.LastName)
 	if err != nil {
 		return err
 	}
-	if err := d.store.MoveDemoAccesses(ctx, access.SchoolSlug, newSlug); err != nil {
-		return err
-	}
-	if entry.TenantID == 0 {
-		return nil
-	}
-	if _, err := d.sessions.RevokeTokensByTenantID(ctx, entry.TenantID); err != nil {
-		return fmt.Errorf("end the sessions of the hidden demo school: %w", err)
-	}
-	return nil
+	return d.store.MoveDemoAccesses(ctx, access.SchoolSlug, newSlug)
 }
 
 // signedInParent names the account a redemption signs in besides the
@@ -462,7 +461,7 @@ type DemoAccessEngine struct{ Flows *DemoAccess }
 func (e DemoAccessEngine) RequestDemoAccess(ctx context.Context, request identityaccess.DemoAccessRequest) error {
 	return demoAccessError(e.Flows.Request(ctx, domain.DemoAccess{
 		Email: request.Email, FirstName: request.FirstName, LastName: request.LastName, SchoolName: request.SchoolName,
-		Source: request.Source, ContactOptIn: request.ContactOptIn, Role: domain.DemoRole(request.Role),
+		Source: request.Source, ContactOptIn: request.ContactOptIn, Phone: request.Phone, Role: domain.DemoRole(request.Role),
 	}, request.ClientIP, request.EntryURLPrefix))
 }
 
@@ -502,7 +501,7 @@ func demoAccessMessage(access domain.DemoAccess) identityaccess.DemoAccessMessag
 	return identityaccess.DemoAccessMessage{
 		ExpiresAt: access.ExpiresAt,
 		AccessID:  access.ID, Email: access.Email, FirstName: access.FirstName, LastName: access.LastName,
-		SchoolName: access.SchoolName, Source: access.Source, ContactOptIn: access.ContactOptIn,
+		SchoolName: access.SchoolName, Source: access.Source, ContactOptIn: access.ContactOptIn, Phone: access.Phone,
 	}
 }
 

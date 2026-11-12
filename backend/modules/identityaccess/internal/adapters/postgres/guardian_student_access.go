@@ -6,8 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/dialect/pgdialect"
 )
 
 // GuardianStudentAccessRecord is the access half of one relationship.
@@ -23,6 +24,7 @@ type GuardianStudentAccessRecord struct {
 type GuardianStudentAccessStore interface {
 	LockLiveGuardianAccount(context.Context, int64) (bool, error)
 	GrantGuardianStudentAccess(context.Context, GuardianStudentAccessRecord) (domain.OperationStats, error)
+	InsertGuardianStudentAccesses(context.Context, []domain.GuardianStudentAccessGrant) (domain.OperationStats, error)
 	SetGuardianStudentPermissions(context.Context, int64, int64, json.RawMessage) (bool, domain.OperationStats, error)
 }
 
@@ -60,6 +62,47 @@ func (s *Store) GrantGuardianStudentAccess(ctx context.Context, record GuardianS
 		return stats, fmt.Errorf("identity access postgres: grant guardian student access: %w", err)
 	}
 	stats.Rows, _ = result.RowsAffected()
+	return stats, nil
+}
+
+// InsertGuardianStudentAccesses inserts the access halves of many new
+// relationships in one statement with the columns GrantGuardianStudentAccess
+// writes. Every record names the same school; the account reference trigger
+// runs per row as there.
+func (s *Store) InsertGuardianStudentAccesses(ctx context.Context, records []domain.GuardianStudentAccessGrant) (domain.OperationStats, error) {
+	if len(records) == 0 {
+		return domain.OperationStats{}, nil
+	}
+	tenantID := records[0].TenantID
+	relationships, accounts := make([]int64, len(records)), make([]int64, len(records))
+	permissions := make([]string, len(records))
+	for i, record := range records {
+		if record.TenantID != tenantID {
+			return domain.OperationStats{}, fmt.Errorf("%w: grant guardian student accesses", domain.ErrGuardianStudentAccessTenantMismatch)
+		}
+		relationships[i], permissions[i] = record.RelationshipID, guardianPermissionsJSON(record.Permissions)
+		if record.AccountID != nil {
+			accounts[i] = *record.AccountID
+		}
+	}
+	db, err := s.guardianStudentAccessDatabase(ctx, tenantID, "grant guardian student accesses")
+	if err != nil {
+		return domain.OperationStats{}, err
+	}
+	started := time.Now()
+	result, err := db.NewRaw(`INSERT INTO auth.guardian_student_access (tenant_id, relationship_id, account_id, permissions)
+		SELECT ?, k.relationship_id, NULLIF(k.account_id, 0), k.permissions::jsonb
+		FROM unnest(?::bigint[], ?::bigint[], ?::text[]) WITH ORDINALITY AS k(relationship_id, account_id, permissions, ord)
+		ORDER BY k.ord`,
+		tenantID, pgdialect.Array(relationships), pgdialect.Array(accounts), pgdialect.Array(permissions)).Exec(ctx)
+	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started)}
+	if err != nil {
+		return stats, fmt.Errorf("identity access postgres: grant guardian student accesses: %w", err)
+	}
+	stats.Rows, _ = result.RowsAffected()
+	if stats.Rows != int64(len(records)) {
+		return stats, fmt.Errorf("identity access postgres: grant guardian student accesses: %d of %d rows written", stats.Rows, len(records))
+	}
 	return stats, nil
 }
 

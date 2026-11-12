@@ -8,6 +8,8 @@
   "creditLetter": "Кредит-нота: {period}",
   "careInvoiceLetter": "Рахунок: {period}",
   "careCancellationLetter": "Анулювання: {period}",
+  "careFeeNotice": "Рішення про внесок: {period}",
+  "careChangeNotice": "Зміна рішення про внесок: {period}",
   "sender": "Від: {traeger}",
   "children": "Для",
   "amount": "Сума",

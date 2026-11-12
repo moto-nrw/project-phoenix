@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/lestrrat-go/jwx/v3/jwt"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 // JWTSigner is the signing primitive supplied by composition. Identity owns the
@@ -66,8 +66,8 @@ func (c *SessionCodec) IssueAccessToken(claims identityaccess.SessionClaims) (st
 	return c.sign(tokenprimitives.EncodeAccess(tokenprimitives.AccessClaims(claims), now, now.Add(c.accessExpiry)))
 }
 
-func (c *SessionCodec) IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration) (string, error) {
-	wire, err := tokenprimitives.EncodeEnrollment(tokenprimitives.EnrollmentClaims{AccountID: accountID, Scope: scope, TenantID: tenantID}, time.Now(), ttl)
+func (c *SessionCodec) IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration, credentialGeneration int64) (string, error) {
+	wire, err := tokenprimitives.EncodeEnrollment(tokenprimitives.EnrollmentClaims{AccountID: accountID, Scope: scope, TenantID: tenantID, CredentialGeneration: credentialGeneration}, time.Now(), ttl)
 	if err != nil {
 		return "", err
 	}
@@ -135,4 +135,20 @@ func (c *SessionCodec) ParseRefreshToken(token string) (identityaccess.RefreshCl
 	}
 	claims, err := tokenprimitives.DecodeRefresh(verified)
 	return identityaccess.RefreshClaims(claims), err
+}
+
+// IssueHolidayParentSetupToken signs the setup link of a parent account at a
+// Träger (ADR 0216 point 5).
+func (c *SessionCodec) IssueHolidayParentSetupToken(claims identityaccess.HolidayParentSetupClaims, ttl time.Duration) (string, error) {
+	return c.sign(tokenprimitives.EncodeHolidayParentSetup(tokenprimitives.HolidayParentSetupClaims(claims), time.Now(), ttl))
+}
+
+// ParseHolidayParentSetupToken accepts only an unexpired setup token.
+func (c *SessionCodec) ParseHolidayParentSetupToken(token string) (identityaccess.HolidayParentSetupClaims, error) {
+	verified, err := c.decode(token)
+	if err != nil {
+		return identityaccess.HolidayParentSetupClaims{}, err
+	}
+	claims, err := tokenprimitives.DecodeHolidayParentSetup(verified, time.Now())
+	return identityaccess.HolidayParentSetupClaims(claims), err
 }

@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 )
 
 // eligibilityGate is how much of the phase eligibility (#1663) a payload
@@ -78,7 +78,11 @@ func (s *Intake) validateIntakePayload(ctx context.Context, req *SubmitRequest, 
 		return err
 	}
 	req.ConsentFlags = filterConsentFlags(req.ConsentFlags, p.legalBlocks)
-	return validateSubmittedFields(p.schema, *req, p.openByID, p.existingChildren)
+	if err := validateSubmittedFields(p.schema, *req, p.openByID, p.existingChildren); err != nil {
+		return err
+	}
+	dropUnaskedHolidayCareWish(p.schema, req.Children)
+	return nil
 }
 
 func (s *Intake) validateEligibility(ctx context.Context, phase *enrollmentNative.Phase, req SubmitRequest, gate eligibilityGate) error {

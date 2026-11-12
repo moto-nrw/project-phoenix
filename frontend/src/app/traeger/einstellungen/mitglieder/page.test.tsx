@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -6,14 +7,18 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { ErrorContactProvider } from "~/lib/error-contact";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 
 const api = vi.hoisted(() => ({
   fetchTraegerBuero: vi.fn(),
   inviteTraegerAccount: vi.fn(),
   changeTraegerRoles: vi.fn(),
+  changeTraegerMemberName: vi.fn(),
   removeTraegerMember: vi.fn(),
   revokeTraegerInvitation: vi.fn(),
   fetchTraegerAccountHistory: vi.fn(),
@@ -29,15 +34,25 @@ vi.mock("next-auth/react", () => ({
 }));
 
 import TraegerAccountsPage from "./page";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 const BUERO = {
   members: [
     {
       accountId: "1",
       email: "leitung@traeger.example",
+      name: "Lea Leitung",
       roles: ["leadership", "administration"],
     },
-    { accountId: "2", email: "kasse@traeger.example", roles: ["billing"] },
+    {
+      accountId: "2",
+      email: "kasse@traeger.example",
+      name: "",
+      roles: ["billing"],
+    },
   ],
   invitations: [
     {
@@ -57,6 +72,7 @@ const HISTORY = {
       action: "roles_changed",
       actorEmail: "leitung@traeger.example",
       targetEmail: "kasse@traeger.example",
+      targetName: "",
       rolesBefore: ["read_only"],
       rolesAfter: ["billing"],
     },
@@ -182,6 +198,7 @@ describe("TraegerAccountsPage", () => {
         ...BUERO.members,
         {
           accountId: "3",
+          name: "",
           email: "verwaltung@traeger.example",
           roles: ["administration", "documents"],
         },
@@ -254,6 +271,7 @@ describe("TraegerAccountsPage", () => {
         ...BUERO.members,
         {
           accountId: "3",
+          name: "",
           email: "zweite@traeger.example",
           roles: ["leadership"],
         },
@@ -379,6 +397,92 @@ describe("TraegerAccountsPage", () => {
     ).not.toBeInTheDocument();
   });
 
+  // #4693: the name of each person, and a clear hint for one without.
+  it("shows the name of each person and marks a missing one", async () => {
+    renderPage();
+
+    expect((await screen.findAllByText("Lea Leitung"))[0]).toBeInTheDocument();
+    expect(screen.getAllByText("Kein Name")[0]).toBeInTheDocument();
+    expect(screen.getAllByText("kasse@traeger.example")[0]).toBeInTheDocument();
+  });
+
+  it("enters the name of a person and shows it in the row", async () => {
+    const named = { ...BUERO.members[1]!, name: "Karl Kasse" };
+    api.changeTraegerMemberName.mockResolvedValue(named);
+    api.fetchTraegerBuero
+      .mockResolvedValueOnce(BUERO)
+      .mockResolvedValue({ ...BUERO, members: [BUERO.members[0], named] });
+    renderPage();
+
+    await openMenu("kasse@traeger.example");
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Namen eintragen" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "Speichern" }));
+    expect(
+      await within(dialog).findAllByText("Bitte geben Sie einen Namen ein."),
+    ).not.toHaveLength(0);
+    expect(api.changeTraegerMemberName).not.toHaveBeenCalled();
+
+    fireEvent.change(within(dialog).getByLabelText(/Name/), {
+      target: { value: " Karl Kasse " },
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Speichern" }));
+
+    await waitFor(() =>
+      expect(api.changeTraegerMemberName).toHaveBeenCalledWith(
+        "2",
+        "Karl Kasse",
+      ),
+    );
+    expect((await screen.findAllByText("Karl Kasse"))[0]).toBeInTheDocument();
+    expect(
+      await screen.findByText("Der Name ist gespeichert."),
+    ).toBeInTheDocument();
+    // The list and the history are read again.
+    await waitFor(() =>
+      expect(api.fetchTraegerAccountHistory).toHaveBeenCalledTimes(2),
+    );
+  });
+
+  it("offers to change an existing name", async () => {
+    renderPage();
+
+    await openMenu("leitung@traeger.example");
+    fireEvent.click(
+      await screen.findByRole("menuitem", { name: "Namen ändern" }),
+    );
+    const dialog = await screen.findByRole("dialog");
+    expect(within(dialog).getByLabelText(/Name/)).toHaveValue("Lea Leitung");
+  });
+
+  it("names a changed name in the history", async () => {
+    api.fetchTraegerAccountHistory.mockResolvedValue({
+      entries: [
+        {
+          id: "13",
+          occurredAt: "2026-09-08T15:00:00Z",
+          action: "name_changed",
+          actorEmail: "leitung@traeger.example",
+          targetEmail: "kasse@traeger.example",
+          targetName: "Karl Kasse",
+          rolesBefore: [],
+          rolesAfter: [],
+        },
+      ],
+      hasMore: false,
+    });
+    renderPage();
+
+    expect(
+      (await screen.findAllByText("Name geändert"))[0],
+    ).toBeInTheDocument();
+    expect(
+      screen.getAllByText("Neuer Name: Karl Kasse.")[0],
+    ).toBeInTheDocument();
+  });
+
   it("shows no history without the right to manage the accounts", async () => {
     api.fetchTraegerBuero.mockRejectedValue(
       new ApiError("forbidden", 403, { code: "traeger.no_membership" }),
@@ -392,6 +496,27 @@ describe("TraegerAccountsPage", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText("Verlauf")).not.toBeInTheDocument();
+  });
+
+  // #6871: the billing role without „Konten verwalten“ gets the 403 of the
+  // permission check, and the page sends it to the Leitung of its Büro.
+  it("sends the billing role to the Leitung of the Träger-Büro", async () => {
+    api.fetchTraegerBuero.mockRejectedValue(new ApiError("Forbidden", 403));
+    render(
+      <ErrorContactProvider contact="traeger">
+        <ToastProvider>
+          <TraegerAccountsPage />
+        </ToastProvider>
+      </ErrorContactProvider>,
+    );
+
+    expect(
+      await screen.findByText(
+        "Für die Liste der Personen fehlt Ihnen die Berechtigung. Bitte fragen Sie die Leitung Ihres Träger-Büros.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/fragen Sie die Schule/)).not.toBeInTheDocument();
+    expect(screen.queryByText("kasse@traeger.example")).not.toBeInTheDocument();
   });
 
   it("shows the history with the right to manage the accounts", async () => {
@@ -423,5 +548,141 @@ describe("TraegerAccountsPage", () => {
       expect(api.fetchTraegerAccountHistory).toHaveBeenCalledTimes(2),
     );
     expect(api.fetchTraegerAccountHistory).toHaveBeenLastCalledWith();
+  });
+
+  it.each([403, 503])(
+    "handles a %s reload while another member dialog is open",
+    async (status) => {
+      const read = deferred<typeof BUERO>();
+      api.fetchTraegerBuero
+        .mockResolvedValueOnce(BUERO)
+        .mockReturnValueOnce(read.promise);
+      api.revokeTraegerInvitation.mockResolvedValue(undefined);
+      renderPage();
+      await openMenu("die Einladung an neu@traeger.example");
+      fireEvent.click(
+        await screen.findByRole("menuitem", { name: /zurücknehmen/ }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Ja, zurücknehmen" }),
+      );
+      fireEvent.click(
+        await within(dialog).findByRole("button", { name: "Zurücknehmen" }),
+      );
+      await waitFor(() =>
+        expect(api.fetchTraegerBuero).toHaveBeenCalledTimes(2),
+      );
+      await openMenu("kasse@traeger.example");
+      fireEvent.click(
+        await screen.findByRole("menuitem", { name: "Rollen ändern" }),
+      );
+      expect(await screen.findByRole("dialog")).toBeVisible();
+      resetPageReloads();
+      await act(async () => read.reject(new ApiError("failed", status)));
+      if (status === 403) {
+        // #6801: the page loads anew; its first load shows the refusal.
+        await expectPageReloadedAfterRefusal();
+        return;
+      }
+      // Anker: der Nachladefehler bestätigt den abgeschlossenen Widerruf.
+      expect(
+        await screen.findByText(
+          `${catalogText("general.unavailable", "die Anzeige des Träger-Büros")} ${SAVED_BUT_STALE_SUFFIX}`,
+        ),
+      ).toBeVisible();
+      expect(
+        screen.getAllByText("kasse@traeger.example").length,
+      ).toBeGreaterThan(0);
+      expect(screen.getByRole("dialog")).toBeVisible();
+    },
+  );
+
+  // #6652: a confirmed write whose reload fails is no failed action and does
+  // not replace the list: the error stands above it, says the change is
+  // saved, and its retry only reads the list again.
+  describe("reload after a confirmed write (#6652)", () => {
+    const reloadText = `${catalogText("general.unavailable", "die Anzeige des Träger-Büros")} ${SAVED_BUT_STALE_SUFFIX}`;
+
+    beforeEach(() => {
+      api.fetchTraegerBuero
+        .mockReset()
+        .mockResolvedValueOnce(BUERO)
+        .mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+        .mockResolvedValue(BUERO);
+    });
+
+    async function expectListKept(write: ReturnType<typeof vi.fn>) {
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      // Anker: die bestätigte Liste bleibt stehen.
+      expect(
+        screen.getAllByText("kasse@traeger.example").length,
+      ).toBeGreaterThan(0);
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() =>
+        expect(api.fetchTraegerBuero).toHaveBeenCalledTimes(3),
+      );
+      expect(write).toHaveBeenCalledTimes(1);
+    }
+
+    it("keeps an invitation sent and the list shown when the reload fails", async () => {
+      api.inviteTraegerAccount.mockResolvedValue(undefined);
+      renderPage();
+      await screen.findAllByText("kasse@traeger.example");
+
+      fireEvent.click(screen.getByRole("button", { name: "Person einladen" }));
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.change(within(dialog).getByLabelText(/E-Mail-Adresse/), {
+        target: { value: "personal@traeger.example" },
+      });
+      fireEvent.click(
+        within(dialog).getByRole("checkbox", { name: /Personal/ }),
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Einladung senden" }),
+      );
+
+      await expectListKept(api.inviteTraegerAccount);
+    });
+
+    it("keeps changed roles and the list shown when the reload fails", async () => {
+      api.changeTraegerRoles.mockResolvedValue(undefined);
+      renderPage();
+
+      await openMenu("kasse@traeger.example");
+      fireEvent.click(
+        await screen.findByRole("menuitem", { name: "Rollen ändern" }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(
+        within(dialog).getByRole("checkbox", { name: /Personal/ }),
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Speichern" }),
+      );
+
+      await expectListKept(api.changeTraegerRoles);
+    });
+
+    it("keeps a revoked invitation revoked and the list shown when the reload fails", async () => {
+      api.revokeTraegerInvitation.mockResolvedValue(undefined);
+      renderPage();
+
+      await openMenu("die Einladung an neu@traeger.example");
+      fireEvent.click(
+        await screen.findByRole("menuitem", { name: /zurücknehmen/ }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Ja, zurücknehmen" }),
+      );
+      fireEvent.click(
+        await within(dialog).findByRole("button", { name: "Zurücknehmen" }),
+      );
+
+      await expectListKept(api.revokeTraegerInvitation);
+    });
   });
 });

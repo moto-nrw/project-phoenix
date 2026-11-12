@@ -8,10 +8,10 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // MasterDataFieldChange is one proposed Track B change submitted by a parent.
@@ -65,7 +65,7 @@ func (s *Service) SubmitMasterDataChangeRequest(ctx context.Context, accountID, 
 
 	submission := masterDataSubmission{accountID: accountID, studentID: studentID, tenantID: child.TenantID, recipients: recipientGuardianProfileIDs}
 	var created []*StudentDataChangeRequest
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, childWriteNeeds(GuardianPermissionMasterDataRequest), func(txCtx context.Context) error {
 		rows, submitErr := s.submitMasterDataInTx(txCtx, submission, changes)
 		created = rows
 		return submitErr
@@ -222,19 +222,15 @@ func (s *Service) emitMasterDataRequestPills(ctx context.Context, submission mas
 // one linked parent cannot read another guardian's private email/phone/address
 // old/new values.
 func (s *Service) ListMyMasterDataRequests(ctx context.Context, accountID, studentID int64) ([]*StudentDataChangeRequest, error) {
-	child, err := s.ResolveOwnedChild(ctx, accountID, studentID)
-	if err != nil {
-		return nil, err
-	}
 	var out []*StudentDataChangeRequest
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err := s.WithPermittedChild(ctx, accountID, studentID, GuardianPermissionPortalAccess, nil, func(txCtx context.Context, _ *Child) error {
 		rows, listErr := s.ChangeRequestRepo.ListParentVisibleByStudent(txCtx, studentID, 0)
 		if listErr != nil {
-			return listErr
+			return fmt.Errorf("parent: list master data requests: %w", listErr)
 		}
 		visibility, visibilityErr := s.RequestSharing.LoadRequestShareVisibility(txCtx, studentID)
 		if visibilityErr != nil {
-			return visibilityErr
+			return fmt.Errorf("parent: list master data requests: %w", visibilityErr)
 		}
 		out = make([]*StudentDataChangeRequest, 0, len(rows))
 		for _, row := range rows {
@@ -244,8 +240,8 @@ func (s *Service) ListMyMasterDataRequests(ctx context.Context, accountID, stude
 		}
 		return nil
 	})
-	if txErr != nil {
-		return nil, fmt.Errorf("parent: list master data requests: %w", txErr)
+	if err != nil {
+		return nil, err
 	}
 	return out, nil
 }
@@ -259,22 +255,20 @@ func (s *Service) ListMyMasterDataRequests(ctx context.Context, accountID, stude
 func (s *Service) EditMasterDataRequest(
 	ctx context.Context, accountID, studentID, requestID int64, newValue json.RawMessage, expectedVersion string,
 ) (*StudentDataChangeRequest, error) {
-	child, err := s.ResolvePermittedChild(ctx, accountID, studentID, GuardianPermissionMasterDataRequest)
-	if err != nil {
-		return nil, err
-	}
-	if err := child.RequireCareRunning(); err != nil {
-		return nil, err
-	}
 	var out *StudentDataChangeRequest
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	childGone := func(access *ChildWriteAccess) {
+		access.ChildMissing = func(ctx context.Context, err error) error {
+			return s.masterDataRequestGone(ctx, requestID, err)
+		}
+	}
+	txErr := s.WithPermittedChildForWrite(ctx, accountID, studentID, GuardianPermissionMasterDataRequest, (*Child).RequireCareRunning, func(txCtx context.Context, _ *Child) error {
 		row, editErr := s.editMasterDataRequestInTx(txCtx, accountID, studentID, requestID, newValue, expectedVersion)
 		if editErr != nil {
 			return editErr
 		}
 		out = row
 		return nil
-	})
+	}, childGone)
 	if txErr != nil {
 		return nil, txErr
 	}
@@ -325,6 +319,15 @@ func (s *Service) editMasterDataRequestInTx(
 
 // lockEditableMasterDataRequest rechecks ownership, status and version under
 // class(shared) -> child -> request locks before the edit reads live fields.
+// masterDataRequestGone reports a request that was deleted with its child as
+// not found; unrelated child lock failures stay intact.
+func (s *Service) masterDataRequestGone(ctx context.Context, requestID int64, lockErr error) error {
+	if _, requestErr := s.ChangeRequestRepo.FindByID(ctx, requestID); errors.Is(requestErr, ErrMasterDataRequestNotFound) {
+		return requestErr
+	}
+	return lockErr
+}
+
 func (s *Service) lockEditableMasterDataRequest(ctx context.Context, accountID, studentID, requestID int64, expectedVersion string) (*StudentDataChangeRequest, *PortalStudent, error) {
 	// Locate the immutable child without locking the request. Keep ownership
 	// ahead of the status distinction, including for another family's row.
@@ -338,12 +341,7 @@ func (s *Service) lockEditableMasterDataRequest(ctx context.Context, accountID, 
 	// Match care end and staff review: class(shared) -> child -> request.
 	student, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID)
 	if err != nil {
-		// Deletion may cascade to the request after the preliminary read.
-		// Preserve its old not-found error; unrelated read failures stay intact.
-		if _, requestErr := s.ChangeRequestRepo.FindByID(ctx, requestID); errors.Is(requestErr, ErrMasterDataRequestNotFound) {
-			return nil, nil, requestErr
-		}
-		return nil, nil, err
+		return nil, nil, s.masterDataRequestGone(ctx, requestID, err)
 	}
 	req, err := s.ChangeRequestRepo.FindByIDForUpdate(ctx, requestID)
 	if err != nil {

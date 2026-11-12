@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	scheduleModels "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // WorkforceShiftTypeRows serves the tenant-defined Schichtarten.
@@ -66,7 +66,7 @@ func shiftToCapability(shift *scheduleModels.StaffShift) ports.WorkforceShift {
 	value := ports.WorkforceShift{
 		ID: shift.ID, TenantID: shift.TenantID, StaffID: shift.StaffID, Date: shift.Date.String(),
 		StartTime: shiftWallClock(shift.StartTime), EndTime: shiftWallClock(shift.EndTime), BreakMinutes: shift.BreakMinutes,
-		ShiftTypeID: shift.ShiftTypeID, Notes: shift.Notes, SeriesID: shift.SeriesID, Detached: shift.Detached,
+		ShiftTypeID: shift.ShiftTypeID, Notes: shift.Notes, SeriesID: shift.SeriesID, Detached: shift.Detached, SeriesOverride: shift.SeriesOverride,
 		Cancelled: shift.Cancelled, ChangeReason: shift.ChangeReason, OriginShiftID: shift.OriginShiftID,
 		SickAbsenceID: shift.SickAbsenceID, CreatedBy: shift.CreatedBy, UpdatedBy: shift.UpdatedBy,
 		CreatedAt: shift.CreatedAt, UpdatedAt: shift.UpdatedAt,
@@ -97,6 +97,7 @@ func applyShiftToRow(shift *scheduleModels.StaffShift, value ports.WorkforceShif
 	shift.Notes = value.Notes
 	shift.SeriesID = value.SeriesID
 	shift.Detached = value.Detached
+	shift.SeriesOverride = value.SeriesOverride
 	shift.SeriesOccurrenceDate = nil
 	if value.SeriesOccurrenceDate != "" {
 		occurrence := calendar.Date(value.SeriesOccurrenceDate)

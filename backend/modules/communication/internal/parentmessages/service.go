@@ -19,9 +19,9 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/application/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	deliveryPorts "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/application/parentmessaging"
+	"github.com/moto-ogs/project-phoenix/realtime"
 )
 
 const maxMessageLen = 2000
@@ -124,6 +124,10 @@ type Config struct {
 	// audience resolves a group, class or AG to its reachable families.
 	GroupThreads  GroupThreadStore
 	GroupAudience deliveryPorts.ParentGroupAudienceReads
+
+	// Attachments stores the photos and files of messages (#6685). Without
+	// it uploads are refused; messages without files are unaffected.
+	Attachments deliveryPorts.MessageAttachmentStore
 
 	// Leaders lists the persons who read leadership conversations (#5200).
 	// Without it every leadership read fails as misconfigured; team
@@ -409,7 +413,7 @@ func (s *Service) GetThread(ctx context.Context, threadID int64) (*ThreadDetail,
 // PostMessage appends a staff reply and returns the refreshed thread messages.
 func (s *Service) PostMessage(ctx context.Context, threadID int64, body string, handledUpToMessageID int64) ([]*ParentMessage, error) {
 	body = strings.TrimSpace(body)
-	if body == "" {
+	if body == "" && !deliveryPorts.HasMessageAttachments(ctx) {
 		return nil, ErrEmptyBody
 	}
 	if utf8.RuneCountInString(body) > maxMessageLen {
@@ -487,7 +491,7 @@ func requireHandledBoundary(visibleMessages []*ParentMessage, handledUpToMessage
 // guardian) pair the message is appended to it instead of opening a second.
 func (s *Service) StartThread(ctx context.Context, studentID, guardianAccountID int64, body, audience string) (*ThreadDetail, error) {
 	body = strings.TrimSpace(body)
-	if body == "" {
+	if body == "" && !deliveryPorts.HasMessageAttachments(ctx) {
 		return nil, ErrEmptyBody
 	}
 	if utf8.RuneCountInString(body) > maxMessageLen {

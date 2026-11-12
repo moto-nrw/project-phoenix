@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 	"github.com/uptrace/bun"
 )
 
@@ -251,9 +251,9 @@ func (s *Store) InsertAccount(ctx context.Context, email, passwordHash string) (
 	}
 	var rows []loginAccountRow
 	started := time.Now()
-	err = db.NewRaw(`INSERT INTO auth.accounts (email, password_hash, active)
-		VALUES (?, NULLIF(?, ''), TRUE)
-		RETURNING id, email, username, password_hash, active, updated_at`, email, passwordHash).Scan(ctx, &rows)
+	err = db.NewRaw(`INSERT INTO auth.accounts (email, active)
+		VALUES (?, TRUE)
+		RETURNING id, email, username, password_hash, active, updated_at, mfa_reset_generation`, email).Scan(ctx, &rows)
 	stats := domain.OperationStats{Queries: 1, StatementDuration: time.Since(started), Rows: int64(len(rows))}
 	if err != nil {
 		return domain.LoginAccount{}, stats, fmt.Errorf("identity access postgres: insert account: %w", err)
@@ -261,7 +261,18 @@ func (s *Store) InsertAccount(ctx context.Context, email, passwordHash string) (
 	if len(rows) == 0 {
 		return domain.LoginAccount{}, stats, fmt.Errorf("identity access postgres: insert account: no row returned")
 	}
-	return rows[0].toDomain(), stats, nil
+	account := rows[0].toDomain()
+	if passwordHash == "" {
+		return account, stats, nil
+	}
+	// The credential goes through the one credential writer (#6289).
+	written, writeStats, err := s.WriteAccountCredential(ctx, account.ID, domain.CredentialWrite{Initial: true, PasswordHash: passwordHash})
+	stats.Add(writeStats)
+	if err != nil || !written {
+		return domain.LoginAccount{}, stats, fmt.Errorf("identity access postgres: insert account credential: %w (written=%t)", err, written)
+	}
+	account.PasswordHash = passwordHash
+	return account, stats, nil
 }
 
 // EnsureAccountTenant activates the mapping and reactivates a deactivated

@@ -12,8 +12,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // The doubles the operator invitation and e-mail change flows (#3332) run
@@ -276,6 +276,13 @@ func (s *fakeOperatorTokenStore) RedeemOperatorEmailChange(_ context.Context, to
 		return change, true, stats(), nil
 	}
 	return domain.OperatorEmailChange{}, false, stats(), nil
+}
+
+func (s *fakeOperatorTokenStore) RevokeOperatorTrustedDevices(_ context.Context, _ int64, _ time.Time) (domain.OperationStats, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.record("RevokeOperatorTrustedDevices")
+	return stats(), nil
 }
 
 func (s *fakeOperatorTokenStore) RevokeOperatorEmailChanges(_ context.Context, operatorID int64) (domain.OperationStats, error) {

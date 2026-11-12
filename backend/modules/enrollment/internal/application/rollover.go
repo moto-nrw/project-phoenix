@@ -8,14 +8,17 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Enrollment owner ports of the rollover; the root binds the owner.
 type (
 	RolloverPhases interface {
 		Phase(context.Context, int64) (*enrollment.Phase, error)
+		// Schema loads the form of the new phase, whose required blocks the
+		// renewal mail names (#6456).
+		Schema(context.Context, int64) (*enrollment.FormSchema, error)
 		InsertPhase(context.Context, *enrollment.Phase) error
 		HasRolloverSuccessor(context.Context, int64) (bool, error)
 		PhasesWithExpiredRolloverDeadline(context.Context, time.Time) ([]*enrollment.Phase, error)
@@ -63,6 +66,16 @@ type (
 	}
 )
 
+// RolloverSettings resolves the grade policy and renewal link lifetime.
+type RolloverSettings interface {
+	CollectGradeLevel(ctx context.Context) (bool, error)
+	GradeLevelMax(ctx context.Context) (int, error)
+	StatusTokenTTLDays(ctx context.Context) (int, error)
+	// LegalSettings resolves the tenant-wide legal blocks a phase without
+	// template blocks asks for.
+	LegalSettings(ctx context.Context) (LegalSettings, error)
+}
+
 // RolloverDependencies bind the rollover to its owners. Bookings, Catalog,
 // Notifications, PhaseEligibility, Outbox and Decisions are optional where
 // the rollover degrades without them.
@@ -82,7 +95,7 @@ type RolloverDependencies struct {
 	// collect before the rollover activates it.
 	PhaseEligibility PhaseEligibilityGuard
 	Outbox           MailOutbox
-	Settings         CollectionSettings
+	Settings         RolloverSettings
 	// Decisions approves auto-renewed rows on a rollover_auto_approve phase;
 	// without it the deadline worker promotes them to submitted.
 	Decisions  RolloverDecider

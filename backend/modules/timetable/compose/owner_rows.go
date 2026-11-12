@@ -3,10 +3,9 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 )
 
 // OwnerRows are the retained repository rows the Timetable owner's
@@ -45,10 +44,10 @@ type OwnerRooms interface {
 }
 
 // SickCascadeRows are the Betreuungsplan rows the #1843 sick cascade reads,
-// with the day-wide staffing lock (#1840) the caller supplies.
-func (r OwnerRows) SickCascadeRows(dayLock func(context.Context, calendar.Date) error) application.SickCascadeTimetableRows {
+// with the day lock (#1840) and the recurrence gate (#6232) it takes.
+func (r OwnerRows) SickCascadeRows(dayLock func(context.Context, string) error, recurrence timetable.RecurrenceWriteLock) application.SickCascadeTimetableRows {
 	return application.NewSickCascadeTimetableRows(
-		r.Instances.Reads, r.InstanceStaff, dayLock,
+		r.Instances.Reads, r.InstanceStaff, dayLock, recurrence,
 	)
 }
 

@@ -3,8 +3,8 @@
   "sectionTitle": "Sot",
   "sectionDescription": "Statusi i sotëm dhe veprimet e rëndësishme me një shikim.",
   "statusLabel": "Statusi aktual",
-  "atOgs": "Në OGS",
-  "notAtOgs": "Jo në OGS",
+  "atOgs": "Në {careTerm}",
+  "notAtOgs": "Jo në {careTerm}",
   "state": {
     "present": "Këtu që nga ora {time}",
     "presentNoTime": "Sot këtu",
@@ -30,7 +30,7 @@
     "pickupHint": "Përshtat orën e marrjes për një ditë",
     "message": "Shkruaj një mesazh",
     "messageCompact": "Shkruaj një mesazh",
-    "messageHint": "Kontakto OGS-në për {name}",
+    "messageHint": "Kontakto {careTerm}-në për {name}",
     "pickupWithMode": "Ndrysho marrjen për {name}",
     "pickupCompactWithMode": "Ndrysho marrjen",
     "pickupHintWithMode": "Ndrysho orën ose mënyrën e marrjes për një ditë"

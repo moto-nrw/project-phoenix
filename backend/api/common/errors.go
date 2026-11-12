@@ -8,7 +8,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // RenderError renders an error response and logs any render failures.
@@ -67,28 +67,19 @@ const statusClientClosedRequest = 499
 
 // Validation error messages
 const (
-	MsgInvalidGroupID         = "invalid group ID"
-	MsgInvalidStudentID       = "invalid student ID"
-	MsgInvalidStaffID         = "invalid staff ID"
-	MsgInvalidActivityID      = "invalid activity ID"
-	MsgInvalidRoleID          = "invalid role ID"
-	MsgInvalidAccountID       = "invalid account ID"
-	MsgInvalidPermissionID    = "invalid permission ID"
-	MsgInvalidParentAccountID = "invalid parent account ID"
-	MsgInvalidRoomID          = "invalid room ID"
-	MsgInvalidWeekday         = "invalid weekday"
-	MsgInvalidPersonID        = "invalid person ID"
+	MsgInvalidGroupID      = "invalid group ID"
+	MsgInvalidStudentID    = "invalid student ID"
+	MsgInvalidStaffID      = "invalid staff ID"
+	MsgInvalidActivityID   = "invalid activity ID"
+	MsgInvalidRoleID       = "invalid role ID"
+	MsgInvalidAccountID    = "invalid account ID"
+	MsgInvalidPermissionID = "invalid permission ID"
+	MsgInvalidWeekday      = "invalid weekday"
 )
 
 // Not found messages
 const (
 	MsgGroupNotFound = "group not found"
-	MsgStaffNotFound = "staff member not found"
-)
-
-// Date format constants
-const (
-	DateFormatISO = "2006-01-02"
 )
 
 // FieldError describes one per-field validation problem. Emitted inside

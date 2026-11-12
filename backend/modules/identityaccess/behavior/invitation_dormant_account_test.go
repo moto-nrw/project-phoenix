@@ -2,10 +2,11 @@ package behavior_test
 
 import (
 	"context"
+	"net"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -125,4 +126,64 @@ func TestInvitationLeavesDisabledAccountWithSchoolAccessAlone(t *testing.T) {
 	require.NoError(t, err)
 	require.False(t, stored.Active, "the deliberate deactivation stands")
 	require.Equal(t, before.PasswordHash, stored.PasswordHash, "the invitation must not replace the credential")
+}
+
+// TestInvitationRestoreEndsTheOldCredentialsArtifacts reproduces review
+// finding 1 of round 2 on #6297: re-inviting an offboarded account writes its
+// credential anew, but a reset link mailed before the offboarding still
+// overwrote the restored password and a remembered device still skipped the
+// second factor. Every credential write moves the credential generation on,
+// and both are bound to it.
+func TestInvitationRestoreEndsTheOldCredentialsArtifacts(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	tenantID := testpkg.Tenant(t)
+	factory := setupAuthFactory(t, db)
+	invitations := &fixtureOwnedInvitationService{InvitationCapability: factory, t: t, db: db}
+	service := newFixtureAuthService(t, db, factory)
+
+	email, username := uniqueTestCredentials("restored-artifacts")
+	account, err := service.Register(testpkg.TenantContext(tenantID), email, username, testPassword, nil, 0)
+	require.NoError(t, err)
+	testpkg.MapAccountToTenant(t, db, account.ID, tenantID)
+	link, err := factory.InitiatePasswordReset(context.Background(), email, identityaccess.PasswordResetScopeStaff)
+	require.NoError(t, err)
+	require.NotNil(t, link)
+	t.Cleanup(func() {
+		_, cleanupErr := db.NewRaw(`DELETE FROM platform.email_outbox WHERE tenant_id IS NULL AND related_entity_type = 'password_reset' AND related_entity_id = ?`, link.ID).Exec(context.Background())
+		require.NoError(t, cleanupErr)
+	})
+	mfa, _, _ := newTestMFAService(t)
+	require.NoError(t, enrollMFA(ctx, t, db, mfa, account.ID))
+	device, _, err := mfa.IssueTrustedDevice(ctx, account.ID, tenantID, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.7"))
+	require.NoError(t, err)
+	require.NotEmpty(t, device)
+
+	preview, err := factory.PreviewStaffOffboarding(ctx, account.ID)
+	require.NoError(t, err)
+	_, err = factory.ExecuteStaffOffboarding(ctx, account.ID, preview.Revision)
+	require.NoError(t, err)
+	role := testpkg.CreateTestRoleForTenant(t, db, "restored-artifacts-staff", tenantID)
+	creator := testpkg.CreateTestAccount(t, db, "invitation-creator")
+	invitation, err := invitations.CreateSchoolInvitation(testpkg.TenantContext(tenantID), identityaccess.SchoolInvitationRequest{
+		Email: email, RoleID: role.ID, TenantID: tenantID, CreatedBy: creator.ID,
+		FirstName: testpkg.StrPtr("Restored"), LastName: testpkg.StrPtr("Artifacts"),
+	})
+	require.NoError(t, err)
+	_, err = invitations.AcceptSchoolInvitation(context.Background(), invitation.Token, identityaccess.InvitationRegistration{
+		FirstName: "Restored", LastName: "Artifacts", Password: testNewPassword, ConfirmPassword: testNewPassword,
+	})
+	require.NoError(t, err)
+
+	require.Error(t, factory.ResetPassword(context.Background(), link.Token, testpkg.NewTestPassword()),
+		"a reset link mailed before the restore overwrites nothing")
+	_, _, err = tenantPasswordLogin(service, email, testNewPassword, "", "", "")
+	require.NoError(t, err, "the restored password still signs in")
+	trusted, err := mfa.VerifyTrustedDevice(ctx, account.ID, tenantID, device)
+	require.NoError(t, err)
+	require.False(t, trusted, "a device remembered before the restore no longer skips the second factor")
+	listed, err := mfa.ListTrustedDevices(ctx, account.ID, tenantID)
+	require.NoError(t, err)
+	require.Empty(t, listed, "nor does it appear among the remembered devices")
 }

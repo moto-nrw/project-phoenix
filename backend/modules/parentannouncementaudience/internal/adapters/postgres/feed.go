@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/contract"
+	"github.com/moto-ogs/project-phoenix/modules/parentannouncementaudience/contract"
 )
 
 type feedRow struct {
@@ -28,6 +28,8 @@ type feedRow struct {
 	ReminderText            *string    `bun:"reminder_text"`
 	ReadAt                  *time.Time `bun:"read_at"`
 	AcknowledgedAt          *time.Time `bun:"acknowledged_at"`
+	// Ended is only selected by the declaration history feed (#6290).
+	Ended bool `bun:"ended"`
 }
 
 // item is the feed row as the contract names it.
@@ -39,7 +41,7 @@ func (row feedRow) item() *contract.ParentAnnouncementFeedItem {
 		ResponseDeadline: row.ResponseDeadline, DeliveryMode: row.DeliveryMode, SystemKind: row.SystemKind,
 		ReminderSentAt: row.ReminderSentAt, ReminderText: row.ReminderText,
 		SenderName: row.SenderName, SenderSchoolClass: row.SenderSchoolClass,
-		ReadAt: row.ReadAt, AcknowledgedAt: row.AcknowledgedAt,
+		ReadAt: row.ReadAt, AcknowledgedAt: row.AcknowledgedAt, Ended: row.Ended,
 	}
 }
 

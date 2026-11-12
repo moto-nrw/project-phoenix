@@ -108,9 +108,22 @@ describe("CareContractConditions", () => {
 
     expect(screen.getByText("Fehlt")).toBeInTheDocument();
     fireEvent.click(
-      screen.getByText("Eltern dürfen in besonderen Fällen früher kündigen"),
+      screen.getByText(
+        "Eltern dürfen in besonderen Fällen zum Halbjahr kündigen",
+      ),
     );
-    fireEvent.change(screen.getByLabelText(/Wann ist das möglich/), {
+    // The form names the only date moto offers (#6349): the free text
+    // describes the cases and never moves the date.
+    expect(
+      screen.getByText(
+        "Der Vertrag endet dann zum 31. Januar oder 31. Juli. Es gilt dieselbe Frist in Monaten. Ein anderes Datum in diesem Text ändert den Termin nicht.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText(/In welchen Fällen/)).toHaveAttribute(
+      "placeholder",
+      "Zum Beispiel bei Umzug oder Schulwechsel.",
+    );
+    fireEvent.change(screen.getByLabelText(/In welchen Fällen/), {
       target: { value: "Bei Umzug" },
     });
     fireEvent.click(

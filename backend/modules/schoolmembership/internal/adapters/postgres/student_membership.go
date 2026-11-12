@@ -6,8 +6,9 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -70,10 +71,12 @@ func (s *Store) RenewStudentEnrollment(ctx context.Context, input schoolmembersh
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	var id int64
+	restart := bun.SafeQuery(careRestart, day, until)
 	err = db.NewUpdate().TableExpr("users.student_school_memberships AS student").
 		Set("school_class = ?", input.SchoolClass).Set("status = ?", input.Status).
 		Set("enrolled_from = ?", from).Set("enrolled_until = ?", until).Set("updated_at = NOW()").
 		Set(firstCareFromNext, day, input.Status, from).
+		Set(carePausedAfterNext, restart).Set(careResumedFromNext, day, input.Status, from, restart).
 		Set("group_id = ?", input.GroupID).
 		Where("student.tenant_id = ?", scope.TenantID).Where("student.student_profile_id = ?", input.StudentID).
 		Where("student.deleted_at IS NULL").
@@ -107,4 +110,45 @@ func (s *Store) AssignStudentGroup(ctx context.Context, studentID int64, groupID
 		Where("student.status <> 'alumnus' OR student.group_id = ?::bigint OR (student.group_id IS NULL AND ?::bigint IS NULL)", groupID, groupID)
 	changed, stats, err := execStudents(ctx, query, "assign student group")
 	return changed == 1, stats, err
+}
+
+// LockStudentWindow reads the child's class, status, window and group under a
+// row lock, for a write that decides on them (#6505).
+func (s *Store) LockStudentWindow(ctx context.Context, id int64) (schoolmembership.StudentEnrollment, bool, domain.OperationStats, error) {
+	db, scope, err := s.database(ctx)
+	if err != nil {
+		return schoolmembership.StudentEnrollment{}, false, domain.OperationStats{}, err
+	}
+	if err = requireStudentWriteTenant(scope.TenantID); err != nil {
+		return schoolmembership.StudentEnrollment{}, false, domain.OperationStats{}, err
+	}
+	var row struct {
+		SchoolClass   string         `bun:"school_class"`
+		Status        string         `bun:"status"`
+		EnrolledFrom  *calendar.Date `bun:"enrolled_from"`
+		EnrolledUntil *calendar.Date `bun:"enrolled_until"`
+		GroupID       *int64         `bun:"group_id"`
+	}
+	stats := domain.OperationStats{Queries: 1}
+	started := time.Now()
+	err = db.NewRaw(`SELECT school_class, status, enrolled_from, enrolled_until, group_id
+ FROM users.student_school_memberships
+ WHERE tenant_id = ? AND student_profile_id = ? AND deleted_at IS NULL
+ FOR UPDATE`, scope.TenantID, id).Scan(ctx, &row)
+	stats.StatementDuration = time.Since(started)
+	if errors.Is(err, sql.ErrNoRows) {
+		return schoolmembership.StudentEnrollment{}, false, stats, nil
+	}
+	if err != nil {
+		return schoolmembership.StudentEnrollment{}, false, stats, err
+	}
+	stats.Rows = 1
+	window := schoolmembership.StudentEnrollment{StudentID: id, GroupID: row.GroupID, SchoolClass: row.SchoolClass, Status: row.Status}
+	if row.EnrolledFrom != nil {
+		window.EnrolledFrom = row.EnrolledFrom.String()
+	}
+	if row.EnrolledUntil != nil {
+		window.EnrolledUntil = row.EnrolledUntil.String()
+	}
+	return window, true, stats, nil
 }

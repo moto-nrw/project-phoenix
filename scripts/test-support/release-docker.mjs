@@ -9,7 +9,10 @@ const isCompose = args[0] === 'compose';
 const input = isCompose && args.includes('psql') && !args.includes('-c') ? readFileSync(0, 'utf8') : '';
 const exit = () => process.exit(9);
 // The stack in the working directory decides whether the sidecar exists.
-const sidecar = existsSync('docker-compose.yml') && readFileSync('docker-compose.yml', 'utf8').includes('demo-runtime');
+const stack = existsSync('docker-compose.yml') ? readFileSync('docker-compose.yml', 'utf8') : '';
+const sidecar = stack.includes('demo-runtime');
+// A maintenance-profile job that is only ever run by hand has no container.
+const rekey = stack.includes('bank-data-rekey');
 if ((fail === 'stop' && isCompose && args.includes('stop')) ||
     (fail === 'pull' && (args[0] === 'pull' || args.includes('pull'))) ||
     (fail === 'tag' && args[0] === 'tag') ||
@@ -26,7 +29,7 @@ if ((fail === 'stop' && isCompose && args.includes('stop')) ||
     (fail === 'unavailable-image' && (args[0] === 'pull' || (args[0] === 'image' && !args.includes('--format')))) ||
     (fail === 'archive' && args.includes('-tzf')) ||
     (fail === 'restore-uploads' && args.includes('-c'))) exit();
-if (isCompose && args.includes('ps')) console.log(args.at(-1));
+if (isCompose && args.includes('ps')) { if (args.at(-1) !== 'bank-data-rekey') console.log(args.at(-1)); }
 // One container runs the image sha256:1…; sha256:3… is used by none.
 else if (args[0] === 'ps') console.log('container-1');
 else if (args[0] === 'images') console.log(`sha256:${'1'.repeat(64)}\nsha256:${'3'.repeat(64)}`);
@@ -36,14 +39,20 @@ else if (args[0] === 'inspect') {
     format.includes('.Mounts') ? 'test-uploads' :
     // Tag-created containers, and a frontend a rollback created from a digest.
     format.includes('.Config.Image') ? ({ postgres: 'postgres:17-alpine',
-      frontend: `ghcr.io/moto-nrw/phoenix-frontend@sha256:${'2'.repeat(64)}` }[args.at(-1)] ?? 'ghcr.io/moto-nrw/phoenix-server:aaaaaaa') :
+      frontend: `ghcr.io/moto-ogs/phoenix-frontend@sha256:${'2'.repeat(64)}` }[args.at(-1)] ?? 'ghcr.io/moto-ogs/phoenix-server:aaaaaaa') :
     `sha256:${'1'.repeat(64)}`);
 } else if (args[0] === 'image' && args.includes('--format')) console.log(`postgres@sha256:${'1'.repeat(64)}`);
-else if (isCompose && args.includes('--services')) console.log(`postgres\nserver\nfrontend\nmigrate${sidecar ? '\ndemo-runtime' : ''}`);
+else if (isCompose && args.includes('--services')) console.log(`postgres\nserver\nfrontend\nmigrate${sidecar ? '\ndemo-runtime' : ''}${rekey ? '\nbank-data-rekey' : ''}`);
 else if (isCompose && args.includes('--no-interpolate')) console.log(`services:\n  postgres:\n    image: postgres:test${sidecar ? '\n  demo-runtime:\n    image: server:test' : ''}`);
 else if (isCompose && args.includes('pg_dumpall')) console.log('CREATE ROLE phoenix_auth;');
 else if (isCompose && args.includes('pg_dump')) console.log('database snapshot');
 else if (isCompose && call.includes('SELECT (SELECT count(*)')) console.log('0');
+// ADR 0203: the restored snapshot holds the data-return table unless a test
+// names an older one; the revocation answers how many grants it ended.
+else if (isCompose && call.includes("to_regclass('platform.data_return_grants')")) {
+  if (fail === 'revoke-data-return') exit();
+  console.log(process.env.RELEASE_TEST_DATA_RETURN === 'absent' ? 'f' : 't');
+} else if (isCompose && call.includes('UPDATE platform.data_return_grants')) console.log('2');
 else if (args.includes('-czf')) {
   const bind = args.find(value => value.startsWith('type=bind,src='));
   const directory = bind.split(',')[1].slice(4);

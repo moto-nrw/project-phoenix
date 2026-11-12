@@ -8,9 +8,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // AccountMFAFlows is the account's second factor (#3331): the gate that
@@ -22,11 +22,12 @@ import (
 // unreadable override, mode or enrollment refuses this one login with
 // ErrMFAStatusUnavailable instead of silently dropping the second factor.
 type AccountMFAFlows struct {
-	records  ports.AccountMFARecords
-	settings ports.MFASettings
-	codec    ports.MFAChallengeCodec
-	codes    ports.ShortCodeHasher
-	mail     ports.MFAMail
+	permissionGranted func(string, []string) bool
+	records           ports.AccountMFARecords
+	settings          ports.MFASettings
+	codec             ports.MFAChallengeCodec
+	codes             ports.ShortCodeHasher
+	mail              ports.MFAMail
 	// resetNotice mails the caterer the operator's reset (#4497).
 	resetNotice ports.CatererMFAResetNotice
 	audit       ports.MFAAuditTrail
@@ -38,11 +39,12 @@ type AccountMFAFlows struct {
 
 // AccountMFAFlowDependencies are the ports the account MFA flows consume.
 type AccountMFAFlowDependencies struct {
-	Records  ports.AccountMFARecords
-	Settings ports.MFASettings
-	Codec    ports.MFAChallengeCodec
-	Codes    ports.ShortCodeHasher
-	Mail     ports.MFAMail
+	PermissionGranted func(string, []string) bool
+	Records           ports.AccountMFARecords
+	Settings          ports.MFASettings
+	Codec             ports.MFAChallengeCodec
+	Codes             ports.ShortCodeHasher
+	Mail              ports.MFAMail
 	// ResetNotice mails the caterer the operator's reset (#4497); nil
 	// leaves that reset unavailable.
 	ResetNotice ports.CatererMFAResetNotice
@@ -57,7 +59,7 @@ type AccountMFAFlowDependencies struct {
 func NewAccountMFAFlows(deps AccountMFAFlowDependencies) (*AccountMFAFlows, error) {
 	switch {
 	case deps.Records == nil, deps.Settings == nil, deps.Codec == nil, deps.Codes == nil,
-		deps.Mail == nil, deps.Audit == nil, deps.Runtime == nil, len(deps.Secret) == 0:
+		deps.Mail == nil, deps.Audit == nil, deps.Runtime == nil, deps.PermissionGranted == nil, len(deps.Secret) == 0:
 		return nil, errors.New("identity access account mfa: all dependencies are required")
 	}
 	logger := deps.Logger
@@ -65,7 +67,7 @@ func NewAccountMFAFlows(deps AccountMFAFlowDependencies) (*AccountMFAFlows, erro
 		logger = slog.Default()
 	}
 	return &AccountMFAFlows{
-		records: deps.Records, settings: deps.Settings, codec: deps.Codec, codes: deps.Codes,
+		permissionGranted: deps.PermissionGranted, records: deps.Records, settings: deps.Settings, codec: deps.Codec, codes: deps.Codes,
 		mail: deps.Mail, resetNotice: deps.ResetNotice, audit: deps.Audit, runtime: deps.Runtime, secret: deps.Secret,
 		logger: logger.With("component", "account-mfa"), now: time.Now,
 	}, nil
@@ -192,99 +194,6 @@ func (f *AccountMFAFlows) HasEnrollment(ctx context.Context, accountID int64) (b
 
 // ===== Challenge and verification =====
 
-// StartChallenge mails a fresh code for one portal and returns the challenge
-// JWT that names its row. The row is stored consumed and only activated once
-// the transport accepted the message, so a failed send leaves no redeemable
-// code behind.
-func (f *AccountMFAFlows) StartChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error) {
-	if !domain.AccountMFAChallengeScope(scope) {
-		return "", identityaccess.ErrMFAUnsupportedScope
-	}
-	account, found, err := f.records.FindAccountIdentity(ctx, accountID)
-	if err != nil {
-		return "", fmt.Errorf("look up account: %w", err)
-	}
-	if !found {
-		return "", fmt.Errorf("look up account: %w", domain.ErrAccountNotFound)
-	}
-	if domain.MFALocked(account.MFALockedUntil, f.now()) {
-		return "", identityaccess.ErrMFALocked
-	}
-
-	if err := f.requireChallengeRateLimit(ctx, accountID); err != nil {
-		return "", err
-	}
-	plainCode, codeHash, err := newMFAEmailCode(f.codes)
-	if err != nil {
-		return "", err
-	}
-	// The portal and the school travel with the row, not only with the JWT:
-	// the enrollment-confirm and passkey-registration paths look a code up
-	// by account, and only these columns keep that lookup inside its portal.
-	createdAt := f.now()
-	enabled, days := f.challengeDeviceHint(ctx, tenantID, scope)
-	challenge, send, err := f.enqueueChallenge(ctx, domain.AccountMFAChallenge{
-		AccountID: accountID, Scope: scope, TenantID: tenantID, CodeHash: codeHash,
-		ExpiresAt: createdAt.Add(domain.MFAChallengeTTL), ConsumedAt: &createdAt, IPAddress: ip,
-		CreatedAt: createdAt, UpdatedAt: createdAt,
-	}, domain.MFACodeMailFor(
-		account.Email, "", account.ID, false, plainCode, domain.MFAChallengeTTL, ip, enabled, days,
-	))
-	if err != nil {
-		return "", fmt.Errorf("prepare email challenge: %w", err)
-	}
-	if err := send(f.runtime.Detach(ctx)); err != nil {
-		f.logger.Warn("mfa challenge delivery failed",
-			slog.Int64("account_id", account.ID),
-			slog.String("error", err.Error()),
-		)
-		return "", identityaccess.ErrMFAStatusUnavailable
-	}
-	if err := f.activateDeliveredChallenge(ctx, challenge); err != nil {
-		f.logger.Error("failed to activate delivered mfa challenge",
-			slog.Int64("challenge_id", challenge.ID),
-			slog.String("error", err.Error()),
-		)
-		return "", identityaccess.ErrMFAStatusUnavailable
-	}
-
-	token, err := f.codec.IssueChallengeToken(domain.MFAChallengeClaims{
-		AccountID: accountID, Scope: scope, TenantID: tenantID, ChallengeID: challenge.ID,
-	}, domain.MFAChallengeTTL)
-	if err != nil {
-		return "", fmt.Errorf("mint challenge jwt: %w", err)
-	}
-	return token, nil
-}
-
-// challengeOwner pins a challenge to the identity the caller already
-// authenticated out of band.
-type challengeOwner struct {
-	accountID int64
-	tenantID  int64
-}
-
-// ResendChallengeForScope is the variant every portal resend endpoint uses:
-// no surface may re-drive a foreign portal's challenge and burn its budget.
-func (f *AccountMFAFlows) ResendChallengeForScope(ctx context.Context, challengeToken string, ip net.IP, expectedScope string) (string, error) {
-	claims, err := f.codec.ParseChallengeToken(challengeToken)
-	if err != nil {
-		return "", identityaccess.ErrMFAChallengeTokenInvalid
-	}
-	if claims.Scope != expectedScope {
-		return "", identityaccess.ErrMFAUnsupportedScope
-	}
-	return f.resend(ctx, claims, ip)
-}
-
-// resend has no cooldown of its own: the sliding window inside StartChallenge
-// remains the abuse defense. It returns the renewed JWT so the frontend can
-// replace its in-flight token — otherwise the fresh code becomes
-// unverifiable the moment the original token expires.
-func (f *AccountMFAFlows) resend(ctx context.Context, claims domain.MFAChallengeClaims, ip net.IP) (string, error) {
-	return f.StartChallenge(ctx, claims.AccountID, claims.TenantID, claims.Scope, ip)
-}
-
 // securitySettingsFailure keeps diagnostics in logs and the established MFA
 // unavailable identity on the wire.
 func (f *AccountMFAFlows) securitySettingsFailure(setting string, err error) error {
@@ -297,18 +206,35 @@ func (f *AccountMFAFlows) securitySettingsFailure(setting string, err error) err
 
 // ===== Enrollment =====
 
-// Enroll records the account's e-mail enrollment once.
-func (f *AccountMFAFlows) Enroll(ctx context.Context, accountID int64) error {
-	existing, found, _ := f.records.FindCredential(ctx, accountID)
-	if found && existing.ID > 0 {
-		return identityaccess.ErrMFAAlreadyEnrolled
-	}
-	if err := f.records.CreateCredential(ctx, domain.AccountMFACredential{
-		AccountID: accountID, Method: domain.MFAMethodEmail, EnrolledAt: f.now(),
-	}); err != nil {
-		return fmt.Errorf("persist mfa credential: %w", err)
-	}
-	return nil
+// Enroll records the account's e-mail enrollment once, from the code the
+// enrollment confirm redeemed (#6518). The account row is locked first, the
+// lock every password write and MFA reset takes; under it the proof's
+// credential generation must still be the account's, so a password change
+// or reset committed since the code was redeemed leaves no enrollment
+// behind (ErrInvalidCredentials, as a refused enrollment start). Check and
+// write share one transaction. No school or profile row is locked here.
+func (f *AccountMFAFlows) Enroll(ctx context.Context, proof domain.VerifiedMFAChallenge) error {
+	return f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+		if err := f.records.LockAccountForOverrideWrite(txCtx, proof.AccountID); err != nil {
+			return err
+		}
+		if err := f.requireCredentialGeneration(txCtx, proof.AccountID, &proof.MFAResetGeneration); err != nil {
+			return err
+		}
+		existing, found, err := f.records.FindCredential(txCtx, proof.AccountID)
+		if err != nil {
+			return fmt.Errorf("load mfa credential: %w", err)
+		}
+		if found && existing.ID > 0 {
+			return identityaccess.ErrMFAAlreadyEnrolled
+		}
+		if err := f.records.CreateCredential(txCtx, domain.AccountMFACredential{
+			AccountID: proof.AccountID, Method: domain.MFAMethodEmail, EnrolledAt: f.now(),
+		}); err != nil {
+			return fmt.Errorf("persist mfa credential: %w", err)
+		}
+		return nil
+	})
 }
 
 // Disable cascades: the credential goes, every trusted device is revoked and
@@ -622,11 +548,14 @@ func withoutSchoolLedger(ctx context.Context) bool {
 	return marked
 }
 
-func (f *AccountMFAFlows) enqueueChallenge(ctx context.Context, input domain.AccountMFAChallenge, message domain.MFACodeMail) (domain.AccountMFAChallenge, func(context.Context) error, error) {
+func (f *AccountMFAFlows) enqueueChallenge(ctx context.Context, input domain.AccountMFAChallenge, message domain.MFACodeMail, credentialGeneration *int64) (domain.AccountMFAChallenge, func(context.Context) error, error) {
 	var challenge domain.AccountMFAChallenge
 	var send func(context.Context) error
 	err := f.runtime.WithAdminTx(f.runtime.Detach(ctx), func(txCtx context.Context) error {
 		if err := f.records.LockAccountForOverrideWrite(txCtx, input.AccountID); err != nil {
+			return err
+		}
+		if err := f.requireCredentialGeneration(txCtx, input.AccountID, credentialGeneration); err != nil {
 			return err
 		}
 		if err := f.requireChallengeRateLimit(txCtx, input.AccountID); err != nil {

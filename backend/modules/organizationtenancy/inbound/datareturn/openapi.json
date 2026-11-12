@@ -1,0 +1,146 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "moto Datenrückgabe",
+    "version": "1.0.0",
+    "summary": "Register und Abruf des Rückgabepakets einer Schule oder eines Trägers (Data Act Art. 26 und Art. 30 Abs. 2).",
+    "description": "moto erstellt und prüft das Rückgabepaket. Danach können der Kunde und ein vom Kunden benannter neuer Anbieter es hier abrufen. Für den Abruf gibt moto ein kurzlebiges Token aus, das genau ein Paket öffnet. Der Abruf ist kostenlos. Das Paket enthält vollständige Bankdaten (IBAN, Kontoinhaber) und Gesundheitsangaben; bewahren Sie es entsprechend geschützt auf. Pfade gelten relativ zur API-Adresse der Installation."
+  },
+  "servers": [
+    {
+      "url": "/public/data-return"
+    }
+  ],
+  "paths": {
+    "/register": {
+      "get": {
+        "operationId": "getRegister",
+        "summary": "Register des Rückgabepakets",
+        "description": "Tabellen, Felder, Typen, Nullbarkeit, Beziehungen, ausgeschlossene Daten mit Grund, Paketaufbau, Formatversion und verwendete Standards. Ohne Anmeldung, ohne Kundendaten.",
+        "security": [],
+        "responses": {
+          "200": {
+            "description": "Das Register dieser Installation.",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "object",
+                  "required": ["registerVersion", "formatVersion", "catalogVersion", "catalogSHA256", "tables"],
+                  "properties": {
+                    "registerVersion": {"type": "integer"},
+                    "formatVersion": {"type": "integer", "description": "Steht auch in manifest.json jedes Pakets."},
+                    "catalogVersion": {"type": "integer"},
+                    "catalogSHA256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+                    "tables": {"type": "array", "items": {"type": "object"}}
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/openapi.json": {
+      "get": {
+        "operationId": "getOpenAPI",
+        "summary": "Diese Beschreibung",
+        "security": [],
+        "responses": {
+          "200": {"description": "OpenAPI 3.1", "content": {"application/json": {}}}
+        }
+      }
+    },
+    "/package": {
+      "get": {
+        "operationId": "getPackage",
+        "summary": "Angaben zum freigegebenen Paket",
+        "description": "Zeigt Paketart, Formatversion, Prüfsummen, Größe, Ablauf des Tokens und verbleibende Downloads. Verbraucht keinen Download.",
+        "responses": {
+          "200": {
+            "description": "Das Paket, das dieses Token öffnet.",
+            "headers": {"Cache-Control": {"schema": {"type": "string", "const": "no-store"}}},
+            "content": {"application/json": {"schema": {"$ref": "#/components/schemas/Package"}}}
+          },
+          "401": {"$ref": "#/components/responses/Denied"},
+          "429": {"$ref": "#/components/responses/TooManyRequests"}
+        }
+      }
+    },
+    "/package/archive": {
+      "get": {
+        "operationId": "downloadPackage",
+        "summary": "Paket als ZIP herunterladen",
+        "description": "Verbraucht einen Download des Tokens. Die ZIP-Datei enthält das Paket unverändert: manifest.json, COMPLETE, model.json, eine JSON-Lines-Datei je Tabelle und die gespeicherten Dateien. Prüfen Sie nach dem Download die SHA-256-Prüfsumme (Repr-Digest bzw. archiveSHA256) und danach COMPLETE und manifest.json. Ein abgebrochener Download liefert weniger Bytes als Content-Length; starten Sie ihn dann neu.",
+        "responses": {
+          "200": {
+            "description": "Das Paket als ZIP.",
+            "headers": {
+              "Content-Length": {"schema": {"type": "integer"}},
+              "Repr-Digest": {"description": "SHA-256 der ZIP-Datei nach RFC 9530.", "schema": {"type": "string"}},
+              "Cache-Control": {"schema": {"type": "string", "const": "no-store"}}
+            },
+            "content": {"application/zip": {"schema": {"type": "string", "contentMediaType": "application/zip"}}}
+          },
+          "401": {"$ref": "#/components/responses/Denied"},
+          "429": {"$ref": "#/components/responses/TooManyRequests"},
+          "503": {"$ref": "#/components/responses/Problem"}
+        }
+      }
+    }
+  },
+  "security": [{"token": []}],
+  "components": {
+    "securitySchemes": {
+      "token": {
+        "type": "http",
+        "scheme": "bearer",
+        "description": "Token von moto, beginnt mit mdr_. Nur im Header Authorization: Bearer senden, nie in der URL. Es gilt für ein Paket, läuft ab und erlaubt eine begrenzte Zahl von Downloads. moto gibt bei Bedarf ein neues aus."
+      }
+    },
+    "schemas": {
+      "Package": {
+        "type": "object",
+        "required": ["package", "formatVersion", "manifestSHA256", "archiveSHA256", "archiveBytes", "recipient", "expiresAt", "downloadsLeft"],
+        "properties": {
+          "package": {"type": "string", "enum": ["school", "organization"], "description": "Paket einer Schule oder eines Trägers."},
+          "formatVersion": {"type": "integer"},
+          "manifestSHA256": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "Inhalt von COMPLETE: SHA-256 von manifest.json."},
+          "archiveSHA256": {"type": "string", "pattern": "^[0-9a-f]{64}$", "description": "SHA-256 der ZIP-Datei."},
+          "archiveBytes": {"type": "integer", "description": "Größe der ZIP-Datei in Bytes."},
+          "recipient": {"type": "string", "enum": ["customer", "target_provider"]},
+          "expiresAt": {"type": "string", "format": "date-time"},
+          "downloadsLeft": {"type": "integer"}
+        }
+      },
+      "Problem": {
+        "type": "object",
+        "description": "RFC 9457 Problem Details.",
+        "required": ["type", "title", "status", "code"],
+        "properties": {
+          "type": {"type": "string"},
+          "title": {"type": "string"},
+          "status": {"type": "integer"},
+          "detail": {"type": "string"},
+          "instance": {"type": "string"},
+          "code": {"type": "string"}
+        }
+      }
+    },
+    "responses": {
+      "Denied": {
+        "description": "Kein Token, oder das Token ist unbekannt, abgelaufen, widerrufen oder aufgebraucht. Die Antwort sagt nicht, welcher Fall vorliegt; moto gibt ein neues Token aus.",
+        "headers": {"WWW-Authenticate": {"schema": {"type": "string"}}},
+        "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}
+      },
+      "TooManyRequests": {
+        "description": "Zu viele Anfragen; nach Retry-After erneut versuchen.",
+        "headers": {"Retry-After": {"schema": {"type": "integer"}}},
+        "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}
+      },
+      "Problem": {
+        "description": "Das Paket ist gerade nicht verfügbar; wenden Sie sich an moto.",
+        "content": {"application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}}
+      }
+    }
+  }
+}

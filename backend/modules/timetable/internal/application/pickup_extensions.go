@@ -3,9 +3,10 @@ package application
 import (
 	"context"
 	"slices"
+	"sort"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain"
 )
 
 func (s *Service) pickupExtensionToday() domain.Date { return domain.Date(s.today()) }
@@ -251,14 +252,111 @@ func pickupExtensionInstancesToPublic(values []domain.PickupExtensionInstance) [
 	return result
 }
 
+// assignPickupExtensionBlocks adds the child to the chosen blocks. Every
+// writer that locks several blocks takes them by ascending id (#6232), so the
+// resolve does too, across all chosen templates, one statement per block:
+// each read waits for one block only (#5816). A block whose committed state
+// no longer fits refuses first, in planned (date, id) order and before any
+// wait; the check under each lock catches a change committed meanwhile. The
+// instances come back in planned order.
 func (s *Service) assignPickupExtensionBlocks(ctx context.Context, task domain.PickupExtensionTask, chosen []domain.PickupExtensionBlock, stats *domain.OperationStats) ([]domain.PickupExtensionInstance, error) {
-	var instances []domain.PickupExtensionInstance
+	if task.IsDay() {
+		return s.assignPickupExtensionDayBlocks(ctx, task, chosen, stats)
+	}
+	plans := make([]pickupWeekdayPlan, 0, len(chosen))
 	for _, block := range chosen {
-		assigned, err := s.assignPickupExtensionBlock(ctx, task, block, stats)
+		plan, err := s.planPickupWeekdayBlock(ctx, task, block, stats)
 		if err != nil {
 			return nil, err
 		}
-		instances = append(instances, assigned...)
+		plans = append(plans, plan)
+	}
+	if err := s.lockPickupWeekdayPlans(ctx, task, plans, stats); err != nil {
+		return nil, err
+	}
+	var instances []domain.PickupExtensionInstance
+	for _, plan := range plans {
+		if err := s.ensurePickupWeekdayEnrollment(ctx, task.StudentID, plan.block, task.Weekday, plan.validFrom, stats); err != nil {
+			return nil, err
+		}
+		for _, instance := range plan.instances {
+			if err := s.addPlannedStudent(ctx, instance.ID, task.StudentID, stats); err != nil {
+				return nil, err
+			}
+		}
+		instances = append(instances, plan.instances...)
+	}
+	return instances, nil
+}
+
+// pickupWeekdayPlan is one chosen template of a weekday resolve: its planned
+// blocks the child joins and the day its weekday enrollment starts.
+type pickupWeekdayPlan struct {
+	block     domain.PickupExtensionBlock
+	validFrom domain.Date
+	instances []domain.PickupExtensionInstance
+}
+
+type pickupInstanceLock struct {
+	instance   domain.PickupExtensionInstance
+	templateID int64
+}
+
+// lockPickupWeekdayPlans locks the blocks of every chosen template by
+// ascending id and checks each under its lock.
+func (s *Service) lockPickupWeekdayPlans(ctx context.Context, task domain.PickupExtensionTask, plans []pickupWeekdayPlan, stats *domain.OperationStats) error {
+	var locks []pickupInstanceLock
+	for _, plan := range plans {
+		for _, instance := range plan.instances {
+			locks = append(locks, pickupInstanceLock{instance: instance, templateID: plan.block.ID})
+		}
+	}
+	sort.Slice(locks, func(i, j int) bool { return locks[i].instance.ID < locks[j].instance.ID })
+	for _, lock := range locks {
+		if err := s.lockPickupExtensionInstance(ctx, task, lock.instance, lock.templateID, stats); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// planPickupWeekdayBlock lists the template's blocks the child joins and
+// refuses at once when the committed state of one no longer fits.
+func (s *Service) planPickupWeekdayBlock(ctx context.Context, task domain.PickupExtensionTask, block domain.PickupExtensionBlock, stats *domain.OperationStats) (pickupWeekdayPlan, error) {
+	validFrom := max(task.EffectiveFrom, s.pickupExtensionToday(), block.ValidFrom)
+	// The generator only fills new blocks. Blocks already planned for this
+	// weekday get the child here, without re-planning the week, so edits made
+	// to single dates stay untouched.
+	instances, err := s.pickupExtensionTemplateInstances(ctx, block, task, validFrom, stats)
+	if err != nil {
+		return pickupWeekdayPlan{}, err
+	}
+	for _, instance := range instances {
+		if !pickupExtensionTimesOverlap(instance.StartTime, instance.EndTime, task.PreviousPickup, task.Pickup) {
+			return pickupWeekdayPlan{}, timetable.ErrPickupExtensionBlockGone
+		}
+	}
+	return pickupWeekdayPlan{block: block, validFrom: validFrom, instances: instances}, nil
+}
+
+// assignPickupExtensionDayBlocks locks each chosen block and adds the child
+// before the next one, by ascending id; the instances come back in the
+// chosen order.
+func (s *Service) assignPickupExtensionDayBlocks(ctx context.Context, task domain.PickupExtensionTask, chosen []domain.PickupExtensionBlock, stats *domain.OperationStats) ([]domain.PickupExtensionInstance, error) {
+	ordered := slices.Clone(chosen)
+	sort.Slice(ordered, func(i, j int) bool { return ordered[i].ID < ordered[j].ID })
+	for _, block := range ordered {
+		instance := domain.PickupExtensionInstance{ID: block.ID, Date: task.Date}
+		if err := s.lockPickupExtensionInstance(ctx, task, instance, 0, stats); err != nil {
+			return nil, err
+		}
+		if err := s.addPlannedStudent(ctx, block.ID, task.StudentID, stats); err != nil {
+			return nil, err
+		}
+	}
+	instances := make([]domain.PickupExtensionInstance, 0, len(chosen))
+	for _, block := range chosen {
+		instances = append(instances, domain.PickupExtensionInstance{ID: block.ID, Date: task.Date})
 	}
 	return instances, nil
 }
@@ -281,42 +379,6 @@ func (s *Service) chosenPickupExtensionBlocks(ctx context.Context, task domain.P
 		chosen = append(chosen, open[index])
 	}
 	return chosen, nil
-}
-
-func (s *Service) assignPickupExtensionBlock(ctx context.Context, task domain.PickupExtensionTask, block domain.PickupExtensionBlock, stats *domain.OperationStats) ([]domain.PickupExtensionInstance, error) {
-	if task.IsDay() {
-		instance := domain.PickupExtensionInstance{ID: block.ID, Date: task.Date}
-		if err := s.lockPickupExtensionInstance(ctx, task, instance, 0, stats); err != nil {
-			return nil, err
-		}
-		if err := s.addPlannedStudent(ctx, block.ID, task.StudentID, stats); err != nil {
-			return nil, err
-		}
-		return []domain.PickupExtensionInstance{instance}, nil
-	}
-	validFrom := max(task.EffectiveFrom, s.pickupExtensionToday(), block.ValidFrom)
-	weekday := task.Weekday
-	// The generator only fills new blocks. Blocks already planned for this
-	// weekday get the child here, without re-planning the week, so edits made
-	// to single dates stay untouched.
-	instances, err := s.pickupExtensionTemplateInstances(ctx, block, task, validFrom, stats)
-	if err != nil {
-		return nil, err
-	}
-	for _, instance := range instances {
-		if err := s.lockPickupExtensionInstance(ctx, task, instance, block.ID, stats); err != nil {
-			return nil, err
-		}
-	}
-	if err := s.ensurePickupWeekdayEnrollment(ctx, task.StudentID, block, weekday, validFrom, stats); err != nil {
-		return nil, err
-	}
-	for _, instance := range instances {
-		if err := s.addPlannedStudent(ctx, instance.ID, task.StudentID, stats); err != nil {
-			return nil, err
-		}
-	}
-	return instances, nil
 }
 
 // pickupExtensionTemplateInstances lists the template's planned blocks on the

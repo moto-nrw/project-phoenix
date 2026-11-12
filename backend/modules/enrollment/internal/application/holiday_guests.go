@@ -5,9 +5,10 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Holiday guests of the hosting school (#4666, ADR 0120). The caller runs
@@ -53,6 +54,8 @@ type HolidayGuestStore interface {
 	// ListCurrentGuests lists the child and the school fields of every
 	// guest whose access has not ended early and whose week covers today.
 	ListCurrentGuests(ctx context.Context, schoolID int64, today calendar.Date) ([]enrollment.HolidayGuest, error)
+	HolidayOwnChildStore
+	ListGuestGroups(ctx context.Context, schoolID int64) ([]enrollment.HolidayGuestGroup, error)
 }
 
 // HolidayGuests serves enrollment.HolidayGuests.
@@ -61,10 +64,13 @@ type HolidayGuests struct {
 	people  enrollment.HolidayGuestPeople
 	schools enrollment.HolidayHostSchoolNames
 	care    enrollment.HolidayGuestCareDays
-	health  enrollment.HolidayHealthCipher
-	log     enrollment.HolidayGuestAccessLog
-	today   func() calendar.Date
-	logger  *slog.Logger
+	// children finds and ownCare plans the school's own children (#6678).
+	children enrollment.HolidayStudentsByBirthDate
+	ownCare  enrollment.HolidayOwnChildCareDays
+	health   enrollment.HolidayHealthCipher
+	log      enrollment.HolidayGuestAccessLog
+	today    func() calendar.Date
+	logger   *slog.Logger
 	// HolidayGuestBadgeList serves the hints of the school's lists (#5630).
 	HolidayGuestBadgeList
 }
@@ -73,11 +79,15 @@ var _ enrollment.HolidayGuests = (*HolidayGuests)(nil)
 
 // NewHolidayGuests builds the holiday guests; schools names the home
 // schools the copies carry (#5630); health opens the health information of
-// the registrations and seals the guest copies (#4722). A nil today uses the
-// Berlin calendar day.
-func NewHolidayGuests(store HolidayGuestStore, people enrollment.HolidayGuestPeople, schools enrollment.HolidayHostSchoolNames, care enrollment.HolidayGuestCareDays, health enrollment.HolidayHealthCipher, log enrollment.HolidayGuestAccessLog, today func() calendar.Date) *HolidayGuests {
+// the registrations and seals the guest copies (#4722); children finds and
+// ownCare plans the school's own children of a hosted week (#6678). A nil
+// today uses the Berlin calendar day.
+func NewHolidayGuests(store HolidayGuestStore, people enrollment.HolidayGuestPeople, schools enrollment.HolidayHostSchoolNames, care enrollment.HolidayGuestCareDays, children enrollment.HolidayStudentsByBirthDate, ownPlans enrollment.HolidayOwnChildPlans, health enrollment.HolidayHealthCipher, log enrollment.HolidayGuestAccessLog, today func() calendar.Date) *HolidayGuests {
 	if store == nil || people == nil || schools == nil || care == nil || log == nil {
 		panic("enrollment: the holiday guest store, People Directory, the school names, Care Plan and the access log are required")
+	}
+	if children == nil || ownPlans == nil {
+		panic("enrollment: the school's children and the care days of its own holiday children are required")
 	}
 	if health == nil {
 		panic(errHolidayHealthCipherRequired)
@@ -85,7 +95,7 @@ func NewHolidayGuests(store HolidayGuestStore, people enrollment.HolidayGuestPeo
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	return &HolidayGuests{store: store, people: people, schools: schools, care: care, health: health, log: log, today: today,
+	return &HolidayGuests{store: store, people: people, schools: schools, care: care, children: children, ownCare: NewHolidayOwnChildCareDays(ownPlans), health: health, log: log, today: today,
 		logger: slog.Default().With("service", "holiday-guests"), HolidayGuestBadgeList: NewHolidayGuestBadgeList(store, today)}
 }
 
@@ -128,7 +138,13 @@ func (h *HolidayGuests) AssignHolidayGuestGroup(ctx context.Context, host enroll
 	}); err != nil {
 		return enrollment.HolidayGuestTransfer{}, fmt.Errorf("record holiday guest transfer: %w", err)
 	}
-	return enrollment.HolidayGuestTransfer{WeekID: week.ID, GroupID: groupID, Guests: guests}, nil
+	// The group choice names the account the days of the school's own
+	// children are planned for (#6678); they stay in their own groups.
+	planned, err := h.reconcileOwnChildren(ctx, host.SchoolID, today)
+	if err != nil {
+		return enrollment.HolidayGuestTransfer{}, err
+	}
+	return enrollment.HolidayGuestTransfer{WeekID: week.ID, GroupID: groupID, Guests: guests, OwnChildren: planned[week.ID]}, nil
 }
 
 // ReconcileHolidayGuests reconciles every week the school picked a group
@@ -155,6 +171,9 @@ func (h *HolidayGuests) ReconcileHolidayGuests(ctx context.Context, schoolID int
 		}
 	}
 	if err := h.reconcileWeeksWithoutGroup(ctx, schoolID, reconciled, today); err != nil {
+		return err
+	}
+	if _, err := h.reconcileOwnChildren(ctx, schoolID, today); err != nil {
 		return err
 	}
 	return h.purgeEndedGuests(ctx, schoolID, today)
@@ -297,7 +316,11 @@ func (h *HolidayGuests) reconcile(ctx context.Context, schoolID int64, group enr
 	for _, guest := range existing {
 		byChild[guest.ChildID] = guest
 	}
-	changes, err := h.applySources(ctx, schoolID, sources, byChild, week, group, replanAll, today)
+	replan, err := h.guestsToReplan(ctx, sources, byChild, group.GroupID > 0, replanAll)
+	if err != nil {
+		return guestChanges{}, err
+	}
+	changes, err := h.applySources(ctx, schoolID, sources, byChild, week, group, replan, today)
 	if err != nil {
 		return guestChanges{}, err
 	}
@@ -315,7 +338,7 @@ func (h *HolidayGuests) reconcile(ctx context.Context, schoolID int64, group enr
 
 // applySources refreshes the guests that still have a confirmed booking and
 // copies the new ones, removing each handled guest from byChild.
-func (h *HolidayGuests) applySources(ctx context.Context, schoolID int64, sources []enrollment.HolidayGuestSource, byChild map[int64]enrollment.HolidayGuest, week enrollment.HolidayGuestWeek, group enrollment.HolidayHostGroup, replanAll bool, today calendar.Date) (guestChanges, error) {
+func (h *HolidayGuests) applySources(ctx context.Context, schoolID int64, sources []enrollment.HolidayGuestSource, byChild map[int64]enrollment.HolidayGuest, week enrollment.HolidayGuestWeek, group enrollment.HolidayHostGroup, replan guestReplan, today calendar.Date) (guestChanges, error) {
 	var groupID *int64
 	if group.GroupID > 0 {
 		groupID = &group.GroupID
@@ -326,18 +349,18 @@ func (h *HolidayGuests) applySources(ctx context.Context, schoolID int64, source
 		delete(byChild, source.ChildID)
 		switch {
 		case ok && guest.EndedOn == nil:
-			if err := h.refreshGuest(ctx, schoolID, guest, source, week, groupID, group.AssignedByAccountID, replanAll, today); err != nil {
+			if err := h.refreshGuest(ctx, schoolID, guest, source, week, groupID, replan.has(guest.StudentID), today); err != nil {
 				return guestChanges{}, err
 			}
 		case groupID == nil:
 			continue
 		case ok:
-			if err := h.reopenGuest(ctx, schoolID, guest, source, week, groupID, group.AssignedByAccountID, today); err != nil {
+			if err := h.reopenGuest(ctx, schoolID, guest, source, week, groupID, today); err != nil {
 				return guestChanges{}, err
 			}
 			changes.copied++
 		default:
-			if err := h.copyGuest(ctx, schoolID, source, week, groupID, group.AssignedByAccountID, today); err != nil {
+			if err := h.copyGuest(ctx, schoolID, source, week, groupID, today); err != nil {
 				return guestChanges{}, err
 			}
 			changes.copied++
@@ -347,7 +370,45 @@ func (h *HolidayGuests) applySources(ctx context.Context, schoolID int64, source
 	return changes, nil
 }
 
-func (h *HolidayGuests) copyGuest(ctx context.Context, schoolID int64, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek, groupID *int64, actor int64, today calendar.Date) error {
+// guestReplan names the guests whose days a reconciliation plans anew: all
+// of them on a group choice, otherwise those without any planned day.
+type guestReplan struct {
+	all       bool
+	unplanned map[int64]bool
+}
+
+func (r guestReplan) has(studentID int64) bool { return r.all || r.unplanned[studentID] }
+
+// guestsToReplan reads in one go which guests that keep their booking have
+// no planned day at all, so a guest copied without its days (before the ADR
+// 0120 addendum of 2026-11-11 the days needed a staff author) gets them at the
+// next reconciliation. A guest with any planned day keeps its plan; a week
+// without a group plans nothing.
+func (h *HolidayGuests) guestsToReplan(ctx context.Context, sources []enrollment.HolidayGuestSource, byChild map[int64]enrollment.HolidayGuest, hasGroup, all bool) (guestReplan, error) {
+	if all || !hasGroup {
+		return guestReplan{all: all}, nil
+	}
+	var studentIDs []int64
+	for _, source := range sources {
+		if guest, ok := byChild[source.ChildID]; ok && guest.EndedOn == nil {
+			studentIDs = append(studentIDs, guest.StudentID)
+		}
+	}
+	if len(studentIDs) == 0 {
+		return guestReplan{}, nil
+	}
+	unplanned, err := h.care.UnplannedHolidayGuests(ctx, studentIDs)
+	if err != nil {
+		return guestReplan{}, fmt.Errorf("read the planned days of the holiday guests: %w", err)
+	}
+	result := guestReplan{unplanned: make(map[int64]bool, len(unplanned))}
+	for _, studentID := range unplanned {
+		result.unplanned[studentID] = true
+	}
+	return result, nil
+}
+
+func (h *HolidayGuests) copyGuest(ctx context.Context, schoolID int64, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek, groupID *int64, today calendar.Date) error {
 	studentID, err := h.people.CreateHolidayGuestChild(ctx, guestChild(source, week, groupID, today))
 	if err != nil {
 		return fmt.Errorf("create the child of a holiday guest: %w", err)
@@ -361,28 +422,20 @@ func (h *HolidayGuests) copyGuest(ctx context.Context, schoolID int64, source en
 	if err := h.store.InsertGuest(ctx, schoolID, guest); err != nil {
 		return err
 	}
-	return h.planDays(ctx, studentID, actor, source, week)
+	return h.planDays(ctx, studentID, source, week)
 }
 
-// planDays writes the booked care of each day of the week into Care Plan.
-func (h *HolidayGuests) planDays(ctx context.Context, studentID, actor int64, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek) error {
-	days := make([]calendar.Date, 0, 7)
-	for day := week.StartsOn; !day.After(week.EndsOn); day = day.AddDays(1) {
-		days = append(days, day)
+// planDays writes the selected dates, or the whole booked week, into Care
+// Plan. The booking is their author: the days do not depend on who picked
+// the group (ADR 0120, addendum of 2026-11-11).
+func (h *HolidayGuests) planDays(ctx context.Context, studentID int64, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek) error {
+	days := source.Days
+	if len(days) == 0 {
+		for day := week.StartsOn; !day.After(week.EndsOn); day = day.AddDays(1) {
+			days = append(days, day)
+		}
 	}
-	err := h.care.PlanHolidayGuestDays(ctx, studentID, actor, days, source.TimeModelStarts, source.TimeModelEnds)
-	if errors.Is(err, enrollment.ErrHolidayGuestPlanAuthorMissing) {
-		// The account that picked the group has no staff record (any more):
-		// the guest still joins the group, only its days stay unplanned
-		// until the school picks the group again. The reconciliation of the
-		// other guests and the deletion of expired contacts go on.
-		h.logger.Warn("holiday guest days left unplanned: the account that picked the group has no staff record",
-			"student_id", studentID,
-			"account_id", actor,
-		)
-		return nil
-	}
-	if err != nil {
+	if err := h.care.PlanHolidayGuestDays(ctx, studentID, days, source.TimeModelStarts, source.TimeModelEnds); err != nil {
 		return fmt.Errorf("plan the care days of a holiday guest: %w", err)
 	}
 	return nil
@@ -390,11 +443,12 @@ func (h *HolidayGuests) planDays(ctx context.Context, studentID, actor int64, so
 
 // refreshGuest follows a change of the registration (names, time model,
 // contacts) or of the group and writes the child only when it differs.
-func (h *HolidayGuests) refreshGuest(ctx context.Context, schoolID int64, guest enrollment.HolidayGuest, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek, groupID *int64, actor int64, replanDays bool, today calendar.Date) error {
+func (h *HolidayGuests) refreshGuest(ctx context.Context, schoolID int64, guest enrollment.HolidayGuest, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek, groupID *int64, replanDays bool, today calendar.Date) error {
 	current, err := h.people.ReadHolidayGuestChild(ctx, guest.StudentID)
 	if err != nil {
 		return fmt.Errorf("read the child of a holiday guest: %w", err)
 	}
+	hasGroup := groupID != nil
 	if groupID == nil {
 		groupID = current.GroupID
 	}
@@ -404,15 +458,15 @@ func (h *HolidayGuests) refreshGuest(ctx context.Context, schoolID int64, guest 
 			return fmt.Errorf("update the child of a holiday guest: %w", err)
 		}
 	}
-	// A rebooked time model or moved week replans the days; a week without a
+	// Changed dates, a rebooked time model or a moved week replan the days; a week without a
 	// group keeps its plan until someone picks a group again.
 	replan := replanDays || guest.StartsOn != week.StartsOn || guest.EndsOn != week.EndsOn ||
-		guest.TimeModelStarts != source.TimeModelStarts || guest.TimeModelEnds != source.TimeModelEnds
-	if replan && actor > 0 {
+		guest.TimeModelStarts != source.TimeModelStarts || guest.TimeModelEnds != source.TimeModelEnds || !slices.Equal(guest.Days, source.Days)
+	if replan && hasGroup {
 		if err := h.care.ClearHolidayGuestDays(ctx, guest.StudentID); err != nil {
 			return fmt.Errorf("clear the care days of a holiday guest: %w", err)
 		}
-		if err := h.planDays(ctx, guest.StudentID, actor, source, week); err != nil {
+		if err := h.planDays(ctx, guest.StudentID, source, week); err != nil {
 			return err
 		}
 	}
@@ -458,11 +512,11 @@ func (h *HolidayGuests) guestHealth(schoolID int64, guest enrollment.HolidayGues
 
 // reopenGuest brings back a guest whose booking returned after its access
 // ended early: the same child, its care interval, group and days again.
-func (h *HolidayGuests) reopenGuest(ctx context.Context, schoolID int64, guest enrollment.HolidayGuest, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek, groupID *int64, actor int64, today calendar.Date) error {
+func (h *HolidayGuests) reopenGuest(ctx context.Context, schoolID int64, guest enrollment.HolidayGuest, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek, groupID *int64, today calendar.Date) error {
 	if err := h.store.ReopenGuest(ctx, schoolID, guest.ID); err != nil {
 		return err
 	}
-	return h.refreshGuest(ctx, schoolID, guest, source, week, groupID, actor, true, today)
+	return h.refreshGuest(ctx, schoolID, guest, source, week, groupID, true, today)
 }
 
 // endGuest ends the care of a guest whose booking or week went: from
@@ -516,6 +570,7 @@ func sameGuestChild(a, b enrollment.HolidayGuestChild) bool {
 
 func guestRecord(guest enrollment.HolidayGuest, source enrollment.HolidayGuestSource, week enrollment.HolidayGuestWeek) enrollment.HolidayGuest {
 	guest.StartsOn, guest.EndsOn = week.StartsOn, week.EndsOn
+	guest.Days = source.Days
 	guest.HomeSchoolID, guest.HomeSchoolName, guest.GuestSchoolName = source.HomeSchoolID, source.HomeSchoolName, source.GuestSchoolName
 	guest.TimeModelName, guest.TimeModelStarts, guest.TimeModelEnds = source.TimeModelName, source.TimeModelStarts, source.TimeModelEnds
 	guest.Emergency, guest.Pickup, guest.Answers = source.Emergency, source.Pickup, source.Answers
@@ -580,6 +635,9 @@ func holidayGuestSheet(guest enrollment.HolidayGuest, today calendar.Date) enrol
 // hints read.
 type HolidayGuestCurrentGuests interface {
 	ListCurrentGuests(ctx context.Context, schoolID int64, today calendar.Date) ([]enrollment.HolidayGuest, error)
+	// ListGuestGroups lists the Feriengruppen of the hosted weeks of
+	// published periods by first day, with their guests counted.
+	ListGuestGroups(ctx context.Context, schoolID int64) ([]enrollment.HolidayGuestGroup, error)
 }
 
 // HolidayGuestBadgeList serves enrollment.HolidayGuestBadgeList on its own,

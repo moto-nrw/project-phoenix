@@ -6,15 +6,16 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"maps"
+	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/selection"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // approval is the state one change-request approval works on.
@@ -34,6 +35,13 @@ type approval struct {
 	// rosterImpacts collect what the booking changes did to the children's
 	// Regeltermine (#5102).
 	rosterImpacts []enrollmentNative.ChildRosterImpact
+	// pins are the pins the approval leaves on the children it reconciles,
+	// resolved before the phase locks; holds are the request identity's
+	// grants over them and over the approved students, held behind the
+	// parent guard until commit (#6638).
+	pins  map[int]*int64
+	holds renewalHolds
+	reads *approvalAuthorityReads
 }
 
 // applyApprovedChange applies an approved proposal to the request, its
@@ -55,10 +63,8 @@ func (s *ChangeRequests) applyApprovedProposal(ctx context.Context, row *ChangeR
 	if err != nil {
 		return nil, err
 	}
+	ctx = context.WithValue(ctx, approvalAuthorityReadsKey{}, run.reads)
 	if err := s.writeApprovedRequest(ctx, run); err != nil {
-		return nil, err
-	}
-	if err := s.lockApprovedStudents(ctx, run.children); err != nil {
 		return nil, err
 	}
 	// One approval is one edit of the whole family, applied child by child.
@@ -95,7 +101,17 @@ func (s *ChangeRequests) loadApproval(ctx context.Context, row *ChangeRequest, i
 	if run.capabilities, err = s.formCapabilities(ctx, &row.CareOfferingsEnabledAtCreation); err != nil {
 		return nil, err
 	}
-	if run.prepared, err = s.prepareProposed(ctx, req, children, proposed, run.capabilities, true, false); err != nil {
+	phase, err := s.lockedProposalPhase(ctx, req.PhaseID)
+	if err != nil {
+		return nil, err
+	}
+	if run.prepared, err = s.prepareProposed(ctx, phase, req, children, proposed, run.capabilities, true, false); err != nil {
+		return nil, err
+	}
+	// Renewals hold their students before the email-scoped dedup lock. Hold
+	// the parent's authority and lock the entire approved graph in that
+	// order before taking it too.
+	if err := s.holdApprovalAuthority(ctx, run); err != nil {
 		return nil, err
 	}
 	if err := s.ensureNoActiveDuplicateForApproval(ctx, req, run.prepared.request); err != nil {
@@ -128,7 +144,7 @@ func (s *ChangeRequests) lockApprovalRequest(ctx context.Context, row *ChangeReq
 	if err != nil {
 		return nil, nil, err
 	}
-	if !jsonEqual(current, withEmptyFormValues(row.BaseSnapshot)) {
+	if !reconcileRenewalConsent(row, req, children, current) {
 		return nil, nil, enrollmentNative.ErrChangeRequestConflict
 	}
 	return req, children, nil
@@ -192,6 +208,10 @@ func (s *ChangeRequests) applyApprovedChild(ctx context.Context, run *approval, 
 	existing.DateOfBirth = next.DateOfBirth
 	existing.TargetGradeLevel = next.TargetGradeLevel
 	existing.TargetSchoolClass = next.TargetSchoolClass
+	// A form that no longer asks keeps the answer given before (#4703).
+	if next.HolidayCareWish != nil {
+		existing.HolidayCareWish = next.HolidayCareWish
+	}
 	existing.CustomData = formValues(next.CustomData)
 	existing.SortOrder = i
 	if err := s.deps.Children.UpdateChildData(ctx, existing); err != nil {
@@ -249,7 +269,7 @@ func (s *ChangeRequests) applyUndecidedChild(ctx context.Context, run *approval,
 			ManualSelectedDays: pick.ManualSelectedDays, AutomaticSelectedDays: pick.AutomaticSelectedDays,
 		})
 	}
-	if err := changeCareBookings(ctx, s.deps.Bookings, existing.ID, run.prepared.phase, replacement); err != nil {
+	if err := changeCareBookings(ctx, s.deps.Bookings, existing.ID, run.prepared.locked, replacement); err != nil {
 		return err
 	}
 	if status, ok := run.overrides[i]; ok {
@@ -271,12 +291,16 @@ func (s *ChangeRequests) applyUndecidedChild(ctx context.Context, run *approval,
 }
 
 // changeCareBookings replaces a request child's Care Plan bookings with the
-// approved selection over the phase window.
-func changeCareBookings(ctx context.Context, commands CareBookingChanges, childID int64, phase *enrollmentNative.Phase, selections []*enrollmentNative.RequestChildOfferingRecord) error {
+// approved selection over the window of the phase read under the recurrence
+// gate (#6657).
+func changeCareBookings(ctx context.Context, commands CareBookingChanges, childID int64, phase enrollmentNative.LockedPhase, selections []*enrollmentNative.RequestChildOfferingRecord) error {
 	if commands == nil {
 		return errors.New("offering adjustment requires Care Plan booking commands")
 	}
-	start, until := calendar.Date(phase.ServiceStartDate), calendar.Date(phase.ServiceEndDate).AddDays(1)
+	start, until, err := phase.BookingWindow()
+	if err != nil {
+		return err
+	}
 	bookings := make([]enrollmentNative.CareBookingInput, 0, len(selections))
 	for _, pick := range selections {
 		if pick == nil {
@@ -302,11 +326,172 @@ func changeCareBookings(ctx context.Context, commands CareBookingChanges, childI
 	return commands.ReplaceCareBookings(ctx, childID, bookings)
 }
 
+// approvalAuthority groups the students of one approval by the identity
+// whose authority over them the approval asks.
+type approvalAuthority struct {
+	s      *ChangeRequests
+	run    *approval
+	graph  []int64
+	groups map[string]*authorityGroup
+	// stored and edited cache the identities of the stored request and of
+	// the request after the edit.
+	stored, edited *reEnrollmentSubmitter
+}
+
+type authorityGroup struct {
+	submitter reEnrollmentSubmitter
+	ids       []int64
+	pins      bool
+}
+
+func newApprovalAuthority(s *ChangeRequests, run *approval) *approvalAuthority {
+	run.pins = map[int]*int64{}
+	return &approvalAuthority{s: s, run: run, groups: map[string]*authorityGroup{}}
+}
+
+// collect records the child's pin and, for an approved child the decision
+// flow syncs, its student.
+func (a *approvalAuthority) collect(ctx context.Context, index int, child *enrollmentNative.RequestChild) error {
+	if reconcilesPin(a.run.prepared.phase, child) {
+		pin, err := a.s.approvalPin(ctx, a.run, child, a.run.prepared.request.Children[index], index)
+		if err != nil {
+			return err
+		}
+		a.run.pins[index] = pin
+		if pin != nil {
+			if err := a.add(ctx, a.editedRequest(), &a.edited, *pin, true); err != nil {
+				return err
+			}
+		}
+	}
+	if child.CreatedStudentID == nil || *child.CreatedStudentID <= 0 {
+		return nil
+	}
+	a.graph = append(a.graph, *child.CreatedStudentID)
+	if !a.s.approvedChildUsesDecisionSync(child) || child.MatchedByOffice {
+		return nil
+	}
+	return a.addSynced(ctx, child)
+}
+
+// addSynced asks for the approved student with the identity the sync asks:
+// the account, the late invite a rollover chain started with, or the stored
+// request.
+func (a *approvalAuthority) addSynced(ctx context.Context, child *enrollmentNative.RequestChild) error {
+	if a.run.req.GuardianAccountID == nil && child.RolloverSourceChildID != nil {
+		origin, err := rolloverOrigin(ctx, a.s.deps.Children, a.s.deps.Requests, a.s.deps.Runtime.NotFound, child)
+		if err != nil {
+			return err
+		}
+		if origin != nil && enrollmentNative.NormalizedSubmissionSource(origin.SubmissionSource) == enrollmentNative.RequestSourceLateInvite {
+			var submitter *reEnrollmentSubmitter
+			return a.add(ctx, origin, &submitter, *child.CreatedStudentID, false)
+		}
+	}
+	return a.add(ctx, a.run.req, &a.stored, *child.CreatedStudentID, false)
+}
+
+// editedRequest is the request with the contact the edit writes
+// (writeApprovedRequest): the pin is checked against the identity the
+// approval links.
+func (a *approvalAuthority) editedRequest() *enrollmentNative.Request {
+	edited := *a.run.req
+	edited.GuardianEmail = guardianEmailKey(a.run.prepared.request.GuardianEmail)
+	return &edited
+}
+
+func (a *approvalAuthority) add(ctx context.Context, identity *enrollmentNative.Request, cached **reEnrollmentSubmitter, studentID int64, pin bool) error {
+	if *cached == nil {
+		submitter, err := reEnrollmentSubmitterForPersistedRequest(ctx, a.s.deps.LateInvites, identity)
+		if err != nil {
+			return fmt.Errorf("change request approve: resolve re-enrollment identity: %w", err)
+		}
+		*cached = &submitter
+	}
+	key := submitterKey(**cached)
+	group := a.groups[key]
+	if group == nil {
+		group = &authorityGroup{submitter: **cached}
+		a.groups[key] = group
+	}
+	group.ids = append(group.ids, studentID)
+	group.pins = group.pins || pin
+	return nil
+}
+
+// hold holds every identity's authority over all students of the approval,
+// with the graph in every hold's children slot: a missing profile or inactive
+// membership can return without taking child locks. The grants of the pins'
+// identity decide the pins (reconciledPin).
+func (a *approvalAuthority) hold(ctx context.Context) error {
+	a.run.holds = renewalHolds{}
+	graph := a.graph
+	if a.s.deps.Companions == nil {
+		graph = nil
+	}
+	students := a.students()
+	for _, key := range slices.Sorted(maps.Keys(a.groups)) {
+		group := a.groups[key]
+		holds, err := a.s.intake.holdReEnrollment(ctx, group.submitter, students, graph, a.run.req.TenantID)
+		if err != nil {
+			return fmt.Errorf("change request approve: %w", companionLockConflict(err, a.s.deps.CompanionLockBusy))
+		}
+		a.run.reads.holds[approvalAuthorityKey{tenantID: a.run.req.TenantID, submitter: key}] = holds
+		if group.pins {
+			for _, id := range group.ids {
+				a.run.holds[id] = holds[id]
+			}
+		}
+	}
+	return nil
+}
+
+// students are the held students, ascending and unique.
+func (a *approvalAuthority) students() []int64 {
+	var ids []int64
+	for _, group := range a.groups {
+		ids = append(ids, group.ids...)
+	}
+	slices.Sort(ids)
+	return slices.Compact(ids)
+}
+
+// submitterKey names an identity; staff manual enrollment holds nothing.
+func submitterKey(submitter reEnrollmentSubmitter) string {
+	switch {
+	case submitter.AdminManaged:
+		return "admin"
+	case submitter.GuardianAccountID != nil:
+		return fmt.Sprintf("account:%d", *submitter.GuardianAccountID)
+	default:
+		return "email:" + submitter.GuardianEmail
+	}
+}
+
+// companionLockConflict answers Care Plan's linked child held elsewhere with
+// the student write's retriable conflict.
+func companionLockConflict(err, busy error) error {
+	if errors.Is(err, careplan.ErrCompanionLockBusy) && busy != nil {
+		return busy
+	}
+	return err
+}
+
+// reconcilesPin reports whether the approval re-resolves the child's
+// existing_students pin (reconcileMatchedStudent).
+func reconcilesPin(phase *enrollmentNative.Phase, child *enrollmentNative.RequestChild) bool {
+	if child.CreatedStudentID != nil || child.RolloverSourceChildID != nil {
+		return false
+	}
+	return phase.Audience == enrollmentNative.PhaseAudienceExistingStudents || child.MatchedStudentID != nil
+}
+
 // lockApprovedStudents takes the row locks of every student this approval can
 // write, and of their "läuft mit" companions, up front in the global
 // ascending-id order; the per-child writes would otherwise lock in
-// enrollment order and deadlock against a companion edit.
-func (s *ChangeRequests) lockApprovedStudents(ctx context.Context, children []*enrollmentNative.RequestChild) error {
+// enrollment order and deadlock against a companion edit. The pinned
+// students are locked in the same pass.
+func (s *ChangeRequests) lockApprovedStudents(ctx context.Context, children []*enrollmentNative.RequestChild, pinned []int64) error {
 	if s.deps.Companions == nil {
 		return nil
 	}
@@ -319,13 +504,8 @@ func (s *ChangeRequests) lockApprovedStudents(ctx context.Context, children []*e
 	if len(ids) == 0 {
 		return nil
 	}
-	if err := s.deps.Companions.LockCompanionGraph(ctx, ids, nil); err != nil {
-		// Care Plan reports a linked child held elsewhere with its own value;
-		// the approval answers the student write's retriable conflict.
-		if errors.Is(err, careplan.ErrCompanionLockBusy) && s.deps.CompanionLockBusy != nil {
-			err = s.deps.CompanionLockBusy
-		}
-		return fmt.Errorf("change request approve: lock students: %w", err)
+	if err := s.deps.Companions.LockCompanionGraph(ctx, ids, pinned); err != nil {
+		return fmt.Errorf("change request approve: lock students: %w", companionLockConflict(err, s.deps.CompanionLockBusy))
 	}
 	return nil
 }
@@ -468,13 +648,10 @@ func postApprovalChildStatus(row *ChangeRequest, existing *enrollmentNative.Requ
 // row.
 func (s *ChangeRequests) reconcileMatchedStudent(ctx context.Context, run *approval, existing *enrollmentNative.RequestChild, next SubmitChild, index int) error {
 	phase := run.prepared.phase
-	if existing.CreatedStudentID != nil || existing.RolloverSourceChildID != nil {
+	if !reconcilesPin(phase, existing) {
 		return nil
 	}
-	if phase.Audience != enrollmentNative.PhaseAudienceExistingStudents && existing.MatchedStudentID == nil {
-		return nil
-	}
-	pin, err := s.reconciledPin(ctx, run, existing, next, index)
+	pin, err := s.reconciledPin(run, index)
 	if err != nil {
 		return err
 	}
@@ -498,16 +675,17 @@ func (s *ChangeRequests) reconcileMatchedStudent(ctx context.Context, run *appro
 	return nil
 }
 
-// reconciledPin resolves the pin the child carries after the approval and
-// authorizes it against the stored request's identity.
-func (s *ChangeRequests) reconciledPin(ctx context.Context, run *approval, existing *enrollmentNative.RequestChild, next SubmitChild, index int) (*int64, error) {
-	phase, req := run.prepared.phase, run.req
+// approvalPin resolves the pin the child carries after the approval: an
+// edited identity drops the stored pin, and an existing_students phase
+// re-resolves it by the proposed identity.
+func (s *ChangeRequests) approvalPin(ctx context.Context, run *approval, existing *enrollmentNative.RequestChild, next SubmitChild, index int) (*int64, error) {
+	phase := run.prepared.phase
 	pin := existing.MatchedStudentID
 	if pin != nil && !sameSubmittedIdentity(existing, next) {
 		pin = nil
 	}
 	if phase.Audience == enrollmentNative.PhaseAudienceExistingStudents {
-		resolved, err := s.intake.resolveMatchedStudentID(ctx, req.TenantID, phase, index, next)
+		resolved, err := s.intake.resolveMatchedStudentID(ctx, run.req.TenantID, phase, index, next)
 		if err != nil {
 			return nil, err
 		}
@@ -515,18 +693,17 @@ func (s *ChangeRequests) reconciledPin(ctx context.Context, run *approval, exist
 			pin = resolved
 		}
 	}
-	if err := assertExistingStudentMatchResolved(phase, pin, run.eligibilityEnforced, index); err != nil {
+	return pin, nil
+}
+
+// reconciledPin is the child's pin after the approval, authorized by the
+// request identity's grant the approval holds (holdApprovalAuthority).
+func (s *ChangeRequests) reconciledPin(run *approval, index int) (*int64, error) {
+	pin := run.pins[index]
+	if err := assertExistingStudentMatchResolved(run.prepared.phase, pin, run.eligibilityEnforced, index); err != nil {
 		return nil, err
 	}
-	submitter := reEnrollmentSubmitterFor(req.SubmissionSource, req.GuardianAccountID, req.GuardianEmail)
-	if pin != nil {
-		resolvedSubmitter, err := reEnrollmentSubmitterForPersistedRequest(ctx, s.deps.LateInvites, req)
-		if err != nil {
-			return nil, fmt.Errorf("change request approve: resolve re-enrollment identity: %w", err)
-		}
-		submitter = resolvedSubmitter
-	}
-	if err := s.intake.assertGuardianMayReEnrollStudent(ctx, submitter, pin, req.TenantID, index); err != nil {
+	if err := s.intake.holdGuardianReEnrollment(run.holds, pin, index); err != nil {
 		return nil, err
 	}
 	return pin, nil

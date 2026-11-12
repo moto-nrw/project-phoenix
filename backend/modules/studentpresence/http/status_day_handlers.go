@@ -7,12 +7,12 @@ import (
 	slices "slices"
 
 	render "github.com/go-chi/render"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
 )
 
 const maxStudentStatusDayRangeDays = 31
@@ -46,8 +46,18 @@ func (rs *Resource) createStudentStatusDays(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	if err := rs.StudentStatusDayService.CreateForDates(r.Context(), rs.newStatusDayCreateWriteContext(r, userPermissions, req.Status, dates), student.ID, req.Status, req.Reason, dates); err != nil {
-		rs.renderStatusDayCreateError(w, r, err, false, "failed to create student status days")
+	writeContext := rs.newStatusDayCreateWriteContext(r, userPermissions, req.Status, dates)
+	replace, refusal := rs.partialAbsenceReplacement(r, userPermissions, student, req.ReplacePartialAbsenceDates, dates)
+	if refusal != nil {
+		renderError(w, r, refusal)
+		return
+	}
+	writeContext.ReplacePartialAbsences = replace
+
+	if err := rs.StudentStatusDayService.CreateForDates(r.Context(), writeContext, student.ID, req.Status, req.Reason, dates); err != nil {
+		// A replacement may already have removed a partial absence when a
+		// later check refuses the write: roll the whole request back.
+		rs.renderStatusDayCreateError(w, r, err, replace != nil, "failed to create student status days")
 		return
 	}
 

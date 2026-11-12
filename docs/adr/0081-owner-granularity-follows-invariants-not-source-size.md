@@ -4,7 +4,7 @@ status: accepted
 
 # Owner granularity follows invariants, not source size
 
-Decision of 2026-10-23 for [#4547](https://github.com/moto-nrw/project-phoenix/issues/4547).
+Decision of 2026-10-23 for [#4547](https://github.com/moto-ogs/project-phoenix/issues/4547).
 Keep the examined projection and domain owners. Source size triggers inspection,
 not a merger or split. This adds selection criteria to
 [ADR 0066](0066-principle-every-module-table-and-cross-owner-read-has-one-owner.md),

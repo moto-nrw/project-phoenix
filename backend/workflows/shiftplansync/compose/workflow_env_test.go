@@ -6,15 +6,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync"
-	"github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/workflows/shiftplansync"
+	"github.com/moto-ogs/project-phoenix/workflows/shiftplansync/compose"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -94,6 +94,7 @@ func newPlanSyncEnv(t *testing.T, cascadeBroadcaster realtime.Broadcaster, now f
 		Planning:        planning,
 		Workforce:       capability,
 		LockStaffShifts: lock,
+		LockStaff:       owners.SickReportStaffLock(membership),
 		Deviations:      timetable.TimetableData.Deviations,
 		TimetableData:   api.NewSickCascadeTimetableRows(repos.OwnerRows(), testpkg.NewDatabase(t, db)),
 		InstanceStaff:   repos.InstanceStaffReads(),

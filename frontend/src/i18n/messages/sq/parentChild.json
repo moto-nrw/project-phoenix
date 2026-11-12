@@ -1,19 +1,14 @@
 {
-  "switcherLabel": "Zgjidhni fëmijën",
   "overviewKicker": "Fëmijët me një vështrim",
   "overviewDescription": "Zgjidhni një fëmijë për të parë kujdesin, të dhënat dhe kontaktet.",
-  "ogsLabel": "OGS",
   "careEnded": {
     "title": "Kujdesi ka përfunduar",
-    "body": "Fëmija juaj nuk kujdeset më në këtë shkollë. Gjithçka e mëparshme mund ta shihni ende. Njoftime të reja nuk janë më të mundura."
+    "body": "Fëmija juaj nuk kujdeset më në këtë {careTerm}. Gjithçka e mëparshme mund ta shihni ende. Njoftime të reja nuk janë më të mundura."
   },
   "notFound": "Në këtë adresë nuk ka asnjë fëmijë në llogarinë tuaj. Ju lutemi zgjidhni fëmijën tuaj te përmbledhja.",
-  "noChildren": "Me llogarinë tuaj nuk është lidhur ende asnjë fëmijë. OGS-ja e shkollës suaj mund ta rregullojë këtë.",
+  "noChildren": "Me llogarinë tuaj nuk është lidhur ende asnjë fëmijë. {careTerm}-ja e shkollës suaj mund ta rregullojë këtë.",
   "sections": {
-    "today": "Sot",
-    "care": "Kujdesi në OGS",
-    "data": "Të dhënat e fëmijës",
-    "people": "Prindërit dhe personat që marrin fëmijën"
+    "today": "Sot"
   },
   "areas": {
     "label": "Seksionet e fëmijës",
@@ -45,14 +40,15 @@
     "pickupUnknown": "Ora e marrjes nuk është e disponueshme për momentin"
   },
   "care": {
-    "weekTitle": "Plani javor i OGS-së",
+    "weekTitle": "Plani javor i {careTerm}-së",
     "absenceTitle": "Mungesat"
   },
   "consents": {
     "title": "Pëlqimet dhe konfirmimet",
     "description": "Këtu shihni pëlqimet për fëmijën tuaj.",
-    "staffDescription": "Vetëm për informacion. Prindërit e ndryshojnë pëlqimin për fotografinë në portalin e prindërve.",
+    "staffDescription": "Prindërit e ndryshojnë pëlqimin për fotografinë në portalin e prindërve. Prindërit pa portal jua thonë juve. Atëherë hiqni shenjën te fotografia nën „Bearbeiten“.",
     "photoDescription": "Këtu mund të ndryshoni pëlqimin për fotografinë.",
+    "photoViaCareDescription": "Për të tërhequr pëlqimin për fotografinë, kontaktoni {careTerm}.",
     "items": {
       "agb": "Kushtet e përgjithshme",
       "data_processing": "Informacioni për privatësinë u pranua",
@@ -81,7 +77,7 @@
     "grantButton": "Jep përsëri pëlqimin për fotografinë",
     "grantButtonShort": "Jep përsëri",
     "grantConfirmTitle": "Të jepet përsëri pëlqimi për fotografinë?",
-    "grantConfirmBody": "Më pas OGS-ja mund të ruajë përsëri një fotografi.",
+    "grantConfirmBody": "Më pas {careTerm}-ja mund të ruajë përsëri një fotografi.",
     "grantConfirmButton": "Jep pëlqimin",
     "granting": "Po ruhet",
     "grantSuccess": "Pëlqimi për fotografinë u dha përsëri.",

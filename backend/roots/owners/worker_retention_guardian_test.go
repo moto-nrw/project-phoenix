@@ -3,8 +3,8 @@ package owners
 import (
 	"testing"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -30,8 +30,8 @@ func TestNightlyRetentionDeletesParentContactsWithoutAChild(t *testing.T) {
 	expired := suite.childlessGuardian(t, school, "retention-expired@example.com", 91)
 	phone := suite.insertID(t, `INSERT INTO users.guardian_phone_numbers (tenant_id, guardian_profile_id, phone_number)
 		VALUES (?, ?, '0123 456') RETURNING id`, school, expired)
-	payment := suite.insertID(t, `INSERT INTO users.guardian_financial_data (tenant_id, guardian_profile_id, iban)
-		VALUES (?, ?, 'DE02120300000000202051') RETURNING id`, school, expired)
+	payment := suite.insertID(t, `INSERT INTO users.guardian_financial_data (tenant_id, guardian_profile_id, iban_sealed, iban_masked)
+		VALUES (?, ?, '\x01', '•••• 2051') RETURNING id`, school, expired)
 	spent := suite.insertID(t, `INSERT INTO auth.guardian_invitations (tenant_id, token, guardian_profile_id, created_by, expires_at)
 		VALUES (?, encode(sha256('retention-spent'::bytea), 'hex'), ?, ?, CURRENT_TIMESTAMP - INTERVAL '1 day') RETURNING id`, school, expired, inviter.ID)
 	invited := suite.childlessGuardian(t, school, "retention-invited@example.com", 91)

@@ -5,8 +5,8 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -23,13 +23,13 @@ func TestConcurrentMFACodeRequestsRespectIdentityLimit(t *testing.T) {
 			if operator {
 				identity := testpkg.CreateTestOperator(t, db)
 				start = func() error {
-					_, err := module.OperatorMFA.StartOperatorMFAChallenge(t.Context(), identity.ID, nil)
+					_, err := module.OperatorMFA.StartOperatorMFAChallenge(t.Context(), identity.ID, nil, nil)
 					return err
 				}
 			} else {
 				account := testpkg.CreateTestAccount(t, db, "challenge-race")
 				start = func() error {
-					_, err := module.MFA.StartMFAChallenge(t.Context(), account.ID, testpkg.Tenant(t), identityaccess.MFAChallengeScopeTenant, nil)
+					_, err := module.MFA.StartMFAChallenge(t.Context(), account.ID, testpkg.Tenant(t), identityaccess.MFAChallengeScopeTenant, nil, 0)
 					return err
 				}
 			}

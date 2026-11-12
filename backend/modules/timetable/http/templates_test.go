@@ -14,14 +14,14 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -55,6 +55,12 @@ type templateSetup struct {
 	studentA  int64
 	studentB  int64
 	cleanupFn func()
+	// seriesTemplates are the template writes the series conversion seeds
+	// through. As in production they hold the instance lifecycle, so their
+	// day locks are real: the conversion takes the seed's days before the
+	// template's supervisor rows take their staff rows (#6583).
+	seriesTemplates timetable.TemplateAdministration
+	instances       timetable.InstanceLifecycleCapability
 }
 
 // listTimeframesByDescription lists the timeframes whose description contains
@@ -198,11 +204,12 @@ func buildTemplateModule(t *testing.T, mat timetable.MaterializationCapability, 
 		SettingsService: templateGradeSettings(4, nil),
 		Now:             firstTemplateClock(clocks),
 	})
+	seriesTemplates := testTimetableWith(db, testTimetableOptions{instances: serviceFactory.Instance}, clocks...)
 	converter, err := timetableCompose.NewInstanceSeriesConversion(timetablePorts.InstanceSeriesConversionDependencies{
 		Transactions:   timetableCompose.NewTenantTransactions(db),
 		InstanceRepo:   repoFactory.ActivityInstance,
 		Lifecycle:      serviceFactory.Instance,
-		Templates:      res.Templates,
+		Templates:      seriesTemplates,
 		RecurrenceLock: data.RecurrenceLock(),
 	})
 	require.NoError(t, err)
@@ -223,6 +230,9 @@ func buildTemplateModule(t *testing.T, mat timetable.MaterializationCapability, 
 		studentA:  studentA.ID,
 		studentB:  studentB.ID,
 		cleanupFn: cleanup,
+
+		seriesTemplates: seriesTemplates,
+		instances:       serviceFactory.Instance,
 	}
 }
 

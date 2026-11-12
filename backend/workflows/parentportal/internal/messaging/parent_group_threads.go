@@ -2,12 +2,13 @@ package messaging
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/care"
 )
 
 var (
@@ -35,6 +36,8 @@ type GroupMessage struct {
 	ID        int64
 	Body      string
 	CreatedAt time.Time
+	// Attachments is the stored snapshot of the message's files (#6685).
+	Attachments json.RawMessage
 }
 
 // GroupThreadSummary is one row of the guardian's group thread list.

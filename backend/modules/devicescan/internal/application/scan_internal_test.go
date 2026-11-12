@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"testing"
 	"time"
@@ -11,9 +12,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
 )
 
 func scanCommand(roomID *int64) devicescan.ScanCommand {
@@ -133,7 +134,7 @@ func TestScan_AlumnusIsTreatedAsUnknownStudent(t *testing.T) {
 	assert.Empty(t, h.visits.ended)
 }
 
-func TestScan_StudentLookupFailureFallsThroughToStaff(t *testing.T) {
+func TestScan_StudentLookupFailureIsInternalAndDoesNotScanStaff(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	h.people.studentErr = errBoom
@@ -142,8 +143,11 @@ func TestScan_StudentLookupFailureFallsThroughToStaff(t *testing.T) {
 
 	result, err := h.service().Scan(context.Background(), scanCommand(nil))
 
-	require.NoError(t, err)
-	assert.Equal(t, devicescan.ScanOutcomeSupervisor, result.Outcome)
+	require.Nil(t, result)
+	failure := classifiedFailure(t, err, devicescan.FailureInternal, devicescan.MessageInternalServerError)
+	require.ErrorIs(t, failure.Cause, errBoom)
+	assert.Empty(t, h.sessions.replaced, "a failed student lookup must not authenticate a supervisor")
+	assert.Empty(t, h.visits.recorded)
 }
 
 func TestScan_SupervisorJoinsSession(t *testing.T) {
@@ -510,8 +514,7 @@ func TestScan_CapacityConflictWithoutCheckoutKeepsTransaction(t *testing.T) {
 func TestScan_ActivityCapacityConflict(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
-	h.sessions.open[0].Activity.MaxParticipants = 1
-	h.presence.groupCounts[201] = 1
+	h.visits.recordErr = &devicescan.ActivityCapacityExceededError{ActivityID: 301, ActivityName: "Hausaufgaben", CurrentOccupancy: 1, MaxCapacity: 1}
 	h.settings.activityDetails = true
 
 	_, err := h.service().Scan(context.Background(), scanCommand(ptr(testRoomID)))
@@ -520,15 +523,14 @@ func TestScan_ActivityCapacityConflict(t *testing.T) {
 	require.True(t, ok, "got %v", err)
 	assert.Equal(t, "Hausaufgaben", conflict.ActivityName)
 	assert.True(t, conflict.Details)
-	assert.Empty(t, h.visits.recorded)
+	assert.Len(t, h.visits.recorded, 1, "the authoritative owner refused the attempted admission")
 }
 
 func TestScan_CapacityDetailDisclosureFailsSafe(t *testing.T) {
 	t.Parallel()
 	h := newHarness(t)
 	h.settings.detailsErr = errBoom
-	h.sessions.open[0].Activity.MaxParticipants = 1
-	h.presence.groupCounts[201] = 1
+	h.visits.recordErr = &devicescan.ActivityCapacityExceededError{ActivityID: 301, ActivityName: "Hausaufgaben", CurrentOccupancy: 1, MaxCapacity: 1}
 
 	_, err := h.service().Scan(context.Background(), scanCommand(ptr(testRoomID)))
 
@@ -790,4 +792,23 @@ func TestPingAndStatus(t *testing.T) {
 		assert.True(t, status.IsOnline)
 		assert.Equal(t, fixedNow, status.AuthenticatedAt)
 	})
+}
+
+func TestScan_LockedActivityCapacityRefusalKeepsKioskContract(t *testing.T) {
+	t.Parallel()
+	for _, disclose := range []bool{false, true} {
+		t.Run(fmt.Sprint(disclose), func(t *testing.T) {
+			t.Parallel()
+			h := newHarness(t)
+			h.settings.activityDetails = disclose
+			h.visits.recordErr = &devicescan.ActivityCapacityExceededError{ActivityID: 9, ActivityName: "Hausaufgaben", CurrentOccupancy: 5, MaxCapacity: 5}
+			_, err := h.service().Scan(context.Background(), scanCommand(ptr(testRoomID)))
+			capacity, ok := errors.AsType[*devicescan.ActivityCapacityExceededError](err)
+			require.True(t, ok, "got %v", err)
+			assert.Equal(t, 9, int(capacity.ActivityID))
+			assert.Equal(t, 5, capacity.CurrentOccupancy)
+			assert.Equal(t, 5, capacity.MaxCapacity)
+			assert.Equal(t, disclose, capacity.Details)
+		})
+	}
 }

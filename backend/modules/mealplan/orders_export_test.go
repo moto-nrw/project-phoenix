@@ -3,7 +3,7 @@ package mealplan_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -50,4 +50,17 @@ func TestMonthWindowCoversTheWholeMonth(t *testing.T) {
 	assert.Equal(t, mealplan.Date("2026-02-28"), to)
 	_, _, err = mealplan.MonthWindow("2026-13-01")
 	require.Error(t, err)
+}
+
+func TestMonthExportUsesGermanNamesAndNumericClasses(t *testing.T) {
+	t.Parallel()
+	week := mealplan.OrderWeek{Days: []mealplan.OrderDay{{Date: "2026-09-07", Status: mealplan.OrderOrdered, Children: []mealplan.OrderChild{
+		{StudentID: 4, FirstName: "Anna", LastName: "Adam", SchoolClass: "10a"},
+		{StudentID: 3, FirstName: "Anna", LastName: "Zimmermann", SchoolClass: "2a"},
+		{StudentID: 2, FirstName: "Zoe", LastName: "Özdemir", SchoolClass: "2a"},
+		{StudentID: 1, FirstName: "Änne", LastName: "Özdemir", SchoolClass: "2a"},
+	}}}}
+	export, err := week.MonthExport("2026-09-01")
+	require.NoError(t, err)
+	assert.Equal(t, [][]string{{"Özdemir, Änne", "2a", "1"}, {"Özdemir, Zoe", "2a", "1"}, {"Zimmermann, Anna", "2a", "1"}, {"Adam, Anna", "10a", "1"}}, export.Lines)
 }

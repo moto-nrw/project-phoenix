@@ -4,10 +4,11 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // The links between guardians and students: reading them with their
@@ -42,10 +43,11 @@ func (s *RetainedGuardianService) getStudentGuardians(ctx context.Context, stude
 	if err != nil {
 		return nil, fmt.Errorf("failed to load guardian phone numbers: %w", err)
 	}
-	openInvitations, err := s.openInvitationsByProfile(ctx, profileIDs)
+	invitations, err := s.openInvitationsByProfile(ctx, profileIDs)
 	if err != nil {
 		return nil, err
 	}
+	now := time.Now()
 
 	result := make([]*peoplePorts.GuardianWithRelationship, 0, len(relationships))
 	for _, rel := range relationships {
@@ -56,10 +58,13 @@ func (s *RetainedGuardianService) getStudentGuardians(ctx context.Context, stude
 
 		profile.PhoneNumbers = phonesByProfile[profile.ID]
 
+		open, ended := splitGuardianInvitations(profile, invitations[profile.ID], now)
+		pending := invitationPendingForStudent(profile, rel.StudentID, open)
 		result = append(result, &peoplePorts.GuardianWithRelationship{
-			Profile:           profile,
-			Relationship:      rel,
-			InvitationPending: invitationPendingForStudent(profile, rel.StudentID, openInvitations[profile.ID]),
+			Profile:             profile,
+			Relationship:        rel,
+			InvitationPending:   pending,
+			InvitationLinkEnded: !pending && !profile.HasAccount && ended,
 		})
 	}
 
@@ -82,13 +87,46 @@ func invitationPendingForStudent(profile *peopleValues.GuardianProfileSnapshot, 
 	return false
 }
 
-// openInvitationsByProfile batches the open-invitation status used by the
-// guardian list. The repository excludes accepted, expired, and rejected rows.
+// invitationAwaitingApproval is the approval state Identity & Access reports
+// for a request that waits for a staff decision.
+const invitationAwaitingApproval = "pending"
+
+// splitGuardianInvitations separates the guardian's open invitations from
+// links that ended unused (#6294). A link the guardian could still redeem is
+// open. A link mailed to an address the profile no longer has, or a legacy
+// link without a recorded recipient, works for nobody any more: the guardian
+// needs a new invitation. A request awaiting staff carries no link yet and
+// stays open; one that simply ran out is neither.
+func splitGuardianInvitations(profile *peopleValues.GuardianProfileSnapshot, invitations []peoplePorts.GuardianInvitationRecord, now time.Time) (open []peoplePorts.GuardianInvitationRecord, ended bool) {
+	address := ""
+	if profile.Email != nil {
+		address = strings.ToLower(strings.TrimSpace(*profile.Email))
+	}
+	for _, inv := range invitations {
+		live := inv.ExpiresAt.After(now)
+		switch {
+		case inv.ApprovalStatus == invitationAwaitingApproval:
+			if live {
+				open = append(open, inv)
+			}
+		case inv.RecipientEmail == "":
+			ended = true
+		case inv.RecipientEmail != address:
+			ended = ended || live
+		case live:
+			open = append(open, inv)
+		}
+	}
+	return open, ended
+}
+
+// openInvitationsByProfile batches the invitation state used by the guardian
+// list: the open invitations and the legacy links without a recipient.
 func (s *RetainedGuardianService) openInvitationsByProfile(ctx context.Context, profileIDs []int64) (map[int64][]peoplePorts.GuardianInvitationRecord, error) {
 	byProfile := make(map[int64][]peoplePorts.GuardianInvitationRecord)
 	invitations, err := s.GuardianInvitations.ListOpen(ctx, profileIDs)
 	if err != nil {
-		return nil, fmt.Errorf("failed to load open guardian invitations: %w", err)
+		return nil, fmt.Errorf("failed to load guardian invitations: %w", err)
 	}
 	for _, invitation := range invitations {
 		byProfile[invitation.GuardianProfileID] = append(byProfile[invitation.GuardianProfileID], invitation)

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The care-exit cleanup (#2487, #3427): what ending a child's care changes in
@@ -404,7 +404,7 @@ func (s *CareLifecycle) restoreRemovals(ctx context.Context, studentIDs []int64)
 	restored += bookingRows
 	// Source bookings capped by the exit recover their original exclusive end
 	// and deleted ones keep their original ids; Enrollment owns both writes.
-	sourceRows, err := s.owners.Enrollment.RestoreCareExitOfferingLinks(ctx, sourceBookingRestores(sourceLedger, studentIDs))
+	sourceRows, err := s.owners.Enrollment.RestoreCareExitOfferingLinks(ctx, sourceBookingRestores(sourceLedger, studentIDs), s.today())
 	if err != nil {
 		return 0, fmt.Errorf("care lifecycle: restore source bookings after care exit: %w", err)
 	}

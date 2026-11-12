@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	scheduleModel "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // Guardian notice on cancellation (#2601): cancelling a block can inform the
@@ -57,7 +57,7 @@ func (s *InstanceLifecycleService) CancelWithNotice(ctx context.Context, in time
 			return nil, err
 		}
 	}
-	instance, err := s.cancel(ctx, in.InstanceID, in.Reason, in.ActorAccountID)
+	instance, err := s.cancel(ctx, in.InstanceID, in.Reason, in.ActorAccountID, true)
 	if err != nil {
 		return nil, err
 	}

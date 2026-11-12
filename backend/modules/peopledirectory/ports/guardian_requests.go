@@ -1,7 +1,7 @@
 package ports
 
 import (
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // GuardianCreateRequest represents data for creating a new guardian
@@ -129,4 +129,8 @@ type GuardianWithRelationship struct {
 	// pending-approval role-upgrade request, #2172). Lets the staff UI show
 	// "Einladung offen" instead of a misleading active/no-access state.
 	InvitationPending bool
+	// InvitationLinkEnded is true when a guardian without an account has no
+	// working link but one that ended unused: its address changed after it was
+	// mailed, or it was a legacy link without a recorded recipient (#6294).
+	InvitationLinkEnded bool
 }

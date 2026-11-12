@@ -7,7 +7,6 @@ import type {
   BackendActivitySupervisor,
   BackendTimeframe,
   Activity,
-  ActivitySchedule,
   ActivitySupervisor,
 } from "./activity-helpers";
 import {
@@ -20,8 +19,6 @@ import {
   isActivityCreator,
   mapSupervisorResponse,
   mapTimeframeResponse,
-  prepareActivityForBackend,
-  prepareActivityScheduleForBackend,
   isSystemActivity,
 } from "./activity-helpers";
 
@@ -503,80 +500,6 @@ describe("mapTimeframeResponse", () => {
     expect(result.display_name).toBe("8:00 - 12:00");
   });
 });
-
-// ===== PREPARE FOR BACKEND =====
-
-describe("prepareActivityForBackend", () => {
-  it("converts frontend activity to backend format", () => {
-    const activity: Partial<Activity> = {
-      id: "1",
-      name: "Test Activity",
-      max_participant: 20,
-      is_open_ags: true,
-      ag_category_id: "5",
-      planned_room_id: "10",
-      supervisor_id: "100",
-    };
-
-    const result = prepareActivityForBackend(activity);
-
-    expect(result.id).toBe(1);
-    expect(result.name).toBe("Test Activity");
-    expect(result.max_participants).toBe(20);
-    expect(result.is_open).toBe(true);
-    expect(result.category_id).toBe(5);
-    expect(result.planned_room_id).toBe(10);
-    expect(result.supervisor_ids).toEqual([100]);
-  });
-
-  it("handles missing optional fields", () => {
-    const activity: Partial<Activity> = {
-      name: "New Activity",
-    };
-
-    const result = prepareActivityForBackend(activity);
-
-    expect(result.id).toBeUndefined();
-    expect(result.name).toBe("New Activity");
-    expect(result.planned_room_id).toBeUndefined();
-    expect(result.supervisor_ids).toBeUndefined();
-  });
-
-  it("preserves an unlimited participant capacity as null", () => {
-    const result = prepareActivityForBackend({
-      name: "Open Sports Hall",
-      max_participant: null,
-    });
-
-    expect(result.max_participants).toBeNull();
-  });
-});
-
-describe("prepareActivityScheduleForBackend", () => {
-  it("converts frontend schedule to backend format", () => {
-    const schedule: Partial<ActivitySchedule> = {
-      id: "1",
-      activity_id: "5",
-      weekday: "3",
-      timeframe_id: "10",
-    };
-
-    const result = prepareActivityScheduleForBackend(schedule);
-
-    expect(result.id).toBe(1);
-    expect(result.activity_group_id).toBe(5);
-    expect(result.weekday).toBe(3);
-    expect(result.timeframe_id).toBe(10);
-  });
-});
-
-// ===== WEEKDAY FORMATTING =====
-
-// ===== TIME FORMATTING =====
-
-// ===== PARTICIPANT STATUS =====
-
-// ===== AVAILABILITY CHECKS =====
 
 describe("isSystemActivity", () => {
   const makeActivity = (name: string): Activity => ({

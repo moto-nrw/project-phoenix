@@ -412,7 +412,7 @@ describe("getParentHelpTopicForPath", () => {
     }
   });
 
-  it("documents all three ways to change child information", () => {
+  it("documents all four ways to change child information", () => {
     const article = getHelpTopics("detailed").find(
       (topic) => topic.id === HELP_TOPICS.editStudent,
     );
@@ -420,6 +420,7 @@ describe("getParentHelpTopicForPath", () => {
     expect(article?.instructionGroups?.map((group) => group.title)).toEqual([
       "Persönliche Angaben ändern",
       "Regelmäßige Betreuungszeiten ändern",
+      "Foto-Einwilligung für Eltern widerrufen",
       "Nur einen Tag ändern",
     ]);
   });
@@ -726,6 +727,7 @@ describe("getParentHelpTopicForPath", () => {
     expect(traegerTopics.map((topic) => topic.id)).toEqual([
       HELP_TOPICS.traegerInvitation,
       HELP_TOPICS.traegerLogin,
+      HELP_TOPICS.traegerProfile,
       HELP_TOPICS.traegerDashboard,
       HELP_TOPICS.traegerKeyDateCounts,
       HELP_TOPICS.traegerOccupancy,
@@ -734,18 +736,27 @@ describe("getParentHelpTopicForPath", () => {
       HELP_TOPICS.traegerTestSystem,
       HELP_TOPICS.traegerAccounts,
       HELP_TOPICS.traegerHolidayPeriod,
+      HELP_TOPICS.traegerClosingDays,
       HELP_TOPICS.traegerHolidayForm,
       HELP_TOPICS.traegerHolidayRegistration,
       HELP_TOPICS.traegerHolidayRegistrationReview,
+      HELP_TOPICS.traegerHolidayPlaces,
+      HELP_TOPICS.traegerHolidayWish,
+      HELP_TOPICS.traegerHolidayAllocation,
       HELP_TOPICS.traegerHolidayContribution,
+      HELP_TOPICS.traegerCatalogPhases,
       HELP_TOPICS.traegerCareContracts,
       HELP_TOPICS.traegerBillingRun,
       HELP_TOPICS.traegerCareMonths,
+      HELP_TOPICS.traegerCareNotices,
       HELP_TOPICS.traegerCareReductions,
       HELP_TOPICS.traegerCareMeals,
       HELP_TOPICS.traegerCareCostShares,
       HELP_TOPICS.traegerBillingTerms,
       HELP_TOPICS.traegerSepaMandates,
+      HELP_TOPICS.traegerSepaDebitFile,
+      HELP_TOPICS.traegerFinanceExports,
+      HELP_TOPICS.traegerDatevExport,
       HELP_TOPICS.traegerSharedDocuments,
       HELP_TOPICS.traegerCareTimeOverruns,
       HELP_TOPICS.traegerAccessLog,

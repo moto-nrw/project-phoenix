@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The caller's own account is readable without the management predicate,
@@ -108,11 +108,11 @@ func TestChangeAccountPasswordKeepsTheCredentialOnAWrongCurrentPassword(t *testi
 	before := accountPasswordHash(t, db, account.ID)
 	require.NotEmpty(t, before)
 
-	err := administration.ChangeAccountPassword(context.Background(), account.ID, "WrongPassword1!", testNewPassword)
+	err := administration.ChangeAccountPassword(context.Background(), identityaccess.OwnPasswordChange{AccountID: account.ID, CurrentPassword: "WrongPassword1!", NewPassword: testNewPassword})
 	require.ErrorIs(t, err, identityaccess.ErrInvalidCredentials)
 	assert.Equal(t, before, accountPasswordHash(t, db, account.ID))
 
-	require.NoError(t, administration.ChangeAccountPassword(context.Background(), account.ID, testPassword, testNewPassword))
+	require.NoError(t, administration.ChangeAccountPassword(context.Background(), identityaccess.OwnPasswordChange{AccountID: account.ID, CurrentPassword: testPassword, NewPassword: testNewPassword}))
 	assert.NotEqual(t, before, accountPasswordHash(t, db, account.ID), "the accepted change replaces the credential")
 }
 
@@ -152,7 +152,7 @@ func TestAccountAdministrationIgnoresErasedAccounts(t *testing.T) {
 	}), identityaccess.ErrAccountNotFound)
 	require.ErrorIs(t, administration.ActivateAccount(ctx, account.ID), identityaccess.ErrAccountNotFound)
 	require.ErrorIs(t, administration.DeactivateAccount(ctx, account.ID), identityaccess.ErrAccountNotFound)
-	require.ErrorIs(t, administration.ChangeAccountPassword(ctx, account.ID, testPassword, testNewPassword), identityaccess.ErrAccountNotFound)
+	require.ErrorIs(t, administration.ChangeAccountPassword(ctx, identityaccess.OwnPasswordChange{AccountID: account.ID, CurrentPassword: testPassword, NewPassword: testNewPassword}), identityaccess.ErrAccountNotFound)
 
 	var current struct {
 		Email        string `bun:"email"`

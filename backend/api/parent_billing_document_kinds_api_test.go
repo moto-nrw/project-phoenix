@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 const documentKindsPath = "/traeger/billing-document-kinds"
@@ -38,6 +38,7 @@ type kindRunBody struct {
 	LegalRemedyMissing bool   `json:"legal_remedy_missing"`
 	PreviewCount       int    `json:"preview_count"`
 	PreviewCents       int64  `json:"preview_cents"`
+	Fingerprint        string `json:"fingerprint"`
 	Documents          []struct {
 		ID           int64  `json:"id"`
 		Kind         string `json:"kind"`
@@ -100,7 +101,8 @@ func TestFeeNoticeNeedsTheLegalRemedyAndKeepsItsKindAfterTheRelease(t *testing.T
 	for _, document := range preview.Documents {
 		assert.Equal(t, "fee_notice", document.DocumentKind, "every draft names the kind its release would freeze")
 	}
-	release := map[string]any{"document_count": preview.PreviewCount, "total_cents": preview.PreviewCents, "document_kind": "fee_notice"}
+	release := map[string]any{"document_count": preview.PreviewCount, "total_cents": preview.PreviewCents, "document_kind": "fee_notice",
+		"fingerprint": preview.Fingerprint}
 	rec := traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/release"), release)
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "parent_billing.legal_remedy_missing")
@@ -128,6 +130,13 @@ func TestFeeNoticeNeedsTheLegalRemedyAndKeepsItsKindAfterTheRelease(t *testing.T
 	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), "parent_billing.billing_run_changed")
 	setDocumentKind(t, f.traeger, billing, "holiday", "fee_notice")
+
+	// The legal remedy changed since the review: the fingerprint of the
+	// preview covers it, as in the monthly run (#6506).
+	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/release"), release)
+	require.Equal(t, http.StatusConflict, rec.Code, rec.Body.String())
+	assert.Contains(t, rec.Body.String(), "parent_billing.billing_run_changed")
+	release["fingerprint"] = kindRun(t, f.traeger, billing, billingRunPath(run.ID, "")).Fingerprint
 
 	rec = traegerJSON(t, f.traeger, billing, http.MethodPost, billingRunPath(run.ID, "/release"), release)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())

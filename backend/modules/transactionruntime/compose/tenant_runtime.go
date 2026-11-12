@@ -10,14 +10,15 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/auditlog"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime/internal/adapters/database"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/auditlog"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime/internal/adapters/database"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // NewTenantRuntime binds tenant, Träger and admin transactions under their database roles,
-// savepoints, advisory locks and retry-safe deadlock/serialization replay.
+// savepoints, advisory locks and retry-safe deadlock/serialization replay,
+// plus the one-way admin-to-tenant handoff of ADR 0161.
 // It hands context to repositories and Audit; pool waits reach the observer.
 func NewTenantRuntime(db *bun.DB) (tenant.UnitOfWork, error) {
 	unitOfWork, err := postgres.NewPostgresUnitOfWork(db, tenant.ObservePoolWait)
@@ -25,7 +26,8 @@ func NewTenantRuntime(db *bun.DB) (tenant.UnitOfWork, error) {
 	if err != nil {
 		return tenant.UnitOfWork{}, err
 	}
-	return runtime.WithTraegerTransaction(unitOfWork.WithinTraeger), nil
+	runtime = runtime.WithTraegerTransaction(unitOfWork.WithinTraeger).WithExclusiveRunner(unitOfWork.WithinExclusive)
+	return runtime.WithAdminThenTenantTransaction(unitOfWork.WithinAdminThenTenant), nil
 }
 
 // NewDemoTenantRuntime retains phoenix_demo for school and global queue/expiry
@@ -49,7 +51,7 @@ func bindTenantRuntime(unitOfWork *postgres.PostgresUnitOfWork, err error, retry
 	if err != nil {
 		return tenant.UnitOfWork{}, err
 	}
-	runtime = runtime.WithTransactionDetacher(unitOfWork.ContextWithoutTransaction)
+	runtime = runtime.WithTransactionDetacher(unitOfWork.ContextWithoutTransaction).WithStatementBound(unitOfWork.BoundStatements).WithLockBound(unitOfWork.BoundLocks)
 	return runtime.WithContextAdapters(auditlog.ContextWithTenant, auditlog.ContextWithTransaction), nil
 }
 

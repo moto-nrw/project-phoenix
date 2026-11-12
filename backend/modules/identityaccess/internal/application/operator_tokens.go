@@ -6,9 +6,9 @@ import (
 	"time"
 
 	"github.com/gofrs/uuid"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // staleEmailChangeAge keeps used and expired e-mail change links for the
@@ -199,6 +199,22 @@ func (t *OperatorTokens) RedeemEmailChange(ctx context.Context, token string) (r
 func (t *OperatorTokens) RevokeEmailChanges(ctx context.Context, operatorID int64) error {
 	return t.run(ctx, "revoke_operator_email_changes", func(txCtx context.Context, stats *domain.OperationStats) error {
 		queryStats, err := t.store.RevokeOperatorEmailChanges(txCtx, operatorID)
+		stats.Add(queryStats)
+		return err
+	})
+}
+
+// RevokePasswordBoundCredentials ends, in one unit, what a rotated password
+// must not leave behind: the open e-mail change links and the remembered
+// devices that would skip the second factor (#6289).
+func (t *OperatorTokens) RevokePasswordBoundCredentials(ctx context.Context, operatorID int64) error {
+	return t.run(ctx, "revoke_operator_password_bound_credentials", func(txCtx context.Context, stats *domain.OperationStats) error {
+		queryStats, err := t.store.RevokeOperatorEmailChanges(txCtx, operatorID)
+		stats.Add(queryStats)
+		if err != nil {
+			return err
+		}
+		queryStats, err = t.store.RevokeOperatorTrustedDevices(txCtx, operatorID, t.now())
 		stats.Add(queryStats)
 		return err
 	})

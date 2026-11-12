@@ -81,8 +81,10 @@ export function SegmentedControl<T extends string>({
   onChange,
   variant = "joined",
   fullWidth = false,
+  wrap = false,
   iconOnly = false,
   ariaLabel,
+  ariaDescribedBy,
   className = "",
 }: {
   readonly items: readonly SegmentedControlItem<T>[];
@@ -90,14 +92,18 @@ export function SegmentedControl<T extends string>({
   readonly value: T | null;
   readonly onChange: (next: T) => void;
   readonly variant?: "joined" | "pills";
-  /** Stretch to the container; segments share the width and wrap when it is too narrow (modal tab bars). */
+  /** Stretch to the container; labels may wrap within equally wide segments. */
   readonly fullWidth?: boolean;
+  /** With fullWidth, move whole segments to another row when space is narrow. */
+  readonly wrap?: boolean;
   /**
    * Square symbol segments instead of words, for a well-known pair such as
    * Kacheln/Liste (#3834). Every item needs an `icon`.
    */
   readonly iconOnly?: boolean;
   readonly ariaLabel?: string;
+  /** Id of a hint under the choice, such as its `FieldErrorHint`. */
+  readonly ariaDescribedBy?: string;
   readonly className?: string;
 }) {
   // EINE Höhe und EINE Mindestbreite je Segment, überall. Gemessen am 29.08.
@@ -131,6 +137,7 @@ export function SegmentedControl<T extends string>({
       <div
         role="group"
         aria-label={ariaLabel}
+        aria-describedby={ariaDescribedBy}
         className={`inline-grid auto-cols-fr grid-flow-col gap-1 rounded-lg bg-gray-100 p-1 ${className}`}
       >
         {items.map((item) => {
@@ -166,9 +173,10 @@ export function SegmentedControl<T extends string>({
     <div
       role="group"
       aria-label={ariaLabel}
+      aria-describedby={ariaDescribedBy}
       className={
         fullWidth
-          ? `grid w-full auto-cols-fr grid-flow-col gap-1 rounded-lg bg-gray-100 p-1 ${className}`
+          ? `grid w-full ${wrap ? "grid-cols-[repeat(auto-fit,minmax(100px,1fr))]" : "auto-cols-fr grid-flow-col"} gap-1 rounded-lg bg-gray-100 p-1 ${className}`
           : `inline-grid auto-cols-fr grid-flow-col gap-1 rounded-lg bg-gray-100 p-1 ${className}`
       }
     >

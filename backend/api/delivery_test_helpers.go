@@ -3,29 +3,30 @@
 package api
 
 import (
+	"context"
 	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/realtime"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
 
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
+	communicationCompose "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	parentAPI "github.com/moto-ogs/project-phoenix/workflows/parentportal/http"
 )
 
 // NewNotificationConsentTestStore builds Communication's consent capability
@@ -141,4 +142,23 @@ func NewDeliveryTestModule(db transactionruntime.Database, unit tenant.UnitOfWor
 	}
 	return DeliveryTestModule{Runtime: delivery, EmailOutbox: deliveryCompose.NewEmailOutbox(deliveryCompose.NewDurableEmails(delivery.Module)),
 		Notifications: service, PushSubscriptions: push, NotificationPreferences: preferences}, nil
+}
+
+// deliveryPushTestSettings is the router's tenant gate read.
+type deliveryPushTestSettings interface {
+	ResolveBoolForTenant(ctx context.Context, tenantID int64, key string) (bool, error)
+	ResolveStringForTenant(ctx context.Context, tenantID int64, key string) (string, error)
+}
+
+// NewDeliveryTestPushNotifier is the production notification router over the
+// durable Web Push channel with fixed test VAPID keys, so a consumer's test
+// can read the push intents its action stores in the real outbox.
+func NewDeliveryTestPushNotifier(db transactionruntime.Database, unit tenant.UnitOfWork, settings deliveryPushTestSettings, module DeliveryTestModule) (deliveryCompose.Notifier, error) {
+	vapid := deliveryCompose.VAPIDConfig{PublicKey: "pub", PrivateKey: "priv", Subscriber: "mailto:test@example.org"}
+	webPush, err := deliveryCompose.NewTenantDurableWebPushChannel(unit, db.Pool(), deliveryCompose.NewPushSubscriptionRepository(db.Pool()),
+		vapid, deliveryCompose.NewDurablePushOutbox(module.Runtime.Module), slog.Default())
+	if err != nil {
+		return nil, err
+	}
+	return deliveryCompose.NewNotifier(settings, slog.Default(), func(string, string, string, time.Duration, error) {}, webPush), nil
 }

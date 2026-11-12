@@ -26,7 +26,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
-import { useMediaQuery } from "~/lib/hooks/use-media-query";
+import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { careContractsConcept } from "~/lib/concepts/careContracts";
 import { createLogger } from "~/lib/logger";
 import {
@@ -41,8 +41,14 @@ import { NOTICE_TO_LABELS } from "./care-contract-format";
 
 const logger = createLogger({ component: "CareContractConditions" });
 
+// moto offers a special termination only to the half year (31 January,
+// 31 July), with the notice months of the terms (#4682). The text names the
+// cases; a date in it changes no termination date (#6349).
+const SPECIAL_TERMINATION_HINT =
+  "Der Vertrag endet dann zum 31. Januar oder 31. Juli. Es gilt dieselbe Frist in Monaten. Ein anderes Datum in diesem Text ändert den Termin nicht.";
+
 /** The suggestion for an offering without conditions: the usual OGS contract. */
-const DEFAULT_TERMS: ContractTerms = {
+export const DEFAULT_TERMS: ContractTerms = {
   termKind: "school_year",
   termMonths: null,
   noticeMonths: 1,
@@ -229,7 +235,7 @@ function ConditionsForm({
     onDirtyChange(dirty);
   }, [dirty, onDirtyChange]);
   const [saving, setSaving] = useState(false);
-  const isPhone = useMediaQuery("(max-width: 639px)");
+  const isPhone = useMediaQuery(BELOW_SM);
   useEffect(() => {
     onSavingChange(saving);
   }, [saving, onSavingChange]);
@@ -304,159 +310,11 @@ function ConditionsForm({
         }}
       >
         <FormErrorAlert message={formErrors.error} />
-        <fieldset className="space-y-3">
-          <legend className="text-sm font-medium text-gray-900">
-            Laufzeit
-          </legend>
-          <CustomSelect
-            id="care-contract-term-kind"
-            name="term_kind"
-            options={TERM_ITEMS}
-            value={draft.termKind}
-            onChange={(value) => set("termKind", value as ContractTermKind)}
-            error={formErrors.fieldError("term_kind")}
-            ariaLabel="Laufzeit"
-          />
-          {draft.termKind === "fixed_months" ? (
-            <Input
-              controlSize="touch"
-              name="term_months"
-              label="Anzahl der Monate"
-              type="number"
-              min={1}
-              max={48}
-              inputMode="numeric"
-              value={draft.termMonths ?? ""}
-              error={formErrors.fieldError("term_months")}
-              onChange={(event) =>
-                set(
-                  "termMonths",
-                  event.target.value === "" ? null : Number(event.target.value),
-                )
-              }
-            />
-          ) : null}
-        </fieldset>
-
-        <fieldset className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <legend className="mb-3 text-sm font-medium text-gray-900">
-            Kündigung
-          </legend>
-          <Input
-            controlSize="touch"
-            name="notice_months"
-            label="Frist in Monaten"
-            type="number"
-            min={0}
-            max={12}
-            inputMode="numeric"
-            value={draft.noticeMonths}
-            error={formErrors.fieldError("notice_months")}
-            onChange={(event) =>
-              set("noticeMonths", Number(event.target.value || 0))
-            }
-          />
-          <CustomSelect
-            id="care-contract-notice-to"
-            name="notice_to"
-            label="Kündigung wirkt"
-            value={draft.noticeTo}
-            options={NOTICE_OPTIONS}
-            error={formErrors.fieldError("notice_to")}
-            onChange={(value) => set("noticeTo", value as ContractNoticeTo)}
-          />
-        </fieldset>
-
-        <fieldset className="space-y-3">
-          <legend className="text-sm font-medium text-gray-900">
-            Sonderkündigung
-          </legend>
-          <label
-            htmlFor="care-contract-special-termination"
-            className="flex items-center gap-3 text-sm text-gray-800"
-          >
-            <Checkbox
-              id="care-contract-special-termination"
-              checked={draft.specialTermination}
-              onChange={() =>
-                set("specialTermination", !draft.specialTermination)
-              }
-            />
-            Eltern dürfen in besonderen Fällen früher kündigen
-          </label>
-          {draft.specialTermination ? (
-            <Textarea
-              name="special_termination_note"
-              label="Wann ist das möglich?"
-              required
-              rows={3}
-              maxLength={1000}
-              value={draft.specialTerminationNote}
-              error={formErrors.fieldError("special_termination_note")}
-              placeholder="Zum Beispiel bei Umzug oder Schulwechsel, zum Ende des Folgemonats."
-              onChange={(event) =>
-                set("specialTerminationNote", event.target.value)
-              }
-            />
-          ) : null}
-        </fieldset>
-
-        <fieldset className="space-y-3">
-          <legend className="text-sm font-medium text-gray-900">Satzung</legend>
-          <label
-            htmlFor="care-contract-statute"
-            className="flex items-center gap-3 text-sm text-gray-800"
-          >
-            <Checkbox
-              id="care-contract-statute"
-              checked={draft.statuteRequired}
-              onChange={() => set("statuteRequired", !draft.statuteRequired)}
-            />
-            Eltern erkennen mit dem Vertrag eine Satzung an
-          </label>
-          {draft.statuteRequired ? (
-            <div className="grid gap-3 sm:grid-cols-2">
-              <Input
-                controlSize="touch"
-                name="statute_title"
-                label="Name der Satzung"
-                required
-                maxLength={200}
-                value={draft.statuteTitle}
-                error={formErrors.fieldError("statute_title")}
-                placeholder="Satzung über die Elternbeiträge"
-                onChange={(event) => set("statuteTitle", event.target.value)}
-              />
-              <Input
-                controlSize="touch"
-                name="statute_url"
-                label="Link zur Satzung (freiwillig)"
-                type="url"
-                maxLength={500}
-                value={draft.statuteUrl}
-                error={formErrors.fieldError("statute_url")}
-                placeholder="https://"
-                onChange={(event) => set("statuteUrl", event.target.value)}
-              />
-            </div>
-          ) : null}
-        </fieldset>
-
-        <Input
-          controlSize="touch"
-          name="contract_partner"
-          label="Vertragspartner"
-          maxLength={300}
-          value={draft.contractPartner}
-          error={formErrors.fieldError("contract_partner")}
-          placeholder="Name des Vertragspartners"
-          onChange={(event) => set("contractPartner", event.target.value)}
+        <ContractTermsFields
+          draft={draft}
+          set={set}
+          fieldError={formErrors.fieldError}
         />
-        <p className="text-sm text-gray-600">
-          Leer lassen, wenn der Name im Briefkopf steht. Sonst tragen Sie den
-          Vertragspartner hier ein. Für „Bei der Annahme“ tragen Sie ihn immer
-          ein.
-        </p>
         {/* What all texts below share stands once (shared text once). */}
         {selected.acceptanceText ||
         selected.withdrawalText ||
@@ -495,6 +353,179 @@ function ConditionsForm({
         ) : null}
       </form>
     </SectionCard>
+  );
+}
+
+/**
+ * Laufzeit, Kündigung, Sonderkündigung, Satzung und Vertragspartner. Die
+ * Bedingungen eines Schulangebots und die Vertragsvorlage eines
+ * Trägerangebots (#4704) teilen dieselben Felder.
+ */
+export function ContractTermsFields({
+  draft,
+  set,
+  fieldError,
+}: Readonly<{
+  draft: ContractTerms;
+  set: <K extends keyof ContractTerms>(key: K, value: ContractTerms[K]) => void;
+  fieldError: (name: string) => string | undefined;
+}>) {
+  const formErrors = { fieldError };
+  return (
+    <>
+      <fieldset className="space-y-3">
+        <legend className="text-sm font-medium text-gray-900">Laufzeit</legend>
+        <CustomSelect
+          id="care-contract-term-kind"
+          name="term_kind"
+          options={TERM_ITEMS}
+          value={draft.termKind}
+          onChange={(value) => set("termKind", value as ContractTermKind)}
+          error={formErrors.fieldError("term_kind")}
+          ariaLabel="Laufzeit"
+        />
+        {draft.termKind === "fixed_months" ? (
+          <Input
+            controlSize="touch"
+            name="term_months"
+            label="Anzahl der Monate"
+            type="number"
+            min={1}
+            max={48}
+            inputMode="numeric"
+            value={draft.termMonths ?? ""}
+            error={formErrors.fieldError("term_months")}
+            onChange={(event) =>
+              set(
+                "termMonths",
+                event.target.value === "" ? null : Number(event.target.value),
+              )
+            }
+          />
+        ) : null}
+      </fieldset>
+
+      <fieldset className="grid gap-3 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+        <legend className="mb-3 text-sm font-medium text-gray-900">
+          Kündigung
+        </legend>
+        <Input
+          controlSize="touch"
+          name="notice_months"
+          label="Frist in Monaten"
+          type="number"
+          min={0}
+          max={12}
+          inputMode="numeric"
+          value={draft.noticeMonths}
+          error={formErrors.fieldError("notice_months")}
+          onChange={(event) =>
+            set("noticeMonths", Number(event.target.value || 0))
+          }
+        />
+        <CustomSelect
+          id="care-contract-notice-to"
+          name="notice_to"
+          label="Kündigung wirkt"
+          value={draft.noticeTo}
+          options={NOTICE_OPTIONS}
+          error={formErrors.fieldError("notice_to")}
+          onChange={(value) => set("noticeTo", value as ContractNoticeTo)}
+        />
+      </fieldset>
+
+      <fieldset className="space-y-3">
+        <legend className="text-sm font-medium text-gray-900">
+          Sonderkündigung
+        </legend>
+        <label
+          htmlFor="care-contract-special-termination"
+          className="flex items-center gap-3 text-sm text-gray-800"
+        >
+          <Checkbox
+            id="care-contract-special-termination"
+            checked={draft.specialTermination}
+            onChange={() =>
+              set("specialTermination", !draft.specialTermination)
+            }
+          />
+          Eltern dürfen in besonderen Fällen zum Halbjahr kündigen
+        </label>
+        {draft.specialTermination ? (
+          <Textarea
+            name="special_termination_note"
+            label="In welchen Fällen?"
+            hint={SPECIAL_TERMINATION_HINT}
+            required
+            rows={3}
+            maxLength={1000}
+            value={draft.specialTerminationNote}
+            error={formErrors.fieldError("special_termination_note")}
+            placeholder="Zum Beispiel bei Umzug oder Schulwechsel."
+            onChange={(event) =>
+              set("specialTerminationNote", event.target.value)
+            }
+          />
+        ) : null}
+      </fieldset>
+
+      <fieldset className="space-y-3">
+        <legend className="text-sm font-medium text-gray-900">Satzung</legend>
+        <label
+          htmlFor="care-contract-statute"
+          className="flex items-center gap-3 text-sm text-gray-800"
+        >
+          <Checkbox
+            id="care-contract-statute"
+            checked={draft.statuteRequired}
+            onChange={() => set("statuteRequired", !draft.statuteRequired)}
+          />
+          Eltern erkennen mit dem Vertrag eine Satzung an
+        </label>
+        {draft.statuteRequired ? (
+          <div className="grid gap-3 sm:grid-cols-2">
+            <Input
+              controlSize="touch"
+              name="statute_title"
+              label="Name der Satzung"
+              required
+              maxLength={200}
+              value={draft.statuteTitle}
+              error={formErrors.fieldError("statute_title")}
+              placeholder="Satzung über die Elternbeiträge"
+              onChange={(event) => set("statuteTitle", event.target.value)}
+            />
+            <Input
+              controlSize="touch"
+              name="statute_url"
+              label="Link zur Satzung (freiwillig)"
+              type="url"
+              maxLength={500}
+              value={draft.statuteUrl}
+              error={formErrors.fieldError("statute_url")}
+              placeholder="https://"
+              onChange={(event) => set("statuteUrl", event.target.value)}
+            />
+          </div>
+        ) : null}
+      </fieldset>
+
+      <Input
+        controlSize="touch"
+        name="contract_partner"
+        label="Vertragspartner"
+        maxLength={300}
+        value={draft.contractPartner}
+        error={formErrors.fieldError("contract_partner")}
+        placeholder="Name des Vertragspartners"
+        onChange={(event) => set("contractPartner", event.target.value)}
+      />
+      <p className="text-sm text-gray-600">
+        Leer lassen, wenn der Name im Briefkopf steht. Sonst tragen Sie den
+        Vertragspartner hier ein. Für „Bei der Annahme“ tragen Sie ihn immer
+        ein.
+      </p>
+    </>
   );
 }
 
@@ -559,10 +590,10 @@ function CopyableLegalText({
 }
 
 function conditionBadge(offering: OfferingTemplate): {
-  tone: "green" | "gray" | "orange";
+  tone: "green" | "gray" | "warning";
   label: string;
 } {
   if (offering.template) return { tone: "green", label: "Festgelegt" };
   if (!offering.active) return { tone: "gray", label: "Nicht aktiv" };
-  return { tone: "orange", label: "Fehlt" };
+  return { tone: "warning", label: "Fehlt" };
 }

@@ -8,7 +8,7 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // The review list of a calculated monthly run (#5916, SJR "Rechnungs-
@@ -58,7 +58,7 @@ func (c *CareBilling) ExportCareRunReview(ctx context.Context, reviewer parentbi
 		return parentbilling.ExportFile{}, err
 	}
 	if run.Status != parentbilling.RunCalculated {
-		return parentbilling.ExportFile{}, parentbilling.ErrBillingRunReleased
+		return parentbilling.ExportFile{}, closedRunError(run.Status)
 	}
 	detail := parentbilling.CareRunDetail{CareRun: run}
 	if err := c.reviewDetail(ctx, reviewer, &detail); err != nil {

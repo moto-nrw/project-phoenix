@@ -14,9 +14,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 // The monthly contribution of the care contract (#4684). The months lie far
@@ -89,7 +89,7 @@ type careService struct {
 
 // careContract stores an active contract with one effective version from
 // effectiveFrom and its party, as a conclusion leaves it (#4680, #4681).
-func careContract(t *testing.T, db *bun.DB, organizationID, schoolID int64, child, effectiveFrom string, services ...careService) int64 {
+func careContract(t *testing.T, db bun.IDB, organizationID, schoolID int64, child, effectiveFrom string, services ...careService) int64 {
 	t.Helper()
 	ctx := context.Background()
 	var contractID, versionID int64

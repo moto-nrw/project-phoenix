@@ -4,8 +4,8 @@ status: accepted
 
 # Öffentliche Ferienanmeldung schreibt in der Träger-Transaktion
 
-Entscheidung vom 25.10.2026 zu [#4661](https://github.com/moto-nrw/project-phoenix/issues/4661),
-Etappe 1 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung vom 25.10.2026 zu [#4661](https://github.com/moto-ogs/project-phoenix/issues/4661),
+Etappe 1 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 26 und 28 bis 31. Sie baut auf
 [ADR 0105](0105-ferienzeitraum-liegt-beim-traeger-in-der-traeger-transaktion.md)
 auf. ADR 0105 Punkt 4 verlangt für jede weitere Stelle der
@@ -84,3 +84,12 @@ keinen neuen Owner ein.
 - Die Nutzungsanalyse zählt die Anmeldung noch nicht (`notCaptured`): Ohne
   Sitzung und Schule lässt keine Sammelregel sie zu.
 - Sobald es Träger-Einstellungen gibt, kann Turnstile dort abschaltbar werden.
+
+## Nachtrag 11.11.2026: Elternkonto an der Anmeldung (#6673)
+
+Seit [ADR 0216](0216-ferienanmeldung-kennt-das-elternkonto-und-eltern-ohne-schule-bekommen-ein-konto-am-traeger.md) nennt eine Anmeldung das Elternkonto, zu dem sie gehört
+(`parent_account_id`): über den versiegelten Nachweis der Vorbefüllung oder
+über die Adresse bei der Anmeldung am Elternportal. Die Folge „die Anmeldung
+kennt kein Elternkonto“ gilt damit nicht mehr. Punkt 4 gilt unverändert: Die
+Verknüpfung nennt nur das Konto, kein Kind wird mit einem Schulkind
+verbunden, und Name und Geburtsdatum schalten nichts frei.

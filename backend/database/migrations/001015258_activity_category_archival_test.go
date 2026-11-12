@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -77,9 +77,7 @@ func TestActivityCategoryArchivalUpCanonicalizesReservedCaseVariants(t *testing.
 	variantTenantID := testpkg.UniqueTestTenantID(t)
 	duplicateTenantID := testpkg.UniqueTestTenantID(t)
 	testpkg.EnsureTestTenant(t, db, variantTenantID)
-	testpkg.OwnTenantRows(t, db, variantTenantID)
 	testpkg.EnsureTestTenant(t, db, duplicateTenantID)
-	testpkg.OwnTenantRows(t, db, duplicateTenantID)
 
 	restored := false
 	require.NoError(t, activityCategoryArchivalDown(ctx, db))

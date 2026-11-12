@@ -1,9 +1,9 @@
 # syntax=docker/dockerfile:1
-FROM node:24-alpine AS base
+FROM node:26-alpine AS base
 
-# Install timezone data and enable corepack for pnpm
+# Install timezone data and pnpm. Node no longer ships Corepack (since 25).
 RUN apk add --no-cache tzdata && \
-    corepack enable && corepack prepare pnpm@10.34.4 --activate
+    npm install -g pnpm@10.34.5
 
 # Development dependencies
 FROM base AS dev-deps

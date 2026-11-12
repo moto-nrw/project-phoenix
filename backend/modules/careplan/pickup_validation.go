@@ -15,6 +15,7 @@ func validateExceptionAuthor(source string, createdBy int64, createdByGuardian *
 		if createdByGuardian == nil || *createdByGuardian <= 0 {
 			return errors.New("created_by_guardian is required for guardian-authored exceptions")
 		}
+	case ExceptionSourceHolidayBooking:
 	default:
 		return errors.New("invalid exception source")
 	}

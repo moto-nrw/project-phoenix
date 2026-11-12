@@ -6,10 +6,10 @@ import (
 	"strings"
 	"time"
 
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
 // PasswordResetWiring is the configuration the reset flows are composed
@@ -29,7 +29,7 @@ type PasswordResetWiring struct {
 	Backoff []time.Duration
 }
 
-func PasswordResetDependencies(wiring *PasswordResetWiring, logger *slog.Logger) *identityaccessCompose.PasswordResetDependencies {
+func PasswordResetDependencies(wiring *PasswordResetWiring, logger *slog.Logger, signingSecret string) *identityaccessCompose.PasswordResetDependencies {
 	if wiring == nil {
 		return nil
 	}
@@ -55,6 +55,7 @@ func PasswordResetDependencies(wiring *PasswordResetWiring, logger *slog.Logger)
 		Passwords:        passwordPolicy{},
 		Expiry:           wiring.Expiry,
 		RateLimitEnabled: wiring.RateLimitEnabled,
+		RateLimitSecret:  []byte(signingSecret),
 		Logger:           logger,
 	}
 }

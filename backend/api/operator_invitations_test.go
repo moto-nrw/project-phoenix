@@ -15,9 +15,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+	"github.com/moto-ogs/project-phoenix/api/testutil/routetest"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityoperator "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/operator"
 )
 
 // invitationMockService implements OperatorAccess —
@@ -55,7 +55,7 @@ func (m *invitationMockService) FindOperatorByEmail(context.Context, string) (id
 	return identityaccess.Operator{}, identityaccess.ErrOperatorNotFound
 }
 
-func (m *invitationMockService) IssueTokensForAuthenticatedOperator(context.Context, int64, string, string) (string, string, error) {
+func (m *invitationMockService) IssueTokensForAuthenticatedOperator(context.Context, int64, *int64, string, string) (string, string, error) {
 	return "", "", nil
 }
 

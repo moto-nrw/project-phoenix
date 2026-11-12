@@ -7,10 +7,10 @@ import (
 	"slices"
 	"strings"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 const (
@@ -195,14 +195,8 @@ func (s *RetainedGuardianService) GuardianDisplays(ctx context.Context, ids []in
 
 // UpdateGuardian updates a guardian profile
 func (s *RetainedGuardianService) UpdateGuardian(ctx context.Context, id int64, req peoplePorts.GuardianCreateRequest) error {
-	// Serialize all guardian contact writers on the profile row. The
-	// parents-portal contact path (workflows/parentportal/care UpdateGuardianContact) locks
-	// this same row FOR UPDATE before its read-modify-write plus wholesale phone
-	// replace; taking the lock here — BEFORE the read — makes this staff profile
-	// edit serialize against it, so a stale-read full-row Update can't clobber the
-	// parent's save and vice versa (#1667 review). The handler wraps this call in
-	// WithTenantTx, so the lock is held for the whole request transaction; without
-	// a transaction (CLI/seed) the SELECT FOR UPDATE is a harmless no-op.
+	// The directory or workflow owns the transaction. Invalidation refuses
+	// to run without it, so an e-mail edit cannot partly commit.
 	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
 		return err
 	}
@@ -210,18 +204,15 @@ func (s *RetainedGuardianService) UpdateGuardian(ctx context.Context, id int64, 
 	if err != nil {
 		return err
 	}
+	return s.updateGuardian(ctx, profile, req)
+}
 
-	// Reject assigning an email already owned by a DIFFERENT guardian. Without
-	// this the UNIQUE(tenant_id, email) index fires on Update and the handler
-	// maps it to a raw 500. The existing.ID != id guard is essential: saving the
-	// guardian without changing the email must NOT collide with the row itself.
-	// FindByEmail is case-insensitive (LOWER=LOWER), matching CreateGuardian.
-	if req.Email != nil && strings.TrimSpace(*req.Email) != "" {
-		if existing, ferr := s.GuardianProfileRepo.FindByEmail(ctx, strings.TrimSpace(*req.Email)); ferr == nil && existing != nil && existing.ID != id {
-			return newEmailInUseError(*req.Email)
-		}
+func (s *RetainedGuardianService) updateGuardian(ctx context.Context, profile *peopleValues.GuardianProfileSnapshot, req peoplePorts.GuardianCreateRequest) error {
+	if err := s.requireGuardianEmailAvailable(ctx, profile.ID, req.Email); err != nil {
+		return err
 	}
 
+	previousEmail := guardianAddress(profile.Email)
 	// Update fields (phone numbers are managed separately)
 	profile.FirstName = req.FirstName
 	profile.LastName = req.LastName
@@ -242,6 +233,14 @@ func (s *RetainedGuardianService) UpdateGuardian(ctx context.Context, id int64, 
 		return newGuardianValidationError(err)
 	}
 
+	if previousEmail != guardianAddress(profile.Email) {
+		if s.InvalidateInvites == nil {
+			return errors.New("guardian invitation invalidation is not configured")
+		}
+		if err := s.InvalidateInvites(ctx, profile.ID); err != nil {
+			return fmt.Errorf("invalidate guardian invitations after contact edit: %w", err)
+		}
+	}
 	if err := s.GuardianProfileRepo.Update(ctx, profile); err != nil {
 		// TOCTOU guard mirroring CreateGuardian: a concurrent writer can claim
 		// the email between the check above and this Update.
@@ -294,13 +293,9 @@ func (s *RetainedGuardianService) DeleteGuardianWithLinks(ctx context.Context, i
 }
 
 func (s *RetainedGuardianService) deleteGuardianWithLinks(ctx context.Context, id int64, expectedLinkIDs []int64, changedByAccountID int64) error {
-	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
-		return fmt.Errorf("failed to lock guardian profile %d: %w", id, err)
-	}
-	if err := s.auditGuardianFinancialDataDeletion(ctx, id, changedByAccountID); err != nil {
-		return err
-	}
-
+	// Take students before the profile, as the parent guard does. The first
+	// read only discovers locks; the locked reread below validates the exact
+	// confirmed link set before any link is removed.
 	links, err := s.StudentGuardianRepo.FindByGuardianProfileID(ctx, id)
 	if err != nil {
 		return fmt.Errorf("failed to load guardian links: %w", err)
@@ -312,6 +307,13 @@ func (s *RetainedGuardianService) deleteGuardianWithLinks(ctx context.Context, i
 	if _, err := s.StudentRepo.FindByIDsForUpdate(ctx, studentIDs); err != nil {
 		return fmt.Errorf("failed to lock guardian students: %w", err)
 	}
+	if err := s.GuardianProfileRepo.LockByIDForUpdate(ctx, id); err != nil {
+		return fmt.Errorf("failed to lock guardian profile %d: %w", id, err)
+	}
+	if err := s.auditGuardianFinancialDataDeletion(ctx, id, changedByAccountID); err != nil {
+		return err
+	}
+
 	// Reload after acquiring the shared serialization points. A waiting payer
 	// assignment now commits before this read, so its final is_payer state is
 	// either audited below or cannot change until this delete commits.
@@ -369,13 +371,14 @@ func (s *RetainedGuardianService) auditGuardianFinancialDataDeletion(ctx context
 		return fmt.Errorf("changed-by actor id is required")
 	}
 
+	// The trail carries masks only, so nothing here is opened: the stored
+	// IBAN mask, and the fixed mask for a stored account holder.
 	changes := []stammdatenChange{}
-	if data.IBAN != nil && *data.IBAN != "" {
-		changes = append(changes, maskedChange(peoplePorts.GuardianPaymentFieldIBAN, maskTailPtr(data.IBAN, 4), nil))
+	if iban := guardianIBANMask(data); iban != nil {
+		changes = append(changes, maskedChange(peoplePorts.GuardianPaymentFieldIBAN, iban, nil))
 	}
-	if data.AccountHolder != nil && *data.AccountHolder != "" {
-		changes = append(changes, maskedChange(peoplePorts.GuardianPaymentFieldAccountHolder,
-			maskAllPtr(data.AccountHolder), nil))
+	if holder := guardianHolderMask(data); holder != nil {
+		changes = append(changes, maskedChange(peoplePorts.GuardianPaymentFieldAccountHolder, holder, nil))
 	}
 	for _, change := range changes {
 		if err := s.GuardianFinancialAudit.RecordGuardianFinancialChange(ctx, peoplePorts.GuardianFinancialChange{
@@ -582,4 +585,24 @@ func (s *RetainedGuardianService) GuardianPhoneNumbers() peoplePorts.GuardianPho
 // overview of the redeemable invitations.
 func (s *RetainedGuardianService) GuardianInvitationReads() peoplePorts.GuardianInvitations {
 	return s.GuardianInvitations
+}
+
+func guardianAddress(email *string) string {
+	if email == nil {
+		return ""
+	}
+	return strings.ToLower(strings.TrimSpace(*email))
+}
+
+// requireGuardianEmailAvailable rejects another profile's address before the
+// unique index does. Keeping the same profile's address is allowed.
+func (s *RetainedGuardianService) requireGuardianEmailAvailable(ctx context.Context, id int64, email *string) error {
+	if email == nil || strings.TrimSpace(*email) == "" {
+		return nil
+	}
+	existing, err := s.GuardianProfileRepo.FindByEmail(ctx, strings.TrimSpace(*email))
+	if err == nil && existing != nil && existing.ID != id {
+		return newEmailInUseError(*email)
+	}
+	return nil
 }

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Operator is the platform login identity of a moto operator. DeactivatedAt
@@ -21,6 +21,9 @@ type Operator struct {
 	DeactivatedAt  *time.Time
 	CreatedAt      time.Time
 	UpdatedAt      time.Time
+	// CredentialGeneration is the state of the operator's password; every
+	// password write moves it on (#6308).
+	CredentialGeneration int64
 }
 
 // OperatorDeletionDue is when the hourly cleanup deletes an account

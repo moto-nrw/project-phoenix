@@ -8,7 +8,7 @@ import {
   useRef,
   useState,
 } from "react";
-import { useLocale, useTranslations } from "next-intl";
+import { useLocale } from "next-intl";
 import { Check, UserPen, Utensils } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -32,10 +32,12 @@ import {
   getWeeklyMealParticipants,
   mondayOf,
   workWeekDates,
+  type DailyMealList,
   type DailyMealParticipant,
   type WeeklyMealList,
 } from "~/lib/meal-plan-api";
 import { createLogger } from "~/lib/logger";
+import { useCareTermTranslations } from "~/lib/care-facility-term";
 
 const logger = createLogger({ component: "MealParticipantList" });
 
@@ -50,6 +52,8 @@ function nextWeekday(date: string): string {
 }
 
 type ListView = "day" | "week";
+
+const NO_PARTICIPANTS: DailyMealParticipant[] = [];
 
 /** One child of the Wochenliste with the days it is registered for. */
 interface WeeklyMealRow extends DailyMealParticipant {
@@ -99,7 +103,7 @@ export function MealParticipantList({
   canExport?: boolean;
   onRegistrationChanged?: () => void;
 }>) {
-  const t = useTranslations("mealParticipantList");
+  const t = useCareTermTranslations("mealParticipantList");
   const locale = useLocale();
   const datePicker = useLocalizedDatePicker();
   const today = useBerlinToday();
@@ -118,50 +122,68 @@ export function MealParticipantList({
   const view = canExport ? selectedView : "day";
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const date = selectedDate ?? nextWeekday(today);
-  const [deadline, setDeadline] = useState("");
-  const [closed, setClosed] = useState(false);
-  const [participants, setParticipants] = useState<DailyMealParticipant[]>([]);
-  // Die übrigen Kinder des Tages, für Änderungen durch die Schule (#3873).
-  const [others, setOthers] = useState<DailyMealParticipant[]>([]);
   // Offenes Änderungsfenster; `studentId` ist das vorgewählte Kind.
   const [changing, setChanging] = useState<{ studentId?: string } | null>(null);
   const weekStart = mondayOf(parseISODate(date));
-  const [week, setWeek] = useState<WeeklyMealList | null>(null);
+  // Jede Liste trägt den Tag bzw. die Woche, für die sie geladen wurde.
+  // Angezeigt wird sie nur unter genau dieser Auswahl (#6503).
+  const dayKey = `${date}|${canRegister}`;
+  const [loadedDay, setLoadedDay] = useState<{
+    key: string;
+    list: DailyMealList;
+  } | null>(null);
+  const [loadedWeek, setLoadedWeek] = useState<{
+    weekStart: string;
+    week: WeeklyMealList;
+  } | null>(null);
+  const dayList = loadedDay?.key === dayKey ? loadedDay.list : null;
+  const week = loadedWeek?.weekStart === weekStart ? loadedWeek.week : null;
+  const participants = dayList?.participants ?? NO_PARTICIPANTS;
+  // Die übrigen Kinder des Tages, für Änderungen durch die Schule (#3873).
+  const others = dayList?.others ?? NO_PARTICIPANTS;
+  const deadline = dayList?.deadline ?? "";
+  const closed = dayList?.closed ?? false;
+  const hasList = view === "week" ? week !== null : dayList !== null;
+  // Nur der jüngste Abruf darf Liste, Fehler und Ladezustand setzen: Eine
+  // spät eintreffende Antwort für einen anderen Tag wird verworfen.
+  const latestLoad = useRef(0);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState<"pdf" | "xlsx" | null>(null);
   const errorObject = view === "week" ? t("weekErrorObject") : t("errorObject");
 
   const load = useCallback(async () => {
+    const request = ++latestLoad.current;
+    const isLatest = () => request === latestLoad.current;
     setLoading(true);
     clearLoadError();
     try {
       if (view === "week") {
-        setWeek(await getWeeklyMealParticipants(weekStart));
+        const loaded = await getWeeklyMealParticipants(weekStart);
+        if (isLatest()) setLoadedWeek({ weekStart, week: loaded });
       } else {
         const list = await getDailyMealParticipants(date, canRegister);
-        setParticipants(list.participants);
-        setOthers(list.others);
-        setDeadline(list.deadline);
-        setClosed(list.closed);
+        if (isLatest()) setLoadedDay({ key: dayKey, list });
       }
     } catch (cause) {
       logger.error("meal_participant_list_load_failed", {
         error: cause instanceof Error ? cause.message : String(cause),
       });
-      setParticipants([]);
-      setOthers([]);
-      setWeek(null);
-      void showLoadError(cause, {
-        object: errorObject,
-        retry: () => reloadRef.current(),
-      });
+      // Eine bereits geladene Liste derselben Auswahl bleibt stehen; der
+      // Fehler steht dann darüber.
+      if (isLatest()) {
+        void showLoadError(cause, {
+          object: errorObject,
+          retry: () => reloadRef.current(),
+        });
+      }
     } finally {
-      setLoading(false);
+      if (isLatest()) setLoading(false);
     }
   }, [
     canRegister,
     view,
     date,
+    dayKey,
     weekStart,
     errorObject,
     showLoadError,
@@ -421,7 +443,15 @@ export function MealParticipantList({
         </>
       }
     >
-      {isWeek && week && !loading && !loadError ? (
+      {/* Der Fehler ersetzt die Liste nur, wenn für diese Auswahl noch keine
+          geladen ist; sonst steht er über der zuletzt geladenen. */}
+      {loadError ? (
+        <LoadErrorAlert
+          error={loadError}
+          className={hasList ? "mb-4" : undefined}
+        />
+      ) : null}
+      {isWeek && week && !loading ? (
         <p className="mb-4 text-sm text-gray-700">
           <span className="text-gray-500">{t("weekCountsLabel")}: </span>
           <span className="font-semibold tabular-nums">
@@ -439,9 +469,7 @@ export function MealParticipantList({
         </p>
       ) : null}
 
-      {loadError ? (
-        <LoadErrorAlert error={loadError} />
-      ) : isWeek ? (
+      {loadError && !hasList ? null : isWeek ? (
         <DataTable
           columns={weekColumns}
           rows={weekRows}

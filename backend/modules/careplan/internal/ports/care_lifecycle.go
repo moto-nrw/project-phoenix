@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The care lifecycle's consumer-owned ports (#3427). Care Plan decides; the
@@ -70,7 +70,9 @@ type CareExitEnrollment interface {
 	CareExitApplicationLinks(ctx context.Context, studentIDs []int64) ([]domain.CareExitApplication, error)
 	CareExitOfferingLinks(ctx context.Context, studentIDs []int64) ([]domain.CareExitOfferingLink, error)
 	CareExitOfferingSnapshots(ctx context.Context, studentIDs []int64, validUntil calendar.Date, sourceRequestChildID *int64) ([]domain.CareExitOfferingSnapshot, error)
-	RestoreCareExitOfferingLinks(ctx context.Context, restores []domain.CareExitOfferingRestore) (int64, error)
+	// RestoreCareExitOfferingLinks restores the source bookings; today is
+	// the lifecycle's day the phase bounds follow from (#6657).
+	RestoreCareExitOfferingLinks(ctx context.Context, restores []domain.CareExitOfferingRestore, today calendar.Date) (int64, error)
 }
 
 // CareExitPresence is the Student Presence half: school attendance and room

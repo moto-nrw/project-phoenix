@@ -1,6 +1,6 @@
 package users
 
-import "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+import "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
 // CareEndedOn reports whether the child's care has already ended on the given
 // calendar day — the enrollment interval's upper bound is INCLUSIVE, so the

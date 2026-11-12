@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 

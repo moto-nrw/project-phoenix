@@ -127,7 +127,10 @@ describe("SettingsField at the school, with a Träger value", () => {
       ),
     ).toBeInTheDocument();
     // A toggle normally has no reset; back to the Träger value it does.
-    const reset = screen.getByTitle("Auf den Wert des Trägers zurücksetzen");
+    const reset = screen.getByRole("button", {
+      name: "Zurücksetzen",
+      description: "Übernimmt wieder den Wert, den Ihr Träger vorgibt.",
+    });
     fireEvent.click(reset);
 
     await waitFor(() =>
@@ -151,7 +154,10 @@ describe("SettingsField at the school, with a Träger value", () => {
     );
 
     // Back to Standard, so a later Träger value reaches the school again.
-    const reset = screen.getByTitle("Auf Standard zurücksetzen");
+    const reset = screen.getByRole("button", {
+      name: "Zurücksetzen",
+      description: /^Stellt den Standard wieder her\./,
+    });
     expect(screen.queryByText("Standard")).not.toBeInTheDocument();
     fireEvent.click(reset);
     await waitFor(() =>
@@ -194,7 +200,12 @@ describe("SettingsField in the Träger portal", () => {
     expect(
       screen.getByText("Vom Träger festgelegt · geändert am 01.09.2026"),
     ).toBeInTheDocument();
-    fireEvent.click(screen.getByTitle("Auf Standard zurücksetzen"));
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Zurücksetzen",
+        description: /^Stellt den Standard wieder her\./,
+      }),
+    );
 
     await waitFor(() =>
       expect(onReset).toHaveBeenCalledWith("parent.news_enabled"),
@@ -217,7 +228,7 @@ describe("SettingsField in the Träger portal", () => {
     );
 
     expect(screen.getByText("Standard")).toBeInTheDocument();
-    expect(screen.queryByTitle("Auf Standard zurücksetzen")).toBeNull();
+    expect(screen.queryByRole("button", { name: "Zurücksetzen" })).toBeNull();
   });
 
   it("edits the AGB as text only; the PDF stays with each school", () => {

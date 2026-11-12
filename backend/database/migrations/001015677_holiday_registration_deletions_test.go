@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -48,14 +48,14 @@ func TestHolidayRegistrationDeletionLogIsClosedToTheRequestRole(t *testing.T) {
 		var rows int
 		return tx.NewRaw(`SELECT COUNT(*) FROM enrollment.holiday_registration_deletions`).Scan(ctx, &rows)
 	})
-	assert.ErrorContains(t, err, "permission denied", "the request role does not read the log")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "the request role does not read the log")
 	err = asTraeger(func(tx bun.Tx) error {
 		_, err := tx.ExecContext(ctx, `INSERT INTO enrollment.holiday_registration_deletions
 				(organization_id, holiday_period_id, period_ended_on, registrations, children, audit_entries)
 			VALUES (?, 1, '2027-01-15', 1, 1, 0)`, organization)
 		return err
 	})
-	assert.ErrorContains(t, err, "permission denied", "the request role does not write the log")
+	assert.Equal(t, "42501", testpkg.PostgresSQLState(err), "the request role does not write the log")
 
 	_, err = db.ExecContext(ctx, `DELETE FROM platform.organizations WHERE id = ?`, organization)
 	require.NoError(t, err)

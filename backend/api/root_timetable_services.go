@@ -3,14 +3,14 @@ package api
 import (
 	"fmt"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	realtime "github.com/moto-nrw/project-phoenix/realtime"
+	realtime "github.com/moto-ogs/project-phoenix/realtime"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	arrivalTimetable "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // TimetablePlanning are the Timetable owner's planning reads and writes: the
@@ -35,7 +35,7 @@ type TimetablePlanning struct {
 func buildTimetablePlanning(
 	db transactionruntime.Database, env owners.RootEnvironment, hub *realtime.Hub, owner owners.TimetableOwner, lifecycle owners.TimetableLifecycle,
 	schedules owners.CarePlanSchedules, presence owners.PresenceOwner, timetableOwner timetable.Capability, offerings owners.CarePlanOfferings,
-	audit owners.AuditOwner, people owners.PeopleRows,
+	audit owners.AuditOwner, people owners.PeopleRows, sickReports timetablePorts.SickReportReader,
 ) (TimetablePlanning, error) {
 	data, err := NewTimetableData(lifecycle.Rows, schedules.ArrivalBaselines, schedules.PickupBaselines,
 		presence.Presence, timetableOwner, presence.SessionRecords, timetableOwner,
@@ -51,6 +51,7 @@ func buildTimetablePlanning(
 		return TimetablePlanning{}, fmt.Errorf("compose timetable templates: %w", err)
 	}
 	templateDeps.Transactions = arrivalTimetable.NewTenantTransactions(db.Pool())
+	templateDeps.SickReports = sickReports
 	templates, rosterReview, err := arrivalTimetable.NewTemplateAdministration(templateDeps)
 	if err != nil {
 		return TimetablePlanning{}, fmt.Errorf("compose timetable templates: %w", err)

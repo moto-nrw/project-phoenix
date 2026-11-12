@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan/ports"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -18,6 +18,7 @@ type mirrorTimetableStub struct {
 	title                          string
 	created                        []MirroredSession
 	staff                          []int64
+	locked                         []int64
 }
 
 func (s *mirrorTimetableStub) HasInstance(context.Context, int64) (bool, error) {
@@ -31,6 +32,10 @@ func (s *mirrorTimetableStub) CreateInstance(_ context.Context, instance Mirrore
 func (s *mirrorTimetableStub) AddSessionInstanceStaff(_ context.Context, _ int64, staffID int64) error {
 	s.staff = append(s.staff, staffID)
 	return s.staffErr
+}
+func (s *mirrorTimetableStub) LockSessionInstanceStaff(_ context.Context, staffIDs []int64) error {
+	s.locked = append(s.locked, staffIDs...)
+	return nil
 }
 func (s *mirrorTimetableStub) ActivityTitle(context.Context, int64) (string, error) {
 	return s.title, nil

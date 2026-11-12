@@ -1,7 +1,7 @@
 package defaults
 
 import (
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // Holiday billing of the Träger (#5621): whether its office enters the
@@ -16,6 +16,8 @@ import (
 // (#4684); the default bills the full month by the version on the first.
 // Which changes of a single invoice the review of a monthly run allows is
 // open with the customer too (#6197, SJR item 2); all four are on by
+// default. Whether the parents give the SEPA mandate in the parents portal
+// is the Träger's choice after it agreed it with its bank (#4696); off by
 // default. The values are
 // the constants of the Elternabrechnung, which refuses any other.
 func init() {
@@ -45,6 +47,21 @@ var parentBillingDefinitions = []config.Definition{
 		Category:        "ferien-bestaetigung",
 		SortOrder:       10,
 	}, {
+		Key:             config.KeyParentBillingDebtorNumberDigitsOnly,
+		Levels:          config.LevelTraeger,
+		Label:           "Debitorennummer: nur Ziffern",
+		Description:     "Ist das an, nimmt moto nur Debitorennummern aus Ziffern mit der Länge darunter an. Das gilt für jede Nummer, die Sie eintragen: bei Ferienanmeldungen und bei Familien. Nummern, die schon gespeichert sind, bleiben, wie sie sind.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "ferien",
+		Category:        "ferien-bestaetigung",
+		SortOrder:       11,
+	},
+	debtorNumberDigits(config.KeyParentBillingDebtorNumberMinDigits, 12, "Debitorennummer: Ziffern von", 1),
+	debtorNumberDigits(config.KeyParentBillingDebtorNumberMaxDigits, 13, "Debitorennummer: Ziffern bis", 35),
+	{
 		Key:             config.KeyParentBillingPaymentText,
 		Levels:          config.LevelTraeger,
 		Label:           "Zahlungstext im Schreiben",
@@ -112,6 +129,19 @@ var parentBillingDefinitions = []config.Definition{
 			},
 		},
 	},
+	{
+		Key:             config.KeyParentBillingOnlineMandate,
+		Levels:          config.LevelTraeger,
+		Label:           "Lastschrift-Mandat in der Eltern-App",
+		Description:     "Ist das an, können Eltern das SEPA-Lastschrift-Mandat in der Eltern-App erteilen und widerrufen. Schalten Sie das erst ein, wenn Ihre Bank Mandate annimmt, die online bestätigt wurden.",
+		Type:            config.FieldBoolean,
+		Default:         false,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "monatsbeitrag",
+		Category:        "monatsbeitrag-lastschrift",
+		SortOrder:       100,
+	},
 	careReviewSwitch(config.KeyParentBillingCareReviewAmount, 60, "Betrag einer Rechnung ändern",
 		"Ist das an, können Sie vor dem Ausstellen den Betrag einer einzelnen Rechnung ändern. Die Rechnung bekommt dann eine Korrektur-Zeile mit Ihrem Grund."),
 	careReviewSwitch(config.KeyParentBillingCareReviewRecipient, 70, "Empfänger einer Rechnung ändern",
@@ -120,6 +150,27 @@ var parentBillingDefinitions = []config.Definition{
 		"Ist das an, können Sie vor dem Ausstellen die Anschrift einer einzelnen Rechnung ändern. Das gilt nur für diese Rechnung, nicht für die Familie."),
 	careReviewSwitch(config.KeyParentBillingCareReviewPositions, 90, "Positionen einer Rechnung ändern",
 		"Ist das an, können Sie vor dem Ausstellen Positionen einer einzelnen Rechnung hinzufügen oder entfernen, jeweils mit Grund."),
+}
+
+// debtorNumberDigits is one end of the length of a debtor number (#6675):
+// 1 to 35 digits, shown while the Träger allows only digits. The two ends
+// are independent values; the Elternabrechnung reads them in either order.
+func debtorNumberDigits(key string, order int, label string, def int) config.Definition {
+	return config.Definition{
+		Key:             key,
+		Levels:          config.LevelTraeger,
+		Label:           label,
+		Description:     "Wie viele Ziffern eine Debitorennummer hat, von 1 bis 35.",
+		Type:            config.FieldNumber,
+		Default:         def,
+		ReadPermission:  "config:read",
+		WritePermission: "config:manage",
+		Tab:             "ferien",
+		Category:        "ferien-bestaetigung",
+		SortOrder:       order,
+		Validation:      config.Range(1, 35),
+		DependsOn:       config.DependsOnEq(config.KeyParentBillingDebtorNumberDigitsOnly, true),
+	}
 }
 
 // careReviewSwitch is one change of a single invoice the review of a

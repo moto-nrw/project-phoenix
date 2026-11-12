@@ -14,7 +14,7 @@ import (
 	"strings"
 	"syscall"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 )
 
 func (r *exportRun) allowedObject(key string, accountReference bool) bool {
@@ -23,7 +23,7 @@ func (r *exportRun) allowedObject(key string, accountReference bool) bool {
 	}
 	school := strconv.FormatInt(r.options.SchoolID, 10)
 	for _, kind := range r.catalog.Files {
-		if kind.Export != "include" {
+		if kind.Export != "include" || r.options.OrganizationID > 0 && kind.Layout != "account" {
 			continue
 		}
 		if matchesExportObject(kind, key, school, accountReference) {
@@ -73,7 +73,7 @@ func (r *exportRun) exportFiles(ctx context.Context) error {
 			return errors.New("tenant export: referenced original is missing")
 		}
 	}
-	if mapping.Sync() != nil || mapping.Close() != nil {
+	if syncFile(mapping) != nil || mapping.Close() != nil {
 		return errors.New("tenant export: cannot persist object mapping")
 	}
 	return r.recordArtifact("objects.jsonl")
@@ -106,6 +106,10 @@ func (r *exportRun) objectKeys(root *os.Root, kind organizationtenancy.Lifecycle
 			}
 		}
 		sort.Strings(keys)
+		return keys, nil
+	}
+	if r.options.OrganizationID > 0 {
+		// School files go in the package of their school.
 		return keys, nil
 	}
 	base := kind.Kind
@@ -204,7 +208,7 @@ func (r *exportRun) copyObject(ctx context.Context, root *os.Root, key string, m
 	if err != nil || size != before.Size() || before.Size() != after.Size() || !before.ModTime().Equal(after.ModTime()) {
 		return errors.New("tenant export: original changed during copy")
 	}
-	if dst.Sync() != nil || dst.Close() != nil {
+	if syncFile(dst) != nil || dst.Close() != nil {
 		return errors.New("tenant export: cannot persist original")
 	}
 	r.manifest.Artifacts = append(r.manifest.Artifacts, organizationtenancy.ExportArtifact{Path: name, SHA256: digest, Bytes: size})

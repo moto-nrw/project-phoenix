@@ -35,6 +35,7 @@ import {
 } from "~/lib/api-error";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { ActionHint } from "~/components/ui/action-hint";
 import { Button, buttonClassName } from "~/components/ui/button";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { Textarea } from "~/components/ui/textarea";
@@ -426,6 +427,7 @@ export function SettingsField({
   // that must change first). Server errors go through the shared path.
   const [hint, setHint] = useState<string | null>(null);
   const hintId = useId();
+  const uploadHintId = useId();
   const [confirmOpen, setConfirmOpen] = useState(false);
   const [historyDeletion, setHistoryDeletion] = useState<
     "save" | "reset" | null
@@ -1249,10 +1251,18 @@ export function SettingsField({
             variant="surface"
             size="compact"
             onClick={handleReset}
-            title={
+            aria-label="Zurücksetzen"
+            tooltip={
               restoresTraegerValue
-                ? "Auf den Wert des Trägers zurücksetzen"
-                : "Auf Standard zurücksetzen"
+                ? "Übernimmt wieder den Wert, den Ihr Träger vorgibt."
+                : (deletesRoomHistory && setting.default === false) ||
+                    shortenedRetentionDays(
+                      setting,
+                      setting.default,
+                      audience,
+                    ) !== null
+                  ? "Stellt den Standard wieder her. Vorher fragt moto nach, weil dabei Daten gelöscht werden."
+                  : "Stellt den Standard wieder her."
             }
           >
             <RotateCcw className="h-3.5 w-3.5" aria-hidden="true" />
@@ -1380,6 +1390,7 @@ export function SettingsField({
         confirmText="Aktivieren"
         cancelText="Abbrechen"
         isConfirmLoading={legalActivationSaving}
+        loadingText="Wird eingeschaltet …"
         isConfirmDisabled={
           legalActivationTextKey === ENROLLMENT_LEGAL_AGB_TEXT_KEY
             ? !hasEnrollmentLegalAGBSourceContent(
@@ -1417,6 +1428,7 @@ export function SettingsField({
               documentDeleteDisabledReason: legalDocumentDeleteDisabledReason,
               onDocumentUpload: handleLegalDocumentUpload,
               onDocumentDelete: handleLegalDocumentDelete,
+              uploadHintId,
               textOnly: audience === "traeger",
             })
           ) : (
@@ -1452,6 +1464,7 @@ export function SettingsField({
         confirmText="Speichern"
         cancelText="Abbrechen"
         isConfirmLoading={legalTextEditSaving}
+        loadingText="Wird gespeichert …"
         isConfirmDisabled={
           setting.key === ENROLLMENT_LEGAL_AGB_TEXT_KEY
             ? !hasEnrollmentLegalAGBSourceContent(
@@ -1484,6 +1497,7 @@ export function SettingsField({
               documentDeleteDisabledReason: legalDocumentDeleteDisabledReason,
               onDocumentUpload: handleLegalDocumentUpload,
               onDocumentDelete: handleLegalDocumentDelete,
+              uploadHintId,
               textOnly: audience === "traeger",
             })
           ) : (
@@ -1640,6 +1654,7 @@ interface AGBSourceEditorProps {
   readonly documentDeleteDisabledReason?: string;
   readonly onDocumentUpload: (file: File | null) => void;
   readonly onDocumentDelete: () => void;
+  readonly uploadHintId: string;
   /**
    * Only the text source. The Träger portal sets the AGB text for all its
    * schools; the PDF and the choice between both stay with each school.
@@ -1659,6 +1674,7 @@ function renderAGBSourceEditor({
   documentDeleteDisabledReason,
   onDocumentUpload,
   onDocumentDelete,
+  uploadHintId,
   textOnly = false,
 }: AGBSourceEditorProps) {
   const hasText = textValue.trim() !== "";
@@ -1750,44 +1766,58 @@ function renderAGBSourceEditor({
             </div>
             <div className="flex flex-wrap items-center gap-2 text-xs">
               {documentManagementDisabledReason == null && (
-                <label
-                  className={buttonClassName({
-                    variant: "surface",
-                    size: "compact",
-                    className:
-                      !canManageDocument || documentSaving
-                        ? "pointer-events-none cursor-pointer opacity-50"
-                        : "cursor-pointer",
-                  })}
-                >
-                  <FileUp className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>{hasDocument ? "PDF ersetzen" : "PDF hochladen"}</span>
-                  <input
-                    type="file"
-                    accept="application/pdf,.pdf"
-                    className="sr-only"
-                    disabled={!canManageDocument || documentSaving}
-                    onChange={(event) => {
-                      onDocumentUpload(event.currentTarget.files?.[0] ?? null);
-                      event.currentTarget.value = "";
-                    }}
-                  />
-                </label>
+                <ActionHint text={uploadHint(hasDocument)}>
+                  <label
+                    className={buttonClassName({
+                      variant: "surface",
+                      size: "compact",
+                      className:
+                        !canManageDocument || documentSaving
+                          ? "pointer-events-none cursor-pointer opacity-50"
+                          : "cursor-pointer",
+                    })}
+                  >
+                    <FileUp className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>
+                      {hasDocument ? "PDF ersetzen" : "PDF hochladen"}
+                    </span>
+                    <span hidden id={uploadHintId}>
+                      {uploadHint(hasDocument)}
+                    </span>
+                    <input
+                      type="file"
+                      accept="application/pdf,.pdf"
+                      className="sr-only"
+                      // Den Fokus bekommt das Feld, nicht das Label: der
+                      // Hinweis muss hier ankommen.
+                      aria-describedby={uploadHintId}
+                      disabled={!canManageDocument || documentSaving}
+                      onChange={(event) => {
+                        onDocumentUpload(
+                          event.currentTarget.files?.[0] ?? null,
+                        );
+                        event.currentTarget.value = "";
+                      }}
+                    />
+                  </label>
+                </ActionHint>
               )}
               {hasDocument && (
-                <a
-                  href={publicLegalDocumentURL(documentURL)}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className={buttonClassName({
-                    variant: "surface",
-                    size: "compact",
-                    className: "",
-                  })}
-                >
-                  <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-                  <span>Öffnen</span>
-                </a>
+                <ActionHint text="Öffnet die gespeicherte PDF in einem neuen Tab.">
+                  <a
+                    href={publicLegalDocumentURL(documentURL)}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className={buttonClassName({
+                      variant: "surface",
+                      size: "compact",
+                      className: "",
+                    })}
+                  >
+                    <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+                    <span>Öffnen</span>
+                  </a>
+                </ActionHint>
               )}
               {hasDocument &&
                 canManageDocument &&
@@ -1798,6 +1828,7 @@ function renderAGBSourceEditor({
                     size="compact"
                     onClick={onDocumentDelete}
                     disabled={documentSaving}
+                    tooltip="Löscht die PDF sofort aus dem Anmeldeformular."
                   >
                     <Trash2 className="h-3.5 w-3.5" aria-hidden="true" />
                     <span>Entfernen</span>
@@ -1859,6 +1890,12 @@ function getEnrollmentLegalStoredTextStatus(
     : "Text ist gespeichert, wird aber nicht angezeigt.";
 }
 
+function uploadHint(hasDocument: boolean) {
+  return hasDocument
+    ? "Ersetzt die gespeicherte PDF durch eine Datei von Ihrem Gerät."
+    : "Lädt eine PDF von Ihrem Gerät hoch.";
+}
+
 function renderEnrollmentLegalTextEditor(
   value: unknown,
   writable: boolean,
@@ -1899,7 +1936,7 @@ function renderEnrollmentLegalTextEditor(
             )}
             {sourceLabel}
             {!hasContent && (
-              <StatusBadge tone="orange" size="xs" label="Fehlt" />
+              <StatusBadge tone="warning" size="xs" label="Fehlt" />
             )}
           </p>
           <p className="mt-0.5 text-xs text-gray-500">{status}</p>
@@ -1912,6 +1949,7 @@ function renderEnrollmentLegalTextEditor(
         onClick={onEdit}
         disabled={!writable}
         className="shrink-0"
+        tooltip="Öffnet den Rechtstext für Eltern zum Bearbeiten."
       >
         <Pencil className="h-3.5 w-3.5" aria-hidden="true" />
         <span>{isAGB ? "AGB überarbeiten" : "Rechtstext bearbeiten"}</span>

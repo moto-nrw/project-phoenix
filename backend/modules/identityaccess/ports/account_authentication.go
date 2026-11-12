@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // SchoolDirectory reads the Organisation & Tenancy school facts login
@@ -20,7 +20,17 @@ type SchoolDirectory interface {
 // account: the active, undeleted Träger where its membership is active, in a
 // stable order. It joins the caller's transaction.
 type TraegerMemberships interface {
+	// HasRetainedTraegerMembership counts pending and active memberships, even
+	// at an inactive or deleted Träger. A tenant caller can query only an
+	// account mapped to its own school; it receives no membership details.
+	HasRetainedTraegerMembership(ctx context.Context, accountID int64) (bool, error)
 	ListAccountTraegerOrganizations(ctx context.Context, accountID int64) ([]identityaccess.TraegerOrganization, error)
+	// LiveTraegers returns those of the Träger that are active and not
+	// deleted, in the given order (ADR 0216: the parents-portal access at a
+	// Träger). lockShared reads exactly one Träger and pins its row in shared
+	// mode until the caller's transaction ends, so a deactivation cannot
+	// commit under a mint or a refresh.
+	LiveTraegers(ctx context.Context, organizationIDs []int64, lockShared bool) ([]identityaccess.TraegerOrganization, error)
 }
 
 // PortalModules answers whether a school booked the module of a portal
@@ -42,7 +52,7 @@ type PortalModules interface {
 // TokenCodec signs and parses the session JWTs.
 type TokenCodec interface {
 	IssueTokenPair(access identityaccess.SessionClaims, refresh identityaccess.RefreshClaims) (accessToken, refreshToken string, err error)
-	IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration) (string, error)
+	IssueMFAEnrollmentToken(accountID, tenantID int64, scope string, ttl time.Duration, credentialGeneration int64) (string, error)
 	ParseAccessToken(token string) (identityaccess.SessionClaims, error)
 	ParseRefreshToken(token string) (identityaccess.RefreshClaims, error)
 	RefreshExpiry() time.Duration
@@ -52,6 +62,11 @@ type TokenCodec interface {
 	IssueAccessToken(claims identityaccess.SessionClaims) (string, error)
 	ParseAccessTokenAllowExpired(token string) (identityaccess.SessionClaims, error)
 	AccessExpiry() time.Duration
+	// IssueHolidayParentSetupToken signs the setup link of a parent account
+	// at a Träger (ADR 0216); ParseHolidayParentSetupToken verifies its
+	// signature, purpose and expiry.
+	IssueHolidayParentSetupToken(claims identityaccess.HolidayParentSetupClaims, ttl time.Duration) (string, error)
+	ParseHolidayParentSetupToken(token string) (identityaccess.HolidayParentSetupClaims, error)
 }
 
 // AuthAudit appends authentication events and resolves pending wipes.

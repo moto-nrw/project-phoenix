@@ -1,3 +1,9 @@
+import { SWRConfig } from "~/lib/swr/testing";
+import {
+  useSWRAuth as realUseSWRAuth,
+  useTenantMutate as realUseTenantMutate,
+} from "~/lib/swr/hooks";
+vi.unmock("swr");
 import {
   fireEvent,
   render,
@@ -11,7 +17,11 @@ import type { BookingLeftover } from "~/lib/booking-leftover";
 
 const mocks = vi.hoisted(() => ({
   leftovers: { current: [] as BookingLeftover[] },
+  read: vi.fn(),
+  useMutate: vi.fn(),
+  getLeftovers: vi.fn(),
   loadError: { current: undefined as unknown },
+  keepCached: false,
   setKept: vi.fn(),
   remove: vi.fn(),
   mutate: vi.fn(() => Promise.resolve()),
@@ -20,7 +30,10 @@ const mocks = vi.hoisted(() => ({
 }));
 
 vi.mock("~/lib/timetable-api", () => ({
-  timetableService: { setBookingLeftoverKept: mocks.setKept },
+  timetableService: {
+    setBookingLeftoverKept: mocks.setKept,
+    getBookingLeftovers: mocks.getLeftovers,
+  },
 }));
 
 vi.mock("~/lib/roster-impact", async (importOriginal) => ({
@@ -29,14 +42,8 @@ vi.mock("~/lib/roster-impact", async (importOriginal) => ({
 }));
 
 vi.mock("~/lib/swr", () => ({
-  useSWRAuth: (key: string | null) => ({
-    data:
-      key === null || mocks.loadError.current
-        ? undefined
-        : mocks.leftovers.current,
-    error: key === null ? undefined : mocks.loadError.current,
-  }),
-  useTenantMutate: () => mocks.mutate,
+  useSWRAuth: (...args: unknown[]) => mocks.read(...args),
+  useTenantMutate: () => mocks.useMutate(),
 }));
 
 // Only the toasts are replaced; the form and load error paths stay real.
@@ -47,19 +54,33 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
 }));
 
 vi.mock("next-auth/react", () => ({
-  useSession: () => ({ data: null, status: "unauthenticated" }),
+  useSession: () => ({
+    data: { user: { id: "A", tenantId: 1 }, expires: "2099-01-01" },
+    status: "authenticated",
+  }),
 }));
 
 vi.mock("~/lib/logger", () => ({
-  createLogger: () => ({ error: vi.fn(), info: vi.fn(), warn: vi.fn() }),
+  createLogger: () => ({
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    flush: () => Promise.resolve(),
+  }),
 }));
 
 vi.mock("~/lib/hooks/use-berlin-today", () => ({
   useBerlinToday: () => "2026-09-09",
 }));
 
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { catalogText } from "~/test/error-catalog-text";
 import { ApiError } from "~/lib/api-error";
 import { BookingLeftoverHints } from "./booking-leftover-hints";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 const hannah: BookingLeftover = {
   templateId: "9",
@@ -100,11 +121,89 @@ describe("BookingLeftoverHints", () => {
   beforeEach(() => {
     mocks.leftovers.current = [hannah, kept];
     mocks.loadError.current = undefined;
+    mocks.keepCached = false;
+    mocks.read.mockImplementation((key: string | null) => ({
+      data:
+        key === null || (mocks.loadError.current && !mocks.keepCached)
+          ? undefined
+          : mocks.leftovers.current,
+      error: key === null ? undefined : mocks.loadError.current,
+    }));
+    mocks.useMutate.mockReturnValue(mocks.mutate);
+    mocks.getLeftovers.mockReset().mockResolvedValue([hannah, kept]);
     mocks.setKept.mockReset().mockResolvedValue(undefined);
     mocks.remove.mockReset().mockResolvedValue(undefined);
     mocks.mutate.mockClear();
     mocks.toastSuccess.mockClear();
     mocks.showError.mockClear();
+  });
+
+  it.each([403, 503])(
+    "detects a %s reload failure after keeping a booking with real SWR",
+    async (status) => {
+      mocks.read.mockImplementation(realUseSWRAuth);
+      mocks.useMutate.mockImplementation(realUseTenantMutate);
+      const cache = new Map();
+      render(
+        <SWRConfig value={{ provider: () => cache, shouldRetryOnError: false }}>
+          <BookingLeftoverHints
+            periodId="5"
+            canManage
+            templatesVersion={undefined}
+          />
+        </SWRConfig>,
+      );
+      const keep = await screen.findByRole("button", {
+        name: "Bleibt so: Hannah Schmitz in „Hausaufgabenbetreuung“",
+      });
+      resetPageReloads();
+      mocks.getLeftovers.mockRejectedValueOnce(new ApiError("failed", status));
+      fireEvent.click(keep);
+      if (status === 403) {
+        // #6801: the page loads anew; its first load shows the refusal.
+        await expectPageReloadedAfterRefusal();
+        expect(mocks.setKept).toHaveBeenCalledTimes(1);
+        return;
+      }
+      expect(
+        await screen.findByText(
+          `${catalogText("general.unavailable", "die Anzeige der Kinder ohne passende Buchung")} ${SAVED_BUT_STALE_SUFFIX}`,
+        ),
+      ).toBeVisible();
+      expect(mocks.setKept).toHaveBeenCalledTimes(1);
+      expect(screen.getByText("Hannah Schmitz")).toBeVisible();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() => expect(mocks.getLeftovers).toHaveBeenCalledTimes(3));
+      expect(mocks.setKept).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it("discards refused booking data and closes its removal dialog", async () => {
+    mocks.keepCached = true;
+    const props = {
+      periodId: "5",
+      canManage: true,
+      templatesVersion: undefined,
+    };
+    const view = render(<BookingLeftoverHints {...props} />);
+    expect(screen.getByText("Hannah Schmitz")).toBeVisible();
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Entfernen: Hannah Schmitz in „Hausaufgabenbetreuung“",
+      }),
+    );
+    expect(await screen.findByRole("dialog")).toBeVisible();
+    for (const status of [403, 500]) {
+      mocks.loadError.current = new ApiError("failed", status);
+      view.rerender(<BookingLeftoverHints {...props} />);
+      expect(await screen.findByRole("alert")).toBeVisible();
+      expect(screen.queryByText("Hannah Schmitz")).not.toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    }
+    mocks.loadError.current = undefined;
+    view.rerender(<BookingLeftoverHints {...props} />);
+    expect(await screen.findByText("Hannah Schmitz")).toBeVisible();
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
   });
 
   it("names the child, the Regeltermin, the weekdays and since when", () => {

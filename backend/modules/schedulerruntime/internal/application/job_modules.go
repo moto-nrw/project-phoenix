@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
 )
 
 // The module switches of the Settings Platform the Worker reads (#4895). A
@@ -90,6 +90,10 @@ var workerJobScopes = map[ports.JobID]jobScope{
 	// The care contracts (#4679) belong to the Träger, not to a booked
 	// module of a school; the job runs per Träger.
 	"care-contract-reminders": jobScopeBasis,
+	// The notices of changed school closing days (ADR 0196) belong to the
+	// holiday care of the Träger; the job runs per Träger.
+	"holiday-closure-notifications": jobScopeBasis,
+	"holiday-closure-watchdog":      jobScopeBasis,
 	// The weekly protocol of a group (#4769) is the group's planning of
 	// moto Basis, like the timetable it records.
 	"week-protocols": jobScopeBasis,

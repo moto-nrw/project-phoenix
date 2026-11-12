@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // concludeStore records the writes of the transition; every other method of
@@ -136,7 +136,7 @@ func TestAcceptanceTextBindsEveryTemplateCondition(t *testing.T) {
 		StatuteRequired: true, StatuteTitle: "Beitragsordnung", StatuteURL: "https://example.org/satzung",
 	}
 	text := acceptanceText(terms)
-	assert.Equal(t, "Vertragsbedingungen für die Betreuung\n\nLaufzeit:\n  12 Monate\n\nKündigung:\n  mit 1 Monat Frist zum Monatsende\n\nVertragspartner:\n  Träger\n\nSonderkündigung:\n  Ja\n  Bei Umzug\n\nSatzung:\n  Ja\n  Beitragsordnung\n\nLink zur Satzung:\n  https://example.org/satzung", text)
+	assert.Equal(t, "Vertragsbedingungen für die Betreuung\n\nLaufzeit:\n  12 Monate\n\nKündigung:\n  mit 1 Monat Frist zum Monatsende\n\nVertragspartner:\n  Träger\n\nSonderkündigung:\n  Ja, mit 1 Monat Frist zum Halbjahr (31. Januar oder 31. Juli)\n  Bei Umzug\n\nSatzung:\n  Ja\n  Beitragsordnung\n\nLink zur Satzung:\n  https://example.org/satzung", text)
 	changes := map[string]func(*carecontract.TemplateInput){
 		"term kind":           func(v *carecontract.TemplateInput) { v.TermKind = carecontract.TermSchoolYear },
 		"term months":         func(v *carecontract.TemplateInput) { n := 11; v.TermMonths = &n },

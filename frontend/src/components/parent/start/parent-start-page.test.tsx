@@ -9,7 +9,10 @@ vi.mock("next-auth/react", () => ({
     },
   }),
 }));
-vi.mock("~/lib/tenant-context", () => ({ useTenantSlugSafe: () => null }));
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => null,
+  useTenantSafe: () => null,
+}));
 import { render, screen, waitFor, within } from "@testing-library/react";
 import { NextIntlClientProvider } from "next-intl";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -22,9 +25,12 @@ import {
   fetchParentProfile,
   listAnnouncements,
   listMessageThreads,
+  listHolidayRegistrationEntries,
   listMyChildren,
   type ParentAnnouncement,
 } from "~/lib/parent-api";
+import { holidayRegistrationEntriesFromBackend } from "~/lib/parent-holiday-registration-entries";
+import { PARENT_HOLIDAY_REGISTRATION_ENTRIES } from "~/test/fixtures/holiday-registrations";
 import {
   getParentCalendar,
   type CalendarEvent,
@@ -46,6 +52,9 @@ vi.mock("~/lib/parent-api", () => ({
   getChildFeatures: vi.fn(),
   getChildToday: vi.fn(),
   fetchParentProfile: vi.fn(),
+  // The holiday card has its own tests (#6671); here no period is announced.
+  listHolidayOffers: vi.fn(async () => []),
+  listHolidayRegistrationEntries: vi.fn(async () => []),
   UNKNOWN_CHILD_TODAY: { at_ogs: null, state: "unknown" },
 }));
 
@@ -76,6 +85,7 @@ const mockedFeatures = vi.mocked(getChildFeatures);
 const mockedToday = vi.mocked(getChildToday);
 const mockedProfile = vi.mocked(fetchParentProfile);
 const mockedCalendar = vi.mocked(getParentCalendar);
+const mockedHolidayEntries = vi.mocked(listHolidayRegistrationEntries);
 
 const felix = {
   student_id: "42",
@@ -147,6 +157,7 @@ beforeEach(() => {
   // 09:00 Berlin (Sommerzeit) — "Guten Morgen".
   vi.setSystemTime(new Date("2026-08-17T07:00:00Z"));
   mockedChildren.mockResolvedValue([felix]);
+  mockedHolidayEntries.mockResolvedValue([]);
   mockedAnnouncements.mockResolvedValue([]);
   mockedThreads.mockResolvedValue([]);
   mockedCalendar.mockResolvedValue({ from: "", to: "", events: [] });
@@ -605,5 +616,56 @@ describe("ParentStartPage", () => {
     renderPage();
     await screen.findByText("Felix Schneider");
     expect(screen.queryByText("Neue Anmeldung")).not.toBeInTheDocument();
+  });
+
+  describe("Konto ohne Kind an einer Schule (#6673)", () => {
+    it("fuehrt mit den Ferienanmeldungen und laesst den Hinweis auf ein fehlendes Kind weg", async () => {
+      mockedChildren.mockResolvedValue([]);
+      mockedHolidayEntries.mockResolvedValue(
+        holidayRegistrationEntriesFromBackend(
+          PARENT_HOLIDAY_REGISTRATION_ENTRIES,
+        ),
+      );
+      renderPage();
+
+      const card = await screen.findByTestId(
+        "parent-holiday-registration-entries",
+      );
+      expect(
+        within(card).getByRole("heading", { name: "Ihre Ferienanmeldungen" }),
+      ).toBeInTheDocument();
+      expect(
+        within(card).getByText("Weihnachtsferien 2026/27"),
+      ).toBeInTheDocument();
+      expect(within(card).getByText("Eingegangen")).toBeInTheDocument();
+      expect(within(card).getByText("Bestätigt")).toBeInTheDocument();
+      expect(
+        within(card).getByRole("link", {
+          name: "Alle Ferienanmeldungen ansehen",
+        }),
+      ).toHaveAttribute("href", "/parents/ferienanmeldungen");
+      // Anker: the start page finished loading the empty children list.
+      await waitFor(() =>
+        expect(
+          screen.queryByTestId("parent-start-child-skeleton"),
+        ).not.toBeInTheDocument(),
+      );
+      expect(
+        screen.queryByText(deMessages.parentStart.noChildren, { exact: false }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("nennt ohne Kind und ohne Ferienanmeldung weiter den Weg ueber die Schule", async () => {
+      mockedChildren.mockResolvedValue([]);
+      renderPage();
+
+      expect(
+        await screen.findByText(/Mit Ihrem Konto ist noch kein Kind verknüpft/),
+      ).toBeInTheDocument();
+      // Anker: the hint above stands; no registrations card shows.
+      expect(
+        screen.queryByTestId("parent-holiday-registration-entries"),
+      ).not.toBeInTheDocument();
+    });
   });
 });

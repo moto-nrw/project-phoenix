@@ -16,7 +16,7 @@ import (
 	"sort"
 	"sync"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 )
 
 // Portals a notification type can belong to.

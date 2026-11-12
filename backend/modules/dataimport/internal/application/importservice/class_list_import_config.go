@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/classlist"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/classlist"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 )
 
 // The two duplicate guards keep the German wording of the class-list
@@ -31,6 +31,7 @@ type ClassListImportConfig struct {
 // NewClassListImportConfig creates the import config.
 func NewClassListImportConfig(deps ports.ClassListImportDeps) *ClassListImportConfig {
 	deps.Membership = ports.ObserveClassListMembership(deps.Membership)
+	deps.Batches = ports.ObserveClassListEntryBatches(deps.Batches)
 	deps.Audit = ports.ObserveAuditCommand(deps.Audit)
 	return &ClassListImportConfig{deps: deps}
 }

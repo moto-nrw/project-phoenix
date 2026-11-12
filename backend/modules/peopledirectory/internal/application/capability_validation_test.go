@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/ports"
 )
 
 // recordingEngine records the persistence calls behind the owner validation tests.
@@ -68,6 +68,15 @@ func (e *recordingEngine) Create(_ context.Context, input peopledirectory.Create
 	e.calls++
 	e.created = input
 	return peopledirectory.Person{FirstName: input.FirstName, LastName: input.LastName, TagID: input.TagID}, domain.OperationStats{}, nil
+}
+func (e *recordingEngine) CreatePersons(_ context.Context, inputs []peopledirectory.CreatePerson) ([]peopledirectory.Person, domain.OperationStats, error) {
+	e.calls++
+	persons := make([]peopledirectory.Person, len(inputs))
+	for i, input := range inputs {
+		e.created = input
+		persons[i] = peopledirectory.Person{FirstName: input.FirstName, LastName: input.LastName, TagID: input.TagID}
+	}
+	return persons, domain.OperationStats{}, nil
 }
 func (e *recordingEngine) FindByID(context.Context, int64, string) (peopledirectory.Person, bool, domain.OperationStats, error) {
 	return peopledirectory.Person{ID: 7}, true, domain.OperationStats{}, nil

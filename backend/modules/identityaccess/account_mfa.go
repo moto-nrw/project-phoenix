@@ -146,8 +146,12 @@ type AccountMFAGate interface {
 // AccountMFAChallenges is the e-mail challenge flow.
 type AccountMFAChallenges interface {
 	// StartMFAChallenge mails a code for one portal and returns the
-	// challenge JWT naming its row.
-	StartMFAChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP) (string, error)
+	// challenge JWT naming its row. Every caller follows a password check:
+	// credentialGeneration is the credential generation that check read (a
+	// sign-in, or the enrollment token it handed out), and no code goes out
+	// once a password write or MFA reset moved it on (ErrInvalidCredentials,
+	// #6289).
+	StartMFAChallenge(ctx context.Context, accountID, tenantID int64, scope string, ip net.IP, credentialGeneration int64) (string, error)
 	// VerifyMFAChallenge verifies a tenant-portal challenge.
 	VerifyMFAChallenge(ctx context.Context, challengeToken, code string) (VerifiedMFAChallenge, error)
 	// VerifyMFAChallengeForScope refuses a challenge of another portal
@@ -169,7 +173,10 @@ type AccountMFAChallenges interface {
 
 // AccountMFAEnrollment is the enrollment and its cascade.
 type AccountMFAEnrollment interface {
-	EnrollMFA(ctx context.Context, accountID int64) error
+	// EnrollMFA records the e-mail factor from the code the enrollment confirm
+	// redeemed. It writes nothing and answers ErrInvalidCredentials when the
+	// account's credential generation moved past the proof's since (#6518).
+	EnrollMFA(ctx context.Context, proof VerifiedMFAChallenge) error
 	// DisableMFA removes the enrollment, revokes every trusted device and
 	// resets the lockout counter in one transaction.
 	DisableMFA(ctx context.Context, accountID int64) error

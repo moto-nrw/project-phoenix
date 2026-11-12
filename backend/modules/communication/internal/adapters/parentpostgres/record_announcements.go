@@ -6,10 +6,10 @@ import (
 	"sort"
 	"time"
 
-	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+	recordports "github.com/moto-ogs/project-phoenix/modules/communication/ports"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/domain"
 	"github.com/uptrace/bun"
 )
 
@@ -208,19 +208,18 @@ func (r *announcementRepository) AccountMayAnswerForStudent(ctx context.Context,
 }
 
 // SetResponse replaces a child's answer for a poll. A transaction-scoped
-// advisory lock serializes replacements for one poll and child. The
-// audience/relationship guard is held through the projection as a share
-// lock on the guardian rows for the rest of the transaction, so a revocation
-// either committed before the check (and is seen) or waits behind the
-// answer; the liveness/selection guard is part of each write. A correction
-// or deadline that changes in between therefore rolls the transaction back
-// instead of storing a stale answer, exactly as the single-statement guard
-// did before the audience rows moved out of the write.
+// advisory lock serializes replacements for one poll and child. The caller
+// runs it behind the parent child write guard (#6638), which holds the
+// guardian's membership, relationship and poll permission until commit; this
+// write re-asks the poll's audience in the same transaction, and the
+// liveness/selection guard is part of each statement. A correction, deadline
+// or audience change in between therefore rolls the answer back instead of
+// storing a stale one.
 func (r *announcementRepository) SetResponse(ctx context.Context, tenantID, announcementID, studentID, accountID int64, optionIDs []int64, expectedPublishedAt time.Time) (bool, error) {
 	if err := r.store.LockResponse(ctx, announcementID, studentID); err != nil {
 		return false, err
 	}
-	allowed, err := r.HoldAnswerPermission(ctx, tenantID, announcementID, accountID, studentID)
+	allowed, err := r.AccountMayAnswerForStudent(ctx, tenantID, announcementID, accountID, studentID)
 	if err != nil || !allowed {
 		return false, err
 	}
@@ -367,7 +366,12 @@ func (r *announcementRepository) ListFeedForAccount(ctx context.Context, account
 	if err != nil {
 		return nil, err
 	}
-	history, err := r.HistoricalDeclarationFeed(ctx, accountID, scopeValue, declarationHistoryLinks(submissions))
+	// The own declaration history comes from every school of the guardian,
+	// also one with parent news off: a given consent stays revocable there
+	// (#6303). The parent flow keeps only the own given consents of such a
+	// school.
+	history, err := r.HistoricalDeclarationFeed(ctx, accountID,
+		communication.PortalAnnouncementFeedScope{TenantIDs: feedTenantIDs(scopeValue)}, declarationHistoryLinks(submissions))
 	if err != nil {
 		return nil, err
 	}
@@ -382,7 +386,7 @@ func (r *announcementRepository) ListFeedForAccount(ctx context.Context, account
 			DeliveryMode: value.DeliveryMode, ResponseDeadline: value.ResponseDeadline, SystemKind: value.SystemKind,
 			ReminderSentAt: value.ReminderSentAt, ReminderText: value.ReminderText,
 			SenderName: value.SenderName, SenderSchoolClass: value.SenderSchoolClass,
-			ReadAt: value.ReadAt, AcknowledgedAt: value.AcknowledgedAt,
+			ReadAt: value.ReadAt, AcknowledgedAt: value.AcknowledgedAt, Ended: value.Ended,
 		})
 	}
 	return rows, nil

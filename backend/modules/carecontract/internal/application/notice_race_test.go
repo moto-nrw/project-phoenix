@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Withdrawal and termination on the real store (#4682). The races run two
@@ -114,7 +114,7 @@ func newNoticeFixture(t *testing.T, name string, now time.Time) noticeFixture {
 	}))
 	// The contract party still holds the enrollment submission for the child.
 	addressees := &noticeAddressees{addresses: []string{"Erika@Example.org"}}
-	notices := NewNotices(store, store, NoticePorts{Templates: noticeTemplates{}, Post: post, Addressees: addressees},
+	notices := NewNotices(store, store, NoticePorts{Holidays: schoolHolidays{}, Templates: noticeTemplates{}, Post: post, Addressees: addressees},
 		Clock{Now: func() time.Time { return now }}, race.contracts)
 	return noticeFixture{raceFixture: race, notices: notices, post: post, addressees: addressees}
 }
@@ -292,7 +292,7 @@ func TestDeclarationNeedsAnActiveContractAndAValidDay(t *testing.T) {
 	t.Parallel()
 	draft := newRaceFixture(t, "Träger Kündigung Entwurf")
 	store := postgres.NewStore()
-	notices := NewNotices(store, store, NoticePorts{Templates: noticeTemplates{}, Post: &noticePost{}}, Clock{Now: func() time.Time { return noticeToday }},
+	notices := NewNotices(store, store, NoticePorts{Holidays: schoolHolidays{}, Templates: noticeTemplates{}, Post: &noticePost{}}, Clock{Now: func() time.Time { return noticeToday }},
 		draft.contracts)
 	err := testpkg.WithinTraeger(draft.ctx, draft.org, func(txCtx context.Context) error {
 		_, err := notices.declare(txCtx, declaration{organizationID: draft.org, accountID: draft.reviewer.AccountID,
@@ -330,11 +330,11 @@ func TestDelayedConclusionStartsWithdrawalAtNoticeProvision(t *testing.T) {
 	require.NoError(t, f.db.NewRaw(`SELECT outbox_id FROM care_contract.contract_mailings WHERE contract_id = ?`, f.contract).Scan(f.ctx, &outboxID))
 	post := &noticePost{deliveries: []carecontract.NoticeDelivery{{OutboxID: outboxID, ProvidedAt: provided}}}
 	store := postgres.NewStore()
-	notices := NewNotices(store, store, NoticePorts{Templates: noticeTemplates{}, Post: post}, Clock{Now: func() time.Time { return provided }}, f.contracts)
+	notices := NewNotices(store, store, NoticePorts{Holidays: schoolHolidays{}, Templates: noticeTemplates{}, Post: post}, Clock{Now: func() time.Time { return provided }}, f.contracts)
 	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, func(ctx context.Context) error {
 		state, err := notices.noticeState(ctx, f.org, f.contract)
 		require.NoError(t, err)
-		assert.Equal(t, new(calendar.NewDate(2026, 12, 24)), withdrawalUntil(&f.conclusion, state.InformedAt))
+		assert.Equal(t, new(calendar.NewDate(2026, 12, 24)), withdrawalUntil(&f.conclusion, state.InformedAt, nil))
 		return nil
 	}))
 	require.NoError(t, f.db.NewRaw(`SELECT withdrawal_informed_at FROM care_contract.contracts WHERE id = ?`, f.contract).Scan(f.ctx, &informed))
@@ -368,7 +368,7 @@ func TestLegacyFrozenDocumentDoesNotClaimWithdrawalNotice(t *testing.T) {
 	var informed *time.Time
 	require.NoError(t, f.db.NewRaw(`SELECT withdrawal_informed_at FROM care_contract.contracts WHERE id = ?`, f.contract).Scan(f.ctx, &informed))
 	assert.Nil(t, informed, "conclusion and resend of an old PDF prove no notice provision")
-	assert.Equal(t, new(calendar.NewDate(2027, 11, 22)), withdrawalUntil(&f.conclusion, informed), "20 November 2027 is a Saturday (§ 193 BGB)")
+	assert.Equal(t, new(calendar.NewDate(2027, 11, 22)), withdrawalUntil(&f.conclusion, informed, nil), "20 November 2027 is a Saturday (§ 193 BGB)")
 }
 
 func TestOfficeOptionsUseTheReceiptDay(t *testing.T) {
@@ -484,7 +484,7 @@ func TestFailedMailAndCorrectedResendWaitForActualProvision(t *testing.T) {
 		return nil
 	}))
 	store, post := postgres.NewStore(), &noticePost{}
-	notices := NewNotices(store, store, NoticePorts{Templates: noticeTemplates{}, Post: post}, Clock{Now: func() time.Time { return now }}, f.contracts)
+	notices := NewNotices(store, store, NoticePorts{Holidays: schoolHolidays{}, Templates: noticeTemplates{}, Post: post}, Clock{Now: func() time.Time { return now }}, f.contracts)
 	require.NoError(t, testpkg.WithinTraeger(f.ctx, f.org, func(ctx context.Context) error {
 		state, err := notices.noticeState(ctx, f.org, f.contract)
 		require.NoError(t, err)
@@ -496,7 +496,7 @@ func TestFailedMailAndCorrectedResendWaitForActualProvision(t *testing.T) {
 		post.deliveries = []carecontract.NoticeDelivery{{OutboxID: mailings[0].OutboxID, ProvidedAt: now}}
 		state, err = notices.noticeState(ctx, f.org, f.contract)
 		require.NoError(t, err)
-		assert.Equal(t, new(calendar.DateFromTime(now).AddDays(14)), withdrawalUntil(&f.conclusion, state.InformedAt))
+		assert.Equal(t, new(calendar.DateFromTime(now).AddDays(14)), withdrawalUntil(&f.conclusion, state.InformedAt, nil))
 		return nil
 	}))
 }

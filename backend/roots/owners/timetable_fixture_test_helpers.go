@@ -7,12 +7,12 @@ import (
 	"slices"
 	"time"
 
-	directoryPorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	directoryPorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	enrollmentProvenanceView "github.com/moto-nrw/project-phoenix/modules/timetableenrollmentprovenance/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	enrollmentProvenanceView "github.com/moto-ogs/project-phoenix/modules/timetableenrollmentprovenance/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 type TestTimetableTB interface {
@@ -40,13 +40,13 @@ func newTestTimetableWithSessions(tb TestTimetableTB, db transactionruntime.Data
 		// This owner-only harness stubs foreign capabilities: no block has
 		// started and nothing was observed. Lifecycle integration tests
 		// compose the real Student Presence owner and the Membership locker.
-		LockStaffAssignment: func(context.Context, int64) error { return nil },
-		DB:                  db.Pool(),
-		Students:            students,
-		Rooms:               roomDirectory,
-		Sessions:            sessions,
-		Observe:             func(timetableCompose.Observation) {},
-		Provenance:          enrollmentProvenanceView.NewReader(),
+		LockStaffAssignments: func(context.Context, []int64) error { return nil },
+		DB:                   db.Pool(),
+		Students:             students,
+		Rooms:                roomDirectory,
+		Sessions:             sessions,
+		Observe:              func(timetableCompose.Observation) {},
+		Provenance:           enrollmentProvenanceView.NewReader(),
 	})
 	if err != nil {
 		tb.Fatalf("compose test Timetable & Activities: %v", err)

@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/domain"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // The grade-transition commands run inside the workflow's tenant
@@ -266,10 +266,25 @@ func (s *Service) LockTransitions(ctx context.Context) error {
 		if tenantID.Int64() <= 0 {
 			return errTenantRequired
 		}
-		lockStats, err := s.store.LockTransitions(ctx, tenantID.Int64())
+		lockStats, err := lockTransitionGate(ctx, s.store, tenantID.Int64())
 		stats.Add(lockStats)
 		return err
 	})
+}
+
+// transitionGateStore takes the tenant-wide transition gate.
+type transitionGateStore interface {
+	LockTransitions(ctx context.Context, tenantID int64) (domain.OperationStats, error)
+}
+
+// lockTransitionGate is the one acquisition of the transition gate. It
+// admits the gate in the unit of work's lock order first (#6232): after the
+// recurrence gate, before Timetable's day locks.
+func lockTransitionGate(ctx context.Context, store transitionGateStore, tenantID int64) (domain.OperationStats, error) {
+	if err := tenant.OrderLock(ctx, tenant.LockGradeTransitions, tenant.LockIDKey(tenantID)); err != nil {
+		return domain.OperationStats{}, err
+	}
+	return store.LockTransitions(ctx, tenantID)
 }
 
 func (s *Service) LockLatestAppliedTransition(ctx context.Context) (schoolstructure.Transition, bool, error) {

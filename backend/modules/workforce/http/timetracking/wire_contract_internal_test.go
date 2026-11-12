@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/require"
 )
 
@@ -15,6 +15,7 @@ func TestHistoryWirePreservesLargeIDsAndCalculatedFields(t *testing.T) {
 	response := workforce.HistoryResponse{Sessions: []*workforce.SessionResponse{{
 		WorkSession:  &workforce.WorkSession{ID: largeID, TenantID: largeID, StaffID: largeID, CreatedBy: largeID, UpdatedBy: new(largeID), BreakMinutes: 10},
 		BreakMinutes: 30, NetMinutes: 450, EditCount: 2, AuditCount: 3,
+		Breaks: []*workforce.WorkSessionBreak{{ID: largeID, TenantID: largeID, SessionID: largeID}},
 	}}}
 	raw, err := json.Marshal(response)
 	require.NoError(t, err)
@@ -26,6 +27,12 @@ func TestHistoryWirePreservesLargeIDsAndCalculatedFields(t *testing.T) {
 	row := decoded.Sessions[0]
 	for _, field := range []string{"id", "tenant_id", "staff_id", "created_by", "updated_by"} {
 		require.JSONEq(t, `"9007199254740993"`, string(row[field]), field)
+	}
+	var pauses []map[string]json.RawMessage
+	require.NoError(t, json.Unmarshal(row["breaks"], &pauses))
+	require.Len(t, pauses, 1)
+	for _, field := range []string{"id", "tenant_id", "session_id"} {
+		require.JSONEq(t, `"9007199254740993"`, string(pauses[0][field]), field)
 	}
 	require.JSONEq(t, "30", string(row["break_minutes"]), "calculated breaks override the cache")
 	require.JSONEq(t, "450", string(row["net_minutes"]))
@@ -88,4 +95,13 @@ func TestHistoryWireCarriesLaborDays(t *testing.T) {
 	require.JSONEq(t, `"2026-10-05T16:01:00Z"`, string(day["over_daily_max_at"]))
 	require.JSONEq(t, "null", string(day["break_too_short_at"]))
 	require.JSONEq(t, "45", string(day["break_too_short_required_minutes"]))
+}
+
+func TestBreakCorrectionDecodesExactStringIDs(t *testing.T) {
+	t.Parallel()
+	for _, id := range []string{`"9007199254740993"`, `9007199254740993`} {
+		var request workforce.SessionUpdateRequest
+		require.NoError(t, json.Unmarshal([]byte(`{"breaks":[{"id":`+id+`,"duration_minutes":45}]}`), &request))
+		require.Equal(t, int64(9007199254740993), request.Breaks[0].ID)
+	}
 }

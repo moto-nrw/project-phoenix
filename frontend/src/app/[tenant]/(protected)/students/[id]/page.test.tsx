@@ -141,6 +141,8 @@ vi.mock("~/components/ui/modal", () => ({
     children,
     confirmText,
     isConfirmDisabled,
+    isConfirmLoading,
+    loadingText = "Wird geladen...",
   }: {
     isOpen: boolean;
     onClose: () => void;
@@ -149,6 +151,8 @@ vi.mock("~/components/ui/modal", () => ({
     children: React.ReactNode;
     confirmText: string;
     isConfirmDisabled?: boolean;
+    isConfirmLoading?: boolean;
+    loadingText?: string;
   }) =>
     isOpen ? (
       <div data-testid={`modal-${title.toLowerCase().replace(/\s+/g, "-")}`}>
@@ -161,9 +165,10 @@ vi.mock("~/components/ui/modal", () => ({
           type="button"
           data-testid="modal-confirm"
           onClick={onConfirm}
-          disabled={isConfirmDisabled}
+          disabled={isConfirmDisabled || isConfirmLoading}
         >
-          {confirmText}
+          {/* Wie das Kit: während der Aktion steht loadingText (#6636). */}
+          {isConfirmLoading ? loadingText : confirmText}
         </button>
       </div>
     ) : null,
@@ -943,6 +948,46 @@ describe("StudentDetailPage", () => {
       );
     });
 
+    // Ort vor Status (#6407): Für die Tageszeiten im Kopf zählt die
+    // Krankmeldung nur, solange das Kind nicht eingecheckt ist.
+    it.each([
+      ["Anwesend - Raum 101", false],
+      ["Zuhause", true],
+    ])(
+      "reads today's header plans with location %s as sick=%s",
+      async (location, countedSick) => {
+        mockUseStudentData.mockReturnValue({
+          student: { ...mockStudent, sick: true, current_location: location },
+          loading: false,
+          error: null,
+          hasFullAccess: true,
+          hasWriteAccess: true,
+          hasAbsenceWriteAccess: true,
+          hasSickExcusedWriteAccess: true,
+          supervisors: [],
+          myGroups: ["1"],
+          myGroupRooms: [],
+          mySupervisedRooms: [],
+          refreshData: mockRefreshData,
+        });
+
+        render(
+          <SWRConfig value={{ provider: () => new Map(), dedupingInterval: 0 }}>
+            <StudentDetailPage />
+          </SWRConfig>,
+        );
+
+        await waitFor(() => {
+          expect(vi.mocked(getPickupDayData).mock.lastCall?.[3]).toBe(
+            countedSick,
+          );
+          expect(vi.mocked(getArrivalDayData).mock.lastCall?.[4]).toBe(
+            countedSick,
+          );
+        });
+      },
+    );
+
     it("renders student header with name", () => {
       render(<StudentDetailPage />);
 
@@ -1518,6 +1563,35 @@ describe("StudentDetailPage", () => {
       });
     });
 
+    // #6636: „Wird angemeldet…“ steht während der Anmeldung tatsächlich auf
+    // dem Knopf, nicht der allgemeine Ladetext.
+    it("shows the check-in loading text while the check-in runs", async () => {
+      let finish: (value: unknown) => void = () => undefined;
+      mockSchoolCheckinStudent.mockReturnValue(
+        new Promise((resolve) => {
+          finish = resolve;
+        }),
+      );
+
+      render(<StudentDetailPage />);
+      fireEvent.click(screen.getByTestId("checkin-button"));
+      const confirmButton = await screen.findByTestId("modal-confirm");
+      expect(confirmButton).toHaveTextContent("Anmelden");
+      fireEvent.click(confirmButton);
+
+      await waitFor(() =>
+        expect(screen.getByTestId("modal-confirm")).toHaveTextContent(
+          "Wird angemeldet…",
+        ),
+      );
+      expect(screen.getByTestId("modal-confirm")).toBeDisabled();
+
+      await act(async () => {
+        finish({});
+      });
+      await waitFor(() => expect(mockToastSuccess).toHaveBeenCalled());
+    });
+
     it("shows the error in the dialog when checkin fails", async () => {
       const failure = new ApiError("Checkin failed", 500, {
         code: "general.server",
@@ -1827,6 +1901,78 @@ describe("StudentDetailPage", () => {
       expect(mockShowActionError).not.toHaveBeenCalled();
       expect(mockToastError).not.toHaveBeenCalled();
     });
+
+    // #6594: Der Ansicht-Knopf im Dialog ist ein Schließweg. Während des
+    // Aufhebens bleibt er gesperrt, sonst hätte die Antwort keine Fläche.
+    it.each([
+      [
+        "sick",
+        "sick-toggle-button",
+        "modal-krankmeldung-aufheben",
+        "Alle Kranktage ansehen",
+      ],
+      [
+        "excused",
+        "excused-toggle-button",
+        "modal-entschuldigung-aufheben",
+        "Alle entschuldigten Tage ansehen",
+      ],
+    ] as const)(
+      "keeps the %s lift dialog open while the lift runs",
+      async (status, toggle, modal, viewAll) => {
+        mockUseStudentData.mockReturnValue({
+          student: { ...mockStudent, [status]: true },
+          loading: false,
+          error: null,
+          hasFullAccess: true,
+          hasWriteAccess: true,
+          hasAbsenceWriteAccess: true,
+          hasSickExcusedWriteAccess: true,
+          supervisors: [],
+          myGroups: ["1"],
+          myGroupRooms: [],
+          mySupervisedRooms: [],
+          refreshData: mockRefreshData,
+        });
+        let fail!: (error: Error) => void;
+        mockUpdateStudent.mockReturnValue(
+          new Promise((_resolve, reject) => {
+            fail = reject;
+          }),
+        );
+
+        render(<StudentDetailPage />);
+        fireEvent.click(screen.getByTestId(toggle));
+        const dialog = await screen.findByTestId(modal);
+        fireEvent.click(within(dialog).getByTestId("modal-confirm"));
+
+        const viewAllButton = within(dialog).getByRole("button", {
+          name: viewAll,
+        });
+        expect(viewAllButton).toBeDisabled();
+        fireEvent.click(viewAllButton);
+        // Anker: der Aufheben-Dialog ist weiter offen.
+        expect(screen.getByTestId(modal)).toBeInTheDocument();
+        expect(
+          screen.queryByTestId(`planned-status-modal-${status}`),
+        ).not.toBeInTheDocument();
+
+        await act(async () => {
+          fail(new ApiError("boom", 500, { code: "general.server" }));
+        });
+        expect(
+          await within(dialog).findByText(
+            catalogText(
+              "general.server",
+              status === "sick" ? "die Krankmeldung" : "die Entschuldigung",
+            ),
+          ),
+        ).toBeInTheDocument();
+        expect(
+          within(dialog).getByRole("button", { name: viewAll }),
+        ).toBeEnabled();
+      },
+    );
 
     it("closes sick date picker modal when cancel is clicked", async () => {
       render(<StudentDetailPage />);

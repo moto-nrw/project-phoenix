@@ -6,9 +6,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // PreviewDecision materializes a pending approval with the supplied
@@ -48,6 +48,7 @@ func (s *OfferingChanges) PreviewDecision(
 	}
 	return &careplan.OfferingChangePreview{
 		Diff:                              diff.entries,
+		Unchanged:                         diff.unchanged,
 		Selections:                        offeringPreviewSelections(ids, diff.selected),
 		ManualPlanningConflicts:           conflicts,
 		ArrivalExpectationsFollowBookings: arrivalExpectationsFollowBookings,

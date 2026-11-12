@@ -8,7 +8,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Document inbox of the parents portal (spec #4611 user stories 93 and 96,
@@ -74,6 +74,7 @@ type BillingDocument struct {
 	// period may still run; the inbox then offers „Vertrag widerrufen“, the
 	// withdrawal function of § 356a BGB (#6105).
 	CanWithdrawContract bool
+	SEPAMandate         *SEPAMandateStatus
 }
 
 // BillingDocumentFile is the PDF of one document.
@@ -130,9 +131,12 @@ type TraegerRuntime interface {
 }
 
 // ParentAccounts reads the address of an account and the account of an
-// address, in the caller's administrative transaction. found is false for an
+// address, and persists the account's portal language without a school.
+// Reads join the caller's administrative transaction. found is false for an
 // address without an account.
 type ParentAccounts interface {
+	FindAccountPortalLocale(context.Context, int64) (*string, error)
+	SetAccountPortalLocale(context.Context, int64, string) error
 	AccountEmail(ctx context.Context, accountID int64) (string, error)
 	AccountIDByEmail(ctx context.Context, email string) (accountID int64, found bool, err error)
 }
@@ -175,7 +179,7 @@ func (s *Service) ListBillingDocuments(ctx context.Context, accountID int64, inb
 	case DocumentInboxLetters:
 		return s.listInbox(ctx, accountID, s.BillingDocuments.ListBillingDocuments)
 	case DocumentInboxContracts:
-		return s.listInbox(ctx, accountID, s.ContractDocuments.ListContractDocuments)
+		return s.listInbox(ctx, accountID, s.contractsWithMandateStatus)
 	default:
 		return nil, fmt.Errorf("parent: unknown document inbox %q", inbox)
 	}
@@ -256,8 +260,9 @@ func (s *Service) ContractDocumentFile(ctx context.Context, accountID, organizat
 	return file, nil
 }
 
-// billingInboxAccess resolves the Träger the account's relationships open
-// and the account's current address, in one administrative transaction.
+// billingInboxAccess resolves the Träger the account's relationships open,
+// with those of its holiday registrations (ADR 0216), and the account's
+// current address, in one administrative transaction.
 func (s *Service) billingInboxAccess(ctx context.Context, accountID int64) ([]Traeger, BillingDocumentReader, error) {
 	if s.BillingDocuments == nil || s.ContractDocuments == nil || s.TraegerRuntime == nil || s.SchoolTraeger == nil || s.ParentAccounts == nil {
 		return nil, BillingDocumentReader{}, errors.New("parent: document inbox is not configured")
@@ -266,7 +271,10 @@ func (s *Service) billingInboxAccess(ctx context.Context, accountID int64) ([]Tr
 	var email string
 	err := s.accountDocumentAccess(ctx, accountID, func(adminCtx context.Context, children []*ChildSummary) error {
 		var err error
-		if access, err = s.documentAccess(adminCtx, children); err != nil || len(access.traeger) == 0 {
+		if access, err = s.documentAccess(adminCtx, children); err != nil {
+			return err
+		}
+		if access.traeger, err = s.withHolidayRegistrationTraeger(adminCtx, accountID, access.traeger); err != nil || len(access.traeger) == 0 {
 			return err
 		}
 		email, err = s.ParentAccounts.AccountEmail(adminCtx, accountID)
@@ -451,4 +459,27 @@ func (s *Service) guardianLocale(ctx context.Context, guardianProfileID int64) (
 		return "", err
 	}
 	return *profile.PortalLocale, nil
+}
+
+// contractsWithMandateStatus reads the inbox once and batches its SEPA hints
+// in the same authorized Träger transaction, without detail reads per contract.
+func (s *Service) contractsWithMandateStatus(ctx context.Context, organizationID int64, reader BillingDocumentReader) ([]BillingDocument, error) {
+	documents, err := s.ContractDocuments.ListContractDocuments(ctx, organizationID, reader)
+	if err != nil || len(documents) == 0 || s.SEPAMandates == nil {
+		return documents, err
+	}
+	ids := make([]int64, len(documents))
+	for i, document := range documents {
+		ids[i] = document.ID
+	}
+	statuses, err := s.SEPAMandates.SEPAMandateStatuses(ctx, organizationID, SEPAMandateReader{AccountID: reader.AccountID, Email: reader.Email}, ids)
+	if err != nil {
+		return nil, err
+	}
+	for i := range documents {
+		if status, ok := statuses[documents[i].ID]; ok {
+			documents[i].SEPAMandate = &status
+		}
+	}
+	return documents, nil
 }

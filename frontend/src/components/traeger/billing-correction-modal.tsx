@@ -13,6 +13,10 @@
 import { useEffect, useRef, useState } from "react";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
+import {
+  useFormModalPending,
+  type FormModalOperation,
+} from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
@@ -115,7 +119,9 @@ function modeOf(target: BillingCorrectionTarget): {
         title: `Gutschrift für ${target.child.firstName}`,
         saveLabel: "Gutschreiben",
         object: "die Gutschrift",
-        intro: `Noch offen für ${target.child.firstName}: ${formatEuro(target.leftCents)}. Die Gutschrift bekommt eine eigene Nummer und ein eigenes Schreiben.`,
+        // The rest the invoice still asks for, before any payment: moto sees
+        // no incoming money (#6348).
+        intro: `Offene Forderung für ${target.child.firstName}: ${formatEuro(target.leftCents)}. Das ist der Stand vor Zahlungseingang. Die Gutschrift bekommt eine eigene Nummer und ein eigenes Schreiben.`,
         amount: {
           id: "billing-credit-amount",
           name: "amount_cents",
@@ -209,7 +215,8 @@ export function BillingCorrectionModal({
 }>) {
   const [amount, setAmount] = useState("");
   const [reason, setReason] = useState("");
-  const [saving, setSaving] = useState(false);
+  const submission = useFormModalPending(target !== null);
+  const saving = submission.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -223,9 +230,12 @@ export function BillingCorrectionModal({
     clearErrors();
   }, [target, clearErrors]);
 
+  // Die Rückmeldungen schließen beim Aufrufer den Dialog: Eine späte Antwort
+  // eines inzwischen geschlossenen Dialogs ruft sie nicht mehr (#6533).
   const save = async (
     current: BillingCorrectionTarget,
     cents: number | null,
+    op: FormModalOperation,
   ) => {
     if (current.kind === "care-cancellation") {
       const letters = await cancelCareInvoice(
@@ -248,7 +258,7 @@ export function BillingCorrectionModal({
             : `${issued} Geben Sie der Familie das Storno-Schreiben auf Papier.`
           : `${issued} Die Familie bekommt kein Schreiben.`,
       );
-      onCareCancelled?.(letters);
+      if (op.isCurrent()) onCareCancelled?.(letters);
     } else if (current.kind === "cancellation") {
       const issued = await cancelBillingDocument(
         runId,
@@ -256,7 +266,7 @@ export function BillingCorrectionModal({
         reason.trim(),
       );
       success(`Storno ${issued.number} ist ausgestellt.`);
-      onIssued?.(issued);
+      if (op.isCurrent()) onIssued?.(issued);
     } else if (current.kind === "credit") {
       const issued = await creditBillingDocument(runId, current.document.id, {
         childId: current.child.childId,
@@ -264,7 +274,7 @@ export function BillingCorrectionModal({
         reason: reason.trim(),
       });
       success(`Gutschrift ${issued.number} ist ausgestellt.`);
-      onIssued?.(issued);
+      if (op.isCurrent()) onIssued?.(issued);
     } else if (current.kind === "carried") {
       const run = await changeCarriedCorrection(
         runId,
@@ -272,7 +282,7 @@ export function BillingCorrectionModal({
         { totalCents: cents ?? 0, reason: reason.trim() },
       );
       success("Die Korrektur ist geändert.");
-      onCorrected?.(run);
+      if (op.isCurrent()) onCorrected?.(run);
     } else {
       const run = await correctBillingRun(runId, {
         registrationId: current.registrationId,
@@ -281,7 +291,7 @@ export function BillingCorrectionModal({
         reason: reason.trim(),
       });
       success("Der Betrag ist korrigiert.");
-      onCorrected?.(run);
+      if (op.isCurrent()) onCorrected?.(run);
     }
   };
 
@@ -298,17 +308,17 @@ export function BillingCorrectionModal({
       formErrors.invalid("Bitte prüfen Sie Ihre Angaben.", fields);
       return;
     }
-    setSaving(true);
-    try {
-      await save(target, cents);
-    } catch (err) {
-      logger.error("billing_correction_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: mode.object });
-    } finally {
-      setSaving(false);
-    }
+    await submission.run(async (op) => {
+      try {
+        await save(target, cents, op);
+      } catch (err) {
+        logger.error("billing_correction_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: mode.object });
+      }
+    });
   };
 
   const mode = target ? modeOf(target) : null;
@@ -316,7 +326,7 @@ export function BillingCorrectionModal({
     <FormModal
       isOpen={target !== null}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={submission}
       isBackdropDismissDisabled
       title={mode?.title ?? ""}
       size="md"

@@ -7,9 +7,9 @@ import (
 	"testing"
 	"time"
 
-	declarations "github.com/moto-nrw/project-phoenix/modules/communication"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/roots/communicationtest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	declarations "github.com/moto-ogs/project-phoenix/modules/communication"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/roots/communicationtest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -65,7 +65,7 @@ func TestNormalizeDeclarationCompletesAndRefuses(t *testing.T) {
 
 	standard := declarationTestInput()
 	standard.DeliveryMode = ""
-	standard.Declaration.Revocable = true
+	standard.Declaration.RequiresPassword = true
 	_, err = normalizeInput(&standard)
 	require.NoError(t, err)
 	assert.Equal(t, StaffAnnouncementDeclarationSettings{}, standard.Declaration,

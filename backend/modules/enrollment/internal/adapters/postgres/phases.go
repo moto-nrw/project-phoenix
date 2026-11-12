@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 	"github.com/uptrace/bun"
 )
 
@@ -168,21 +168,29 @@ func (r *Store) UpdatePhase(ctx context.Context, phase *enrollment.Phase) error 
 	if rows == 0 {
 		return fmt.Errorf("phase %d not found: %w", phase.ID, sql.ErrNoRows)
 	}
-	return reschedulePhaseWeeklyPlans(ctx, db, tenantID, phase)
+	return reschedulePhasePlans(ctx, db, tenantID, phase)
 }
 
-func reschedulePhaseWeeklyPlans(ctx context.Context, db bun.IDB, tenantID int64, phase *enrollment.Phase) error {
-	// Pending renewal plans follow the phase start in the same transaction.
-	// Applied plans stay cleared; the author and replacement mode stay intact.
+// reschedulePhasePlans moves the pending weekly plans and class switches of
+// the phase's approvals to the phase start in the same transaction (#6043,
+// #6505): both were planned for the start, so they keep following it. Applied
+// plans stay cleared; the author, the replacement mode and the planned
+// classes stay intact.
+func reschedulePhasePlans(ctx context.Context, db bun.IDB, tenantID int64, phase *enrollment.Phase) error {
+	start := phase.ServiceStartDate
 	_, err := db.NewUpdate().TableExpr("enrollment.request_children").
-		Set("weekly_plan_on = ?", phase.ServiceStartDate).
+		Set("weekly_plan_on = CASE WHEN weekly_plan_on IS NULL THEN NULL ELSE ?::date END", start).
+		Set("class_switch_on = CASE WHEN class_switch_on IS NULL THEN NULL ELSE ?::date END", start).
 		Set("updated_at = NOW()").
 		Where("tenant_id = ?", tenantID).
-		Where("weekly_plan_on IS NOT NULL AND weekly_plan_on <> ?", phase.ServiceStartDate).
+		WhereGroup(" AND ", func(q *bun.UpdateQuery) *bun.UpdateQuery {
+			return q.Where("weekly_plan_on IS NOT NULL AND weekly_plan_on <> ?", start).
+				WhereOr("class_switch_on IS NOT NULL AND class_switch_on <> ?", start)
+		}).
 		Where("request_id IN (?)", db.NewSelect().TableExpr("enrollment.requests").Column("id").
 			Where("tenant_id = ? AND phase_id = ?", tenantID, phase.ID)).Exec(ctx)
 	if err != nil {
-		return fmt.Errorf("failed to reschedule phase weekly plans: %w", err)
+		return fmt.Errorf("failed to reschedule phase plans: %w", err)
 	}
 	return nil
 }

@@ -7,13 +7,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/application/timetracking"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -103,15 +103,5 @@ func runAutoCheckoutWithNotDueSessions(t *testing.T, notDue int) autoCheckoutSta
 
 func newAutoCheckoutService(t *testing.T, db *testpkg.DB, workTime workforceCompose.WorkTime) timetracking.WorkSessionService {
 	t.Helper()
-	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
-	reposMembership := api.NewSchoolMembershipSuiteRepositories(testpkg.NewDatabase(t, db))
-	reposAbsences := api.NewStaffAbsenceSuiteRepositories(testpkg.NewDatabase(t, db))
-	reposPresence := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
-	return timetracking.NewWorkSessionService(
-		workTime, workTime, owners.NewWorkSessionAudit(owners.NewTestAuditPersistence(testpkg.MustDatabase(db), nil).WorkSessionEdit), reposAbsences.StaffAbsence,
-		reposPresence.GroupSupervisor, reposPresence.ActiveGroup, owners.WorkSessionStaff(reposPeople.Staff, api.MustNewStaffEmployment(testpkg.MustDatabase(db)), reposMembership.Membership), owners.NewWorkSessionSchedules(owners.NewStaffWorkScheduleRepository(workTime)), owners.NewWorkSessionTimeModels(owners.NewWorkTimeModelRepository(workTime)),
-		snapshotSessionSettings{}, nil, db, owners.RenderTimeTrackingPDF,
-		owners.RenderTimeTrackingWorkbook,
-		timetracking.WithWorkSessionShifts(workforceCompose.NewTimeTrackingShifts(workTime)),
-	)
+	return newWorkSessionTestService(t, db, workTime, workTime, api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db)).GroupSupervisor)
 }

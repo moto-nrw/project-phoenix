@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/domain"
 )
 
 // Store is the persistence port over the School Membership tables in the
@@ -18,6 +18,8 @@ type Store interface {
 	TransitionStudentStatus(ctx context.Context, id int64, expected, next, today string) (bool, domain.OperationStats, error)
 	EnrollStudent(context.Context, schoolmembership.StudentEnrollment) (int64, domain.OperationStats, error)
 	RenewStudentEnrollment(ctx context.Context, input schoolmembership.StudentEnrollment, today string) (int64, domain.OperationStats, error)
+	// LockStudentWindow reads the child's membership under a row lock.
+	LockStudentWindow(ctx context.Context, id int64) (schoolmembership.StudentEnrollment, bool, domain.OperationStats, error)
 	AssignStudentGroup(context.Context, int64, *int64) (bool, domain.OperationStats, error)
 	LockStudentClassWrites(context.Context, bool) (domain.OperationStats, error)
 	EndStudentCare(context.Context, []int64, string) (int64, domain.OperationStats, error)
@@ -73,6 +75,12 @@ type Store interface {
 	// class-then-name order a class list is read in.
 	ListClassListEntriesInDisplayOrder(context.Context, schoolmembership.ClassListEntryFilter) ([]schoolmembership.ClassListEntry, domain.OperationStats, error)
 	CreateClassListEntry(ctx context.Context, fields schoolmembership.ClassListEntryFields, createdBy *int64) (schoolmembership.ClassListEntry, domain.OperationStats, error)
+	// CreateClassListEntries inserts the entries in input order in one
+	// statement; the result is index-aligned with the input.
+	CreateClassListEntries(ctx context.Context, fields []schoolmembership.ClassListEntryFields, createdBy []*int64) ([]schoolmembership.ClassListEntry, domain.OperationStats, error)
+	// MatchClassListEntries applies the ListClassListEntries name filter per
+	// key in one statement.
+	MatchClassListEntries(ctx context.Context, keys []schoolmembership.ClassListEntryFields) ([][]schoolmembership.ClassListEntry, domain.OperationStats, error)
 	UpdateClassListEntry(context.Context, int64, schoolmembership.ClassListEntryFields) (schoolmembership.ClassListEntry, domain.OperationStats, error)
 	DeleteClassListEntry(context.Context, int64) (domain.OperationStats, error)
 

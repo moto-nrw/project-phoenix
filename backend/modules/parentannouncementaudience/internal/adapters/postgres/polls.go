@@ -2,12 +2,10 @@ package parentaudience
 
 import (
 	"context"
-	"database/sql"
-	"errors"
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/contract"
+	"github.com/moto-ogs/project-phoenix/modules/parentannouncementaudience/contract"
 	"github.com/uptrace/bun"
 )
 
@@ -68,47 +66,6 @@ func (p *Projection) AccountMayAnswerForStudent(ctx context.Context, schoolID, a
 		return false, fmt.Errorf("check parent announcement answer permission: %w", err)
 	}
 	return allowed, nil
-}
-
-// holdAnswerPermissionSQL is accountMayAnswerSQL as a share lock: it returns
-// one relationship row that authorizes the answer and holds the guardian
-// link, profile, and membership rows it was derived from until the caller's
-// transaction ends. A revocation of parent_portal.poll.response, the child
-// link, or the school membership therefore waits behind the answer write
-// (or, if it committed first, is seen here), which closes the window between
-// this check and the write the old single-statement guard closed by joining
-// the rows inside the write itself.
-//
-// Bind order: school, school, today, today, today, announcement, school,
-// guardian links of the school, school, account, student.
-const holdAnswerPermissionSQL = `
-			SELECT sg.id` + reachedStudentsBound + pollGuardiansForAccountBound + `
-			WHERE s.id = ?
-			LIMIT 1
-			FOR SHARE OF sg, gp, act`
-
-// HoldAnswerPermission reports whether accountID may answer the poll for
-// studentID right now and, when it may, keeps that permission from changing
-// underneath the caller's transaction. Call it inside the transaction that
-// writes the answer.
-func (p *Projection) HoldAnswerPermission(ctx context.Context, schoolID, announcementID, accountID, studentID int64) (bool, error) {
-	db, _, err := p.database(ctx)
-	if err != nil {
-		return false, err
-	}
-	today := p.day()
-	var relationshipID int64
-	err = db.NewRaw(holdAnswerPermissionSQL,
-		schoolID, schoolID, today, today, today, announcementID, schoolID, p.guardianLinks(db, schoolID), schoolID, accountID,
-		studentID,
-	).Scan(ctx, &relationshipID)
-	if errors.Is(err, sql.ErrNoRows) {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("hold parent announcement answer permission: %w", err)
-	}
-	return true, nil
 }
 
 const pollCountsSQL = `WITH target_audience AS (` + pollAudienceStudentsBound + `),

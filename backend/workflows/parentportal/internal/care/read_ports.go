@@ -3,8 +3,8 @@ package care
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The read ports below are the rows the child flows read and lock. They name
@@ -62,7 +62,6 @@ type StudentGuardianReads interface {
 	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*GuardianRelationship, error)
 	FindByStudentAndGuardianForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*GuardianRelationship, error)
 	ListLinkedChildrenForGuardians(ctx context.Context, guardianProfileIDs []int64) ([]*GuardianLinkedChild, error)
-	AccountHasStudentPermission(ctx context.Context, accountID, studentID, tenantID int64, permission string) (bool, error)
 }
 
 // DataRequestReads reads the child's Stammdaten change requests.

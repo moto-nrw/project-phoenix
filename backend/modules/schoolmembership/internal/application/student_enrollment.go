@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/domain"
 )
 
 // TransitionStatus is the scheduler's compare-and-set. Graduation and
@@ -223,6 +223,13 @@ func (s *Service) LockStudentClassWrites(ctx context.Context, exclusive bool) er
 	}
 
 	err := s.observeRun(ctx, "lock_student_class_writes", func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }, func(txCtx context.Context, stats *domain.OperationStats) error {
+		// Only the exclusive gate is ordered (#6702): a grade transition takes
+		// it as its first lock. A shared holder is a reader of the gate.
+		if exclusive {
+			if err := admitClassWrites(txCtx); err != nil {
+				return err
+			}
+		}
 		queryStats, err := s.store.LockStudentClassWrites(txCtx, exclusive)
 		stats.Add(queryStats)
 		return err

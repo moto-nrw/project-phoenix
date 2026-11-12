@@ -398,7 +398,7 @@ export default function TraegerKinderzahlPage() {
         <SectionCard
           title="Zu prüfen"
           titleBadge={
-            <StatusBadge tone="orange" label={`${toCheck.length} offen`} />
+            <StatusBadge tone="warning" label={`${toCheck.length} offen`} />
           }
           description={checkCardText(toCheck, missing)}
           leading={

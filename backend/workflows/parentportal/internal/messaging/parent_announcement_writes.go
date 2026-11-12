@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/care"
 )
 
 func (s *Service) answerableAnnouncement(adminCtx context.Context, announcementID, accountID, studentID int64) (*ParentAnnouncement, error) {
@@ -90,19 +90,18 @@ func (s *Service) writeAnnouncementStamp(adminCtx context.Context, announcementT
 	return nil
 }
 
-func (s *Service) writeAnnouncementResponse(adminCtx context.Context, announcementTenantID, announcementID, accountID, studentID int64, optionIDs []int64, expectedPublishedAt time.Time) error {
-	// Poll authorization above uses a snapshot. Lock and re-read the student
-	// in this write transaction so a concurrent care exit cannot leave a new
-	// response behind after the child became read-only.
-	studentCtx := s.Runtime.WithTenantID(adminCtx, announcementTenantID)
-	student, err := s.StudentRepo.FindByIDForUpdate(studentCtx, studentID)
+func (s *Service) writeAnnouncementResponse(txCtx context.Context, announcementTenantID, announcementID, accountID, studentID int64, optionIDs []int64, expectedPublishedAt time.Time) error {
+	// The guard locked the child in this school transaction; re-read it so a
+	// care exit committed since the check above leaves no new answer behind
+	// after the child became read-only.
+	student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 	if err != nil {
 		return err
 	}
 	if student.CareEndedOn(s.todayDate()) {
 		return care.ErrChildCareEnded
 	}
-	applied, err := s.AnnouncementRepo.SetResponse(adminCtx, announcementTenantID, announcementID, studentID, accountID, optionIDs, expectedPublishedAt)
+	applied, err := s.AnnouncementRepo.SetResponse(txCtx, announcementTenantID, announcementID, studentID, accountID, optionIDs, expectedPublishedAt)
 	if err != nil {
 		return err
 	}

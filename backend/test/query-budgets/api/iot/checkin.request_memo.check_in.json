@@ -1,7 +1,7 @@
 {
   "scenario": "api.iot.checkin.request_memo.check_in",
-  "max": 30,
+  "max": 31,
   "exact": true,
-  "description": "Real kiosk scan request transaction with the production request settings memo enabled; N3 and N8 children present. Excludes pre-request device authentication. Restored unoptimized admission after rejected cancellation-precedence change.",
+  "description": "Real kiosk scan request transaction with the production request settings memo enabled; N3 and N8 children present. Excludes pre-request device authentication. Admission preserves cancellation precedence. Measured on a fixed school Monday (2026-08-24), the path of every care weekday: it includes the day's pickup exception and pickup note reads, which a weekend skips (2 statements fewer). 7e1548adb7 had measured a Saturday with the wall clock (#6266). Activity-limit admission now runs under the session row lock; the existing-child and session-occupancy checks share one tenant-scoped query, saving one statement without changing request settings memoization.",
   "route": "POST /api/iot/checkin"
 }

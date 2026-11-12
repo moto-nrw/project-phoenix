@@ -19,11 +19,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 var (
@@ -240,7 +240,10 @@ func TestHolidayProofUploadsCountPerAddress(t *testing.T) {
 	f := newHolidayRegistrationFixture(t)
 	office := newTraegerOffice(t, f.db, f.traeger, "Träger Nachweis Limit", identityaccess.TraegerRoleAdministration)
 	period := openHolidays(t, f, office)
-	for i := range 30 {
+	// The address may upload a hundred proofs an hour (#6726); the old limit
+	// of thirty refused the thirty-first. 69 are counted already.
+	fillHolidayBucket(t, f, office.organization, "upload_ip", holidayTestAddress, 69)
+	for i := range 31 {
 		rec := uploadProof(t, f, period.PublicToken, "bescheid.pdf", proofPDF)
 		require.Equal(t, http.StatusCreated, rec.Code, "upload %d: %s", i+1, rec.Body.String())
 	}
@@ -249,7 +252,7 @@ func TestHolidayProofUploadsCountPerAddress(t *testing.T) {
 	assert.Equal(t, "3600", rec.Header().Get("Retry-After"))
 	code, _ := registrationRefusalOf(t, rec)
 	assert.Equal(t, "enrollment.upload_rate_limited", code)
-	assert.Equal(t, 30, countProofs(t, f, office.organization, "TRUE"), "the refused upload stored nothing")
+	assert.Equal(t, 31, countProofs(t, f, office.organization, "TRUE"), "the refused upload stored nothing")
 }
 
 // TestUnclaimedHolidayProofsGoAfterADay runs on its own database: the
@@ -279,7 +282,7 @@ func TestUnclaimedHolidayProofsGoAfterADay(t *testing.T) {
 
 	unit := tenant.WithUnitOfWork(ctx, testpkg.TenantRuntime(t, f.db))
 	require.NoError(t, tenant.WithinAdmin(unit, func(adminCtx context.Context) error {
-		_, retainErr := enrollmentCompose.NewHolidayRegistrationRetention(func() calendar.Date {
+		_, retainErr := owners.NewHolidayRegistrationRetention(func() calendar.Date {
 			return calendar.NewDate(2027, time.January, 1)
 		}).DeleteExpiredHolidayRegistrations(adminCtx)
 		return retainErr

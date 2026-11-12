@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityoperator "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/operator"
 )
 
 // completeOperatorMFAAuthStub satisfies OperatorAccess via
@@ -40,6 +40,7 @@ var _ identityoperator.OperatorAccess = (*completeOperatorMFAAuthStub)(nil)
 func (s *completeOperatorMFAAuthStub) IssueTokensForAuthenticatedOperator(
 	_ context.Context,
 	operatorID int64,
+	_ *int64,
 	ipAddress, userAgent string,
 ) (string, string, error) {
 	s.gotOperatorID = operatorID
@@ -64,12 +65,12 @@ type operatorTrustedDeviceStub struct {
 	gotIssueIP         net.IP
 }
 
-func (s *operatorTrustedDeviceStub) VerifyOperatorMFAChallenge(_ context.Context, _, _ string) (int64, error) {
-	return s.verifyResult, s.verifyErr
+func (s *operatorTrustedDeviceStub) VerifyOperatorMFAChallenge(_ context.Context, _, _ string) (identityaccess.OperatorMFAProof, error) {
+	return identityaccess.OperatorMFAProof{OperatorID: s.verifyResult}, s.verifyErr
 }
 
-func (s *operatorTrustedDeviceStub) IssueOperatorTrustedDevice(_ context.Context, operatorID int64, userAgent string, ip net.IP) (string, time.Time, error) {
-	s.gotIssueOperatorID = operatorID
+func (s *operatorTrustedDeviceStub) IssueOperatorTrustedDevice(_ context.Context, proof identityaccess.OperatorMFAProof, userAgent string, ip net.IP) (string, time.Time, error) {
+	s.gotIssueOperatorID = proof.OperatorID
 	s.gotIssueUA = userAgent
 	s.gotIssueIP = ip
 	return s.issueCookie, s.issueExpiresAt, s.issueErr

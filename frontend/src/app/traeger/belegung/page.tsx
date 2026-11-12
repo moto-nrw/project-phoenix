@@ -146,7 +146,7 @@ function FreePlacesCell({
       </span>
       {places.full > 0 ? (
         <StatusBadge
-          tone="orange"
+          tone="warning"
           size="xs"
           label={`${places.full} voll`}
           title={

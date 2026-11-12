@@ -15,19 +15,19 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	announcement "github.com/moto-nrw/project-phoenix/modules/communication/http/parentannouncements"
-	"github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/roots/communicationtest"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	announcement "github.com/moto-ogs/project-phoenix/modules/communication/http/parentannouncements"
+	"github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/roots/communicationtest"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
 )
 
@@ -122,7 +122,6 @@ func communication18Announcement(a *communication.ParentAnnouncement) map[string
 	if a.Declaration.Kind != "" {
 		out["declaration_kind"] = a.Declaration.Kind
 		out["declaration_signers"] = a.Declaration.Signers
-		out["declaration_revocable"] = a.Declaration.Revocable
 		out["declaration_requires_password"] = a.Declaration.RequiresPassword
 		out["declaration_requires_signature"] = a.Declaration.RequiresSignature
 		out["declaration_locked_attachments"] = a.DeclarationFrozen
@@ -217,7 +216,7 @@ func TestCommunication18AnnouncementPositiveGrowthQueryBudget(t *testing.T) {
 				if e != nil {
 					return e
 				}
-				declaration, e = service.CreateParentAnnouncement(communication.WithClassLetterAuthor(c, viewer.ID), viewer.ID, communication.ParentAnnouncementInput{Title: "Declaration", Body: "Declaration body", DeliveryMode: "declaration", Declaration: communication.ParentDeclarationSettings{Kind: "consent", Signers: "any", Revocable: true}, Targets: []communication.ParentAnnouncementTargetInput{{TargetType: "class", RefText: &class}}, Sender: &communication.ParentLetterSender{Name: "Teacher Growth", SchoolClass: class}})
+				declaration, e = service.CreateParentAnnouncement(communication.WithClassLetterAuthor(c, viewer.ID), viewer.ID, communication.ParentAnnouncementInput{Title: "Declaration", Body: "Declaration body", DeliveryMode: "declaration", Declaration: communication.ParentDeclarationSettings{Kind: "consent", Signers: "any"}, Targets: []communication.ParentAnnouncementTargetInput{{TargetType: "class", RefText: &class}}, Sender: &communication.ParentLetterSender{Name: "Teacher Growth", SchoolClass: class}})
 				return e
 			})
 			// Publication is fixture state, not the measured operation. Keep outbox
@@ -410,7 +409,7 @@ func communication18Declaration(n int, chains []testpkg.ParentChain, versions []
 		s := subs[i]
 		ss = append(ss, map[string]any{"id": fmt.Sprint(s.ID), "student_id": fmt.Sprint(s.StudentID), "student_first_name": fmt.Sprintf("Child%02d", i), "student_last_name": "Growth", "signer_name": s.SignerName, "guardian_role": s.GuardianRole, "action": s.Action, "method": s.Method, "password_confirmed": false, "version_no": n, "content_hash": s.ContentHash, "record_hash": s.RecordHash, "submitted_at": s.SubmittedAt, "integrity_ok": true, "signature": nil})
 	}
-	return map[string]any{"kind": "consent", "signers": "any", "revocable": true, "requires_password": false, "requires_signature": false, "deadline": nil, "current_version": vs[0], "versions": vs, "summary": map[string]int{"children_total": n, "agreed": n, "declined": 0, "revoked": 0, "partial": 0, "open": 0, "no_signer": 0, "expired": 0}, "children": children, "submissions": ss, "integrity_ok": true}
+	return map[string]any{"kind": "consent", "signers": "any", "requires_password": false, "requires_signature": false, "deadline": nil, "current_version": vs[0], "versions": vs, "summary": map[string]int{"children_total": n, "agreed": n, "declined": 0, "revoked": 0, "partial": 0, "open": 0, "no_signer": 0, "expired": 0}, "children": children, "submissions": ss, "integrity_ok": true}
 }
 func communication18CSV(t *testing.T, rec *httptest.ResponseRecorder, n int, subs []*communication.PortalDeclarationSubmission) {
 	t.Helper()

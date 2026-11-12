@@ -10,8 +10,10 @@ import {
   holidayPeriodTabs,
 } from "~/components/traeger/holiday-period-head";
 import { HolidayPeriodForm } from "~/components/traeger/holiday-period-form";
+import { useHolidayEditorCalendar } from "~/components/traeger/use-week-no-care-days";
 import { HolidayPeriodPublishCard } from "~/components/traeger/holiday-period-publish-card";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
+import { useTraegerHolidayCriteria } from "~/components/traeger/use-traeger-resources";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { useHolidayPeriodBillingHref } from "~/components/traeger/use-holiday-period-billing-href";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
@@ -25,6 +27,7 @@ import { traegerKeys } from "~/lib/swr/portal-keys";
 import { traegerPath } from "~/lib/traeger-url";
 
 export default function TraegerHolidayPeriodPage() {
+  const holidayCalendar = useHolidayEditorCalendar();
   const router = useRouter();
   const params = useParams<{ id: string }>();
   const id = params?.id ?? "";
@@ -46,6 +49,7 @@ export default function TraegerHolidayPeriodPage() {
     fetchError: schoolsFailure,
   } = useTraegerSchools();
   const listHref = traegerPath("/traeger/ferien");
+  const { data: criteria } = useTraegerHolidayCriteria();
 
   const saved = useCallback(
     (next: HolidayPeriod) => {
@@ -71,7 +75,12 @@ export default function TraegerHolidayPeriodPage() {
       backLabel="Zurück zu den Ferien"
       stats={period ? <HolidayPeriodStatusLine period={period} /> : null}
       statsLoading={!period && !loadError}
-      tabs={holidayPeriodTabs(id, "planung", period?.registrationCount)}
+      tabs={holidayPeriodTabs(
+        id,
+        "planung",
+        period?.registrationCount,
+        period?.allocationMode,
+      )}
       actions={
         billingHref ? (
           <ButtonLink href={billingHref} variant="outline" size="md">
@@ -95,9 +104,11 @@ export default function TraegerHolidayPeriodPage() {
             onPublished={saved}
           />
           <HolidayPeriodForm
+            calendar={holidayCalendar}
             key={period.id}
             period={period}
             schools={schools}
+            criteria={criteria}
             onDirtyChange={setDirty}
             onCancel={() => router.push(listHref)}
             onSaved={saved}

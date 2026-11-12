@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The presence capability is published as small facades. A consumer declares
@@ -255,6 +255,10 @@ type StatusDayReads interface {
 // StatusDayWrites records and clears status days. The writes persist through
 // Care Plan, the single write owner of active.student_status_days.
 type StatusDayWrites interface {
+	// ValidateProfileStatusChange checks requested true flags against today's
+	// signed-off rows under the day lock. The caller must already hold the
+	// student lock and roll back the surrounding transaction on failure.
+	ValidateProfileStatusChange(context.Context, int64, calendar.Date, *bool, *bool) error
 	UpsertReported(ctx context.Context, entry *absencerecords.StudentStatusDay) error
 	MarkCleared(ctx context.Context, studentID int64, status string, date calendar.Date, clearedAt time.Time, source string) error
 	CreateForDates(ctx context.Context, wc StatusDayWriteContext, studentID int64, status, reason string, dates []calendar.Date) error

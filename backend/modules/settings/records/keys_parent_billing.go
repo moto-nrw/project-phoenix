@@ -41,3 +41,42 @@ const (
 	KeyParentBillingCareReviewAddress   = "parent_billing.care_review_address"
 	KeyParentBillingCareReviewPositions = "parent_billing.care_review_positions"
 )
+
+// The DATEV booking batch of the Elternabrechnung (#4694): the
+// Beraternummer and Mandantennummer of the Träger's DATEV client, its
+// Sachkontenlänge and Sachkontenrahmen, the revenue account the
+// contributions are booked on, the month its fiscal year starts and whether
+// the batch is locked (Festschreibung). The customer has not delivered its
+// values (SJR, "wartet auf Ute"): the numbers and accounts stay empty until
+// the Träger enters them, and the export refuses a batch without them.
+// Only the Träger sets them (LevelTraeger).
+const (
+	KeyParentBillingDatevConsultantNumber = "parent_billing.datev_consultant_number"
+	KeyParentBillingDatevClientNumber     = "parent_billing.datev_client_number"
+	KeyParentBillingDatevAccountLength    = "parent_billing.datev_account_length"
+	KeyParentBillingDatevChartOfAccounts  = "parent_billing.datev_chart_of_accounts"
+	KeyParentBillingDatevRevenueAccount   = "parent_billing.datev_revenue_account"
+	KeyParentBillingDatevFiscalYearStart  = "parent_billing.datev_fiscal_year_start"
+	KeyParentBillingDatevLocked           = "parent_billing.datev_locked"
+	// KeyParentBillingDatevCostCenterRequired says every booking needs a
+	// KOST1 (#4821). Whether the tax office of the SJR books by cost
+	// center is open ("wartet auf Ute"), so it is off by default.
+	KeyParentBillingDatevCostCenterRequired = "parent_billing.datev_cost_center_required"
+)
+
+// KeyParentBillingOnlineMandate lets the parents give the SEPA mandate of
+// their family in the parents portal (#4696). Whether a mandate confirmed
+// online holds is agreed between the Träger and its bank, so it is off
+// until the Träger turns it on. Only the Träger sets it (LevelTraeger).
+const KeyParentBillingOnlineMandate = "parent_billing.online_mandate"
+
+// The format of a debtor number in the finance system of a Träger (#6675):
+// with DigitsOnly on, every debtor number the office enters has only digits
+// and between MinDigits and MaxDigits of them (in either order; the two
+// values save one after the other). Off by default; numbers already stored
+// stay as they are. Only the Träger sets them (LevelTraeger).
+const (
+	KeyParentBillingDebtorNumberDigitsOnly = "parent_billing.debtor_number_digits_only"
+	KeyParentBillingDebtorNumberMinDigits  = "parent_billing.debtor_number_min_digits"
+	KeyParentBillingDebtorNumberMaxDigits  = "parent_billing.debtor_number_max_digits"
+)

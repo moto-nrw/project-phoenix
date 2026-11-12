@@ -8,8 +8,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/care"
 )
 
 const (
@@ -51,22 +51,21 @@ func (s *Service) GetRequestSharingOptions(
 	if !s.requestSharingConfigured() {
 		return nil, errors.New("parent: request sharing service is not configured")
 	}
-	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
-	if err != nil {
-		return nil, err
-	}
 	var state *RequestSharingState
-	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	err := s.withOwnedChild(ctx, accountID, studentID, nil, func(txCtx context.Context, _ *Child) error {
 		protected, _, loadErr := s.ledger().currentFamilyProtection(txCtx, studentID)
-		if loadErr != nil {
-			return loadErr
+		if loadErr == nil {
+			var recipients []RequestSharingRecipient
+			recipients, _, loadErr = s.shareRecipients(txCtx, accountID, studentID, nil, false)
+			state = &RequestSharingState{FamilyProtected: protected, Recipients: recipients}
 		}
-		recipients, _, loadErr := s.shareRecipients(txCtx, accountID, studentID, nil, false)
-		state = &RequestSharingState{FamilyProtected: protected, Recipients: recipients}
-		return loadErr
+		if loadErr != nil {
+			return fmt.Errorf("parent: get request sharing options: %w", loadErr)
+		}
+		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("parent: get request sharing options: %w", err)
+		return nil, err
 	}
 	return state, nil
 }
@@ -79,55 +78,54 @@ type requestShareKey struct {
 func (s *Service) GetRequestSharing(
 	ctx context.Context, accountID, studentID int64, requestType string, requestID int64,
 ) (*RequestSharingState, error) {
-	return s.changeRequestSharing(ctx, accountID, studentID, requestType, requestID, nil, false)
-}
-
-func (s *Service) SetRequestSharing(
-	ctx context.Context, accountID, studentID int64, requestType string, requestID int64,
-	recipientGuardianProfileIDs []int64,
-) (*RequestSharingState, error) {
-	return s.changeRequestSharing(ctx, accountID, studentID, requestType, requestID, recipientGuardianProfileIDs, true)
-}
-
-func (s *Service) changeRequestSharing(
-	ctx context.Context, accountID, studentID int64, requestType string, requestID int64,
-	recipientProfileIDs []int64, write bool,
-) (*RequestSharingState, error) {
 	if !s.requestSharingConfigured() {
 		return nil, errors.New("parent: request sharing service is not configured")
 	}
-	child, err := s.resolveRequestSharingChild(ctx, accountID, studentID, requestType, write)
-	if err != nil {
-		return nil, err
-	}
 	var state *RequestSharingState
-	err = s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
-		var changeErr error
-		state, changeErr = s.changeRequestSharingInTx(txCtx, accountID, studentID, requestType, requestID, recipientProfileIDs, write)
-		return changeErr
+	err := s.withOwnedChild(ctx, accountID, studentID, nil, func(txCtx context.Context, _ *Child) error {
+		var readErr error
+		state, readErr = s.readRequestSharingInTx(txCtx, accountID, studentID, requestType, requestID)
+		if readErr != nil {
+			return fmt.Errorf("parent: change request sharing: %w", readErr)
+		}
+		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("parent: change request sharing: %w", err)
+		return nil, err
 	}
 	return state, nil
 }
 
-// resolveRequestSharingChild resolves the child for a sharing read or change.
-// Reading who sees a request needs only parent_portal.access. Changing it is
-// an edit of the open request, so it needs the permission that submitting the
-// request needs: a guardian whose submit permission the school withdrew can no
-// longer widen or narrow who sees the request.
-func (s *Service) resolveRequestSharingChild(
-	ctx context.Context, accountID, studentID int64, requestType string, write bool,
-) (*Child, error) {
-	if !write {
-		return s.resolveOwnedChild(ctx, accountID, studentID)
+// SetRequestSharing changes who sees an open request. Changing it is an edit
+// of the request, so it needs the permission that submitting the request
+// needs: a guardian whose submit permission the school withdrew can no longer
+// widen or narrow who sees the request. The configuration and the request
+// type are checked before any unit starts; the child check and the change run
+// in one transaction (ADR 0161, #5862).
+func (s *Service) SetRequestSharing(
+	ctx context.Context, accountID, studentID int64, requestType string, requestID int64,
+	recipientGuardianProfileIDs []int64,
+) (*RequestSharingState, error) {
+	if !s.requestSharingConfigured() {
+		return nil, errors.New("parent: request sharing service is not configured")
 	}
 	permission, ok := requestSubmitPermission(requestType)
 	if !ok {
 		return nil, ErrRequestSharingInvalid
 	}
-	return s.resolvePermittedChild(ctx, accountID, studentID, permission)
+	var state *RequestSharingState
+	err := s.Children.WithPermittedChildForWrite(ctx, accountID, studentID, permission, nil, func(txCtx context.Context, _ *Child) error {
+		var changeErr error
+		state, changeErr = s.changeRequestSharingInTx(txCtx, accountID, studentID, requestType, requestID, recipientGuardianProfileIDs)
+		if changeErr != nil {
+			return fmt.Errorf("parent: change request sharing: %w", changeErr)
+		}
+		return nil
+	})
+	if err != nil {
+		return nil, err
+	}
+	return state, nil
 }
 
 // requestSubmitPermission names the permission each shareable request type's
@@ -152,33 +150,61 @@ func (s *Service) requestSharingConfigured() bool {
 		s.StudentGuardianRepo != nil && s.GuardianProfileRepo != nil
 }
 
-func (s *Service) changeRequestSharingInTx(
+// requestSharingFacts is what a request's sharing rests on: the family
+// protection and the recipients of the caller's own request.
+type requestSharingFacts struct {
+	protected   bool
+	protectedAt time.Time
+	recipients  []RequestSharingRecipient
+	accountIDs  []int64
+}
+
+func (s *Service) loadRequestSharingFacts(
 	ctx context.Context, accountID, studentID int64, requestType string, requestID int64,
 	profileIDs []int64, write bool,
-) (*RequestSharingState, error) {
+) (requestSharingFacts, error) {
+	var facts requestSharingFacts
 	if _, err := s.StudentRepo.FindByIDForUpdate(ctx, studentID); err != nil {
-		return nil, err
+		return facts, err
 	}
 	if err := s.requireOwnedShareableRequest(ctx, accountID, studentID, requestType, requestID); err != nil {
-		return nil, err
+		return facts, err
 	}
-	protected, protectedAt, err := s.ledger().currentFamilyProtection(ctx, studentID)
+	var err error
+	facts.protected, facts.protectedAt, err = s.ledger().currentFamilyProtection(ctx, studentID)
+	if err != nil {
+		return facts, err
+	}
+	facts.recipients, facts.accountIDs, err = s.shareRecipients(ctx, accountID, studentID, profileIDs, write)
+	return facts, err
+}
+
+// readRequestSharingInTx reads who sees the caller's open request.
+func (s *Service) readRequestSharingInTx(
+	ctx context.Context, accountID, studentID int64, requestType string, requestID int64,
+) (*RequestSharingState, error) {
+	facts, err := s.loadRequestSharingFacts(ctx, accountID, studentID, requestType, requestID, nil, false)
 	if err != nil {
 		return nil, err
 	}
-	recipients, accountIDs, err := s.shareRecipients(ctx, accountID, studentID, profileIDs, write)
+	return s.requestSharingState(ctx, studentID, requestType, requestID, facts.protected, facts.protectedAt, facts.recipients)
+}
+
+// changeRequestSharingInTx records who sees the caller's open request.
+func (s *Service) changeRequestSharingInTx(
+	ctx context.Context, accountID, studentID int64, requestType string, requestID int64, profileIDs []int64,
+) (*RequestSharingState, error) {
+	facts, err := s.loadRequestSharingFacts(ctx, accountID, studentID, requestType, requestID, profileIDs, true)
 	if err != nil {
 		return nil, err
 	}
-	if write {
-		if protected && len(accountIDs) > 0 {
-			return nil, ErrRequestSharingForbidden
-		}
-		if err := s.createRequestShare(ctx, accountID, studentID, requestType, requestID, accountIDs); err != nil {
-			return nil, err
-		}
+	if facts.protected && len(facts.accountIDs) > 0 {
+		return nil, ErrRequestSharingForbidden
 	}
-	return s.requestSharingState(ctx, studentID, requestType, requestID, protected, protectedAt, recipients)
+	if err := s.createRequestShare(ctx, accountID, studentID, requestType, requestID, facts.accountIDs); err != nil {
+		return nil, err
+	}
+	return s.requestSharingState(ctx, studentID, requestType, requestID, facts.protected, facts.protectedAt, facts.recipients)
 }
 
 // ShareRequestInTx writes the guardian's recipient choice for a request that
@@ -418,15 +444,13 @@ type ParentRequestEventView struct {
 func (s *Service) ListRequestEvents(
 	ctx context.Context, accountID, studentID int64, requestType string, requestID int64,
 ) ([]ParentRequestEventView, error) {
-	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
-	if err != nil {
-		return nil, err
-	}
-	if s.ParentRequestEvents == nil {
-		return nil, errors.New("parent: request event ledger is not configured")
-	}
 	var out []ParentRequestEventView
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.withOwnedChild(ctx, accountID, studentID, func(*Child) error {
+		if s.ParentRequestEvents == nil {
+			return errors.New("parent: request event ledger is not configured")
+		}
+		return nil
+	}, func(txCtx context.Context, _ *Child) error {
 		if err := s.requireOwnedShareableRequest(txCtx, accountID, studentID, requestType, requestID); err != nil {
 			return err
 		}

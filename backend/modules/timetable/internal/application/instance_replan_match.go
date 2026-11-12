@@ -3,9 +3,9 @@ package application
 import (
 	"context"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	scheduleModel "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // matchRegeneratedInstances finds the freshly materialized planned
@@ -112,7 +112,7 @@ type seriesDeviationSnapshot struct {
 	occurrences map[groupDay]int
 }
 
-func (s seriesDeviationSnapshot) Count() int { return len(s.snapshots) }
+func (s seriesDeviationSnapshot) Count() int { return overriddenCount(s.snapshots) }
 
 func (s seriesDeviationSnapshot) Reapply(ctx context.Context, templateID int64, actorAccountID *int64) (int, error) {
 	id := templateID

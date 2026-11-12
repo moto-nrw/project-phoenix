@@ -12,15 +12,15 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 type spontaneousStartRequest struct {
@@ -300,6 +300,14 @@ func (rs *Resource) admitSpontaneousStart(w http.ResponseWriter, r *http.Request
 	if len(req.StudentIDs) > 0 {
 		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("student_ids are not accepted for spontaneous operational starts")))
 		return nil, 0, false
+	}
+	// The recurrence and grade-transition gates the create takes come
+	// before the start's own gates and catalogue rows (#6702).
+	if rs.RecurrenceLock != nil {
+		if err := rs.RecurrenceLock.LockRecurrenceWritesThenGradeTransitions(r.Context()); err != nil {
+			common.RenderError(w, r, common.ErrorInternalServerWrap("lock spontaneous start failed", err))
+			return nil, 0, false
+		}
 	}
 	if !rs.validateSpontaneousRoom(w, r, req.RoomID) {
 		return nil, 0, false

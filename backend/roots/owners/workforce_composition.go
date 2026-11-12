@@ -3,7 +3,7 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 )
 
 // WorkforceLiveStaffIDs answers Workforce's one question to School
@@ -20,6 +20,17 @@ func WorkforceLiveStaffIDs(membership schoolmembership.Query) func(context.Conte
 			live = append(live, member.ID)
 		}
 		return live, nil
+	}
+}
+
+// SickReportStaffLock takes the staff rows a sick-report write locks after
+// its gates and days (#6702). An offboarded member has no live row: nothing
+// can offboard it again, so no cycle needs its row, and the write reports
+// its own refusal.
+func SickReportStaffLock(membership schoolmembership.Query) func(context.Context, []int64) error {
+	return func(ctx context.Context, staffIDs []int64) error {
+		_, err := membership.ListStaff(ctx, schoolmembership.StaffFilter{IDs: staffIDs, ForMutation: true, MembershipOnly: true})
+		return err
 	}
 }
 

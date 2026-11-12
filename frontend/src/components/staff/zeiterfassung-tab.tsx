@@ -66,6 +66,7 @@ import {
 import { StaffExportButton } from "./staff-export-button";
 import { StaffSessionTable } from "./staff-session-table";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { KpiCards, ViewToggle, type ViewMode } from "./staff-time-views";
 
 const logger = createLogger({ component: "ZeiterfassungTab" });
@@ -316,6 +317,12 @@ export function ZeiterfassungTab({
         isStaleAfterSessionSave(key, staffId) ||
         isStaleAfterMonthReopen(key, staffId),
     );
+  // The backfilled absence reloads after the write; a failure stands above
+  // the tab, also after the dialog closed (#6652).
+  const backfillAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Zeiterfassung",
+    refreshAfterBackfill,
+  );
   const {
     data: monthSummary,
     isLoading: monthSummaryLoading,
@@ -413,6 +420,7 @@ export function ZeiterfassungTab({
 
   return (
     <div className="space-y-5">
+      <LoadErrorAlert error={backfillAfterWrite.error} />
       {/* Ohne geladene Quellen stehen statt der Kacheln nur der Hinweis und
           Wiederholen: „–“ ohne Grund sähe wie ein leerer Monat aus (#3885). */}
       {metricsLoad ? (
@@ -564,9 +572,9 @@ export function ZeiterfassungTab({
           types={absenceTypes ?? []}
           initialDate={backfill.date}
           onClose={() => setBackfill(null)}
-          onSaved={async () => {
+          onSaved={() => {
             setBackfill(null);
-            await refreshAfterBackfill();
+            return backfillAfterWrite.refresh();
           }}
         />
       ) : null}

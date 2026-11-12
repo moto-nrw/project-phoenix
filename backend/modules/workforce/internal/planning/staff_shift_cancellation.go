@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ShiftReplacementInput is one person covering part of a cancelled shift's gap.
@@ -23,6 +23,8 @@ type ShiftReplacementInput struct {
 // replacements. Reactivating (Cancelled == false) removes every replacement and
 // rejects any supplied cover.
 type CancelShiftInput struct {
+	PreserveSeriesOverride bool
+
 	ShiftID      int64
 	Cancelled    bool
 	ChangeReason *string
@@ -276,6 +278,7 @@ func cancellationOriginUpdate(existing *workforce.ShiftRecord, input CancelShift
 		originUpdate.UpdatedBy = &input.ActorStaffID
 	}
 	return originUpdate, StaffShiftUpdateOptions{
+		PreserveSeriesOverride:    input.PreserveSeriesOverride,
 		PreserveExistingNotes:     true,
 		PreserveExistingShiftType: preserveType,
 	}

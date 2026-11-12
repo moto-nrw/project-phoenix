@@ -20,7 +20,7 @@
     "emptyDescription": "Сейчас ничего делать не нужно.",
     "messageTitleOne": "Новое сообщение",
     "messageTitleMany": "Новых сообщений: {count}",
-    "messageContext": "Продлёнка · О {name}",
+    "messageContext": "{careTerm} · О {name}",
     "pollContext": "Опрос · {school}",
     "declarationContext": "Согласие · {school}",
     "newsContext": "Письмо родителям · {school}",
@@ -33,7 +33,26 @@
     "loading": "Загрузка задач",
     "errorObject": "полный список дел"
   },
+  "holiday": {
+    "listTitle": "Присмотр в каникулы",
+    "badgeOpen": "Запись открыта",
+    "badgeUpcoming": "Запись с {date}",
+    "care": "Присмотр",
+    "registration": "Запись",
+    "range": "{from} – {to}",
+    "until": "до {date}",
+    "lastDay": "Сегодня последний день",
+    "daysLeft": "{days, plural, one {остался # день} few {осталось # дня} other {осталось # дней}}",
+    "for": "Для",
+    "register": "Записать сейчас",
+    "registerLabel": "{name}: Записать сейчас",
+    "forChildren": "Для: {names}",
+    "offeredByTraeger": "Организатор: {traeger}",
+    "careLine": "Присмотр {from} – {to}",
+    "registrationLine": "Запись до {date}",
+    "registrationRangeLine": "Запись {from} – {to}"
+  },
   "childrenLoading": "Загрузка данных о детях",
-  "noChildren": "К вашему аккаунту ещё не привязан ребёнок. Продлёнка вашей школы может это настроить.",
+  "noChildren": "К вашему аккаунту ещё не привязан ребёнок. {careTerm} вашей школы может это настроить.",
   "errorObject": "обзор ваших детей"
 }

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The review of a monthly run before its release (#5916, ADR 0119 addendum
@@ -23,9 +23,14 @@ import (
 //     may be checked side by side.
 //   - Every invoice of a release carries the invoice date of its run, the
 //     day of the release when the run has none.
-//   - An exclusion names its run, contract, reason, account and time and is
-//     only ever appended; a return to the run is another entry. An excluded
-//     contract is not issued and comes back in the next run of the month.
+//   - An exclusion names its run, invoice (contract and service), reason,
+//     account and time and is only ever appended; a return to the run is
+//     another entry. It leaves out that one invoice (#6346, decision A): the
+//     Mensa invoice of its own of a contract stays in the run when its care
+//     invoice is excluded, and the other way round. An excluded invoice is
+//     not issued and comes back in the next run of the month. An exclusion
+//     recorded before #6346 named only the contract; migration 1.15.864 maps
+//     it onto both services, as it was in force.
 //   - The release issues exactly the reviewed preview: its fingerprint
 //     covers schools, invoice date, rule, exclusions and every amount,
 //     recipient and position of the invoices it issues.
@@ -41,6 +46,11 @@ var (
 	// preview does not issue, or a return of one that is not excluded.
 	ErrCareExclusionConflict = errors.New("the preview has no such invoice to exclude or return")
 )
+
+// ExcludableServices are the services an invoice of a monthly run bills,
+// and so the services an exclusion may name (#6346): the care with all it
+// bundles, or the Mensa on an invoice of its own.
+var ExcludableServices = []string{ServiceCare, ServiceMeal}
 
 // CareRunScope is what a run bills: its schools and invoice date. It is
 // part of CareRun.
@@ -107,8 +117,10 @@ type CareRelease struct {
 // every change and every download is recorded in the run's trail.
 type CareRunReview interface {
 	SetCareRunInvoiceDate(ctx context.Context, reviewer HolidayReviewer, runID int64, invoiceDate *calendar.Date) (CareRunDetail, error)
-	ExcludeCareInvoice(ctx context.Context, reviewer HolidayReviewer, runID, contractID int64, reason string) (CareRunDetail, error)
-	IncludeCareInvoice(ctx context.Context, reviewer HolidayReviewer, runID, contractID int64) (CareRunDetail, error)
+	// ExcludeCareInvoice leaves the one invoice of the preview the key names
+	// out of the release; IncludeCareInvoice takes it back (#6346).
+	ExcludeCareInvoice(ctx context.Context, reviewer HolidayReviewer, runID int64, invoice CareInvoiceKey, reason string) (CareRunDetail, error)
+	IncludeCareInvoice(ctx context.Context, reviewer HolidayReviewer, runID int64, invoice CareInvoiceKey) (CareRunDetail, error)
 	// AmendCareInvoice appends a change of one invoice of the preview
 	// (#6197): its amount, recipient, address or positions, or the
 	// revocation of an earlier change.

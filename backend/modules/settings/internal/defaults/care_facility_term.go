@@ -1,7 +1,7 @@
 package defaults
 
 import (
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // The term for the school's care in fixed parent texts (#6042). Schools in
@@ -23,7 +23,7 @@ var careFacilityTermDefinitions = []config.Definition{
 	{
 		Key:         config.KeyEnrollmentCareFacilityTerm,
 		Label:       "Name der Betreuung in Texten für Eltern",
-		Description: "So heißt Ihre Betreuung in den festen Texten der Online-Anmeldung und in den E-Mails dazu. Zum Beispiel: „Die OGS prüft Ihre Angaben.“ Passt keine Auswahl, wählen Sie „Eigener Name“. Der Name muss zu „die“ passen. Ihre eigenen Texte im Formular ändern sich nicht.",
+		Description: "So heißt Ihre Betreuung in den festen Texten der Online-Anmeldung, der Eltern-App und in den E-Mails dazu. Zum Beispiel: „Die OGS prüft Ihre Angaben.“ Passt keine Auswahl, wählen Sie „Eigener Name“. Der Name muss zu „die“ passen. Ihre eigenen Texte im Formular ändern sich nicht.",
 		Type:        config.FieldText,
 		Default:     "OGS",
 		Options: &config.SelectOptions{Static: []config.SelectOption{

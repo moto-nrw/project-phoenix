@@ -3,21 +3,21 @@ package owners
 import (
 	"context"
 
-	realtime "github.com/moto-nrw/project-phoenix/realtime"
+	realtime "github.com/moto-ogs/project-phoenix/realtime"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	communicationCompose "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	staffStore "github.com/moto-ogs/project-phoenix/modules/communication/staffstore"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	deliveryModule "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	settingsValues "github.com/moto-ogs/project-phoenix/modules/settings"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // BuildParentEventEmitter builds the chat-pill emitter (#1803) that also
@@ -48,7 +48,7 @@ func BuildParentAnnouncements(
 	return communicationCompose.NewParentAnnouncementsWithAttachments(communicationCompose.ParentAnnouncementConfig{
 		Repo: messaging.ParentAnnouncement, Settings: settingsValues.NewParentAnnouncementValues(settings), Outbox: OutboxEnqueuer{Outbox: outbox},
 		PushOutbox: deliveryCompose.NewDurablePushOutbox(module), Notifier: BindCommunicationNotificationSender(notifications.Notifier),
-		ReminderNotifier: BindCommunicationDurableNotificationSender(notifications.Notifier), Preferences: notifications.Preferences,
+		Series: BindCommunicationNotificationSeries(notifications.Notifier), Preferences: notifications.Preferences,
 		Deliveries: announcementDeliveryAdapter{module: module, outcomes: outcomes}, ParentsURL: env.Links.ParentsURL,
 		Fingerprints: SecurityFingerprints{}, Signatures: CommunicationSignatures{Ledger: SignatureLedger()},
 		Logger: env.Logger.With("service", "announcement"),
@@ -65,6 +65,12 @@ type CommunicationMessaging struct {
 	StaffMessaging communication.StaffMessagingRuntime
 	// GroupThreads is the OGS side of the group threads (#4784).
 	GroupThreads communication.ParentGroupThreadCapability
+	// ParentAttachments and StaffAttachments are the photos and files of
+	// the two chat families (#6685); PortalAttachments is the guardian's
+	// side of the first.
+	ParentAttachments communication.MessageAttachmentCapability
+	StaffAttachments  communication.MessageAttachmentCapability
+	PortalAttachments communication.PortalMessageAttachments
 }
 
 // BuildCommunicationMessaging binds the parent messenger and the colleague
@@ -93,13 +99,18 @@ func BuildCommunicationMessaging(
 		LoginImages: settings, ParentsURL: env.Links.ParentsURL, Observe: env.Observe.Communication,
 		GroupAudience: NewParentGroupAudience(db),
 	}
-	messaging, groupThreads := communicationCompose.NewParentMessaging(messagingConfig, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
-	staffMessaging := communicationCompose.NewStaffMessaging(communicationCompose.StaffMessagingConfig{
+	messaging, groupThreads, parentAttachments := communicationCompose.NewParentMessaging(messagingConfig, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
+	staffMessaging, staffAttachments := communicationCompose.NewStaffMessaging(communicationCompose.StaffMessagingConfig{
+		DB:          db.Pool(),
 		ThreadRepo:  staffStore.NewStaffMessageThreadRepository(db.Pool()),
 		MessageRepo: staffStore.NewStaffMessageRepository(db.Pool()), ReadRepo: portal.StaffMessageRead,
 		Persons: BindStaffSenderNames(users), Session: session, Settings: settingsValues.NewStaffMessagingValues(settings), Broadcaster: hub,
 		Logger: logger.With("service", "staffmessaging"), Notifier: BindCommunicationNotificationSender(notifications.Notifier),
 		Preferences: notifications.Preferences, Observe: env.Observe.Communication,
 	}, CommunicationRequestRuntime{}, deliveryPolicy.ParentDeliveryPolicy{})
-	return CommunicationMessaging{Messaging: messaging, StaffMessaging: staffMessaging, GroupThreads: groupThreads}
+	return CommunicationMessaging{
+		Messaging: messaging, StaffMessaging: staffMessaging, GroupThreads: groupThreads,
+		ParentAttachments: parentAttachments, StaffAttachments: staffAttachments,
+		PortalAttachments: communicationCompose.NewPortalMessageAttachments(db.Pool()),
+	}
 }

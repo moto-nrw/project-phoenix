@@ -7,7 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -82,6 +83,9 @@ func (s *Store) LockPayrollRules(ctx context.Context) error {
 	db, tenantID, err := s.payrollRulesDatabase(ctx)
 	if err != nil {
 		return err
+	}
+	if err := tenant.OrderLock(ctx, tenant.LockPayrollRules, tenant.LockIDKey(tenantID)); err != nil {
+		return fmt.Errorf("lock payroll rules: %w", err)
 	}
 	if _, err := db.NewRaw(`SELECT pg_advisory_xact_lock(hashtextextended(?, 0))`,
 		fmt.Sprintf("payroll_rules:%d", tenantID)).Exec(ctx); err != nil {

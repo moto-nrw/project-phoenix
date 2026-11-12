@@ -6,12 +6,22 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import { FormFieldset } from "~/components/ui/form-fieldset";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Input } from "~/components/ui/input";
 import { Modal } from "~/components/ui/modal";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
+import {
+  berlinClockFromISO,
+  berlinDateTimeISO,
+  berlinWallClockProblem,
+} from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import {
+  STORED_END_NOT_CLEARABLE_HINT,
+  TIME_REQUIRED_HINT,
+} from "~/lib/time-tracking-helpers";
 import type { StaffHistorySession } from "~/lib/staff-api";
 import { staffSessionService } from "~/lib/staff-api";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
@@ -48,6 +58,24 @@ export function AdminSessionEditModal({
   onClose,
   onSaved,
 }: AdminSessionEditModalProps) {
+  const breaks = useMemo(
+    () =>
+      mode === "edit"
+        ? (session?.breaks ?? []).filter(
+            (
+              brk,
+            ): brk is typeof brk & { id: string; duration_minutes: number } =>
+              typeof brk.id === "string" &&
+              typeof brk.duration_minutes === "number",
+          )
+        : [],
+    [mode, session],
+  );
+  const hasIndividualBreaks = breaks.length > 0;
+  const hasActiveBreak = breaks.some((brk) => brk.ended_at == null);
+  const [breakDurations, setBreakDurations] = useState<Record<string, string>>(
+    {},
+  );
   // Initial values come from the session in edit mode, sensible defaults in
   // nachtragen mode (08:00–16:00, 30min Pause, vor Ort).
   const initial = useMemo(() => {
@@ -92,15 +120,53 @@ export function AdminSessionEditModal({
     setCheckIn(initial.checkIn);
     setCheckOut(initial.checkOut);
     setBreakMinutesStr(String(initial.breakMinutes));
+    setBreakDurations(
+      Object.fromEntries(
+        breaks.map((brk) => [brk.id, String(brk.duration_minutes)]),
+      ),
+    );
     setStatus(initial.status);
     setNotes("");
     clearErrors();
-  }, [isOpen, initial, clearErrors]);
+  }, [isOpen, initial, breaks, clearErrors]);
+
+  // A time is sent only when it differs from the stored one, so saving a
+  // reason does not rewrite the stamps or cut off their seconds (#6293). A
+  // default shown for a missing value counts as a change: it is saved as seen.
+  const storedCheckIn = extractTime(session?.check_in_time ?? null);
+  const storedCheckOut = extractTime(session?.check_out_time ?? null);
+  const checkInChanged = mode !== "edit" || checkIn !== storedCheckIn;
+  const checkOutChanged = mode !== "edit" || checkOut !== storedCheckOut;
+  // Every reason the save stays blocked stands at its field (#6293).
+  const checkInProblem = !checkIn
+    ? TIME_REQUIRED_HINT
+    : checkInChanged
+      ? berlinWallClockProblem(date, checkIn)
+      : null;
+  const checkOutMissing = storedCheckOut
+    ? STORED_END_NOT_CLEARABLE_HINT
+    : TIME_REQUIRED_HINT;
+  const checkOutProblem = !checkOut
+    ? checkOutMissing
+    : ((checkOutChanged ? berlinWallClockProblem(date, checkOut) : null) ??
+      (checkIn && checkIn >= checkOut
+        ? "Das Ende muss nach dem Beginn liegen."
+        : null));
 
   const notesValid = notes.trim().length > 0;
-  const timesValid = checkIn < checkOut;
-  const breakMinutes = parseBreakMinutes(breakMinutesStr);
-  const breakValid = breakMinutes !== null;
+  const timesValid = checkInProblem === null && checkOutProblem === null;
+  const parsedBreaks = breaks.map((brk) => ({
+    ...brk,
+    minutes: parseBreakMinutes(
+      breakDurations[brk.id] ?? String(brk.duration_minutes),
+    ),
+  }));
+  const breakMinutes = hasIndividualBreaks
+    ? parsedBreaks.every((brk) => brk.minutes !== null)
+      ? parsedBreaks.reduce((sum, brk) => sum + (brk.minutes ?? 0), 0)
+      : null
+    : parseBreakMinutes(breakMinutesStr);
+  const breakValid = breakMinutes !== null && !hasActiveBreak;
 
   const handleSubmit = async () => {
     formErrors.clear();
@@ -112,7 +178,8 @@ export function AdminSessionEditModal({
     }
     if (!timesValid) {
       formErrors.invalid("Bitte prüfen Sie die Uhrzeiten.", {
-        check_out_time: "Das Ende muss nach dem Beginn liegen.",
+        ...(checkInProblem ? { check_in_time: checkInProblem } : {}),
+        ...(checkOutProblem ? { check_out_time: checkOutProblem } : {}),
       });
       return;
     }
@@ -125,29 +192,37 @@ export function AdminSessionEditModal({
 
     setIsSaving(true);
     try {
-      // The backend decodes all three time fields with the same time.Time
-      // unmarshaller (RFC3339). For `date` we MUST send UTC midnight rather
-      // than local midnight — otherwise Berlin→UTC shifts a day earlier
-      // (14.05 00:00 Berlin = 13.05 22:00 UTC) and the DATE column ends up
-      // on the wrong calendar day. Check-in/out are TIMESTAMPTZ so the
-      // local-time conversion is fine for those.
-      const dateISO = toUTCDateISO(date);
-      const checkInISO = combineDateAndTime(date, checkIn);
-      const checkOutISO = combineDateAndTime(date, checkOut);
+      // Check-in/out are school times on this day: Berlin wall clock with
+      // that day's offset, whatever the browser's zone (#6293). An unchanged
+      // stored time is not converted, so a stamp inside the repeated hour of
+      // the autumn switch still saves.
       if (mode === "edit" && session?.id != null) {
+        // The update ignores `date`; a block keeps its day.
+        const changedBreaks = parsedBreaks.flatMap((brk) =>
+          brk.minutes !== null && brk.minutes !== brk.duration_minutes
+            ? [{ id: brk.id, duration_minutes: brk.minutes }]
+            : [],
+        );
         await staffSessionService.updateSession(staffId, session.id, {
-          date: dateISO,
-          check_in_time: checkInISO,
-          check_out_time: checkOutISO,
+          check_in_time: checkInChanged
+            ? berlinDateTimeISO(date, checkIn)
+            : undefined,
+          check_out_time: checkOutChanged
+            ? berlinDateTimeISO(date, checkOut)
+            : undefined,
           break_minutes: breakMinutes,
+          ...(hasIndividualBreaks ? { breaks: changedBreaks } : {}),
           status,
           notes: notes.trim(),
         });
       } else {
+        // The backend decodes `date` as an RFC3339 time and takes its
+        // calendar day; UTC midnight keeps that day from shifting (14.05
+        // 00:00 Berlin would be 13.05 22:00 UTC).
         await staffSessionService.createSession(staffId, {
-          date: dateISO,
-          check_in_time: checkInISO,
-          check_out_time: checkOutISO,
+          date: toUTCDateISO(date),
+          check_in_time: berlinDateTimeISO(date, checkIn),
+          check_out_time: berlinDateTimeISO(date, checkOut),
           break_minutes: breakMinutes,
           status,
           notes: notes.trim(),
@@ -225,17 +300,19 @@ export function AdminSessionEditModal({
         <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           <Field
             label="Check-in"
-            error={formErrors.fieldError("check_in_time")}
+            error={checkInProblem ?? formErrors.fieldError("check_in_time")}
           >
             <Input
               controlSize="compact"
               type="time"
               name="check_in_time"
               aria-invalid={
-                formErrors.fieldError("check_in_time") ? true : undefined
+                (checkInProblem ?? formErrors.fieldError("check_in_time"))
+                  ? true
+                  : undefined
               }
               aria-describedby={describedBy(
-                formErrors.fieldError("check_in_time"),
+                checkInProblem ?? formErrors.fieldError("check_in_time"),
                 "check_in_time",
               )}
               value={checkIn}
@@ -245,17 +322,19 @@ export function AdminSessionEditModal({
           </Field>
           <Field
             label="Check-out"
-            error={formErrors.fieldError("check_out_time")}
+            error={checkOutProblem ?? formErrors.fieldError("check_out_time")}
           >
             <Input
               controlSize="compact"
               type="time"
               name="check_out_time"
               aria-invalid={
-                formErrors.fieldError("check_out_time") ? true : undefined
+                (checkOutProblem ?? formErrors.fieldError("check_out_time"))
+                  ? true
+                  : undefined
               }
               aria-describedby={describedBy(
-                formErrors.fieldError("check_out_time"),
+                checkOutProblem ?? formErrors.fieldError("check_out_time"),
                 "check_out_time",
               )}
               value={checkOut}
@@ -264,30 +343,86 @@ export function AdminSessionEditModal({
             />
           </Field>
         </div>
-        <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-          <Field
-            label="Pause (Minuten)"
-            error={formErrors.fieldError("break_minutes")}
-          >
-            <Input
-              controlSize="compact"
-              type="number"
-              name="break_minutes"
-              aria-invalid={
-                formErrors.fieldError("break_minutes") ? true : undefined
-              }
-              aria-describedby={describedBy(
-                formErrors.fieldError("break_minutes"),
-                "break_minutes",
+        {hasIndividualBreaks && (
+          <FormFieldset legend="Pausen">
+            <div className="space-y-3">
+              {hasActiveBreak && (
+                <Alert
+                  type="info"
+                  size="compact"
+                  message="Die Pause läuft noch. Die Person muss sie zuerst beenden."
+                />
               )}
-              min={0}
-              max={300}
-              inputMode="numeric"
-              value={breakMinutesStr}
-              onChange={(e) => setBreakMinutesStr(e.target.value)}
-              className="tabular-nums"
-            />
-          </Field>
+              {parsedBreaks
+                .filter((brk) => brk.ended_at != null)
+                .map((brk) => (
+                  <Input
+                    key={brk.id}
+                    label={`Pause ab ${extractTime(brk.started_at) ?? "–"} (Minuten)`}
+                    controlSize="compact"
+                    type="number"
+                    name={`break_${brk.id}`}
+                    min={0}
+                    max={300}
+                    inputMode="numeric"
+                    value={
+                      breakDurations[brk.id] ?? String(brk.duration_minutes)
+                    }
+                    disabled={hasActiveBreak || isSaving}
+                    errorLive
+                    error={
+                      brk.minutes === null
+                        ? "Bitte geben Sie volle Minuten von 0 bis 300 ein."
+                        : undefined
+                    }
+                    onChange={(event) =>
+                      setBreakDurations((current) => ({
+                        ...current,
+                        [brk.id]: event.target.value,
+                      }))
+                    }
+                  />
+                ))}
+              {!hasActiveBreak && breakMinutes !== null && (
+                <p className="font-medium tabular-nums">
+                  Gesamt: {breakMinutes} Minuten
+                </p>
+              )}
+            </div>
+          </FormFieldset>
+        )}
+        <div
+          className={
+            hasIndividualBreaks
+              ? "space-y-3"
+              : "grid grid-cols-1 gap-3 sm:grid-cols-2"
+          }
+        >
+          {!hasIndividualBreaks && (
+            <Field
+              label="Pause (Minuten)"
+              error={formErrors.fieldError("break_minutes")}
+            >
+              <Input
+                controlSize="compact"
+                type="number"
+                name="break_minutes"
+                aria-invalid={
+                  formErrors.fieldError("break_minutes") ? true : undefined
+                }
+                aria-describedby={describedBy(
+                  formErrors.fieldError("break_minutes"),
+                  "break_minutes",
+                )}
+                min={0}
+                max={300}
+                inputMode="numeric"
+                value={breakMinutesStr}
+                onChange={(e) => setBreakMinutesStr(e.target.value)}
+                className="tabular-nums"
+              />
+            </Field>
+          )}
           <Field label="Status">
             <CustomSelect
               ariaLabel="Status"
@@ -364,11 +499,10 @@ function formatLongDate(date: Date): string {
   });
 }
 
+// The stored instant as the Berlin wall clock the field shows (#6293).
 function extractTime(iso: string | null): string | null {
   if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return `${String(d.getHours()).padStart(2, "0")}:${String(d.getMinutes()).padStart(2, "0")}`;
+  return berlinClockFromISO(iso) || null;
 }
 
 // Empty string is intentionally rejected (the field is required); a string
@@ -393,14 +527,4 @@ function toUTCDateISO(date: Date): string {
   const m = String(date.getMonth() + 1).padStart(2, "0");
   const d = String(date.getDate()).padStart(2, "0");
   return `${y}-${m}-${d}T00:00:00.000Z`;
-}
-
-// Build an RFC3339 timestamp for the given calendar day + HH:MM (local time).
-// We deliberately use local time so the admin types "08:00" and the backend
-// receives a wall-clock 08:00, not 09:00 because of timezone drift.
-function combineDateAndTime(date: Date, time: string): string {
-  const [hh, mm] = time.split(":").map(Number);
-  const result = new Date(date);
-  result.setHours(hh ?? 0, mm ?? 0, 0, 0);
-  return result.toISOString();
 }

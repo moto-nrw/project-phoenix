@@ -6,7 +6,7 @@ import (
 	"io"
 	"os"
 
-	seedapi "github.com/moto-nrw/project-phoenix/internal/devtools/seedapi"
+	seedapi "github.com/moto-ogs/project-phoenix/internal/devtools/seedapi"
 	"github.com/spf13/cobra"
 )
 
@@ -146,6 +146,12 @@ Usage:
 		}
 		defer closeHistory()
 		options.PresenceHistory = history
+		meals, closeMeals, err := openMealHistory()
+		if err != nil {
+			return err
+		}
+		defer closeMeals()
+		options.MealHistory = meals
 
 		return defaultSeedRoot.run(cmd.Context(), url, verbose, options, email, password, pin)
 	},

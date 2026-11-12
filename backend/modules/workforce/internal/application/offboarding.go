@@ -5,11 +5,12 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func (s *Service) PreviewStaffOffboarding(ctx context.Context, staffID int64, from string) (result workforce.OffboardingPreview, err error) {
@@ -123,14 +124,25 @@ func (s *Service) deleteOffboardedRows(ctx context.Context, staffID int64, from 
 	return err
 }
 
-func (s *Service) LockStaffOffboarding(ctx context.Context, staffID int64) error {
+func (s *Service) LockStaffOffboarding(ctx context.Context, staffIDs ...int64) error {
 	if _, ok := tenant.TransactionFromContext(ctx); !ok {
 		return errors.New("workforce: offboarding lock requires a transaction")
 	}
-	if err := s.LockStaffAbsenceWrites(ctx, staffID); err != nil {
-		return err
+	// A sick report holds its subject's absence gates while taking its
+	// substitutes' shift gates. Finish the whole batch's absence phase
+	// before holding any shift gate, or the two writers can form a cycle.
+	ids := slices.Compact(slices.Sorted(slices.Values(staffIDs)))
+	for _, id := range ids {
+		if err := s.LockStaffAbsenceWrites(ctx, id); err != nil {
+			return err
+		}
 	}
-	return MapError(s.transaction.LockStaffShifts(ctx, staffID))
+	for _, id := range ids {
+		if err := s.transaction.LockStaffShifts(ctx, id); err != nil {
+			return MapError(err)
+		}
+	}
+	return nil
 }
 
 func (s *Service) offboardingSnapshot(ctx context.Context, staffID int64, from string, stats *domain.OperationStats) (domain.OffboardingSnapshot, workforce.OffboardingPreview, error) {

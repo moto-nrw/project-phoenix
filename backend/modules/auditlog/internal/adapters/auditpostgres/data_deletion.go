@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	audit "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 	"github.com/uptrace/bun"
 )
 
@@ -32,6 +32,27 @@ func (r *DataDeletionRepository) Create(ctx context.Context, deletion *audit.Dat
 		return errors.New("data deletion cannot be nil")
 	}
 	return NewAppender(r.runtime).Append(ctx, deletion)
+}
+
+// CreateAll appends every deletion in one statement, all or nothing.
+func (r *DataDeletionRepository) CreateAll(ctx context.Context, deletions []*audit.DataDeletion) error {
+	events, err := dataDeletionEvents(deletions)
+	if err != nil || len(events) == 0 {
+		return err
+	}
+	return NewAppender(r.runtime).AppendAll(ctx, events)
+}
+
+// dataDeletionEvents rejects a nil deletion before any row is written.
+func dataDeletionEvents(deletions []*audit.DataDeletion) ([]any, error) {
+	events := make([]any, 0, len(deletions))
+	for _, deletion := range deletions {
+		if deletion == nil {
+			return nil, errors.New("data deletion cannot be nil")
+		}
+		events = append(events, deletion)
+	}
+	return events, nil
 }
 
 func (r *DataDeletionRepository) FindByID(ctx context.Context, id interface{}) (*audit.DataDeletion, error) {

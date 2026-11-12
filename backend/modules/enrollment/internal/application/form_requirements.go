@@ -4,11 +4,11 @@ import (
 	"fmt"
 	"strings"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 )
 
 // The submission-time field checks behind the public form: required fields,
@@ -28,6 +28,9 @@ func validateRequiredCustomFields(schema *enrollmentNative.FormSchema, req Submi
 		if req.GuardianPhone == nil || strings.TrimSpace(*req.GuardianPhone) == "" {
 			return enrollmentNative.InvalidInput(enrollmentNative.CodeGuardianPhoneRequired, "guardian_phone", fmt.Errorf("%w: guardian phone is required", enrollmentNative.ErrInvalidSubmission))
 		}
+	}
+	if err := validateHolidayCareWish(schema, req.Children); err != nil {
+		return err
 	}
 	byKey := buildFieldsByKey(schema)
 	guardianCtx := fieldVisibilityContext{guardianAnswers: req.CustomData, fieldsByKey: byKey}

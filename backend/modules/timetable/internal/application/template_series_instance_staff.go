@@ -2,15 +2,17 @@ package application
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"slices"
 	"sort"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 
-	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	scheduleModel "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // instanceStaffReconciliation is the state one staff alignment pass works
@@ -21,6 +23,7 @@ type instanceStaffReconciliation struct {
 	byStaff      map[int64][]*activityContract.SupervisorPlanned
 	priorByStaff map[int64][]*activityContract.SupervisorPlanned
 	existing     map[instanceStudentPair]*scheduleModel.InstanceStaff
+	sickDays     map[staffDay]int64
 	created      int
 	removed      int
 	repointed    int
@@ -50,9 +53,21 @@ func (s *TemplateService) reconcilePredecessorInstanceStaff(
 	if err != nil || len(instances) == 0 {
 		return err
 	}
+	if err := s.lockOccurrenceDays(ctx, instances); err != nil {
+		return err
+	}
 	pass, err := s.loadInstanceStaffReconciliation(ctx, templateID, instanceIDs, priorSupervisors)
 	if err != nil {
 		return err
+	}
+	if pass.sickDays, err = sickDaysIn(ctx, s.deps.SickReports, occurrenceDays(instances)...); err != nil {
+		return err
+	}
+	// The staff rows of everyone the pass may add, before the first block
+	// row (#6583): offboarding holds a staff row while it locks that person's
+	// occurrences, so taking it after an occurrence closes a cycle.
+	if err := lockStaffRows(ctx, s.deps.InstanceStaffRepo, plannedStaffOf(staffIDs, pass)); err != nil {
+		return &ports.ScheduleError{Op: "reconcile predecessor staff: lock staff", Err: err}
 	}
 	for _, inst := range instances {
 		if err := s.reconcileOccurrenceStaff(ctx, inst, staffIDs, pass); err != nil {
@@ -97,6 +112,19 @@ func (s *TemplateService) loadInstanceStaffReconciliation(
 	return pass, nil
 }
 
+// plannedStaffOf lists the given staff members the template still plans:
+// only they can gain an occurrence row. A supervisor row exists only for live
+// staff, since offboarding removes a retired person's rows.
+func plannedStaffOf(staffIDs []int64, pass *instanceStaffReconciliation) []int64 {
+	planned := make([]int64, 0, len(staffIDs))
+	for _, staffID := range staffIDs {
+		if len(pass.byStaff[staffID]) > 0 {
+			planned = append(planned, staffID)
+		}
+	}
+	return planned
+}
+
 func supervisorsByStaff(rows []*activityContract.SupervisorPlanned) map[int64][]*activityContract.SupervisorPlanned {
 	byStaff := make(map[int64][]*activityContract.SupervisorPlanned, len(rows))
 	for _, sup := range rows {
@@ -131,7 +159,7 @@ func (s *TemplateService) reconcileOccurrenceStaff(
 			// The pre-edit rows already planned this occurrence and the row is
 			// gone regardless — a hand removal that stays.
 			if !supervisorsPlanStaffOn(pass.priorByStaff[staffID], instanceDate, periodID, planWeekday) {
-				err = s.addOccurrenceStaff(ctx, key, wantPrimary, pass)
+				err = s.addOccurrenceStaff(ctx, key, instanceDate, wantPrimary, pass)
 			}
 		case desired && exists && instanceStaffRowIsStillPlanned(row):
 			err = s.repointOccurrencePrimary(ctx, row, wantPrimary, pass)
@@ -145,13 +173,15 @@ func (s *TemplateService) reconcileOccurrenceStaff(
 	return nil
 }
 
-func (s *TemplateService) addOccurrenceStaff(ctx context.Context, key instanceStudentPair, isPrimary bool, pass *instanceStaffReconciliation) error {
+func (s *TemplateService) addOccurrenceStaff(ctx context.Context, key instanceStudentPair, date calendar.Date, isPrimary bool, pass *instanceStaffReconciliation) error {
 	fresh := &scheduleModel.InstanceStaff{
 		InstanceID: key.instanceID,
 		StaffID:    key.studentID,
 		IsPrimary:  isPrimary,
 	}
-	if err := createLegacyInstanceStaff(ctx, s.deps.InstanceStaffRepo, fresh); err != nil {
+	// A person the series change plans on a full sick day is planned
+	// absent, as the materializer plans them (#6292).
+	if err := writeStaffAssignment(ctx, s.deps.InstanceStaffRepo, fresh, date, pass.sickDays, false); err != nil {
 		return &ports.ScheduleError{Op: "reconcile predecessor staff: add staff", Err: err}
 	}
 	pass.existing[key] = fresh
@@ -324,4 +354,41 @@ func sortedInt64Keys(set map[int64]bool) []int64 {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// lockOccurrenceDays takes the day lock of every occurrence the pass may
+// write, ascending, before it reads the sick reports (#6232): a sick-report
+// write holds the days of its range while it writes, so the pass either
+// reads the committed report or the report's cascade sees the rows the pass
+// added. It also serializes participant reconciliation with cancellation.
+// The callers hold the recurrence gate, which every date-moving write takes
+// as well, so the occurrence days stay put.
+func (s *TemplateService) lockOccurrenceDays(ctx context.Context, instances []*scheduleModel.ActivityInstance) error {
+	if len(instances) == 0 {
+		return nil
+	}
+	return lockTemplateDays(ctx, s.deps.Deviations, "reconcile predecessor staff: lock days", occurrenceDays(instances))
+}
+
+// lockTemplateDays takes the day locks of the days once each, ascending.
+func lockTemplateDays(ctx context.Context, deviations ports.SeriesDeviations, op string, days []calendar.Date) error {
+	if deviations == nil {
+		return &ports.ScheduleError{Op: op, Err: errors.New("day locks are not configured")}
+	}
+	tenantID := tenant.FromContext(ctx)
+	for _, day := range ascendingDays(days) {
+		if err := deviations.LockDeviationDays(ctx, tenantID, day, day); err != nil {
+			return &ports.ScheduleError{Op: op, Err: err}
+		}
+	}
+	return nil
+}
+
+// occurrenceDays lists the occurrence dates.
+func occurrenceDays(instances []*scheduleModel.ActivityInstance) []calendar.Date {
+	days := make([]calendar.Date, 0, len(instances))
+	for _, inst := range instances {
+		days = append(days, calendar.Date(inst.Date))
+	}
+	return days
 }

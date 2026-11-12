@@ -91,6 +91,9 @@ type MFAChallengeClaims struct {
 	Scope       string
 	TenantID    int64
 	ChallengeID int64
+	// CredentialGeneration is the credential generation the code was issued
+	// under (#6289).
+	CredentialGeneration int64
 }
 
 // MFACodeMail is one e-mail code message. The template carries no link or

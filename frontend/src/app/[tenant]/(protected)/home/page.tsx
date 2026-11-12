@@ -14,7 +14,10 @@ import { hasSessionAccess } from "~/lib/session-access";
 import { redirect } from "next/navigation";
 
 import { HomeBlockContent } from "~/components/home/home-block-content";
-import { HomeBoard } from "~/components/home/home-board";
+import {
+  HomeBoard,
+  preloadHomeBoardEditor,
+} from "~/components/home/home-board";
 import { NowStrip } from "~/components/home/now-strip";
 import { PickupExtensionTodos } from "~/components/home/pickup-extension-todos";
 import { BookingLeftoverTodos } from "~/components/home/booking-leftover-todos";
@@ -25,7 +28,6 @@ import { Button } from "~/components/ui/button";
 import { EmptyState } from "~/components/ui/empty-state";
 import { errorAlertActions } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
-import { Tooltip } from "~/components/ui/tooltip";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { leadsSchool } from "~/lib/auth-utils";
 import { fetchBirthdayOverviewClient } from "~/lib/birthdays-api";
@@ -488,24 +490,25 @@ function HomeContent() {
           // Symbolknopf dieselbe Höhe wie „Abbrechen" und „Fertig".
           // `data-icon-only` an der Hülle hält ihn unter sm in der
           // Titelzeile; die Blase steht rechtsbündig, weil der Knopf am
-          // rechten Rand sitzt.
-          <div data-icon-only="">
-            <Tooltip
-              content="Anpassen"
-              asChild
-              bubbleClassName="left-auto right-0"
+          // rechten Rand sitzt. Zeigen, Fokus oder Antippen laden das
+          // Anpassen schon vor dem Klick (#6469).
+          <div
+            data-icon-only=""
+            onPointerEnter={preloadHomeBoardEditor}
+            onPointerDown={preloadHomeBoardEditor}
+            onFocus={preloadHomeBoardEditor}
+          >
+            <Button
+              type="button"
+              variant="outline"
+              size="icon"
+              aria-label="Anpassen"
+              tooltip="Anpassen"
+              disabled={!homeLayoutReady}
+              onClick={startEditing}
             >
-              <Button
-                type="button"
-                variant="outline"
-                size="icon"
-                aria-label="Anpassen"
-                disabled={!homeLayoutReady}
-                onClick={startEditing}
-              >
-                <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
-              </Button>
-            </Tooltip>
+              <SlidersHorizontal className="h-4 w-4" aria-hidden="true" />
+            </Button>
           </div>
         )
       }
@@ -559,6 +562,8 @@ function HomeContent() {
                 variant="primary"
                 size="md"
                 disabled={!homeLayoutReady}
+                onPointerEnter={preloadHomeBoardEditor}
+                onFocus={preloadHomeBoardEditor}
                 onClick={startEditing}
               >
                 Bausteine hinzufügen

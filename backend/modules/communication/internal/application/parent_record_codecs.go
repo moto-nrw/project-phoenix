@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"maps"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/domain"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 func ParentPayloadFromFacts(v map[string]any) (map[string]json.RawMessage, error) {
@@ -37,18 +37,18 @@ func ParentMessageToRecord(v *ParentMessage) (*communication.PortalParentMessage
 		SenderName:       v.SenderName,
 		StaffNameVisible: v.StaffNameVisible,
 		ClientMessageID:  v.ClientMessageID, SendReplayed: v.SendReplayed, Body: v.Body,
-		Kind:             v.Kind,
-		EventType:        v.EventType,
-		EventActorKind:   v.EventActorKind,
-		RequestType:      v.RequestType,
-		RequestStatus:    v.RequestStatus,
-		Payload:          payload,
-		RefTable:         v.RefTable,
-		RefID:            v.RefID,
-		AppliedAt:        v.AppliedAt,
-		AppliedBy:        v.AppliedBy,
-		DecisionReason:   v.DecisionReason,
-		GroupThreadID:    v.GroupThreadID,
+		Kind:           v.Kind,
+		EventType:      v.EventType,
+		EventActorKind: v.EventActorKind,
+		RequestType:    v.RequestType,
+		RequestStatus:  v.RequestStatus,
+		Payload:        payload,
+		RefTable:       v.RefTable,
+		RefID:          v.RefID,
+		AppliedAt:      v.AppliedAt,
+		AppliedBy:      v.AppliedBy,
+		DecisionReason: v.DecisionReason,
+		GroupThreadID:  v.GroupThreadID, Attachments: v.Attachments,
 		GroupThreadTitle: v.GroupThreadTitle,
 		ReadByStaff:      v.ReadByStaff,
 		ReadByGuardian:   v.ReadByGuardian,
@@ -74,18 +74,18 @@ func ParentMessageFromRecord(v *communication.PortalParentMessage) (*ParentMessa
 		SenderName:       v.SenderName,
 		StaffNameVisible: v.StaffNameVisible,
 		ClientMessageID:  v.ClientMessageID, SendReplayed: v.SendReplayed, Body: v.Body,
-		Kind:             v.Kind,
-		EventType:        v.EventType,
-		EventActorKind:   v.EventActorKind,
-		RequestType:      v.RequestType,
-		RequestStatus:    v.RequestStatus,
-		Payload:          payload,
-		RefTable:         v.RefTable,
-		RefID:            v.RefID,
-		AppliedAt:        v.AppliedAt,
-		AppliedBy:        v.AppliedBy,
-		DecisionReason:   v.DecisionReason,
-		GroupThreadID:    v.GroupThreadID,
+		Kind:           v.Kind,
+		EventType:      v.EventType,
+		EventActorKind: v.EventActorKind,
+		RequestType:    v.RequestType,
+		RequestStatus:  v.RequestStatus,
+		Payload:        payload,
+		RefTable:       v.RefTable,
+		RefID:          v.RefID,
+		AppliedAt:      v.AppliedAt,
+		AppliedBy:      v.AppliedBy,
+		DecisionReason: v.DecisionReason,
+		GroupThreadID:  v.GroupThreadID, Attachments: v.Attachments,
 		GroupThreadTitle: v.GroupThreadTitle,
 		ReadByStaff:      v.ReadByStaff,
 		ReadByGuardian:   v.ReadByGuardian,

@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -158,7 +158,7 @@ func TestLoginWithMFAGate_MFARequiredAndEnrolled_ReturnsChallenge(t *testing.T) 
 
 	sc := newLoginGateScenario(t)
 	sc.setOverride(identityaccess.MFAAdminOverrideForceOn)
-	require.NoError(t, sc.mfa.EnrollMFA(context.Background(), sc.accountID),
+	require.NoError(t, enrollMFA(context.Background(), t, sc.db, sc.mfa, sc.accountID),
 		"enrolment row must exist for the MFA-required-and-enrolled branch")
 
 	result, err := sc.svc.LoginWithMFAGate(

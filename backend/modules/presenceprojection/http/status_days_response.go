@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func applyEffectiveStatusDaysToResponses(responses []StudentResponse, statusRows []*absencerecords.StudentStatusDay) {
@@ -25,7 +25,9 @@ func applyEffectiveStatusDaysToResponses(responses []StudentResponse, statusRows
 }
 
 // applyStatusDaysForDate overlays the requested day's sick/excused/class-trip
-// status rows onto the responses only with users:read. Errors are returned:
+// status rows onto the responses only with users:read. The rows are those
+// that stand for the day, active or archived at its end, as the day log and
+// the class day read them (#6291). Errors are returned:
 // on a non-today view resetScheduledStatusFlags has already cleared the
 // row-seeded flags, so a silent lookup failure would report a sick, excused, or
 // class-trip child as expected. Callers must surface the error (500) instead of
@@ -39,7 +41,7 @@ func (rs *Resource) applyStatusDaysForDate(ctx context.Context, responses []Stud
 	for _, response := range responses {
 		studentIDs = append(studentIDs, response.ID)
 	}
-	rows, err := rs.StudentStatusDayService.FindActiveByStudentIDsAndDate(ctx, studentIDs, calendar.DateFromTime(now))
+	rows, err := rs.StudentStatusDayService.FindSignedOffByStudentIDsAndDate(ctx, studentIDs, calendar.DateFromTime(now))
 	if err != nil {
 		return err
 	}
@@ -52,7 +54,7 @@ func (rs *Resource) applyStatusDaysForDateToResponse(ctx context.Context, respon
 		return nil
 	}
 	date := calendar.DateFromTime(now)
-	rows, err := rs.StudentStatusDayService.FindActiveByStudentAndDateRange(ctx, response.ID, date, date)
+	rows, err := rs.StudentStatusDayService.FindSignedOffByStudentIDsAndDate(ctx, []int64{response.ID}, date)
 	if err != nil {
 		return err
 	}

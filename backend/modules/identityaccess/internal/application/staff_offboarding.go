@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // Staff offboarding access step: the preview snapshots the account's access
@@ -115,16 +115,18 @@ func (l *AccountLifecycle) staffOffboardingSnapshot(ctx context.Context, account
 	if err != nil {
 		return preview, err
 	}
-	preview.DeactivateAccount = !preview.PreserveGuardian && len(activeTenants) == 1 && activeTenants[0] == tenantID
+	retained, err := l.auth.hasRetainedTraegerMembership(ctx, accountID)
+	if err != nil {
+		return preview, err
+	}
+	preview.DeactivateAccount = !preview.PreserveGuardian && !retained && len(activeTenants) == 1 && activeTenants[0] == tenantID
 	preview.Revision, err = staffOffboardingRevision(accountID, tenantID, account.UpdatedAt, preview, tokenIDs, activeTenants)
 	return preview, err
 }
 
 func (l *AccountLifecycle) revokeStaffGrants(txCtx context.Context, accountID int64, preview identityaccess.StaffOffboardingPreview) (result identityaccess.StaffOffboardingResult, err error) {
-	for _, roleID := range preview.RoleIDs {
-		if err := l.admin.RemoveRoleFromAccount(txCtx, accountID, roleID); err != nil {
-			return result, err
-		}
+	if err := l.admin.RemoveRolesFromAccount(txCtx, accountID, preview.RoleIDs); err != nil {
+		return result, err
 	}
 	if err := l.auth.RevokeAllTokensWithReason(txCtx, accountID, "role_changed"); err != nil {
 		return result, err
@@ -140,7 +142,8 @@ func staffOffboardingRevision(accountID, tenantID int64, updatedAt time.Time, pr
 		AccountUpdatedAt             time.Time
 		Roles, Tokens, ActiveTenants []int64
 		Guardian                     bool
-	}{AccountID: accountID, TenantID: tenantID, AccountUpdatedAt: updatedAt, Roles: preview.RoleIDs, Guardian: preview.PreserveGuardian}
+		DeactivateAccount            bool
+	}{AccountID: accountID, TenantID: tenantID, AccountUpdatedAt: updatedAt, Roles: preview.RoleIDs, Guardian: preview.PreserveGuardian, DeactivateAccount: preview.DeactivateAccount}
 	versions.Tokens = append(versions.Tokens, tokenIDs...)
 	versions.ActiveTenants = append(versions.ActiveTenants, activeTenants...)
 	slices.Sort(versions.Tokens)

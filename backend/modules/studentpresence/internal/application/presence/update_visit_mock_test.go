@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -625,4 +625,27 @@ func TestSyncAttendanceForVisitRevision_ReopeningDropsTheClassReason(t *testing.
 
 	later := exit.Add(15 * time.Minute)
 	assert.Equal(t, &reason, revise(&later).CheckOutReason, "moving the checkout time keeps the reason")
+}
+
+func TestSyncAttendanceForVisitRevision_KeepsDeviceAttribution(t *testing.T) {
+	t.Parallel()
+	entry := calendar.NewDate(2026, 8, 24).BerlinMidnight().Add(8 * time.Hour)
+	exit := entry.Add(time.Hour)
+	later := exit.Add(time.Minute)
+	deviceID := int64(400)
+	revise := func(updatedExit *time.Time) *studentpresence.Attendance {
+		repo := &revisionCapturingRepository{lockingAttendanceRepository: lockingAttendanceRepository{
+			row: studentpresence.Attendance{StudentID: 200, CheckInTime: entry, CheckOutTime: &exit, CheckedOutDeviceID: &deviceID},
+		}}
+		svc := &service{ServiceDependencies: ServiceDependencies{PrincipalReader: testAttendancePrincipal, SchoolPresence: repo}}
+		previous := &studentpresence.Visit{StudentID: 200, EntryTime: entry, ExitTime: &exit}
+		updated := &studentpresence.Visit{StudentID: 200, EntryTime: entry, ExitTime: updatedExit}
+		require.NoError(t, svc.syncAttendanceForVisitRevision(context.WithValue(context.Background(), attendancePrincipalTestKey{}, RequestPrincipal{StaffID: 500, HasStaff: true}), previous, updated))
+		require.NotNil(t, repo.revised)
+		return repo.revised
+	}
+	closed := revise(&later)
+	assert.Equal(t, &deviceID, closed.CheckedOutDeviceID)
+	assert.Nil(t, closed.CheckedOutBy, "correcting a kiosk checkout must keep its original recorder")
+	assert.Nil(t, revise(nil).CheckedOutDeviceID, "reopening removes the old checkout recorder")
 }

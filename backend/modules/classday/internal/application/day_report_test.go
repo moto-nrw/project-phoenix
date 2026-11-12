@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/classday"
-	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/classday"
+	"github.com/moto-ogs/project-phoenix/modules/classday/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // fakeClassDayCaller serves a fixed class assignment.
@@ -48,7 +48,7 @@ type fakeClassDayStatusDays struct {
 	entries []StatusDayEntry
 }
 
-func (f fakeClassDayStatusDays) ActiveStatusDays(context.Context, []int64, calendar.Date) ([]StatusDayEntry, error) {
+func (f fakeClassDayStatusDays) StandingStatusDays(context.Context, []int64, calendar.Date) ([]StatusDayEntry, error) {
 	return f.entries, nil
 }
 
