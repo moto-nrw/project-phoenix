@@ -30,8 +30,11 @@ export function useLocalizedDatePicker(): {
       locale: dateFnsLocaleFor(appLocale),
       labels: {
         clear: t("clear"),
+        clearHint: t("clearHint"),
         previousMonth: t("previousMonth"),
+        previousMonthHint: t("previousMonthHint"),
         nextMonth: t("nextMonth"),
+        nextMonthHint: t("nextMonthHint"),
         month: t("month"),
         year: t("year"),
       },

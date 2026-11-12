@@ -40,6 +40,9 @@ export function RequestIdButton({
         variant="link_tone"
         size="compact"
         aria-label={copyLabel}
+        // Sichtbar steht nur die Kennung; die Blase nennt die Aktion in der
+        // Sprache des Aufrufers. Vorgelesen wird sie nicht doppelt.
+        tooltip={copyLabel}
         onClick={() => void handleCopy()}
         // A request ID is a 36-character UUID: let it wrap inside the alert
         // or toast instead of running past its edge.

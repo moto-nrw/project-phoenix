@@ -17,6 +17,8 @@ interface DropzoneBaseProps {
   readonly dragLabel: string;
   /** Text of the button that opens the file dialog. */
   readonly buttonLabel: string;
+  /** What the button does (#6744); defaults to „Öffnet die Dateiauswahl Ihres Geräts.“ */
+  readonly buttonTooltip?: string;
   /** Names the hidden file input. Defaults to `buttonLabel`. */
   readonly inputLabel?: string;
   /** Limits worth knowing up front: file types, size. */
@@ -103,6 +105,7 @@ export function Dropzone({
   label,
   dragLabel,
   buttonLabel,
+  buttonTooltip = "Öffnet die Dateiauswahl Ihres Geräts.",
   inputLabel = buttonLabel,
   hint,
   loading = false,
@@ -188,6 +191,7 @@ export function Dropzone({
         variant="outline"
         size="md"
         disabled={inactive}
+        tooltip={buttonTooltip}
         onClick={() => inputRef.current?.click()}
         // A disabled button swallows drag events: let them through to the frame.
         className="after:absolute after:inset-0 disabled:pointer-events-none"

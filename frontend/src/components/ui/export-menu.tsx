@@ -83,12 +83,15 @@ export function exportMenuItems({
 export function ExportMenu({
   label = "Herunterladen",
   ariaLabel,
+  tooltip = "Zeigt die Formate zur Auswahl, noch wird nichts heruntergeladen.",
   ...args
 }: ExportMenuItemsArgs & {
   /** Visible trigger text. */
   readonly label?: string;
   /** Accessible name of the trigger when the text alone is not enough. */
   readonly ariaLabel?: string;
+  /** What a click on the trigger does (#6744). */
+  readonly tooltip?: string;
 }) {
   return (
     <OverflowMenu
@@ -97,6 +100,7 @@ export function ExportMenu({
       items={exportMenuItems({ ...args, header: args.header ?? null })}
       triggerButton={{ variant: "outline", size: "md" }}
       triggerClassName="gap-2 whitespace-nowrap"
+      triggerTooltip={tooltip}
       triggerContent={
         <>
           {label}

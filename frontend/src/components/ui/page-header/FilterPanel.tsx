@@ -442,6 +442,7 @@ export function FilterPanel({
                 variant="ghost"
                 size="md"
                 onClick={onReset}
+                tooltip="Entfernt alle gewählten Filter."
                 className="flex-1"
               >
                 Zurücksetzen
@@ -455,6 +456,7 @@ export function FilterPanel({
                   onApply();
                   onClose();
                 }}
+                tooltip="Zeigt die Liste mit den gewählten Filtern."
                 className="flex-1"
               >
                 {applyLabel}

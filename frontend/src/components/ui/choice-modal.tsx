@@ -68,6 +68,7 @@ export function ChoiceModal({
       size="md"
       onClick={handleClose}
       disabled={isBusy}
+      noTooltip="Abbrechen schließt die Auswahl, ohne etwas zu ändern."
     >
       Abbrechen
     </Button>
@@ -88,6 +89,7 @@ export function ChoiceModal({
             size="md"
             disabled={isBusy || option.disabled}
             onClick={() => onSelect(option.value)}
+            noTooltip="Jede Wahl nennt ihre Folge selbst, in Beschriftung und Beschreibung."
             className="w-full"
           >
             <span className="flex w-full flex-col items-start text-left">

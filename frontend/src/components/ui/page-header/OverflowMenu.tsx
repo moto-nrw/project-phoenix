@@ -12,6 +12,7 @@ import {
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
+import { ActionHint } from "~/components/ui/action-hint";
 import { buttonClassName } from "~/components/ui/button";
 import type { ButtonSize, ButtonVariant } from "~/components/ui/button-styles";
 import Link from "~/components/ui/navigation-link";
@@ -126,6 +127,12 @@ interface OverflowMenuProps {
   /** Optional visible trigger content; the default is the kebab icon. */
   readonly triggerContent?: ReactNode;
   /**
+   * What a click on the trigger does (#6744). Defaults to „Zeigt weitere
+   * Aktionen.“ for the kebab and to a neutral sentence for a text trigger;
+   * a page tab (`triggerRole="tab"`) gets none.
+   */
+  readonly triggerTooltip?: string;
+  /**
    * Draws the trigger as a kit button. `triggerContent` is its label,
    * `triggerClassName` carries layout only, as on `Button`.
    */
@@ -162,6 +169,11 @@ interface OverflowMenuProps {
  * popover library to avoid adding a Radix dep just for one use site — the
  * menu is small, anchored, and modal enough for a single page header.
  */
+const KEBAB_TOOLTIP = "Zeigt weitere Aktionen.";
+// Ein Menü hinter einem Textknopf: erst ein Eintrag darin wirkt.
+const TEXT_TRIGGER_TOOLTIP =
+  "Zeigt die Auswahl, erst ein Eintrag löst etwas aus.";
+
 export function OverflowMenu({
   items,
   ariaLabel = "Weitere Aktionen",
@@ -173,6 +185,7 @@ export function OverflowMenu({
   triggerSize = "default",
   triggerClassName = "",
   triggerContent,
+  triggerTooltip,
   triggerButton,
   wrapperClassName = "inline-block",
   matchContainerSelector,
@@ -453,6 +466,39 @@ export function OverflowMenu({
 
   if (items.length === 0) return null;
 
+  const triggerHint =
+    triggerTooltip ??
+    (triggerRole === undefined
+      ? triggerContent == null
+        ? KEBAB_TOOLTIP
+        : TEXT_TRIGGER_TOOLTIP
+      : undefined);
+  const trigger = (
+    <button
+      ref={triggerRef}
+      type="button"
+      onClick={handleOpen}
+      disabled={disabled}
+      role={triggerRole}
+      aria-selected={triggerAriaSelected}
+      tabIndex={triggerTabIndex}
+      aria-label={ariaLabel}
+      aria-haspopup="menu"
+      aria-expanded={isOpen}
+      aria-controls={isOpen ? menuId : undefined}
+      className={
+        triggerButton
+          ? buttonClassName({
+              ...triggerButton,
+              className: triggerClassName,
+            })
+          : `inline-flex ${triggerSizeClass} items-center justify-center ${triggerContent == null ? "rounded-full hover:bg-gray-100 active:bg-gray-200" : ""} ${triggerColorClass} focus-visible:ring-moto-blue/50 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none ${triggerClassName}`
+      }
+    >
+      {triggerContent ?? <MoreVertical className={iconSizeClass} aria-hidden />}
+    </button>
+  );
+
   return (
     <div
       className={`relative ${wrapperClassName}`}
@@ -460,28 +506,11 @@ export function OverflowMenu({
       // Zeile; ein reines Symbol behält sein Maß.
       data-icon-only={triggerContent == null ? "" : undefined}
     >
-      <button
-        ref={triggerRef}
-        type="button"
-        onClick={handleOpen}
-        disabled={disabled}
-        role={triggerRole}
-        aria-selected={triggerAriaSelected}
-        tabIndex={triggerTabIndex}
-        aria-label={ariaLabel}
-        aria-haspopup="menu"
-        aria-expanded={isOpen}
-        aria-controls={isOpen ? menuId : undefined}
-        className={
-          triggerButton
-            ? buttonClassName({ ...triggerButton, className: triggerClassName })
-            : `inline-flex ${triggerSizeClass} items-center justify-center ${triggerContent == null ? "rounded-full hover:bg-gray-100 active:bg-gray-200" : ""} ${triggerColorClass} focus-visible:ring-moto-blue/50 transition-colors duration-150 focus-visible:ring-2 focus-visible:outline-none ${triggerClassName}`
-        }
-      >
-        {triggerContent ?? (
-          <MoreVertical className={iconSizeClass} aria-hidden />
-        )}
-      </button>
+      {triggerHint ? (
+        <ActionHint text={triggerHint}>{trigger}</ActionHint>
+      ) : (
+        trigger
+      )}
 
       {isOpen && portalContainer
         ? createPortal(

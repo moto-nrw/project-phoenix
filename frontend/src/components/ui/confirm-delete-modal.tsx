@@ -13,7 +13,11 @@ import { FieldLabel } from "./field-label";
 import type { FormErrorInput } from "./form-error";
 import { FormErrorAlert } from "./form-error-alert";
 import { Input } from "./input";
-import { Modal } from "./modal";
+import { CONFIRM_TOOLTIP, Modal } from "./modal";
+
+// Der erste Schritt von `twoStep` löscht noch nichts.
+const FIRST_STEP_TOOLTIP =
+  "Löscht noch nicht, moto fragt ein letztes Mal nach.";
 import { Radio } from "./radio";
 
 // Shared destructive-confirmation shell for every destructive action in the
@@ -97,12 +101,21 @@ interface ConfirmDeleteModalProps {
    *  and the request ID to copy for a server error (#2513). */
   readonly error: FormErrorInput;
   readonly confirmLabel?: string;
+  /**
+   * What the final delete button does (#6744), e.g. „Löscht den Raum sofort,
+   * seine Termine bleiben.“ Defaults to „Führt die Aktion sofort aus, ohne
+   * weitere Nachfrage.“ while the dialog keeps its German `cancelLabel` and
+   * `closeLabel`; a localized surface passes its own translated sentence.
+   */
+  readonly confirmTooltip?: string;
   readonly loadingLabel?: string;
   /** Label of the cancel button. Defaults to German; pass a translated
    *  string on localized surfaces (parents portal). */
   readonly cancelLabel?: string;
   /** Accessible label of the close button; see `Modal`. */
   readonly closeLabel?: string;
+  /** What the close X does; see `Modal`. */
+  readonly closeTooltip?: string;
   /** Accessible label of the dismiss-on-tap backdrop; see `Modal`. */
   readonly backdropLabel?: string;
   /** Bottom sheet on narrow screens; see `Modal`. Required when the dialog
@@ -123,9 +136,11 @@ export function ConfirmDeleteModal({
   loading,
   error,
   confirmLabel = "Endgültig löschen",
+  confirmTooltip,
   loadingLabel = "Wird gelöscht…",
-  cancelLabel = "Abbrechen",
+  cancelLabel,
   closeLabel,
+  closeTooltip,
   backdropLabel,
   mobileSheet = false,
 }: ConfirmDeleteModalProps) {
@@ -187,6 +202,12 @@ export function ConfirmDeleteModal({
   const confirmDisabled =
     gateBlocked || (gate.mode === "textConfirm" && !textGatePassed);
 
+  // Die deutschen Standardsätze gelten nur, solange der Dialog deutsch spricht.
+  const germanFrame = cancelLabel === undefined && closeLabel === undefined;
+  const firstStepHint = germanFrame ? FIRST_STEP_TOOLTIP : undefined;
+  const confirmHint =
+    confirmTooltip ?? (germanFrame ? CONFIRM_TOOLTIP : undefined);
+
   const footer = (
     <>
       <Button
@@ -198,8 +219,9 @@ export function ConfirmDeleteModal({
         className={`disabled:cursor-not-allowed ${
           mobileSheet ? "hidden sm:inline-flex" : ""
         }`}
+        noTooltip="Abbrechen schließt den Dialog und löscht nichts."
       >
-        {cancelLabel}
+        {cancelLabel ?? "Abbrechen"}
       </Button>
       {inFirstStep ? (
         <Button
@@ -209,6 +231,7 @@ export function ConfirmDeleteModal({
           onClick={() => setConfirmed(true)}
           disabled={gateBlocked}
           className="disabled:cursor-not-allowed"
+          tooltip={firstStepHint}
         >
           {gate.mode === "twoStep" && gate.firstStepLabel
             ? gate.firstStepLabel
@@ -222,6 +245,7 @@ export function ConfirmDeleteModal({
           onClick={() => void onConfirm()}
           disabled={confirmDisabled}
           className="disabled:cursor-not-allowed"
+          tooltip={confirmHint}
         >
           {loading ? loadingLabel : confirmLabel}
         </Button>
@@ -238,6 +262,7 @@ export function ConfirmDeleteModal({
       isDismissDisabled={loading}
       isBackdropDismissDisabled
       closeLabel={closeLabel}
+      closeTooltip={closeTooltip}
       backdropLabel={backdropLabel}
       mobileSheet={mobileSheet}
     >

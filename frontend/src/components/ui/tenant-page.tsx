@@ -328,6 +328,7 @@ function TenantPageInfo({
           aria-expanded={expanded}
           aria-controls={expanded ? panelId : undefined}
           onClick={handleTriggerClick}
+          noTooltip="Der Info-Knopf öffnet seinen Text schon beim Zeigen; eine Blase verdeckte ihn."
           onPointerEnter={handlePointerEnter}
           onPointerLeave={handlePointerLeave}
           // Sichtbar 32 px wie die übrigen Symbolknöpfe; die Trefferfläche

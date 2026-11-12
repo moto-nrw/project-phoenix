@@ -23,6 +23,7 @@ import "react-day-picker/style.css";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { isValidISODate, parseISODate, toISODate } from "~/lib/date-helpers";
 import type { DatePickerLabels } from "~/lib/date-picker-labels";
+import { ActionHint } from "~/components/ui/action-hint";
 import { Button } from "~/components/ui/button";
 import { Input } from "~/components/ui/input";
 import { ListboxDropdown } from "~/components/ui/listbox-dropdown";
@@ -81,8 +82,11 @@ const TRIGGER_SIZE_CLASS: Record<ControlSize, string> = {
 // src/lib.
 const DEFAULT_LABELS = {
   clear: "Datum löschen",
+  clearHint: "Leert das Feld, danach ist kein Tag mehr gewählt.",
   previousMonth: "Vorheriger Monat",
+  previousMonthHint: "Blättert im Kalender einen Monat zurück.",
   nextMonth: "Nächster Monat",
+  nextMonthHint: "Blättert im Kalender einen Monat weiter.",
   month: "Monat",
   year: "Jahr",
   selectedDays: (count: number) => `${count} Tage ausgewählt`,
@@ -528,6 +532,7 @@ export function DatePicker({
             }}
             className="shrink-0"
             aria-label={labels.clear}
+            tooltip={labels.clearHint}
           >
             <svg
               className="h-4 w-4"
@@ -1116,26 +1121,28 @@ function CalendarNavHeader({
         compact ? "mb-3 gap-1" : "mb-4 gap-2"
       }`}
     >
-      <button
-        type="button"
-        aria-label={labels.previousMonth}
-        onClick={() => onMonthChange(subMonths(month, 1))}
-        className="shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
-      >
-        <svg
-          className="h-5 w-5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
+      <ActionHint text={labels.previousMonthHint}>
+        <button
+          type="button"
+          aria-label={labels.previousMonth}
+          onClick={() => onMonthChange(subMonths(month, 1))}
+          className="shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M15 19l-7-7 7-7"
-          />
-        </svg>
-      </button>
+          <svg
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M15 19l-7-7 7-7"
+            />
+          </svg>
+        </button>
+      </ActionHint>
       {monthYearNavigation ? (
         // Kit dropdowns, not native <select>: a native select opens an
         // OS-level popup, which cannot be styled to match the kit and does not
@@ -1184,26 +1191,28 @@ function CalendarNavHeader({
           {format(month, "MMMM yyyy", { locale })}
         </span>
       )}
-      <button
-        type="button"
-        aria-label={labels.nextMonth}
-        onClick={() => onMonthChange(addMonths(month, 1))}
-        className="shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
-      >
-        <svg
-          className="h-5 w-5"
-          fill="none"
-          viewBox="0 0 24 24"
-          stroke="currentColor"
+      <ActionHint text={labels.nextMonthHint}>
+        <button
+          type="button"
+          aria-label={labels.nextMonth}
+          onClick={() => onMonthChange(addMonths(month, 1))}
+          className="shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
         >
-          <path
-            strokeLinecap="round"
-            strokeLinejoin="round"
-            strokeWidth={2}
-            d="M9 5l7 7-7 7"
-          />
-        </svg>
-      </button>
+          <svg
+            className="h-5 w-5"
+            fill="none"
+            viewBox="0 0 24 24"
+            stroke="currentColor"
+          >
+            <path
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              strokeWidth={2}
+              d="M9 5l7 7-7 7"
+            />
+          </svg>
+        </button>
+      </ActionHint>
     </div>
   );
 }

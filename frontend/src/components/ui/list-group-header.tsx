@@ -13,7 +13,14 @@ import { cn } from "~/lib/utils";
 interface ListGroupHeaderCollapsible {
   readonly expanded: boolean;
   readonly onToggle: () => void;
+  /** What a click does in each state (#6744); a translated list passes its own. */
+  readonly tooltip?: { readonly expand: string; readonly collapse: string };
 }
+
+const DEFAULT_GROUP_TOOLTIP = {
+  expand: "Zeigt die Einträge dieser Gruppe.",
+  collapse: "Blendet die Einträge dieser Gruppe aus.",
+};
 
 interface ListGroupHeaderProps {
   /** Name der Gruppe, etwa der Tag einer Agenda. */
@@ -79,6 +86,11 @@ export function ListGroupHeader({
               size="compact"
               className="-ml-2 w-full min-w-0 justify-start"
               aria-expanded={collapsible.expanded}
+              tooltip={
+                collapsible.expanded
+                  ? (collapsible.tooltip ?? DEFAULT_GROUP_TOOLTIP).collapse
+                  : (collapsible.tooltip ?? DEFAULT_GROUP_TOOLTIP).expand
+              }
               aria-describedby={addon === undefined ? undefined : addonId}
               onClick={collapsible.onToggle}
             >

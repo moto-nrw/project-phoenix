@@ -20,6 +20,14 @@ import { useBusyFocus } from "./hooks/useBusyFocus";
 
 const visibleModals: string[] = [];
 
+const DEFAULT_CLOSE_LABEL = "Modal schließen";
+// Neutral: Ob Eingaben verloren gehen, entscheidet der Inhalt, nicht das X.
+const DEFAULT_CLOSE_TOOLTIP = "Schließt das Fenster.";
+
+/** Confirm button of a confirmation dialog: the dialog already asked. */
+export const CONFIRM_TOOLTIP =
+  "Führt die Aktion sofort aus, ohne weitere Nachfrage.";
+
 // Shared a11y contract for all modal dialogs.
 const dialogAriaProps = {
   role: "dialog" as const,
@@ -73,6 +81,12 @@ interface ModalProps {
    */
   readonly closeLabel?: string;
   /**
+   * What a click on the close X does (#6744). Defaults to a German sentence
+   * while `closeLabel` keeps its German default; a localized surface that
+   * passes `closeLabel` passes its own translated sentence here.
+   */
+  readonly closeTooltip?: string;
+  /**
    * Accessible label for the dismiss-on-tap backdrop. Defaults to German;
    * pass a translated string on localized surfaces.
    */
@@ -118,7 +132,8 @@ export function Modal({
   footer,
   size = "md",
   widthClass,
-  closeLabel = "Modal schließen",
+  closeLabel,
+  closeTooltip,
   backdropLabel = "Hintergrund - Klicken zum Schließen",
   isDismissDisabled = false,
   isBackdropDismissDisabled = false,
@@ -130,6 +145,10 @@ export function Modal({
   // Stable id so the dialog can reference its heading via aria-labelledby,
   // giving the dialog an accessible name (role="dialog" alone has none).
   const titleId = React.useId();
+  const closeName = closeLabel ?? DEFAULT_CLOSE_LABEL;
+  const closeHint =
+    closeTooltip ??
+    (closeLabel === undefined ? DEFAULT_CLOSE_TOOLTIP : undefined);
   const descriptionId = React.useId();
   const visible = isOpen && !suspended;
   const titleRef = React.useRef<HTMLHeadingElement>(null);
@@ -383,7 +402,8 @@ export function Modal({
                 onClick={handleClose}
                 disabled={isDismissDisabled}
                 className="shrink-0"
-                aria-label={closeLabel}
+                aria-label={closeName}
+                tooltip={closeHint}
                 data-overlay-close=""
               >
                 <CloseIcon />
@@ -398,7 +418,8 @@ export function Modal({
               onClick={handleClose}
               disabled={isDismissDisabled}
               className="absolute top-4 right-4 z-10"
-              aria-label={closeLabel}
+              aria-label={closeName}
+              tooltip={closeHint}
               data-overlay-close=""
             >
               <CloseIcon />
@@ -458,6 +479,18 @@ interface ConfirmationModalProps {
   readonly confirmText?: string;
   readonly cancelText?: string;
   /**
+   * What the confirm button does (#6744), e.g. „Archiviert das Kind und
+   * benachrichtigt die Eltern.“ Defaults to „Führt die Aktion sofort aus, ohne weitere
+   * Nachfrage.“ while the dialog keeps its German `cancelText` and
+   * `closeLabel`; a localized surface passes its own translated sentence.
+   */
+  readonly confirmTooltip?: string;
+  /**
+   * Why the confirm button is blocked while `isConfirmDisabled` is true; see
+   * `Button`'s `disabledReason`.
+   */
+  readonly confirmDisabledReason?: string;
+  /**
    * True while the confirmed operation runs. It also locks every dismissal
    * path (X, Escape, backdrop, Abbrechen) and marks the dialog `aria-busy`:
    * closing would look like a cancel while the request still commits, and
@@ -490,6 +523,8 @@ interface ConfirmationModalProps {
   readonly loadingText?: string;
   /** Forwarded to Modal — translated close-button aria-label. */
   readonly closeLabel?: string;
+  /** Forwarded to Modal — translated close-button sentence. */
+  readonly closeTooltip?: string;
   /** Forwarded to Modal — translated backdrop aria-label. */
   readonly backdropLabel?: string;
   /** Bottom-anchored full-width dialog below `sm`; see `ModalProps.mobileSheet`. */
@@ -503,7 +538,9 @@ export function ConfirmationModal({
   title,
   children,
   confirmText = "Bestätigen",
-  cancelText = "Abbrechen",
+  cancelText,
+  confirmTooltip,
+  confirmDisabledReason,
   isConfirmLoading = false,
   isConfirmDisabled = false,
   isDismissDisabled = false,
@@ -512,9 +549,14 @@ export function ConfirmationModal({
   confirmVariant = "primary",
   loadingText = "Wird geladen...",
   closeLabel,
+  closeTooltip,
   backdropLabel,
   mobileSheet = false,
 }: ConfirmationModalProps) {
+  // Der deutsche Standardsatz gilt nur, solange der Dialog deutsch spricht.
+  const germanFrame = cancelText === undefined && closeLabel === undefined;
+  const confirmHint =
+    confirmTooltip ?? (germanFrame ? CONFIRM_TOOLTIP : undefined);
   const dismissLocked =
     isDismissDisabled || (isConfirmLoading && !dismissibleWhileLoading);
   const modalFooter = (
@@ -528,8 +570,9 @@ export function ConfirmationModal({
         className={`flex-1 whitespace-nowrap disabled:cursor-not-allowed ${
           mobileSheet ? "hidden sm:inline-flex" : ""
         }`}
+        noTooltip="Abbrechen schließt den Dialog und ändert nichts."
       >
-        {cancelText}
+        {cancelText ?? "Abbrechen"}
       </Button>
 
       <Button
@@ -538,6 +581,8 @@ export function ConfirmationModal({
         size="md"
         onClick={onConfirm}
         disabled={isConfirmLoading || isConfirmDisabled}
+        disabledReason={isConfirmLoading ? undefined : confirmDisabledReason}
+        tooltip={confirmHint}
         className="flex-1 whitespace-nowrap disabled:cursor-not-allowed"
       >
         {isConfirmLoading ? (
@@ -562,6 +607,7 @@ export function ConfirmationModal({
       busy={isConfirmLoading}
       isBackdropDismissDisabled={isBackdropDismissDisabled}
       closeLabel={closeLabel}
+      closeTooltip={closeTooltip}
       backdropLabel={backdropLabel}
       mobileSheet={mobileSheet}
     >

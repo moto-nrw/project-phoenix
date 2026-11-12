@@ -1,6 +1,7 @@
 "use client";
 
 import { Download, ExternalLink, X } from "lucide-react";
+import { ActionHint } from "~/components/ui/action-hint";
 import { Button, buttonClassName } from "~/components/ui/button";
 import { FileTypeIcon } from "~/components/ui/file-type-icon";
 import { formatBytes, isViewableInBrowser } from "~/lib/files-api";
@@ -28,6 +29,8 @@ interface AttachmentListProps {
   /** Disables the remove buttons while a request is in flight. */
   busy?: boolean;
   removeLabel?: string;
+  /** What the remove X does (#6744); defaults to „Entfernt den Anhang sofort.“ */
+  removeTooltip?: string;
   downloadLabel?: string;
   openLabel?: string;
   /**
@@ -61,7 +64,8 @@ export function AttachmentList({
   downloadUrl,
   onRemove,
   busy = false,
-  removeLabel = "Anhang entfernen",
+  removeLabel,
+  removeTooltip,
   downloadLabel = "Herunterladen",
   openLabel = "Im Browser öffnen",
   fileActions = false,
@@ -103,26 +107,30 @@ export function AttachmentList({
             {fileActions ? (
               <div className="flex flex-wrap gap-2">
                 {viewable ? (
+                  <ActionHint text="Öffnet die Datei in einem neuen Tab.">
+                    <a
+                      href={href}
+                      target="_blank"
+                      rel="noopener"
+                      aria-label={`${attachment.filename} öffnen`}
+                      className={FILE_ACTION_CLASS}
+                    >
+                      <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                      Öffnen
+                    </a>
+                  </ActionHint>
+                ) : null}
+                <ActionHint text="Speichert die Datei auf Ihrem Gerät.">
                   <a
-                    href={href}
-                    target="_blank"
-                    rel="noopener"
-                    aria-label={`${attachment.filename} öffnen`}
+                    href={downloadHref}
+                    download={attachment.filename}
+                    aria-label={`${attachment.filename} herunterladen`}
                     className={FILE_ACTION_CLASS}
                   >
-                    <ExternalLink className="h-4 w-4" aria-hidden="true" />
-                    Öffnen
+                    <Download className="h-4 w-4" aria-hidden="true" />
+                    Herunterladen
                   </a>
-                ) : null}
-                <a
-                  href={downloadHref}
-                  download={attachment.filename}
-                  aria-label={`${attachment.filename} herunterladen`}
-                  className={FILE_ACTION_CLASS}
-                >
-                  <Download className="h-4 w-4" aria-hidden="true" />
-                  Herunterladen
-                </a>
+                </ActionHint>
               </div>
             ) : onRemove ? (
               <Button
@@ -130,8 +138,13 @@ export function AttachmentList({
                 variant="ghost"
                 size="icon"
                 disabled={busy}
-                aria-label={`${removeLabel}: ${attachment.filename}`}
-                title={removeLabel}
+                aria-label={`${removeLabel ?? "Anhang entfernen"}: ${attachment.filename}`}
+                tooltip={
+                  removeTooltip ??
+                  (removeLabel === undefined
+                    ? "Entfernt den Anhang sofort."
+                    : undefined)
+                }
                 onClick={() => onRemove(attachment.id)}
               >
                 <X className="h-4 w-4" aria-hidden="true" />

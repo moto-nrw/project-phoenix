@@ -293,6 +293,7 @@ export function SignaturePad({
             setLocalError(null);
             onChange(null);
           }}
+          noTooltip="Verwirft nur die Unterschrift im Formular, gesendet ist noch nichts."
         >
           {labels.change}
         </Button>
@@ -366,6 +367,7 @@ export function SignaturePad({
           size="md"
           disabled={disabled}
           onClick={confirm}
+          noTooltip="Übernimmt die Unterschrift nur ins Formular, gesendet wird mit dem Formular."
         >
           {labels.confirm}
         </Button>
@@ -376,6 +378,7 @@ export function SignaturePad({
             size="md"
             disabled={disabled || !hasInk}
             onClick={clearCanvas}
+            noTooltip="Leert nur das Zeichenfeld, gespeichert ist dort noch nichts."
           >
             {labels.clear}
           </Button>
@@ -386,6 +389,7 @@ export function SignaturePad({
           size="md"
           disabled={disabled}
           onClick={() => setMode(mode === "draw" ? "type" : "draw")}
+          noTooltip="Wechselt nur zwischen Zeichnen und Tippen."
         >
           {mode === "draw" ? labels.typeInstead : labels.drawInstead}
         </Button>

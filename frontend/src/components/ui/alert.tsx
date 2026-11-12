@@ -53,6 +53,8 @@ interface AlertProps extends Omit<HTMLAttributes<HTMLDivElement>, "color"> {
   readonly onDismiss?: () => void;
   /** Name des Schließen-X für Screenreader. */
   readonly dismissLabel?: string;
+  /** What the close X does (#6744); pass a translated one with `dismissLabel`. */
+  readonly dismissTooltip?: string;
   /** Zusätzliche Klassen für den Rahmen, z. B. Außenabstände. */
   readonly className?: string;
 }
@@ -69,7 +71,8 @@ export function Alert({
   size = "default",
   color,
   onDismiss,
-  dismissLabel = "Hinweis schließen",
+  dismissLabel,
+  dismissTooltip,
   className = "",
   style,
   ...props
@@ -232,7 +235,14 @@ export function Alert({
           type="button"
           variant="ghost_tone"
           size="icon"
-          aria-label={dismissLabel}
+          aria-label={dismissLabel ?? "Hinweis schließen"}
+          // Der deutsche Satz nur, solange auch der Name deutsch bleibt.
+          tooltip={
+            dismissTooltip ??
+            (dismissLabel === undefined
+              ? "Blendet den Hinweis aus."
+              : undefined)
+          }
           onClick={onDismiss}
           className="absolute top-2.5 right-2.5"
         >

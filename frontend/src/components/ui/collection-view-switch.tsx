@@ -58,7 +58,11 @@ export function CollectionViewSwitch({
         size="icon"
         className="sm:hidden"
         aria-label={nextLabel}
-        title={nextLabel}
+        tooltip={
+          next === "table"
+            ? "Zeigt die Einträge als Liste."
+            : "Zeigt die Einträge als Kacheln."
+        }
         onClick={() => onChange(next)}
       >
         {next === "table" ? (

@@ -26,6 +26,8 @@ import { StatusColorBadge } from "~/components/ui/status-color-badge";
 
 type SortDirection = "asc" | "desc";
 
+/** „Mehr laden“ zeigt weitere Zeilen, die die Tabelle schon geladen hat. */
+const LOAD_MORE_TOOLTIP = "Zeigt die nächsten Einträge unter den bisherigen.";
 export interface DataTableColumn<T> {
   // The key "actions" marks the row-action column (the row's OverflowMenu).
   // It stays pinned to the right edge of the table, see PINNED_COLUMN_KEY.
@@ -143,6 +145,8 @@ interface DataTableProps<T> {
   // another N per click. Use on tables whose row count is unbounded
   // (persons, accounts) — leave undefined on bounded views (orgs, devices).
   pageSize?: number;
+  /** What „Mehr laden“ does (#6744); defaults to `LOAD_MORE_TOOLTIP`. */
+  loadMoreTooltip?: string;
   // Changing this value resets incremental pagination to the first page.
   // Callers with externally filtered rows should pass their active filter key.
   paginationResetKey?: string | number;
@@ -538,6 +542,7 @@ function StackedRows<T>({
   emptyState,
   hasMore,
   loadMore,
+  loadMoreTooltip,
   totalCount,
   layout,
   stackedTitle,
@@ -557,6 +562,7 @@ function StackedRows<T>({
   emptyState?: ReactNode;
   hasMore: boolean;
   loadMore: () => void;
+  loadMoreTooltip: string;
   totalCount: number;
   layout: "lines" | "row" | "form";
   stackedTitle?: (row: T) => ReactNode;
@@ -723,6 +729,7 @@ function StackedRows<T>({
           variant="surface"
           size="md"
           onClick={loadMore}
+          tooltip={loadMoreTooltip}
           className="w-full"
         >
           {`Mehr laden (${rows.length} von ${totalCount})`}
@@ -784,6 +791,7 @@ export function DataTable<T>({
   defaultSortKey,
   defaultSortDirection = "asc",
   pageSize,
+  loadMoreTooltip = LOAD_MORE_TOOLTIP,
   paginationResetKey,
   stackedOnMobile = false,
   stackedLayout = "lines",
@@ -940,6 +948,7 @@ export function DataTable<T>({
             emptyState={emptyState}
             hasMore={hasMore}
             loadMore={loadMore}
+            loadMoreTooltip={loadMoreTooltip}
             totalCount={sortedRows.length}
             layout={stackedLayout}
             stackedTitle={stackedTitle}
@@ -1250,6 +1259,7 @@ export function DataTable<T>({
                 variant="surface"
                 size="md"
                 onClick={loadMore}
+                tooltip={loadMoreTooltip}
               >
                 {`Mehr laden (${visibleRows.length} von ${sortedRows.length})`}
               </Button>

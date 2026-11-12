@@ -22,6 +22,8 @@ export const COMPLETE_TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const ENABLED_OPTION = '[role="option"]:not([aria-disabled="true"])';
 
 export type TimePickerLabels = Readonly<{
+  /** What the clock button does (#6744), shown on hover and focus. */
+  selectTimeHint?: string;
   selectTime: string;
   hour: string;
   minute: string;

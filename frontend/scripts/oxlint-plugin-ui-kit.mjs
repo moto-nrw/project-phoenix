@@ -5922,6 +5922,8 @@ const TOOLTIP_SCOPE = [
   "src/app/[tenant]/(protected)/settings/",
   "src/app/traeger/einstellungen/",
   "src/components/settings/",
+  // Kit-Bausteine bringen ihre Standardtexte selbst mit (#6744).
+  "src/components/ui/",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {

@@ -11,6 +11,8 @@ interface ToastAction {
   readonly label: string;
   readonly accessibleLabel: string;
   readonly onClick: () => void;
+  /** What the action does (#6744), in the toast's language. */
+  readonly tooltip?: string;
 }
 
 interface ToastProps {
@@ -18,6 +20,8 @@ interface ToastProps {
   readonly message: string;
   readonly accessibleLabel: string;
   readonly closeLabel: string;
+  /** What the close X does (#6744), in the toast's language. */
+  readonly closeTooltip?: string;
   readonly onClose: () => void;
   readonly action?: ToastAction;
   readonly requestId?: string;
@@ -41,6 +45,7 @@ export function Toast({
   message,
   accessibleLabel,
   closeLabel,
+  closeTooltip,
   onClose,
   action,
   requestId,
@@ -71,6 +76,7 @@ export function Toast({
             touchTarget={touchFriendly}
             aria-label={action.accessibleLabel}
             onClick={action.onClick}
+            tooltip={action.tooltip}
             className="shrink-0 self-center"
           >
             {action.label}
@@ -98,6 +104,7 @@ export function Toast({
       size="icon"
       touchTarget={touchFriendly}
       aria-label={closeLabel}
+      tooltip={closeTooltip}
       onClick={onClose}
       className={cn(
         "absolute shrink-0",

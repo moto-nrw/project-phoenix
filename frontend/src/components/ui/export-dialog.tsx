@@ -187,6 +187,7 @@ export function ExportDialog<F extends ExportFileFormat>({
             size="md"
             onClick={onClose}
             disabled={busy !== null}
+            noTooltip="Abbrechen schließt das Fenster, es wird nichts exportiert."
           >
             Abbrechen
           </Button>
@@ -197,6 +198,7 @@ export function ExportDialog<F extends ExportFileFormat>({
               size="md"
               onClick={run.print}
               disabled={busy !== null || blocked}
+              tooltip="Öffnet die Liste als Druckansicht."
             >
               <Printer className="h-4 w-4" aria-hidden />
               {busy === "print" ? "Wird geöffnet…" : "Drucken"}
@@ -210,6 +212,7 @@ export function ExportDialog<F extends ExportFileFormat>({
               if (format) run.download(format);
             }}
             disabled={busy !== null || blocked || !format}
+            tooltip="Speichert die Liste im gewählten Format auf Ihrem Gerät."
           >
             <Download className="h-4 w-4" aria-hidden />
             {busy === "download" ? "Wird erstellt…" : "Herunterladen"}
