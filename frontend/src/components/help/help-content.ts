@@ -172,6 +172,7 @@ function leadTopics(
     articles.careTimeComparisonTopic(),
     articles.holidayWeeksTopic(),
     articles.holidayGuestGroupTopic(),
+    articles.holidayHomeSchoolChildrenTopic(),
     articles.exportsTopic(),
 
     // --- Einstellungen und Geräte ---
