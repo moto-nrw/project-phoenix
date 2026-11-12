@@ -167,11 +167,11 @@
   "holiday_allocation_full": "Në këtë javë nuk ka më vende të lira. Ju lutemi ngarkoni listën përsëri.",
   "holiday_allocation_changed": "Lista ndryshoi. Kontrolloni vendimin përsëri.",
   "traeger_copy_delete": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-  "traeger_phase_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-  "traeger_offering_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "traeger_phase_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "traeger_offering_not_found": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "traeger_withdrawn": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-  "traeger_school_outside": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-  "traeger_catalog_invalid": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "traeger_school_outside": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
+  "traeger_catalog_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "traeger_preview_stale": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "traeger_copy_rejected": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale."
 }
