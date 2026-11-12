@@ -209,6 +209,7 @@ export const TRACKED_TRAEGER_ROUTE_TEMPLATES = [
   "/abrechnung/:id/faelligkeiten",
   "/abrechnung/ermaessigungen",
   "/abrechnung/exporte",
+  "/abrechnung/exporte/empfaenger",
   "/abrechnung/exporte/feldzuordnung",
   "/abrechnung/exporte/konten",
   "/abrechnung/familien",

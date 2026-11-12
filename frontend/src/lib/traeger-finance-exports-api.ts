@@ -7,6 +7,7 @@
  */
 
 import { traegerRequest } from "./traeger-api";
+import type { HandoverState } from "./traeger-export-handovers-api";
 import { type BillingFile, billingFile } from "./traeger-billing-api";
 
 /** The kind of run, as the path names it. */
@@ -131,6 +132,16 @@ export interface ExportProtocolEntry {
   readonly exportedByAccount: boolean;
   readonly exportedAt: string;
   readonly submittedAt: string | null;
+  /** The handover to the recipient of the Träger (ADR 0217), null for a download. */
+  readonly handover?: ProtocolHandover | null;
+}
+
+/** Where a file of the protocol went and whether it arrived. */
+export interface ProtocolHandover {
+  readonly state: HandoverState;
+  readonly reason: string;
+  readonly targetHost: string;
+  readonly targetDirectory: string;
 }
 
 /** Why a holiday position booked on the cost center of the holiday care. */
@@ -228,6 +239,12 @@ interface BackendEntry {
   exported_by_you: boolean;
   exported_at: string;
   submitted_at: string | null;
+  handover?: {
+    state: HandoverState;
+    reason?: string;
+    target_host: string;
+    target_directory: string;
+  } | null;
 }
 
 interface BackendCostCenterFallback {
@@ -348,6 +365,14 @@ function entryFromBackend(entry: BackendEntry): ExportProtocolEntry {
     exportedByAccount: entry.exported_by_account_id !== null,
     exportedAt: entry.exported_at,
     submittedAt: entry.submitted_at,
+    handover: entry.handover
+      ? {
+          state: entry.handover.state,
+          reason: entry.handover.reason ?? "",
+          targetHost: entry.handover.target_host,
+          targetDirectory: entry.handover.target_directory,
+        }
+      : null,
   };
 }
 

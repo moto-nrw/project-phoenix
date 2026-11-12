@@ -6,9 +6,10 @@
 // frühere Datei wiederholt.
 
 import { Download, RotateCcw } from "lucide-react";
-import { useState } from "react";
+import { type ReactNode, useState } from "react";
 import { DATEV_READINESS_ID } from "~/components/traeger/finance-export-datev";
 import { formatEuro } from "~/components/traeger/contribution-format";
+import { HandoverBadge } from "~/components/traeger/finance-export-handover";
 import {
   FINANCE_FILE_KINDS,
   byLabel,
@@ -199,6 +200,8 @@ interface RunTableActions {
   readonly datev: DatevRunStates & { readonly settingsReady: boolean };
   readonly onDownload: (format: RunFileFormat, run: ExportRun) => void;
   readonly onRepeat: (run: ExportRun) => void;
+  /** Further actions of a run, such as its handover (ADR 0217). */
+  readonly renderRunActions?: (run: ExportRun) => ReactNode;
 }
 
 function runColumns({
@@ -206,6 +209,7 @@ function runColumns({
   datev,
   onDownload,
   onRepeat,
+  renderRunActions,
 }: RunTableActions): DataTableColumn<ExportRun>[] {
   const datevReady = datev.settingsReady;
   const stateOf = (run: ExportRun) =>
@@ -283,6 +287,7 @@ function runColumns({
             onDownload={onDownload}
             onRepeat={onRepeat}
           />
+          {renderRunActions?.(run)}
         </span>
       ),
     },
@@ -348,6 +353,9 @@ function entryNotes(entry: ExportProtocolEntry) {
         tone="gray"
       />,
     );
+  }
+  if (entry.handover) {
+    notes.push(<HandoverBadge key="handover" handover={entry.handover} />);
   }
   if (entry.submittedAt) {
     notes.push(

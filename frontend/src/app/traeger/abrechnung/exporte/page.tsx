@@ -9,6 +9,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { billingTabs } from "~/components/traeger/billing-family-format";
+import { EXPORT_RECIPIENT_PATH } from "~/components/traeger/export-handover-format";
 import {
   BOOKING_ACCOUNTS_PATH,
   DATEV_SETTINGS_PATH,
@@ -17,6 +18,10 @@ import {
   DatevRefusedNotice,
   DatevRepeatDialog,
 } from "~/components/traeger/finance-export-datev";
+import {
+  HandoverMenu,
+  useFinanceHandover,
+} from "~/components/traeger/finance-export-handover";
 import {
   ExportProtocolTable,
   ExportRunsTable,
@@ -221,6 +226,12 @@ export default function TraegerFinanceExportsPage() {
     void load();
   }, [load]);
 
+  // Handover to the recipient of the Träger (ADR 0217); a handover reloads
+  // the runs and the protocol like a download.
+  const handover = useFinanceHandover(
+    () => void load(data?.runs.items.length, data?.protocol.items.length),
+  );
+
   const loadMore = async (list: "runs" | "protocol") => {
     if (!data) return;
     const offset =
@@ -328,6 +339,13 @@ export default function TraegerFinanceExportsPage() {
       actions={
         <>
           <ButtonLink
+            href={traegerPath(EXPORT_RECIPIENT_PATH)}
+            variant="outline"
+            size="md"
+          >
+            Empfänger
+          </ButtonLink>
+          <ButtonLink
             href={traegerPath(DATEV_SETTINGS_PATH)}
             variant="outline"
             size="md"
@@ -374,6 +392,7 @@ export default function TraegerFinanceExportsPage() {
       {data ? (
         <>
           <DatevReadinessNotice readiness={data.datev} />
+          {handover.notice}
           {nothingNew ? (
             <DatevNothingNewNotice
               runLabel={nothingNew.runLabel}
@@ -411,6 +430,23 @@ export default function TraegerFinanceExportsPage() {
               datev={{ ...data.datevRuns, settingsReady: data.datev.ready }}
               onDownload={(format, run) => void download(format, run)}
               onRepeat={setRepeat}
+              renderRunActions={(run) => (
+                <HandoverMenu
+                  run={run}
+                  recipient={handover.recipient}
+                  formats={
+                    data.datev.ready
+                      ? ["sollstellung", "datev"]
+                      : ["sollstellung"]
+                  }
+                  busy={downloading !== null || handover.running !== null}
+                  running={
+                    handover.isRunning("sollstellung", run) ||
+                    handover.isRunning("datev", run)
+                  }
+                  onHandOver={(format) => handover.handOver(format, run)}
+                />
+              )}
             />
           </SectionCard>
           <SectionCard
@@ -431,6 +467,7 @@ export default function TraegerFinanceExportsPage() {
           >
             <ExportProtocolTable entries={data.protocol.items} />
           </SectionCard>
+          {handover.dialog}
           <DatevRepeatDialog
             key={repeat ? datevRunKey(repeat) : "closed"}
             runLabel={repeat?.label ?? null}

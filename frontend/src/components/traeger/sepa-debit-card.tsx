@@ -11,6 +11,10 @@ import { DownloadIcon, LandmarkIcon } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import {
+  HandoverMenu,
+  useFinanceHandover,
+} from "~/components/traeger/finance-export-handover";
+import {
   SEPA_DEBIT_LEFT_LABELS,
   SEPA_SEQUENCE_BADGES,
   collectDatesText,
@@ -177,6 +181,23 @@ export function SepaDebitCard({
     void reload();
   }, [reload]);
 
+  const handoverRun = {
+    pathKind: kind,
+    runId,
+    label: title === "Lastschrift" ? "diesem Lauf" : title,
+  };
+  // Handover of the file to the recipient of the Träger (ADR 0217): a file
+  // that arrived counts like a download for the confirmation below.
+  const handover = useFinanceHandover((arrived) => {
+    if (arrived) {
+      setDownloaded({
+        key: runKey,
+        messageId: messageIdOfDebitFile(arrived.fileName),
+      });
+    }
+    void reload();
+  });
+
   const download = async () => {
     setDownloading(true);
     try {
@@ -280,6 +301,18 @@ export function SepaDebitCard({
               >
                 Bei der Bank eingereicht
               </Button>
+              {fileBlocked ? null : (
+                <HandoverMenu
+                  run={handoverRun}
+                  recipient={handover.recipient}
+                  formats={["pain008"]}
+                  busy={downloading || handover.running !== null}
+                  running={handover.running !== null}
+                  onHandOver={(format) =>
+                    handover.handOver(format, handoverRun)
+                  }
+                />
+              )}
               <Button
                 type="button"
                 variant="primary"
@@ -299,6 +332,7 @@ export function SepaDebitCard({
       >
         <div className="flex flex-col gap-5">
           {control}
+          {handover.notice}
           {fileBlocked ? (
             <Alert
               type="warning"
@@ -377,6 +411,7 @@ export function SepaDebitCard({
         </div>
       </SectionCard>
       {run.left.length > 0 ? <SepaDebitsLeftCard left={run.left} /> : null}
+      {handover.dialog}
       <ConfirmationModal
         isOpen={confirming}
         title="Datei bei der Bank eingereicht?"

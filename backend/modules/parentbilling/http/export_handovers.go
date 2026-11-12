@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/api/common"
 	capability "github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // ExportHandoverResource serves the handover of finance exports to the
@@ -45,9 +46,13 @@ func (rs *ExportHandoverResource) Router(protectedTraegerRoutes func(chi.Router,
 	return r
 }
 
-// HandoverRequestBody is the body of POST …/runs/{kind}/{id}/{format}.
+// HandoverRequestBody is the body of POST …/runs/{kind}/{id}/{format}:
+// repeat sends a content again that was already handed over; mode and
+// fiscal_year pick the bookings of a DATEV file as for its download.
 type HandoverRequestBody struct {
-	Repeat bool `json:"repeat"`
+	Repeat     bool   `json:"repeat"`
+	Mode       string `json:"mode"`
+	FiscalYear string `json:"fiscal_year"`
 }
 
 // Bind accepts the body.
@@ -91,13 +96,32 @@ func handoverRequest(w http.ResponseWriter, r *http.Request, format string) (cap
 		}
 	}
 	request := capability.HandoverRequest{Format: format, RunKind: kind, RunID: id, Repeat: body.Repeat}
-	if format == capability.ExportFormatDatev {
-		if request.Datev, err = datevFileOptions(r); err != nil {
-			common.RenderError(w, r, common.ErrorInvalidRequest(err))
-			return capability.HandoverRequest{}, false
-		}
+	if request.Datev, err = handoverDatevOptions(body); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(err))
+		return capability.HandoverRequest{}, false
 	}
 	return request, true
+}
+
+// handoverDatevOptions reads mode and fiscal_year of the body like the
+// download reads them from its query.
+func handoverDatevOptions(body *HandoverRequestBody) (capability.DatevFileOptions, error) {
+	options := capability.DatevFileOptions{}
+	switch body.Mode {
+	case "", "new":
+	case "all":
+		options.All = true
+	default:
+		return options, errors.New("mode must be new or all")
+	}
+	if body.FiscalYear != "" {
+		start, err := calendar.ParseDate(body.FiscalYear)
+		if err != nil {
+			return options, errors.New("fiscal_year must be a date YYYY-MM-DD")
+		}
+		options.FiscalYearStart = start
+	}
+	return options, nil
 }
 
 // renderHandoverFileError answers a refused handover: the refusals of the

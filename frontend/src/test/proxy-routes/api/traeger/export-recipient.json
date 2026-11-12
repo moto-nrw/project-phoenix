@@ -1,0 +1,7 @@
+{
+  "api/traeger/export-recipient": [
+    "GET traeger /traeger/export-recipient/",
+    "PUT traeger /traeger/export-recipient/",
+    "DELETE traeger /traeger/export-recipient/"
+  ]
+}
