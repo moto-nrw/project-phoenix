@@ -77,7 +77,10 @@ func seedHolidayFamilyDebtorNumbers(rt *Runtime, auth AuthRef, token string, per
 		return err
 	}
 	confirm = fmt.Sprintf("/traeger/holiday-contributions/%d/registrations/%d/confirm", periodID, conflict)
-	if _, err := rt.Client.PostWithAuth(auth, confirm, map[string]any{"benefits_exemption": false, "debtor_number": seedConflictRegistrationNumber}); err != nil {
+	// "replace" keeps a second seed run going: the family then has the
+	// number the list sets below, and the list sets it again (#6692).
+	if _, err := rt.Client.PostWithAuth(auth, confirm, map[string]any{"benefits_exemption": false,
+		"debtor_number": seedConflictRegistrationNumber, "family_debtor_number": "replace"}); err != nil {
 		return fmt.Errorf("confirm the registration of the family with two numbers: %w", err)
 	}
 	if _, refused, err := seedHolidayFamilyRegistration(rt, token, registration, "Jana", "Wechsel", "jana.wechsel@example.org", "Mats"); err != nil || refused {
