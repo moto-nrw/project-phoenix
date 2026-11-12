@@ -210,6 +210,8 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"POST /traeger/holiday-registrations/link-key ",
 		"GET /traeger/holiday-periods/5/registrations Bearer traeger-token",
 		"PUT /traeger/settings/values/parent_billing.debtor_number_on_confirm Bearer traeger-token",
+		// A second seed run finds the five-digit format still on (#6675).
+		"PUT /traeger/settings/values/parent_billing.debtor_number_digits_only Bearer traeger-token",
 		"PUT /traeger/settings/values/parent_billing.payment_text Bearer traeger-token",
 		"POST /traeger/holiday-contributions/5/registrations/9/confirm Bearer traeger-token",
 		// From now on debtor numbers have five digits (#6675).

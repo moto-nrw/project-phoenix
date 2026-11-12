@@ -315,8 +315,8 @@ func seedHolidayRegistrations(ctx context.Context, rt *Runtime, auth AuthRef, pe
 	if _, err := rt.Client.GetWithAuth(auth, registrations); err != nil {
 		return "", fmt.Errorf("list the holiday registrations: %w", err)
 	}
-	if _, err := rt.Client.PutWithAuth(auth, "/traeger/settings/values/"+seedDebtorNumberSettingKey, map[string]any{"value": true}); err != nil {
-		return "", fmt.Errorf("ask for the debtor number at the confirmation: %w", err)
+	if err := seedAskForDebtorNumber(rt, auth); err != nil {
+		return "", err
 	}
 	if _, err := rt.Client.PutWithAuth(auth, "/traeger/settings/values/"+seedPaymentTextSettingKey, map[string]any{"value": seedPaymentText}); err != nil {
 		return "", fmt.Errorf("write the payment text of the letters: %w", err)

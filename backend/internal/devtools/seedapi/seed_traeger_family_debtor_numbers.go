@@ -124,6 +124,20 @@ func seedHolidayFamilyRegistration(rt *Runtime, token string, registration map[s
 	return id, false, nil
 }
 
+// seedAskForDebtorNumber asks for the debtor number at the confirmation and
+// accepts any number until seedDebtorNumberFormat switches the format on. A
+// second seed run on the same Träger finds the format still on, so it is
+// switched off here first: the siblings keep their old-format number.
+func seedAskForDebtorNumber(rt *Runtime, auth AuthRef) error {
+	if _, err := rt.Client.PutWithAuth(auth, "/traeger/settings/values/"+seedDebtorNumberSettingKey, map[string]any{"value": true}); err != nil {
+		return fmt.Errorf("ask for the debtor number at the confirmation: %w", err)
+	}
+	if _, err := rt.Client.PutWithAuth(auth, "/traeger/settings/values/"+seedDebtorNumberDigitsOnlyKey, map[string]any{"value": false}); err != nil {
+		return fmt.Errorf("accept every debtor number before the format: %w", err)
+	}
+	return nil
+}
+
 // seedDebtorNumberFormat switches the demo Träger to the format of
 // Bissendorf (#6675): debtor numbers of exactly five digits. It comes after
 // the siblings' confirmation, so their number "10 4711" stays in the old
