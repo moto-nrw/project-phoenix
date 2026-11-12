@@ -280,7 +280,7 @@
     "removeChild": "Bu çocuğun bilgilerini formdan hemen kaldırır.",
     "adopt": "Bu çocuğu kayıtlı bilgileriyle başvuruya ekler.",
     "adopted": "Bu çocuk zaten başvuruda.",
-    "submit": "Başvuruyu {careTerm}'ye gönderir, size e-posta ile bir onay gelir.",
+    "submit": "Başvuruyu hemen {careTerm}'ye, size de bir onay gönderir.",
     "previewSubmit": "Önizlemede başvuruyu gönderemezsiniz.",
     "captchaPending": "Lütfen önce güvenlik kontrolünü tamamlayın.",
     "captchaUnavailable": "Gönderim şu anda mümkün değil, lütfen {careTerm} ile iletişime geçin.",

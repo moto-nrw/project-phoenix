@@ -280,7 +280,7 @@
     "removeChild": "Od razu usuwa dane tego dziecka z formularza.",
     "adopt": "Wpisuje to dziecko z zapisanymi danymi do zgłoszenia.",
     "adopted": "To dziecko jest już w zgłoszeniu.",
-    "submit": "Wysyła zgłoszenie do {careTerm}, a Państwo otrzymają potwierdzenie e-mailem.",
+    "submit": "Od razu wysyła zgłoszenie do {careTerm}, a Państwu potwierdzenie.",
     "previewSubmit": "W podglądzie nie można wysłać zgłoszenia.",
     "captchaPending": "Prosimy najpierw zakończyć kontrolę bezpieczeństwa.",
     "captchaUnavailable": "Wysłanie nie jest teraz możliwe, prosimy o kontakt z {careTerm}.",

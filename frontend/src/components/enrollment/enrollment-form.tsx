@@ -159,7 +159,17 @@ const logger = createLogger({ component: "EnrollmentForm" });
 // nothing else, so the reuse picker must not offer anything else either.
 const ENROLLED_CHILD_STATUSES = new Set(["active", "pending"]);
 
-interface Props {
+/**
+ * A caller that renames the submit button also says what its click does;
+ * without both the button sends a new enrollment (#6643).
+ */
+type SubmitCopy =
+  | { readonly submitLabel?: undefined; readonly submitTooltip?: undefined }
+  | { readonly submitLabel: string; readonly submitTooltip: string };
+
+type Props = SubmitCopy & PropsBase;
+
+interface PropsBase {
   readonly phaseID?: string;
   readonly gradeLevelMax: number;
   readonly onSubmitted: (statusURL: string) => void;
@@ -207,9 +217,6 @@ interface Props {
    * bookings and the current year's wish. Callers must lock child structure.
    */
   readonly restrictToOfferings?: boolean;
-  readonly submitLabel?: string;
-  /** What a click on the submit button does; required with `submitLabel`. */
-  readonly submitTooltip?: string;
   /**
    * ADMIN ONLY (#2186). Renders offerings the child's grade level rules out
    * as disabled entries with the reason, instead of omitting them. Parents

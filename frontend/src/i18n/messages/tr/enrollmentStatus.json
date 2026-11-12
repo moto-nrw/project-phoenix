@@ -222,23 +222,23 @@
   "signatureEditHint": "Kaydı değiştirirseniz yeniden imzalarsınız.",
   "errorObjectProof": "belge",
   "buttonHints": {
-    "parentApp": "Değişiklikleri yaptığınız veli uygulamasını açar.",
+    "parentApp": "Veli uygulamasını açar, bakımı orada değiştirirsiniz.",
     "editFull": "Başvuruyu düzenlemek için açar.",
     "requestChange": "{careTerm}'den değişiklik istemek için başvuruyu açar.",
     "withdrawChild": "Bu çocuğun başvurusunu geri çeker, moto önce sorar.",
     "withdrawAll": "Tüm çocukların başvurusunu geri çeker, moto önce sorar.",
     "withdrawOne": "Başvuruyu geri çeker, moto önce sorar.",
-    "editGuardian": "Adınızı ve telefon numaranızı değiştirmek için açar.",
+    "editGuardian": "Adınızı ve telefon numaranızı değiştirmek için alanlar gösterir.",
     "saveGuardian": "Adınızı ve telefon numaranızı başvuruya kaydeder.",
-    "replySubmit": "Cevabınızı {careTerm}'ye gönderir.",
+    "replySubmit": "Cevabınızı hemen {careTerm}'ye gönderir.",
     "signatureDownload": "İmzanızın kanıtını PDF olarak indirir.",
-    "confirmRenewal": "Bir sonraki dönem için başvuruyu onaylar.",
+    "confirmRenewal": "Onayınızı hemen gönderir, ardından yer hakkında {careTerm} karar verir.",
     "confirmTerms": "Yeni dönemin koşullarına onayınızı kaydeder.",
     "adjust": "Teklifleri ve hafta günlerini değiştirmek için açar.",
     "declineRenewal": "Bir sonraki dönem için başvuruyu reddeder, moto önce sorar.",
     "unsubscribe": "Bir sonraki dönem için başvuruyu sonlandırır, moto önce sorar.",
     "termsRead": "Tam metni okumak için açar.",
     "editSubmit": "Başvurudaki değişikliklerinizi kaydeder.",
-    "changeRequestSubmit": "Değişikliklerinizi talep olarak {careTerm}'ye gönderir."
+    "changeRequestSubmit": "Değişikliklerinizi hemen talep olarak {careTerm}'ye gönderir."
   }
 }

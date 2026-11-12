@@ -280,7 +280,7 @@
     "removeChild": "Heq menjëherë të dhënat e këtij fëmije nga formulari.",
     "adopt": "E shton këtë fëmijë me të dhënat e ruajtura në regjistrim.",
     "adopted": "Ky fëmijë është tashmë në regjistrim.",
-    "submit": "Dërgon regjistrimin te {careTerm}, ju merrni një konfirmim me email.",
+    "submit": "Dërgon menjëherë regjistrimin te {careTerm} dhe një konfirmim te ju.",
     "previewSubmit": "Në parapamje nuk mund ta dërgoni regjistrimin.",
     "captchaPending": "Ju lutemi përfundoni fillimisht kontrollin e sigurisë.",
     "captchaUnavailable": "Dërgimi nuk është i mundur tani, ju lutemi kontaktoni {careTerm}.",

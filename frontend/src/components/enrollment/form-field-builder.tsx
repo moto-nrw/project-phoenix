@@ -168,6 +168,8 @@ interface FieldEditorRowProps {
   readonly onMoveUp: () => void;
   readonly onMoveDown: () => void;
   readonly disabled: boolean;
+  /** Why `disabled` locks the row, e.g. a running upload; none while saving. */
+  readonly disabledReason?: string;
   /** The types a free question may take; the online registration's by default. */
   readonly fieldTypes?: readonly FormFieldType[];
   /** The sources a visibility condition may use; all by default. */
@@ -249,6 +251,7 @@ export function FieldEditorRow({
   onMoveUp,
   onMoveDown,
   disabled,
+  disabledReason,
   fieldTypes = freeFieldTypes,
   conditionSources = ALL_CONDITION_SOURCES,
   allowAttachments = true,
@@ -464,7 +467,9 @@ export function FieldEditorRow({
                   onClick={onMoveUp}
                   disabled={disabled || index === 0}
                   disabledReason={
-                    index === 0 ? "Die Frage steht schon ganz oben." : undefined
+                    index === 0
+                      ? "Die Frage steht schon ganz oben."
+                      : disabledReason
                   }
                   variant="surface"
                   size="icon"
@@ -480,7 +485,7 @@ export function FieldEditorRow({
                   disabledReason={
                     index === total - 1
                       ? "Die Frage steht schon ganz unten."
-                      : undefined
+                      : disabledReason
                   }
                   variant="surface"
                   size="icon"
@@ -496,6 +501,7 @@ export function FieldEditorRow({
                   variant="outline_danger"
                   size="icon"
                   aria-label="Frage entfernen"
+                  disabledReason={disabledReason}
                   tooltip="Entfernt die Frage sofort aus dem Entwurf der Vorlage."
                 >
                   <Trash2 className="h-4 w-4" aria-hidden="true" />
@@ -729,6 +735,7 @@ export function FieldEditorRow({
                         type="button"
                         onClick={addAllowedTime}
                         disabled={disabled}
+                        disabledReason={disabledReason}
                         tooltip="Fügt eine Uhrzeit hinzu, die Eltern pro Wochentag wählen können."
                         variant="outline"
                         size="md"

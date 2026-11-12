@@ -280,7 +280,7 @@
     "removeChild": "Entfernt die Angaben zu diesem Kind sofort aus dem Formular.",
     "adopt": "Trägt dieses Kind mit seinen gespeicherten Angaben in die Anmeldung ein.",
     "adopted": "Dieses Kind steht schon in der Anmeldung.",
-    "submit": "Sendet die Anmeldung an die {careTerm}, Sie erhalten eine Bestätigung per E-Mail.",
+    "submit": "Sendet die Anmeldung sofort an die {careTerm} und Ihnen eine Bestätigung.",
     "previewSubmit": "In der Vorschau können Sie die Anmeldung nicht absenden.",
     "captchaPending": "Bitte schließen Sie zuerst die Sicherheitsprüfung ab.",
     "captchaUnavailable": "Absenden geht gerade nicht, bitte wenden Sie sich an die {careTerm}.",

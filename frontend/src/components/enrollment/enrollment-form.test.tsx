@@ -363,7 +363,13 @@ function profile(): MeProfileResponse {
   };
 }
 
-type FormProps = Partial<React.ComponentProps<typeof EnrollmentForm>>;
+// No test renames the submit button; `Partial` cannot keep its paired props.
+type FormProps = Partial<
+  Omit<
+    React.ComponentProps<typeof EnrollmentForm>,
+    "submitLabel" | "submitTooltip"
+  >
+>;
 
 /**
  * Renders the form the way the phase pages do: with the phase's data
@@ -598,6 +604,7 @@ describe("EnrollmentForm", () => {
       "",
     );
     fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    expect(submit).toBeEnabled();
     expect(submit).not.toHaveAttribute("aria-disabled");
   });
 
@@ -686,10 +693,12 @@ describe("EnrollmentForm", () => {
     const submit = screen.getByRole("button", { name: "Anmeldung absenden" });
     expect(submit).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    expect(submit).toBeEnabled();
     expect(submit).not.toHaveAttribute("aria-disabled");
     fireEvent.click(screen.getByRole("button", { name: "Expire captcha" }));
     expect(submit).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    expect(submit).toBeEnabled();
     expect(submit).not.toHaveAttribute("aria-disabled");
     fireEvent.click(screen.getByRole("button", { name: "Fail captcha" }));
     expect(submit).toHaveAttribute("aria-disabled", "true");

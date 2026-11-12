@@ -222,23 +222,23 @@
   "signatureEditHint": "Nëse e ndryshoni regjistrimin, e nënshkruani përsëri.",
   "errorObjectProof": "dëshmia",
   "buttonHints": {
-    "parentApp": "Hap aplikacionin për prindër, ku bëni ndryshimet.",
+    "parentApp": "Hap aplikacionin për prindër, aty ndryshoni kujdesin.",
     "editFull": "Hap regjistrimin për ta ndryshuar.",
     "requestChange": "Hap regjistrimin për të kërkuar një ndryshim te {careTerm}.",
     "withdrawChild": "Tërheq regjistrimin e këtij fëmije, moto pyet më parë.",
     "withdrawAll": "Tërheq regjistrimin për të gjithë fëmijët, moto pyet më parë.",
     "withdrawOne": "Tërheq regjistrimin, moto pyet më parë.",
-    "editGuardian": "Hap emrin dhe numrin tuaj të telefonit për t'i ndryshuar.",
+    "editGuardian": "Shfaq fusha për të ndryshuar emrin dhe numrin tuaj të telefonit.",
     "saveGuardian": "Ruan emrin dhe numrin tuaj të telefonit në regjistrim.",
-    "replySubmit": "Dërgon përgjigjen tuaj te {careTerm}.",
+    "replySubmit": "Dërgon menjëherë përgjigjen tuaj te {careTerm}.",
     "signatureDownload": "Shkarkon dëshminë e nënshkrimit tuaj si PDF.",
-    "confirmRenewal": "Konfirmon regjistrimin për periudhën e ardhshme.",
+    "confirmRenewal": "Dërgon menjëherë pranimin tuaj, pastaj {careTerm} vendos për vendin.",
     "confirmTerms": "Ruan pëlqimin tuaj për kushtet e periudhës së re.",
     "adjust": "Hap ofertat dhe ditët e javës për t'i ndryshuar.",
     "declineRenewal": "Refuzon regjistrimin për periudhën e ardhshme, moto pyet më parë.",
     "unsubscribe": "Përfundon regjistrimin për periudhën e ardhshme, moto pyet më parë.",
     "termsRead": "Hap tekstin e plotë për ta lexuar.",
     "editSubmit": "Ruan ndryshimet tuaja në regjistrim.",
-    "changeRequestSubmit": "Dërgon ndryshimet tuaja si kërkesë te {careTerm}."
+    "changeRequestSubmit": "Dërgon menjëherë ndryshimet tuaja si kërkesë te {careTerm}."
   }
 }

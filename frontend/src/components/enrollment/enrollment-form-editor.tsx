@@ -867,7 +867,7 @@ export function EnrollmentFormEditor({
                         onClick={addField}
                         disabled={locked}
                         disabledReason={lockedReason}
-                        tooltip="Fügt eine eigene Frage hinzu, die Antwort bleibt nur in der Anmeldung."
+                        tooltip="Fügt eine eigene Frage hinzu, die Antwort kommt nicht in die Stammdaten."
                         variant="outline"
                         size="md"
                         className="inline-flex items-center justify-center gap-2"
@@ -879,6 +879,7 @@ export function EnrollmentFormEditor({
                         fields={fields}
                         onAdd={addIncomeDeclaration}
                         disabled={locked}
+                        disabledReason={lockedReason}
                       />
                     </div>
                   </div>
@@ -903,6 +904,7 @@ export function EnrollmentFormEditor({
                           onMoveUp={() => moveField(index, -1)}
                           onMoveDown={() => moveField(index, 1)}
                           disabled={locked}
+                          disabledReason={lockedReason}
                         />
                       ))}
                     </div>
