@@ -164,8 +164,11 @@ export default function TraegerMensaPage() {
           description="Mensa-Preise gibt es für die Schulen Ihres Trägers."
         />
       ) : null}
-      {data
-        ? schools.map((school) => (
+      {/* Equal school cards in a grid: grids do not grow (TenantPage body
+          rule), so the last school keeps its height like its siblings. */}
+      {data && schools.length > 0 ? (
+        <div className="compact:gap-4 grid gap-6 max-sm:gap-3">
+          {schools.map((school) => (
             <CareMealSchoolCard
               key={school.id}
               data={data}
@@ -174,8 +177,9 @@ export default function TraegerMensaPage() {
               onEdit={() => setEditing(school)}
               onDelete={(tariff) => setDeleting({ ...school, tariff })}
             />
-          ))
-        : null}
+          ))}
+        </div>
+      ) : null}
     </TenantPage>
   );
 }
