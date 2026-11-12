@@ -42,6 +42,12 @@ func BuildServeOrganizations(db transactionruntime.Database) (organizationtenanc
 	return organizationCompose.New(organizationCompose.Dependencies{DB: db.Pool(), Observe: observeOrganizationTenancy})
 }
 
+// NewTraegerMemberNames composes the names of the Träger memberships
+// (#4693) on the caller's transaction runtime.
+func NewTraegerMemberNames() organizationtenancy.TraegerMemberNames {
+	return organizationCompose.NewTraegerMemberNames(observeOrganizationTenancy)
+}
+
 // observeOrganizationTenancy records one Organisation & Tenancy operation.
 func observeOrganizationTenancy(observation organizationCompose.Observation) {
 	observability.ObserveOrganizationTenancyOperation(observation.Operation, observation.Duration, observation.Stats.Queries, observation.Stats.Rows, observation.Stats.StatementDuration, organizationtenancy.ErrorCode(observation.Err), observation.Err)

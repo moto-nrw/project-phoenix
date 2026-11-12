@@ -96,6 +96,7 @@ type traegerBueroAnswer struct {
 	Members []struct {
 		AccountID int64    `json:"account_id"`
 		Email     string   `json:"email"`
+		Name      string   `json:"name"`
 		Roles     []string `json:"roles"`
 	} `json:"members"`
 	Invitations []struct {
@@ -176,10 +177,10 @@ func TestTraegerInvitationCreatesAnAccountWithTheInvitedRole(t *testing.T) {
 	assert.False(t, preview.RequiresExistingPassword, "a new address chooses a password")
 
 	password := testpkg.NewTestPassword()
-	rec = traegerCall(t, router, http.MethodPost, "/traeger/invitations/"+token+"/accept", "", map[string]any{"password": password, "confirm_password": testpkg.NewTestPassword()})
+	rec = traegerCall(t, router, http.MethodPost, "/traeger/invitations/"+token+"/accept", "", map[string]any{"name": "Neue Kollegin", "password": password, "confirm_password": testpkg.NewTestPassword()})
 	assert.Equal(t, http.StatusBadRequest, rec.Code, "the password is chosen twice")
 	assert.Contains(t, rec.Body.String(), "identity.password_mismatch")
-	rec = traegerCall(t, router, http.MethodPost, "/traeger/invitations/"+token+"/accept", "", map[string]any{"password": password, "confirm_password": password})
+	rec = traegerCall(t, router, http.MethodPost, "/traeger/invitations/"+token+"/accept", "", map[string]any{"name": "Neue Kollegin", "password": password, "confirm_password": password})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	t.Cleanup(func() {
 		_, err := db.ExecContext(context.Background(), `DELETE FROM auth.accounts WHERE email = ?`, address)
@@ -193,7 +194,7 @@ func TestTraegerInvitationCreatesAnAccountWithTheInvitedRole(t *testing.T) {
 	assert.ElementsMatch(t, []any{identityaccess.TraegerRightOverviewRead, identityaccess.TraegerRightBillingManage,
 		identityaccess.TraegerRightFinanceExport, identityaccess.TraegerRightReportsRead}, claims["permissions"], "the role bundles the rights of the ADR")
 
-	rec = traegerCall(t, router, http.MethodPost, "/traeger/invitations/"+token+"/accept", "", map[string]any{"password": password, "confirm_password": password})
+	rec = traegerCall(t, router, http.MethodPost, "/traeger/invitations/"+token+"/accept", "", map[string]any{"name": "Neue Kollegin", "password": password, "confirm_password": password})
 	assert.Equal(t, http.StatusGone, rec.Code, "a link is redeemable once")
 	assert.Empty(t, traegerBueroList(t, router, admin.AccessToken).Invitations, "the accepted invitation is no longer open")
 	assert.Equal(t, []string{"invitation_created", "members_listed", "invitation_accepted", "members_listed"}, traegerLedger(t, db, organizationID))
@@ -212,10 +213,10 @@ func TestTraegerInvitationOfAnExistingAccountNeedsItsPassword(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code)
 	assert.Contains(t, rec.Body.String(), `"requires_existing_password":true`)
 
-	rec = traegerCall(t, router, http.MethodPost, "/traeger/invitations/"+token+"/accept", "", map[string]any{"password": testpkg.NewTestPassword()})
+	rec = traegerCall(t, router, http.MethodPost, "/traeger/invitations/"+token+"/accept", "", map[string]any{"name": "Neue Kollegin", "password": testpkg.NewTestPassword()})
 	assert.Equal(t, http.StatusUnauthorized, rec.Code, "the invitation grants access, never another person's credentials")
 	assert.Contains(t, rec.Body.String(), "identity.invalid_credentials")
-	rec = traegerCall(t, router, http.MethodPost, "/traeger/invitations/"+token+"/accept", "", map[string]any{"password": password})
+	rec = traegerCall(t, router, http.MethodPost, "/traeger/invitations/"+token+"/accept", "", map[string]any{"name": "Neue Kollegin", "password": password})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 
 	code, answer := traegerSignIn(t, router, existing.Email, password, 0)
@@ -464,14 +465,14 @@ func TestTraegerInvitationCountsRefusedPasswordsLikeTheLogin(t *testing.T) {
 	token := traegerInvite(t, db, router, admin.AccessToken, existing.Email, identityaccess.TraegerRoleReadOnly)
 
 	for range 5 {
-		rec := traegerCall(t, router, http.MethodPost, "/traeger/invitations/"+token+"/accept", "", map[string]any{"password": testpkg.NewTestPassword()})
+		rec := traegerCall(t, router, http.MethodPost, "/traeger/invitations/"+token+"/accept", "", map[string]any{"name": "Neue Kollegin", "password": testpkg.NewTestPassword()})
 		require.Equal(t, http.StatusUnauthorized, rec.Code, rec.Body.String())
 	}
 	var lockedUntil *time.Time
 	require.NoError(t, db.NewRaw(`SELECT password_locked_until FROM auth.accounts WHERE id = ?`, existing.ID).Scan(context.Background(), &lockedUntil))
 	assert.NotNil(t, lockedUntil, "five refused passwords lock the account like five failed logins")
 
-	rec := traegerCall(t, router, http.MethodPost, "/traeger/invitations/"+token+"/accept", "", map[string]any{"password": password})
+	rec := traegerCall(t, router, http.MethodPost, "/traeger/invitations/"+token+"/accept", "", map[string]any{"name": "Neue Kollegin", "password": password})
 	assert.Equal(t, http.StatusUnauthorized, rec.Code, "a locked account is not accepted even with its password")
 	rec = traegerCall(t, router, http.MethodGet, "/traeger/invitations/"+token, "", nil)
 	assert.Equal(t, http.StatusOK, rec.Code, "the link stays open for a later try")
