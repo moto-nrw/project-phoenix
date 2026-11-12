@@ -167,21 +167,34 @@ function syncContacts(
   const byId = new Map(wanted.map((known) => [known.guardianProfileId, known]));
   // A contact the parent typed or changed stays as it is. An untouched one
   // from the prefill follows the picked children: it takes their current
-  // roles, or goes when no picked child has it any more.
-  const kept = current.flatMap((contact): ContactDraft[] => {
-    if (!isPrefilledContact(contact)) return [contact];
+  // roles while they fit the limits, or goes when no picked child has it.
+  const kept: ContactDraft[] = [];
+  for (const [index, contact] of current.entries()) {
+    if (!isPrefilledContact(contact)) {
+      kept.push(contact);
+      continue;
+    }
     const known = byId.get(contact.knownGuardianId ?? "");
-    if (!known || !(known.emergency || known.pickup)) return [];
+    if (!known || !(known.emergency || known.pickup)) continue;
     const values = contactValues(known, label);
-    return [{ ...contact, ...values, prefilled: values }];
-  });
+    kept.push(
+      fits(
+        [...kept, ...current.slice(index + 1)].filter(
+          (other) => !isBlankContact(other),
+        ),
+        values,
+      )
+        ? { ...contact, ...values, prefilled: values }
+        : contact,
+    );
+  }
   const present = new Set(kept.map((contact) => contact.knownGuardianId));
   let contacts = kept.filter((contact) => !isBlankContact(contact));
   for (const known of wanted) {
     if (!(known.emergency || known.pickup)) continue;
     if (present.has(known.guardianProfileId)) continue;
     // The parent removed this person; another child does not bring it back.
-    if (dismissed.has(known.guardianProfileId)) continue;
+    if (dismissed.has(personKey(known))) continue;
     const values = contactValues(known, label);
     if (!fits(contacts, values)) continue;
     contacts = [
@@ -255,7 +268,7 @@ export function withKnownContacts(
     contacts: syncContacts(
       draft.contacts,
       wanted,
-      new Set(draft.dismissedContactIds),
+      new Set(draft.dismissedContacts),
       label,
     ),
   };
@@ -270,15 +283,19 @@ export function withEditedContacts(
   contacts: readonly ContactDraft[],
 ): RegistrationDraft {
   const left = new Set(contacts.map((contact) => contact.knownGuardianId));
+  // One person can come from siblings at two schools under two records, so
+  // the removal keeps the person's name, as personKey joins them.
   const removed = draft.contacts.flatMap((contact) =>
-    contact.knownGuardianId && !left.has(contact.knownGuardianId)
-      ? [contact.knownGuardianId]
+    contact.knownGuardianId &&
+    contact.prefilled &&
+    !left.has(contact.knownGuardianId)
+      ? [contact.prefilled.name.toLowerCase()]
       : [],
   );
   if (removed.length === 0) return { ...draft, contacts };
   return {
     ...draft,
     contacts,
-    dismissedContactIds: [...(draft.dismissedContactIds ?? []), ...removed],
+    dismissedContacts: [...(draft.dismissedContacts ?? []), ...removed],
   };
 }

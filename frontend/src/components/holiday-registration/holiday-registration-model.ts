@@ -178,8 +178,11 @@ export interface RegistrationDraft {
   };
   readonly children: readonly ChildDraft[];
   readonly contacts: readonly ContactDraft[];
-  /** Persons from the account the parent removed from the contacts (#6682). */
-  readonly dismissedContactIds?: readonly string[];
+  /**
+   * Persons from the account the parent removed from the contacts, by name
+   * in lower case as the prefill joins them (#6682).
+   */
+  readonly dismissedContacts?: readonly string[];
   readonly legalAcceptances?: Readonly<Record<string, boolean>>;
   readonly privacyConsent: boolean;
   readonly healthConsent: boolean;

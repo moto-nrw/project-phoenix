@@ -174,6 +174,61 @@ describe("prefill from the parent account (#6682)", () => {
     expect(draft.contacts.map((c) => c.knownGuardianId)).toEqual(["20", "22"]);
   });
 
+  it("keeps a removed person out also when a sibling at another school brings it", () => {
+    const otherSchool: HolidayKnownFamily = {
+      ...family,
+      children: [
+        child("10", [grandma]),
+        {
+          ...child("12", [{ ...grandma, guardianProfileId: "91" }]),
+          schoolId: "2",
+        },
+      ],
+    };
+    const pickIn = (
+      draft: ReturnType<typeof registrationFromFamily>,
+      known: HolidayKnownChild,
+    ) =>
+      withKnownContacts(
+        toggleKnownChild(draft, known, offer),
+        otherSchool,
+        label,
+      );
+    let draft = pickIn(
+      registrationFromFamily(otherSchool),
+      otherSchool.children[0]!,
+    );
+    draft = withEditedContacts(draft, []);
+    draft = pickIn(draft, otherSchool.children[1]!);
+    draft = pickIn(draft, otherSchool.children[0]!);
+    expect(draft.contacts.map((c) => c.knownGuardianId)).toEqual([undefined]);
+  });
+
+  it("refreshes roles of untouched contacts only within the limits", () => {
+    const helpers = ["31", "32", "33"].map((id) => contact(id));
+    const limited: HolidayKnownFamily = {
+      ...family,
+      children: [
+        child("10", [
+          ...helpers,
+          contact("34", { emergency: false, pickup: true }),
+        ]),
+        child("11", [contact("34", { emergency: true, pickup: true })]),
+      ],
+    };
+    const pickIn = (
+      draft: ReturnType<typeof registrationFromFamily>,
+      known: HolidayKnownChild,
+    ) =>
+      withKnownContacts(toggleKnownChild(draft, known, offer), limited, label);
+    let draft = pickIn(registrationFromFamily(limited), limited.children[0]!);
+    draft = pickIn(draft, limited.children[1]!);
+    expect(draft.contacts.filter((c) => c.emergency)).toHaveLength(3);
+    expect(
+      draft.contacts.find((c) => c.knownGuardianId === "34"),
+    ).toMatchObject({ emergency: false, pickup: true });
+  });
+
   it("drops untouched values with the child and keeps the parent's changes", () => {
     let draft = pick(registrationFromFamily(family), family.children[0]!);
     draft = {
