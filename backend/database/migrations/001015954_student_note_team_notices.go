@@ -8,7 +8,7 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const studentNoteTeamNoticesVersion = "1.15.953"
+const studentNoteTeamNoticesVersion = "1.15.954"
 
 func init() {
 	MigrationRegistry.Register(&Migration{

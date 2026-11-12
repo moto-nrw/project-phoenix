@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The five school erasure functions of 1.15.953 are those of 1.15.942 with
+// The five school erasure functions of 1.15.954 are those of 1.15.942 with
 // the note notices added and nothing else changed: taking the added lines out
 // again (and the fingerprint back) yields the base function byte for byte.
 func TestStudentNoteTeamNoticeErasureExtendsTheErasureOf942(t *testing.T) {
