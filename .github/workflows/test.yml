@@ -186,6 +186,12 @@ jobs:
       # setup-go's go.sum-only key is immutable. It restores dependencies but
       # never saves later source builds on an exact hit. Keep a source-keyed
       # build layer per shard, with the last source build as a warm fallback.
+      # Pull requests only restore: a cache a pull request saves is visible to
+      # that pull request alone, and the 2 GB saves of every run pushed the
+      # repository over its cache limit, so even development's layer was
+      # evicted and every job compiled the whole backend (#6784: test step
+      # 574 s cold, 314 s warm). backend-build-cache.yml saves the layer
+      # pull requests restore, on each push to development.
       - name: Compute backend build cache key
         id: build-cache-key
         env:
@@ -195,7 +201,8 @@ jobs:
           echo "prefix=$BACKEND_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
           echo "key=$BACKEND_CACHE_PREFIX$BACKEND_SOURCE_HASH" >> "$GITHUB_OUTPUT"
       - name: Restore backend build cache
-        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        id: build-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
           path: ~/.cache/go-build
           key: ${{ steps.build-cache-key.outputs.key }}
@@ -357,7 +364,21 @@ jobs:
           # Single pass produces junit.xml. No retries: flaky tests should fail
           # loudly, not be hidden. gotestsum propagates race/test failures.
           "${measure[@]}" go tool gotestsum --format pkgname-and-test-fails \
-            --junitfile junit.xml -- "${race_flags[@]}" -count=1 -parallel 8 -p "$PACKAGE_WORKERS" "${packages[@]}"
+            --junitfile junit.xml --jsonfile go-test.json \
+            -- "${race_flags[@]}" -count=1 -parallel 8 -p "$PACKAGE_WORKERS" "${packages[@]}"
+
+      # A package over its budget fails the pull request that made it slower,
+      # not the next unrelated one that crosses Go's timeout (#6784).
+      - name: Check backend package time budgets
+        if: ${{ !cancelled() && !inputs.backend-race && hashFiles('backend/go-test.json') != '' }}
+        run: node scripts/backend-package-budgets.mjs check backend/go-test.json
+
+      - name: Save backend build cache
+        if: ${{ !cancelled() && github.event_name != 'pull_request' && steps.build-cache.outputs.cache-hit != 'true' }}
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: ${{ steps.build-cache-key.outputs.key }}
 
       - name: Summarize race test resources
         if: ${{ always() && inputs.backend-race }}

@@ -59,6 +59,11 @@ func TestIsolatedDatabaseSlotsBoundWaitAndRelease(t *testing.T) {
 		require.ErrorIs(t, err, context.DeadlineExceeded)
 		require.Contains(t, err.Error(), "waited=20ms", "nonzero wait is independently fixed by the virtual clock")
 		require.Contains(t, err.Error(), `owner="holder"`)
+		// The holder took the slot before both waits: it held it for both.
+		require.Contains(t, err.Error(), "held=20ms", "the message names how long the owner held the slot")
+		for _, diagnostic := range []string{"package_elapsed=", "slot_deadline_in=0s"} {
+			require.Contains(t, err.Error(), diagnostic)
+		}
 		release()
 		release()
 		next, err := limiter.acquire(context.Background(), "next")
