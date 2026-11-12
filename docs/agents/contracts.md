@@ -313,7 +313,7 @@ pending → active → inactive.
 
 | Layer | Scoping mechanism |
 |---|---|
-| JWT | `tenant_id`, `org_id`, `scope`: `""` tenant, `org`, `platform`, `parent`, `school`, `caterer` (no tenant; ADR 0077) |
+| JWT | `tenant_id`, `org_id`, `scope`: `""` tenant, `org`, `platform`, `parent`, `school`, `caterer` (no tenant; ADR 0077); a `parent` token with `org_id` is a parent session at a Träger (ADR 0216) |
 | Context | `tenant.WithTenantID(ctx, id)` / `tenant.FromContext(ctx)` |
 | Database | `common.TenantTxMiddleware` (`backend/api/common/tenant_middleware.go`) runs the request through the root-bound `tenant.UnitOfWork`; rolls back on 5xx or a rollback marker. `PostgresUnitOfWork.WithinTenant` (`backend/modules/transactionruntime/internal/adapters/postgres/tenant_runtime.go`) sets `SET LOCAL ROLE phoenix_tenant` and transaction-local `app.current_tenant_id` |
 | RLS | `provisionTenantRLS` (`backend/database/migrations/rls_provisioning.go`) enables and forces RLS; `USING` and `WITH CHECK` match `tenant_id` to `app.current_tenant_id` |
@@ -786,6 +786,19 @@ Backend paths in this section are relative to `backend/`:
   guardian-only at its school renews as a parent session.
 - Parents login requires a guardian role on at least one tenant mapping
   (`ErrAccountNoGuardianRole`, 403). `ParentScopeMiddleware` accepts only `scope=parent`.
+  Without a guardian school that books Eltern-App, an account with access at
+  an active Träger (`auth.traeger_parent_access`, written by the setup link
+  `/auth/holiday-parent-setups/{token}` of a holiday registration) gets the
+  session kind `traeger_parent` at the Träger of its oldest access (ADR 0216):
+  `scope=parent` with `org_id` and no `tenant_id`, its row kept at no school
+  (`organization_id`, `tenant_id` NULL). It carries no rights, follows no module
+  booking and no second factor; mint, refresh and validation re-read the
+  access and the Träger (share locks after the account lock) and end the
+  session without them; ending the Träger's sessions ends it too. Every parent
+  route still authorizes through relationships, so it sees no school's data.
+  The setup link is a signed token (address, Träger, 30 days) with its own
+  purpose flag that every session and MFA decoder refuses; it is stored
+  nowhere, and redeeming it again leaves an existing password unchanged.
 - School login requires a school-portal role (currently `lehrkraft`) on an
   active mapping and pins that school's `tenant_id`. `SchoolScopeMiddleware`
   accepts only `scope=school`; `common.ProtectedSchoolGroup` includes tenant
@@ -1265,6 +1278,30 @@ not closed, with the link token and the children the account may register
 reads no school record and writes no access-log row. The parents login accepts
 `?next=/ferienanmeldung/{token}` and returns there after sign-in; every other
 `next` value is ignored.
+
+A holiday registration knows its parent account (ADR 0216):
+`enrollment.holiday_registrations.parent_account_id`. The prefill answers
+`account_proof` for every signed-in account, also with `children: []`: a
+sealed proof (account, Träger, period, 24 h). The public submit takes it as
+`parent_account_proof` and links the registration; an invalid proof is
+ignored. Without a proof, `parent_account_requested: true` enqueues the Träger
+mail `holiday_parent_account_offer` in the registration's transaction. Its
+payload names the Träger (`organization_id`) and no link: at sending, an
+address with a parent account gets only the sign-in `PARENTS_URL/login`,
+every other address the setup link `PARENTS_URL/ferienkonto/{token}` issued
+then, plus the sign-in. The local seeder alone (seed header) receives a
+setup link in the answer as `parent_account_setup_url`, issued for it. The submit answer never
+differs. Every successful parents login claims the registrations without an
+account whose `guardian_email` equals the address (case-insensitive); a failed
+claim never fails the login. `GET /parent/me/holiday-registration-entries`
+answers `{registrations: [{id, traeger_name, period_name, first_day,
+last_day, submitted_at, status, children: [{first_name, weeks: [{first_day,
+last_day, time_model_name, placement}]}]}]}`, newest first, account from the
+session only. The document inbox opens the Träger of the linked registrations
+for an account whose relationships open no Träger. The acceptance mail
+(#6672) shows „Elternkonto einrichten“ with the setup link to every address
+without a parent account (guardian at a live school or access at an active
+Träger); its payload carries `organization_id` for that.
 
 The school that hosts a holiday week reads its participants in its own tenant
 transaction (#4665, ADR 0116): `GET /api/holiday-weeks` and

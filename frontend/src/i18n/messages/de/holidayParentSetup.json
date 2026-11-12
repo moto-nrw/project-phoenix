@@ -1,0 +1,17 @@
+{
+  "newTitle": "Elternkonto anlegen",
+  "newSubtitle": "Legen Sie Ihr Passwort fest. Dann sehen Sie Ihre Ferienanmeldungen bei {traeger}.",
+  "accountFor": "Konto für",
+  "submit": "Konto anlegen",
+  "submitting": "Wird angelegt …",
+  "doneTitle": "Ihr Elternkonto ist fertig",
+  "doneText": "Melden Sie sich jetzt mit {email} und Ihrem neuen Passwort an.",
+  "login": "Anmelden",
+  "opening": "Einen Moment …",
+  "existsTitle": "Sie haben schon ein Elternkonto",
+  "existsSubtitle": "Melden Sie sich an. Dann sehen Sie auch Ihre Ferienanmeldungen bei {traeger}.",
+  "invalidTitle": "Dieser Link gilt nicht mehr",
+  "invalidText": "Der Link ist abgelaufen oder unvollständig.",
+  "invalidNext": "Haben Sie schon ein Elternkonto? Dann melden Sie sich an. Sonst bitten Sie den Träger um einen neuen Link.",
+  "errorObject": "Ihr Elternkonto"
+}

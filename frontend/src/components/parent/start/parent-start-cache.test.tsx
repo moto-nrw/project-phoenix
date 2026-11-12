@@ -59,6 +59,7 @@ vi.mock("~/lib/parent-api", async (original) => ({
   fetchParentProfile: vi.fn(async () => ({ first_name: "Eltern" })),
   listAnnouncements: vi.fn(async () => []),
   listMessageThreads: vi.fn(async () => []),
+  listHolidayRegistrationEntries: vi.fn(async () => []),
 }));
 vi.mock("~/lib/personal-calendar-api", () => ({
   getParentCalendar: vi.fn(async () => ({ events: [] })),

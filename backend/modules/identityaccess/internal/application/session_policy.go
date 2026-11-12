@@ -315,6 +315,9 @@ var sessionPolicies = map[domain.SessionKind]sessionPolicy{
 		},
 		keptAt: tokenSchool,
 	},
+	// A parent session at a Träger has no school and no guardian role; its
+	// facts are the access and the Träger instead (ADR 0216 point 7).
+	domain.SessionKindTraegerParent: traegerParentPolicy,
 }
 
 // requireLiveSchool refuses the renewal of a school-bound session whose
@@ -472,10 +475,11 @@ func tokenSchool(s *AccountAuthentication, b sessionBinding) successorTenant {
 
 // sameTraeger reports whether a stored session names the Träger its token
 // names: a Träger session its Träger, a Träger school session the Träger it
-// came through (#4654); a session of every other kind names none.
+// came through (#4654), a parent session at a Träger its Träger (ADR 0216);
+// a session of every other kind names none.
 func sameTraeger(kind domain.SessionKind, orgID int64, session domain.AccountSession) bool {
 	namesTraeger := func(k domain.SessionKind) bool {
-		return k == domain.SessionKindTraegerSchool || k == domain.SessionKind(domain.PortalOrg.Name)
+		return k == domain.SessionKindTraegerSchool || k == domain.SessionKindTraegerParent || k == domain.SessionKind(domain.PortalOrg.Name)
 	}
 	stored := session.SessionKind()
 	if namesTraeger(kind) || namesTraeger(stored) {

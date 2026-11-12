@@ -188,3 +188,40 @@ func TestSchoolFactsFollowTheTokenShape(t *testing.T) {
 		assert.False(t, portal.Schoolless(), portal.Name)
 	}
 }
+
+// A parent session at a Träger (ADR 0216 point 7) names its Träger and no
+// school in every representation: the refresh claims and the stored row by
+// their Träger, the access token by its org_id, which no other parent token
+// carries. It is kept at no school and stays a parent session for the gates.
+func TestTraegerParentIsRecognisedInEveryRepresentation(t *testing.T) {
+	t.Parallel()
+	refresh, ok := RefreshClaims{Scope: PortalParent.Claim, OrgID: 7}.SessionKind()
+	require.True(t, ok)
+	access, ok := SessionClaims{Scope: PortalParent.Claim, OrgID: 7}.SessionKind()
+	require.True(t, ok)
+	stored := AccountSession{PortalScope: PortalParent.Name, OrganizationID: 7}
+	assert.Equal(t, SessionKindTraegerParent, refresh)
+	assert.Equal(t, SessionKindTraegerParent, access)
+	assert.Equal(t, SessionKindTraegerParent, stored.SessionKind())
+	assert.False(t, stored.KeptAtSchool(), "a parent session at a Träger is kept at no school")
+
+	parent, ok := SessionClaims{Scope: PortalParent.Claim}.SessionKind()
+	require.True(t, ok)
+	assert.Equal(t, SessionKind(PortalParent.Name), parent)
+	assert.True(t, AccountSession{PortalScope: PortalParent.Name, TenantID: 10}.KeptAtSchool())
+}
+
+// The stored row of a parent session names a school or a Träger, never both
+// and never neither, like auth.tokens' chk_tokens_session_owner.
+func TestTraegerParentSessionShape(t *testing.T) {
+	t.Parallel()
+	valid := func(tenantID, organizationID int64) error {
+		session := AccountSession{AccountID: 1, Token: "t", PortalScope: PortalParent.Name, TenantID: tenantID, OrganizationID: organizationID}
+		return session.Validate()
+	}
+	assert.NoError(t, valid(0, 7), "a parent session at a Träger")
+	assert.NoError(t, valid(10, 0), "a parent session at a school")
+	assert.Error(t, valid(10, 7), "a parent session names a school or a Träger, not both")
+	caterer := AccountSession{AccountID: 1, Token: "t", PortalScope: PortalCaterer.Name, OrganizationID: 7}
+	assert.Error(t, caterer.Validate(), "no caterer session names a Träger")
+}

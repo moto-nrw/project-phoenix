@@ -54,6 +54,14 @@ type PortalService interface {
 	// closed, each with the children the account may register (#6671).
 	HolidayRegistrationOffers(ctx context.Context, accountID int64) ([]parentService.HolidayRegistrationOffer, error)
 
+	// HolidayRegistrationEntries reads the holiday registrations linked to
+	// the account, newest first (ADR 0216 point 9).
+	HolidayRegistrationEntries(ctx context.Context, accountID int64) ([]parentService.HolidayRegistrationEntry, error)
+	// ClaimHolidayRegistrationsAfterSignIn links the holiday registrations
+	// of the address a parent signed in with to its account (ADR 0216 point
+	// 3); a failure is logged and never fails the sign-in.
+	ClaimHolidayRegistrationsAfterSignIn(ctx context.Context, email string)
+
 	// ListBillingDocuments lists the documents the Träger of the account's
 	// schools sent to its address, where a relationship grants
 	// parent_portal.enrollments.view at a school of that Träger (#4671).

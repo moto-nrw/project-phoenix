@@ -136,3 +136,19 @@ func (c *SessionCodec) ParseRefreshToken(token string) (identityaccess.RefreshCl
 	claims, err := tokenprimitives.DecodeRefresh(verified)
 	return identityaccess.RefreshClaims(claims), err
 }
+
+// IssueHolidayParentSetupToken signs the setup link of a parent account at a
+// Träger (ADR 0216 point 5).
+func (c *SessionCodec) IssueHolidayParentSetupToken(claims identityaccess.HolidayParentSetupClaims, ttl time.Duration) (string, error) {
+	return c.sign(tokenprimitives.EncodeHolidayParentSetup(tokenprimitives.HolidayParentSetupClaims(claims), time.Now(), ttl))
+}
+
+// ParseHolidayParentSetupToken accepts only an unexpired setup token.
+func (c *SessionCodec) ParseHolidayParentSetupToken(token string) (identityaccess.HolidayParentSetupClaims, error) {
+	verified, err := c.decode(token)
+	if err != nil {
+		return identityaccess.HolidayParentSetupClaims{}, err
+	}
+	claims, err := tokenprimitives.DecodeHolidayParentSetup(verified, time.Now())
+	return identityaccess.HolidayParentSetupClaims(claims), err
+}

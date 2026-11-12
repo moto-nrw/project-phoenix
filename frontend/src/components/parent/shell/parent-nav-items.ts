@@ -18,6 +18,7 @@ import { dashboardConcept } from "~/lib/concepts/dashboard";
 import { documentsConcept } from "~/lib/concepts/documents";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { helpConcept } from "~/lib/concepts/help";
+import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
 import { logoutConcept } from "~/lib/concepts/logout";
 import { mealPlanConcept } from "~/lib/concepts/mealPlan";
 import { moreConcept } from "~/lib/concepts/more";
@@ -120,6 +121,15 @@ export const PARENT_MORE_NAV: readonly ParentMoreItem[] = [
     tKey: "mealPlan",
     concept: mealPlanConcept,
     gate: "mealPlan",
+  },
+  {
+    // Die eigenen Ferienanmeldungen und ihr Stand (#6673). Steht ohne
+    // Bedingung: auch ein Konto ohne Kind an einer Schule hat sie (ADR 0216).
+    kind: "link",
+    key: "holidayRegistrations",
+    href: "/parents/ferienanmeldungen",
+    tKey: "holidayRegistrations",
+    concept: holidayWeeksConcept,
   },
   {
     // Dokumente des Traegers (#4671), etwa Bestaetigungsschreiben der Ferien.

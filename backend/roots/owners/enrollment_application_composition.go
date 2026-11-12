@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"net/url"
+	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
@@ -211,11 +213,28 @@ type HolidayAcceptanceAccounts interface {
 }
 
 // holidayAcceptanceAccounts maps Identity account lookups to Enrollment's
-// account-eligibility port in the worker's administrative scope.
+// account-eligibility port in the worker's administrative scope. links
+// issues the setup link of a parent account for an address without one (ADR
+// 0216 point 11); nil offers none.
 type holidayAcceptanceAccounts struct {
 	accounts HolidayAcceptanceAccounts
+	links    enrollmentOwner.HolidayParentAccountLinks
 }
 
+// newHolidayAcceptanceAccounts binds the acceptance mail's links: the
+// account lookups of Identity & Access and, where it serves them, the setup
+// links of a parent account at a Träger with the parents portal's address.
+func newHolidayAcceptanceAccounts(accounts HolidayAcceptanceAccounts, parentsURL string) holidayAcceptanceAccounts {
+	bound := holidayAcceptanceAccounts{accounts: accounts}
+	if setups, ok := accounts.(identityaccess.HolidayParentSetups); ok && strings.TrimSpace(parentsURL) != "" {
+		bound.links = NewHolidayParentAccountLinks(setups, parentsURL)
+	}
+	return bound
+}
+
+// HasParentAccount: an account of the address that the parents portal signs
+// in, by the guardian role at a live school or by its access at an active
+// Träger (ADR 0216).
 func (a holidayAcceptanceAccounts) HasParentAccount(ctx context.Context, address string) (bool, error) {
 	if a.accounts == nil {
 		return false, nil
@@ -228,7 +247,52 @@ func (a holidayAcceptanceAccounts) HasParentAccount(ctx context.Context, address
 		return false, err
 	}
 	guardian, _, err := a.accounts.FindGuardianTenant(ctx, account.ID)
-	return guardian, err
+	if err != nil || guardian {
+		return guardian, err
+	}
+	setups, ok := a.accounts.(identityaccess.HolidayParentSetups)
+	if !ok {
+		return false, nil
+	}
+	return setups.HasTraegerParentAccess(ctx, account.ID)
+}
+
+// HolidayParentSetupURL is the setup link of a parent account at the Träger;
+// without the setup links bound the mail offers none.
+func (a holidayAcceptanceAccounts) HolidayParentSetupURL(address string, organizationID int64) (string, error) {
+	if a.links == nil {
+		return "", nil
+	}
+	link, err := a.links.HolidayParentAccountLink(address, organizationID)
+	return link.SetupURL, err
+}
+
+// holidayParentAccountLinks binds the offer of a parent account (ADR 0216
+// point 4) to Identity & Access's setup link, which only signs and so runs
+// in the registration's Träger transaction, and to the parents portal.
+type holidayParentAccountLinks struct {
+	setups     identityaccess.HolidayParentSetups
+	parentsURL string
+}
+
+// NewHolidayParentAccountLinks binds the setup link of the offer mail: the
+// page /ferienkonto/{token} and the sign-in /login of the parents portal.
+func NewHolidayParentAccountLinks(setups identityaccess.HolidayParentSetups, parentsURL string) enrollmentOwner.HolidayParentAccountLinks {
+	return holidayParentAccountLinks{setups: setups, parentsURL: strings.TrimRight(parentsURL, "/")}
+}
+
+func (l holidayParentAccountLinks) HolidayParentAccountLink(email string, organizationID int64) (enrollmentOwner.HolidayParentAccountLink, error) {
+	if l.setups == nil || l.parentsURL == "" {
+		return enrollmentOwner.HolidayParentAccountLink{}, errors.New("holiday registration: the setup link of a parent account is not configured")
+	}
+	token, err := l.setups.IssueHolidayParentSetupToken(email, organizationID)
+	if err != nil {
+		return enrollmentOwner.HolidayParentAccountLink{}, err
+	}
+	return enrollmentOwner.HolidayParentAccountLink{
+		SetupURL: l.parentsURL + "/ferienkonto/" + url.PathEscape(token),
+		LoginURL: l.parentsURL + "/login",
+	}, nil
 }
 
 // enrollmentMailRenderers registers Enrollment's renderers by outbox kind.
@@ -276,6 +340,9 @@ func enrollmentMailRenderers(renderers enrollmentOwner.MailRenderers, defaultFro
 		// The acceptance of a holiday registration (#6672): a mail of the
 		// Träger like the receipt.
 		enrollmentOwner.MailKindHolidayRegistrationAccepted: render(renderers.HolidayRegistrationAccepted),
+		// The offer of a parent account a holiday registration mails (ADR
+		// 0216): a mail of the Träger like the receipt.
+		enrollmentOwner.MailKindHolidayParentAccountOffer: render(renderers.HolidayParentAccountOffer),
 	}
 }
 

@@ -278,7 +278,7 @@ func fullDemoWorkflow(seeder *Seeder) Workflow {
 // before its school opens; its contracts and billing need the applications
 // and bookings of the deferred steps (#6621).
 func traegerSteps(seeder *Seeder) []Step {
-	steps := traegerSetupSteps()
+	steps := traegerSetupSteps(seeder)
 	if seeder.options.DeferHistory {
 		return steps
 	}
@@ -287,8 +287,8 @@ func traegerSteps(seeder *Seeder) []Step {
 
 // traegerSetupSteps prepare the Träger: office, holidays, settings and
 // master data.
-func traegerSetupSteps() []Step {
-	return traegerSerial(seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedTraegerClosingDayStep{}, seedTraegerHolidayDaysStep{}, seedTraegerHolidayCriteriaStep{}, seedHolidayLegalStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{})
+func traegerSetupSteps(seeder *Seeder) []Step {
+	return traegerSerial(seedTraegerBueroStep{}, seedTraegerHolidayPeriodStep{}, seedHolidayParentAccountStep{seeder: seeder}, seedTraegerClosingDayStep{}, seedTraegerHolidayDaysStep{}, seedTraegerHolidayCriteriaStep{}, seedHolidayLegalStep{}, seedTraegerSettingsStep{}, seedTraegerMasterDataStep{})
 }
 
 // traegerCareSteps conclude and bill the contracts of the school's accepted

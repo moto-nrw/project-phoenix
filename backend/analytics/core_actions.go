@@ -524,6 +524,7 @@ var coreActions = map[RouteKey]CoreAction{
 	{http.MethodDelete, "/auth/accounts/{accountId}/tokens/"}:              notCaptured,
 	{http.MethodPost, "/auth/guardian-invitations/{id}/resend"}:            notCaptured,
 	{http.MethodPost, "/auth/guardian-invitations/{token}/accept"}:         sessionOr("guardian_invite_accepted", SurfaceParents),
+	{http.MethodPost, "/auth/holiday-parent-setups/{token}"}:               {Event: "holiday_parent_account_set_up", Surface: SurfaceParents},
 	{http.MethodPost, "/auth/invitations/"}:                                event("staff_invited"),
 	{http.MethodDelete, "/auth/invitations/{id}/"}:                         notCaptured,
 	{http.MethodPost, "/auth/invitations/former-employment"}:               notCaptured,

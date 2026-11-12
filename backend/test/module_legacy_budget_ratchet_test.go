@@ -287,10 +287,12 @@ var moduleLegacyFileBudgets = map[string]int{
 // modules/enrollment/compose (+10) and the namesakes constructor of
 // modules/peopledirectory/compose (+13) add exactly 23 LOC.
 // ADR 0196: the holiday closure notices (-1).
+// ADR 0216: the holiday account adds 10 LOC to enrollment/compose and
+// 2 to parentportal/compose.
 // ADR 0215: workflows/traegercatalog (+38) and modules/enrollment/compose
 // (+2: NewTraegerPhases and NewOfferingSelectionReferences, less shortened
 // comments); modules/careplan/compose stays.
-const moduleComposeBudgetTotal = 13366
+const moduleComposeBudgetTotal = 13378
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -347,10 +349,11 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0202: the Students field of the phase administration (+2).
 	// ADR 0205: the Bookings field of the phase administration (+2).
 	// ADR 0207: the constructor of the announced holiday periods (+5).
-	// ADR 0214: the registered children and the known child trail (+10).
+	// ADR 0214: the registered children and known child trail (+10).
+	// ADR 0216: account proofs and the account's holiday registrations (+10).
 	// ADR 0215: NewTraegerPhases (+4) and NewOfferingSelectionReferences (+4),
 	// less shortened comments and a merged file (-6).
-	"modules/enrollment/compose":                   625,
+	"modules/enrollment/compose":                   635,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
@@ -463,7 +466,9 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0159: the notice port (+1).
 	// ADR 0207: the port of the announced holiday periods (+1).
 	// ADR 0212: the port of the message attachments (+1).
-	"workflows/parentportal/compose":     334,
+	// ADR 0216: the ports of the account's holiday registrations and of its
+	// proof (+2).
+	"workflows/parentportal/compose":     336,
 	"workflows/reminderdelivery/compose": 30,
 	"workflows/sessionend/compose":       59,
 	"workflows/shiftplansync/compose":    124,

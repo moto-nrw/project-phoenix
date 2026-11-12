@@ -66,6 +66,8 @@ func TestUnusedAccountErasureWithoutWaitRollsBack(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	ctx := t.Context()
+	// Test this migration's round trip even after newer erasure extensions.
+	require.NoError(t, unusedAccountErasureWithoutWaitUp(ctx, db))
 	current := readUnusedAccountErasure(t, db)
 
 	require.NoError(t, unusedAccountErasureWithoutWaitDown(ctx, db))

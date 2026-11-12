@@ -1,0 +1,17 @@
+{
+  "newTitle": "Załóż konto rodzica",
+  "newSubtitle": "Proszę ustawić hasło. Wtedy zobaczą Państwo swoje zgłoszenia na ferie u {traeger}.",
+  "accountFor": "Konto dla",
+  "submit": "Załóż konto",
+  "submitting": "Zakładanie …",
+  "doneTitle": "Państwa konto rodzica jest gotowe",
+  "doneText": "Proszę teraz zalogować się adresem {email} i nowym hasłem.",
+  "login": "Zaloguj się",
+  "opening": "Chwileczkę …",
+  "existsTitle": "Mają już Państwo konto rodzica",
+  "existsSubtitle": "Proszę się zalogować. Wtedy zobaczą Państwo także zgłoszenia na ferie u {traeger}.",
+  "invalidTitle": "Ten link już nie działa",
+  "invalidText": "Link wygasł lub jest niekompletny.",
+  "invalidNext": "Mają już Państwo konto rodzica? Proszę się zalogować. W przeciwnym razie proszę poprosić organizatora o nowy link.",
+  "errorObject": "Państwa konto rodzica"
+}

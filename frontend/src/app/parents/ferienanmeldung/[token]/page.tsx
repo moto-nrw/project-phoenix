@@ -60,7 +60,9 @@ export default function HolidayRegistrationPage({ params }: PageProps) {
         parentSession
           ? fetchHolidayRegistrationFamily(token).catch((err: unknown) => {
               // Deliberately silent: the prefill is a convenience. Without
-              // it the parent fills in the form like everyone else.
+              // it the parent fills in the form like everyone else; no
+              // account proof goes along, and the next sign-in claims the
+              // registration by its address (#6673).
               logger.warn("holiday_registration_family_load_failed", {
                 error: err instanceof Error ? err.message : String(err),
               });
@@ -167,6 +169,10 @@ export default function HolidayRegistrationPage({ params }: PageProps) {
                 token={token}
                 offer={offer}
                 family={family}
+                // Ohne Eltern-Sitzung fragt das Formular am Ende nach dem
+                // Elternkonto; mit Sitzung trägt die Anmeldung den Nachweis
+                // des Kontos aus der Vorbefüllung (#6673).
+                parentAccount={parentSession ? "signed-in" : "ask"}
                 onFormChanged={reloadOffer}
                 onStepChange={setStep}
               />

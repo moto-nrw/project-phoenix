@@ -123,3 +123,15 @@ nicht. Den Zahler gibt es erst mit Etappe 2.
 - Wie jeder Typ ist „Neues Dokument vom Träger“ aus, bis die Eltern ihn in
   den Einstellungen einschalten (keine Entscheidung heißt aus). Die Hilfe
   nennt den Schalter.
+
+## Nachtrag 11.11.2026: Postfach eines Kontos mit Ferienanmeldung (#6673)
+
+Seit [ADR 0216](0216-ferienanmeldung-kennt-das-elternkonto-und-eltern-ohne-schule-bekommen-ein-konto-am-traeger.md) öffnet das Postfach zusätzlich den Träger, bei dem ein Konto eine
+verknüpfte Ferienanmeldung hat, wenn die Beziehungen des Kontos keinen
+Träger öffnen. Die Bedingung der Adresse bleibt: Das Postfach zeigt nur
+Schreiben an die Adresse des Kontos. Bekannte Lücke: Öffnen die Beziehungen
+eines Kontos schon einen Träger, liest es keinen weiteren Träger einer
+Ferienanmeldung; das Budget der Abfragen ließ dafür keinen Platz. Eine
+Person, deren Beziehungen nur das Abholen erlauben und die eine
+Ferienanmeldung hat, öffnet so den Träger der Anmeldung und liest dort nur
+die Schreiben an ihre eigene Adresse.

@@ -226,6 +226,16 @@ export interface HolidayRegistrationPayload {
   readonly custom_data: Readonly<Record<string, unknown>>;
   /** Answers to the criteria of the family, by criterion ID (#4700). */
   readonly criteria?: Readonly<Record<string, boolean>>;
+  /**
+   * The parent asked for a parent account at the end of the form (#6673).
+   * Always false when the registration carries the account's proof.
+   */
+  readonly parent_account_requested: boolean;
+  /**
+   * The sealed proof of the signed-in parent's account from the prefill
+   * (#6673, ADR 0216); the backend links the registration to that account.
+   */
+  readonly parent_account_proof?: string;
 }
 
 export interface HolidayContactPayload {
@@ -454,6 +464,12 @@ export interface HolidayKnownFamily {
     readonly phone: string;
   };
   readonly children: readonly HolidayKnownChild[];
+  /**
+   * The sealed proof of the signed-in account (#6673, ADR 0216). The form
+   * sends it back, so the registration is linked to the account at once.
+   * "" when the prefill carries none.
+   */
+  readonly accountProof: string;
 }
 
 interface BackendFamily {
@@ -474,6 +490,7 @@ interface BackendFamily {
         holiday_wish_proof?: string;
       }[]
     | null;
+  account_proof?: string;
 }
 
 /**
@@ -512,5 +529,6 @@ export async function fetchHolidayRegistrationFamily(
       holidayWish: child.holiday_wish ?? "",
       holidayWishProof: child.holiday_wish_proof ?? "",
     })),
+    accountProof: data.account_proof ?? "",
   };
 }

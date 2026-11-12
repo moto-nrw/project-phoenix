@@ -304,6 +304,10 @@
     {
       "name": "auth.traeger_invitations",
       "write_owner": "identity-access"
+    },
+    {
+      "name": "auth.traeger_parent_access",
+      "write_owner": "identity-access"
     }
   ],
   "rules": [

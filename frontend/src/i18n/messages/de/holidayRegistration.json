@@ -171,5 +171,16 @@
   "summaryDays": "Tage: {days}",
   "contributionDays": "{count, plural, one {# Tag} other {# Tage}}",
   "dayWithoutCare": "Am {date} ist keine Betreuung ({name}).",
-  "noCareDayAria": "{day}, keine Betreuung"
+  "noCareDayAria": "{day}, keine Betreuung",
+  "account": {
+    "question": "Möchten Sie ein Elternkonto anlegen?",
+    "benefit": "Mit dem Konto sehen Sie in der Eltern-App den Stand der Anmeldung, die Bestätigung und die Dokumente.",
+    "yes": "Ja",
+    "no": "Nein",
+    "mailNote": "Sie bekommen dazu eine E-Mail an {email}. Mit dem Link darin legen Sie Ihr Passwort fest.",
+    "required": "Bitte wählen Sie Ja oder Nein."
+  },
+  "doneAccountTitle": "Nächster Schritt: Ihr Elternkonto",
+  "doneAccountText": "Wir haben Ihnen eine zweite E-Mail an {email} geschickt. Öffnen Sie den Link darin. Dort legen Sie Ihr Passwort fest oder melden sich an.",
+  "doneToRegistrations": "Zu Ihren Ferienanmeldungen"
 }

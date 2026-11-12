@@ -1330,7 +1330,15 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayAcceptanceAccounts.HasParentAccount",
-      "binding_digest": "1c8c3bd37faa5530dce6889d6a75a68c",
+      "binding_digest": "606f04f3ea102fb25272c4a9f3535672",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayAcceptanceAccounts.HasParentAccount",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.HolidayParentSetups.HasTraegerParentAccess",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayAcceptanceAccounts.HasParentAccount",
+      "binding_digest": "e2e81ed4d0a282e3795b5a0835f3a478",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayAcceptanceAccounts.HasParentAccount",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.FindAccountByEmail",
@@ -1338,10 +1346,18 @@
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayAcceptanceAccounts.HasParentAccount",
-      "binding_digest": "4ade80137b47a684dc12ac6f3d63a76c",
+      "binding_digest": "66ada01039307e47663abe2a5856b218",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayAcceptanceAccounts.HasParentAccount",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.FindGuardianTenant",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayAcceptanceAccounts.HolidayParentSetupURL",
+      "binding_digest": "4ee8b20767e3d3c7c240764f09ad191b",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayAcceptanceAccounts.HolidayParentSetupURL",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.HolidayParentSetups.IssueHolidayParentSetupToken",
       "target_owner": "identity-access"
     },
     {
@@ -1687,6 +1703,14 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListPickupExceptions",
       "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayParentAccountLinks.HolidayParentAccountLink",
+      "binding_digest": "3aff01b7d742544c70dcd594837ecf22",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayParentAccountLinks.HolidayParentAccountLink",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.HolidayParentSetups.IssueHolidayParentSetupToken",
+      "target_owner": "identity-access"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayParticipantAccessLog.RecordHolidayParticipantAccess",
