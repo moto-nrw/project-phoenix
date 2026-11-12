@@ -44,6 +44,8 @@ type fakeOwners struct {
 	recordCalls         int
 	releaseDraft        *careplan.TraegerOfferingDraft
 	copyAlreadyExists   bool
+	// careBeyondEnd is what a school's phase copy reports per school (#6813).
+	careBeyondEnd map[int64]int
 }
 
 func newFakeOwners() *fakeOwners {
@@ -211,7 +213,7 @@ func (p fakeSchoolPhases) ApplyTraegerPhase(_ context.Context, copy enrollment.T
 		return enrollment.TraegerPhaseApplied{}, err
 	}
 	p.f.applied[p.f.inSchool] = copy
-	return enrollment.TraegerPhaseApplied{CopyID: p.f.inSchool * 100, Created: true}, nil
+	return enrollment.TraegerPhaseApplied{CopyID: p.f.inSchool * 100, Created: true, CareBeyondEnd: p.f.careBeyondEnd[p.f.inSchool]}, nil
 }
 
 func (p fakeSchoolPhases) WithdrawTraegerPhase(context.Context, int64) (enrollment.TraegerWithdrawal, error) {
@@ -628,4 +630,27 @@ func TestPreviewRejectsFinancialRefusalsWithoutKeepingWrites(t *testing.T) {
 	assert.Empty(t, f.prices)
 	assert.Empty(t, f.applied)
 	assert.False(t, f.released)
+}
+
+// A copy that cuts children's care short reports how many, per school, in
+// the preview and in the result (#6813, ADR 0211); a refused school reports
+// nothing, its copy stays as it was.
+func TestCareBeyondEndReachesPreviewAndResult(t *testing.T) {
+	t.Parallel()
+	f := newFakeOwners()
+	f.careBeyondEnd = map[int64]int{10: 3, 20: 2}
+	catalog := f.catalog(t)
+	preview, err := catalog.Preview(context.Background(), office, 7)
+	require.NoError(t, err)
+	require.Len(t, preview.Schools, 2)
+	assert.Equal(t, 3, preview.Schools[0].CareBeyondEnd)
+	assert.Equal(t, 2, preview.Schools[1].CareBeyondEnd)
+
+	f.refuse[20] = enrollment.ErrInvalidPhase
+	rollout, err := catalog.Rollout(context.Background(), office, 7, preview.Fingerprint)
+	require.NoError(t, err)
+	require.Len(t, rollout.Schools, 2)
+	assert.Equal(t, traegercatalog.SchoolResult{SchoolID: 10, Outcome: "applied", CareBeyondEnd: 3}, rollout.Schools[0])
+	assert.Equal(t, "rejected", rollout.Schools[1].Outcome)
+	assert.Zero(t, rollout.Schools[1].CareBeyondEnd, "a refused school changes nothing")
 }

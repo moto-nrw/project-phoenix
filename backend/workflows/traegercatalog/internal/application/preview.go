@@ -109,6 +109,7 @@ func (c *Catalog) previewSchool(ctx context.Context, actor traegercatalog.Actor,
 		return plan, "", traegercatalog.ErrPreviewStale
 	case refused:
 		plan.Action, plan.Outcome, plan.ErrorCode = t.action, traegercatalog.PreviewRejected, code
+		plan.CareBeyondEnd = 0
 	default:
 		return plan, "", err
 	}

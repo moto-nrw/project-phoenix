@@ -157,6 +157,10 @@ type TraegerPhaseApplied struct {
 	CopyID  int64                `json:"copy_id"`
 	Created bool                 `json:"created"`
 	Fields  []TraegerFieldChange `json:"fields"`
+	// CareBeyondEnd counts the children whose care now runs past the copy's
+	// shortened end (#6813, ADR 0211). The copy changes none of them; the
+	// school ends each care on purpose.
+	CareBeyondEnd int `json:"care_beyond_end"`
 }
 
 // TraegerWithdrawal reports how a copy left the school.

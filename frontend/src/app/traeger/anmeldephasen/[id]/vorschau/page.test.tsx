@@ -64,6 +64,7 @@ const preview: TraegerCatalogPreview = {
       action: "update",
       outcome: "ready",
       errorCode: null,
+      careBeyondEnd: 0,
       phase: [{ field: "name", state: "unchanged", traeger: "A", school: "A" }],
       offerings: [
         {
@@ -83,6 +84,7 @@ const preview: TraegerCatalogPreview = {
       action: "create",
       outcome: "rejected",
       errorCode: "enrollment.care_offering_pickup_times_required",
+      careBeyondEnd: 0,
       phase: [],
       offerings: [],
     },

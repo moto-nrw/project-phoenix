@@ -60,6 +60,9 @@ type SchoolPlan struct {
 	ErrorCode string                          `json:"error_code,omitempty"`
 	Phase     []enrollment.TraegerFieldChange `json:"phase"`
 	Offerings []OfferingPlan                  `json:"offerings"`
+	// CareBeyondEnd counts the children whose care would run past the
+	// school's shortened phase (#6813, ADR 0211).
+	CareBeyondEnd int `json:"care_beyond_end"`
 }
 
 // Preview is the plan of a rollout per school with its fingerprint.
@@ -75,6 +78,9 @@ type SchoolResult struct {
 	SchoolID  int64  `json:"school_id"`
 	Outcome   string `json:"outcome"`
 	ErrorCode string `json:"error_code,omitempty"`
+	// CareBeyondEnd counts the children whose care runs past the school's
+	// shortened phase after the rollout (#6813, ADR 0211).
+	CareBeyondEnd int `json:"care_beyond_end"`
 }
 
 // Rollout is the outcome of a rollout per school. A rollout is atomic per

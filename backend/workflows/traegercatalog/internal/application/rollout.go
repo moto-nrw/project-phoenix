@@ -17,8 +17,10 @@ type schoolRun struct {
 	result      traegercatalog.SchoolResult
 	copies      map[int64]careplan.TraegerOfferingApplied
 	leftTraeger bool
-	prices      []ports.ModulePrices
-	templates   func(context.Context) error
+	// careBeyondEnd is the count the committed copy reported (#6813).
+	careBeyondEnd int
+	prices        []ports.ModulePrices
+	templates     func(context.Context) error
 	// offeringCodes names an offering whose tariff or template a school
 	// refused.
 	offeringCodes map[int64]string
@@ -146,10 +148,12 @@ func (c *Catalog) rollOutSchool(ctx context.Context, actor traegercatalog.Actor,
 		if state != previewed {
 			return errStale
 		}
-		_, run.copies, err = c.applySchool(ctx, snap, next, t.action)
+		var plan traegercatalog.SchoolPlan
+		plan, run.copies, err = c.applySchool(ctx, snap, next, t.action)
 		if err != nil || t.action == traegercatalog.ActionWithdraw {
 			return err
 		}
+		run.careBeyondEnd = plan.CareBeyondEnd
 		run.prices, run.templates, err = c.prepareBilling(ctx, actor, snap, next, run)
 		return err
 	})
@@ -158,6 +162,7 @@ func (c *Catalog) rollOutSchool(ctx context.Context, actor traegercatalog.Actor,
 		run.result.Outcome = enrollment.TraegerOutcomeWithdrawn
 	case err == nil:
 		run.result.Outcome = enrollment.TraegerOutcomeApplied
+		run.result.CareBeyondEnd = run.careBeyondEnd
 		return run, c.writeBilling(ctx, actor, snap, next, &run)
 	case errors.Is(err, errStale):
 		run.result.Outcome = enrollment.TraegerOutcomeStale
