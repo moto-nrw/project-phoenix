@@ -948,6 +948,11 @@ export interface BackendMonthSummary {
   sick_days: number;
   vacation_days: number;
   training_days: number;
+  /** Absence workdays of a month without Soll; they credit nothing (#6889). */
+  sick_days_without_target: number;
+  vacation_days_without_target: number;
+  training_days_without_target: number;
+  other_days_without_target: number;
   planned_shift_minutes?: number | null;
   adjustment_minutes: number;
   adjustments?: BackendBalanceAdjustment[] | null;
@@ -1043,6 +1048,13 @@ export interface MonthSummary {
   sickDays: number;
   vacationDays: number;
   trainingDays: number;
+  /** Absence workdays (Mo–Fr, no holiday or closing day) of a month without
+   *  any Soll (`hasTarget` false). They credit 0 hours and stay out of the
+   *  credited day counters above, which the payroll exports book (#6889). */
+  sickDaysWithoutTarget: number;
+  vacationDaysWithoutTarget: number;
+  trainingDaysWithoutTarget: number;
+  otherDaysWithoutTarget: number;
   plannedShiftMinutes: number | null;
   adjustmentMinutes: number;
   adjustments: BalanceAdjustment[];
@@ -1159,6 +1171,10 @@ export function mapMonthSummaryResponse(
     sickDays: data.sick_days,
     vacationDays: data.vacation_days,
     trainingDays: data.training_days,
+    sickDaysWithoutTarget: data.sick_days_without_target,
+    vacationDaysWithoutTarget: data.vacation_days_without_target,
+    trainingDaysWithoutTarget: data.training_days_without_target,
+    otherDaysWithoutTarget: data.other_days_without_target,
     plannedShiftMinutes: data.planned_shift_minutes ?? null,
     adjustmentMinutes: data.adjustment_minutes ?? 0,
     adjustments: (data.adjustments ?? []).map(mapBalanceAdjustmentResponse),

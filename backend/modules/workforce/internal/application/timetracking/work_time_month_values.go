@@ -52,13 +52,47 @@ type monthAggregates struct {
 	sickDays         float64
 	vacationDays     float64
 	trainingDays     float64
-	hasShifts        bool
-	plannedShift     int
-	adjustment       int
-	adjustments      []*StaffBalanceAdjustment
+	// daysWithoutTarget counts the absence workdays of a month without a
+	// maintained Soll; they credit nothing (#6889).
+	daysWithoutTarget absenceDayCounts
+	hasShifts         bool
+	plannedShift      int
+	adjustment        int
+	adjustments       []*StaffBalanceAdjustment
 	// creditedByType splits the credit of the school's own absence types
 	// (#4807): the DATEV export books a mapped type onto its wage type.
 	creditedByType map[int64]AbsenceTypeCredit
+}
+
+// absenceDayCounts counts absence days by fixed category. Freizeitausgleich
+// has no day counter.
+type absenceDayCounts struct {
+	sick, vacation, training, other float64
+}
+
+func (c *absenceDayCounts) count(absenceType string, fraction float64) {
+	switch absenceType {
+	case AbsenceTypeSick:
+		c.sick += fraction
+	case AbsenceTypeVacation:
+		c.vacation += fraction
+	case AbsenceTypeTraining:
+		c.training += fraction
+	case AbsenceTypeCompTime:
+	default:
+		c.other += fraction
+	}
+}
+
+// isWorkdayWithoutPlan reports whether d is a workday when no Soll says
+// otherwise: Monday to Friday, no statutory holiday and no closing day. A
+// holiday's Soll is 0 by contract, not for lack of maintenance (#6889); the
+// weekdays match the vacation request's working-day count.
+func isWorkdayWithoutPlan(d calendar.Date, resolver *dailyTargetResolver) bool {
+	if weekday := d.Weekday(); weekday == time.Saturday || weekday == time.Sunday {
+		return false
+	}
+	return !resolver.NonWorkingDays[d]
 }
 
 // AbsenceTypeCredit is the credit of one school absence type in a month: the
