@@ -5,6 +5,7 @@ import {
   useCallback,
   useContext,
   useEffect,
+  useRef,
   useState,
 } from "react";
 import { createLogger } from "~/lib/logger";
@@ -39,13 +40,17 @@ export function useTraegerOwnName(membership: TraegerMembershipKey | null): {
     membership: TraegerMembershipKey;
     name: string;
   } | null>(null);
+  const publishedRevision = useRef(0);
 
   useEffect(() => {
     if (!membership) return;
     let active = true;
+    const revision = publishedRevision.current;
     fetchTraegerProfile()
       .then((profile) => {
-        if (active) setLoaded({ membership, name: profile.name.trim() });
+        if (active && revision === publishedRevision.current) {
+          setLoaded({ membership, name: profile.name.trim() });
+        }
       })
       .catch((err: unknown) => {
         // Silent on purpose: the header keeps the e-mail address, and the
@@ -65,6 +70,8 @@ export function useTraegerOwnName(membership: TraegerMembershipKey | null): {
       // A profile of another account (a session changed meanwhile) never
       // lands in this header.
       if (!membership.startsWith(`${profile.accountId}:`)) return;
+      // A pending header read must not overwrite a profile from „Konto“.
+      publishedRevision.current += 1;
       setLoaded({ membership, name: profile.name.trim() });
     },
     [membership],

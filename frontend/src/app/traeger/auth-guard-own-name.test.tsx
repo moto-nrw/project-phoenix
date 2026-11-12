@@ -138,6 +138,44 @@ describe("Träger header name (#6870)", () => {
     await waitFor(() => expect(headerName()).toHaveTextContent("Karl Kasse"));
   });
 
+  it("keeps the saved name when the initial header profile answers later", async () => {
+    const oldProfile = {
+      accountId: "4",
+      email: "kasse@traeger.example",
+      name: "Karl Kasse",
+    };
+    let answerHeader: (profile: typeof oldProfile) => void = () => {};
+    api.fetchTraegerProfile.mockReturnValueOnce(
+      new Promise<typeof oldProfile>((resolve) => {
+        answerHeader = resolve;
+      }),
+    );
+    const view = renderPortal();
+    await waitFor(() => expect(api.fetchTraegerProfile).toHaveBeenCalledOnce());
+
+    api.fetchTraegerProfile.mockResolvedValue(oldProfile);
+    api.changeTraegerProfileName.mockResolvedValue({
+      ...oldProfile,
+      name: "Karla Kasse",
+    });
+    view.rerender(
+      <ToastProvider>
+        <TraegerAuthGuard>
+          <TraegerAccountPage />
+        </TraegerAuthGuard>
+      </ToastProvider>,
+    );
+
+    const field = await screen.findByRole("textbox", { name: /Ihr Name/ });
+    await waitFor(() => expect(headerName()).toHaveTextContent("Karl Kasse"));
+    fireEvent.change(field, { target: { value: "Karla Kasse" } });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(headerName()).toHaveTextContent("Karla Kasse"));
+
+    await act(async () => answerHeader(oldProfile));
+    expect(headerName()).toHaveTextContent("Karla Kasse");
+  });
+
   it("drops the name of the former membership after a change of Träger", async () => {
     api.fetchTraegerProfile.mockResolvedValueOnce({
       accountId: "4",
