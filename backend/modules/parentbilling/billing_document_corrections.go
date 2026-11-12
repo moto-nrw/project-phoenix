@@ -3,7 +3,7 @@ package parentbilling
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Storno, Gutschrift and Neuausstellung of an issued invoice (spec #4611

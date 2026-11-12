@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 func (s *Service) ListStudentDirectory(ctx context.Context, filter peopledirectory.StudentDirectoryFilter) ([]peopledirectory.StudentRecord, error) {

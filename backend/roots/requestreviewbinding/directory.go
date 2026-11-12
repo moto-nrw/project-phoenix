@@ -5,9 +5,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/requestreview"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/requestreview"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
 )
 
 // Students is the People Directory read needed for group decoration.

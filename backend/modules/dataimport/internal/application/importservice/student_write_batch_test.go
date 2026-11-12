@@ -7,8 +7,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	dataimport "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	dataimport "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 )
 
 type writeMatchTransactions struct {

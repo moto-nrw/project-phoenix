@@ -2,11 +2,11 @@
 package imports
 
 import (
-	dataimport "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	dataimport "github.com/moto-ogs/project-phoenix/modules/dataimport"
 
-	application "github.com/moto-nrw/project-phoenix/modules/dataimport/internal/application/importservice"
-	ports "github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	application "github.com/moto-ogs/project-phoenix/modules/dataimport/internal/application/importservice"
+	ports "github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func NewStudentImportConfig(deps ports.StudentImportDeps) ports.ImportConfig[dataimport.StudentImportRow] {

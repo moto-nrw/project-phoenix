@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/gitfixture"
+	"github.com/moto-ogs/project-phoenix/internal/gitfixture"
 )
 
 func TestPassthroughChecksCommittedBaseInventory(t *testing.T) {

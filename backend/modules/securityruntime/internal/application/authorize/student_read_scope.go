@@ -3,7 +3,7 @@ package authorize
 import (
 	"context"
 
-	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
+	securitycontract "github.com/moto-ogs/project-phoenix/modules/securityruntime/ports"
 )
 
 // ResolveStudentReadScope is the list-level counterpart to CanReadStudent: it

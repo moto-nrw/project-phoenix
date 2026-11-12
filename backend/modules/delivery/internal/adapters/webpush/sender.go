@@ -10,7 +10,7 @@ import (
 	"net/url"
 	"time"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 
 	provider "github.com/SherClockHolmes/webpush-go"
 )

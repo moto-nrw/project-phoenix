@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	ports "github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	ports "github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/imports"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/imports"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

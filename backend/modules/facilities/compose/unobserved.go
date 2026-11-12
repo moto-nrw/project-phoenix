@@ -3,8 +3,8 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	applicationBindings "github.com/moto-nrw/project-phoenix/modules/facilities/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	applicationBindings "github.com/moto-ogs/project-phoenix/modules/facilities/internal/application"
 	"github.com/uptrace/bun"
 )
 

@@ -8,8 +8,8 @@ import (
 	"sort"
 	"strings"
 
-	listexport "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	listexport "github.com/moto-ogs/project-phoenix/modules/documentrendering/records"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ExportBetreuungsplan renders the care week: which block runs when, in

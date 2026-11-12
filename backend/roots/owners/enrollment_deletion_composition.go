@@ -4,12 +4,12 @@ import (
 	"context"
 	"log/slog"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	timetableProjection "github.com/moto-nrw/project-phoenix/modules/timetableprojection/compose"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	timetableProjection "github.com/moto-ogs/project-phoenix/modules/timetableprojection/compose"
 )
 
 // enrollmentGuardianDirectory serves the deletion preview's guardians from

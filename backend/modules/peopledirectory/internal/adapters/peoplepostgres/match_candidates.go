@@ -6,9 +6,9 @@ import (
 
 	"github.com/uptrace/bun"
 
-	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	directory "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	ports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // matchCandidateLimit bounds the candidate list: the office reviews them by

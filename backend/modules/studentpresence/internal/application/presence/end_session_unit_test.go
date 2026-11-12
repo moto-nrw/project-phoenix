@@ -7,10 +7,10 @@ import (
 	"time"
 
 	"github.com/DATA-DOG/go-sqlmock"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -230,6 +230,7 @@ func (m *mockGroupRepository) GetOccupiedActivityGroupIDs(ctx context.Context, g
 type mockVisitRepository struct {
 	StudentPresence
 	lockRoomSessionWritesFunc func(context.Context, int64) error
+	listOverlappingVisitsFunc func(context.Context, studentpresence.VisitFilter) ([]studentpresence.Visit, error)
 
 	findByActiveGroupIDFunc               func(ctx context.Context, activeGroupID int64) ([]*studentpresence.Visit, error)
 	findByIDFunc                          func(ctx context.Context, id interface{}) (*studentpresence.Visit, error)
@@ -935,6 +936,12 @@ func (m *mockVisitRepository) ListVisitLocations(ctx context.Context, filter stu
 }
 
 func (m *mockVisitRepository) ListVisits(ctx context.Context, filter studentpresence.VisitFilter) ([]studentpresence.Visit, error) {
+	if filter.OverlapFrom != nil {
+		if m.listOverlappingVisitsFunc != nil {
+			return m.listOverlappingVisitsFunc(ctx, filter)
+		}
+		return nil, nil
+	}
 	if len(filter.StudentIDs) == 1 && filter.OpenOnly && filter.Limit == 1 {
 		row, err := m.GetCurrentByStudentID(ctx, filter.StudentIDs[0])
 		if IsNoRows(err) {

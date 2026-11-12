@@ -8,7 +8,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
+	reminder "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery"
 )
 
 type Middleware = func(http.Handler) http.Handler

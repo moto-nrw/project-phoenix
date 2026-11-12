@@ -7,8 +7,8 @@ import (
 	"encoding/hex"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/ports"
 )
 
 // LettermintSignatureForTest signs a webhook body, for a delivery through the router.

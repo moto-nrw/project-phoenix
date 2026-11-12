@@ -13,6 +13,7 @@ import {
 } from "@testing-library/react";
 import { describe, it, expect, vi, beforeEach, afterEach } from "vitest";
 import { DESKTOP_WIDTH, setViewportWidth } from "~/test/helpers/viewport";
+import { groupKeys } from "~/lib/swr/groups-keys";
 
 function createLocalStorageMock() {
   const store: Record<string, string> = {};
@@ -2462,6 +2463,61 @@ describe("OGSGroupPage ID-based selection: Stale selection reset", () => {
       isPersonal: true,
     },
   ];
+
+  it.each([null, "1"])(
+    "syncs another tab's group choice unless the URL selects %s",
+    async (groupParam) => {
+      localStorage.setItem(memoryKey("sidebar-last-group"), "1");
+      mockSearchParamsGet.mockImplementation((key) =>
+        key === "group" ? groupParam : null,
+      );
+      const response = {
+        data: liveData({
+          groups: groupsAB,
+          groupId: "1",
+          students: [
+            wireStudent({ id: 1, first_name: "Max", last_name: "Mustermann" }),
+          ],
+        }),
+        isLoading: false,
+        error: null,
+        mutate: mockMutate,
+        isValidating: false,
+      };
+      vi.mocked(useSWRAuth).mockReturnValue(response as never);
+      const { rerender } = render(<OGSGroupPage />);
+      expect(await screen.findByText(/Max Mustermann/)).toBeInTheDocument();
+
+      act(() => {
+        const key = memoryKey("sidebar-last-group");
+        localStorage.setItem(key, "2");
+        window.dispatchEvent(
+          new StorageEvent("storage", { key, oldValue: "1", newValue: "2" }),
+        );
+      });
+
+      const expectedGroup = groupParam ?? "2";
+      expect(vi.mocked(useSWRAuth).mock.lastCall?.[0]).toBe(
+        groupKeys.live(expectedGroup),
+      );
+      if (!groupParam) {
+        vi.mocked(useSWRAuth).mockReturnValue({
+          ...response,
+          data: liveData({
+            groups: groupsAB,
+            groupId: "2",
+            students: [
+              wireStudent({ id: 2, first_name: "Erika", last_name: "Schmidt" }),
+            ],
+          }),
+        } as never);
+        rerender(<OGSGroupPage />);
+        expect(await screen.findByText(/Erika Schmidt/)).toBeInTheDocument();
+      } else {
+        expect(screen.getByText(/Max Mustermann/)).toBeInTheDocument();
+      }
+    },
+  );
 
   it("resets to first group when previously selected group disappears from list", async () => {
     // Initial render: User has Group A (id=1) and Group B (id=2), Group A selected

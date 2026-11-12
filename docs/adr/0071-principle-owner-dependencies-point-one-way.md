@@ -5,8 +5,8 @@ status: accepted
 # Principle: owner dependencies point one way
 
 Principle ADR of 2026-10-19 under
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), written for
-[#4091](https://github.com/moto-nrw/project-phoenix/issues/4091). It states the
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580), written for
+[#4091](https://github.com/moto-ogs/project-phoenix/issues/4091). It states the
 rules for dependency direction and cycles that still hold. They come from
 [ADR 0058](0058-owner-dependencies-form-a-dag.md) and its addenda, which keep
 their measurements and history; this ADR changes none of them.
@@ -136,7 +136,7 @@ Every other existing runtime binding from a domain application to code owned
 by a workflow is direction debt, not a granted exception. No enumeration in
 this ADR is needed to establish that debt. New such bindings are forbidden.
 The maintained debt inventory is
-[#4825](https://github.com/moto-nrw/project-phoenix/issues/4825), including
+[#4825](https://github.com/moto-ogs/project-phoenix/issues/4825), including
 function fields and function parameters; it is authoritative for tracking and
 removal, not permission to retain or add callbacks. Removing this debt is
 outside #4740.
@@ -146,8 +146,8 @@ The command-effect gate from
 inventories interface-port bindings. Its coverage of function fields and
 parameters is incomplete; a green check is not proof that no runtime callback
 exists or that a binding is permitted. This coverage limit is tracked in
-[#4836](https://github.com/moto-nrw/project-phoenix/issues/4836) /
-[PR #4837](https://github.com/moto-nrw/project-phoenix/pull/4837).
+[#4836](https://github.com/moto-ogs/project-phoenix/issues/4836) /
+[PR #4837](https://github.com/moto-ogs/project-phoenix/pull/4837).
 
 ### Allowed workflow entries
 

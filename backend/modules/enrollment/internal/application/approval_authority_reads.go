@@ -6,7 +6,7 @@ import (
 	"maps"
 	"slices"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 type approvalAuthorityReadsKey struct{}

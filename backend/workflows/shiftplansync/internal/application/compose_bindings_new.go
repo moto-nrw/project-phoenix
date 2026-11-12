@@ -4,7 +4,7 @@ import (
 	context "context"
 	slices "slices"
 
-	workforce "github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforce "github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // missingNames lists the absent dependencies in a stable order.

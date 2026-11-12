@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
-	"github.com/moto-nrw/project-phoenix/internal/gitfixture"
+	"github.com/moto-ogs/project-phoenix/architecture/artifacts"
+	"github.com/moto-ogs/project-phoenix/internal/gitfixture"
 )
 
 func TestCommandEffectsChangedClosureNeedsFreshApproval(t *testing.T) {
@@ -94,7 +94,7 @@ func commitGapFixture(t *testing.T, project string) string {
 
 func requireGapBaseFailure(t *testing.T, project, base, want string) {
 	t.Helper()
-	err := CompareCommandEffects(project, base)
+	err := CompareCommandEffects(project, base, nil)
 	if err == nil || !strings.Contains(err.Error(), want) {
 		t.Fatalf("base check = %v, want %q", err, want)
 	}
@@ -135,7 +135,7 @@ func Build() { enrollment.Run(binding{command: func() { foreign.Ledger{}.Record(
 			if targets := fixtureEffectTargets(t, project, policy); len(targets) != 1 || targets[0] != "enrollment: foreign.Ledger.Record" {
 				t.Fatalf("closure evidence has no reviewed terminal: %v", targets)
 			}
-			if err := CompareCommandEffects(project, base); err != nil {
+			if err := CompareCommandEffects(project, base, nil); err != nil {
 				t.Fatal(err)
 			}
 		})

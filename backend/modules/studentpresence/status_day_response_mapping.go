@@ -1,7 +1,7 @@
 package studentpresence
 
 import (
-	absencerecords "github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	absencerecords "github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
 )
 
 func NewStudentStatusDayResponse(entry *absencerecords.StudentStatusDay) StudentStatusDayResponse {

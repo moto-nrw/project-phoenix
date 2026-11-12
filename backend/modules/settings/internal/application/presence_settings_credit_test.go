@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

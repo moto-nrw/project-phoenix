@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
+	education "github.com/moto-ogs/project-phoenix/modules/schoolstructure/contract"
 )
 
 // ScheduleRuntime is the substitution request's tenant transaction.

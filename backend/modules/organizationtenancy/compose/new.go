@@ -3,10 +3,10 @@ package compose
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/ports"
 	"github.com/uptrace/bun"
 )
 

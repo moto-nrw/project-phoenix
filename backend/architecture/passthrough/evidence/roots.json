@@ -954,6 +954,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (d groupStudentsInClassDay) InClassStillHolds(ctx context.Context) (bool, error) {\n\tcareDayEnd, err := d.settings.ResolveString(ctx, settingsplatform.KeySessionEndTime)\n\tif err != nil {\n\t\treturn false, err\n\t}\n\treturn careplan.InClassUntilCareDayEnd(careDayEnd, d.now()), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/groupStudentsInClassDay.InClassStillHolds",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (k holidayKnownChildren) KnownHolidayChildren(ctx context.Context, organizationID, periodID, registrationID int64) ([]enrollment.HolidayKnownChild, error) {\n\tknown, err := k.overview.KnownHolidayChildren(ctx, organizationID, periodID, registrationID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]enrollment.HolidayKnownChild, 0, len(known))\n\tfor _, child := range known {\n\t\tresult = append(result, enrollment.HolidayKnownChild(child))\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/holidayKnownChildren.KnownHolidayChildren",

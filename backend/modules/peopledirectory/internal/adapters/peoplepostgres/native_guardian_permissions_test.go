@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	directory "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 	"github.com/stretchr/testify/require"
 )
 

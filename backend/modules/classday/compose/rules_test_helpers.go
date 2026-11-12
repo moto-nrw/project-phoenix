@@ -3,9 +3,9 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/classday/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/classday/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/classday/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type Rules application.Rules

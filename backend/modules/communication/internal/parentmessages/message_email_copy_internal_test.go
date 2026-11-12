@@ -7,7 +7,7 @@ package messaging
 import (
 	"testing"
 
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/modules/delivery/devices"
 	"github.com/stretchr/testify/assert"
 )
 

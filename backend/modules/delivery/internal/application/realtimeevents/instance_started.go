@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // TenantPublisher broadcasts an event to every client of one school.

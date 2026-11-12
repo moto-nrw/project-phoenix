@@ -7,7 +7,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // applyBreakUpdates stages every interval first. Invalid batches must not write

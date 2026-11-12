@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
 )
 
 func (s *CareScheduleRequestService) GetPendingForStudent(ctx context.Context, id int64) (*carerequests.Request, []carerequests.DiffEntry, error) {

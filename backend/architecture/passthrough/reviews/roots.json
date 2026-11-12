@@ -681,6 +681,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0075",
+      "id": "api/groupStudentsInClassDay.InClassStillHolds",
+      "reason": "#5710: Consumer-port adapter that reads the school's care day end and applies the day-planning owner's rule for „Im Unterricht“, so the group student list ends the status like the staff views (ADR 0075 consumer-port adapter form)."
+    },
+    {
       "decision": "0214",
       "id": "api/holidayKnownChildren.KnownHolidayChildren",
       "reason": "ADR 0214 (#6683): Consumer-port adapter of Enrollment's known children port; it translates the Träger projection's known children, read in its administrative unit, into Enrollment's HolidayKnownChild vocabulary."

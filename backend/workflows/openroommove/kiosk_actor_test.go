@@ -3,7 +3,7 @@ package openroommove_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
+	"github.com/moto-ogs/project-phoenix/workflows/openroommove"
 	"github.com/stretchr/testify/assert"
 )
 

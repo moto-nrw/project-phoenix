@@ -3,9 +3,9 @@ package schoolcalendar_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	api "github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	api "github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 

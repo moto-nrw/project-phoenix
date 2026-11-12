@@ -5388,7 +5388,7 @@ export const ownGroupsTopic = function ownGroupsTopic(
       "Sehen Sie nur eine Gruppe? Dann öffnet moto sie direkt, ohne Auswahl.",
       "Ist für eine Gruppe keine Gruppenleitung eingetragen, fehlt diese Zeile auf ihrer Karte.",
       "Eine vorübergehend übernommene Gruppe ist mit `Vertretung` markiert.",
-      "In der Seitenleiste stehen unter `Gruppen` nur Ihre eigenen Gruppen. Dahinter steht, wie viele Kinder gerade da sind.",
+      "In der Seitenleiste stehen unter `Gruppen` Ihre eigenen Gruppen. Dahinter steht, wie viele Kinder gerade da sind. Haben Sie eine andere Gruppe geöffnet, steht sie markiert darunter.",
       "Fehlt eine Gruppe? Bitten Sie Ihre Leitung, Ihre Gruppenzuordnung zu prüfen.",
       // Einstellung „Kinder nur über ‚Alle Kinder‘ finden“ (#1321).
       "Fehlt `Gruppen` in der Navigation? Öffnen Sie `Alle Kinder` und wählen Sie oben `Meine Gruppe`. Die Gruppenseite öffnen Sie im Menü mit den drei Punkten unter `Zur Gruppenseite`.",
@@ -12946,13 +12946,14 @@ export const traegerProfileTopic = function traegerProfileTopic(): HelpTopic {
       "Wählen Sie `Speichern`.",
     ],
     result:
-      "Neue Einträge im Exportprotokoll und im Verlauf der Rechnungen zeigen Ihren Namen. Sie selbst sehen dort „von Ihnen“.",
+      "Oben rechts steht sofort Ihr Name. Neue Einträge im Exportprotokoll und im Verlauf der Rechnungen zeigen ihn auch. Sie selbst sehen dort „von Ihnen“.",
     notes: [
-      "Ihre E-Mail-Adresse steht dort nie. Sie sehen sie nur unter `Konto` bei `Anmeldung`.",
+      "Im Protokoll und im Verlauf steht Ihre E-Mail-Adresse nie. Sie sehen sie im Profil-Menü unter Ihrem Namen und unter `Konto` bei `Anmeldung`.",
       "Ihren Namen geben Sie schon beim Annehmen der Einladung an.",
       "Wer die Rolle `Leitung` hat, kann Namen auch unter `Mitglieder und Rollen` eintragen.",
     ],
     troubleshootingDetails: [
+      "Oben rechts steht Ihre E-Mail-Adresse statt eines Namens? Sie haben noch keinen Namen. Tragen Sie ihn unter `Konto` ein.",
       "Im Protokoll steht „von einem Konto ohne Namen“? Diese Person hat noch keinen Namen. Sie kann ihn unter `Konto` eintragen.",
       "Im Protokoll steht „von einem gelöschten Konto“? Das Konto gibt es nicht mehr. Der Name lässt sich nicht mehr zeigen.",
     ],

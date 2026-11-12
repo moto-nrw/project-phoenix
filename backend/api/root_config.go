@@ -4,13 +4,13 @@ import (
 	"context"
 	"errors"
 
-	classdayCompose "github.com/moto-nrw/project-phoenix/modules/classday/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	classdayCompose "github.com/moto-ogs/project-phoenix/modules/classday/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	education "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	securitycontract "github.com/moto-ogs/project-phoenix/modules/securityruntime/ports"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 	"github.com/spf13/viper"
 )
 

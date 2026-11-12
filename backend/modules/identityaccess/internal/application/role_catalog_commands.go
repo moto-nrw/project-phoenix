@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 func (r *RoleCatalog) listRoles(ctx context.Context, filter domain.RoleFilter) (value0 []domain.ManagedRole, err error) {

@@ -4,7 +4,7 @@ status: accepted
 
 # Existing visits lock before sessions and room rows
 
-Decision of 2026-10-29 for [#5280](https://github.com/moto-nrw/project-phoenix/issues/5280).
+Decision of 2026-10-29 for [#5280](https://github.com/moto-ogs/project-phoenix/issues/5280).
 Variant A is the decision: existing visit → session → room row, including
 bulk moves. Leaving the bulk move in the opposite order would introduce an
 admin-transfer/bulk-move cycle. Putting sessions first in scans would add

@@ -9,8 +9,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/testdb"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/internal/testdb"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 	"github.com/spf13/viper"
 	"github.com/subosito/gotenv"
 	"github.com/uptrace/bun"

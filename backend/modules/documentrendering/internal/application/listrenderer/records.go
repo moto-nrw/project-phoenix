@@ -3,7 +3,7 @@ package listexport
 import (
 	"strings"
 
-	listrecords "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
+	listrecords "github.com/moto-ogs/project-phoenix/modules/documentrendering/records"
 )
 
 // RenderRecords renders one block per record as a print-friendly PDF

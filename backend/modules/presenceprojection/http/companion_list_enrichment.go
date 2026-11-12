@@ -5,10 +5,10 @@ import (
 	slog "log/slog"
 	time "time"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
-	departure "github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	careplan "github.com/moto-ogs/project-phoenix/modules/careplan"
+	departure "github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // enrichWithCompanions fills CompanionStudentIDs for the given day with the

@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
+	securitycontract "github.com/moto-ogs/project-phoenix/modules/securityruntime/ports"
 )
 
 type authorizationStudent interface{ IsAuthorizationStudent() bool }

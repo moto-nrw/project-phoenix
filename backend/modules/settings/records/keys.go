@@ -3,7 +3,7 @@ package records
 import (
 	"strconv"
 
-	reviewsettings "github.com/moto-nrw/project-phoenix/modules/settings/review"
+	reviewsettings "github.com/moto-ogs/project-phoenix/modules/settings/review"
 )
 
 // Settings key constants. Use these instead of string literals to ensure

@@ -6,13 +6,13 @@ import (
 	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	"github.com/moto-ogs/project-phoenix/modules/communication/communicationtest"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -23,12 +23,12 @@ import (
 	// DB tests cannot reach. The forbidden/not-found/disabled sentinels stay distinct
 	// from these server faults — that distinction is the whole point of the mapping.
 
-	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+	messaging "github.com/moto-ogs/project-phoenix/modules/communication/internal/parentmessages"
 
-	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	settingsValues "github.com/moto-ogs/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/realtime"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 var errBoom = errors.New("transient DB failure")

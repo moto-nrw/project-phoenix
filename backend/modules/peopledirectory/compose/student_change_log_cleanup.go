@@ -3,8 +3,8 @@ package compose
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // NewStudentChangeLogCleanupService constructs the GDPR retention cleanup of

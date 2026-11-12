@@ -2,7 +2,7 @@
 
 package testutil
 
-import "github.com/moto-nrw/project-phoenix/api/testutil/routetest"
+import "github.com/moto-ogs/project-phoenix/api/testutil/routetest"
 
 var (
 	ExecuteRequestForTest      = routetest.ExecuteRequestForTest

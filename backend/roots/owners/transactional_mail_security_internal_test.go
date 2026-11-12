@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	delivery "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

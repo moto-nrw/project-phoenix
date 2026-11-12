@@ -3,13 +3,13 @@ package api
 import (
 	"log/slog"
 
-	movebinding "github.com/moto-nrw/project-phoenix/roots/openroommovebinding"
+	movebinding "github.com/moto-ogs/project-phoenix/roots/openroommovebinding"
 
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 
-	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
-	openRoomMoveCompose "github.com/moto-nrw/project-phoenix/workflows/openroommove/compose"
+	"github.com/moto-ogs/project-phoenix/workflows/openroommove"
+	openRoomMoveCompose "github.com/moto-ogs/project-phoenix/workflows/openroommove/compose"
 )
 
 // newOpenRoomMove composes the open-room move workflow (#3066) over the owner

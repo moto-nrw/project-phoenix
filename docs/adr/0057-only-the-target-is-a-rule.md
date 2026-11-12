@@ -5,9 +5,9 @@ status: accepted
 # Only the target is a rule; everything else is exact debt
 
 Decision of 2026-10-15 under
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), carried out
-by [#4070](https://github.com/moto-nrw/project-phoenix/issues/4070) within the
-consolidation [#4069](https://github.com/moto-nrw/project-phoenix/issues/4069).
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580), carried out
+by [#4070](https://github.com/moto-ogs/project-phoenix/issues/4070) within the
+consolidation [#4069](https://github.com/moto-ogs/project-phoenix/issues/4069).
 
 ## Context
 
@@ -58,7 +58,7 @@ The ratchet therefore measured how much debt had been moved out of
 5. **Ratchets outside the policy only fall.** A raised budget in any ratchet
    test needs an ADR. The measurement covers `compose` packages, `legacy_*.go`
    and `modules/*/http` as well
-   ([#4071](https://github.com/moto-nrw/project-phoenix/issues/4071)).
+   ([#4071](https://github.com/moto-ogs/project-phoenix/issues/4071)).
 6. **The conversion makes the number rise.** #4070 deletes every rule that is
    not target and adds its tuples to `legacy.jsonl` through the existing
    conversion path. The ratchet is expected to rise to between 300 and 750.

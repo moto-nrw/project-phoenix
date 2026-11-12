@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"time"
 
-	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	mailcontract "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
 )
 
 // fallbackPrimaryTimeout leaves the fallback time inside the worker's provider

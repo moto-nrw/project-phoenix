@@ -5,12 +5,12 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/internal/careplanning"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	compositionBinding "github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	carePlanBindingPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
+	"github.com/moto-ogs/project-phoenix/internal/careplanning"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	compositionBinding "github.com/moto-ogs/project-phoenix/modules/careplan/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	carePlanBindingPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
 	"github.com/uptrace/bun"
 )
 

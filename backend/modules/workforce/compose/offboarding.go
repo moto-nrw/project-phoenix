@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/application"
 )
 
 func NewOffboarding(dependencies Dependencies, appendDeletion func(context.Context, workforce.StaffAbsence, int64) error) (*workforce.Offboarding, error) {

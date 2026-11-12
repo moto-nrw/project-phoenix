@@ -3,7 +3,7 @@ package peopledirectory
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func datePtr(d calendar.Date) *calendar.Date { return &d }

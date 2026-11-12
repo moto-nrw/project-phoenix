@@ -3,8 +3,8 @@ package presence_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/application/presence"
 	"github.com/stretchr/testify/require"
 )
 

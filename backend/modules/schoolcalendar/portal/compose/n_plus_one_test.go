@@ -3,7 +3,7 @@ package compose_test
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/appointments"
+	"github.com/moto-ogs/project-phoenix/modules/appointments"
 )
 
 func (failingCandidateLock) FindReminderCandidatesForUpdate(context.Context, []int64) ([]*appointments.Appointment, error) {

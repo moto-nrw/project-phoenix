@@ -3,9 +3,9 @@ package application
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/selection"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/selection"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // The HTTP adapters classify refusals by Enrollment's public values, but some

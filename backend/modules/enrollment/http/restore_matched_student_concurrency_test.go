@@ -9,11 +9,11 @@ import (
 	"testing"
 	"time"
 
-	api "github.com/moto-nrw/project-phoenix/api"
+	api "github.com/moto-ogs/project-phoenix/api"
 
-	enrollment "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	enrollment "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )

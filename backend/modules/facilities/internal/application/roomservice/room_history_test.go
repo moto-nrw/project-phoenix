@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 	"github.com/stretchr/testify/require"
 )
 

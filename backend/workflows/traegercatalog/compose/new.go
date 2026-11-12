@@ -5,11 +5,11 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/traegercatalog"
-	"github.com/moto-nrw/project-phoenix/workflows/traegercatalog/internal/application"
-	"github.com/moto-nrw/project-phoenix/workflows/traegercatalog/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/workflows/traegercatalog"
+	"github.com/moto-ogs/project-phoenix/workflows/traegercatalog/internal/application"
+	"github.com/moto-ogs/project-phoenix/workflows/traegercatalog/ports"
 )
 
 // New builds the rollout over the owner ports; it opens the Träger

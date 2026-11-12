@@ -1,6 +1,6 @@
 package messaging
 
-import values "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
+import values "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
 
 const (
 	ParentMessageKindMessage            = values.ParentMessageKindMessage

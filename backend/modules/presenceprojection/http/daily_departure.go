@@ -6,8 +6,8 @@ import (
 	strings "strings"
 	time "time"
 
-	departure "github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	departure "github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type dailyDeparture struct {

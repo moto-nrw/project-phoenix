@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	dataImportCompose "github.com/moto-nrw/project-phoenix/modules/dataimport/compose"
-	importAPI "github.com/moto-nrw/project-phoenix/modules/dataimport/http"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	dataImportCompose "github.com/moto-ogs/project-phoenix/modules/dataimport/compose"
+	importAPI "github.com/moto-ogs/project-phoenix/modules/dataimport/http"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // TestUploadRefusalsAnswerWithRegisteredCodes pins the codes the import

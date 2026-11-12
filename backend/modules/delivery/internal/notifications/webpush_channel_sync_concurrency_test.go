@@ -7,7 +7,7 @@ import (
 	"testing"
 	"time"
 
-	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
+	deliveryModels "github.com/moto-ogs/project-phoenix/modules/delivery/subscriptions"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

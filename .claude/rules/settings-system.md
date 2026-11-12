@@ -211,7 +211,7 @@ either read error, and issuance requires a readable, positive lifetime.
 Availability/display hints stay restrictive on read errors. Lockout-policy
 errors remain fatal before code comparison: no consumed challenge, session,
 tokens or cookie. These entries supersede the trusted-device rows in
-[PR #4631's inventory](https://github.com/moto-nrw/project-phoenix/pull/4631#literal-fallback-inventar);
+[PR #4631's inventory](https://github.com/moto-ogs/project-phoenix/pull/4631#literal-fallback-inventar);
 other inventoried debt remains unchanged.
 
 **Known exceptions, not patterns for new code:**
@@ -223,7 +223,7 @@ other inventoried debt remains unchanged.
   not proof that every required port is already checked at startup.
 - Existing operational readers still use literals on errors or nil resolvers.
   The complete per-reader classification, including nil-only cases, lives in
-  [PR #4631, Literal-Fallback-Inventar](https://github.com/moto-nrw/project-phoenix/pull/4631#literal-fallback-inventar).
+  [PR #4631, Literal-Fallback-Inventar](https://github.com/moto-ogs/project-phoenix/pull/4631#literal-fallback-inventar).
   The #3841 device-PIN chain is now removed; other inventoried debt remains.
   The inventory is not permission to add a fallback.
 

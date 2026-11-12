@@ -6,11 +6,11 @@ import (
 	"log/slog"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	schedulerPorts "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 )
 
 // NewEnrollmentRequestUploads binds the staff reads, the retention and the

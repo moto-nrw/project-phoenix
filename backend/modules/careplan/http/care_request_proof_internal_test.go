@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	carerequests "github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	carerequests "github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

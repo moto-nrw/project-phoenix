@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // WorkTimeModelRepository serves configModels.WorkTimeModelRepository from the

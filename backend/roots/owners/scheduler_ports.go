@@ -4,21 +4,21 @@ import (
 	"context"
 	"fmt"
 
-	snapshotRecords "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	snapshotRecords "github.com/moto-ogs/project-phoenix/modules/settings/records"
 
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 
-	carePlanModule "github.com/moto-nrw/project-phoenix/modules/careplan"
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	schedulerRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
-	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	carePlanModule "github.com/moto-ogs/project-phoenix/modules/careplan"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
+	schedulerRuntimeCompose "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/compose"
+	schedulerPorts "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // verifySchedulerSettingKeys refuses a Worker whose scheduler reads a key

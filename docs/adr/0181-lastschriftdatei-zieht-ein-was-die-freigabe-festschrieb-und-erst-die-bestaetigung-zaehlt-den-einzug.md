@@ -6,8 +6,8 @@ status: proposed
 
 **Status: Vorgeschlagen.**
 
-Vorschlag vom 08.11.2026 zu [#4697](https://github.com/moto-nrw/project-phoenix/issues/4697),
-Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611) (User Story 86).
+Vorschlag vom 08.11.2026 zu [#4697](https://github.com/moto-ogs/project-phoenix/issues/4697),
+Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611) (User Story 86).
 Er baut auf [ADR 0171](0171-sepa-mandat-gehoert-dem-zahler-der-familie-und-die-rechnung-haelt-es-fest.md)
 (Mandat, Gläubiger-ID, Vorabankündigung),
 [ADR 0167](0167-zahlungsweg-faelligkeit-und-empfaenger-entscheidet-eine-regel-und-die-rechnung-haelt-sie-fest.md)
@@ -25,7 +25,7 @@ Mandate enthalten, muss erste und Folgelastschrift unterscheiden und die
 Kontodaten verwenden, die bei der Ausstellung galten. Ein Mandat verfällt nach
 36 Monaten ohne Einzug. Laut Entscheidung im Issue entsteht die Datei zunächst
 ohne Eintrag im Exportprotokoll; der folgt mit
-[#4693](https://github.com/moto-nrw/project-phoenix/issues/4693).
+[#4693](https://github.com/moto-ogs/project-phoenix/issues/4693).
 
 ## Entscheidung
 

@@ -7,11 +7,11 @@ status: accepted
 Status: Angenommen. Freigegeben von Yannick Mark Wenger am 07.11.2026.
 
 Vorschlag vom 07.11.2026 (Entscheidung E6) zu
-[#5881](https://github.com/moto-nrw/project-phoenix/issues/5881),
-[#5795](https://github.com/moto-nrw/project-phoenix/issues/5795),
-[#5878](https://github.com/moto-nrw/project-phoenix/issues/5878),
-[#5894](https://github.com/moto-nrw/project-phoenix/issues/5894) und
-[#5862](https://github.com/moto-nrw/project-phoenix/issues/5862).
+[#5881](https://github.com/moto-ogs/project-phoenix/issues/5881),
+[#5795](https://github.com/moto-ogs/project-phoenix/issues/5795),
+[#5878](https://github.com/moto-ogs/project-phoenix/issues/5878),
+[#5894](https://github.com/moto-ogs/project-phoenix/issues/5894) und
+[#5862](https://github.com/moto-ogs/project-phoenix/issues/5862).
 Die Umsetzung folgt in späteren PRs, je Schritt einer. Die Entscheidung
 selbst ändert keinen Code und kein Register. Sie legt fest, wann mehrere Transaktionsrahmen eines Ablaufs
 zu einem werden dürfen und welche Registereinträge dafür entstehen.

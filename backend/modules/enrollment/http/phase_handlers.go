@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // PhaseResponse is the wire shape returned to admin UIs. Int64 IDs are

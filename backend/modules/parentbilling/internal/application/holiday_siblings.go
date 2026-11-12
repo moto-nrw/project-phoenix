@@ -6,7 +6,7 @@ import (
 	"reflect"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // Siblings from separate holiday registrations (#5628, ADR 0115 addendum).

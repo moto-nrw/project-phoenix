@@ -3,7 +3,7 @@ package devicescan
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // PersonLookup supplies card and person facts to scan workflows.

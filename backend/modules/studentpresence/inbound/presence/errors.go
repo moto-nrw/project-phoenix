@@ -1,8 +1,8 @@
 package presence
 
 import (
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // errorRules maps presence sentinels to their HTTP status in the shared error
@@ -41,6 +41,9 @@ var errorRules = []common.ErrorRule{
 	// A web assignment beyond the activity's participant limit (#3632) is a
 	// business rejection: 409 with its code and the numbers as details.
 	{Target: studentpresence.ErrActivityParticipantLimitExceeded, Render: common.ErrorBusinessRejection},
+	// A visit correction that would overlap another visit of the child is a
+	// business rejection too (#5710): 409 with its code and the other visit.
+	{Target: studentpresence.ErrVisitOverlap, Render: common.ErrorBusinessRejection},
 	{Target: studentpresence.ErrNoRoomAvailable, Render: common.ErrorInvalidRequest},
 	{Target: studentpresence.ErrStudentNotFound, Render: common.ErrorNotFound},
 	{Target: studentpresence.ErrStaffNotFound, Render: common.ErrorNotFound},
