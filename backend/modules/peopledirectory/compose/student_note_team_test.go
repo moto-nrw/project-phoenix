@@ -66,10 +66,14 @@ func unreadNotices(t *testing.T, db *testpkg.DB, module *Directory, ctx context.
 	})
 }
 
-func readNotices(t *testing.T, db *testpkg.DB, module *Directory, ctx context.Context, reader, studentID int64) ([]peopledirectory.StudentNoteTeamNotice, error) {
+func readNotices(t *testing.T, db *testpkg.DB, module *Directory, ctx context.Context, reader, studentID int64, observed ...peopledirectory.StudentNoteTeamNotice) ([]peopledirectory.StudentNoteTeamNotice, error) {
 	t.Helper()
+	revisions := make([]peopledirectory.StudentNoteTeamNoticeRevision, 0, len(observed))
+	for _, notice := range observed {
+		revisions = append(revisions, peopledirectory.StudentNoteTeamNoticeRevision{NoteID: notice.NoteID, InformedAt: notice.InformedAt})
+	}
 	return inSchool(t, db, ctx, func(txCtx context.Context) ([]peopledirectory.StudentNoteTeamNotice, error) {
-		return module.StudentNoteTeam.MarkStudentNoteTeamNoticesRead(txCtx, reader, studentID)
+		return module.StudentNoteTeam.MarkStudentNoteTeamNoticesRead(txCtx, reader, studentID, revisions)
 	})
 }
 
@@ -114,12 +118,15 @@ func TestStudentNoteTeamTellsTheColleaguesAndClearsOnRead(t *testing.T) {
 	assert.Equal(t, "Lio", unread[0].StudentFirstName)
 	assert.Equal(t, "Teamnotiz", unread[0].StudentLastName)
 	assert.Equal(t, "Anja Autorin", unread[0].AuthorName)
+	remaining, err := readNotices(t, db, module, ctx, colleague, child.ID)
+	require.NoError(t, err)
+	assert.Equal(t, []int64{note.ID}, noticeNotes(remaining), "an empty observation never clears unread markers")
 
 	own, err := unreadNotices(t, db, module, ctx, author)
 	require.NoError(t, err)
 	assert.Empty(t, own, "the author has no marker")
 
-	remaining, err := readNotices(t, db, module, ctx, colleague, child.ID)
+	remaining, err = readNotices(t, db, module, ctx, colleague, child.ID, unread...)
 	require.NoError(t, err)
 	assert.Empty(t, remaining, "opening the child's notes clears the colleague's marker")
 	stillUnread, err := unreadNotices(t, db, module, ctx, other)
@@ -133,6 +140,20 @@ func TestStudentNoteTeamTellsTheColleaguesAndClearsOnRead(t *testing.T) {
 	again, err := unreadNotices(t, db, module, ctx, colleague)
 	require.NoError(t, err)
 	assert.Equal(t, []int64{note.ID}, noticeNotes(again), "telling the team again makes the note unread again")
+
+	newNote := teamNote(t, module, ctx, child.ID, author, peopledirectory.StudentNoteVisibilityAllStaff)
+	_, err = informTeam(t, db, module, ctx, peopledirectory.InformStudentNoteTeam{
+		NoteID: newNote.ID, StudentID: child.ID, ActorAccountID: author, RecipientAccountIDs: []int64{colleague},
+	})
+	require.NoError(t, err)
+	remaining, err = readNotices(t, db, module, ctx, colleague, child.ID, unread...)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []int64{note.ID, newNote.ID}, noticeNotes(remaining),
+		"a stale acknowledgement clears neither a repeat announcement nor a newly shared note")
+
+	remaining, err = readNotices(t, db, module, ctx, colleague, child.ID, again...)
+	require.NoError(t, err)
+	assert.Equal(t, []int64{newNote.ID}, noticeNotes(remaining), "only the observed announcement revision clears")
 
 	t.Run("another school never sees the markers", func(t *testing.T) {
 		foreign, err := unreadNotices(t, db, module, testpkg.OwnCtx(t), colleague)

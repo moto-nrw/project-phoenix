@@ -7,6 +7,7 @@ import { useShellAuthSafe } from "~/lib/shell-auth-context";
 import {
   studentNotesService,
   type StudentNoteTeamNotice,
+  type StudentNoteTeamNoticeRevision,
 } from "~/lib/student-notes-api";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { studentKeys } from "~/lib/swr/portal-keys";
@@ -45,10 +46,15 @@ export function useStudentNoteTeamNotices() {
   );
   const tenantMutate = useTenantMutate();
   const markRead = useCallback(
-    async (studentId: string) => {
+    async (
+      studentId: string,
+      observed: readonly StudentNoteTeamNoticeRevision[],
+    ) => {
       if (!key) return;
-      const remaining =
-        await studentNotesService.markTeamNoticesRead(studentId);
+      const remaining = await studentNotesService.markTeamNoticesRead(
+        studentId,
+        observed,
+      );
       await tenantMutate(key, remaining, { revalidate: false });
     },
     [key, tenantMutate],

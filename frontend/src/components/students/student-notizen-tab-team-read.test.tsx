@@ -19,14 +19,19 @@ vi.mock("~/lib/tenant-context", () => ({
   useTenantSlugSafe: () => "school-a",
 }));
 vi.mock("~/lib/session-cache", () => ({ announceSessionChange: vi.fn() }));
-const { list, markRead, team } = vi.hoisted(() => ({
+const { list, listPermanent, markRead, team } = vi.hoisted(() => ({
   list: vi.fn(),
+  listPermanent: vi.fn(),
   markRead: vi.fn(async () => undefined),
   team: { notices: [] as StudentNoteTeamNotice[] },
 }));
 vi.mock("~/lib/student-notes-api", async (original) => ({
   ...(await original<typeof import("~/lib/student-notes-api")>()),
-  studentNotesService: { list, listActivities: async () => [] },
+  studentNotesService: {
+    list: (studentId: string, kind?: string) =>
+      kind === "permanent" ? listPermanent(studentId) : list(studentId),
+    listActivities: async () => [],
+  },
 }));
 vi.mock("~/lib/hooks/use-student-note-team-notices", () => ({
   useStudentNoteTeamNotices: () => ({ notices: team.notices, markRead }),
@@ -88,6 +93,7 @@ function renderTab() {
 
 beforeEach(() => {
   list.mockReset().mockResolvedValue([note]);
+  listPermanent.mockReset().mockResolvedValue([]);
   markRead.mockReset().mockResolvedValue(undefined);
   team.notices = [];
 });
@@ -95,6 +101,7 @@ beforeEach(() => {
 describe("reading shared notes", () => {
   it("keeps notices unread while another tab is selected, including an in-flight refresh", async () => {
     const view = renderTab();
+    // Anker: die Chronik ist geladen, bevor ein anderer Reiter gewählt wird.
     expect(await screen.findByText(note.body)).toBeVisible();
     view.show(false);
     team.notices = [notice];
@@ -117,14 +124,17 @@ describe("reading shared notes", () => {
 
     list.mockResolvedValue([note]);
     view.show(true);
-    await waitFor(() => expect(markRead).toHaveBeenCalledWith("7"));
+    await waitFor(() => expect(markRead).toHaveBeenCalledWith("7", [notice]));
   });
 
   it("refreshes new and repeatedly shared notes before acknowledging them", async () => {
     const view = renderTab();
+    // Anker: der bisherige Eintrag ist sichtbar, bevor die Mitteilung eintrifft.
     expect(await screen.findByText(note.body)).toBeVisible();
     const refresh = pendingNotes();
+    const permanentRefresh = pendingNotes();
     list.mockReturnValue(refresh.promise);
+    listPermanent.mockReturnValue(permanentRefresh.promise);
     team.notices = [{ ...notice, noteId: "2" }];
     view.show(true);
     await waitFor(() => expect(list).toHaveBeenCalledTimes(2));
@@ -141,7 +151,16 @@ describe("reading shared notes", () => {
       refresh.resolve([note, added]);
     });
     expect(await screen.findByText(added.body)).toBeVisible();
-    await waitFor(() => expect(markRead).toHaveBeenCalledTimes(1));
+    expect(listPermanent).toHaveBeenCalledWith("7");
+    expect(markRead).not.toHaveBeenCalled();
+    await act(async () => {
+      permanentRefresh.resolve([]);
+    });
+    await waitFor(() =>
+      expect(markRead).toHaveBeenNthCalledWith(1, "7", [
+        { ...notice, noteId: "2" },
+      ]),
+    );
 
     const correction = pendingNotes();
     list.mockReturnValue(correction.promise);
@@ -157,12 +176,17 @@ describe("reading shared notes", () => {
       correction.resolve([note, { ...added, body: "Berichtigter Eintrag" }]);
     });
     expect(await screen.findByText("Berichtigter Eintrag")).toBeVisible();
-    await waitFor(() => expect(markRead).toHaveBeenCalledTimes(2));
+    await waitFor(() =>
+      expect(markRead).toHaveBeenNthCalledWith(2, "7", [
+        { ...notice, noteId: "2", informedAt: "2026-09-09T11:00:00Z" },
+      ]),
+    );
     expect(visibleAtRead).toEqual([true, true]);
   });
 
   it("keeps notices unread when refreshing the cached notes fails", async () => {
     const view = renderTab();
+    // Anker: die bestätigte Chronik bleibt bei einem Ladefehler sichtbar.
     expect(await screen.findByText(note.body)).toBeVisible();
     list.mockRejectedValue(new Error("unavailable"));
     team.notices = [notice];

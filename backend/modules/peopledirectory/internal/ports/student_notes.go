@@ -49,6 +49,6 @@ type StudentNoteTeamStore interface {
 	// ListUnreadTeamNotices returns the reader's unread markers on live notes
 	// for the whole team, newest first.
 	ListUnreadTeamNotices(ctx context.Context, readerAccountID int64, limit int) ([]domain.StudentNoteTeamNotice, domain.OperationStats, error)
-	// MarkTeamNoticesRead clears the reader's markers on the child's notes.
-	MarkTeamNoticesRead(ctx context.Context, readerAccountID, studentID int64) (domain.OperationStats, error)
+	// MarkTeamNoticesRead clears only matching announcement revisions.
+	MarkTeamNoticesRead(ctx context.Context, readerAccountID, studentID int64, observed []domain.StudentNoteTeamNoticeRevision) (domain.OperationStats, error)
 }

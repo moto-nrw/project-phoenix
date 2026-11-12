@@ -2,6 +2,7 @@ package students
 
 import (
 	context "context"
+	json "encoding/json"
 	errors "errors"
 	http "net/http"
 	strconv "strconv"
@@ -129,7 +130,21 @@ func (rs *Resource) readStudentNoteTeamNotices(w http.ResponseWriter, r *http.Re
 	if !ok {
 		return
 	}
-	notices, err := rs.StudentNoteTeam.MarkStudentNoteTeamNoticesRead(r.Context(), callerAccountID(r), studentID)
+	var body struct {
+		Notices []struct {
+			NoteID     int64     `json:"note_id,string"`
+			InformedAt time.Time `json:"informed_at"`
+		} `json:"notices"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
+		renderError(w, r, common.ErrorInvalidRequest(errors.New("invalid notice revisions")))
+		return
+	}
+	observed := make([]peopleModule.StudentNoteTeamNoticeRevision, 0, len(body.Notices))
+	for _, notice := range body.Notices {
+		observed = append(observed, peopleModule.StudentNoteTeamNoticeRevision{NoteID: notice.NoteID, InformedAt: notice.InformedAt})
+	}
+	notices, err := rs.StudentNoteTeam.MarkStudentNoteTeamNoticesRead(r.Context(), callerAccountID(r), studentID, observed)
 	if err != nil {
 		renderError(w, r, studentNoteErrorRenderer(err))
 		return

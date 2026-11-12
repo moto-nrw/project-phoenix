@@ -92,25 +92,37 @@ func (s *StudentNoteStore) ListUnreadTeamNotices(ctx context.Context, readerAcco
 	return notices, stats, nil
 }
 
-// MarkTeamNoticesRead clears the reader's markers on every note of the child.
-func (s *StudentNoteStore) MarkTeamNoticesRead(ctx context.Context, readerAccountID, studentID int64) (domain.OperationStats, error) {
+// MarkTeamNoticesRead clears only the revisions loaded by this reader.
+func (s *StudentNoteStore) MarkTeamNoticesRead(ctx context.Context, readerAccountID, studentID int64, observed []domain.StudentNoteTeamNoticeRevision) (domain.OperationStats, error) {
 	db, scope, err := s.tenantDatabase(ctx)
 	if err != nil {
 		return domain.OperationStats{}, err
+	}
+	if len(observed) == 0 {
+		return domain.OperationStats{}, nil
+	}
+	noteIDs := make([]int64, 0, len(observed))
+	informedAt := make([]string, 0, len(observed))
+	for _, notice := range observed {
+		noteIDs = append(noteIDs, notice.NoteID)
+		informedAt = append(informedAt, notice.InformedAt.Format(time.RFC3339Nano))
 	}
 	stats := domain.OperationStats{Queries: 1}
 	started := time.Now()
 	result, err := db.NewRaw(`
 		UPDATE `+studentNoteTeamNoticesTable+` AS notice
 		SET read_at = clock_timestamp()
-		FROM `+studentNotesTable+` AS note
+		FROM `+studentNotesTable+` AS note,
+			unnest(?::bigint[], ?::timestamptz[]) AS observed(note_id, informed_at)
 		WHERE notice.tenant_id = ?
 			AND notice.recipient_account_id = ?
 			AND notice.read_at IS NULL
+			AND notice.note_id = observed.note_id
+			AND notice.informed_at = observed.informed_at
 			AND note.id = notice.note_id
 			AND note.tenant_id = notice.tenant_id
 			AND note.student_id = ?`,
-		scope.TenantID, readerAccountID, studentID).Exec(ctx)
+		pgdialect.Array(noteIDs), pgdialect.Array(informedAt), scope.TenantID, readerAccountID, studentID).Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
 		return stats, fmt.Errorf("mark student note team notices read: %w", err)

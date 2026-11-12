@@ -59,3 +59,9 @@ type StudentNoteTeamNotice struct {
 	AuthorAccountID *int64
 	InformedAt      time.Time
 }
+
+// StudentNoteTeamNoticeRevision identifies the announcement loaded by a reader.
+type StudentNoteTeamNoticeRevision struct {
+	NoteID     int64
+	InformedAt time.Time
+}
