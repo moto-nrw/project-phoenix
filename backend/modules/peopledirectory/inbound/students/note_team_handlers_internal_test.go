@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // The share route answers a refusal with the status the client can act on:

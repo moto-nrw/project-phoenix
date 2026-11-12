@@ -7,8 +7,8 @@ import (
 	strconv "strconv"
 	time "time"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // StudentNoteTeamReach names the colleagues who may read a child's notes and

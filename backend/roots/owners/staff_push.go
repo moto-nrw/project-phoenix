@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
 )
 
 // StaffPush is one device notification to named staff accounts of the

@@ -8,10 +8,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	studentsAPI "github.com/moto-ogs/project-phoenix/modules/peopledirectory/inbound/students"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 type studentNoteReadersFunc func(context.Context, string) ([]*peopleValues.StaffWithRoleInfo, error)

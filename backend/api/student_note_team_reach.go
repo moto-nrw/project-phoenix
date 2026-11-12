@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	studentsAPI "github.com/moto-ogs/project-phoenix/modules/peopledirectory/inbound/students"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // studentNoteTeamReach binds "Speichern und Team informieren" (#6854) to the
