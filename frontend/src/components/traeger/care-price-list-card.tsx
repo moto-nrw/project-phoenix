@@ -35,6 +35,7 @@ import {
   weekdayList,
 } from "./care-billing-format";
 import { formatEuro } from "./contribution-format";
+import { schoolsConcept } from "~/lib/concepts/schools";
 
 /** Whether any row of the list names a sibling price. */
 function hasSiblingPrices(rows: readonly PriceRow[]): boolean {
@@ -328,6 +329,7 @@ export function CarePriceListCard({
 
   return (
     <SectionCard
+      concept={schoolsConcept}
       title={school.name}
       description={description || undefined}
       actions={

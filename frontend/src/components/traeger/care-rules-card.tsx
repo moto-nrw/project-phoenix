@@ -4,14 +4,7 @@
 // Geschwisterregeln. Jede Zeile zeigt Name, Wirkung, Monate und Schulen; die
 // Aktionen stehen im Menü der Zeile.
 
-import {
-  BadgePercent,
-  Crown,
-  HeartHandshake,
-  Pencil,
-  Trash2,
-  User,
-} from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
@@ -29,13 +22,19 @@ import {
   ruleEffect,
   validityLabel,
 } from "./care-reduction-format";
+import { contributionsConcept } from "~/lib/concepts/contributions";
+import { siblingsConcept } from "~/lib/concepts/siblings";
+import { singleParentConcept } from "~/lib/concepts/singleParent";
+import { billingConcept } from "~/lib/concepts/billing";
 
-const KIND_ICONS = {
-  income_level: BadgePercent,
-  // One head means a child (concept icons): a sibling rule is about children.
-  sibling: User,
-  single_parent: HeartHandshake,
-  cap: Crown,
+// Each rule kind carries its concept in colour, as the OGS card heads do:
+// income levels the contribution coins, siblings several children, single
+// parents one adult, the cap the billing.
+const KIND_CONCEPTS = {
+  income_level: contributionsConcept,
+  sibling: siblingsConcept,
+  single_parent: singleParentConcept,
+  cap: billingConcept,
 } as const;
 
 const CREATE_LABELS: Record<CareRuleKind, string> = {
@@ -131,7 +130,7 @@ export function CareRulesCard({
     <SectionCard
       title={label}
       description={CARE_RULE_KIND_PURPOSE[kind]}
-      icon={KIND_ICONS[kind]}
+      concept={KIND_CONCEPTS[kind]}
       titleBadge={
         rules.length > 0 ? (
           <StatusBadge tone="gray" label={String(rules.length)} />

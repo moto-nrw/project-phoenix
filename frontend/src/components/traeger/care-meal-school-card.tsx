@@ -27,6 +27,7 @@ import {
   mealStands,
 } from "./care-meal-format";
 import { formatEuro } from "./contribution-format";
+import { schoolsConcept } from "~/lib/concepts/schools";
 
 const STAND_TONES: Record<MealStandStatus, StatusBadgeTone> = {
   current: "green",
@@ -116,6 +117,7 @@ export function CareMealSchoolCard({
 
   return (
     <SectionCard
+      concept={schoolsConcept}
       title={school.name}
       // The mode that counts this month, in green beside the school.
       titleBadge={
