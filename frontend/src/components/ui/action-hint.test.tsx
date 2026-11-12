@@ -430,6 +430,10 @@ describe("disabledReason on kit buttons", () => {
       const onParentPointerDown = vi.fn();
       const onParentKeyDown = vi.fn();
       const onParentKeyPress = vi.fn();
+      const onParentClickCapture = vi.fn();
+      const onParentPointerDownCapture = vi.fn();
+      const onParentKeyDownCapture = vi.fn();
+      const onParentKeyPressCapture = vi.fn();
       const onControlClickCapture = vi.fn();
       render(
         <div
@@ -437,9 +441,13 @@ describe("disabledReason on kit buttons", () => {
           tabIndex={0}
           aria-label="Klickbare Zeile"
           onClick={onParentClick}
+          onClickCapture={onParentClickCapture}
           onPointerDown={onParentPointerDown}
+          onPointerDownCapture={onParentPointerDownCapture}
           onKeyDown={onParentKeyDown}
+          onKeyDownCapture={onParentKeyDownCapture}
           onKeyPress={onParentKeyPress}
+          onKeyPressCapture={onParentKeyPressCapture}
         >
           {link ? (
             <ButtonLink
@@ -472,9 +480,13 @@ describe("disabledReason on kit buttons", () => {
 
       expect(onControlClickCapture).not.toHaveBeenCalled();
       expect(onParentClick).not.toHaveBeenCalled();
+      expect(onParentClickCapture).not.toHaveBeenCalled();
       expect(onParentPointerDown).not.toHaveBeenCalled();
+      expect(onParentPointerDownCapture).not.toHaveBeenCalled();
       expect(onParentKeyDown).not.toHaveBeenCalled();
+      expect(onParentKeyDownCapture).not.toHaveBeenCalled();
       expect(onParentKeyPress).not.toHaveBeenCalled();
+      expect(onParentKeyPressCapture).not.toHaveBeenCalled();
     },
   );
 

@@ -29,6 +29,25 @@ const LEAVE_GRACE_MS = 120;
 let keyboardModality = false;
 let modalityTracking = false;
 const pendingHoverCancels = new Set<() => void>();
+const blockedHintHandlers = new Map<
+  string,
+  (anchor: HTMLElement, pointerType: string) => void
+>();
+const BLOCKED_ACTIVATION_EVENTS = [
+  "click",
+  "dblclick",
+  "auxclick",
+  "mousedown",
+  "mouseup",
+  "pointerdown",
+  "pointerup",
+  "touchstart",
+  "touchend",
+  "keydown",
+  "keyup",
+  "keypress",
+] as const;
+let blockedActivationTracking = false;
 
 function cancelPendingHoverHints() {
   for (const cancel of [...pendingHoverCancels]) cancel();
@@ -56,10 +75,51 @@ function trackModality() {
   document.addEventListener("focusin", cancelPendingHoverHints, true);
 }
 
+function blockDisabledHintActivation(event: Event) {
+  const target = event.target;
+  if (!(target instanceof Element)) return;
+  const anchor = target.closest<HTMLElement>("[data-action-hint-anchor]");
+  const id = anchor?.getAttribute("data-action-hint-anchor");
+  if (!anchor || !id) return;
+  const showHint = blockedHintHandlers.get(id);
+  if (!showHint) return;
+
+  // Dieser Listener läuft auf `window` vor Capture-Handlern eines klickbaren
+  // Vorfahren. `aria-disabled` muss diese Sperre selbst nachbilden.
+  event.preventDefault();
+  event.stopPropagation();
+  if (event.type === "pointerdown") {
+    keyboardModality = false;
+    showHint(anchor, (event as PointerEvent).pointerType);
+  }
+}
+
+function registerBlockedHint(
+  id: string,
+  showHint: (anchor: HTMLElement, pointerType: string) => void,
+) {
+  blockedHintHandlers.set(id, showHint);
+  if (!blockedActivationTracking) {
+    blockedActivationTracking = true;
+    for (const event of BLOCKED_ACTIVATION_EVENTS) {
+      window.addEventListener(event, blockDisabledHintActivation, true);
+    }
+  }
+  return () => {
+    blockedHintHandlers.delete(id);
+    if (blockedHintHandlers.size !== 0 || !blockedActivationTracking) return;
+    blockedActivationTracking = false;
+    for (const event of BLOCKED_ACTIVATION_EVENTS) {
+      window.removeEventListener(event, blockDisabledHintActivation, true);
+    }
+  };
+}
+
 interface HintTargetProps {
   readonly children?: React.ReactNode;
   readonly "aria-describedby"?: string;
   readonly "aria-label"?: string;
+  readonly "data-action-hint-anchor"?: string;
   readonly onPointerEnter?: React.PointerEventHandler<HTMLElement>;
   readonly onPointerLeave?: React.PointerEventHandler<HTMLElement>;
   readonly onPointerDown?: React.PointerEventHandler<HTMLElement>;
@@ -127,11 +187,26 @@ export function ActionHint({
       setAnchor(null);
     }, LEAVE_GRACE_MS);
   }, [cancel]);
+  const showBlockedHint = useCallback(
+    (target: HTMLElement, pointerType: string) => {
+      // Ein Klick auf einen gesperrten Knopf löst nichts aus: er zeigt den
+      // Grund sofort. Ein zweiter Tipp schließt ihn wieder.
+      const tap = pointerType !== "mouse";
+      cancel();
+      setAnchor((open) => (tap && open ? null : target));
+    },
+    [cancel],
+  );
 
   useEffect(() => {
     trackModality();
     return cancel;
   }, [cancel]);
+
+  useLayoutEffect(() => {
+    if (!showOnTap) return;
+    return registerBlockedHint(id, showBlockedHint);
+  }, [id, showBlockedHint, showOnTap]);
 
   useEffect(() => {
     if (!anchor) return;
@@ -185,6 +260,7 @@ export function ActionHint({
     <>
       {cloneElement(child, {
         "aria-describedby": describedBy,
+        "data-action-hint-anchor": showOnTap ? id : undefined,
         onPointerEnter: (event) => {
           props.onPointerEnter?.(event);
           if (event.pointerType !== "mouse") return;
@@ -208,12 +284,7 @@ export function ActionHint({
         onPointerDown: (event) => {
           props.onPointerDown?.(event);
           if (showOnTap) {
-            // Ein Klick auf einen gesperrten Knopf löst nichts aus: er zeigt
-            // den Grund sofort. Ein zweiter Tipp schließt ihn wieder.
-            const target = event.currentTarget;
-            const tap = event.pointerType !== "mouse";
-            cancel();
-            setAnchor((open) => (tap && open ? null : target));
+            showBlockedHint(event.currentTarget, event.pointerType);
             return;
           }
           hide();
