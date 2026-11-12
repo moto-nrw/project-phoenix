@@ -133,9 +133,14 @@ describe("CareExitModal", () => {
 
   it("requires a reason before the preview can be loaded", () => {
     renderModal();
-    expect(screen.getByRole("button", { name: "Weiter" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Weiter" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     pickReason("Umzug");
-    expect(screen.getByRole("button", { name: "Weiter" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Weiter" })).not.toHaveAttribute(
+      "aria-disabled",
+    );
   });
 
   it("asks for a short explanation only for 'Anderer Grund'", () => {
@@ -146,10 +151,15 @@ describe("CareExitModal", () => {
     pickReason("Anderer Grund");
     const note = screen.getByLabelText("Kurze Erklärung");
     expect(note).toBeVisible();
-    expect(screen.getByRole("button", { name: "Weiter" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Weiter" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
 
     fireEvent.change(note, { target: { value: "Wechsel in den Hort" } });
-    expect(screen.getByRole("button", { name: "Weiter" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Weiter" })).not.toHaveAttribute(
+      "aria-disabled",
+    );
   });
 
   it("names every child and its consequences before confirming", async () => {
@@ -212,7 +222,7 @@ describe("CareExitModal", () => {
     ).toBeVisible();
     expect(
       screen.getByRole("button", { name: /Betreuung beenden/ }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(mockConfirm).not.toHaveBeenCalled();
   });
 
@@ -388,7 +398,9 @@ describe("CareExitModal", () => {
     expect(
       screen.getByText(/Der letzte Betreuungstag ist am 31\.08\.2026/),
     ).toBeVisible();
-    expect(screen.getByRole("button", { name: "Weiter" })).toBeEnabled();
+    expect(screen.getByRole("button", { name: "Weiter" })).not.toHaveAttribute(
+      "aria-disabled",
+    );
     fireEvent.click(screen.getByRole("button", { name: "Weiter" }));
 
     await waitFor(() =>

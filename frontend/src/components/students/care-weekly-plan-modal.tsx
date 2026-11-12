@@ -109,6 +109,7 @@ function CareWeeklyPlanModalForm({
         type="button"
         variant="outline"
         size="md"
+        noTooltip="Schließt nur das Fenster, die Zeiten bleiben wie vorher."
         onClick={onClose}
         disabled={isSubmitting}
       >
@@ -120,6 +121,7 @@ function CareWeeklyPlanModalForm({
         form="care-weekly-plan-form"
         isLoading={isSubmitting}
         loadingText="Wird übernommen …"
+        tooltip="Merkt den Wochenplan vor, gespeichert wird er mit dem neuen Kind."
       >
         Übernehmen
       </Button>

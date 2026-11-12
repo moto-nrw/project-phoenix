@@ -321,7 +321,13 @@ export function FilteredBulkArrivalModal({
       footer={
         <div className="flex items-center justify-end gap-2 p-4">
           {showDayView ? (
-            <Button type="button" variant="outline" size="md" onClick={onClose}>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              noTooltip="Schließt nur das Fenster, Tagesausnahmen sind schon gespeichert."
+              onClick={onClose}
+            >
               Schließen
             </Button>
           ) : (
@@ -330,6 +336,7 @@ export function FilteredBulkArrivalModal({
                 type="button"
                 variant="outline"
                 size="md"
+                noTooltip="Schließt nur das Fenster, nichts wird gespeichert."
                 onClick={onClose}
                 disabled={saving}
               >
@@ -339,6 +346,22 @@ export function FilteredBulkArrivalModal({
                 type="button"
                 variant="success"
                 size="md"
+                tooltip={
+                  isClassTimetable
+                    ? "Speichert den Unterrichtsschluss jeder Woche für die ganze Klasse."
+                    : "Speichert die Ankunftszeiten jeder Woche für alle gezeigten Kinder."
+                }
+                disabledReason={
+                  saving || classTimesLoading
+                    ? undefined
+                    : classTimesError
+                      ? "Laden Sie zuerst die Zeiten der Klasse neu."
+                      : !hasAnyTime
+                        ? "Tragen Sie zuerst mindestens eine Zeit ein."
+                        : hasInvalidEntry
+                          ? "Schreiben Sie jede Uhrzeit so: 14:30."
+                          : undefined
+                }
                 onClick={handleSubmit}
                 disabled={
                   saving ||

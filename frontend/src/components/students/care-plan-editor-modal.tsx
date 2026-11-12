@@ -378,6 +378,7 @@ export function CarePlanEditorModal({
         type="button"
         variant="outline"
         size="md"
+        noTooltip="Schließt nur das Fenster, nichts wird gespeichert."
         onClick={onClose}
         disabled={save.pending}
       >
@@ -389,6 +390,7 @@ export function CarePlanEditorModal({
         form="care-plan-editor-form"
         isLoading={isSubmitting}
         loadingText="Wird gespeichert …"
+        tooltip="Speichert die Abweichung nur für diesen Tag, nicht jede Woche."
       >
         Speichern
       </Button>
@@ -538,6 +540,7 @@ export function CarePlanEditorModal({
                     variant="surface"
                     size="compact"
                     className="ml-auto"
+                    tooltip="Setzt die Abholzeit ab sofort jede Woche auf die gebuchte Zeit."
                     disabled={save.pending}
                     onClick={() =>
                       void handleResetPickupToOffering(
@@ -670,6 +673,7 @@ function LegSection({
             size="md"
             variant={mode === value ? "primary" : "outline"}
             className="w-full justify-start"
+            noTooltip="Wählt nur eine Möglichkeit, gespeichert wird erst mit „Speichern“."
             onClick={() => onModeChange(value)}
           >
             {text}
@@ -864,7 +868,13 @@ function NoteList({
           type="button"
           variant="outline"
           size="md"
+          tooltip="Speichert den Hinweis sofort für diesen Tag."
           disabled={!draft.trim() || isMutationPending}
+          disabledReason={
+            draft.trim()
+              ? undefined
+              : "Schreiben Sie zuerst einen Hinweis in das Feld."
+          }
           onClick={() => void runMutation(onCreate, () => setDraft(""))}
         >
           Hinzufügen
@@ -915,7 +925,15 @@ function NoteEditor({
         type="button"
         variant="outline"
         size="md"
+        tooltip="Speichert den geänderten Hinweis sofort."
         disabled={!trimmedContent || !hasChanges || isMutationPending}
+        disabledReason={
+          !trimmedContent
+            ? "Ein leerer Hinweis lässt sich nicht speichern."
+            : !hasChanges
+              ? "Ändern Sie zuerst den Text des Hinweises."
+              : undefined
+        }
         onClick={() =>
           void runMutation(
             () => onUpdate(note.id, trimmedContent),
@@ -929,6 +947,7 @@ function NoteEditor({
         type="button"
         variant="ghost"
         size="md"
+        tooltip="Löscht den Hinweis, moto fragt vorher nach."
         disabled={isMutationPending}
         onClick={() =>
           onRequestDelete({

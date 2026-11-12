@@ -541,6 +541,7 @@ function ClassArrivalExceptionPanelBody({
                 type="button"
                 variant="outline"
                 size="md"
+                tooltip="Trägt den Grund ein und setzt die Zeit auf den ersten Betreuungsblock."
                 onClick={() => void applyCancelledPreset()}
                 disabled={presetPending || saving}
               >
@@ -552,8 +553,16 @@ function ClassArrivalExceptionPanelBody({
                 type="button"
                 variant="success"
                 size="md"
+                tooltip="Speichert die Ankunftszeit sofort für alle Kinder der Klasse an diesem Tag."
                 onClick={() => void handleSave()}
                 disabled={!canSave}
+                disabledReason={
+                  isoDate === null
+                    ? "Wählen Sie zuerst ein Datum."
+                    : !isValidTime(time)
+                      ? "Tragen Sie zuerst eine gültige Uhrzeit ein."
+                      : undefined
+                }
               >
                 {saving ? "Speichern..." : "Tag speichern"}
               </Button>
@@ -606,6 +615,8 @@ function ClassArrivalExceptionPanelBody({
                         items={[
                           {
                             label: "Entfernen",
+                            description:
+                              "moto fragt vorher nach, dann gilt wieder die übliche Ankunftszeit.",
                             icon: <Trash2 className="h-4 w-4" aria-hidden />,
                             destructive: true,
                             disabled: removing === exception.date,

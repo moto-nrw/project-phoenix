@@ -5922,6 +5922,22 @@ const TOOLTIP_SCOPE = [
   "src/app/[tenant]/(protected)/settings/",
   "src/app/traeger/einstellungen/",
   "src/components/settings/",
+  // Kinder – Betreuung, Klasse, Begleitung, Kurse, Dokumente (#6765).
+  "src/components/students/care-exit-modal.tsx",
+  "src/components/students/care-plan-editor-modal.tsx",
+  "src/components/students/care-plan-impact.tsx",
+  "src/components/students/care-plan-view.tsx",
+  "src/components/students/care-request-review-item.tsx",
+  "src/components/students/care-resume-modal.tsx",
+  "src/components/students/care-schedule-manager.tsx",
+  "src/components/students/care-weekly-plan-editor.tsx",
+  "src/components/students/care-weekly-plan-modal.tsx",
+  "src/components/students/class-arrival-exception-panel.tsx",
+  "src/components/students/class-bulk-arrival-modal.tsx",
+  "src/components/students/class-trip-bulk-status-modal.tsx",
+  "src/components/students/companion-picker.tsx",
+  "src/components/students/course-waitlist.tsx",
+  "src/components/students/dokumente-tab.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {

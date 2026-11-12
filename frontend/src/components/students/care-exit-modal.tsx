@@ -151,6 +151,11 @@ export function CareExitModal({
     Boolean(lastCareDay) &&
     Boolean(reason) &&
     (!noteRequired || note.trim().length > 0);
+  const detailsMissingReason = !lastCareDay
+    ? "Wählen Sie zuerst den letzten Betreuungstag."
+    : !reason
+      ? "Wählen Sie zuerst einen Grund."
+      : "Schreiben Sie zuerst eine kurze Erklärung zum Grund.";
 
   // Lädt die Vorschau neu. Eine vorhandene Fehlermeldung wird NICHT gelöscht:
   // nach einer abgelehnten Bestätigung ist genau diese Meldung der Grund,
@@ -266,7 +271,13 @@ export function CareExitModal({
   const footer =
     step === 1 ? (
       <>
-        <Button type="button" variant="outline" size="md" onClick={onClose}>
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          noTooltip="Schließt nur den Dialog, die Betreuung läuft weiter."
+          onClick={onClose}
+        >
           Abbrechen
         </Button>
         <Button
@@ -275,7 +286,9 @@ export function CareExitModal({
           size="md"
           isLoading={save.pending}
           loadingText="Wird geprüft…"
+          tooltip="Zeigt zuerst, was sich für jedes Kind ändert."
           disabled={!detailsComplete}
+          disabledReason={detailsMissingReason}
           onClick={() => void handleContinue()}
         >
           Weiter
@@ -287,6 +300,7 @@ export function CareExitModal({
           type="button"
           variant="outline"
           size="md"
+          noTooltip="Geht nur zu den Angaben zurück, es wird nichts beendet."
           onClick={() => setStep(1)}
         >
           Zurück
@@ -297,7 +311,13 @@ export function CareExitModal({
           size="md"
           isLoading={save.pending}
           loadingText="Wird beendet…"
+          tooltip="Beendet die Betreuung zum gewählten Tag mit allen Folgen aus der Liste."
           disabled={!preview || preview.blocked}
+          disabledReason={
+            preview?.blocked
+              ? "Nehmen Sie zuerst die Kinder aus der Auswahl, bei denen es nicht geht."
+              : undefined
+          }
           onClick={() => void handleConfirm()}
         >
           <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -439,6 +459,7 @@ function CareExitPreviewList({
               variant="outline"
               size="md"
               className="mt-3"
+              tooltip="Nimmt diese Kinder aus der Auswahl, für sie ändert sich nichts."
               disabled={pending}
               onClick={() =>
                 onExcludeBlocked(blocked.map((student) => student.studentId))

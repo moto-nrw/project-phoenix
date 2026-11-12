@@ -228,6 +228,7 @@ export function ClassTripBulkStatusModal({
             type="button"
             variant="outline"
             size="md"
+            noTooltip="Schließt nur das Fenster, nichts wird eingetragen."
             onClick={onClose}
             disabled={saving}
           >
@@ -237,6 +238,22 @@ export function ClassTripBulkStatusModal({
             type="button"
             variant="success"
             size="md"
+            tooltip={
+              schoolReport
+                ? "Trägt die gewählten Kinder an diesen Tagen sofort als unterwegs ein."
+                : "Trägt alle Kinder an diesen Tagen sofort als Klassenfahrt ein."
+            }
+            disabledReason={
+              saving
+                ? undefined
+                : chosenIds.length === 0
+                  ? "Wählen Sie zuerst mindestens ein Kind aus."
+                  : !from || !to
+                    ? "Wählen Sie zuerst den Zeitraum."
+                    : to < from
+                      ? "Das Ende darf nicht vor dem Beginn liegen."
+                      : undefined
+            }
             onClick={handleSubmit}
             disabled={
               saving || chosenIds.length === 0 || !from || !to || to < from

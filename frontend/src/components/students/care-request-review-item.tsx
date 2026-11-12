@@ -334,6 +334,7 @@ function CareRequestProofButton({
         type="button"
         variant="outline"
         size="compact"
+        tooltip="Speichert die Unterschrift der Eltern als PDF auf Ihrem Gerät."
         disabled={busy}
         onClick={() => {
           setBusy(true);
