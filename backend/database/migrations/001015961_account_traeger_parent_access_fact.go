@@ -7,16 +7,16 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const accountTraegerParentAccessFactVersion = "1.15.960"
+const accountTraegerParentAccessFactVersion = "1.15.961"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     accountTraegerParentAccessFactVersion,
 		Description: "Schul-Admin erfährt, ob ein Konto der eigenen Schule auch Eltern-Zugang bei einem Träger hat (#6862)",
 		DependsOn: []string{
-			holidayRegistrationStatusTokenVersion, // the newest migration on development (1.15.959)
-			traegerParentAccessVersion,            // auth.traeger_parent_access
-			authTenantRLSVersion,                  // the school scope the function reads
+			pickupChangeTeamNoticesVersion, // the newest migration on development (1.15.960)
+			traegerParentAccessVersion,     // auth.traeger_parent_access
+			authTenantRLSVersion,           // the school scope the function reads
 		},
 	})
 	Migrations.MustRegister(accountTraegerParentAccessFactUp, accountTraegerParentAccessFactDown)
