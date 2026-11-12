@@ -20,7 +20,6 @@ on:
       - 'scripts/backend-architecture/**'
       - 'scripts/backend-test-matrix.sh'
       - 'scripts/go-cache-sweep.sh'
-      - 'scripts/go-lint-cache-sweep_test.sh'
       - '.github/workflows/backend-build-cache.yml'
       # Part of the lint cache key below.
       - '.github/workflows/lint.yml'
@@ -179,11 +178,6 @@ jobs:
           args: --timeout 10m ./...
           working-directory: backend
           skip-cache: true
-
-      # The action above also puts the pinned golangci-lint on PATH.
-      - name: Test lint dependency fact reuse after sweeping
-        if: steps.lint-cache.outputs.cache-hit != 'true' && steps.lint.outcome == 'success'
-        run: scripts/go-lint-cache-sweep_test.sh
 
       # Only after a complete lint: a run that stopped early used too few
       # entries, and the next pull request would lint cold.

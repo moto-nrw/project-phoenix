@@ -48,16 +48,12 @@ function fixture(t) {
     writeFileSync(join(root, '.env'), env);
     writeFileSync(join(root, 'backend/dev.env'), devEnv);
   }
-  const forceSlot = slot => writeFileSync(join(bin, 'cksum'), `#!/bin/sh
-cat >/dev/null
-printf '%s 0\\n' '${slot - 50}'
-`, { mode: 0o755 });
   const run = (root, busy = []) => spawnSync('bash', ['scripts/worktree-ports.sh'], {
     cwd: root, encoding: 'utf8', env: { ...gitEnv, PATH: `${bin}:${process.env.PATH}`, BUSY_PORTS: busy.join(' ') },
   });
   const read = (root, file = '.env') => readFileSync(join(root, file), 'utf8');
   const port = (root, key) => Number(new RegExp(`^${key}=(\\d+)$`, 'm').exec(read(root))[1]);
-  return { main, linked, run, read, port, forceSlot };
+  return { main, linked, run, read, port };
 }
 
 test('the main checkout keeps the default ports', t => {
@@ -101,7 +97,6 @@ test('a linked worktree on default ports gets a stable slot and its URLs follow'
 
 test('a slot with a port in use shifts to the next slot', t => {
   const f = fixture(t);
-  f.forceSlot(100);
   assert.equal(f.run(f.linked).status, 0);
   const first = (f.port(f.linked, 'FRONTEND_HOST_PORT') - 3000) / 10;
   writeFileSync(join(f.linked, '.env'), env);
@@ -135,19 +130,3 @@ test('a wt-managed worktree keeps its lease; only stale default URLs move', t =>
   assert.match(f.read(f.linked), /^NEXTAUTH_URL=http:\/\/localhost:3010$/m);
   assert.match(f.read(f.linked, 'backend/dev.env'), /localhost:5452\/db/);
 });
-
-for (const [slot, key, blockedPort] of [
-  [119, 'FRONTEND_HOST_PORT', 4190],
-  [200, 'SERVER_HOST_PORT', 10080],
-  [206, 'FRONTEND_HOST_PORT', 5060],
-]) {
-  test(`a free slot containing blocked port ${blockedPort} is skipped`, t => {
-    const f = fixture(t);
-    f.forceSlot(slot);
-    const result = f.run(f.linked);
-    assert.equal(result.status, 0, result.stderr);
-    assert.notEqual(f.port(f.linked, key), blockedPort);
-    assert.equal(f.port(f.linked, 'FRONTEND_HOST_PORT'), 3000 + 10 * (slot + 1));
-    assert.equal(f.run(f.linked).stdout, '', 'the safe slot stays fixed');
-  });
-}

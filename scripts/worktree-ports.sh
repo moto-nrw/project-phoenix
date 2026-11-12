@@ -35,15 +35,6 @@ slot_count=200
 value_of() { # key file
   sed -n "s/^$1=//p" "$2" | tail -n 1
 }
-# Fetch's complete bad-port table (also used by Next.js KNOWN_RESERVED_PORTS):
-# https://fetch.spec.whatwg.org/#port-blocking
-# https://github.com/vercel/next.js/blob/canary/packages/next/src/lib/helpers/get-reserved-port.ts
-# Check every service so browser-facing backend and Mailpit ports stay usable too.
-port_safe() {
-  case "$1" in
-    0|1|7|9|11|13|15|17|19|20|21|22|23|25|37|42|43|53|69|77|79|87|95|101|102|103|104|109|110|111|113|115|117|119|123|135|137|139|143|161|179|389|427|465|512|513|514|515|526|530|531|532|540|548|554|556|563|587|601|636|989|990|993|995|1719|1720|1723|2049|3659|4045|4190|5060|5061|6000|6566|6665|6666|6667|6668|6669|6679|6697|10080) return 1 ;;
-  esac
-}
 port_free() {
   ! lsof -nP -iTCP:"$1" -sTCP:LISTEN >/dev/null 2>&1
 }
@@ -70,9 +61,7 @@ elif [ ! -f .wt.env ] && [ "${current[*]}" = "${defaults[*]}" ]; then
     candidate=()
     for i in "${!keys[@]}"; do candidate+=($((defaults[i] + steps[i] * slot))); done
     busy=false
-    for port in "${candidate[@]}"; do
-      if ! port_safe "$port" || ! port_free "$port"; then busy=true; break; fi
-    done
+    for port in "${candidate[@]}"; do port_free "$port" || busy=true; done
     [ "$busy" = false ] && break
   done
   [ "$busy" = false ] || { echo "worktree-ports: no free port slot" >&2; exit 1; }
