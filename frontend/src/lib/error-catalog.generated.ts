@@ -13,6 +13,12 @@ export const ERROR_CATALOG = {
       server:
         "{object} konnte nicht bearbeitet werden. Bitte versuchen Sie es später erneut.",
     },
+    portalClasses: {
+      traeger: {
+        permission:
+          "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Leitung Ihres Träger-Büros.",
+      },
+    },
     actions: {
       retry: "Wiederholen",
       copyRequestId: "Vorgangskennung kopieren",
@@ -1942,6 +1948,12 @@ export const ERROR_CATALOG = {
       unavailable: "{object} is unavailable right now. Please try again.",
       server: "{object} could not be processed. Please try again later.",
     },
+    portalClasses: {
+      traeger: {
+        permission:
+          "You cannot access {object}. Please contact the head of your Träger office.",
+      },
+    },
     actions: {
       retry: "Try again",
       copyRequestId: "Copy request ID",
@@ -2644,6 +2656,12 @@ export const ERROR_CATALOG = {
       unavailable: "{object} сейчас недоступен. Повторите попытку.",
       server: "Не удалось обработать: {object}. Повторите попытку позже.",
     },
+    portalClasses: {
+      traeger: {
+        permission:
+          "У вас нет доступа к: {object}. Обратитесь к руководству вашего офиса Träger.",
+      },
+    },
     actions: {
       retry: "Повторить",
       copyRequestId: "Скопировать номер запроса",
@@ -3222,6 +3240,12 @@ export const ERROR_CATALOG = {
         "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
       unavailable: "{object} nuk është i disponueshëm tani. Provoni përsëri.",
       server: "Nuk u përpunua: {object}. Provoni përsëri më vonë.",
+    },
+    portalClasses: {
+      traeger: {
+        permission:
+          "Nuk keni qasje te: {object}. Kontaktoni drejtuesin e zyrës suaj Träger.",
+      },
     },
     actions: {
       retry: "Provo përsëri",
@@ -3817,6 +3841,12 @@ export const ERROR_CATALOG = {
       unavailable: "{object} jest teraz niedostępne. Spróbuj ponownie.",
       server: "Nie udało się przetworzyć: {object}. Spróbuj ponownie później.",
     },
+    portalClasses: {
+      traeger: {
+        permission:
+          "Nie masz dostępu do: {object}. Skontaktuj się z kierownictwem biura Träger.",
+      },
+    },
     actions: {
       retry: "Spróbuj ponownie",
       copyRequestId: "Kopiuj numer zgłoszenia",
@@ -4396,6 +4426,12 @@ export const ERROR_CATALOG = {
         "{object} değiştirilemedi. Güncel durumu kontrol edin.",
       unavailable: "{object} şu anda kullanılamıyor. Yeniden deneyin.",
       server: "{object} işlenemedi. Daha sonra yeniden deneyin.",
+    },
+    portalClasses: {
+      traeger: {
+        permission:
+          "{object} için erişim izniniz yok. Träger ofisinizin yöneticisiyle iletişime geçin.",
+      },
     },
     actions: {
       retry: "Yeniden dene",
@@ -4983,6 +5019,12 @@ export const ERROR_CATALOG = {
         "Не вдалося змінити: {object}. Перевірте поточний стан.",
       unavailable: "{object} зараз недоступний. Спробуйте ще раз.",
       server: "Не вдалося обробити: {object}. Спробуйте пізніше.",
+    },
+    portalClasses: {
+      traeger: {
+        permission:
+          "У вас немає доступу до: {object}. Зверніться до керівництва вашого офісу Träger.",
+      },
     },
     actions: {
       retry: "Спробувати ще раз",
