@@ -198,6 +198,10 @@ func (s *Service) guardCareExceptionDay(ctx context.Context, tenantID int64, cha
 	if err != nil {
 		return err
 	}
+	// Waiting on a settings writer can cross the care-day boundary.
+	if err := s.guardTodayPickupOpen(ctx, tenantID, change.studentID, change.date, change.today); err != nil {
+		return err
+	}
 	if !policy.enabled {
 		return ErrPickupChangeDisabled
 	}
@@ -313,6 +317,9 @@ func (s *Service) withdrawCareException(ctx context.Context, tenantID int64, cha
 	}
 	cutoff, err := s.pickupChangeCutoffInTx(ctx, tenantID)
 	if err != nil {
+		return err
+	}
+	if err := s.guardTodayPickupOpen(ctx, tenantID, change.studentID, change.date, change.today); err != nil {
 		return err
 	}
 	if cutoff.Closed(change.date) {

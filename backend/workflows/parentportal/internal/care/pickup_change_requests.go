@@ -91,6 +91,9 @@ func (s *Service) editPickupChangeInTx(txCtx context.Context, child *Child, acco
 	if err != nil {
 		return nil, err
 	}
+	if err := s.guardTodayPickupOpen(txCtx, child.TenantID, studentID, edit.Date, s.todayDate()); err != nil {
+		return nil, err
+	}
 	var person *carerequests.PickupPerson
 	var signed *carerequests.SignedStatement
 	if !edit.PreservePickupDeclaration {
@@ -180,6 +183,9 @@ func (s *Service) submitPickupChangeInTx(txCtx context.Context, child *Child, ac
 	}
 	policy, err := s.pickupChangePolicyInTx(txCtx, child.TenantID)
 	if err != nil {
+		return nil, err
+	}
+	if err := s.guardTodayPickupOpen(txCtx, child.TenantID, studentID, submission.Date, today); err != nil {
 		return nil, err
 	}
 	if !policy.enabled {
