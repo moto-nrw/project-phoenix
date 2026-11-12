@@ -336,7 +336,13 @@ export function HandoverMenu({
       disabled={busy}
       items={items}
       triggerButton={{ variant: size === "md" ? "outline" : "surface", size }}
-      triggerClassName="gap-1.5 whitespace-nowrap"
+      // In a card head it stands beside full-width actions on a phone.
+      wrapperClassName={size === "md" ? "w-full min-[480px]:w-auto" : undefined}
+      triggerClassName={
+        size === "md"
+          ? "w-full justify-center gap-1.5 whitespace-nowrap"
+          : "gap-1.5 whitespace-nowrap"
+      }
       triggerContent={
         <>
           <Send className="h-4 w-4" aria-hidden />
