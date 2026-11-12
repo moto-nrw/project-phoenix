@@ -21,6 +21,7 @@ import {
 } from "~/lib/hooks/use-home-group";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
+  countedDayStatus,
   isAtSchoolLocation,
   isInClassLocation,
   LOCATION_COLORS,
@@ -336,7 +337,18 @@ function AwayBadge({
   readonly student: OgsLiveWireStudent;
   readonly onlyIfLessonCancelled: boolean;
 }) {
-  if (student.sick) return <StatusBadge tone="red" label="Krank" />;
+  // Zum Unterricht abgemeldet: nur „Im Unterricht“, auch bei Krankmeldung
+  // (#5710); dieselbe Regel wie Zahl und Filter (countedDayStatus).
+  if (isInClassLocation(student.current_location)) {
+    return (
+      <StatusColorBadge
+        label="Im Unterricht"
+        color={LOCATION_COLORS.IN_CLASS}
+      />
+    );
+  }
+  const dayStatus = countedDayStatus(student);
+  if (dayStatus === "sick") return <StatusBadge tone="red" label="Krank" />;
   // Unterricht bis zur Abholzeit: kommt nur, wenn eine Stunde ausfällt (#3373).
   if (onlyIfLessonCancelled && isExpectedToday(student)) {
     return <StatusBadge tone="gray" label={ONLY_IF_LESSON_CANCELLED_LABEL} />;
@@ -345,9 +357,10 @@ function AwayBadge({
   if (isExpectedToday(student)) {
     return <StatusBadge tone="gray" label={`Kommt ${student.arrival_time}`} />;
   }
-  if (student.class_trip)
+  if (dayStatus === "class_trip")
     return <StatusBadge tone="blue" label="Klassenfahrt" />;
-  if (student.excused) return <StatusBadge tone="gray" label="Entschuldigt" />;
+  if (dayStatus === "excused")
+    return <StatusBadge tone="gray" label="Entschuldigt" />;
   if (student.day_planning_status === "not_coming_today") {
     return (
       <StatusBadge
@@ -360,14 +373,6 @@ function AwayBadge({
   if (isAtSchoolLocation(student.current_location)) {
     return (
       <StatusColorBadge label="Schule" color={LOCATION_COLORS.AT_SCHOOL} />
-    );
-  }
-  if (isInClassLocation(student.current_location)) {
-    return (
-      <StatusColorBadge
-        label="Im Unterricht"
-        color={LOCATION_COLORS.IN_CLASS}
-      />
     );
   }
   return <StatusBadge tone="gray" label="Zuhause" />;

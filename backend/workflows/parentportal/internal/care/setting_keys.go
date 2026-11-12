@@ -28,6 +28,7 @@ const (
 	KeyParentSickNoteEnabled            = "operations.parent_sick_note_enabled"
 	KeyParentSickReportsEnabled         = "operations.parent_sick_reports_enabled"
 	KeyParentSickRequiresApproval       = "operations.parent_sick_requires_approval"
+	KeySessionEndTime                   = "operations.session_end_time"
 	ParentInviteModeDirect              = "direct"
 	ParentInviteModeDisabled            = "disabled"
 	ParentInviteModeStaffApproval       = "staff_approval"

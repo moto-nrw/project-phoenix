@@ -62,6 +62,7 @@ export function workTimeReviewTopic(): HelpTopic {
     ],
     differences: [
       "Fehlt der Reiter `Mitarbeitende`? Dann dürfen Sie keine Anträge entscheiden.",
+      "Weicht das `Ist` von den gestempelten Zeiten ab? Dann gelten Wegpackzeit oder Rundung aus den Einstellungen. Die Zeile zeigt das als Hinweis. Korrigieren Sie nur die Uhrzeiten, moto rechnet die Zugabe neu.",
     ],
     troubleshootingDetails: [
       "Ein Krankheitstag zählt 0 Stunden? Dann fehlt das Soll. Tragen Sie es im `Arbeitszeitmodell` der Person ein. Gilt es ab dem Krankheitstag, rechnet moto die Stunden nach.",
