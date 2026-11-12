@@ -65,6 +65,11 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
 - **Cache what downloads, not what links.** Cache toolchains and browsers by
   version. t3code measured a pnpm store on a sticky disk slower than a cache
   tarball (pnpm copies across filesystems instead of hard-linking).
+- **Bound a cache that restores by prefix and saves again.** Go keeps an
+  entry five unused days, so such a cache keeps every older build: the
+  backend build cache grew from 2.2 to 9.65 GB in twelve hours and its
+  restore from 15 to 75 s (#6784). `scripts/go-cache-sweep.sh` keeps the
+  entries one run uses.
 - **Cached test results need verification.** t3code caches per test file and
   reruns one hit per shard uncached. Here `go test -count=1` stays: database
   tests depend on state outside Go's cache key.
