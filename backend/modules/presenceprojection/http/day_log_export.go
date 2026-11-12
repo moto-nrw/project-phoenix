@@ -8,11 +8,11 @@ import (
 	strings "strings"
 	time "time"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	lists "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	lists "github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 const (

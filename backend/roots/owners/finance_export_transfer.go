@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // FinanceExportTransfer binds the Elternabrechnung's handover port to the

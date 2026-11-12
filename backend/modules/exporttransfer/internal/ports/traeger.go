@@ -3,7 +3,7 @@ package ports
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/domain"
 )
 
 // The ports of the Träger scope (ADR 0218). Every store method runs in the

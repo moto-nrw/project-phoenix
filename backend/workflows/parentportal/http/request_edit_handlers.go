@@ -10,11 +10,11 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // Guardian edit of an open request (#2267, stories 37-38). A guardian who

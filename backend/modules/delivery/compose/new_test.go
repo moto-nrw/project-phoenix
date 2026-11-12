@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"testing"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	applicationBindings "github.com/moto-nrw/project-phoenix/modules/delivery/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	applicationBindings "github.com/moto-ogs/project-phoenix/modules/delivery/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"

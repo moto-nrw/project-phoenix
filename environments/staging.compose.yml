@@ -39,7 +39,7 @@ services:
       - staging
 
   server:
-    image: ghcr.io/moto-nrw/phoenix-server:staging
+    image: ghcr.io/moto-ogs/phoenix-server:staging
     restart: unless-stopped
     depends_on:
       postgres:
@@ -132,7 +132,7 @@ services:
       - staging
 
   frontend:
-    image: ghcr.io/moto-nrw/phoenix-frontend:staging
+    image: ghcr.io/moto-ogs/phoenix-frontend:staging
     restart: unless-stopped
     depends_on:
       - server
@@ -180,7 +180,7 @@ services:
 
   # Explicit one-shot job, excluded from normal service startup.
   migrate:
-    image: ghcr.io/moto-nrw/phoenix-server:staging
+    image: ghcr.io/moto-ogs/phoenix-server:staging
     profiles: ["maintenance"]
     depends_on:
       postgres:
@@ -207,7 +207,7 @@ services:
 
   # Explicit maintenance only: privileged DSN, bank rings, no health/HTTP secrets.
   bank-data-rekey:
-    image: ghcr.io/moto-nrw/phoenix-server:staging
+    image: ghcr.io/moto-ogs/phoenix-server:staging
     profiles: ["maintenance"]
     command: ["./main", "bank-data-rekey"]
     environment:

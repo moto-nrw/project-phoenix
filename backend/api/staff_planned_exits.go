@@ -10,25 +10,25 @@ import (
 
 	"github.com/go-chi/render"
 
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
-	"github.com/moto-nrw/project-phoenix/observability"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	schoolMembershipModule "github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	staffHTTP "github.com/moto-ogs/project-phoenix/modules/schoolmembership/http"
+	"github.com/moto-ogs/project-phoenix/observability"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	schedulerPorts "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/workflows/staffoffboarding"
 )
 
 // PlannedStaffExitsJob builds the Worker's planned staff exits (#4809) over

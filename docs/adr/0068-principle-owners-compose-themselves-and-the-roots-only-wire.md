@@ -5,8 +5,8 @@ status: accepted
 # Principle: owners compose themselves, and the roots only wire
 
 Principle ADR of 2026-10-19 under
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), written for
-[#4091](https://github.com/moto-nrw/project-phoenix/issues/4091). It states the
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580), written for
+[#4091](https://github.com/moto-ogs/project-phoenix/issues/4091). It states the
 construction and runtime rules that still hold. The ADRs it cites keep their
 context, measurements and history; this ADR changes none of them.
 
@@ -107,15 +107,15 @@ context, measurements and history; this ADR changes none of them.
 
 - The composition surface counts every root struct that holds values of
   several owners. It is 0 since
-  [#4080](https://github.com/moto-nrw/project-phoenix/issues/4080), and PR mode
+  [#4080](https://github.com/moto-ogs/project-phoenix/issues/4080), and PR mode
   rejects every added key.
 - One exact key remains against point 3:
   `modules/dataimport/compose -> auth/authorize`, carried by
-  [#4004](https://github.com/moto-nrw/project-phoenix/issues/4004). The
+  [#4004](https://github.com/moto-ogs/project-phoenix/issues/4004). The
   Worker's own root is
-  [#4083](https://github.com/moto-nrw/project-phoenix/issues/4083); the
+  [#4083](https://github.com/moto-ogs/project-phoenix/issues/4083); the
   composition vocabulary aliases go with
-  [#4085](https://github.com/moto-nrw/project-phoenix/issues/4085).
+  [#4085](https://github.com/moto-ogs/project-phoenix/issues/4085).
 - ADR 0041, ADR 0049 and ADR 0050 are historical records; their lasting part is
   point 1 (each owner constructs its own application and persistence) and
   point 12.

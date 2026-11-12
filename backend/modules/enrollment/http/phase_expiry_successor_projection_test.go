@@ -3,19 +3,19 @@ package enrollmenthttp_test
 import (
 	"context"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	testutil "github.com/moto-nrw/project-phoenix/api/testutil"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/api"
+	testutil "github.com/moto-ogs/project-phoenix/api/testutil"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/uptrace/bun"
 )
 

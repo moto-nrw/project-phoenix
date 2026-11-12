@@ -1,17 +1,17 @@
 package messaging_test
 
 import (
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
-	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
-	api "github.com/moto-nrw/project-phoenix/roots/owners"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
+	settingsValues "github.com/moto-ogs/project-phoenix/modules/settings"
+	api "github.com/moto-ogs/project-phoenix/roots/owners"
 
 	"log/slog"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/application/parentmessaging"
-	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/application/parentmessaging"
+	messaging "github.com/moto-ogs/project-phoenix/modules/communication/internal/parentmessages"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/uptrace/bun"
 )
 

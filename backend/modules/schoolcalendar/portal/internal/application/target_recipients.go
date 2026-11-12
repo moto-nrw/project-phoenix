@@ -3,7 +3,7 @@ package application
 import (
 	"fmt"
 
-	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
+	appointmentcap "github.com/moto-ogs/project-phoenix/modules/appointments"
 )
 
 // targetRecipients groups the already-loaded audience by staff member or

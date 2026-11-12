@@ -3,8 +3,8 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // NewStaffInviter binds the narrow import command to the invitation owner.

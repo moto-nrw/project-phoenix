@@ -4,14 +4,14 @@ import (
 	"context"
 	"testing"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
-	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
+	messaging "github.com/moto-ogs/project-phoenix/modules/communication/internal/parentmessages"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/application/parentmessaging"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/application/parentmessaging"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings"
 )
 
 // TestParentEventVocabularyMatchesOwner pins the consumer-facing pill

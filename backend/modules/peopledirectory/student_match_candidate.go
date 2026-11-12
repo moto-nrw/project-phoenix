@@ -1,6 +1,6 @@
 package peopledirectory
 
-import "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+import "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
 // StudentMatchCandidate is an enrolled (active or pending) child of the
 // school with the first name, last name and birthday an enrollment names

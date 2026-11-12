@@ -3,7 +3,7 @@ package presence
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // ensureRevisionDoesNotOverlap refuses a correction whose interval would

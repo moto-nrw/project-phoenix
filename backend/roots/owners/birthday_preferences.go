@@ -3,10 +3,10 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/workflows/staffoffboarding"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/workflows/staffoffboarding"
 )
 
 // NewStaffBirthdayWrites constructs the guarded workflow command separately

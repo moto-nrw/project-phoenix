@@ -3,7 +3,7 @@ package enrollment
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Children of the hosting school itself in a holiday week it hosts (#6678,

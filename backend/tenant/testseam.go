@@ -3,7 +3,7 @@ package tenant
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/tenant/internal/testseam"
+	"github.com/moto-ogs/project-phoenix/tenant/internal/testseam"
 )
 
 // The registration below is the only production link to tenant/tenanttest. It

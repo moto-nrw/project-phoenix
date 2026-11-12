@@ -3,8 +3,8 @@ package compose
 import (
 	"database/sql"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	application "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	application "github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application"
 )
 
 // Ports the composition root binds for Enrollment's intake and change requests (#3565).

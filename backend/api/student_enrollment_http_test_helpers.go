@@ -5,10 +5,10 @@ package api
 import (
 	"log/slog"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	enrollmentHTTP "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	studentsAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
+	enrollmentHTTP "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	studentsAPI "github.com/moto-ogs/project-phoenix/modules/peopledirectory/inbound/students"
 )
 
 func NewStudentEnrollmentHTTPTestResource(people StudentTestPeople, userContext *owners.CallerRows) *enrollmentHTTP.StudentResource {

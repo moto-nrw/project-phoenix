@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
 )
 
 func (s *Store) ListVisitLocations(ctx context.Context, filter studentpresence.VisitLocationFilter) ([]ports.VisitLocation, ports.Stats, error) {

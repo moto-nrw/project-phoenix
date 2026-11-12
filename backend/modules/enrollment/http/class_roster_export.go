@@ -5,9 +5,9 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 )
 
 func buildClassRosterExportFile(svc lists.DocumentRenderer, report *capability.ClassRosterReport, format lists.Format) (lists.File, error) {

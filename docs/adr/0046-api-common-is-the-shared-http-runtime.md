@@ -4,8 +4,8 @@ status: accepted
 
 # api/common is the shared HTTP runtime
 
-Decision for [#2738](https://github.com/moto-nrw/project-phoenix/issues/2738)
-and [#3898](https://github.com/moto-nrw/project-phoenix/issues/3898). The user
+Decision for [#2738](https://github.com/moto-ogs/project-phoenix/issues/2738)
+and [#3898](https://github.com/moto-ogs/project-phoenix/issues/3898). The user
 expanded #2738 to include this decision, targeted policy changes and caller
 changes. The implementation remains subject to PR review.
 
@@ -91,7 +91,7 @@ found; no data migration or cleanup job is required.
 
 ## Amendment of 2026-10-17: dissolve Common's inbound owner
 
-[#4078](https://github.com/moto-nrw/project-phoenix/issues/4078) replaces the
+[#4078](https://github.com/moto-ogs/project-phoenix/issues/4078) replaces the
 single `inbound-common` owner with the existing concern owners. This supersedes
 "Keep api/common and its existing owner and role" above, not its runtime
 contracts or tenant boundaries.

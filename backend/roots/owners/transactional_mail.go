@@ -9,12 +9,12 @@ import (
 	"log/slog"
 	"time"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
 )
 
 const TransactionalMailKind = "transactional_mail"

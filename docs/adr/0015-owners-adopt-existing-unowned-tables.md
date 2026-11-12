@@ -4,18 +4,18 @@ status: accepted
 
 # Owners adopt existing unowned tables
 
-[#3235](https://github.com/moto-nrw/project-phoenix/issues/3235) asks how a
+[#3235](https://github.com/moto-ogs/project-phoenix/issues/3235) asks how a
 target owner takes over a live table that predates the policy and that the
 baseline tracks as `tables.unclassified` debt. The migration programme in
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580) answers: by
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580) answers: by
 declaring the owner in a reviewed policy epoch, without moving the data.
 
 Eleven tables are in this position: the four File Storage tables under
-[#2707](https://github.com/moto-nrw/project-phoenix/issues/2707), six People
+[#2707](https://github.com/moto-ogs/project-phoenix/issues/2707), six People
 Directory and Care Plan tables under
-[#2727](https://github.com/moto-nrw/project-phoenix/issues/2727), and
+[#2727](https://github.com/moto-ogs/project-phoenix/issues/2727), and
 `auth.accounts_parents` under
-[#2720](https://github.com/moto-nrw/project-phoenix/issues/2720). Until now the
+[#2720](https://github.com/moto-ogs/project-phoenix/issues/2720). Until now the
 evaluator accepted a new `data_objects` entry only for a table that a new
 migration in the same candidate creates. For a live table that means a second
 table and a data migration whose only purpose is to satisfy the checker. The
@@ -56,7 +56,7 @@ pull request. The owning package itself is not moved by this path; a
 relocation follows the ordinary candidate-created-package rules.
 
 The third alternative of rule 3 was added by
-[#3221](https://github.com/moto-nrw/project-phoenix/issues/3221). The staff
+[#3221](https://github.com/moto-ogs/project-phoenix/issues/3221). The staff
 messaging tables are recorded against `database/repositories/users`, a People
 Directory package that keeps serving People Directory tables after the
 messaging SQL moves to Communication. Without it the move needs the adoption

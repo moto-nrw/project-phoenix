@@ -1,6 +1,6 @@
 # Data Import contract cleanup
 
-Issue: [#2744](https://github.com/moto-nrw/project-phoenix/issues/2744).
+Issue: [#2744](https://github.com/moto-ogs/project-phoenix/issues/2744).
 Implementation baseline: `93e9f5f2cca74716b39a28fe37248e3bd3ff9999`.
 Local evidence: 2026-09-13, macOS arm64, with CGO disabled.
 

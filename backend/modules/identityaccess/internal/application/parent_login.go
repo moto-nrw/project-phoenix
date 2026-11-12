@@ -5,8 +5,8 @@ import (
 	"log/slog"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // LoginParentWithAudit authenticates a parent and issues a parent-scope JWT

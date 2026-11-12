@@ -6,8 +6,8 @@ import (
 	"maps"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Catalog returns the offerings a guardian may choose from for the child, at

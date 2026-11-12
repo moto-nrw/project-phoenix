@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
+	deliveryPorts "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
 )
 
 // errLeadersNotConfigured reports a service built without its leadership

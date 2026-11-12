@@ -7,9 +7,9 @@ import (
 	"slices"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	devices "github.com/moto-nrw/project-phoenix/roots/communicationtest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	devices "github.com/moto-ogs/project-phoenix/roots/communicationtest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // fakePreferences is a stand-in for the consent service. optedIn is returned

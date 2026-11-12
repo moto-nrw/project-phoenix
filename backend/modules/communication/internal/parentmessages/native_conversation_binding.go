@@ -3,7 +3,7 @@ package messaging
 import (
 	"context"
 
-	values "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
+	values "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
 )
 
 // BindPortalConversationCore exposes the same bound native conversation rules.

@@ -1,6 +1,6 @@
 package careplan
 
-import "github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+import "github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
 
 type CareRequestDiffEntry = carerequests.DiffEntry
 type CareWeekdayChange = carerequests.WeekdayChange

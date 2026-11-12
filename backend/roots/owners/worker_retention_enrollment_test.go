@@ -6,14 +6,14 @@ import (
 	"testing"
 	"time"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"

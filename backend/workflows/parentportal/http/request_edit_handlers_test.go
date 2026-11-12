@@ -13,7 +13,7 @@ import (
 
 	"time"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // TestSickNoteEnvelopeAndRecipientValidation pins the two create-path changes

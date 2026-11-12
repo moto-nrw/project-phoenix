@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
+	"github.com/moto-ogs/project-phoenix/internal/ptrtest"
 )
 
 func TestWithAdminTxFlag_KeepsTenantID(t *testing.T) {

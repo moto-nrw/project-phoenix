@@ -4,7 +4,7 @@ import (
 	"context"
 	"sync"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // SignalingGroupRepository reports when a row-lock lookup reaches its repository.

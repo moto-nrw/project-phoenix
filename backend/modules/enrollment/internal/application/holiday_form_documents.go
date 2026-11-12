@@ -10,7 +10,7 @@ import (
 	"strings"
 
 	validation "github.com/go-ozzo/ozzo-validation"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // Save and delete hold the same period lock. Thus a draft cannot disappear

@@ -14,7 +14,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/architecture/querybudget"
+	"github.com/moto-ogs/project-phoenix/architecture/querybudget"
 )
 
 // queryBudget is one register entry: the number of SQL statements a scenario

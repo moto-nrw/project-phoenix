@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
-	remindersService "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
+	remindersService "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

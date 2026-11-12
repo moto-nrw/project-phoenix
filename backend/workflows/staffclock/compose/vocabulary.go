@@ -4,8 +4,8 @@
 package compose
 
 import (
-	staffclock "github.com/moto-nrw/project-phoenix/workflows/staffclock"
-	clockApplication "github.com/moto-nrw/project-phoenix/workflows/staffclock/internal/application"
+	staffclock "github.com/moto-ogs/project-phoenix/workflows/staffclock"
+	clockApplication "github.com/moto-ogs/project-phoenix/workflows/staffclock/internal/application"
 )
 
 type (

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan/ports"
 )
 
 var ErrSettingsNotConfigured = errors.New("settings service is not configured")

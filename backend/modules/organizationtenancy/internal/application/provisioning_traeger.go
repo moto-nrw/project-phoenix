@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/domain"
 )
 
 // The operator assigns the first person of a Träger-Büro (ADR 0084, spec

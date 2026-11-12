@@ -5,7 +5,7 @@ status: accepted
 # Rollover anlegen nimmt die Wiederholungssperre vor der neuen Phase
 
 Entscheidung vom 08.11.2026 zu
-[#6168](https://github.com/moto-nrw/project-phoenix/issues/6168). Sie ergänzt
+[#6168](https://github.com/moto-ogs/project-phoenix/issues/6168). Sie ergänzt
 die [Sperrreihenfolge](0162-zukuenftige-wiederanmeldung-uebernimmt-den-wochenplan-zum-start.md#sperrreihenfolge)
 aus ADR 0162.
 

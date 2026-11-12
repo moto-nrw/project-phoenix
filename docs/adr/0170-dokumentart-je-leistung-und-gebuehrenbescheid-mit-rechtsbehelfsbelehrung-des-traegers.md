@@ -6,8 +6,8 @@ status: proposed
 
 **Status: Vorgeschlagen.**
 
-Vorschlag vom 08.11.2026 zu [#4688](https://github.com/moto-nrw/project-phoenix/issues/4688),
-Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Vorschlag vom 08.11.2026 zu [#4688](https://github.com/moto-ogs/project-phoenix/issues/4688),
+Etappe 2 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Story 73, Vorbild Gemeinde Hardt (MK-007). Er baut auf
 [ADR 0119](0119-abrechnungslauf-stellt-unveraenderliche-rechnungen-aus-einem-nummernkreis-aus.md),
 [ADR 0152](0152-dokumentvorlagen-des-traegers-liegen-bei-organisation-und-tenancy.md) und

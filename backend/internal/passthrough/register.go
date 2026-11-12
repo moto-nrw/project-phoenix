@@ -13,7 +13,7 @@ import (
 	"sort"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
+	"github.com/moto-ogs/project-phoenix/architecture/artifacts"
 )
 
 // Registry is a finite inventory, not a budget or an ADR 0075 blanket floor.

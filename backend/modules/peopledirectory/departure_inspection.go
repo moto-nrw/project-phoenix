@@ -3,7 +3,7 @@ package peopledirectory
 import (
 	"encoding/json"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 )
 
 type DepartureModesInspection struct {

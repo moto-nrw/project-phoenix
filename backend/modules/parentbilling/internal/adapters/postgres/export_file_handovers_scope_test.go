@@ -11,8 +11,8 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The handovers of protocol entries (ADR 0218) keep a Träger to its rows

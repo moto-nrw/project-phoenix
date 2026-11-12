@@ -6,14 +6,14 @@ import (
 	"fmt"
 	"testing"
 
-	scanBindings "github.com/moto-nrw/project-phoenix/roots/devicescanbinding"
+	scanBindings "github.com/moto-ogs/project-phoenix/roots/devicescanbinding"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	devicescanCompose "github.com/moto-ogs/project-phoenix/modules/devicescan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 var (

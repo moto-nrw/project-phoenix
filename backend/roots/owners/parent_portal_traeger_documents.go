@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	organizationTenancyCompose "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // parentSharedDocuments binds the documents a Träger released for parents

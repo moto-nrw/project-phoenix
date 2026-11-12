@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/realtime"
 )
 
 // MarkUnread marks the conversation unread for the whole team (#3654). Every

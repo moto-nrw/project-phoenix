@@ -6,18 +6,18 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	organizationCompose "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	schoolMembershipCompose "github.com/moto-nrw/project-phoenix/modules/schoolmembership/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	schoolMembershipCompose "github.com/moto-ogs/project-phoenix/modules/schoolmembership/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 )
 
 // deviceAPIKeyConstraint is the unique constraint PostgreSQL generated for

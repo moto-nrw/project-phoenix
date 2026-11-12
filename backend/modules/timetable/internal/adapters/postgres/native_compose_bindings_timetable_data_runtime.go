@@ -4,8 +4,8 @@ import (
 	context "context"
 	fmt "fmt"
 
-	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
+	timetable "github.com/moto-ogs/project-phoenix/modules/timetable"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
 	bun "github.com/uptrace/bun"
 )
 

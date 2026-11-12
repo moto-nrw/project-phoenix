@@ -3,7 +3,7 @@ package parent_test
 import (
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The JWT config is process-global viper state and identical for every test in

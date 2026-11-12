@@ -233,6 +233,7 @@ jobs:
           scripts/backend-test-matrix_test.sh
           scripts/test-changed_test.sh
           scripts/go-test-link-cache_test.sh
+          scripts/go-cache-sweep_test.sh
 
       - name: Verify snapshot roles match migrations
         if: matrix.shard == 0

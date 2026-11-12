@@ -6,9 +6,9 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/templates"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/templates"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The contract letter (#4678, ADR 0153). Subject, salutation, body and

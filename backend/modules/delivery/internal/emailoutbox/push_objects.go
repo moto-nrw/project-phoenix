@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	delivery "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 )
 
 type pushObjectBatchKey struct{}

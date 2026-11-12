@@ -9,7 +9,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/domain"
 )
 
 // The Träger scope (ADR 0218): config.traeger_export_recipients and

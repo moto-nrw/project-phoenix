@@ -15,7 +15,7 @@ After it commits, `users.student_profiles` (People Directory),
 `users.student_care_profiles` (Care Plan) are authoritative. The compatibility
 shape exists for one purpose only: deploying the previous image again. No
 current provider reads or writes it, there is no fallback read chain and no
-application dual write. [Contract #2760](https://github.com/moto-nrw/project-phoenix/issues/2760)
+application dual write. [Contract #2760](https://github.com/moto-ogs/project-phoenix/issues/2760)
 removes it after the rollback window.
 
 Prerequisite: [the completed backfill](student-owner-storage-backfill.md).
@@ -221,7 +221,7 @@ moves fields across owners that the current code reads from one place:
    `class-day-view` and `group-live-view` already use. That needs a new
    projection owner, and a new owner needs an architecture decision linked from
    #2580 before it is added. **That decision is
-   [#3386](https://github.com/moto-nrw/project-phoenix/issues/3386), which
+   [#3386](https://github.com/moto-ogs/project-phoenix/issues/3386), which
    blocks #2759.**
 2. **Care Plan has to own the care columns.** `supervisor_notes`, `health_info`,
    `pickup_status`, the departure plan and the companion note are written today
@@ -251,7 +251,7 @@ moves fields across owners that the current code reads from one place:
    `frontend/src/app/api/students/[id]/route.ts`), so removing them means either
    re-sourcing from the guardian owners or changing the contract and the
    frontend. Split out as
-   [#3387](https://github.com/moto-nrw/project-phoenix/issues/3387) so the
+   [#3387](https://github.com/moto-ogs/project-phoenix/issues/3387) so the
    caller switch can land without a frontend change.
 
 Until that lands, current callers keep reading and writing through the

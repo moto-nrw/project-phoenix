@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer"
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/ports"
 )
 
 // Transfer hands one finance export of a Träger to its recipient (ADR 0218

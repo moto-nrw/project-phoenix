@@ -8,14 +8,14 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	listexport "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	listexport "github.com/moto-ogs/project-phoenix/modules/documentrendering/records"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type RoomReads interface {

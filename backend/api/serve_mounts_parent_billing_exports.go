@@ -3,15 +3,15 @@ package api
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer"
-	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
-	exportTransferHTTP "github.com/moto-nrw/project-phoenix/modules/exporttransfer/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
-	parentBillingHTTP "github.com/moto-nrw/project-phoenix/modules/parentbilling/http"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer"
+	exportTransferCompose "github.com/moto-ogs/project-phoenix/modules/exporttransfer/compose"
+	exportTransferHTTP "github.com/moto-ogs/project-phoenix/modules/exporttransfer/http"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	parentBillingCompose "github.com/moto-ogs/project-phoenix/modules/parentbilling/compose"
+	parentBillingHTTP "github.com/moto-ogs/project-phoenix/modules/parentbilling/http"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // NewFinanceExportHTTP binds the finance exports of the Elternabrechnung

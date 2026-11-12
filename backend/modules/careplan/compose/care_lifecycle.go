@@ -5,13 +5,13 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 

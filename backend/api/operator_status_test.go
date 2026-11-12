@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityoperator "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/operator"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

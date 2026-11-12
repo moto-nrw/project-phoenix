@@ -7,11 +7,11 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
-	"github.com/moto-nrw/project-phoenix/modules/settings/records"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	settingsHTTP "github.com/moto-ogs/project-phoenix/modules/settings/http"
+	"github.com/moto-ogs/project-phoenix/modules/settings/records"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
 )
 

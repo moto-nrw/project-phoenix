@@ -3,7 +3,7 @@ package timetable
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Materialization is the single recurrence engine of the timetable (WP-B8,

@@ -5,11 +5,11 @@ package api
 import (
 	"fmt"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // NewEnrollmentFlowTimetableRows are the Timetable rows of the enrollment

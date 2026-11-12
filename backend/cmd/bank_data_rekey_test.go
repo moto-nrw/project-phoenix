@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"testing"
 
-	exportTransferCompose "github.com/moto-nrw/project-phoenix/modules/exporttransfer/compose"
-	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
-	securityRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/securityruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	exportTransferCompose "github.com/moto-ogs/project-phoenix/modules/exporttransfer/compose"
+	parentBillingCompose "github.com/moto-ogs/project-phoenix/modules/parentbilling/compose"
+	securityRuntimeCompose "github.com/moto-ogs/project-phoenix/modules/securityruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )

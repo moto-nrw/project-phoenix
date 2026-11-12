@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 )
 
 // eligibilityGate is how much of the phase eligibility (#1663) a payload

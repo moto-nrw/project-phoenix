@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func (s *Service) Enroll(ctx context.Context, input schoolmembership.StudentEnrollment) (result int64, err error) {

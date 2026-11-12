@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
 )
 
 // contractNoticeTargetSQL reads the school and the child of a contract that

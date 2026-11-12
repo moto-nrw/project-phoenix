@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 )
 
 func (rs *Resource) respond(w http.ResponseWriter, r *http.Request, status int, data any, message string) {

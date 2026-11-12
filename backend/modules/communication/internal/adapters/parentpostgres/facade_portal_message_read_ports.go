@@ -3,7 +3,7 @@ package parentpostgres
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 func (r parentMessageStaffRepository) PortalListThreadsForGuardianStudent(ctx context.Context, accountID int64, studentID int64) ([]*communication.PortalInboxThread, error) {

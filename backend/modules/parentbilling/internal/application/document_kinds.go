@@ -8,8 +8,8 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/templates"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/templates"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // The kind of document per service (#4688, ADR 0119 addendum 2026-11-08).

@@ -6,14 +6,14 @@ import (
 
 	chiRender "github.com/go-chi/render"
 
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	staffHTTP "github.com/moto-nrw/project-phoenix/modules/schoolmembership/http"
-	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/externalcaregiver"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	schoolMembershipModule "github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	staffHTTP "github.com/moto-ogs/project-phoenix/modules/schoolmembership/http"
+	"github.com/moto-ogs/project-phoenix/observability"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/workflows/externalcaregiver"
 )
 
 // externalCaregiverBindings are the closures the School Membership HTTP

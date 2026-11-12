@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
 )
 
 // The number of children of a contract's family (#6335): on the one-time

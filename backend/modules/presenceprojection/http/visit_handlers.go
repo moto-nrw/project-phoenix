@@ -6,8 +6,8 @@ import (
 	http "net/http"
 	time "time"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // getStudentCurrentVisit handles getting a student's current visit

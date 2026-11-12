@@ -8,9 +8,9 @@ import (
 	strings "strings"
 	time "time"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	carerequests "github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	carerequests "github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // The OGS proof of a signed parent request (#4780): a pickup permission, a

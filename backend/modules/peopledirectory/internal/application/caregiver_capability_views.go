@@ -5,10 +5,10 @@ import (
 	"encoding/json"
 	"errors"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
-	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
+	ports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // CaregiverCapabilityViews serves People Directory's caregiver capability to

@@ -7,9 +7,9 @@ import (
 	"sync"
 	"testing"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"

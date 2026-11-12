@@ -5,8 +5,8 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // PrincipalFactsReader supplies authenticated values without exposing a token.

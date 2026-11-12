@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 )
 
 // Every refusal the Anmeldung screens can meet answers with a registered code,

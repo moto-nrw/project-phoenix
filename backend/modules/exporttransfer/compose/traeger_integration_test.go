@@ -14,11 +14,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer"
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/adapters/sftp"
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/adapters/sftp/sftptest"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/adapters/sftp"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/adapters/sftp/sftptest"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The Träger scope of Export Transfer (ADR 0218) against PostgreSQL and a

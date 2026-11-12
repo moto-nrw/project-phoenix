@@ -1,6 +1,6 @@
 package careplan
 
-import "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+import "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
 // OfferingSourcedTemplate is one template already sourcing an offering, so
 // the editor can warn about overlapping Jahrgang subsets before the admin

@@ -5,9 +5,9 @@ import (
 	"encoding/json"
 	"testing"
 
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	settingsRecords "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	settingsRecords "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )

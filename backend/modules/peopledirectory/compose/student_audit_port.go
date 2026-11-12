@@ -1,8 +1,8 @@
 package compose
 
 import (
-	applicationBindings "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	applicationBindings "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // The contracts below are what the retained services call when they mutate an

@@ -7,7 +7,7 @@ package ports
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/domain"
 )
 
 // TargetResolver reads the school's counterpart configuration.

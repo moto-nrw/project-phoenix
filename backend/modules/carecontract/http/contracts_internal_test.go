@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
 )
 
 // The paper copy keeps the name it was uploaded under; a quote in it must

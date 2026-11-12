@@ -4,8 +4,8 @@ status: accepted
 
 # Ferienzeitraum liegt beim Träger in der Träger-Transaktion
 
-Entscheidung vom 25.10.2026 zu [#4659](https://github.com/moto-nrw/project-phoenix/issues/4659),
-Etappe 1 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung vom 25.10.2026 zu [#4659](https://github.com/moto-ogs/project-phoenix/issues/4659),
+Etappe 1 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 22 bis 25. Sie ist der erste Schnitt von
 [ADR 0086](0086-traeger-werte-liegen-zwischen-standard-und-schule.md)
 Abschnitt 5: ADR 0086 hat die Träger-Transaktion beschlossen und gesagt, dass

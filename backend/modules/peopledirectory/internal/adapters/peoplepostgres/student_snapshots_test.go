@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	models "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	models "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Check every flattened field, including metadata and the independently copied

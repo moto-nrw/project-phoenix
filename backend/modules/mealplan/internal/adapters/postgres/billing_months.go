@@ -10,9 +10,9 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan"
-	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The Mensa-Monatsfreigabe (#4686, migration 1.15.811). A release carries

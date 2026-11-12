@@ -4,9 +4,9 @@ package openroommovebinding
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
-	"github.com/moto-nrw/project-phoenix/workflows/openroommove/ports"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/workflows/openroommove"
+	"github.com/moto-ogs/project-phoenix/workflows/openroommove/ports"
 )
 
 // Presence is the Student Presence move facade the workflow binds to:

@@ -3,8 +3,8 @@ package timetablehttp
 import (
 	"testing"
 
-	apiTest "github.com/moto-nrw/project-phoenix/api/testutil"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	apiTest "github.com/moto-ogs/project-phoenix/api/testutil"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // TestMain gives every test in this binary its own tenant (#2419), so

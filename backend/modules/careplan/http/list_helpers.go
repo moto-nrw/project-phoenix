@@ -4,7 +4,7 @@ import (
 	http "net/http"
 	strings "strings"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
+	common "github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // parseMultiValueParam splits a filter parameter that may name several values

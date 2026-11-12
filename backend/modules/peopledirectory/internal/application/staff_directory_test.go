@@ -3,7 +3,7 @@ package application
 import (
 	"testing"
 
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 func TestNewStaffDirectoryRequiresRuntime(t *testing.T) {

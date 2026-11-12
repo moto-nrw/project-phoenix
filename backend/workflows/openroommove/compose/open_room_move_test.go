@@ -6,21 +6,21 @@ import (
 	"sync"
 	"testing"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	movebinding "github.com/moto-nrw/project-phoenix/roots/openroommovebinding"
+	movebinding "github.com/moto-ogs/project-phoenix/roots/openroommovebinding"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
-	"github.com/moto-nrw/project-phoenix/workflows/openroommove/compose"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/workflows/openroommove"
+	"github.com/moto-ogs/project-phoenix/workflows/openroommove/compose"
 )
 
 // These tests run the workflow against the real Facilities and Timetable

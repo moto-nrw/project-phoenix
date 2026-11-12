@@ -3,7 +3,7 @@ package application
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Parents type names on their own devices; a decomposed name (macOS

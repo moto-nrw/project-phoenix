@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	checkin "github.com/moto-nrw/project-phoenix/modules/devicescan/http/checkin"
+	checkin "github.com/moto-ogs/project-phoenix/modules/devicescan/http/checkin"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

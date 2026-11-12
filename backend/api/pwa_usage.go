@@ -5,9 +5,9 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	pwaHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/pwa"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	pwaHTTP "github.com/moto-ogs/project-phoenix/modules/delivery/http/pwa"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 func pwaUsageRouter(usage pwaHTTP.Usage) chi.Router {

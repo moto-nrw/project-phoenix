@@ -6,18 +6,18 @@ import (
 	"errors"
 	"log/slog"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
-	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	owner0 "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/realtime"
 
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // MasterDataDecisionTestOptions are the Care Plan inputs of the Stammdaten

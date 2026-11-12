@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"testing"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
 	"github.com/stretchr/testify/assert"
 
-	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	ports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // presetTable stands in for the Security Runtime policy: "pickup_only" grants

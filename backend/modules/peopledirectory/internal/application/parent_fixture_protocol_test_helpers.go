@@ -3,8 +3,8 @@
 package application
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/parentfixture"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/parentfixture"
 )
 
 // ParentFixtureProtocol binds the model constants the compatibility contract

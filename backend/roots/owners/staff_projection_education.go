@@ -3,14 +3,14 @@ package owners
 import (
 	"context"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
 
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	educationRepo "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // supervisionTeacherStaff maps every given live teacher to its staff member.

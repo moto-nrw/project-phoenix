@@ -5,8 +5,8 @@ status: accepted
 # Team-Chat gehört zu moto Basis und ist standardmäßig an
 
 Entscheidung vom 23.10.2026 zu
-[#3262](https://github.com/moto-nrw/project-phoenix/issues/3262), aufbauend auf
-[#3254](https://github.com/moto-nrw/project-phoenix/issues/3254).
+[#3262](https://github.com/moto-ogs/project-phoenix/issues/3262), aufbauend auf
+[#3254](https://github.com/moto-ogs/project-phoenix/issues/3254).
 
 ## Ausgangslage
 
@@ -18,14 +18,14 @@ nutzt ihr Team ihn täglich zwischen den Räumen. Ihre Frage war, ob der Chat
 standardmäßig an sein sollte.
 
 Noch am selben Tag stellte
-[PR #3266](https://github.com/moto-nrw/project-phoenix/pull/3266) (#3254) den
+[PR #3266](https://github.com/moto-ogs/project-phoenix/pull/3266) (#3254) den
 Registry-Standard auf `true`. Mit Release-PR #3307 kam das am 17.09.2026 in
 Produktion. Gespeicherte Werte `false` blieben bewusst stehen, ohne Migration.
 
 ## Entscheidung
 
 **1. Team-Chat ist Teil von moto Basis.** Der
-[Modulkatalog](https://github.com/moto-nrw/collaterals/blob/main/src/app/modulkatalog/data.ts)
+[Modulkatalog](https://github.com/moto-ogs/collaterals/blob/main/src/app/modulkatalog/data.ts)
 führt den Baustein „Team-Chat“ im Modul Verwaltung von moto Basis, und Basis
 ist „immer dabei“. Der Chat ist damit kein Zusatzmodul, das eine Schule bucht
 oder einschaltet. Er gehört auch nicht unter die Modulschalter aus #4812.

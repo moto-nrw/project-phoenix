@@ -5,12 +5,12 @@ import (
 	"log/slog"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // NewTimetableCleanup composes the Timetable owner's GDPR retention (WP-B14)

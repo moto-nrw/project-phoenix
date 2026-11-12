@@ -9,8 +9,8 @@ import (
 
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The debtor number of a family (#6692). A holiday registration writes it at

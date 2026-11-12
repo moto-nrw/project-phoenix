@@ -3,7 +3,7 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 func NewOpeningStaffIDsReader(ledger workforce.Capability) func(ctx context.Context) ([]int64, error) {

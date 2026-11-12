@@ -7,15 +7,15 @@ import (
 	"testing"
 	"time"
 
-	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
+	fixtures "github.com/moto-ogs/project-phoenix/modules/timetable/fixturetest"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"

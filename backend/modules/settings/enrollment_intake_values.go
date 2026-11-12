@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	configSvc "github.com/moto-nrw/project-phoenix/modules/settings/internal/application"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	configSvc "github.com/moto-ogs/project-phoenix/modules/settings/internal/application"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // EnrollmentIntakeSource is the resolver slice the enrollment intake values

@@ -1,6 +1,6 @@
 package parentportal
 
-import "github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
+import "github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/care"
 
 // Pickup permission values (#4780): the signed pickup permission request, the
 // one-day collector, the way home alone and their proof.

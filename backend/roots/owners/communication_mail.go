@@ -3,9 +3,9 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	mail "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	mail "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
 )
 
 // BindCommunicationMailRenderer binds native values to the same registered mail

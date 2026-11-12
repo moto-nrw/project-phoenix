@@ -4,19 +4,19 @@ import (
 	"context"
 	"log/slog"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	devicefleetRepositoryAdapter "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose/repositoryadapter"
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	timetableOwner "github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	statsContract "github.com/moto-nrw/project-phoenix/modules/transactionruntime/stats"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	devicefleetRepositoryAdapter "github.com/moto-ogs/project-phoenix/modules/devicefleet/compose/repositoryadapter"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	timetableOwner "github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	statsContract "github.com/moto-ogs/project-phoenix/modules/transactionruntime/stats"
 )
 
 type DatabaseStatsReader func(context.Context) (*statsContract.StatsResponse, error)

@@ -5,10 +5,10 @@ status: proposed
 # Export Transfer übergibt Finanz-Exporte an einen Empfänger des Trägers
 
 **Status: Vorgeschlagen.** Vorschlag vom 12.11.2026 zu
-[#6824](https://github.com/moto-nrw/project-phoenix/issues/6824), Teil von
-[#4611](https://github.com/moto-nrw/project-phoenix/issues/4611). Entscheidung
+[#6824](https://github.com/moto-ogs/project-phoenix/issues/6824), Teil von
+[#4611](https://github.com/moto-ogs/project-phoenix/issues/4611). Entscheidung
 Yannick vom 12.11.2026 in
-[#4693](https://github.com/moto-nrw/project-phoenix/issues/4693#issuecomment-6818459345):
+[#4693](https://github.com/moto-ogs/project-phoenix/issues/4693#issuecomment-6818459345):
 A ist das Ziel, C bleibt, B wird nie umgesetzt. Ergänzt
 [ADR 0012](0012-export-transfer-is-the-tenth-platform.md) und
 [ADR 0074](0074-delivery-and-export-transfer-speak-their-own-contract.md) um

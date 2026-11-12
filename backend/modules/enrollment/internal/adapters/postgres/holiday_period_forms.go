@@ -8,7 +8,7 @@ import (
 
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // The versions of a holiday period's form (#5198). A version is written once

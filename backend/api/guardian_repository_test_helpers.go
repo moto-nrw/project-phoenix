@@ -3,10 +3,10 @@
 package api
 
 import (
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
 
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // GuardianTestRepositories are the guardian suites' People Directory

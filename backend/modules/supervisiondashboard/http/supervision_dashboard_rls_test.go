@@ -9,8 +9,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // TestSupervisionDashboardInputsEnforceRLS proves the supervision read

@@ -1,7 +1,7 @@
 // Package compose builds the student directory projection the roots bind (ADR 0058).
 package compose
 
-import view "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres"
+import view "github.com/moto-ogs/project-phoenix/modules/studentdirectoryview/internal/adapters/postgres"
 
 // Reader is the projection; NewReader binds the children's health cipher (#5472).
 type Reader = view.Reader

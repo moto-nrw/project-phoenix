@@ -6,8 +6,8 @@ import (
 	sort "sort"
 	strings "strings"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	collation "github.com/moto-nrw/project-phoenix/sharedkernel/collation"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	collation "github.com/moto-ogs/project-phoenix/sharedkernel/collation"
 )
 
 func (rs *Resource) listSchoolClasses(w http.ResponseWriter, r *http.Request) {
