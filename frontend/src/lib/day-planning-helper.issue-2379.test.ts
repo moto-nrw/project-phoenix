@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { getStudentPresenceBadgePlanning } from "./day-planning-helper";
+import {
+  getDayPlanningNotComingLabel,
+  getStudentPresenceBadgePlanning,
+} from "./day-planning-helper";
 
 describe("getStudentPresenceBadgePlanning unplanned presence", () => {
   it("keeps a planned absence visible while the child is at home", () => {
@@ -88,5 +91,35 @@ describe("getStudentPresenceBadgePlanning unplanned presence", () => {
       notArrivalToday: false,
       notArrivalReason: null,
     });
+  });
+});
+
+// #5710: Ein krank gemeldetes Kind, das das Personal zum Unterricht abgemeldet
+// hat, war heute da. Die Karte sagt dann nicht „Kommt heute nicht“.
+describe("getDayPlanningNotComingLabel after a checkout to class", () => {
+  const sickPlan = {
+    day_planning_status: "not_coming_today" as const,
+    day_planning_label: "krank gemeldet",
+  };
+
+  it("drops the not-coming label for a child checked out to class", () => {
+    expect(
+      getDayPlanningNotComingLabel({
+        ...sickPlan,
+        current_location: "Im Unterricht",
+      }),
+    ).toBeNull();
+  });
+
+  it("keeps it before the first check-in and for another day", () => {
+    expect(
+      getDayPlanningNotComingLabel({ ...sickPlan, current_location: "Schule" }),
+    ).toBe("krank gemeldet");
+    expect(
+      getDayPlanningNotComingLabel(
+        { ...sickPlan, current_location: "Im Unterricht" },
+        { ignoreCurrentAttendance: true },
+      ),
+    ).toBe("krank gemeldet");
   });
 });

@@ -1,4 +1,8 @@
-import { LOCATION_STATUSES, parseLocation } from "./location-helper";
+import {
+  LOCATION_STATUSES,
+  isInClassLocation,
+  parseLocation,
+} from "./location-helper";
 
 type DayPlanningStatus = "comes_today" | "not_coming_today";
 
@@ -31,6 +35,14 @@ export function getDayPlanningNotComingLabel(
   },
 ): string | null {
   if (!options?.ignoreCurrentAttendance && hasActualAttendance(student)) {
+    return null;
+  }
+  // Zum Unterricht abgemeldet: das Kind war heute da und ist in der Schule,
+  // auch wenn der Tagesplan es wegen einer Krankmeldung nicht erwartet (#5710).
+  if (
+    !options?.ignoreCurrentAttendance &&
+    isInClassLocation(student.current_location)
+  ) {
     return null;
   }
   if (student.day_planning_status !== "not_coming_today") return null;
