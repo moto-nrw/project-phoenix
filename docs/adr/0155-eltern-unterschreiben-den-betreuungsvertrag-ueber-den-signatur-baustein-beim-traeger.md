@@ -6,8 +6,8 @@ status: accepted
 
 Freigegeben von Yannick Wenger am 07.11.2026
 
-Vorschlag vom 06.11.2026 zu [#4679](https://github.com/moto-nrw/project-phoenix/issues/4679),
-Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611).
+Vorschlag vom 06.11.2026 zu [#4679](https://github.com/moto-ogs/project-phoenix/issues/4679),
+Etappe 2 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611).
 Er setzt die Entscheidung B + D aus #4679 um (einfache elektronische Signatur
 und Papier, keine QES nach #3740) und baut auf
 [ADR 0153](0153-betreuungsvertrag-entsteht-im-traeger-buero-aus-der-angenommenen-anmeldung.md)

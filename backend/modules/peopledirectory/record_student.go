@@ -4,7 +4,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 )
 
 func (s *StudentState) Validate() error {

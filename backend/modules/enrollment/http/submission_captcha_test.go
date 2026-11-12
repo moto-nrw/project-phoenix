@@ -8,13 +8,13 @@ import (
 	"sync/atomic"
 	"testing"
 
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	enrollmentTest "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 

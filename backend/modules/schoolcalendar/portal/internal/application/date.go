@@ -1,7 +1,7 @@
 package application
 
 import (
-	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
+	appointmentcap "github.com/moto-ogs/project-phoenix/modules/appointments"
 )
 
 func toCalendarDate(date appointmentcap.Date) appointmentcap.Date {

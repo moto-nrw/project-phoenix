@@ -4,7 +4,7 @@ status: accepted
 
 # Träger-Projektion bekommt ihre Komposition und ihre Lesegrenze
 
-Entscheidung vom 24.10.2026 zu [#4649](https://github.com/moto-nrw/project-phoenix/issues/4649),
+Entscheidung vom 24.10.2026 zu [#4649](https://github.com/moto-ogs/project-phoenix/issues/4649),
 erster Schnitt von [ADR 0084](0084-traeger-portal-liest-ueber-eine-projektion-und-schreibt-in-der-schule.md)
 Abschnitt 1. ADR 0084 hat den Owner `traeger-view` beschlossen. Diese ADR hält
 fest, was sein erster Code in den Registern ändert, damit kein Register

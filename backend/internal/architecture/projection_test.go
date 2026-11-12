@@ -92,7 +92,7 @@ func TestMigrationProjectionPreservesEveryStatusBetweenTheSameOwners(t *testing.
 		DataObject{Name: current.Target, WriteOwner: "beta"},
 	)
 	graph.SemanticViolations = append(graph.SemanticViolations, legacy, current)
-	baseline.Entries = append(baseline.Entries, LegacyEntry{Violation: legacy, Issue: "https://github.com/moto-nrw/project-phoenix/issues/2584"})
+	baseline.Entries = append(baseline.Entries, LegacyEntry{Violation: legacy, Issue: "https://github.com/moto-ogs/project-phoenix/issues/2584"})
 
 	projection := MigrationProjection(policy, graph, baseline)
 	var statuses []ProjectionStatus

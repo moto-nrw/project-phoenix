@@ -3,9 +3,9 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityoperator "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-	provisioningOperatorAPI "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityoperator "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/operator"
+	provisioningOperatorAPI "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/inbound/operator"
 )
 
 // newIdentityResource builds the Identity & Access operator routes the

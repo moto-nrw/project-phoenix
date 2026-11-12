@@ -3,7 +3,7 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func retainedNewDetachedContext() func(ctx context.Context) context.Context {

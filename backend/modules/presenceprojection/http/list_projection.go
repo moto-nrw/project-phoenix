@@ -3,8 +3,8 @@ package presenceprojectionhttp
 import (
 	time "time"
 
-	departure "github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	departure "github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Values accepted by the `view` query parameter of GET /api/students.

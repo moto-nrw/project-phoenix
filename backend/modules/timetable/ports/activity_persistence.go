@@ -1,7 +1,7 @@
 package ports
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 // GroupRows are the owner's activity group and target reads and writes.

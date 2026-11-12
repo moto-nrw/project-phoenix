@@ -10,7 +10,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
+	"github.com/moto-ogs/project-phoenix/architecture/artifacts"
 )
 
 type Policy struct {
@@ -31,6 +31,9 @@ type Policy struct {
 	// Relocations records the package renames of a reviewed epoch (ADR 0020).
 	// It is optional: a policy without one declares no move.
 	Relocations []Relocation `json:"relocations,omitempty"`
+	// ModuleRename records a reviewed module path change (ADR 0217). It is
+	// optional: a policy without one declares no rename.
+	ModuleRename *ModuleRename `json:"module_rename,omitempty"`
 }
 
 type DataObject struct {
@@ -269,6 +272,9 @@ func (p *Policy) validate(schema int, ownerKinds, allowedRoleSet map[string]bool
 	if err := p.validateRelocations(); err != nil {
 		return err
 	}
+	if err := p.validateModuleRename(); err != nil {
+		return err
+	}
 	if err := p.validateRules(owners, roles, classes, ownerKinds); err != nil {
 		return err
 	}
@@ -449,7 +455,7 @@ func (p *Policy) validateOwners(ownerKinds map[string]bool) (map[string]Owner, e
 // validateCanonicalOwners pins moto's module map from ADRs 0010/0012/0088 and #2580.
 // Evaluator fixtures use independent module paths and their own small maps.
 func (p *Policy) validateCanonicalOwners() error {
-	if p.ModulePath != "github.com/moto-nrw/project-phoenix" {
+	if p.ModulePath != "github.com/moto-ogs/project-phoenix" {
 		return nil
 	}
 	platformOwners := []string{

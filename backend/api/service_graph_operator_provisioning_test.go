@@ -10,10 +10,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -25,7 +25,7 @@ import (
 // capability's own signatures and typed errors are matched by their package
 // and name.
 
-const organizationTenancyPackage = "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+const organizationTenancyPackage = "github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 
 var provisioningTestClientIP = net.IPv4(127, 0, 0, 1)
 

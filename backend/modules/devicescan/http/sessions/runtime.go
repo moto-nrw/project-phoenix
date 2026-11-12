@@ -6,7 +6,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
 )
 
 // EndFailure classifies a failed session close without exposing its workflow.

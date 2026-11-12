@@ -3,11 +3,11 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleDirectoryCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/modules/traegerview"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleDirectoryCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-ogs/project-phoenix/modules/traegerview"
 )
 
 // traegerKnownChildrenPorts binds the reads behind the hint on a known child

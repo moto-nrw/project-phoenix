@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	store "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	store "github.com/moto-ogs/project-phoenix/modules/communication/staffstore"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/uptrace/bun"
 )
 

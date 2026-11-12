@@ -12,12 +12,12 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	filestorage "github.com/moto-nrw/project-phoenix/modules/filestorage"
-	filesHTTP "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	filestorage "github.com/moto-ogs/project-phoenix/modules/filestorage"
+	filesHTTP "github.com/moto-ogs/project-phoenix/modules/filestorage/http/files"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/uptrace/bun"
 )
 

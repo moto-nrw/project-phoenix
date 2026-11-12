@@ -13,10 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	sseAPI "github.com/moto-nrw/project-phoenix/modules/delivery/http/sse"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	sseAPI "github.com/moto-ogs/project-phoenix/modules/delivery/http/sse"
+	"github.com/moto-ogs/project-phoenix/realtime"
 )
 
 // testContext holds shared test dependencies.

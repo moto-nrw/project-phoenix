@@ -4,7 +4,7 @@ status: accepted
 
 # Owners adopt tables a retired generic store reached
 
-Accepted for [#2706](https://github.com/moto-nrw/project-phoenix/issues/2706)
+Accepted for [#2706](https://github.com/moto-ogs/project-phoenix/issues/2706)
 in policy epoch 32, as an extension of
 [ADR 0015](0015-owners-adopt-existing-unowned-tables.md). The pull request
 review is where it can still be rejected; the path is usable only in a

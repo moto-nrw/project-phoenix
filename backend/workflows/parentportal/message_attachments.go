@@ -3,7 +3,7 @@ package parentportal
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/messaging"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/messaging"
 )
 
 // Photos and files in the guardian's conversations (#6685). The root binds

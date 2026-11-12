@@ -5,20 +5,20 @@ import (
 	"fmt"
 	"log/slog"
 
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	settingsModule "github.com/moto-ogs/project-phoenix/modules/settings"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // CarePlanOfferings are Care Plan's care-offering catalog and its booking

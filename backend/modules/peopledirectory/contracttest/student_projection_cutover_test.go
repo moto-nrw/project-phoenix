@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	owner0 "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api"
 
-	userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	userModels "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 

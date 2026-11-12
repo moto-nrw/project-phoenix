@@ -4,12 +4,12 @@ status: accepted
 
 # File Storage is the eighteenth domain
 
-For [#3034](https://github.com/moto-nrw/project-phoenix/issues/3034), we agreed
+For [#3034](https://github.com/moto-ogs/project-phoenix/issues/3034), we agreed
 that File Storage is a separate eighteenth domain in the canonical backend
 module map. It represents a managed school file collection, not just byte
 storage. This preserves the existing `file-storage` domain classification in
 `backend/architecture/policy.json` and resolves its omission from
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580).
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580).
 
 The classification and boundaries below were confirmed in the design interview.
 
@@ -38,7 +38,7 @@ mix output generation with school sharing, quota, and cleanup rules.
 #3034 records the decision and aligns the canonical map. It does not change
 runtime write ownership, HTTP contracts, storage layout, or ratchet entries.
 The File Storage migration remains in
-[#2707](https://github.com/moto-nrw/project-phoenix/issues/2707).
+[#2707](https://github.com/moto-ogs/project-phoenix/issues/2707).
 
 The canonical map has eighteen domains and the existing nine platform modules.
 Policy validation must pin both owner lists; architecture documentation and

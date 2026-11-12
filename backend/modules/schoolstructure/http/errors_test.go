@@ -11,8 +11,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
-	schoolstructurehttp "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http"
+	education "github.com/moto-ogs/project-phoenix/modules/schoolstructure/contract"
+	schoolstructurehttp "github.com/moto-ogs/project-phoenix/modules/schoolstructure/http"
 )
 
 // renderedError is the error body the shared renderer writes.

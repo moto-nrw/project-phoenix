@@ -3,7 +3,7 @@ package application
 import (
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The text of the SEPA mandate the parents confirm online (#4696), version

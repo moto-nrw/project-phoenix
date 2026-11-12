@@ -1,6 +1,6 @@
 package postgres
 
-import "github.com/moto-nrw/project-phoenix/modules/parentbilling"
+import "github.com/moto-ogs/project-phoenix/modules/parentbilling"
 
 // The contracts a month already bills (#4684, #6219): the issued monthly
 // invoices and the months of the Jahresbescheide nobody amended, read by

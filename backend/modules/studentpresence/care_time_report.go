@@ -3,7 +3,7 @@ package studentpresence
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Soll und Ist je Kind (#4774): the booked care time of each child and day

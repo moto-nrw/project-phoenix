@@ -6,9 +6,9 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	iotcompose "github.com/moto-nrw/project-phoenix/api/iot/compose"
+	iotcompose "github.com/moto-ogs/project-phoenix/api/iot/compose"
 
-	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
+	feedbackModule "github.com/moto-ogs/project-phoenix/modules/feedback"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

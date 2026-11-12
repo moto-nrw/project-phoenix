@@ -5,7 +5,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/traegerview"
+	"github.com/moto-ogs/project-phoenix/modules/traegerview"
 )
 
 // The holiday registrations of a Träger in its access log (#5326): every

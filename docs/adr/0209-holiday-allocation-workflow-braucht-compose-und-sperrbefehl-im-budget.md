@@ -6,7 +6,7 @@ status: accepted
 
 **Status: Angenommen.** Freigegeben von Yannick Wenger am 11.11.2026.
 Vorschlag vom 11.11.2026 zu
-[#6555](https://github.com/moto-nrw/project-phoenix/issues/6555). Beleg nach
+[#6555](https://github.com/moto-ogs/project-phoenix/issues/6555). Beleg nach
 [ADR 0206](0206-ferienplatz-aenderungen-und-neueinfrieren-haben-einen-workflow.md),
 Abschnitt „Architekturprüfung bei der späteren Umsetzung“: Diese ADR gibt
 keine Budgets pauschal frei; benötigte Erhöhungen brauchen konkrete,

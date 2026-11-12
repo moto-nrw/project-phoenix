@@ -5,10 +5,10 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/catererportal"
-	"github.com/moto-nrw/project-phoenix/workflows/catererportal/internal/application"
-	"github.com/moto-nrw/project-phoenix/workflows/catererportal/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/workflows/catererportal"
+	"github.com/moto-ogs/project-phoenix/workflows/catererportal/internal/application"
+	"github.com/moto-ogs/project-phoenix/workflows/catererportal/ports"
 )
 
 // Dependencies are the owner capabilities the portal coordinates.

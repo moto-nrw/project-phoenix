@@ -5,9 +5,9 @@ package owners
 import (
 	"context"
 
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // SettingsTestRepositories are the settings stores the Settings composition

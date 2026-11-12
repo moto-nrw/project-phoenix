@@ -1,9 +1,9 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/application"
 )
 
 // NewTraegerMasterData builds the master data of a Träger (#4653, ADR 0112) in the Träger transaction (ADR 0105).

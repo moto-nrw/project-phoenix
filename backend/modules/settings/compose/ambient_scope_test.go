@@ -3,8 +3,8 @@ package compose_test
 import (
 	"testing"
 
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func TestPersistenceRequiresAmbientTransaction(t *testing.T) {

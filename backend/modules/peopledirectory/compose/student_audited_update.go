@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application"
 )
 
 // AuditedStudentUpdates are the retained child row writes the root's Care Plan

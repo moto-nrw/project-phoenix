@@ -4,7 +4,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
 )
 
 // EffectiveStatus is the resolved status precedence for a set of active

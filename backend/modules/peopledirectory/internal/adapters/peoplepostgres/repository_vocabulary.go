@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	ports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // The query and error vocabulary of the retained People Directory

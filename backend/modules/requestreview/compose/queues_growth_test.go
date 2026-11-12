@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"testing"
 
-	reviewcompose "github.com/moto-nrw/project-phoenix/modules/requestreview/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	reviewcompose "github.com/moto-ogs/project-phoenix/modules/requestreview/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )

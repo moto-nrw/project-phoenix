@@ -3,7 +3,7 @@ package studentpresencehttp
 import (
 	json "encoding/json"
 
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // newPrivacyConsentResponse converts an owner consent record to a response.

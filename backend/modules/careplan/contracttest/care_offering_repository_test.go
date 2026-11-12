@@ -5,17 +5,17 @@ import (
 	"fmt"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	carePlanTest "github.com/moto-ogs/project-phoenix/modules/careplan/careplantest"
+	enrollmentTest "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // careOfferingRepoUnderTest writes offerings through Care Plan's commands and

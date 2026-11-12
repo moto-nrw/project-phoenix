@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
 )
 
 // TestTraegerNameFallsBackToThePartnerWithoutALetterhead: a contract is sent

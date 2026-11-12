@@ -1,8 +1,8 @@
 package owners
 
 import (
-	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	directory "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	parentportal "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 func parentMessagingFromOwnerFamilyProtectionEvent(v directory.GuardianFamilyProtectionRecord) parentportal.FamilyProtectionEvent {

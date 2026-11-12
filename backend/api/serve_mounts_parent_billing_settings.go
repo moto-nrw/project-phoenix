@@ -3,8 +3,8 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // TraegerBrandingSettings is the Träger level of the settings system as the

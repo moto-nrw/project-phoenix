@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
-	"github.com/moto-nrw/project-phoenix/modules/auditlog/consents"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/auditlog/consents"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
 )
 
 // ImportConfig defines entity-specific import behavior

@@ -7,7 +7,7 @@ import (
 
 	"github.com/go-chi/render"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
 )
 
 // Class-list entry import (#2382): the bulk form of the minimal

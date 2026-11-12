@@ -7,14 +7,14 @@ import (
 	"testing"
 	"time"
 
-	settingsFacts "github.com/moto-nrw/project-phoenix/modules/settings"
+	settingsFacts "github.com/moto-ogs/project-phoenix/modules/settings"
 
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/inbound/presence"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

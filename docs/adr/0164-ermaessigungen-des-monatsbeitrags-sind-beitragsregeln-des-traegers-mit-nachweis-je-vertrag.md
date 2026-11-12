@@ -6,8 +6,8 @@ status: proposed
 
 **Status: Vorgeschlagen.**
 
-Entscheidung zu [#4685](https://github.com/moto-nrw/project-phoenix/issues/4685),
-Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung zu [#4685](https://github.com/moto-ogs/project-phoenix/issues/4685),
+Etappe 2 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 60 bis 62. Sie ist ein Bau-Schnitt des Owners Elternabrechnung
 aus [ADR 0088](0088-betreuungsvertrag-und-elternabrechnung-sind-eigene-owner-beim-traeger.md)
 §4 und baut auf dem Monatsbeitrag aus

@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // staffNoticeNames binds the Tagesinformationen's acknowledger-name port

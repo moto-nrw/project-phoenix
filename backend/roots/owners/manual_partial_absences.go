@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	carePlanBindingPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	carePlanBindingPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ManualPartialAbsenceDates serves Student Presence's manual partial absence

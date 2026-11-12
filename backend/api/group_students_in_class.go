@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	settingsplatform "github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	settingsplatform "github.com/moto-ogs/project-phoenix/modules/settings"
 )
 
 // groupStudentsInClassDay binds the group student list to the day-planning

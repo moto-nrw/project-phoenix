@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"hash/fnv"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // The release of a holiday run issues exactly the preview the Abrechnung

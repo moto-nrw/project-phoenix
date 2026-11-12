@@ -4,8 +4,8 @@ import (
 	errors "errors"
 	http "net/http"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	requestreview "github.com/moto-nrw/project-phoenix/modules/requestreview"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	requestreview "github.com/moto-ogs/project-phoenix/modules/requestreview"
 )
 
 // listAggregatedChangeRequests serves the unified Eltern request list. The

@@ -3,7 +3,7 @@
 package fixturetest
 
 import (
-	records "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	records "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 )
 
 func fromNative2(value *records.ActivityInstance) *ActivityInstance {

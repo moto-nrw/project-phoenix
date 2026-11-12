@@ -7,7 +7,7 @@ status: accepted
 **Status: Akzeptiert.** Freigegeben von Yannick Wenger am 11.11.2026.
 
 Vorgeschlagen am 11.11.2026 zu
-[#4704](https://github.com/moto-nrw/project-phoenix/issues/4704). Beleg nach
+[#4704](https://github.com/moto-ogs/project-phoenix/issues/4704). Beleg nach
 [ADR 0195](0195-traegerphase-und-traegerangebot-werden-je-schule-kopiert-und-erst-nach-freigabe-abgeglichen.md),
 Abschnitt „Policy und Register“: ADR 0195 legt den Workflow-Owner
 `traeger-catalog-rollout` mit dem Paket `workflows/traegercatalog/compose`

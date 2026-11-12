@@ -7,9 +7,9 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // Manual SFTP transfer of the cross-staff time export (#3050).

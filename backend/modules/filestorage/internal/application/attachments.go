@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/filestorage"
-	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage/internal/ports"
 )
 
 // Anhänge an Elternmitteilungen (#2890).

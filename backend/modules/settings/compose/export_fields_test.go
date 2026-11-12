@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	"github.com/moto-ogs/project-phoenix/modules/settings/compose"
 	"github.com/stretchr/testify/require"
 )
 

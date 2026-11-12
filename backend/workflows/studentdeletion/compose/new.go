@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/workflows/studentdeletion"
 	"github.com/uptrace/bun"
 )
 

@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/settings"
-	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
+	timetableModule "github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 func (rs *Resource) resolveTemplateGradeLevelMax(ctx context.Context) (int, error) {

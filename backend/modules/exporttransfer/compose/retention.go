@@ -3,8 +3,8 @@ package compose
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer"
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/adapters/postgres"
 )
 
 // NewJournalRetention composes the journal retention of the nightly cleanup

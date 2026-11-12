@@ -5,12 +5,12 @@ status: accepted
 # Dokumentvorlagen des Trägers liegen bei Organisation & Tenancy, ihre Sprache bei Document Rendering
 
 **Status: Akzeptiert.** Setzt die Zuordnung der Spec
-[#4611](https://github.com/moto-nrw/project-phoenix/issues/4611) um
+[#4611](https://github.com/moto-ogs/project-phoenix/issues/4611) um
 („Document Rendering: Vorlagen je Träger mit Platzhaltern und Branding“) und
 schließt den in
 [ADR 0088](0088-betreuungsvertrag-und-elternabrechnung-sind-eigene-owner-beim-traeger.md)
 offenen Punkt T6 für die Vorlagen; Entscheidung für
-[#4677](https://github.com/moto-nrw/project-phoenix/issues/4677). Ergänzt
+[#4677](https://github.com/moto-ogs/project-phoenix/issues/4677). Ergänzt
 [ADR 0112](0112-stammdaten-des-traegers-liegen-bei-organisation-und-tenancy.md)
 und [ADR 0121](0121-bestaetigungsschreiben-ist-die-rechnung-im-layout-des-traegers.md).
 

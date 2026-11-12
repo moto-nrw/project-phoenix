@@ -4,11 +4,11 @@ import (
 	"database/sql"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	deliveryPorts "github.com/moto-ogs/project-phoenix/modules/delivery/internal/ports"
 
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"

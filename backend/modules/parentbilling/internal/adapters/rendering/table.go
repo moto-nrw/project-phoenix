@@ -3,9 +3,9 @@ package rendering
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling/internal/application"
 )
 
 // RenderTable renders the overview of a run as a list document whose values

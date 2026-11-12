@@ -1,9 +1,9 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/auditlog"
-	"github.com/moto-nrw/project-phoenix/modules/auditlog/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/auditlog"
+	"github.com/moto-ogs/project-phoenix/modules/auditlog/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // NewGuardianChangeLog composes the guardian-change append command. It holds

@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // TestSeedCoverageRatchet keeps the demo seeder honest about which tables it

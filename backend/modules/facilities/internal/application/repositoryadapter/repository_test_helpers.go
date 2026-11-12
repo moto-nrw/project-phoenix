@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
 )
 
 func (r *Repository) Create(ctx context.Context, room *facilities.Room) error {

@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
 )
 
 // The conclusion of a signed contract (#4679). A signature, online or on

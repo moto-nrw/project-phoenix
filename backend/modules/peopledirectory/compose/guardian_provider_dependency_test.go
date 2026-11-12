@@ -6,8 +6,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 type primaryPhoneGuardians struct {

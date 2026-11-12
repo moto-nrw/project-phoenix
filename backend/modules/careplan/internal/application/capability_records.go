@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/domain"
 )
 
 func (s *Service) FindCareExits(ctx context.Context, studentIDs []int64) (map[int64]careplan.CareExit, error) {

@@ -5,8 +5,8 @@ import (
 	errors "errors"
 	fmt "fmt"
 
-	schedule "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
+	schedule "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
 )
 
 type RecurrenceWriteLock struct {

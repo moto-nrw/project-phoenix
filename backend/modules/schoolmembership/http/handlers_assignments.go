@@ -6,7 +6,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 )
 
 // getStaffGroups lists the groups a Betreuungskraft is assigned to. A staff

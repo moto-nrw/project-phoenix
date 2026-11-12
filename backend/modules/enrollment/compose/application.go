@@ -5,11 +5,11 @@ import (
 	"database/sql"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/adapters/turnstile"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment/internal/adapters/turnstile"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 

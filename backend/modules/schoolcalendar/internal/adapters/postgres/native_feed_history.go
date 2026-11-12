@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
 )
 
 func NewNativeFeedHistory(store *Store) schoolcalendar.FeedHistory { return feedHistory{Store: store} }

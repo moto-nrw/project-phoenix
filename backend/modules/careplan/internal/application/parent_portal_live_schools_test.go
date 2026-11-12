@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
-	carePlanBindingPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
+	parentModels "github.com/moto-ogs/project-phoenix/modules/careplan/internal/rows"
+	carePlanBindingPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
 )
 
 const (

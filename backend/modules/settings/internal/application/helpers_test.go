@@ -6,7 +6,7 @@ import (
 	"log/slog"
 	"testing"
 
-	settingsRecords "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	settingsRecords "github.com/moto-ogs/project-phoenix/modules/settings/records"
 
 	"github.com/stretchr/testify/assert"
 )

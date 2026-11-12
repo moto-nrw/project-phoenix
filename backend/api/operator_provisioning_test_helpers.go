@@ -2,7 +2,7 @@
 
 package api
 
-import owners "github.com/moto-nrw/project-phoenix/roots/owners"
+import owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
 // The operator provisioning suites pin the identity adapter the root binds
 // provisioning over (#3253).

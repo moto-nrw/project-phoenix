@@ -6,14 +6,14 @@ import (
 	"context"
 	"time"
 
-	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+	recordports "github.com/moto-ogs/project-phoenix/modules/communication/ports"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	owner0 "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
 )
 
 func ParentStoreChildByID(children []*communication.PortalAnnouncementLetterChildStatus, studentID int64) *communication.PortalAnnouncementLetterChildStatus {

@@ -4,12 +4,12 @@ import (
 	"context"
 	"testing"
 
-	api "github.com/moto-nrw/project-phoenix/roots/owners"
+	api "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

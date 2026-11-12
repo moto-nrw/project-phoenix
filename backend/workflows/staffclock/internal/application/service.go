@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	clockcontract "github.com/moto-nrw/project-phoenix/workflows/staffclock"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	clockcontract "github.com/moto-ogs/project-phoenix/workflows/staffclock"
 )
 
 // Service owns the pure NFC stamp workflow. It deliberately accepts narrow

@@ -3,15 +3,15 @@ package compose_test
 import (
 	"testing"
 
-	scanBindings "github.com/moto-nrw/project-phoenix/roots/devicescanbinding"
+	scanBindings "github.com/moto-ogs/project-phoenix/roots/devicescanbinding"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	devicescanCompose "github.com/moto-ogs/project-phoenix/modules/devicescan/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func TestNewFailsFastWithoutTheRequiredCapabilities(t *testing.T) {

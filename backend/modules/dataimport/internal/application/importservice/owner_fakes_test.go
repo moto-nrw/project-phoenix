@@ -8,7 +8,7 @@ import (
 	"sync"
 	"sync/atomic"
 
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 )
 
 // In-memory owner fakes for the decision tests of the import package. They

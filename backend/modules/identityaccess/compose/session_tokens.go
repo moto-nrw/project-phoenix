@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
-	application "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-	identityPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	application "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application"
+	identityPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
 // SignedIdentityTokens serves the session and MFA challenge ports with one signer.

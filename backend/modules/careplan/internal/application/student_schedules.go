@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/domain"
 )
 
 func (s *Service) lockWeekdayPickupNotes(ctx context.Context, studentID int64, stats *domain.OperationStats) (map[int]careplan.PickupNote, error) {

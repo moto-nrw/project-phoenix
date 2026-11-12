@@ -5,8 +5,8 @@ status: accepted
 # Principle: every module, table and cross-owner read has one owner
 
 Principle ADR of 2026-10-19 under
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), written for
-[#4091](https://github.com/moto-nrw/project-phoenix/issues/4091). It states the
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580), written for
+[#4091](https://github.com/moto-ogs/project-phoenix/issues/4091). It states the
 ownership rules that still hold. The ADRs it cites keep their context,
 measurements and history; this ADR changes none of them. A new ownership
 decision amends this ADR or names it.

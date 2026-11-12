@@ -8,8 +8,8 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 	"github.com/stretchr/testify/assert"
 )
 

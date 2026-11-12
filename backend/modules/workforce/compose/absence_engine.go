@@ -3,7 +3,7 @@ package compose
 import (
 	"context"
 
-	compositionBinding "github.com/moto-nrw/project-phoenix/modules/workforce/internal/adapters/postgres"
+	compositionBinding "github.com/moto-ogs/project-phoenix/modules/workforce/internal/adapters/postgres"
 )
 
 // LockStaffAbsence serializes overlap-sensitive absence writes of one staff

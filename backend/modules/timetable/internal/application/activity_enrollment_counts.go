@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // GetEnrollmentCounts batches the roster reads, not a raw enrollment COUNT:

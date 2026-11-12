@@ -5,9 +5,9 @@ status: accepted
 # Pass-throughs keep a per-owner floor of four shapes
 
 Decision of 2026-10-21 for
-[#4459](https://github.com/moto-nrw/project-phoenix/issues/4459), part of
-[#4403](https://github.com/moto-nrw/project-phoenix/issues/4403) under
-[#3423](https://github.com/moto-nrw/project-phoenix/issues/3423). It records
+[#4459](https://github.com/moto-ogs/project-phoenix/issues/4459), part of
+[#4403](https://github.com/moto-ogs/project-phoenix/issues/4403) under
+[#3423](https://github.com/moto-ogs/project-phoenix/issues/3423). It records
 the owner decision of 2026-10-20 on #4403 and changes no budget, no rule and
 no scanner condition. The [amendment of 2026-10-21](#amendment-of-2026-10-21)
 admits the owner-edge translations and four named exceptions into the floor,
@@ -237,7 +237,7 @@ floor.
 ## Amendment of 2026-10-23
 
 Owner decision of 2026-10-23 on
-[#4531](https://github.com/moto-nrw/project-phoenix/issues/4531): option A,
+[#4531](https://github.com/moto-ogs/project-phoenix/issues/4531): option A,
 the contract cut. It replaces decision point 3 and the last sentence of
 amendment point 5. It adds no rule, alias, allowlist entry, exception or
 scanner condition, and no budget changes.

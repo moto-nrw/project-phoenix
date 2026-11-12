@@ -26,7 +26,7 @@ provide `x86_64-darwin` packages.
 ### Quick Setup
 
 ```bash
-git clone https://github.com/moto-nrw/project-phoenix.git
+git clone https://github.com/moto-ogs/project-phoenix.git
 cd project-phoenix
 direnv allow              # activates the devbox environment
 devbox run bootstrap      # installs frontend and browser dependencies

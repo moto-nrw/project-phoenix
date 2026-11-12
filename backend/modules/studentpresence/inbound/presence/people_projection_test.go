@@ -3,7 +3,7 @@ package presence_test
 import (
 	"context"
 
-	presenceAPI "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence"
+	presenceAPI "github.com/moto-ogs/project-phoenix/modules/studentpresence/inbound/presence"
 )
 
 type activePeople struct {

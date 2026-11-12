@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/realtime"
 )
 
 // TimeTrackingEvents binds the time-tracking services' event port to the

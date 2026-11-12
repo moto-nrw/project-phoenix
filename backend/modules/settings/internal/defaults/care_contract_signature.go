@@ -1,7 +1,7 @@
 package defaults
 
 import (
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // The signature of the care contract (#4679): after how many days a contract

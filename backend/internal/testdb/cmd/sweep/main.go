@@ -21,7 +21,7 @@ import (
 	"path/filepath"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/testdb"
+	"github.com/moto-ogs/project-phoenix/internal/testdb"
 	"github.com/subosito/gotenv"
 )
 

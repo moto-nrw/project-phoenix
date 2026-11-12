@@ -8,14 +8,14 @@ import (
 	strconv "strconv"
 	time "time"
 
-	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
+	securitycontract "github.com/moto-ogs/project-phoenix/modules/securityruntime/ports"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	securityruntime "github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	securityruntime "github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
 )
 
 type studentNoteResponse struct {
