@@ -70,7 +70,7 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/messaging/new-message-modal.tsx",
-    lines: [393],
+    lines: [396],
     reason: "Elternteil in der Empfängerliste wählen: Auswahlzeile",
   },
   {

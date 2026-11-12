@@ -175,6 +175,7 @@ function MessagesInboxContent() {
       variant="primary"
       size="md"
       onClick={() => setComposeOpen(true)}
+      tooltip="Öffnet ein Fenster, in dem Sie Kind und Eltern wählen."
     >
       Neue Nachricht
     </Button>
@@ -207,6 +208,7 @@ function MessagesInboxContent() {
           ? [
               {
                 label: MARK_ALL_READ_LABEL,
+                description: "Gilt nur für Sie, nicht für Ihr Team",
                 onClick: () => void handleMarkAllRead(),
                 disabled: markingAllRead,
               },
@@ -216,6 +218,7 @@ function MessagesInboxContent() {
           ? [
               {
                 label: COUNT_SETTING_LABEL,
+                description: "Öffnet Ihr Profil, dort legen Sie die Zahl fest",
                 onClick: () => router.push("/profile"),
               },
             ]

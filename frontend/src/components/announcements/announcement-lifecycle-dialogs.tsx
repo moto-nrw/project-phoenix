@@ -280,6 +280,8 @@ export function buildAnnouncementMenuItems(
     items.push({
       // moto schule sagt Senden: die Lehrkraft schickt einen Brief ab.
       label: handlers.classLetterAuthor ? "Senden" : "Veröffentlichen",
+      description:
+        "Benachrichtigt die gewählten Eltern, moto fragt vorher nach",
       icon: <Send className="size-4" aria-hidden />,
       onClick: handlers.onPublish,
     });
@@ -294,6 +296,7 @@ export function buildAnnouncementMenuItems(
   ) {
     items.push({
       label: "Bearbeiten",
+      description: "Öffnet den Entwurf zum Ändern",
       icon: <Pencil className="size-4" aria-hidden />,
       onClick: handlers.onEdit,
     });
@@ -309,6 +312,8 @@ export function buildAnnouncementMenuItems(
       label: announcement.reminder_at
         ? "Erinnerung ändern"
         : "Erinnerung planen",
+      description:
+        "Legt fest, wann moto sie allen Empfängern noch einmal schickt",
       icon: <BellRing className="size-4" aria-hidden />,
       onClick: handlers.onReminder,
     });
@@ -316,6 +321,7 @@ export function buildAnnouncementMenuItems(
   if (!announcement.system_kind && announcement.status === "published") {
     items.push({
       label: "Zurückziehen",
+      description: "Eltern sehen sie nicht mehr, moto fragt vorher nach",
       icon: <Undo2 className="size-4" aria-hidden />,
       onClick: handlers.onUnpublish,
     });
@@ -323,6 +329,7 @@ export function buildAnnouncementMenuItems(
   if (!announcement.system_kind) {
     items.push({
       label: "Löschen",
+      description: "Löscht den Eintrag, moto fragt vorher nach",
       icon: <Trash2 className="size-4" aria-hidden />,
       destructive: true,
       onClick: handlers.onDelete,
@@ -334,6 +341,7 @@ export function buildAnnouncementMenuItems(
 function viewItem(onView: () => void): OverflowMenuItem {
   return {
     label: "Anzeigen",
+    description: "Öffnet den Eintrag mit allen Rückmeldungen der Eltern",
     icon: <MotoConceptIcon concept={reportsConcept} size={16} />,
     onClick: onView,
   };

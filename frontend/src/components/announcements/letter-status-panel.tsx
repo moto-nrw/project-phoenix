@@ -414,6 +414,12 @@ export function LetterStatusPanel({
             size="md"
             onClick={() => void runAction("remind")}
             disabled={busy !== null || s.children_open === 0}
+            disabledReason={
+              s.children_open === 0
+                ? "Für jedes Kind liegt schon eine Bestätigung vor."
+                : undefined
+            }
+            tooltip="Schickt sofort eine E-Mail an Eltern, die noch nicht bestätigt haben."
             className="gap-1.5"
           >
             <BellRing className="h-4 w-4" aria-hidden />
@@ -425,6 +431,12 @@ export function LetterStatusPanel({
             size="md"
             onClick={() => void runAction("resend")}
             disabled={busy !== null || resendable === 0}
+            disabledReason={
+              resendable === 0
+                ? "Es gibt keine fehlgeschlagene E-Mail, die moto noch einmal senden kann."
+                : undefined
+            }
+            tooltip="Schickt die E-Mails, die nicht ankamen, sofort noch einmal."
             className="gap-1.5"
           >
             <RefreshCw className="h-4 w-4" aria-hidden />

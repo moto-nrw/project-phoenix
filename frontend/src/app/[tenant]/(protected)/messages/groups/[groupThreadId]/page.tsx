@@ -275,7 +275,14 @@ function GroupMessageContent() {
       loading={showSkeleton}
       overflowMenu={
         thread && !closed && messagingEnabled
-          ? [{ label: "Schließen", onClick: () => setConfirmClose(true) }]
+          ? [
+              {
+                label: "Schließen",
+                description:
+                  "Eltern können dann nicht mehr antworten, moto fragt vorher nach",
+                onClick: () => setConfirmClose(true),
+              },
+            ]
           : []
       }
       overlays={
@@ -331,15 +338,14 @@ function GroupMessageContent() {
                 setDraft(value);
               }}
               onSend={async (files) => {
-                  await send(files);
-                  return sendArrived.current;
-                }}
+                await send(files);
+                return sendArrived.current;
+              }}
               sending={sending}
               placeholder="Weitere Nachricht an alle Eltern…"
               attachments={{
                 uploadUrl: PARENT_MESSAGE_ATTACHMENTS.uploadUrl,
-                notice:
-                  "Alle Eltern dieser Gruppennachricht sehen die Datei.",
+                notice: "Alle Eltern dieser Gruppennachricht sehen die Datei.",
               }}
             />
           ) : (

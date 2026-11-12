@@ -205,7 +205,7 @@ export function ChatEventCard({
   body: string;
   createdAt: string;
   locale?: string;
-  action?: { label: string; onClick: () => void };
+  action?: { label: string; description: string; onClick: () => void };
 }>) {
   return (
     <InsetPanel
@@ -223,6 +223,7 @@ export function ChatEventCard({
           variant="primary"
           size="compact"
           onClick={action.onClick}
+          tooltip={action.description}
           className="ml-auto gap-1"
         >
           {action.label}

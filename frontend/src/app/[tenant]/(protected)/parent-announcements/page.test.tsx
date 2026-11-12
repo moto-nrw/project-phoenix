@@ -427,7 +427,7 @@ describe("ParentAnnouncementsPage: scheduled reminder (#3162)", () => {
     );
     expect(
       screen.getByRole("button", { name: "Antwort hinzufügen" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("rejects pasted answers longer than 120 characters", async () => {

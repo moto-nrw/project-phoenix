@@ -294,19 +294,22 @@ function MessageThreadContent() {
   const [openRequestId, setOpenRequestId] = useState<string | null>(null);
   const eventAction = (
     message: Message,
-  ): { label: string; onClick: () => void } | undefined => {
+  ):
+    { label: string; description: string; onClick: () => void } | undefined => {
     if (!canReviewRequests) return undefined;
     if (!requestPillCoveredByReview(message, reviewCoverage)) return undefined;
     const pickupRef = pickupRequestRef(message);
     if (pickupRef) {
       return {
         label: "Anfrage ansehen",
+        description: "Zeigt die Anfrage der Eltern, ohne etwas zu ändern.",
         onClick: () => setOpenRequestId(pickupRef),
       };
     }
     if (requestStillOpen(message)) {
       return {
         label: "Anfrage bearbeiten",
+        description: "Öffnet die offenen Anfragen der Eltern zum Entscheiden.",
         onClick: () => router.push("/anfragen"),
       };
     }
@@ -583,6 +586,7 @@ function MessageThreadContent() {
               onClick={() =>
                 router.push(`/students/${thread.student_id}?from=/messages`)
               }
+              tooltip="Öffnet die Akte des Kindes."
               className="flex-shrink-0"
             >
               <MotoConceptIcon
@@ -597,6 +601,8 @@ function MessageThreadContent() {
               items={[
                 {
                   label: MARK_UNREAD_LABEL,
+                  description:
+                    "Für das ganze Team, bis jemand die Unterhaltung öffnet",
                   onClick: () => void handleMarkUnread(),
                 },
               ]}

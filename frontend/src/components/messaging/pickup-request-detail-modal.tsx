@@ -161,7 +161,13 @@ export function PickupRequestDetailModal({
       mobileSheet
       footer={
         <div className="flex flex-wrap justify-end gap-2">
-          <Button type="button" variant="outline" size="md" onClick={onClose}>
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            onClick={onClose}
+            noTooltip="Schließt nur das Fenster, das Wort sagt es."
+          >
             Schließen
           </Button>
           {pending && onOpenQueue && (
@@ -170,6 +176,7 @@ export function PickupRequestDetailModal({
               variant="primary"
               size="md"
               onClick={onOpenQueue}
+              tooltip="Öffnet die offenen Anfragen der Eltern zum Entscheiden."
             >
               Zu den Anfragen
             </Button>
