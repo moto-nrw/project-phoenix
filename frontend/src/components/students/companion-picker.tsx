@@ -352,7 +352,7 @@ export function CompanionPicker({
                 type="button"
                 variant="primary"
                 size="compact"
-                tooltip="Ergänzt beim anderen Kind „Anderes Kind“ und verknüpft beide beim Speichern."
+                tooltip="Ergänzt den Heimweg des anderen Kindes und verknüpft beide beim Speichern."
                 onClick={() => {
                   onExtensionConfirmed?.({
                     companion_student_id: pending.result.id,

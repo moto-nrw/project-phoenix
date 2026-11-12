@@ -390,7 +390,7 @@ export function CarePlanEditorModal({
         form="care-plan-editor-form"
         isLoading={isSubmitting}
         loadingText="Wird gespeichert …"
-        tooltip="Speichert die Abweichung nur für diesen Tag, nicht jede Woche."
+        tooltip="Speichert die Abweichung nur für diesen Tag, bei Eltern-Angaben fragt moto nach."
       >
         Speichern
       </Button>
@@ -929,7 +929,7 @@ function NoteEditor({
         disabled={!trimmedContent || !hasChanges || isMutationPending}
         disabledReason={
           !trimmedContent
-            ? "Ein leerer Hinweis lässt sich nicht speichern."
+            ? "Schreiben Sie zuerst einen Text in das Feld."
             : !hasChanges
               ? "Ändern Sie zuerst den Text des Hinweises."
               : undefined

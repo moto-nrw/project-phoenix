@@ -241,6 +241,14 @@ export function FilteredBulkArrivalModal({
     () => Object.values(draft).some((value) => !isValidTime(value)),
     [draft],
   );
+  // Warum Speichern gesperrt ist; ohne Grund ist es frei (#6765).
+  const blockReason = classTimesError
+    ? "Laden Sie zuerst die Zeiten der Klasse neu."
+    : !hasAnyTime
+      ? "Tragen Sie zuerst mindestens eine Zeit ein."
+      : hasInvalidEntry
+        ? "Schreiben Sie jede Uhrzeit so: 14:30."
+        : undefined;
   const collisionMessage = `${childCountLabel(collisionCount)} ${collisionCount === 1 ? "hat" : "haben"} eigene Ankunftszeiten. ${
     isClassTimetable
       ? "Diese Zeiten bleiben bestehen."
@@ -352,23 +360,11 @@ export function FilteredBulkArrivalModal({
                     : "Speichert die Ankunftszeiten jeder Woche für alle gezeigten Kinder."
                 }
                 disabledReason={
-                  saving || classTimesLoading
-                    ? undefined
-                    : classTimesError
-                      ? "Laden Sie zuerst die Zeiten der Klasse neu."
-                      : !hasAnyTime
-                        ? "Tragen Sie zuerst mindestens eine Zeit ein."
-                        : hasInvalidEntry
-                          ? "Schreiben Sie jede Uhrzeit so: 14:30."
-                          : undefined
+                  saving || classTimesLoading ? undefined : blockReason
                 }
                 onClick={handleSubmit}
                 disabled={
-                  saving ||
-                  classTimesLoading ||
-                  classTimesError ||
-                  !hasAnyTime ||
-                  hasInvalidEntry
+                  saving || classTimesLoading || blockReason !== undefined
                 }
               >
                 {saving ? "Speichern..." : "Speichern"}

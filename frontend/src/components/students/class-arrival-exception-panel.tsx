@@ -553,15 +553,17 @@ function ClassArrivalExceptionPanelBody({
                 type="button"
                 variant="success"
                 size="md"
-                tooltip="Speichert die Ankunftszeit sofort für alle Kinder der Klasse an diesem Tag."
+                tooltip="Speichert die Ankunftszeit sofort für die ganze Klasse an diesem Tag."
                 onClick={() => void handleSave()}
                 disabled={!canSave}
                 disabledReason={
-                  isoDate === null
-                    ? "Wählen Sie zuerst ein Datum."
-                    : !isValidTime(time)
-                      ? "Tragen Sie zuerst eine gültige Uhrzeit ein."
-                      : undefined
+                  presetPending || saving
+                    ? undefined
+                    : isoDate === null
+                      ? "Wählen Sie zuerst ein Datum."
+                      : !isValidTime(time)
+                        ? "Tragen Sie zuerst eine gültige Uhrzeit ein."
+                        : undefined
                 }
               >
                 {saving ? "Speichern..." : "Tag speichern"}

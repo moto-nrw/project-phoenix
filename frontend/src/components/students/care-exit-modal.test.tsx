@@ -138,6 +138,7 @@ describe("CareExitModal", () => {
       "true",
     );
     pickReason("Umzug");
+    expect(screen.getByRole("button", { name: "Weiter" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Weiter" })).not.toHaveAttribute(
       "aria-disabled",
     );
@@ -157,6 +158,7 @@ describe("CareExitModal", () => {
     );
 
     fireEvent.change(note, { target: { value: "Wechsel in den Hort" } });
+    expect(screen.getByRole("button", { name: "Weiter" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Weiter" })).not.toHaveAttribute(
       "aria-disabled",
     );
@@ -398,6 +400,7 @@ describe("CareExitModal", () => {
     expect(
       screen.getByText(/Der letzte Betreuungstag ist am 31\.08\.2026/),
     ).toBeVisible();
+    expect(screen.getByRole("button", { name: "Weiter" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "Weiter" })).not.toHaveAttribute(
       "aria-disabled",
     );

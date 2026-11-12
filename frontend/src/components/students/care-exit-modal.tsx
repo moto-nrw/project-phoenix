@@ -311,12 +311,14 @@ export function CareExitModal({
           size="md"
           isLoading={save.pending}
           loadingText="Wird beendet…"
-          tooltip="Beendet die Betreuung zum gewählten Tag mit allen Folgen aus der Liste."
+          tooltip="Beendet die Betreuung zum gewählten Tag, danach können Eltern nichts mehr ändern."
           disabled={!preview || preview.blocked}
           disabledReason={
-            preview?.blocked
-              ? "Nehmen Sie zuerst die Kinder aus der Auswahl, bei denen es nicht geht."
-              : undefined
+            !preview?.blocked
+              ? undefined
+              : onExcludeBlocked
+                ? "Nehmen Sie zuerst die genannten Kinder aus der Auswahl."
+                : "Hier geht es gerade nicht, den Grund nennt die Liste oben."
           }
           onClick={() => void handleConfirm()}
         >

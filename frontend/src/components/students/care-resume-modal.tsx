@@ -117,7 +117,7 @@ export function CareResumeModal({
             size="md"
             isLoading={saving}
             loadingText="Wird gespeichert…"
-            tooltip="Trägt den neuen Beginn ein, Gruppe und Angebote stellen Sie selbst ein."
+            tooltip="Trägt den neuen Beginn ein, danach können Eltern wieder Änderungen schicken."
             disabled={saving || !newStart || !checked}
             disabledReason={
               !newStart
