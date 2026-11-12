@@ -997,6 +997,10 @@ export const ERROR_CATALOG = {
         "Alle Buchungen dieses Laufs sind schon in einer DATEV-Datei. Es wurde keine Datei erstellt.",
       "parent_billing.datev_not_ready":
         "Für die DATEV-Datei fehlen noch Werte. Tragen Sie sie in den Einstellungen unter „DATEV“ ein.",
+      "parent_billing.debtor_number_digit_range":
+        "Die Debitorennummer hat {min_digits} bis {max_digits} Ziffern, zum Beispiel {example}.",
+      "parent_billing.debtor_number_digits":
+        "Die Debitorennummer hat {digits} Ziffern, zum Beispiel {example}.",
       "parent_billing.debtor_number_invalid":
         "Bitte prüfen Sie die Debitorennummer.",
       "parent_billing.debtor_number_locked":
@@ -1025,6 +1029,8 @@ export const ERROR_CATALOG = {
         "Bitte geben Sie eine ganze Zahl von 1 bis 20 an.",
       "parent_billing.family_children_not_found":
         "Zu diesem Vertrag gibt es keine Familie mehr. Bitte laden Sie die Seite neu.",
+      "parent_billing.family_debtor_number_conflict":
+        "Die Familie hat schon die Debitorennummer {family_debtor_number}. Bitte wählen Sie, welche Nummer gilt.",
       "parent_billing.family_not_found":
         "Zu dieser Familie gibt es keine Rechnung. Bitte öffnen Sie sie über die Liste „Familien“.",
       "parent_billing.family_unknown":
@@ -2326,14 +2332,6 @@ export const ERROR_CATALOG = {
         "Many enrollments were already sent with this email address today. Please try again tomorrow.",
       "enrollment.submission_rate_limited":
         "Too many enrollments were sent. Please try again in an hour.",
-      "enrollment.traeger_catalog_invalid":
-        "{object} could not be changed. Please check its current status.",
-      "enrollment.traeger_offering_not_found":
-        "{object} could not be changed. Please check its current status.",
-      "enrollment.traeger_phase_not_found":
-        "{object} could not be changed. Please check its current status.",
-      "enrollment.traeger_school_outside":
-        "{object} could not be changed. Please check its current status.",
       "enrollment.upload_content_mismatch":
         "The contents of “{filename}” do not match its file type. Please choose another file. Renaming it is not enough.",
       "enrollment.upload_expired":
@@ -2458,6 +2456,10 @@ export const ERROR_CATALOG = {
         "Every booking of this run is already in a DATEV file. No file was created.",
       "parent_billing.datev_not_ready":
         "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
+      "parent_billing.debtor_number_digit_range":
+        "The debtor number has {min_digits} to {max_digits} digits, for example {example}.",
+      "parent_billing.debtor_number_digits":
+        "The debtor number has {digits} digits, for example {example}.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
@@ -2470,6 +2472,8 @@ export const ERROR_CATALOG = {
         "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Please enter a whole number from 1 to 20.",
+      "parent_billing.family_debtor_number_conflict":
+        "The family already has the debtor number {family_debtor_number}. Please choose which number applies.",
       "parent_billing.holiday_quote_invalid":
         "The fee cannot be calculated for these weeks. Please reload the page.",
       "parent_billing.letter_mail_block_unreadable":
@@ -2973,14 +2977,6 @@ export const ERROR_CATALOG = {
         "С этого адреса электронной почты сегодня уже отправлено много заявок. Попробуйте снова завтра.",
       "enrollment.submission_rate_limited":
         "Отправлено слишком много заявок. Попробуйте снова через час.",
-      "enrollment.traeger_catalog_invalid":
-        "Не удалось изменить: {object}. Проверьте текущее состояние.",
-      "enrollment.traeger_offering_not_found":
-        "Не удалось изменить: {object}. Проверьте текущее состояние.",
-      "enrollment.traeger_phase_not_found":
-        "Не удалось изменить: {object}. Проверьте текущее состояние.",
-      "enrollment.traeger_school_outside":
-        "Не удалось изменить: {object}. Проверьте текущее состояние.",
       "enrollment.upload_content_mismatch":
         "Содержимое файла «{filename}» не соответствует его типу. Пожалуйста, выберите другой файл. Изменения имени недостаточно.",
       "enrollment.upload_expired":
@@ -3103,6 +3099,10 @@ export const ERROR_CATALOG = {
         "Every booking of this run is already in a DATEV file. No file was created.",
       "parent_billing.datev_not_ready":
         "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
+      "parent_billing.debtor_number_digit_range":
+        "Номер дебитора состоит из {min_digits}–{max_digits} цифр, например {example}.",
+      "parent_billing.debtor_number_digits":
+        "Номер дебитора состоит из {digits} цифр, например {example}.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
@@ -3115,6 +3115,8 @@ export const ERROR_CATALOG = {
         "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Пожалуйста, укажите целое число от 1 до 20.",
+      "parent_billing.family_debtor_number_conflict":
+        "У семьи уже есть номер дебитора {family_debtor_number}. Выберите, какой номер действует.",
       "parent_billing.holiday_quote_invalid":
         "Не удаётся рассчитать взнос за эти недели. Пожалуйста, обновите страницу.",
       "parent_billing.letter_mail_block_unreadable":
@@ -3561,14 +3563,6 @@ export const ERROR_CATALOG = {
         "Me këtë adresë e-mail sot janë dërguar tashmë shumë regjistrime. Ju lutemi provoni përsëri nesër.",
       "enrollment.submission_rate_limited":
         "U dërguan shumë regjistrime. Ju lutemi provoni përsëri pas një ore.",
-      "enrollment.traeger_catalog_invalid":
-        "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-      "enrollment.traeger_offering_not_found":
-        "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-      "enrollment.traeger_phase_not_found":
-        "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
-      "enrollment.traeger_school_outside":
-        "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
       "enrollment.upload_content_mismatch":
         "Përmbajtja e skedarit «{filename}» nuk përputhet me llojin e tij. Ju lutemi, zgjidhni një skedar tjetër. Ndryshimi i emrit nuk mjafton.",
       "enrollment.upload_expired":
@@ -3692,6 +3686,10 @@ export const ERROR_CATALOG = {
         "Every booking of this run is already in a DATEV file. No file was created.",
       "parent_billing.datev_not_ready":
         "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
+      "parent_billing.debtor_number_digit_range":
+        "Numri i debitorit ka {min_digits} deri {max_digits} shifra, për shembull {example}.",
+      "parent_billing.debtor_number_digits":
+        "Numri i debitorit ka {digits} shifra, për shembull {example}.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
@@ -3704,6 +3702,8 @@ export const ERROR_CATALOG = {
         "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Ju lutemi shkruani një numër të plotë nga 1 deri në 20.",
+      "parent_billing.family_debtor_number_conflict":
+        "Familja ka tashmë numrin e debitorit {family_debtor_number}. Zgjidhni cili numër vlen.",
       "parent_billing.holiday_quote_invalid":
         "Pagesa për këto javë nuk mund të llogaritet. Ju lutemi ringarkoni faqen.",
       "parent_billing.letter_mail_block_unreadable":
@@ -4138,14 +4138,6 @@ export const ERROR_CATALOG = {
         "Z tego adresu e-mail wysłano dziś już wiele zapisów. Spróbuj ponownie jutro.",
       "enrollment.submission_rate_limited":
         "Wysłano zbyt wiele zapisów. Spróbuj ponownie za godzinę.",
-      "enrollment.traeger_catalog_invalid":
-        "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-      "enrollment.traeger_offering_not_found":
-        "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-      "enrollment.traeger_phase_not_found":
-        "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-      "enrollment.traeger_school_outside":
-        "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
       "enrollment.upload_content_mismatch":
         "Zawartość pliku „{filename}” nie pasuje do jego typu. Proszę wybrać inny plik. Zmiana nazwy nie wystarczy.",
       "enrollment.upload_expired":
@@ -4269,6 +4261,10 @@ export const ERROR_CATALOG = {
         "Every booking of this run is already in a DATEV file. No file was created.",
       "parent_billing.datev_not_ready":
         "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
+      "parent_billing.debtor_number_digit_range":
+        "Numer dłużnika ma od {min_digits} do {max_digits} cyfr, na przykład {example}.",
+      "parent_billing.debtor_number_digits":
+        "Numer dłużnika ma {digits} cyfr, na przykład {example}.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
@@ -4281,6 +4277,8 @@ export const ERROR_CATALOG = {
         "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Proszę podać liczbę całkowitą od 1 do 20.",
+      "parent_billing.family_debtor_number_conflict":
+        "Rodzina ma już numer dłużnika {family_debtor_number}. Wybierz, który numer obowiązuje.",
       "parent_billing.holiday_quote_invalid":
         "Nie można obliczyć opłaty za te tygodnie. Proszę odświeżyć stronę.",
       "parent_billing.letter_mail_block_unreadable":
@@ -4721,14 +4719,6 @@ export const ERROR_CATALOG = {
         "Bu e-posta adresiyle bugün zaten çok sayıda kayıt gönderildi. Lütfen yarın tekrar deneyin.",
       "enrollment.submission_rate_limited":
         "Çok fazla kayıt gönderildi. Lütfen bir saat sonra tekrar deneyin.",
-      "enrollment.traeger_catalog_invalid":
-        "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-      "enrollment.traeger_offering_not_found":
-        "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-      "enrollment.traeger_phase_not_found":
-        "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-      "enrollment.traeger_school_outside":
-        "{object} değiştirilemedi. Güncel durumu kontrol edin.",
       "enrollment.upload_content_mismatch":
         "“{filename}” dosyasının içeriği dosya türüyle uyuşmuyor. Lütfen başka bir dosya seçin. Adını değiştirmek yeterli değildir.",
       "enrollment.upload_expired":
@@ -4851,6 +4841,10 @@ export const ERROR_CATALOG = {
         "Every booking of this run is already in a DATEV file. No file was created.",
       "parent_billing.datev_not_ready":
         "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
+      "parent_billing.debtor_number_digit_range":
+        "Borçlu numarası {min_digits} ile {max_digits} arasında rakamdan oluşur, örneğin {example}.",
+      "parent_billing.debtor_number_digits":
+        "Borçlu numarası {digits} rakamdan oluşur, örneğin {example}.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
@@ -4863,6 +4857,8 @@ export const ERROR_CATALOG = {
         "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Lütfen 1 ile 20 arasında bir tam sayı girin.",
+      "parent_billing.family_debtor_number_conflict":
+        "Ailenin zaten {family_debtor_number} borçlu numarası var. Lütfen hangi numaranın geçerli olduğunu seçin.",
       "parent_billing.holiday_quote_invalid":
         "Bu haftalar için ücret hesaplanamıyor. Lütfen sayfayı yeniden yükleyin.",
       "parent_billing.letter_mail_block_unreadable":
@@ -5296,14 +5292,6 @@ export const ERROR_CATALOG = {
         "З цієї адреси електронної пошти сьогодні вже надіслано багато заявок. Спробуйте ще раз завтра.",
       "enrollment.submission_rate_limited":
         "Надіслано забагато заявок. Спробуйте ще раз через годину.",
-      "enrollment.traeger_catalog_invalid":
-        "Не вдалося змінити: {object}. Перевірте поточний стан.",
-      "enrollment.traeger_offering_not_found":
-        "Не вдалося змінити: {object}. Перевірте поточний стан.",
-      "enrollment.traeger_phase_not_found":
-        "Не вдалося змінити: {object}. Перевірте поточний стан.",
-      "enrollment.traeger_school_outside":
-        "Не вдалося змінити: {object}. Перевірте поточний стан.",
       "enrollment.upload_content_mismatch":
         "Вміст файлу «{filename}» не відповідає його типу. Будь ласка, виберіть інший файл. Зміни назви недостатньо.",
       "enrollment.upload_expired":
@@ -5426,6 +5414,10 @@ export const ERROR_CATALOG = {
         "Every booking of this run is already in a DATEV file. No file was created.",
       "parent_billing.datev_not_ready":
         "Some values for the DATEV file are missing. Please enter them in the settings under “DATEV”.",
+      "parent_billing.debtor_number_digit_range":
+        "Номер дебітора має від {min_digits} до {max_digits} цифр, наприклад {example}.",
+      "parent_billing.debtor_number_digits":
+        "Номер дебітора має {digits} цифр, наприклад {example}.",
       "parent_billing.export_file_number_start_locked":
         "The file numbers have already started. The first number can no longer be changed.",
       "parent_billing.export_invoice_not_found":
@@ -5438,6 +5430,8 @@ export const ERROR_CATALOG = {
         "This run does not exist or is not issued yet. Please reload the page.",
       "parent_billing.family_children_invalid":
         "Будь ласка, вкажіть ціле число від 1 до 20.",
+      "parent_billing.family_debtor_number_conflict":
+        "Сім'я вже має номер дебітора {family_debtor_number}. Виберіть, який номер діє.",
       "parent_billing.holiday_quote_invalid":
         "Не вдається розрахувати внесок за ці тижні. Будь ласка, оновіть сторінку.",
       "parent_billing.letter_mail_block_unreadable":

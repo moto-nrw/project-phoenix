@@ -125,6 +125,11 @@ interface DataTableProps<T> {
   rows: T[];
   getRowKey: (row: T) => string | number;
   onRowClick?: (row: T) => void;
+  /**
+   * Rows `onRowClick` can open; the others stay plain (no pointer, no hover,
+   * no button role). Without it every row opens.
+   */
+  canClickRow?: (row: T) => boolean;
   // Rows with their own buttons or menus must not also become an ARIA button:
   // nested interactive elements have ambiguous keyboard and screen-reader
   // semantics. Their explicit action is the keyboard path to the detail view.
@@ -531,6 +536,7 @@ function StackedRows<T>({
   rows,
   getRowKey,
   onRowClick,
+  canClickRow,
   rowHasInteractiveControls,
   rowClassName,
   isLoading,
@@ -550,6 +556,7 @@ function StackedRows<T>({
   rows: T[];
   getRowKey: (row: T) => string | number;
   onRowClick?: (row: T) => void;
+  canClickRow?: (row: T) => boolean;
   rowHasInteractiveControls?: boolean;
   rowClassName?: (row: T) => string;
   isLoading?: boolean;
@@ -616,13 +623,15 @@ function StackedRows<T>({
           {rows.map((row) => {
             const active =
               activeRowKey != null && getRowKey(row) === activeRowKey;
+            const rowClickable = clickable && (canClickRow?.(row) ?? true);
+            const rowKeyboardClickable = keyboardClickable && rowClickable;
             return (
               <li
                 key={getRowKey(row)}
                 aria-current={active ? "true" : undefined}
-                className={`${STACKED_ROW_PADDING[layout]} ${clickable ? "cursor-pointer" : ""} ${active ? ACTIVE_ROW_CLASS : ""} ${rowClassName ? rowClassName(row) : ""}`}
+                className={`${STACKED_ROW_PADDING[layout]} ${rowClickable ? "cursor-pointer" : ""} ${active ? ACTIVE_ROW_CLASS : ""} ${rowClassName ? rowClassName(row) : ""}`}
                 onClick={
-                  onRowClick
+                  onRowClick && rowClickable
                     ? (event) => {
                         if (
                           event.target instanceof Element &&
@@ -635,7 +644,7 @@ function StackedRows<T>({
                     : undefined
                 }
                 onKeyDown={
-                  keyboardClickable
+                  rowKeyboardClickable
                     ? (event) => {
                         if (event.target !== event.currentTarget) return;
                         if (event.key === "Enter" || event.key === " ") {
@@ -645,8 +654,8 @@ function StackedRows<T>({
                       }
                     : undefined
                 }
-                tabIndex={keyboardClickable ? 0 : undefined}
-                role={keyboardClickable ? "button" : undefined}
+                tabIndex={rowKeyboardClickable ? 0 : undefined}
+                role={rowKeyboardClickable ? "button" : undefined}
               >
                 {layout === "form" ? (
                   <FormStackedRow
@@ -774,6 +783,7 @@ export function DataTable<T>({
   rows,
   getRowKey,
   onRowClick,
+  canClickRow,
   rowHasInteractiveControls = false,
   emptyState,
   headerActions,
@@ -933,6 +943,7 @@ export function DataTable<T>({
             rows={visibleRows}
             getRowKey={getRowKey}
             onRowClick={onRowClick}
+            canClickRow={canClickRow}
             rowHasInteractiveControls={rowHasInteractiveControls}
             rowClassName={rowClassName}
             isLoading={isLoading}
@@ -1099,7 +1110,11 @@ export function DataTable<T>({
                         prev === rowKey ? null : rowKey,
                       );
                     const tinted = selected || active || expanded;
-                    const interactive = clickable || canExpand;
+                    const rowClickable =
+                      clickable && (canClickRow?.(row) ?? true);
+                    const rowKeyboardClickable =
+                      keyboardClickable && rowClickable;
+                    const interactive = rowClickable || canExpand;
                     const tone = tinted ? null : (rowTone?.(row) ?? null);
                     const rowClasses = [
                       `${bodyRowClass} transition-colors`,
@@ -1114,7 +1129,7 @@ export function DataTable<T>({
                       .filter(Boolean)
                       .join(" ");
                     const handleRowKey =
-                      canExpand || keyboardClickable
+                      canExpand || rowKeyboardClickable
                         ? (event: KeyboardEvent<HTMLTableRowElement>) => {
                             if (event.target !== event.currentTarget) return;
                             if (event.key !== "Enter" && event.key !== " ") {
@@ -1140,16 +1155,16 @@ export function DataTable<T>({
                           onClick={
                             canExpand
                               ? toggle
-                              : onRowClick
+                              : onRowClick && rowClickable
                                 ? () => onRowClick(row)
                                 : undefined
                           }
                           onKeyDown={handleRowKey}
                           tabIndex={
-                            canExpand || keyboardClickable ? 0 : undefined
+                            canExpand || rowKeyboardClickable ? 0 : undefined
                           }
                           role={
-                            !canExpand && keyboardClickable
+                            !canExpand && rowKeyboardClickable
                               ? "button"
                               : undefined
                           }

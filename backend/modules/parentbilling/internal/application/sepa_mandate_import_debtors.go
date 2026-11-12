@@ -19,8 +19,12 @@ import (
 const invalidDebtorNumber = "\x00invalid"
 
 // assignDebtorNumbers reads the number of each row and decides per family.
-func assignDebtorNumbers(candidates []importCandidate, table importTable, columns importColumnIndex, known map[string]string) {
-	numbers := readDebtorNumbers(candidates, table, columns)
+// A number outside the Träger's format (#6675) is unreadable like a number
+// with a line break: the family gets none from the file.
+func assignDebtorNumbers(candidates []importCandidate, table importTable, columns importColumnIndex, known map[string]string,
+	format parentbilling.DebtorNumberFormat,
+) {
+	numbers := readDebtorNumbers(candidates, table, columns, format)
 	for i := range candidates {
 		row := &candidates[i].row
 		if row.DebtorNumber == "" || row.DebtorNumberStatus != "" {
@@ -44,7 +48,9 @@ func assignDebtorNumbers(candidates []importCandidate, table importTable, column
 // readDebtorNumbers reads the number of each row and answers the distinct
 // numbers of each family. An unreadable number still disagrees with its
 // siblings: the family gets no number the file does not agree on.
-func readDebtorNumbers(candidates []importCandidate, table importTable, columns importColumnIndex) map[string][]string {
+func readDebtorNumbers(candidates []importCandidate, table importTable, columns importColumnIndex,
+	format parentbilling.DebtorNumberFormat,
+) map[string][]string {
 	check := importCheck{columns: columns}
 	numbers := map[string][]string{}
 	note := func(family, number string) {
@@ -57,7 +63,7 @@ func readDebtorNumbers(candidates []importCandidate, table importTable, columns 
 		row.DebtorNumber = strings.TrimSpace(check.cell(table.rows[i], parentbilling.ImportFieldDebtorNumber))
 		switch {
 		case row.DebtorNumber == "":
-		case checkDebtorNumber(row.DebtorNumber) != nil || containsIBAN(row.DebtorNumber):
+		case !validImportedDebtorNumber(row.DebtorNumber, format):
 			if family != "" {
 				note(family, invalidDebtorNumber)
 			}
@@ -69,6 +75,13 @@ func readDebtorNumbers(candidates []importCandidate, table importTable, columns 
 		}
 	}
 	return numbers
+}
+
+// validImportedDebtorNumber checks a number of the file through the one rule
+// of a debtor number; an IBAN is never one.
+func validImportedDebtorNumber(number string, format parentbilling.DebtorNumberFormat) bool {
+	_, err := parentbilling.NormalizeDebtorNumber(number, format)
+	return err == nil && !containsIBAN(number)
 }
 
 // debtorNumbersToSet are the families whose number the import takes over,

@@ -145,7 +145,7 @@ GetLoginImageURL / SetLoginImageURL / ClearLoginImageURL(ctx, tenantID, ...) // 
 
 ### Frontend
 
-The settings page is auto-generated from the backend schema: field components render by `type`, auto-save (debounced for text/number/time, immediate for boolean/select, explicit save for password), conditional visibility via `depends_on`, passwords masked. Exceptions that are hand-written: the personalization tab (login image upload) and the enrollment link panel. For embedding settings tabs in other layouts use `useSettingsTabs()` (exported from `settings-page.tsx`; returns `null` without settings access, else `{ tabs, renderTab }`).
+The settings page is auto-generated from the backend schema: field components render by `type`, auto-save (debounced for text/number/time, immediate for boolean/select, explicit save for password), conditional visibility via `depends_on`, passwords masked. Exceptions that are hand-written: the personalization tab (login image upload), the enrollment link panel, and the Träger's debtor number length (`parent_billing.debtor_number_min_digits` and `_max_digits`, #6675): `components/settings/debtor-number-length-field.tsx` renders both keys as one paired "von … bis … Ziffern" field under `parent_billing.debtor_number_digits_only` with a live example number, which two generated number fields cannot show. The keys are defined only there; it saves each key through the settings API like a generated field. For embedding settings tabs in other layouts use `useSettingsTabs()` (exported from `settings-page.tsx`; returns `null` without settings access, else `{ tabs, renderTab }`).
 
 ### When to Use Settings vs Environment Variables
 

@@ -258,6 +258,9 @@ func (rs *BillingTermsResource) setDueDates(w http.ResponseWriter, r *http.Reque
 // input code of its route; the refusals of a run keep the codes of the run.
 func renderTermsError(w http.ResponseWriter, r *http.Request, err error, invalidCode string) {
 	var fields validation.Errors
+	if renderDebtorNumberFormat(w, r, err) {
+		return
+	}
 	switch {
 	case errors.As(err, &fields), errors.Is(err, capability.ErrServiceUnknown):
 		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, invalidCode))

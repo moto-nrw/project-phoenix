@@ -43,6 +43,9 @@
   "api/traeger/holiday-periods/[id]/registrations/[registrationId]/debtor-number": [
     "PUT traeger /traeger/holiday-contributions/id%2F1/registrations/registrationId%2F1/debtor-number"
   ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]/family-debtor-number": [
+    "GET traeger /traeger/holiday-contributions/id%2F1/registrations/registrationId%2F1/family-debtor-number"
+  ],
   "api/traeger/holiday-periods/[id]/registrations/[registrationId]/freeze": [
     "POST traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/freeze"
   ],
