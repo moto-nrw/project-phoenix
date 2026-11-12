@@ -3,7 +3,7 @@ package owners
 import (
 	"io"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // secureRandom streams the cryptographic entropy Security Runtime owns.

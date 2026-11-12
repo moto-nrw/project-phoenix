@@ -1,7 +1,7 @@
 package test
 
 import (
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/rowstest"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment/rowstest"
 )
 
 // MaxSchoolGradeLevel mirrors School Structure's highest Jahrgang

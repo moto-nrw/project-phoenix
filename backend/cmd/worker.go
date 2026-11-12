@@ -1,7 +1,7 @@
 package cmd
 
 import (
-	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api"
 	"github.com/spf13/cobra"
 )
 

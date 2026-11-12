@@ -468,6 +468,28 @@ export function isCheckedInLocation(location?: string | null): boolean {
 }
 
 /**
+ * Wie ein Ortsbadge den Tagesstatus (krank, Klassenfahrt, entschuldigt,
+ * „Kommt heute nicht“) zeigt:
+ * - `replace`: Ohne Check-in ersetzt der Status den Ort („Krank“ statt
+ *   „Zuhause“). Das gilt auch für „Schule“, den nur aus dem Tagesplan
+ *   abgeleiteten Ort vor dem ersten Check-in.
+ * - `hint`: Ein eingechecktes Kind behält seinen Ort, der Status steht als
+ *   Hinweis darunter (Ort vor Status, #6371).
+ * - `none`: Hat das Personal das Kind zum Unterricht abgemeldet, zeigt das
+ *   Badge nur „Im Unterricht“, ohne Hinweis (#5710). „Im Unterricht“ entsteht
+ *   nur aus dieser erfassten Abmeldung, nie aus dem Tagesplan.
+ *
+ * `resolvePresence` und `countedDayStatus` (`~/lib/presence-status`) folgen
+ * dieser Regel.
+ */
+export function dayStatusPresentation(
+  location?: string | null,
+): "replace" | "hint" | "none" {
+  if (isInClassLocation(location)) return "none";
+  return isNotCheckedInLocation(location) ? "replace" : "hint";
+}
+
+/**
  * Indicates whether the student is currently on the school yard.
  */
 export function isSchoolyardLocation(location?: string | null): boolean {

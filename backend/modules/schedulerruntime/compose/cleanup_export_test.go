@@ -1,8 +1,8 @@
 package compose
 
 import (
-	scheduler "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	scheduler "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
 )
 
 func NewCleanupTestRunner(deps ports.WorkerDependencies) func() {

@@ -1,8 +1,8 @@
 package care
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // CarePlanError identifies only the owner's refusals this workflow consumes.

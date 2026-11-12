@@ -9,8 +9,9 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // SubmitCareException sets the guardian-authored pickup and/or arrival override
@@ -179,15 +180,12 @@ func (s *Service) lockCareDay(ctx context.Context, studentID int64, date calenda
 	return s.CareExceptions.LockStudentAndExceptionDay(ctx, studentID, date.String())
 }
 
-// guardCareExceptionDay refuses a day the child has already left, a day the
-// school owns, and a change the school's pickup policy closes.
+// guardCareExceptionDay refuses a day the child has already left or whose
+// care day has ended, a day the school owns, and a change the school's pickup
+// policy closes.
 func (s *Service) guardCareExceptionDay(ctx context.Context, tenantID int64, change careExceptionChange) error {
-	alreadyLeft, err := s.childAlreadyLeftToday(ctx, change.studentID, change.date, change.today)
-	if err != nil {
+	if err := s.guardTodayPickupOpen(ctx, tenantID, change.studentID, change.date, change.today); err != nil {
 		return err
-	}
-	if alreadyLeft {
-		return ErrCareExceptionAlreadyLeft
 	}
 	staffOwned, err := s.pickupHasStaffException(ctx, change.studentID, change.date)
 	if err != nil {
@@ -200,11 +198,43 @@ func (s *Service) guardCareExceptionDay(ctx context.Context, tenantID int64, cha
 	if err != nil {
 		return err
 	}
+	// Waiting on a settings writer can cross the care-day boundary.
+	if err := s.guardTodayPickupOpen(ctx, tenantID, change.studentID, change.date, change.today); err != nil {
+		return err
+	}
 	if !policy.enabled {
 		return ErrPickupChangeDisabled
 	}
 	if policy.cutoff.Closed(change.date) {
 		return ErrPickupChangeCutoffPassed
+	}
+	return nil
+}
+
+// guardTodayPickupOpen refuses a guardian change to today's pickup once the
+// child has left for the day, or once the school's care day has ended
+// (operations.session_end_time, #5710): a child still in class then goes home
+// straight from school, so a new pickup time would describe nothing. The
+// end of the care day is the same rule that ends "Im Unterricht"
+// (carerequests.CareDayEnded). It is read in the caller's tenant transaction
+// after the day's locks, like the cutoff. Later days stay open.
+func (s *Service) guardTodayPickupOpen(ctx context.Context, tenantID, studentID int64, date, today calendar.Date) error {
+	if date != today {
+		return nil
+	}
+	alreadyLeft, err := s.childAlreadyLeftToday(ctx, studentID, date, today)
+	if err != nil {
+		return err
+	}
+	if alreadyLeft {
+		return ErrCareExceptionAlreadyLeft
+	}
+	careDayEnd, err := s.Settings.ResolveStringForTenantInTx(ctx, tenantID, KeySessionEndTime)
+	if err != nil {
+		return fmt.Errorf("parent: resolve care day end: %w", err)
+	}
+	if carerequests.CareDayEnded(careDayEnd, s.now()) {
+		return ErrPickupChangeCareDayEnded
 	}
 	return nil
 }
@@ -272,12 +302,8 @@ func (s *Service) withdrawCareException(ctx context.Context, tenantID int64, cha
 	if err := s.lockCareDay(ctx, change.studentID, change.date); err != nil {
 		return err
 	}
-	alreadyLeft, err := s.childAlreadyLeftToday(ctx, change.studentID, change.date, change.today)
-	if err != nil {
+	if err := s.guardTodayPickupOpen(ctx, tenantID, change.studentID, change.date, change.today); err != nil {
 		return err
-	}
-	if alreadyLeft {
-		return ErrCareExceptionAlreadyLeft
 	}
 	pickup, err := s.pickupExceptionForDate(ctx, change.studentID, calendar.Date(change.date))
 	if err != nil || pickup == nil {
@@ -291,6 +317,9 @@ func (s *Service) withdrawCareException(ctx context.Context, tenantID int64, cha
 	}
 	cutoff, err := s.pickupChangeCutoffInTx(ctx, tenantID)
 	if err != nil {
+		return err
+	}
+	if err := s.guardTodayPickupOpen(ctx, tenantID, change.studentID, change.date, change.today); err != nil {
 		return err
 	}
 	if cutoff.Closed(change.date) {

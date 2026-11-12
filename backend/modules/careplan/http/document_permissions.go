@@ -1,6 +1,6 @@
 package careplanhttp
 
-import "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+import "github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 
 // StudentDocumentPermissions are the permissions guarding a child's
 // documents per category: health documents need student_documents:health,

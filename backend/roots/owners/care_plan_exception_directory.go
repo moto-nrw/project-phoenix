@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 )
 
 // pickupExceptionDirectory serves the Care Plan pickup exceptions and status

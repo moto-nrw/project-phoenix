@@ -3,7 +3,7 @@ package statisticshttp
 import (
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // Belegung nach Uhrzeit (#4764) on the wire. Slot starts travel as "HH:MM"

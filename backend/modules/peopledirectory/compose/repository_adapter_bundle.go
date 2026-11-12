@@ -1,7 +1,7 @@
 package compose
 
 import (
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // Repositories are the retained person, student, guardian, staff and teacher

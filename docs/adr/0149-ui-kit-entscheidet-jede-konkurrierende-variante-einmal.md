@@ -5,10 +5,10 @@ status: accepted
 # UI-Kit entscheidet jede konkurrierende Variante einmal
 
 **Status: Akzeptiert.** Tristan Heitger (Product Owner) hat die Entscheidungen
-am 2026-11-03 im Epic [#5576](https://github.com/moto-nrw/project-phoenix/issues/5576)
+am 2026-11-03 im Epic [#5576](https://github.com/moto-ogs/project-phoenix/issues/5576)
 freigegeben (Vergleichsseite im
-[Kommentar](https://github.com/moto-nrw/project-phoenix/issues/5576#issuecomment-6604762663));
-festgeschrieben in [#5578](https://github.com/moto-nrw/project-phoenix/issues/5578).
+[Kommentar](https://github.com/moto-ogs/project-phoenix/issues/5576#issuecomment-6604762663));
+festgeschrieben in [#5578](https://github.com/moto-ogs/project-phoenix/issues/5578).
 Die Regeldatei [`frontend-ui-kit.md`](../../.claude/rules/frontend-ui-kit.md)
 setzt die Entscheidungen um, deren Baustein schon existiert.
 

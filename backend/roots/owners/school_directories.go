@@ -5,7 +5,7 @@ import (
 	"errors"
 	"time"
 
-	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationModule "github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 )
 
 // schedulerTenantDirectory lists the tenant IDs the worker iterates and

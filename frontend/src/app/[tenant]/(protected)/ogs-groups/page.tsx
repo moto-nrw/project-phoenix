@@ -60,6 +60,7 @@ import type { Substitution } from "~/lib/substitution-helpers";
 import { useApiLoadError, useToast } from "~/contexts/ToastContext";
 import { ApiError, wireErrorCode } from "~/lib/api-error";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useLocalStorageValue } from "~/lib/hooks/use-local-storage-value";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 import { useGroupAttendanceCounts } from "~/lib/group-attendance-count-context";
 
@@ -403,6 +404,11 @@ function OGSGroupPageContent() {
 
   // Pre-select group from URL param (?group=<id>)
   const groupParam = searchParams.get("group");
+  const rememberedGroupKey = memory.key("sidebar-last-group");
+  const rememberedGroupId = useLocalStorageValue(
+    rememberedGroupKey ?? "",
+    rememberedGroupKey !== null && !groupParam,
+  );
   // Seed the selection from the URL or the persisted sidebar choice so the
   // very first aggregate request already targets the right group (one
   // request). Without either, the backend resolves the first supervised
@@ -607,9 +613,8 @@ function OGSGroupPageContent() {
     tenantMutate,
   ]);
 
-  // Sync selected group with URL param.
-  // The sidebar navigates with the correct ?group= param at click-time,
-  // so this effect only needs to react to URL changes.
+  // Sync with the URL selection, or the shared sidebar memory without a param.
+  // The sidebar navigates with the correct ?group= param at click-time.
   // When no param is present (e.g. fresh login), persist the default (first group)
   // so the sidebar memory stays in sync and the sidebar picks it up on next click.
   useEffect(() => {
@@ -623,8 +628,8 @@ function OGSGroupPageContent() {
         switchToGroup(groupParam);
       }
     } else {
-      // No ?group= param (e.g. after login or browser back) — restore from
-      // the sidebar memory so the user returns to their previously selected group.
+      // Without ?group=, follow the same storage events as the sidebar so a
+      // selection in another tab changes both the highlight and the students.
       const savedGroupId = memory.read("sidebar-last-group");
       const savedGroup = savedGroupId
         ? allGroups.find((g) => g.id === savedGroupId)
@@ -647,7 +652,7 @@ function OGSGroupPageContent() {
       // When savedGroup.id === selectedGroupId, do nothing — already in sync
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [allGroups, groupParam]);
+  }, [allGroups, groupParam, rememberedGroupId]);
 
   // Handle live-view error. The backend fails the whole aggregate instead of
   // degrading sections to empty arrays, so any error here means the page must

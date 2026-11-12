@@ -6,9 +6,9 @@ import (
 	"encoding/json"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/workflows/traegercatalog"
-	"github.com/moto-nrw/project-phoenix/workflows/traegercatalog/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/workflows/traegercatalog"
+	"github.com/moto-ogs/project-phoenix/workflows/traegercatalog/ports"
 )
 
 // fingerprint ties a rollout to its preview: the draft with its targets as

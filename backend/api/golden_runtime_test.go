@@ -5,8 +5,8 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 

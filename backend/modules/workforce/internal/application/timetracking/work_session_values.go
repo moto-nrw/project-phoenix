@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The clock uses calendar-date records for its calculations. These functions
@@ -51,6 +51,9 @@ func applyWorkSessionToRecord(entity *WorkSession, value workforce.WorkSession) 
 	entity.BreakMinutes = value.BreakMinutes
 	entity.Notes = value.Notes
 	entity.AutoCheckedOut = value.AutoCheckedOut
+	entity.PackUpMinutes = value.Credit.PackUpMinutes
+	entity.RoundingIntervalMinutes = value.Credit.RoundingIntervalMinutes
+	entity.RoundingMode = value.Credit.RoundingMode
 	entity.CreatedBy = value.CreatedBy
 	entity.UpdatedBy = value.UpdatedBy
 }
@@ -100,8 +103,8 @@ func WorkSessionToCapability(session *WorkSession) workforce.WorkSession {
 		ID: session.ID, TenantID: session.TenantID, StaffID: session.StaffID, Date: session.Date.String(),
 		Status: session.Status, Source: session.Source, CheckInTime: session.CheckInTime, CheckOutTime: session.CheckOutTime,
 		ReopenedAt: session.ReopenedAt, BreakMinutes: session.BreakMinutes, Notes: session.Notes,
-		AutoCheckedOut: session.AutoCheckedOut, CreatedBy: session.CreatedBy, UpdatedBy: session.UpdatedBy,
-		CreatedAt: session.CreatedAt, UpdatedAt: session.UpdatedAt,
+		AutoCheckedOut: session.AutoCheckedOut, Credit: session.creditRule(), CreatedBy: session.CreatedBy,
+		UpdatedBy: session.UpdatedBy, CreatedAt: session.CreatedAt, UpdatedAt: session.UpdatedAt,
 	}
 }
 

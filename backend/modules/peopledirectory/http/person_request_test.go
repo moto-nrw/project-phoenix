@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	usersHTTP "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
+	usersHTTP "github.com/moto-ogs/project-phoenix/modules/peopledirectory/http"
 )
 
 // Both blank names travel as fields (#2511); the text is diagnostics (#2520).

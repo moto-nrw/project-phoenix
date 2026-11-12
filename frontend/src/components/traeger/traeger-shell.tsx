@@ -19,6 +19,10 @@ import { TraegerTestSystemNotice } from "./traeger-test-system-notice";
  *
  * Die Kopfzeile bleibt auf jeder Breite sichtbar; sie trägt den einzigen
  * Weg aus dem Portal heraus.
+ *
+ * Die Inhaltshülle ist eine Flex-Spalte wie im Personal- und Schul-Portal:
+ * erst dann wächst die letzte Fläche einer `TenantPage` bis zur Unterkante,
+ * auch auf einer kurzen oder leeren Seite (#6872).
  */
 export function TraegerShell({
   children,
@@ -34,6 +38,7 @@ export function TraegerShell({
       topLayer={testSystem ? <TraegerTestSystemNotice /> : null}
       sidebar={<TraegerSidebar />}
       bottomNav={<TraegerBottomNav />}
+      contentClassName="flex flex-1 flex-col"
     >
       <Suspense fallback={null}>
         <TraegerReturnPathMemory />

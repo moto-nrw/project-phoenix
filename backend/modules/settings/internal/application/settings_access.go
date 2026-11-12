@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // checkWritePermission verifies the caller has the required write permission.

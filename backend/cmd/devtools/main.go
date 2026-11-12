@@ -11,7 +11,7 @@ import (
 	"os"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )

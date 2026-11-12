@@ -110,6 +110,25 @@ describe("PresenceBadge", () => {
     expect(pill.getAttribute("data-presence-state")).toBe("abwesend");
   });
 
+  // #5710: a recorded checkout to class beats the sick day, without a hint.
+  it("renders only Im Unterricht for a sick child checked out to class", () => {
+    render(
+      <PresenceBadge
+        student={{ current_location: "Im Unterricht", sick: true }}
+      />,
+    );
+    expect(screen.getByText("Im Unterricht")).toBeInTheDocument();
+    expect(screen.queryByText("Krank")).not.toBeInTheDocument();
+  });
+
+  it("keeps Krank before the derived Schule", () => {
+    render(
+      <PresenceBadge student={{ current_location: "Schule", sick: true }} />,
+    );
+    expect(screen.getByText("Krank")).toBeInTheDocument();
+    expect(screen.queryByText("Schule")).not.toBeInTheDocument();
+  });
+
   it("renders Im Unterricht in its own tone after a checkout to class (#5656)", () => {
     render(<PresenceBadge student={{ current_location: "Im Unterricht" }} />);
     expect(screen.getByText("Im Unterricht")).toBeInTheDocument();

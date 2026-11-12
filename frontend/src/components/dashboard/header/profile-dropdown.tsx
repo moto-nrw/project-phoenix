@@ -128,10 +128,12 @@ export const ProfileTrigger = forwardRef<
     >
       <UserAvatar avatarUrl={displayAvatar} userName={displayName} size="sm" />
 
+      {/* Ein langer Name (Träger-Konten: bis 100 Zeichen, #6870) endet mit
+          „…“, statt die Kopfzeile zu sprengen; das Menü zeigt ihn zweizeilig. */}
       <div
-        className={`hidden text-left ${compactOnTablet ? "lg:block" : "md:block"}`}
+        className={`hidden max-w-48 min-w-0 text-left ${compactOnTablet ? "lg:block" : "md:block"}`}
       >
-        <div className="text-sm leading-tight font-medium text-gray-900">
+        <div className="truncate text-sm leading-tight font-medium text-gray-900">
           {displayName}
         </div>
         <div className="text-xs leading-tight text-gray-500">{userRole}</div>
@@ -158,7 +160,9 @@ export function ProfileDropdownHeader({
     <div className="flex items-center space-x-3">
       <UserAvatar avatarUrl={displayAvatar} userName={displayName} size="md" />
       <div className="min-w-0 flex-1">
-        <div className="truncate font-semibold text-gray-900">
+        {/* Bis zu zwei Zeilen: der Trigger kürzt den Namen, hier steht er
+            lesbar (#6870). */}
+        <div className="line-clamp-2 font-semibold wrap-anywhere text-gray-900">
           {displayName}
         </div>
         {userEmail ? (

@@ -3,7 +3,7 @@ package application
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan/internal/domain"
 )
 
 // dayState is everything that decides one child's meal on one day.

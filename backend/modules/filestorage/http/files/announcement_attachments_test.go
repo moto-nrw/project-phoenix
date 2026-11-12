@@ -18,13 +18,13 @@ import (
 	"path/filepath"
 	"testing"
 
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	filestorageModule "github.com/moto-nrw/project-phoenix/modules/filestorage"
-	filestoreAPI "github.com/moto-nrw/project-phoenix/modules/filestorage/http/files"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	filestorageModule "github.com/moto-ogs/project-phoenix/modules/filestorage"
+	filestoreAPI "github.com/moto-ogs/project-phoenix/modules/filestorage/http/files"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

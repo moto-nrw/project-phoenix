@@ -111,8 +111,9 @@ describe.each(badges)("%s (#6563)", (_name, renderBadge) => {
   });
 
   // „Kommt heute nicht“ keeps the since-time of the replaced location, as
-  // LocationBadge showed it before #6563 (deliberately unchanged).
-  it("keeps „seit“ under „Kommt heute nicht“ at home and in class", () => {
+  // LocationBadge showed it before #6563 (deliberately unchanged). A recorded
+  // checkout to class shows only „Im Unterricht“ with its own time (#5710).
+  it("keeps „seit“ under „Kommt heute nicht“ at home and under „Im Unterricht“ in class", () => {
     const { rerender } = render(
       renderBadge(
         {
@@ -139,7 +140,8 @@ describe.each(badges)("%s (#6563)", (_name, renderBadge) => {
       ),
     );
 
-    expect(screen.getByText("Kommt heute nicht")).toBeInTheDocument();
+    expect(screen.getByText("Im Unterricht")).toBeInTheDocument();
+    expect(screen.queryByText("Kommt heute nicht")).not.toBeInTheDocument();
     expect(screen.getByText(/^seit /)).toHaveTextContent("seit 10:15 Uhr");
   });
 });

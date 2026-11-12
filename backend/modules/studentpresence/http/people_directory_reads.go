@@ -3,7 +3,7 @@ package studentpresencehttp
 import (
 	context "context"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // findStudent reads one child, alumni included.

@@ -4,8 +4,8 @@ import (
 	"context"
 	"io"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // StaffStudentReads binds Communication's student read port to the Security

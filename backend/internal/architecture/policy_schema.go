@@ -9,7 +9,7 @@ package architecture
 // reading an old policy. Live candidates use only schema 5.
 func (p *Policy) upgradeToolingBase() {
 	for _, owner := range p.Owners {
-		if owner.Kind == "inbound" && (p.ModulePath != "github.com/moto-nrw/project-phoenix" ||
+		if owner.Kind == "inbound" && (p.ModulePath != "github.com/moto-ogs/project-phoenix" ||
 			(owner.ID != "architecture-check" && owner.ID != "dev-tools")) {
 			return
 		}

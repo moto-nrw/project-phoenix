@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // PersonRows maps persisted person values at the retained directory boundary.

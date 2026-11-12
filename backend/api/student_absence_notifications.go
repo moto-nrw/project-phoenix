@@ -3,9 +3,9 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
 )
 
 // studentAbsenceNotifier binds the student routes to Delivery without exposing

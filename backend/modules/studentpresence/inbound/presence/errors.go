@@ -1,8 +1,8 @@
 package presence
 
 import (
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // errorRules maps presence sentinels to their HTTP status in the shared error

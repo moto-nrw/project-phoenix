@@ -5,7 +5,7 @@
 // Enrollment (#6784). Suites that need the composed owner use enrollmenttest.
 package rowstest
 
-import "github.com/moto-nrw/project-phoenix/modules/enrollment"
+import "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 type (
 	Phase        = enrollment.Phase

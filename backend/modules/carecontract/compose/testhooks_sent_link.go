@@ -5,9 +5,9 @@ package compose
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract/internal/application"
 )
 
 // SendLinkForTests stores the signing link a send of the contract makes

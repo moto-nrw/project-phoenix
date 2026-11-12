@@ -1,6 +1,6 @@
 package peopledirectory
 
-import "github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+import "github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 
 // Departure values are the public directory contract for import and enrollment.
 type (

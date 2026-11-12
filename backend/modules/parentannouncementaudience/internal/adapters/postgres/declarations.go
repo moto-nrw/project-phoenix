@@ -7,7 +7,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentannouncementaudience/contract"
+	"github.com/moto-ogs/project-phoenix/modules/parentannouncementaudience/contract"
 
 	"github.com/uptrace/bun"
 )

@@ -118,7 +118,7 @@ case "$*" in
       echo 'noise from a logger in the failed package'
       echo '--- FAIL: TestProbe (0.01s)'
       echo '    probe_test.go:12: probe assertion message'
-      echo 'FAIL github.com/moto-nrw/project-phoenix/probe'
+      echo 'FAIL github.com/moto-ogs/project-phoenix/probe'
       exit "$PHX_FIXTURE_TEST_STATUS"
     fi
     ;;
@@ -382,7 +382,7 @@ for wrapper in test-backend.sh test-changed.sh; do
   assert_calls $'bootstrap\n'"$(go_test_call "$wrapper" 2 ./probe)"$'\nsweep'
   if [ "$wrapper" = test-changed.sh ]; then
     grep -q 'go test failure summary' "$output_log"
-    grep -q '^FAIL github.com/moto-nrw/project-phoenix/probe$' "$output_log"
+    grep -q '^FAIL github.com/moto-ogs/project-phoenix/probe$' "$output_log"
     grep -q '^    probe_test.go:12: probe assertion message$' "$output_log"
     # Live output and summary stay bounded; the full output is kept compressed.
     if grep -q 'noise from a logger' "$output_log"; then

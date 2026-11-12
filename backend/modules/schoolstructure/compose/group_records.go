@@ -3,9 +3,9 @@ package compose
 import (
 	"context"
 
-	supervision "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups"
+	supervision "github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/application/groups"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // LegacyGroupRepository is the retained contract of education.groups the

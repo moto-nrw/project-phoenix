@@ -7,7 +7,7 @@ import (
 	"net"
 	"time"
 
-	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	mailcontract "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
 )
 
 // Delivery-only protocol to the sidecar inbox in the shared loopback namespace.

@@ -3,9 +3,9 @@ package owners
 import (
 	"context"
 
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // WorkSessionScheduleRecords is the retained staff-work-schedule repository

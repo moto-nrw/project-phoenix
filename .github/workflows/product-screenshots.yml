@@ -6,7 +6,7 @@ name: Product screenshots
 # (7 Tage) und als `product-screenshots-<version>.zip` sowie
 # `product-screenshots.zip` an das GitHub-Release vX.Y.Z hängen. Die zweite
 # Datei macht releases/latest/download/product-screenshots.zip zum festen Link
-# auf die neuesten Bilder, wie in moto-nrw/PyrePortal. Der Drive-Upload (publish.pw.ts) ist abgehängt, bis es ein
+# auf die neuesten Bilder, wie in moto-ogs/PyrePortal. Der Drive-Upload (publish.pw.ts) ist abgehängt, bis es ein
 # geteiltes Google-Konto gibt.
 #
 # Auslöser:

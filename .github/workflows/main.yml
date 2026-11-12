@@ -72,11 +72,12 @@ jobs:
       base-ref: ${{ github.base_ref }}
       # The script suites, the env sync and the error-code registry check only
       # files their own filter lists. Docs-only pull requests skip all three.
-      run-ci-scripts: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.tooling == 'true' || steps.filter.outputs.quality-scripts == 'true' || steps.filter.outputs.hooks == 'true' || steps.filter.outputs.toolchain == 'true' || steps.filter.outputs.script-tests == 'true' }}
+      run-ci-scripts: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.tooling == 'true' || steps.filter.outputs.quality-scripts == 'true' || steps.filter.outputs.hooks == 'true' || steps.filter.outputs.toolchain == 'true' || steps.filter.outputs.script-tests == 'true' || steps.filter.outputs.backend-local-test-scripts == 'true' }}
       run-env-check: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.env == 'true' }}
       run-error-codes: ${{ github.event_name == 'push' || steps.scope.outputs.release == 'true' || steps.filter.outputs.error-codes == 'true' }}
       tooling-changed: ${{ steps.filter.outputs.tooling == 'true' }}
-      toolchain-changed: ${{ steps.filter.outputs.toolchain == 'true' }}
+      # The ratchets suite also runs the self-tests of the local backend test scripts.
+      toolchain-changed: ${{ steps.filter.outputs.toolchain == 'true' || steps.filter.outputs.backend-local-test-scripts == 'true' }}
     steps:
       # paths-filter reads PR files through the API. Ordinary frontend PRs
       # check out only the shared classifier below; pushes compare commits.
@@ -210,18 +211,26 @@ jobs:
               - 'scripts/backend-affected-packages.sh'
               - 'scripts/backend-affected-packages_test.sh'
               - 'scripts/backend-lint-packages.sh'
-              - 'scripts/test-backend.sh'
-              - 'scripts/go-test-link-cache.sh'
-              - 'scripts/go-test-link-key.go'
-              - 'scripts/go-test-link-cache_test.sh'
               - 'scripts/backend-test-matrix.sh'
               - 'scripts/backend-test-matrix_test.sh'
               - 'scripts/backend-package-budgets.mjs'
               - 'scripts/backend-package-budgets.json'
               - 'scripts/backend-package-budgets.test.mjs'
+              - 'scripts/test-run-id.sh'
+            # The local test wrappers and their self-tests. No CI job runs the
+            # backend tests through them, so a change here cannot alter what
+            # test-backend runs: ci-scripts runs their self-tests instead of
+            # the full backend suite (#6784: a frontend pull request ran
+            # 42,000 backend tests for an edit of test-changed_test.sh).
+            backend-local-test-scripts:
+              - 'scripts/test-backend.sh'
+              - 'scripts/go-test-link-cache.sh'
+              - 'scripts/go-test-link-key.go'
+              - 'scripts/go-test-link-cache_test.sh'
+              - 'scripts/go-cache-sweep.sh'
+              - 'scripts/go-cache-sweep_test.sh'
               - 'scripts/test-changed.sh'
               - 'scripts/test-changed_test.sh'
-              - 'scripts/test-run-id.sh'
               - 'scripts/go-package-workers.sh'
               - 'scripts/total-memory-gb.sh'
             frontend-test-infra:
@@ -520,6 +529,15 @@ jobs:
       - name: Verify workflow selection contracts
         if: matrix.suite == 'ratchets'
         run: scripts/backend-affected-packages_test.sh
+
+      # A pull request that changes only these scripts starts no backend test
+      # job, which runs the same suites on full runs.
+      - name: Verify local backend test scripts
+        if: matrix.suite == 'ratchets'
+        run: |
+          scripts/test-changed_test.sh
+          scripts/go-test-link-cache_test.sh
+          scripts/go-cache-sweep_test.sh
 
   lint:
     name: Lint

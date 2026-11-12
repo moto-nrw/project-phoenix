@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	identityBindingPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // bindTenantRuntime is the runtime the module opens its transactions under:

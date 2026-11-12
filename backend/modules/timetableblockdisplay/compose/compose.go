@@ -3,7 +3,7 @@
 // (ADR 0053 point 2).
 package compose
 
-import timetableblockdisplay "github.com/moto-nrw/project-phoenix/modules/timetableblockdisplay/internal/adapters/postgres"
+import timetableblockdisplay "github.com/moto-ogs/project-phoenix/modules/timetableblockdisplay/internal/adapters/postgres"
 
 // List reads the display metadata of scheduled timetable blocks.
 var List = timetableblockdisplay.List

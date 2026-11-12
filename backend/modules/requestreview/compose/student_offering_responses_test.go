@@ -3,9 +3,9 @@ package compose
 import (
 	"testing"
 
-	reviewbindings "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding"
+	reviewbindings "github.com/moto-ogs/project-phoenix/roots/requestreviewbinding"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/offeringrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/offeringrequests"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

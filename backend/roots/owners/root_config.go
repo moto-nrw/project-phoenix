@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // EmailProviderSettings are the configuration values of the mail provider. Plain

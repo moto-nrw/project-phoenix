@@ -3,7 +3,7 @@ package parent
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 )
 
 type ParentStudentDirectory struct {

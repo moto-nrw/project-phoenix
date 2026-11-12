@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/auditlog/consents"
+	"github.com/moto-ogs/project-phoenix/modules/auditlog/consents"
 
 	"github.com/stretchr/testify/require"
 )

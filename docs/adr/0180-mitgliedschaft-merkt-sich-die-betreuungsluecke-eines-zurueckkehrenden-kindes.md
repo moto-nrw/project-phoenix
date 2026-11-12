@@ -5,7 +5,7 @@ status: accepted
 # Mitgliedschaft merkt sich die Betreuungslücke eines zurückkehrenden Kindes
 
 Entscheidung vom 08.11.2026 für
-[#6073](https://github.com/moto-nrw/project-phoenix/issues/6073). Sie ergänzt
+[#6073](https://github.com/moto-ogs/project-phoenix/issues/6073). Sie ergänzt
 [ADR 0166](0166-mitgliedschaft-merkt-sich-den-fruehesten-betreuungstag.md)
 um zwei Spalten von School Membership, reicht sie über die vorhandene
 Schülerprojektion an Care Plan weiter und genehmigt die geänderte Bindung

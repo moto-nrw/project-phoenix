@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	sessionsAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/sessions"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	sessionsAPI "github.com/moto-ogs/project-phoenix/modules/devicescan/http/sessions"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
 )
 
 // iotEndSessionActiveServiceStub answers the one read the session-end handler

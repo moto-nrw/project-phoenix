@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
+	deliveryPorts "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
 
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/realtime"
 )
 
 // This file holds the small shared core of the parent-OGS conversation used

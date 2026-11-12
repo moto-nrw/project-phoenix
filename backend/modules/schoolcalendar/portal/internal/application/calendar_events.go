@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"sort"
 
-	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
+	appointmentcap "github.com/moto-ogs/project-phoenix/modules/appointments"
 )
 
 func (s *service) ListMyStaffEvents(ctx context.Context, from, to appointmentcap.Date) ([]Event, error) {

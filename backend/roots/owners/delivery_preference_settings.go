@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	settingsValues "github.com/moto-ogs/project-phoenix/modules/settings"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
 )
 
 // DeliveryPreferenceSettings binds the Settings Platform to Delivery's

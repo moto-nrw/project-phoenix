@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"maps"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // testFormValues builds the owner's answers, consent flags or source

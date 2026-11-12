@@ -1,7 +1,7 @@
 package parentstore
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/adapters/parentpostgres"
 	"github.com/uptrace/bun"
 )
 

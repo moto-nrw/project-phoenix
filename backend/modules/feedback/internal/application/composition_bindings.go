@@ -3,8 +3,8 @@ package application
 import (
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/feedback"
-	"github.com/moto-nrw/project-phoenix/modules/feedback/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/feedback"
+	"github.com/moto-ogs/project-phoenix/modules/feedback/internal/domain"
 )
 
 func NewCurrentDate(current func() feedback.Date) func() domain.Date {

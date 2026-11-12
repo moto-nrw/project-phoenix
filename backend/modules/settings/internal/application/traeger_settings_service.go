@@ -9,7 +9,7 @@ import (
 	"slices"
 	"time"
 
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // TraegerSettingsRuntime opens the Träger transaction (ADR 0086 section 5)

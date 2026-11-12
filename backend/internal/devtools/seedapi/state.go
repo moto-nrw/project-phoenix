@@ -1,6 +1,6 @@
 package api
 
-import demoprofile "github.com/moto-nrw/project-phoenix/demoprofile"
+import demoprofile "github.com/moto-ogs/project-phoenix/demoprofile"
 
 const DefaultSeedStatePath = demoprofile.DefaultSeedStatePath
 const CurrentSeedStateVersion = demoprofile.CurrentSeedStateVersion

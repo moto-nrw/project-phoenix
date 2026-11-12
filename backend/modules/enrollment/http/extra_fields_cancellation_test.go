@@ -9,11 +9,11 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	enrollment "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentHTTP "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	enrollment "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentHTTP "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 

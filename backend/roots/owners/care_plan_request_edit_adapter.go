@@ -3,8 +3,8 @@ package owners
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
 )
 
 // requestEditAdapter reads the plan facts an edited pickup request records

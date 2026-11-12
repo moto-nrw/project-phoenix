@@ -5,18 +5,18 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
-	presenceprojectionOwnerHTTP "github.com/moto-nrw/project-phoenix/modules/presenceprojection/http"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/deviceauth"
+	presenceprojectionOwnerHTTP "github.com/moto-ogs/project-phoenix/modules/presenceprojection/http"
 
-	tagScanOperatorAPI "github.com/moto-nrw/project-phoenix/modules/devicefleet/inbound/operator"
+	tagScanOperatorAPI "github.com/moto-ogs/project-phoenix/modules/devicefleet/inbound/operator"
 
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
 
-	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
+	authAPI "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account"
 
-	organizationModule "github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationModule "github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 
-	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
+	parentAPI "github.com/moto-ogs/project-phoenix/workflows/parentportal/http"
 )
 
 // Organisation & Tenancy owns platform.schools (#3253). The HTTP resources

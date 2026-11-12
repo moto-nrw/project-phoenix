@@ -3,9 +3,9 @@ package api
 import (
 	"context"
 
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The operator's school settings (modules/settings/compose, #2736) take two

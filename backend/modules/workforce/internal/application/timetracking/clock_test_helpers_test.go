@@ -1,6 +1,6 @@
 package timetracking
 
-import "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+import "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
 // Behaviour tests pin the absence service's calendar-day clock through this option.
 

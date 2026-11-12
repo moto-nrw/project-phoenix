@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/imports"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/imports"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 )
 
 type batchRowError struct {

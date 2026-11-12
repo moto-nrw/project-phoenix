@@ -3,11 +3,11 @@ package owners
 import (
 	"context"
 
-	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	organizationCompose "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
 
-	projection "github.com/moto-nrw/project-phoenix/modules/operatordashboard"
-	"github.com/moto-nrw/project-phoenix/modules/operatordashboard/contract"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	projection "github.com/moto-ogs/project-phoenix/modules/operatordashboard"
+	"github.com/moto-ogs/project-phoenix/modules/operatordashboard/contract"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 )
 
 func newOperatorDashboard(counts func(context.Context, map[int64][]int64) (map[int64]int, error)) organizationtenancy.OperatorDashboard {

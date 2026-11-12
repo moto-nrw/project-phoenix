@@ -15,6 +15,7 @@ import {
   LOCATION_COLORS,
   LOCATION_STATUSES,
   canSeeDetailedLocation,
+  dayStatusPresentation,
   getLocationColor,
   getLocationDisplay,
   getRoomBadgeColor,
@@ -202,13 +203,16 @@ export function dayStatusAbsenceLabel(key: CountedDayStatus): string {
  *
  * Ort vor Status (#6371): Ein eingechecktes Kind zählt in jeder Ansicht als
  * anwesend, genau einmal. Seine Krankmeldung, Entschuldigung oder Klassenfahrt
- * ist dann nur ein Hinweis am Ortsbadge und zählt nirgends mit. Ein Kind ohne
- * Check-in behält seinen Status.
+ * ist dann nur ein Hinweis am Ortsbadge und zählt nirgends mit. Ein Kind, das
+ * das Personal zum Unterricht abgemeldet hat, zählt ebenso nur „Im Unterricht“
+ * (#5710, {@link dayStatusPresentation}). Ein Kind ohne Check-in behält seinen
+ * Status.
  */
 export function countedDayStatus(
   student: DayStatusFlags & { readonly current_location?: string | null },
 ): CountedDayStatus | null {
   if (isCheckedInLocation(student.current_location)) return null;
+  if (isInClassLocation(student.current_location)) return null;
   const row = DAY_STATUSES.find(
     (status) => status.counted && status.isSet(student),
   );
@@ -277,11 +281,14 @@ export function resolvePresence(
       ? resolveBinaryLocation(student)
       : resolveDetailedLocation(student, view);
   const planning = getStudentPresenceBadgePlanning(student);
-  const atHome = isNotCheckedInLocation(student.current_location);
+  // A recorded checkout to class beats the day status (#5710): neither pill
+  // nor hint, only „Im Unterricht“.
+  const presentation = dayStatusPresentation(student.current_location);
   const isSet = (row: DayStatusRow) => row.isSet(student, planning);
   const titleOf = (row: DayStatusRow) => row.title?.(planning) ?? undefined;
 
-  const replacing = atHome ? DAY_STATUSES.find(isSet) : undefined;
+  const replacing =
+    presentation === "replace" ? DAY_STATUSES.find(isSet) : undefined;
   const planRow = DAY_STATUS_TABLE.not_arrival;
   const pillTitle = () => {
     if (!replacing) return undefined;
@@ -290,7 +297,8 @@ export function resolvePresence(
     }
     return titleOf(replacing);
   };
-  const hintRow = atHome ? undefined : BY_HINT_RANK.find(isSet);
+  const hintRow =
+    presentation === "hint" ? BY_HINT_RANK.find(isSet) : undefined;
 
   const ownSince = replacing?.since;
   const sinceTime = formatSince(

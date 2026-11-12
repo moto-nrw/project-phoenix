@@ -6,7 +6,7 @@ import (
 	"strings"
 	"time"
 
-	announcementService "github.com/moto-nrw/project-phoenix/modules/communication"
+	announcementService "github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // The PDF of a survey evaluation (#4781): the same sums and distributions as

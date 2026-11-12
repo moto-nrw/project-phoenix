@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	careplanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 // ClassArrivalPlans binds Care Plan's class timetable port to its native owner.

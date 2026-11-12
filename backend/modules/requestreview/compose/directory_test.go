@@ -4,10 +4,10 @@ import (
 	"context"
 	"testing"
 
-	reviewbindings "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding"
+	reviewbindings "github.com/moto-ogs/project-phoenix/roots/requestreviewbinding"
 
-	peoplecompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	peoplecompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 

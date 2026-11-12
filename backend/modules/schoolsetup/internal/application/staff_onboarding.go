@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolsetup"
+	"github.com/moto-ogs/project-phoenix/modules/schoolsetup"
 )
 
 // StaffOnboarding implements schoolsetup.StaffOnboardingService: the first

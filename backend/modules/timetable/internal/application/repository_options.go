@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
-	activitiesModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/activityrecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain"
+	activitiesModels "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/activityrecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func ParseActivityExceptionDate(value string) (calendar.Date, error) {

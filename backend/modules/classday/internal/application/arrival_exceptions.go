@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/classday"
+	"github.com/moto-ogs/project-phoenix/modules/classday"
 )
 
 // arrivalExceptions is the one write seam of the class-day view (#2970): a

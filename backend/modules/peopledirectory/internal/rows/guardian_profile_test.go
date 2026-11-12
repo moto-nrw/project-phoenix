@@ -3,7 +3,7 @@ package users
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/ptrtest"
+	"github.com/moto-ogs/project-phoenix/internal/ptrtest"
 )
 
 func TestGuardianProfile_Validate(t *testing.T) {

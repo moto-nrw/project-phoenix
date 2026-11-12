@@ -3,9 +3,9 @@ package enrollmenthttp_test
 import (
 	"context"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // decisionFixtureRoot mirrors the HTTP root's school unit around direct flow calls.

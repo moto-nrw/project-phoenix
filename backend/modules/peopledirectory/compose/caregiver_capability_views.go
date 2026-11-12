@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 
-	boundaryBinding "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	boundaryBinding "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 

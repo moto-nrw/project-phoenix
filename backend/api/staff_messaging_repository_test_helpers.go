@@ -5,14 +5,14 @@ package api
 import (
 	"context"
 
-	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+	recordports "github.com/moto-ogs/project-phoenix/modules/communication/ports"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	staffStore "github.com/moto-nrw/project-phoenix/modules/communication/staffstore"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	staffStore "github.com/moto-ogs/project-phoenix/modules/communication/staffstore"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 type StaffMessagingTestRepositories struct {

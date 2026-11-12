@@ -4,8 +4,8 @@ import (
 	context "context"
 	errors "errors"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // findStudent reads one child, alumni included.

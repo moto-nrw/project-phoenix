@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"log/slog"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	delivery "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
 )
 
 // MailPushProvider sends the claimed e-mail and push intents.
