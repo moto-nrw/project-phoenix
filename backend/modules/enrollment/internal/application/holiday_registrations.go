@@ -528,6 +528,7 @@ func validateHolidayRegistration(input enrollment.HolidayRegistrationInput, peri
 		errs["children"] = fmt.Errorf("at most %d children", enrollment.HolidayRegistrationMaxChildren)
 	default:
 		childErrs := validateHolidayChildren(input.Children, schools, today)
+		addHolidayRequiredHealthErrors(childErrs, input.Children, form.HealthRequirement)
 		addHolidayBookingErrors(childErrs, input.Children, period)
 		addHolidayChildAnswerErrors(childErrs, form, answers, byKey)
 		if len(childErrs) > 0 {
@@ -557,6 +558,25 @@ func addHolidayBookingErrors(childErrs validation.Errors, children []enrollment.
 	for i, child := range children {
 		if bookingErr := validateHolidayBookings(child.Bookings, period, nil); bookingErr != nil {
 			nestHolidayChildError(childErrs, i, "bookings", bookingErr)
+		}
+	}
+}
+
+// addHolidayRequiredHealthErrors refuses an empty allergies or medication
+// field of each child when the form version requires them (#6686), as
+// "children.<i>.allergies". The parent answers "Keine" for a child without
+// any; the further health notes stay optional. The Träger-Büro's edit
+// leaves the sealed health fields alone and checks nothing here.
+func addHolidayRequiredHealthErrors(childErrs validation.Errors, children []enrollment.HolidayChildInput, requirement enrollment.HolidayHealthRequirement) {
+	if requirement != enrollment.HolidayHealthRequired {
+		return
+	}
+	for i, child := range children {
+		if child.Allergies == "" {
+			nestHolidayChildError(childErrs, i, "allergies", errors.New("is required"))
+		}
+		if child.Medication == "" {
+			nestHolidayChildError(childErrs, i, "medication", errors.New("is required"))
 		}
 	}
 }

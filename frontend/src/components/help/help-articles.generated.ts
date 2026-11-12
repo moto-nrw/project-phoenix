@@ -6589,7 +6589,7 @@ export const parentHolidayRegistrationTopic =
         "Vergibt der Träger die Plätze nach festen Regeln? Dann steht im Formular `Fragen für die Platzvergabe`. Beantworten Sie jede Frage mit Ja oder Nein. Das Büro kann nach einem Nachweis fragen. Nach dem Absenden steht bei jeder Woche `Platz offen`. Das Büro vergibt die Plätze. Sie bekommen eine E-Mail.",
         "Nach dem Absenden sehen Sie bei jeder Woche `Platz` oder `Warteliste`. Ist eine Woche voll, steht Ihr Kind dort auf der Warteliste. Wird ein Platz frei, bekommt Ihr Kind ihn automatisch. Sie bekommen dann eine E-Mail. Bei einer verbindlichen Anmeldung ist auch dieser Platz verbindlich.",
         "Lesen Sie die Anmeldung in einer anderen Sprache? Dann steht unter jeder Erklärung eine Übersetzung. Es gilt der deutsche Text.",
-        "Gesundheitsangaben sind freiwillig. Sie sehen der Träger und die OGS, die Ihr Kind in der Ferienwoche betreut. Nur wenn Sie zustimmen.",
+        "Gesundheitsangaben sehen der Träger und die OGS, die Ihr Kind in der Ferienwoche betreut. Nur wenn Sie zustimmen.",
         "Die OGS, die Ihr Kind in einer Ferienwoche betreut, sieht Name und Telefon der zweiten sorgeberechtigten Person. Sie sieht auch die Antworten, die der Träger für sie freigibt. Zum Beispiel, ob Ihr Kind allein nach Hause gehen darf.",
         "Die OGS sieht diese Angaben schon vor der Ferienwoche. So kann sie sich vorbereiten. Die Liste der Kinder sieht sie bis zum letzten Tag der Woche. Name, Telefon und Antworten kann sie danach höchstens 7 Tage lesen. Dann werden sie gelöscht. Gesundheitsangaben sieht sie nur bis zum letzten Tag der Woche.",
         "Ein Kind von einer anderen Schule kommt als Feriengast.",
@@ -6601,6 +6601,7 @@ export const parentHolidayRegistrationTopic =
         "Der Nachweis ist freiwillig. Sie können ihn auch später beim Träger abgeben.",
       ],
       differences: [
+        "Fragt das Formular `Hat Ihr Kind Allergien oder Unverträglichkeiten?`? Dann braucht der Träger die Angaben zu Allergien und Medikamenten. Wählen Sie bei jeder Frage `Nein, keine` oder `Ja`. Bei `Ja` schreiben Sie auf, was Ihr Kind hat. Weitere Hinweise bleiben freiwillig.",
         "Steht in der Eltern-App `Anmeldung ab` mit einem Datum? Dann beginnt die Anmeldung an diesem Tag. Ab dann sehen Sie den Knopf `Jetzt anmelden`.",
         "Sie haben den Link geöffnet und sind nicht angemeldet? Oben steht `Sie haben schon die Eltern-App?`. Wählen Sie `Anmelden`. Danach kommen Sie zurück zum Formular.",
         "Ist die Anmeldung verbindlich, heißt der Knopf `Verbindlich anmelden`.",
@@ -12336,6 +12337,15 @@ export const traegerHolidayFormTopic =
           ],
         },
         {
+          title: "Allergien und Medikamente zur Pflicht machen",
+          steps: [
+            "Wählen Sie unter `Gesundheit` die Einstellung `Pflicht`.",
+            "Wählen Sie `Als neue Version speichern`.",
+            "Eltern beantworten dann für jedes Kind zwei Fragen: Allergien und Medikamente. Hat das Kind keine, wählen sie `Nein, keine`. Bei `Ja` schreiben sie auf, was ihr Kind hat.",
+            "In der Anmeldung steht dann „Keine“ oder der Text der Eltern. Ein leeres Feld gibt es nicht mehr.",
+          ],
+        },
+        {
           title: "Anschrift abfragen",
           steps: [
             "Wählen Sie unter `Anschrift`, ob Eltern Straße, PLZ und Ort angeben: `Nicht abfragen`, `Freiwillig` oder `Pflicht`.",
@@ -12367,6 +12377,8 @@ export const traegerHolidayFormTopic =
         "Neue Anmeldungen nutzen das gespeicherte Formular. Rechts sehen Sie, wie Eltern es sehen.",
       notes: [
         "Name, Geburtsdatum, Schule, Wochen, Allergien, Medikamente, Kontakte und Zustimmungen fragt die Anmeldung immer ab.",
+        "Allergien und Medikamente sind zuerst freiwillig. Mit `Pflicht` unter `Gesundheit` brauchen Sie keine eigene Frage dafür. Eine eigene Pflichtfrage zu Allergien fragt dasselbe ein zweites Mal.",
+        "Bei `Pflicht` brauchen Eltern immer die Zustimmung zu den Gesundheitsangaben. Auch „Keine“ ist eine Gesundheitsangabe. Weitere Hinweise zur Gesundheit bleiben freiwillig.",
         "Ein neuer Ferienzeitraum fragt keine Anschrift ab. Ältere Versionen fragen auch keine ab. Bei `Freiwillig` geben Eltern alle drei Angaben an oder keine.",
         "Ein neuer Ferienzeitraum startet mit der Standardvorlage. Alle Fragen darin sind zuerst freiwillig. Alle Fragen sind für die ausrichtende OGS freigegeben. Antworten auf Gesundheitsfragen sieht sie nur, wenn die Eltern zustimmen.",
         "Schon verwendete PDFs bleiben bei der alten Anmeldung lesbar. Neue Anmeldungen sehen die neue Version.",

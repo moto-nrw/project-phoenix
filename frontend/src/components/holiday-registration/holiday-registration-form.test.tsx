@@ -1892,3 +1892,112 @@ describe("HolidayRegistrationForm parent account (#6673)", () => {
     expect(matches("parent-profile")).toBe(false);
   });
 });
+
+describe("required health fields (#6686)", () => {
+  beforeEach(() => {
+    mockSubmit.mockReset();
+    mockQuote.mockReset();
+    mockQuote.mockResolvedValue(quoted(false));
+    window.scrollTo = vi.fn();
+  });
+
+  const requiring: HolidayRegistrationOffer = {
+    ...offer,
+    form: { ...offer.form, healthRequirement: "required" },
+  };
+
+  it("keeps the open health fields on an optional form", () => {
+    renderForm(null, offer);
+    expect(screen.getByText("Gesundheit (freiwillig)")).toBeInTheDocument();
+    expect(
+      screen.getByLabelText("Allergien und Unverträglichkeiten"),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("group", {
+        name: /Hat Ihr Kind Allergien oder Unverträglichkeiten/,
+      }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("drops the text typed after Ja when the parent answers Nein, keine", () => {
+    renderForm(null, requiring);
+    const allergies = within(
+      screen.getByRole("group", {
+        name: /Hat Ihr Kind Allergien oder Unverträglichkeiten/,
+      }),
+    );
+    fireEvent.click(allergies.getByRole("radio", { name: "Ja" }));
+    type(screen.getByLabelText(/^Welche Allergien/), "Nüsse");
+    fireEvent.click(allergies.getByRole("radio", { name: "Nein, keine" }));
+    fireEvent.click(allergies.getByRole("radio", { name: "Ja" }));
+    expect(screen.getByLabelText(/^Welche Allergien/)).toHaveValue("");
+  });
+
+  it("asks each question, takes Keine and sends it with the consent", async () => {
+    mockSubmit.mockResolvedValue(undefined);
+    renderForm(null, requiring);
+    fillRegistration();
+    const allergies = within(
+      screen.getByRole("group", {
+        name: /Hat Ihr Kind Allergien oder Unverträglichkeiten/,
+      }),
+    );
+    const medication = within(
+      screen.getByRole("group", { name: /Braucht Ihr Kind Medikamente/ }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await waitFor(() =>
+      expect(
+        allergies.getByText("Bitte wählen Sie Ja oder Nein."),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      medication.getByText("Bitte wählen Sie Ja oder Nein."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(allergies.getByRole("radio", { name: "Nein, keine" }));
+    fireEvent.click(medication.getByRole("radio", { name: "Ja" }));
+    const detail = screen.getByLabelText(
+      "Welche Medikamente? Wann und wie viel?",
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await waitFor(() => expect(detail).toHaveAttribute("aria-invalid", "true"));
+    expect(
+      screen.getByText(
+        "Bitte stimmen Sie zu. Der Träger braucht diese Angaben für die Betreuung.",
+      ),
+    ).toBeInTheDocument();
+
+    type(detail, " Asthmaspray bei Bedarf ");
+    fireEvent.click(
+      screen.getByLabelText(
+        /^Ich bin einverstanden: Der Träger und die OGS sehen die Gesundheitsangaben meiner Kinder\./,
+      ),
+    );
+    fireEvent.click(
+      screen.getByRole("button", { name: "Weiter zur Zusammenfassung" }),
+    );
+    await screen.findByText("Bitte prüfen Sie Ihre Angaben");
+    expect(screen.getByText("Keine")).toBeInTheDocument();
+    expect(screen.getByText("Asthmaspray bei Bedarf")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Verbindlich anmelden" }),
+    );
+    await waitFor(() => expect(mockSubmit).toHaveBeenCalled());
+    const payload = mockSubmit.mock.calls[0]![1] as {
+      children: Record<string, unknown>[];
+      health_consent: boolean;
+    };
+    expect(payload.children[0]).toMatchObject({
+      allergies: "Keine",
+      medication: "Asthmaspray bei Bedarf",
+    });
+    expect(payload.health_consent).toBe(true);
+  });
+});
