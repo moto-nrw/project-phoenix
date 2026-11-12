@@ -1251,16 +1251,27 @@ function SidebarContent({
     childRoomKey !== null &&
       (childFromParam?.startsWith("/active-supervisions") ?? false),
   );
+  // Welche Gruppe die Gruppenseite zeigt: die aus `?group=`, sonst die
+  // zuletzt gewählte, die die Seite ohne Parameter wieder öffnet. Ist die
+  // gemerkte nicht (mehr) in der Liste, öffnet die Seite die erste Gruppe
+  // (#6863).
+  const onGroupPage =
+    pathname.startsWith("/ogs-groups") &&
+    !pathname.startsWith(OGS_GROUPS_OVERVIEW_PATH);
+  const rememberedGroupId = useLocalStorageValue(
+    childGroupKey ?? "",
+    childGroupKey !== null && onGroupPage && !currentGroupParam,
+  );
+  const shownGroupParam =
+    currentGroupParam ??
+    (rememberedGroupId && groups.some((group) => group.id === rememberedGroupId)
+      ? rememberedGroupId
+      : null);
   // Eine fremde Gruppe, die gerade offen ist (direkt oder als Herkunft einer
   // Kinderseite), steht markiert unter den eigenen. Sonst sähe eine Leitung
   // ohne eigene Gruppe „Keine eigenen Gruppen“, während sie in einer Gruppe
   // ist, und nichts zeigte, wo sie gerade ist (#6863).
-  const openGroupId =
-    childGroupId ??
-    (pathname.startsWith("/ogs-groups") &&
-    !pathname.startsWith(OGS_GROUPS_OVERVIEW_PATH)
-      ? currentGroupParam
-      : null);
+  const openGroupId = childGroupId ?? (onGroupPage ? shownGroupParam : null);
   const openForeignGroup = useMemo(
     () =>
       openGroupId
@@ -1557,7 +1568,7 @@ function SidebarContent({
               childGroupId,
               group.id.toString(),
               pathname,
-              currentGroupParam,
+              shownGroupParam,
               index,
             )}
           />

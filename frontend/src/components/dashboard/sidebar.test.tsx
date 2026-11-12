@@ -1189,6 +1189,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
+      // Anker: die geöffnete fremde Gruppe steht als Eintrag in der Leiste.
       const adler = screen.getByRole("link", { name: "Adler" });
       expect(adler).toHaveAttribute("href", "/ogs-groups?group=2");
       expect(adler).toHaveClass("bg-gray-100");
@@ -1225,6 +1226,68 @@ describe("Sidebar", () => {
       expect(links[1]).toHaveClass("bg-gray-100");
     });
 
+    // Ohne `?group=` öffnet die Gruppenseite die zuletzt gewählte Gruppe;
+    // die Leiste zeigt dieselbe (#6863).
+    it.each([
+      {
+        case: "a remembered foreign group",
+        remembered: "2",
+        groups: [
+          { id: "1", name: "Eulen", is_personal: true },
+          { id: "2", name: "Adler", is_personal: false },
+        ],
+        marked: "Adler",
+        unmarked: "Eulen",
+      },
+      {
+        case: "a remembered own group",
+        remembered: "2",
+        groups: [
+          { id: "1", name: "Eulen", is_personal: true },
+          { id: "2", name: "Adler", is_personal: true },
+        ],
+        marked: "Adler",
+        unmarked: "Eulen",
+      },
+      {
+        case: "the first group when the remembered one is gone",
+        remembered: "99",
+        groups: [
+          { id: "1", name: "Eulen", is_personal: true },
+          { id: "2", name: "Adler", is_personal: true },
+        ],
+        marked: "Eulen",
+        unmarked: "Adler",
+      },
+    ])(
+      "marks $case on the group page without a group parameter",
+      ({ remembered, groups, marked, unmarked }) => {
+        vi.spyOn(localStorage, "getItem").mockImplementation((key: string) =>
+          key === memoryKey("sidebar-last-group") ? remembered : null,
+        );
+        mockUsePathname.mockReturnValue("/ogs-groups");
+        mockUseSupervision.mockReturnValue({
+          hasGroups: true,
+          isSupervising: false,
+          isLoadingGroups: false,
+          isLoadingSupervision: false,
+          overviewEnabled: false,
+          supervisedRooms: [],
+          groups,
+          refresh: vi.fn(),
+        });
+
+        render(<Sidebar />);
+
+        expect(screen.getByRole("link", { name: marked })).toHaveClass(
+          "bg-gray-100",
+        );
+        expect(screen.getByRole("link", { name: unmarked })).not.toHaveClass(
+          "bg-gray-100",
+        );
+      },
+    );
+
     it("keeps the empty text when no group is open and the person leads none", () => {
       mockUsePathname.mockReturnValue("/ogs-groups/overview");
       mockUseSupervision.mockReturnValue({
@@ -1240,6 +1303,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
+      // Anker: der Gruppenbereich ist geladen und zeigt seinen Leertext.
       expect(screen.getByText("Keine eigenen Gruppen")).toBeVisible();
       expect(screen.queryByRole("link", { name: "Adler" })).toBeNull();
     });
@@ -1667,6 +1731,7 @@ describe("Sidebar", () => {
 
       render(<Sidebar />);
 
+      // Anker: die fremde Gruppe steht markiert in der Leiste.
       expect(screen.getByRole("link", { name: "Adler" })).toHaveClass(
         "bg-gray-100",
       );
