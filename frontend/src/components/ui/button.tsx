@@ -125,11 +125,8 @@ export function Button({
       data-icon-only={size === "icon" ? "" : undefined}
       className={buttonClassName({ variant, size, className, touchTarget })}
       {...(blocked ? withoutActivation(props) : props)}
-      {...(blocked && {
-        "aria-disabled": true,
-        // Verhindert auch das Absenden des Formulars, ebenso bei Enter im Feld.
-        onClick: preventActivation,
-      })}
+      {...(blocked && BLOCKED_ACTIVATION_PROPS)}
+      {...(blocked && { "aria-disabled": true })}
       // Nach den Props: `disabled={false}` vom Aufrufer hebt die Ladesperre
       // nicht auf, sonst wäre ein zweites Absenden möglich (#5608).
       disabled={Boolean(isLoading) || (disabled && !blocked)}
@@ -140,8 +137,9 @@ export function Button({
   return withHint(button, blocked ? disabledReason : tooltip, blocked);
 }
 
-function preventActivation(event: React.MouseEvent) {
+function blockActivation(event: React.SyntheticEvent) {
   event.preventDefault();
+  event.stopPropagation();
 }
 
 // Ein nativ gesperrter Knopf ruft keinen dieser Handler auf; ein gesperrter
@@ -156,9 +154,33 @@ const ACTIVATION_HANDLERS = [
   "onPointerUp",
   "onKeyDown",
   "onKeyUp",
+  "onKeyPress",
   "onTouchStart",
   "onTouchEnd",
+  "onClickCapture",
+  "onDoubleClickCapture",
+  "onAuxClickCapture",
+  "onMouseDownCapture",
+  "onMouseUpCapture",
+  "onPointerDownCapture",
+  "onPointerUpCapture",
+  "onKeyDownCapture",
+  "onKeyUpCapture",
+  "onKeyPressCapture",
+  "onTouchStartCapture",
+  "onTouchEndCapture",
 ] as const;
+
+// `aria-disabled` hat keine native Ereignissperre. Deshalb werden alle
+// Aktivierungsereignisse in der Bubbling-Phase selbst abgebrochen: Der Grund
+// bleibt erreichbar, aber weder der Aufrufer noch ein klickbarer Vorfahr
+// erhält in dieser Phase die Aktion. Capture-Handler des Aufrufers werden
+// oben entfernt.
+const BLOCKED_ACTIVATION_PROPS = Object.fromEntries(
+  ACTIVATION_HANDLERS.filter((name) => !name.endsWith("Capture")).map(
+    (name) => [name, blockActivation],
+  ),
+);
 
 function withoutActivation<T extends object>(props: T) {
   return Object.fromEntries(
@@ -267,6 +289,7 @@ function BlockedLink({
   return (
     <a
       {...withoutActivation(props)}
+      {...BLOCKED_ACTIVATION_PROPS}
       role="link"
       tabIndex={0}
       aria-disabled="true"

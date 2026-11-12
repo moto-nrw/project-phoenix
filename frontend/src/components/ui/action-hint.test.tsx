@@ -375,6 +375,7 @@ describe("disabledReason on kit buttons", () => {
     const user = userEvent.setup();
     const onClick = vi.fn();
     const onKeyDown = vi.fn();
+    const onKeyPress = vi.fn();
     const onSubmit = vi.fn((event: React.FormEvent) => event.preventDefault());
     function Form({ blocked }: Readonly<{ blocked: boolean }>) {
       return (
@@ -383,6 +384,7 @@ describe("disabledReason on kit buttons", () => {
           <Button
             onClick={onClick}
             onKeyDown={onKeyDown}
+            onKeyPress={onKeyPress}
             disabled={blocked}
             disabledReason={REASON}
           >
@@ -395,6 +397,9 @@ describe("disabledReason on kit buttons", () => {
       await user.click(screen.getByRole("button", { name: "Speichern" }));
       screen.getByRole("button", { name: "Speichern" }).focus();
       await user.keyboard("{Enter}");
+      fireEvent.keyPress(screen.getByRole("button", { name: "Speichern" }), {
+        key: "Enter",
+      });
       await user.click(screen.getByRole("textbox", { name: "Name" }));
       await user.keyboard("{Enter}");
     }
@@ -403,6 +408,7 @@ describe("disabledReason on kit buttons", () => {
     await pressEverything();
     expect(onClick).not.toHaveBeenCalled();
     expect(onKeyDown).not.toHaveBeenCalled();
+    expect(onKeyPress).not.toHaveBeenCalled();
     expect(onSubmit).not.toHaveBeenCalled();
 
     // Gegenprobe: derselbe Weg löst am freien Knopf alles aus.
@@ -410,8 +416,67 @@ describe("disabledReason on kit buttons", () => {
     await pressEverything();
     expect(onClick).toHaveBeenCalled();
     expect(onKeyDown).toHaveBeenCalled();
+    expect(onKeyPress).toHaveBeenCalled();
     expect(onSubmit).toHaveBeenCalled();
   });
+
+  it.each([
+    { name: "Button", link: false, role: "button" },
+    { name: "ButtonLink", link: true, role: "link" },
+  ])(
+    "stops activation from reaching a clickable parent for $name",
+    ({ link, role }) => {
+      const onParentClick = vi.fn();
+      const onParentPointerDown = vi.fn();
+      const onParentKeyDown = vi.fn();
+      const onParentKeyPress = vi.fn();
+      const onControlClickCapture = vi.fn();
+      render(
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label="Klickbare Zeile"
+          onClick={onParentClick}
+          onPointerDown={onParentPointerDown}
+          onKeyDown={onParentKeyDown}
+          onKeyPress={onParentKeyPress}
+        >
+          {link ? (
+            <ButtonLink
+              href="/help"
+              disabled
+              disabledReason={REASON}
+              onClickCapture={onControlClickCapture}
+            >
+              Weiter
+            </ButtonLink>
+          ) : (
+            <Button
+              type="button"
+              disabled
+              disabledReason={REASON}
+              onClickCapture={onControlClickCapture}
+            >
+              Weiter
+            </Button>
+          )}
+        </div>,
+      );
+      const control = screen.getByRole(role, { name: "Weiter" });
+
+      expect(control).toHaveAccessibleDescription(REASON);
+      fireEvent.pointerDown(control, { pointerType: "mouse" });
+      fireEvent.click(control);
+      fireEvent.keyDown(control, { key: "Enter" });
+      fireEvent.keyPress(control, { key: "Enter" });
+
+      expect(onControlClickCapture).not.toHaveBeenCalled();
+      expect(onParentClick).not.toHaveBeenCalled();
+      expect(onParentPointerDown).not.toHaveBeenCalled();
+      expect(onParentKeyDown).not.toHaveBeenCalled();
+      expect(onParentKeyPress).not.toHaveBeenCalled();
+    },
+  );
 
   it("gives a blocked ButtonLink no target to navigate to", () => {
     render(
