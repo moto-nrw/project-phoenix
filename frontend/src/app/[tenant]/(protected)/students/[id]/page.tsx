@@ -568,7 +568,7 @@ function StudentDetailPageContent() {
       .sort((a, b) => a.label.localeCompare(b.label, "de"));
   });
   const refreshDataAndHistory = useCallback(async () => {
-    refreshData();
+    await refreshData();
     // Best effort: the change history reloads with its own load error path
     // when it is opened; a failed background refresh only leaves it stale.
     await tenantMutate(studentKeys.changeHistory(studentId)).catch((err) => {

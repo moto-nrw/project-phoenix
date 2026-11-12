@@ -32,6 +32,10 @@ vi.mock("next-auth/react", () => ({
 }));
 
 import TraegerAccountsPage from "./page";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 const BUERO = {
   members: [
@@ -432,28 +436,23 @@ describe("TraegerAccountsPage", () => {
         await screen.findByRole("menuitem", { name: "Rollen ändern" }),
       );
       expect(await screen.findByRole("dialog")).toBeVisible();
+      resetPageReloads();
       await act(async () => read.reject(new ApiError("failed", status)));
-      const code =
-        status === 403 ? "general.permission" : "general.unavailable";
+      if (status === 403) {
+        // #6801: the page loads anew; its first load shows the refusal.
+        await expectPageReloadedAfterRefusal();
+        return;
+      }
       // Anker: der Nachladefehler bestätigt den abgeschlossenen Widerruf.
       expect(
         await screen.findByText(
-          `${catalogText(code, "die Anzeige des Träger-Büros")} ${SAVED_BUT_STALE_SUFFIX}`,
+          `${catalogText("general.unavailable", "die Anzeige des Träger-Büros")} ${SAVED_BUT_STALE_SUFFIX}`,
         ),
       ).toBeVisible();
-      if (status === 403) {
-        expect(screen.queryAllByText("kasse@traeger.example")).toHaveLength(0);
-        expect(screen.queryAllByText("neu@traeger.example")).toHaveLength(0);
-        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
-        expect(
-          screen.queryByRole("button", { name: "Person einladen" }),
-        ).not.toBeInTheDocument();
-      } else {
-        expect(
-          screen.getAllByText("kasse@traeger.example").length,
-        ).toBeGreaterThan(0);
-        expect(screen.getByRole("dialog")).toBeVisible();
-      }
+      expect(
+        screen.getAllByText("kasse@traeger.example").length,
+      ).toBeGreaterThan(0);
+      expect(screen.getByRole("dialog")).toBeVisible();
     },
   );
 

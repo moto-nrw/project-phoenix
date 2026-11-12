@@ -61,7 +61,12 @@ vi.mock("next-auth/react", () => ({
 }));
 
 vi.mock("~/lib/logger", () => ({
-  createLogger: () => ({ error: vi.fn(), info: vi.fn(), warn: vi.fn() }),
+  createLogger: () => ({
+    error: vi.fn(),
+    info: vi.fn(),
+    warn: vi.fn(),
+    flush: () => Promise.resolve(),
+  }),
 }));
 
 vi.mock("~/lib/hooks/use-berlin-today", () => ({
@@ -72,6 +77,10 @@ import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { catalogText } from "~/test/error-catalog-text";
 import { ApiError } from "~/lib/api-error";
 import { BookingLeftoverHints } from "./booking-leftover-hints";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 const hannah: BookingLeftover = {
   templateId: "9",
@@ -147,31 +156,25 @@ describe("BookingLeftoverHints", () => {
       const keep = await screen.findByRole("button", {
         name: "Bleibt so: Hannah Schmitz in „Hausaufgabenbetreuung“",
       });
+      resetPageReloads();
       mocks.getLeftovers.mockRejectedValueOnce(new ApiError("failed", status));
       fireEvent.click(keep);
+      if (status === 403) {
+        // #6801: the page loads anew; its first load shows the refusal.
+        await expectPageReloadedAfterRefusal();
+        expect(mocks.setKept).toHaveBeenCalledTimes(1);
+        return;
+      }
       expect(
         await screen.findByText(
-          `${catalogText(status === 403 ? "general.permission" : "general.unavailable", "die Anzeige der Kinder ohne passende Buchung")} ${SAVED_BUT_STALE_SUFFIX}`,
+          `${catalogText("general.unavailable", "die Anzeige der Kinder ohne passende Buchung")} ${SAVED_BUT_STALE_SUFFIX}`,
         ),
       ).toBeVisible();
       expect(mocks.setKept).toHaveBeenCalledTimes(1);
-      if (status === 403) {
-        expect(screen.queryByText("Hannah Schmitz")).not.toBeInTheDocument();
-        expect(
-          [...cache.values()].some((entry) =>
-            entry.data?.some?.(
-              (item: BookingLeftover) => item.studentId === "42",
-            ),
-          ),
-        ).toBe(false);
-      } else {
-        expect(screen.getByText("Hannah Schmitz")).toBeVisible();
-        fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
-        await waitFor(() =>
-          expect(mocks.getLeftovers).toHaveBeenCalledTimes(3),
-        );
-        expect(mocks.setKept).toHaveBeenCalledTimes(1);
-      }
+      expect(screen.getByText("Hannah Schmitz")).toBeVisible();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() => expect(mocks.getLeftovers).toHaveBeenCalledTimes(3));
+      expect(mocks.setKept).toHaveBeenCalledTimes(1);
     },
   );
 
