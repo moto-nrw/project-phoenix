@@ -24,7 +24,10 @@ func seedHolidayRunDownloads(client *Client, auth AuthRef, runID, costBearerID i
 			return fmt.Errorf("download the list of the cost bearer: %w", err)
 		}
 	}
-	return seedSollstellung(client, auth, runID)
+	if err := seedSollstellung(client, auth, runID); err != nil {
+		return err
+	}
+	return seedExportHandover(client, auth, runID)
 }
 
 // seedSollstellung maps the columns of the Sollstellung as a Kämmerei asks
