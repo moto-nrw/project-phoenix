@@ -6,18 +6,32 @@ import (
 	"time"
 )
 
-// The Träger scope of Export Transfer (#6824, ADR 0218): one recipient per
-// Träger with its own sealed credentials, its own journal and its own Träger
-// transactions. It is a separate capability, so the school scope above keeps
-// its exact behaviour and neither scope can reach the other's target.
+// The Träger scope of Export Transfer (#6824, ADR 0218; #6911, ADR 0221):
+// several recipients per Träger, each with its own sealed credentials, one
+// recipient per export format, a journal per recipient and Träger
+// transactions of its own. It is a separate capability, so the school scope
+// above keeps its exact behaviour and neither scope can reach the other's
+// target.
 
 // KindParentBillingFinance is the journal kind of a finance export of the
 // Elternabrechnung: Sollstellung, DATEV booking batch or PAIN.008.
 const KindParentBillingFinance = "parent_billing_finance"
 
+// The finance export formats of the Elternabrechnung a Träger assigns to a
+// recipient (ADR 0221), in the order the Träger sees them.
+const (
+	FormatSollstellung = "sollstellung"
+	FormatDatev        = "datev"
+	FormatPain008      = "pain008"
+)
+
+// TraegerFormats lists the assignable formats in order.
+var TraegerFormats = []string{FormatSollstellung, FormatDatev, FormatPain008}
+
 // Recipient field names, in form order. A validation error and an
 // incomplete recipient name these.
 const (
+	RecipientFieldName        = "name"
 	RecipientFieldHost        = "host"
 	RecipientFieldPort        = "port"
 	RecipientFieldUsername    = "username"
@@ -40,6 +54,18 @@ const (
 // names the fields (RecipientError).
 var ErrRecipientInvalid = errors.New("export transfer: the recipient is invalid")
 
+// ErrRecipientNotFound reports a recipient that does not exist for the
+// Träger, also one of another Träger.
+var ErrRecipientNotFound = errors.New("export transfer: the recipient does not exist")
+
+// ErrRecipientNameTaken reports a name another recipient of the Träger
+// already has; two recipients of one name could not be told apart.
+var ErrRecipientNameTaken = errors.New("export transfer: another recipient has this name")
+
+// ErrAssignmentInvalid reports an assignment of an unknown format or of a
+// format named twice.
+var ErrAssignmentInvalid = errors.New("export transfer: the assignment of the formats is invalid")
+
 // RecipientError lists the invalid fields of a recipient, in form order.
 type RecipientError struct{ Fields []string }
 
@@ -48,11 +74,11 @@ func (e *RecipientError) Error() string { return ErrRecipientInvalid.Error() }
 // Unwrap lets errors.Is find ErrRecipientInvalid.
 func (e *RecipientError) Unwrap() error { return ErrRecipientInvalid }
 
-// TraegerRecipient is the credential-free view of the recipient of a
+// TraegerRecipient is the credential-free view of one recipient of a
 // Träger. It has no password field at all, only whether one is stored.
 type TraegerRecipient struct {
-	// Configured says whether the Träger saved a recipient at all.
-	Configured bool `json:"configured"`
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
 	// Enabled mirrors the switch; Ready also needs every value.
 	Enabled            bool   `json:"enabled"`
 	Ready              bool   `json:"ready"`
@@ -64,13 +90,18 @@ type TraegerRecipient struct {
 	PasswordSet        bool   `json:"password_set"`
 	// MissingFields names what still blocks a handover, in form order. A
 	// stored password that no longer opens counts as missing.
-	MissingFields []string   `json:"missing_fields"`
-	UpdatedAt     *time.Time `json:"updated_at,omitempty"`
+	MissingFields []string `json:"missing_fields"`
+	// Formats are the export formats this recipient receives, in order.
+	Formats []string `json:"formats"`
+	// LastHandover is its newest handover: its error state until the next.
+	LastHandover *TraegerTransferEntry `json:"last_handover,omitempty"`
+	UpdatedAt    time.Time             `json:"updated_at"`
 }
 
 // TraegerRecipientInput is what the Träger saves. A nil Password keeps the
 // stored one; an empty one is refused, the recipient is removed instead.
 type TraegerRecipientInput struct {
+	Name               string
 	Enabled            bool
 	Host               string
 	Port               int
@@ -80,11 +111,20 @@ type TraegerRecipientInput struct {
 	HostKeyFingerprint string
 }
 
+// TraegerAssignment sends one format to one recipient; a nil RecipientID
+// leaves the format to the download.
+type TraegerAssignment struct {
+	Format      string `json:"format"`
+	RecipientID *int64 `json:"recipient_id"`
+}
+
 // Destination names where a file goes, so the producing domain can record
 // it with its export. It holds no credential.
 type Destination struct {
-	Host      string
-	Directory string
+	RecipientID   int64
+	RecipientName string
+	Host          string
+	Directory     string
 }
 
 // TraegerTransferRequest is one handover of a finance export of a Träger.
@@ -111,13 +151,25 @@ type TraegerTransferEntry struct {
 	ByteSize        int64     `json:"byte_size"`
 	TargetHost      string    `json:"target_host"`
 	TargetDirectory string    `json:"target_directory"`
+	// RecipientID is nil once the recipient was removed; RecipientName is
+	// its name at the handover.
+	RecipientID   *int64 `json:"recipient_id"`
+	RecipientName string `json:"recipient_name"`
 	// State is transferred, failed, in_progress or unknown.
 	State  string `json:"state"`
 	Reason string `json:"reason,omitempty"`
 }
 
-// TraegerRecipientPage is the recipient of a Träger with its newest
-// handovers, read in one Träger transaction.
+// TraegerRecipientsPage is every recipient of a Träger, the recipient of
+// each format and the newest handovers, read in one Träger transaction.
+type TraegerRecipientsPage struct {
+	Recipients []TraegerRecipient `json:"recipients"`
+	// Assignments has one entry per format of TraegerFormats, in order.
+	Assignments []TraegerAssignment    `json:"assignments"`
+	Handovers   []TraegerTransferEntry `json:"handovers"`
+}
+
+// TraegerRecipientPage is one recipient with its own newest handovers.
 type TraegerRecipientPage struct {
 	Recipient TraegerRecipient       `json:"recipient"`
 	Handovers []TraegerTransferEntry `json:"handovers"`
@@ -127,14 +179,23 @@ type TraegerRecipientPage struct {
 // opens its own Träger transaction of organizationID, or joins the one of
 // the same Träger, and refuses to run inside a school or administrative one.
 type TraegerTransfers interface {
-	// Recipient answers the recipient and at most journalLimit handovers.
-	Recipient(ctx context.Context, organizationID int64, journalLimit int) (TraegerRecipientPage, error)
-	SaveRecipient(ctx context.Context, organizationID, actorAccountID int64, input TraegerRecipientInput) (TraegerRecipient, error)
-	// DeleteRecipient removes the recipient and its sealed password and
-	// answers the view without one.
-	DeleteRecipient(ctx context.Context, organizationID int64) (TraegerRecipient, error)
-	// Transfer hands one file over. A recipient that is not ready answers
-	// ReasonNotConfigured without preparing a file.
+	// Recipients answers every recipient, the assignments and at most
+	// journalLimit handovers.
+	Recipients(ctx context.Context, organizationID int64, journalLimit int) (TraegerRecipientsPage, error)
+	// Recipient answers one recipient and at most journalLimit of its
+	// handovers; another Träger's answers ErrRecipientNotFound.
+	Recipient(ctx context.Context, organizationID, recipientID int64, journalLimit int) (TraegerRecipientPage, error)
+	CreateRecipient(ctx context.Context, organizationID, actorAccountID int64, input TraegerRecipientInput) (TraegerRecipient, error)
+	SaveRecipient(ctx context.Context, organizationID, actorAccountID, recipientID int64, input TraegerRecipientInput) (TraegerRecipient, error)
+	// DeleteRecipient removes a recipient and its sealed password; its
+	// formats go back to the download. It answers the page without it.
+	DeleteRecipient(ctx context.Context, organizationID, recipientID int64) (TraegerRecipientsPage, error)
+	// AssignFormats sends each named format to its recipient, or to the
+	// download; formats it does not name keep theirs.
+	AssignFormats(ctx context.Context, organizationID, actorAccountID int64, assignments []TraegerAssignment) (TraegerRecipientsPage, error)
+	// Transfer hands one file to the recipient of its format. A format
+	// without a ready recipient answers ReasonNotConfigured without
+	// preparing a file.
 	Transfer(ctx context.Context, request TraegerTransferRequest) (Outcome, error)
 }
 
@@ -145,7 +206,7 @@ type RekeyResult struct {
 	LastID  int64
 }
 
-// RecipientRekey re-seals the recipient password of a Träger on the active
+// RecipientRekey re-seals the recipient passwords of a Träger on the active
 // bank key. Only the maintenance command holds it; it runs in the Träger
 // transaction the command opens.
 type RecipientRekey interface {

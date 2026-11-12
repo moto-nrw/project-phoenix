@@ -62,8 +62,9 @@ func TestBankDataRekeyJobOpensBothSourcesWithoutLegacy(t *testing.T) {
  'Synthetic creditor', 'Creditor street 1', 'Debtor street 2', '75175', 'City')`, org, mandateID, contractID, consentText); err != nil {
 			return err
 		}
-		if _, err := tx.ExecContext(ctx, `INSERT INTO config.traeger_export_recipients (organization_id, password_sealed)
- VALUES (?, ?)`, org, recipientPassword); err != nil {
+		// Two recipients (ADR 0221): batches of one reach both.
+		if _, err := tx.ExecContext(ctx, `INSERT INTO config.traeger_export_recipients (organization_id, name, password_sealed)
+ VALUES (?, 'Kämmerei', ?), (?, 'Steuerbüro', ?)`, org, recipientPassword, org, recipientPassword); err != nil {
 			return err
 		}
 		_, err := tx.ExecContext(ctx, `INSERT INTO parent_billing.sepa_debits
@@ -79,7 +80,7 @@ func TestBankDataRekeyJobOpensBothSourcesWithoutLegacy(t *testing.T) {
 	require.NoError(t, err)
 	var output bytes.Buffer
 	require.NoError(t, runBankDataRekeyJob(ctx, parentBillingCompose.NewBankDataRekey(transition), exportTransferCompose.NewRecipientRekey(transition), org, 1, &output))
-	require.Contains(t, output.String(), "source=export_recipients scanned_total=1 changed_total=1")
+	require.Contains(t, output.String(), "source=export_recipients scanned_total=2 changed_total=2")
 	bankOnly, err := securityRuntimeCompose.NewBankDataCipher(bankKeys, "")
 	require.NoError(t, err)
 	var rows []struct {
@@ -104,14 +105,18 @@ func TestBankDataRekeyJobOpensBothSourcesWithoutLegacy(t *testing.T) {
 	plain, err := bankOnly.Open(sealedProof, consentAAD)
 	require.NoError(t, err)
 	require.Equal(t, "Exactly the confirmed text", string(plain))
-	var sealedPassword []byte
-	require.NoError(t, db.NewRaw(`SELECT password_sealed FROM config.traeger_export_recipients WHERE organization_id = ?`, org).Scan(ctx, &sealedPassword))
-	plain, err = bankOnly.Open(sealedPassword, recipientAAD)
-	require.NoError(t, err)
-	require.Equal(t, "synthetic-sftp-secret", string(plain))
+	var sealedPasswords [][]byte
+	require.NoError(t, db.NewRaw(`SELECT password_sealed FROM config.traeger_export_recipients WHERE organization_id = ? ORDER BY id`, org).
+		Scan(ctx, &sealedPasswords))
+	require.Len(t, sealedPasswords, 2)
+	for _, sealedPassword := range sealedPasswords {
+		plain, err = bankOnly.Open(sealedPassword, recipientAAD)
+		require.NoError(t, err)
+		require.Equal(t, "synthetic-sftp-secret", string(plain))
+	}
 	output.Reset()
 	require.NoError(t, runBankDataRekeyJob(ctx, parentBillingCompose.NewBankDataRekey(bankOnly), exportTransferCompose.NewRecipientRekey(bankOnly), org, 1, &output))
-	require.Contains(t, output.String(), "source=export_recipients scanned_total=1 changed_total=0")
+	require.Contains(t, output.String(), "source=export_recipients scanned_total=2 changed_total=0")
 	require.Contains(t, output.String(), "source=mandates scanned_total=1 changed_total=0")
 	require.Contains(t, output.String(), "source=debits scanned_total=1 changed_total=0")
 	require.Contains(t, output.String(), "source=consents scanned_total=1 changed_total=0")

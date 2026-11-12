@@ -11,8 +11,8 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/ports"
 )
 
-// Transfer hands one finance export of a Träger to its recipient (ADR 0218
-// section 5). Each step commits in its own Träger transaction, apart from
+// Transfer hands one finance export of a Träger to the recipient of its
+// format (ADR 0218 section 5, ADR 0221). Each step commits in its own Träger transaction, apart from
 // any request transaction:
 //
 //  1. intent: resolve the recipient, let the producer make and record the
@@ -83,17 +83,19 @@ type traegerIntent struct {
 func (s *TraegerService) beginTraegerIntent(ctx context.Context, request exporttransfer.TraegerTransferRequest) (traegerIntent, error) {
 	var intent traegerIntent
 	err := s.within(ctx, request.OrganizationID, func(txCtx context.Context) error {
-		target, err := s.resolveTarget(txCtx, request.OrganizationID)
+		recipient, target, err := s.resolveTarget(txCtx, request.OrganizationID, request.Format)
 		if err != nil {
 			return err
 		}
-		filename, data, err := request.PrepareFile(txCtx, exporttransfer.Destination{Host: target.Host, Directory: target.RemoteDirectory})
+		filename, data, err := request.PrepareFile(txCtx, exporttransfer.Destination{RecipientID: recipient.ID, RecipientName: recipient.Name,
+			Host: target.Host, Directory: target.RemoteDirectory})
 		if err != nil {
 			return err
 		}
 		id, err := s.journal.Begin(txCtx, domain.TraegerJournalEntry{
-			OrganizationID: request.OrganizationID, ActorAccountID: request.ActorAccountID,
-			Kind: request.Kind, Format: request.Format, Filename: filename, ByteSize: int64(len(data)),
+			OrganizationID: request.OrganizationID, RecipientID: recipient.ID, RecipientName: recipient.Name,
+			ActorAccountID: request.ActorAccountID,
+			Kind:           request.Kind, Format: request.Format, Filename: filename, ByteSize: int64(len(data)),
 			TargetHost: target.Host, TargetPort: target.Port, TargetDirectory: target.RemoteDirectory,
 			Reason: domain.ReasonInternal,
 		})
@@ -135,38 +137,45 @@ func (s *TraegerService) send(ctx context.Context, request exporttransfer.Traege
 	return outcome, errors.As(err, &uncertain) && uncertain.OutcomeUncertain()
 }
 
-// RecipientRekey re-seals the recipient password of one Träger on the
-// active bank key (ADR 0183 and ADR 0218 section 3). It runs in the
+// RecipientRekey re-seals the recipient passwords of one Träger on the
+// active bank key (ADR 0183, ADR 0218 section 3, ADR 0221). It runs in the
 // Träger transaction the maintenance command opens.
 type RecipientRekey struct {
 	Recipients ports.RecipientStore
 	Rewrapper  ports.PasswordRewrapper
 }
 
-// Batch handles the one recipient of the Träger on the first call; a
-// cursor past it ends the source.
-func (r RecipientRekey) Batch(ctx context.Context, organizationID, cursor int64, _ int) (exporttransfer.RekeyResult, error) {
-	if organizationID <= 0 || cursor > 0 {
+// Batch handles the recipients of the Träger after cursor, by id; an empty
+// batch ends the source.
+func (r RecipientRekey) Batch(ctx context.Context, organizationID, cursor int64, batchSize int) (exporttransfer.RekeyResult, error) {
+	if organizationID <= 0 {
 		return exporttransfer.RekeyResult{}, nil
 	}
-	recipient, found, err := r.Recipients.LockRecipient(ctx, organizationID)
-	if err != nil || !found {
-		return exporttransfer.RekeyResult{}, err
+	if batchSize <= 0 {
+		batchSize = 100
 	}
-	result := exporttransfer.RekeyResult{Scanned: 1, LastID: organizationID}
-	if len(recipient.SealedPassword) == 0 {
-		return result, nil
-	}
-	rewrapped, err := r.Rewrapper.Rewrap(recipient.SealedPassword, domain.PasswordContext(organizationID))
+	recipients, err := r.Recipients.LockRecipientsAfter(ctx, organizationID, cursor, batchSize)
 	if err != nil {
-		return exporttransfer.RekeyResult{}, errors.New("export transfer rekey: the recipient password does not open")
-	}
-	if string(rewrapped) == string(recipient.SealedPassword) {
-		return result, nil
-	}
-	if err := r.Recipients.ReplaceSealedPassword(ctx, organizationID, rewrapped); err != nil {
 		return exporttransfer.RekeyResult{}, err
 	}
-	result.Changed = 1
+	var result exporttransfer.RekeyResult
+	for _, recipient := range recipients {
+		result.Scanned++
+		result.LastID = recipient.ID
+		if len(recipient.SealedPassword) == 0 {
+			continue
+		}
+		rewrapped, err := r.Rewrapper.Rewrap(recipient.SealedPassword, domain.PasswordContext(organizationID))
+		if err != nil {
+			return exporttransfer.RekeyResult{}, errors.New("export transfer rekey: a recipient password does not open")
+		}
+		if string(rewrapped) == string(recipient.SealedPassword) {
+			continue
+		}
+		if err := r.Recipients.ReplaceSealedPassword(ctx, organizationID, recipient.ID, rewrapped); err != nil {
+			return exporttransfer.RekeyResult{}, err
+		}
+		result.Changed++
+	}
 	return result, nil
 }

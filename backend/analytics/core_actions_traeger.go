@@ -179,10 +179,13 @@ var traegerCoreActions = map[RouteKey]CoreAction{
 	{http.MethodPut, "/traeger/finance-exports/booking-accounts/revenue-accounts"}:     notCaptured,
 	{http.MethodPost, "/traeger/finance-exports/booking-accounts/cost-centers"}:        notCaptured,
 	{http.MethodDelete, "/traeger/finance-exports/booking-accounts/cost-centers/{id}"}: notCaptured,
-	// The recipient of the finance exports and the handover of a file
-	// (#6824, ADR 0218) belong to the Träger, no school to count them for.
-	{http.MethodPut, "/traeger/export-recipient/"}:                                notCaptured,
-	{http.MethodDelete, "/traeger/export-recipient/"}:                             notCaptured,
+	// The recipients of the finance exports, the format each receives and
+	// the handover of a file (#6824, ADR 0218; #6911, ADR 0221) belong to
+	// the Träger, no school to count them for.
+	{http.MethodPost, "/traeger/export-recipient/"}:                               notCaptured,
+	{http.MethodPut, "/traeger/export-recipient/formats"}:                         notCaptured,
+	{http.MethodPut, "/traeger/export-recipient/{id}"}:                            notCaptured,
+	{http.MethodDelete, "/traeger/export-recipient/{id}"}:                         notCaptured,
 	{http.MethodPost, "/traeger/finance-handovers/runs/{kind}/{id}/sollstellung"}: notCaptured,
 	{http.MethodPost, "/traeger/finance-handovers/runs/{kind}/{id}/datev"}:        notCaptured,
 	{http.MethodPost, "/traeger/finance-handovers/runs/{kind}/{id}/pain008"}:      notCaptured,

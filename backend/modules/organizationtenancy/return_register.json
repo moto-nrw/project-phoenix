@@ -2,7 +2,7 @@
   "registerVersion": 1,
   "formatVersion": 1,
   "catalogVersion": 1,
-  "catalogSHA256": "55712a33ce3a9c7802456c0be919ad18da115b932f1e3f3b84bf0fe7c539e477",
+  "catalogSHA256": "4bb980d07eb3b52fb6df94ab264b6805e426aa8094e89dceca15f5ccac59913c",
   "about": "Dieses Register beschreibt das Rückgabepaket von moto: welche Tabellen und Felder es enthält, welche Typen sie haben, ob sie leer sein dürfen und wie die Tabellen verbunden sind. Es enthält keine Kundendaten. Jedes Paket enthält dieselbe Beschreibung für seine Tabellen als model.json. formatVersion und catalogSHA256 stehen auch in der manifest.json des Pakets.",
   "standards": [
     {
@@ -17351,6 +17351,18 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": true
+        },
+        {
+          "name": "recipient_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "recipient_name",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -17468,6 +17480,18 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": false
+        },
+        {
+          "name": "recipient_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "recipient_name",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
         }
       ],
       "relationships": [
@@ -17478,7 +17502,17 @@
         },
         {
           "column": "organization_id",
+          "targetTable": "config.traeger_export_recipients",
+          "targetColumn": "organization_id"
+        },
+        {
+          "column": "organization_id",
           "targetTable": "platform.organizations",
+          "targetColumn": "id"
+        },
+        {
+          "column": "recipient_id",
+          "targetTable": "config.traeger_export_recipients",
           "targetColumn": "id"
         }
       ],
@@ -17489,6 +17523,67 @@
       "excludedColumns": {
         "dispatch_token": "Authentication or operational secret/credential material; not customer export content."
       }
+    },
+    {
+      "name": "config.traeger_export_recipient_formats",
+      "columns": [
+        {
+          "name": "organization_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "export_format",
+          "type": "character varying",
+          "udt": "varchar",
+          "nullable": false
+        },
+        {
+          "name": "recipient_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "updated_by_account_id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": true
+        },
+        {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": false
+        }
+      ],
+      "relationships": [
+        {
+          "column": "organization_id",
+          "targetTable": "config.traeger_export_recipients",
+          "targetColumn": "organization_id"
+        },
+        {
+          "column": "organization_id",
+          "targetTable": "platform.organizations",
+          "targetColumn": "id"
+        },
+        {
+          "column": "recipient_id",
+          "targetTable": "config.traeger_export_recipients",
+          "targetColumn": "id"
+        },
+        {
+          "column": "updated_by_account_id",
+          "targetTable": "auth.accounts",
+          "targetColumn": "id"
+        }
+      ],
+      "packages": [
+        "school",
+        "organization"
+      ]
     },
     {
       "name": "config.traeger_export_recipients",
@@ -17551,6 +17646,18 @@
           "name": "updated_at",
           "type": "timestamp with time zone",
           "udt": "timestamptz",
+          "nullable": false
+        },
+        {
+          "name": "id",
+          "type": "bigint",
+          "udt": "int8",
+          "nullable": false
+        },
+        {
+          "name": "name",
+          "type": "character varying",
+          "udt": "varchar",
           "nullable": false
         }
       ],

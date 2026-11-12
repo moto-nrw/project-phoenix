@@ -17,6 +17,7 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/exporttransfer"
 	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/adapters/sftp"
 	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/adapters/sftp/sftptest"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/domain"
 	"github.com/moto-ogs/project-phoenix/tenant"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
@@ -82,15 +83,45 @@ func newTraegerFixture(t *testing.T, policy sftp.AddressPolicy) traegerFixture {
 
 func (f traegerFixture) readyInput() exporttransfer.TraegerRecipientInput {
 	password := f.server.Password
-	return exporttransfer.TraegerRecipientInput{Enabled: true, Host: f.server.Host, Port: f.server.Port, Username: sftptest.User,
-		Password: &password, RemoteDirectory: f.dir, HostKeyFingerprint: f.server.Fingerprint}
+	return exporttransfer.TraegerRecipientInput{Name: "Kämmerei", Enabled: true, Host: f.server.Host, Port: f.server.Port,
+		Username: sftptest.User, Password: &password, RemoteDirectory: f.dir, HostKeyFingerprint: f.server.Fingerprint}
 }
 
-func (f traegerFixture) save(t *testing.T, org int64) {
+// add enters a recipient of org and answers its id.
+func (f traegerFixture) add(t *testing.T, org int64, input exporttransfer.TraegerRecipientInput) int64 {
 	t.Helper()
-	recipient, err := f.transfers.SaveRecipient(f.ctx, org, 0, f.readyInput())
+	recipient, err := f.transfers.CreateRecipient(f.ctx, org, 0, input)
 	require.NoError(t, err)
-	require.True(t, recipient.Ready)
+	require.Empty(t, recipient.Formats, "a new recipient receives no format until the Träger assigns one")
+	return recipient.ID
+}
+
+// assign sends each format to its recipient, 0 for the download.
+func (f traegerFixture) assign(t *testing.T, org int64, recipients map[string]int64) exporttransfer.TraegerRecipientsPage {
+	t.Helper()
+	assignments := make([]exporttransfer.TraegerAssignment, 0, len(recipients))
+	for format, id := range recipients {
+		assignment := exporttransfer.TraegerAssignment{Format: format}
+		if id > 0 {
+			assignment.RecipientID = &id
+		}
+		assignments = append(assignments, assignment)
+	}
+	page, err := f.transfers.AssignFormats(f.ctx, org, 0, assignments)
+	require.NoError(t, err)
+	return page
+}
+
+// save enters the ready recipient of org that receives every format.
+func (f traegerFixture) save(t *testing.T, org int64) int64 {
+	t.Helper()
+	id := f.add(t, org, f.readyInput())
+	f.assign(t, org, map[string]int64{"sollstellung": id, "datev": id, "pain008": id})
+	page, err := f.transfers.Recipient(f.ctx, org, id, 10)
+	require.NoError(t, err)
+	require.True(t, page.Recipient.Ready)
+	require.Equal(t, exporttransfer.TraegerFormats, page.Recipient.Formats)
+	return id
 }
 
 func financeRequest(org int64, filename string, settled *[]exporttransfer.Outcome) exporttransfer.TraegerTransferRequest {
@@ -163,17 +194,25 @@ func TestTraegerHandoverWithoutReadyRecipientPreparesNothing(t *testing.T) {
 	outcome, err := f.transfers.Transfer(f.ctx, request)
 	require.NoError(t, err)
 	assert.Equal(t, exporttransfer.ReasonNotConfigured, outcome.Reason)
-	// A switched-off recipient of this Träger and a ready one of another
+	// A switched-off recipient of the format, a ready recipient of this
+	// Träger that receives other formats only and a ready one of another
 	// Träger change nothing.
 	input := f.readyInput()
 	input.Enabled = false
-	_, err = f.transfers.SaveRecipient(f.ctx, f.org, 0, input)
+	off := f.add(t, f.org, input)
+	f.assign(t, f.org, map[string]int64{"datev": off})
+	outcome, err = f.transfers.Transfer(f.ctx, request)
 	require.NoError(t, err)
+	assert.Equal(t, exporttransfer.ReasonNotConfigured, outcome.Reason)
+	input = f.readyInput()
+	input.Name = "Steuerbüro"
+	ready := f.add(t, f.org, input)
+	f.assign(t, f.org, map[string]int64{"sollstellung": ready, "pain008": ready})
 	f.save(t, f.other)
 	outcome, err = f.transfers.Transfer(f.ctx, request)
 	require.NoError(t, err)
 	assert.Equal(t, exporttransfer.ReasonNotConfigured, outcome.Reason)
-	assert.False(t, prepared, "no file and no file number without a ready recipient of this Träger")
+	assert.False(t, prepared, "no file and no file number without a ready recipient of this format of this Träger")
 	assert.Empty(t, journalRows(t, f.ctx, f.db, f.org))
 }
 
@@ -200,8 +239,8 @@ func TestTraegerHandoverFailureIsAResultInJournalAndProtocol(t *testing.T) {
 	f := newTraegerFixture(t, nil)
 	input := f.readyInput()
 	input.HostKeyFingerprint = f.server.FingerprintECDSA
-	_, err := f.transfers.SaveRecipient(f.ctx, f.org, 0, input)
-	require.NoError(t, err)
+	id := f.add(t, f.org, input)
+	f.assign(t, f.org, map[string]int64{"sollstellung": id})
 	var settled []exporttransfer.Outcome
 	outcome, err := f.transfers.Transfer(f.ctx, financeRequest(f.org, "pain-112.xml", &settled))
 	require.NoError(t, err)
@@ -215,10 +254,12 @@ func TestTraegerHandoverFailureIsAResultInJournalAndProtocol(t *testing.T) {
 	assert.Equal(t, "host_key_mismatch", rows[0].FailureReason)
 	_, err = os.Stat(filepath.Join(f.dir, "pain-112.xml"))
 	assert.True(t, os.IsNotExist(err), "nothing lands at a counterpart that is not the pinned one")
-	page, err := f.transfers.Recipient(f.ctx, f.org, 10)
+	page, err := f.transfers.Recipients(f.ctx, f.org, 10)
 	require.NoError(t, err)
 	require.Len(t, page.Handovers, 1)
 	assert.Equal(t, exporttransfer.TraegerFailed, page.Handovers[0].State)
+	require.NotNil(t, page.Recipients[0].LastHandover, "the failure stays on its recipient until the next handover")
+	assert.Equal(t, exporttransfer.TraegerFailed, page.Recipients[0].LastHandover.State)
 }
 
 func TestTraegerRecipientPasswordIsSealedBoundAndNeverAnswered(t *testing.T) {
@@ -230,9 +271,9 @@ func TestTraegerRecipientPasswordIsSealedBoundAndNeverAnswered(t *testing.T) {
 		Scan(f.ctx, &sealed))
 	assert.NotEmpty(t, sealed)
 	assert.NotContains(t, string(sealed), f.server.Password, "the password is stored sealed only")
-	page, err := f.transfers.Recipient(f.ctx, f.org, 10)
+	page, err := f.transfers.Recipients(f.ctx, f.org, 10)
 	require.NoError(t, err)
-	assert.True(t, page.Recipient.PasswordSet)
+	assert.True(t, page.Recipients[0].PasswordSet)
 	answer, err := json.Marshal(page)
 	require.NoError(t, err)
 	assert.NotContains(t, string(answer), f.server.Password, "no answer carries the password")
@@ -242,17 +283,17 @@ func TestTraegerRecipientPasswordIsSealedBoundAndNeverAnswered(t *testing.T) {
 	f.save(t, f.other)
 	_, err = f.db.NewRaw(`UPDATE config.traeger_export_recipients SET password_sealed = ? WHERE organization_id = ?`, sealed, f.other).Exec(f.ctx)
 	require.NoError(t, err)
-	other, err := f.transfers.Recipient(f.ctx, f.other, 10)
+	other, err := f.transfers.Recipients(f.ctx, f.other, 10)
 	require.NoError(t, err)
-	assert.False(t, other.Recipient.PasswordSet)
-	assert.False(t, other.Recipient.Ready)
-	assert.Contains(t, other.Recipient.MissingFields, exporttransfer.RecipientFieldPassword)
+	assert.False(t, other.Recipients[0].PasswordSet)
+	assert.False(t, other.Recipients[0].Ready)
+	assert.Contains(t, other.Recipients[0].MissingFields, exporttransfer.RecipientFieldPassword)
 }
 
 func TestTraegerRecipientPasswordNeverFollowsAChangedDestination(t *testing.T) {
 	t.Parallel()
 	f := newTraegerFixture(t, nil)
-	f.save(t, f.org)
+	id := f.save(t, f.org)
 	for name, change := range map[string]func(*exporttransfer.TraegerRecipientInput){
 		"host":        func(in *exporttransfer.TraegerRecipientInput) { in.Host = "attacker.example.org" },
 		"port":        func(in *exporttransfer.TraegerRecipientInput) { in.Port = 2222 },
@@ -262,7 +303,7 @@ func TestTraegerRecipientPasswordNeverFollowsAChangedDestination(t *testing.T) {
 		input := f.readyInput()
 		input.Password = nil
 		change(&input)
-		_, err := f.transfers.SaveRecipient(f.ctx, f.org, 0, input)
+		_, err := f.transfers.SaveRecipient(f.ctx, f.org, 0, id, input)
 		var invalid *exporttransfer.RecipientError
 		require.ErrorAs(t, err, &invalid, name)
 		assert.Equal(t, []string{exporttransfer.RecipientFieldPassword}, invalid.Fields, name)
@@ -271,26 +312,36 @@ func TestTraegerRecipientPasswordNeverFollowsAChangedDestination(t *testing.T) {
 	input := f.readyInput()
 	input.Password = nil
 	input.RemoteDirectory = f.dir + "/"
-	recipient, err := f.transfers.SaveRecipient(f.ctx, f.org, 0, input)
+	recipient, err := f.transfers.SaveRecipient(f.ctx, f.org, 0, id, input)
 	require.NoError(t, err)
 	assert.True(t, recipient.PasswordSet)
-	page, err := f.transfers.Recipient(f.ctx, f.org, 10)
+	page, err := f.transfers.Recipient(f.ctx, f.org, id, 10)
 	require.NoError(t, err)
 	assert.Equal(t, f.server.Host, page.Recipient.Host)
+	// A second recipient of the same Träger never takes the stored password
+	// of the first: it starts without one.
+	second := f.readyInput()
+	second.Name, second.Password = "Steuerbüro", nil
+	created, err := f.transfers.CreateRecipient(f.ctx, f.org, 0, second)
+	require.NoError(t, err)
+	assert.False(t, created.PasswordSet)
+	assert.Contains(t, created.MissingFields, exporttransfer.RecipientFieldPassword)
 }
 
 func TestTraegerRecipientRemovalTakesThePassword(t *testing.T) {
 	t.Parallel()
 	f := newTraegerFixture(t, nil)
-	f.save(t, f.org)
-	f.save(t, f.other)
-	recipient, err := f.transfers.DeleteRecipient(f.ctx, f.org)
+	id := f.save(t, f.org)
+	otherID := f.save(t, f.other)
+	_, err := f.transfers.DeleteRecipient(f.ctx, f.org, otherID)
+	require.ErrorIs(t, err, exporttransfer.ErrRecipientNotFound, "a Träger cannot remove another Träger's recipient")
+	page, err := f.transfers.DeleteRecipient(f.ctx, f.org, id)
 	require.NoError(t, err)
-	assert.False(t, recipient.Configured)
+	assert.Empty(t, page.Recipients)
 	var left int
 	require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM config.traeger_export_recipients WHERE organization_id = ?`, f.org).Scan(f.ctx, &left))
 	assert.Zero(t, left)
-	other, err := f.transfers.Recipient(f.ctx, f.other, 10)
+	other, err := f.transfers.Recipient(f.ctx, f.other, otherID, 10)
 	require.NoError(t, err)
 	assert.True(t, other.Recipient.Ready, "removing one Träger's recipient leaves another's")
 }
@@ -300,32 +351,65 @@ func TestTraegerRecipientRemovalTakesThePassword(t *testing.T) {
 func TestTraegerStoreFiltersTheTraegerBelowRowLevelSecurity(t *testing.T) {
 	t.Parallel()
 	f := newTraegerFixture(t, nil)
-	f.save(t, f.org)
-	f.save(t, f.other)
+	// The other Träger enters its recipient first: an unfiltered read would
+	// meet its rows before the own ones.
+	foreign := f.save(t, f.other)
+	own := f.save(t, f.org)
 	var settled []exporttransfer.Outcome
 	_, err := f.transfers.Transfer(f.ctx, financeRequest(f.other, "other-1.csv", &settled))
 	require.NoError(t, err)
 	store := traegerStore()
 	err = tenant.WithinTraeger(f.ctx, f.org, func(ctx context.Context) error {
 		require.NoError(t, testpkg.WithoutRequestRole(ctx))
-		rows, err := store.List(ctx, f.org, 50)
+		rows, err := store.List(ctx, f.org, 0, 50)
 		require.NoError(t, err)
 		assert.Empty(t, rows, "the journal of another Träger stays hidden without RLS")
-		recipient, found, err := store.Recipient(ctx, f.org)
+		rows, err = store.List(ctx, f.org, foreign, 50)
+		require.NoError(t, err)
+		assert.Empty(t, rows, "naming another Träger's recipient reads none of its journal")
+		recipients, err := store.Recipients(ctx, f.org)
+		require.NoError(t, err)
+		require.Len(t, recipients, 1, "the list holds only the own recipient")
+		assert.Equal(t, own, recipients[0].ID)
+		assert.Nil(t, recipients[0].LastHandover, "another Träger's handover is never the own recipient's last one")
+		_, found, err := store.Recipient(ctx, f.org, foreign)
+		require.NoError(t, err)
+		assert.False(t, found, "another Träger's recipient is not found by its id")
+		_, found, err = store.LockRecipient(ctx, f.org, foreign)
+		require.NoError(t, err)
+		assert.False(t, found, "the lock reaches only the own recipient")
+		recipient, found, err := store.RecipientForFormat(ctx, f.org, "sollstellung")
 		require.NoError(t, err)
 		require.True(t, found)
-		assert.Equal(t, f.org, recipient.OrganizationID)
-		locked, found, err := store.LockRecipient(ctx, f.org)
+		assert.Equal(t, own, recipient.ID, "a format resolves to the own recipient only")
+		locked, err := store.LockRecipientsAfter(ctx, f.org, 0, 10)
 		require.NoError(t, err)
-		require.True(t, found)
-		assert.Equal(t, f.org, locked.OrganizationID, "the lock reaches only the own recipient")
-		require.NoError(t, store.ReplaceSealedPassword(ctx, f.org, []byte("rewrapped")))
-		return store.DeleteRecipient(ctx, f.org)
+		require.Len(t, locked, 1, "the rekey locks only the own recipients")
+		updated, err := store.UpdateRecipient(ctx, domain.StoredRecipient{ID: foreign, OrganizationID: f.org, Name: "Fremd", Port: 22}, 0)
+		require.NoError(t, err)
+		assert.False(t, updated, "an update with another Träger's id changes nothing")
+		// Both Träger name their recipient "Kämmerei": the name is taken only
+		// within one Träger.
+		updated, err = store.UpdateRecipient(ctx, recipients[0], 0)
+		require.NoError(t, err, "another Träger's recipient of the same name never blocks a save")
+		assert.True(t, updated)
+		assigned, err := store.AssignFormat(ctx, f.org, "datev", foreign, 0)
+		require.NoError(t, err)
+		assert.False(t, assigned, "a format never goes to another Träger's recipient")
+		require.NoError(t, store.ReplaceSealedPassword(ctx, f.org, foreign, []byte("rewrapped")))
+		deleted, err := store.DeleteRecipient(ctx, f.org, foreign)
+		require.NoError(t, err)
+		assert.False(t, deleted)
+		require.NoError(t, store.ReplaceSealedPassword(ctx, f.org, own, []byte("rewrapped")))
+		_, err = store.DeleteRecipient(ctx, f.org, own)
+		return err
 	})
 	require.NoError(t, err)
-	page, err := f.transfers.Recipient(f.ctx, f.other, 10)
+	page, err := f.transfers.Recipient(f.ctx, f.other, foreign, 10)
 	require.NoError(t, err)
-	assert.True(t, page.Recipient.Ready, "a delete and a rewrap without RLS reach only their own Träger")
+	assert.True(t, page.Recipient.Ready, "a delete, an update, an assignment and a rewrap without RLS reach only their own Träger")
+	assert.Equal(t, "Kämmerei", page.Recipient.Name)
+	assert.Equal(t, exporttransfer.TraegerFormats, page.Recipient.Formats)
 	assert.Len(t, page.Handovers, 1)
 }
 
@@ -334,10 +418,10 @@ func TestTraegerStoreFiltersTheTraegerBelowRowLevelSecurity(t *testing.T) {
 func TestTraegerStoreRefusesAForeignTransaction(t *testing.T) {
 	t.Parallel()
 	f := newTraegerFixture(t, nil)
-	f.save(t, f.org)
+	id := f.save(t, f.org)
 	store := traegerStore()
 	err := tenant.WithinTraeger(f.ctx, f.other, func(ctx context.Context) error {
-		_, _, err := store.Recipient(ctx, f.org)
+		_, _, err := store.Recipient(ctx, f.org, id)
 		return err
 	})
 	require.Error(t, err)
@@ -353,6 +437,8 @@ func TestTraegerStoreRefusesAForeignTransaction(t *testing.T) {
 		var visible int
 		require.NoError(t, transaction.(bun.Tx).NewRaw(`SELECT count(*) FROM config.traeger_export_recipients`).Scan(ctx, &visible))
 		assert.Zero(t, visible, "a school transaction sees no recipient of a Träger")
+		require.NoError(t, transaction.(bun.Tx).NewRaw(`SELECT count(*) FROM config.traeger_export_recipient_formats`).Scan(ctx, &visible))
+		assert.Zero(t, visible, "a school transaction sees no assignment of a Träger")
 		return nil
 	}))
 }
@@ -373,9 +459,10 @@ func TestTraegerRecoverySettlesExpiredIntentsWithoutResending(t *testing.T) {
 	rows := journalRows(t, f.ctx, f.db, f.org)
 	require.Len(t, rows, 1)
 	assert.Equal(t, "unknown", rows[0].DispatchState)
-	page, err := f.transfers.Recipient(f.ctx, f.org, 10)
+	page, err := f.transfers.Recipients(f.ctx, f.org, 10)
 	require.NoError(t, err)
 	assert.Equal(t, exporttransfer.TraegerUnknown, page.Handovers[0].State)
+	assert.Equal(t, exporttransfer.TraegerUnknown, page.Recipients[0].LastHandover.State)
 	assert.Empty(t, settled)
 }
 
@@ -386,7 +473,7 @@ func TestTraegerScopeRefusesASchoolTransaction(t *testing.T) {
 	testpkg.OwnTenant(t)
 	school := testpkg.Ctx(t)
 	err := tenant.WithinCurrentTenant(school, func(ctx context.Context) error {
-		_, err := f.transfers.Recipient(ctx, f.org, 10)
+		_, err := f.transfers.Recipients(ctx, f.org, 10)
 		return err
 	})
 	require.Error(t, err, "the Träger scope never runs inside a school transaction")

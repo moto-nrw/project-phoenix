@@ -1,5 +1,6 @@
-// Package exporttransferhttp serves the recipient of a Träger of Export
-// Transfer's Träger scope (#6824, ADR 0218) in the Träger portal.
+// Package exporttransferhttp serves the recipients of a Träger of Export
+// Transfer's Träger scope (#6824, ADR 0218; #6911, ADR 0221) in the Träger
+// portal.
 package exporttransferhttp
 
 import (
@@ -14,13 +15,14 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/exporttransfer"
 )
 
-// journalLimit is how many handovers the recipient page lists.
+// journalLimit is how many handovers a page lists.
 const journalLimit = 20
 
-// RecipientResource serves /traeger/export-recipient: the recipient of the
-// session's Träger without its password, its newest handovers, saving and
-// removing it. Every route runs in the Träger transaction of the session's
-// Träger behind the right the root binds.
+// RecipientResource serves /traeger/export-recipient: the recipients of the
+// session's Träger without their passwords, the recipient of each format,
+// the newest handovers, adding, saving and removing a recipient and
+// assigning the formats. Every route runs in the Träger transaction of the
+// session's Träger behind the right the root binds.
 type RecipientResource struct {
 	transfers exporttransfer.TraegerTransfers
 	require   common.Middleware
@@ -40,16 +42,20 @@ func (rs *RecipientResource) Router(protectedTraegerRoutes func(chi.Router, func
 	r.Use(render.SetContentType(render.ContentTypeJSON))
 	protectedTraegerRoutes(r, func(r chi.Router, withTx common.Middleware) {
 		route := r.With(rs.require, withTx)
-		route.Get("/", rs.recipient)
-		route.Put("/", rs.save)
-		route.Delete("/", rs.remove)
+		route.Get("/", rs.recipients)
+		route.Post("/", rs.create)
+		route.Put("/formats", rs.assign)
+		route.Get("/{id}", rs.recipient)
+		route.Put("/{id}", rs.save)
+		route.Delete("/{id}", rs.remove)
 	})
 	return r
 }
 
-// RecipientRequest is the body of PUT. A missing password keeps the stored
-// one, as long as address, port, user and fingerprint stay.
+// RecipientRequest is the body of POST and PUT. A missing password keeps the
+// stored one, as long as address, port, user and fingerprint stay.
 type RecipientRequest struct {
+	Name               string  `json:"name"`
 	Enabled            bool    `json:"enabled"`
 	Host               string  `json:"host"`
 	Port               int     `json:"port"`
@@ -62,6 +68,20 @@ type RecipientRequest struct {
 // Bind accepts the body; the capability validates the values.
 func (req *RecipientRequest) Bind(*http.Request) error { return nil }
 
+// FormatsRequest is the body of PUT /formats: the recipient of each named
+// format, null for the download.
+type FormatsRequest struct {
+	Assignments []exporttransfer.TraegerAssignment `json:"assignments"`
+}
+
+// Bind requires the list.
+func (req *FormatsRequest) Bind(*http.Request) error {
+	if req.Assignments == nil {
+		return errors.New("assignments are required")
+	}
+	return nil
+}
+
 // session reads the Träger and the account of the session; never the
 // request.
 func session(w http.ResponseWriter, r *http.Request) (organizationID, accountID int64, ok bool) {
@@ -73,30 +93,18 @@ func session(w http.ResponseWriter, r *http.Request) (organizationID, accountID 
 	return principal.OrganizationID(), principal.AccountID(), true
 }
 
-func (rs *RecipientResource) recipient(w http.ResponseWriter, r *http.Request) {
-	organizationID, _, ok := session(w, r)
-	if !ok {
-		return
-	}
-	page, err := rs.transfers.Recipient(r.Context(), organizationID, journalLimit)
+// recipientID reads the recipient of the path; a malformed one is not found.
+func recipientID(w http.ResponseWriter, r *http.Request) (int64, bool) {
+	id, err := common.ParseIDParam(r, "id")
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
-		return
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(exporttransfer.ErrRecipientNotFound, common.CodeParentBillingExportRecipientNotFound))
+		return 0, false
 	}
-	common.Respond(w, r, http.StatusOK, page, "Export recipient retrieved successfully")
+	return id, true
 }
 
-func (rs *RecipientResource) save(w http.ResponseWriter, r *http.Request) {
-	organizationID, accountID, ok := session(w, r)
-	if !ok {
-		return
-	}
-	req := &RecipientRequest{}
-	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingExportRecipientInvalid))
-		return
-	}
-	recipient, err := rs.transfers.SaveRecipient(r.Context(), organizationID, accountID, exporttransfer.TraegerRecipientInput(*req))
+// renderError answers a refused recipient write or read.
+func renderError(w http.ResponseWriter, r *http.Request, err error) {
 	var invalid *exporttransfer.RecipientError
 	switch {
 	case errors.As(err, &invalid):
@@ -106,11 +114,94 @@ func (rs *RecipientResource) save(w http.ResponseWriter, r *http.Request) {
 		}
 		common.RenderError(w, r, &common.ErrResponse{Err: err, HTTPStatusCode: http.StatusBadRequest,
 			Detail: "invalid recipient: " + strings.Join(invalid.Fields, ", "), Code: common.CodeParentBillingExportRecipientInvalid, Errors: fields})
-	case err != nil:
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+	case errors.Is(err, exporttransfer.ErrRecipientNameTaken):
+		common.RenderError(w, r, &common.ErrResponse{Err: err, HTTPStatusCode: http.StatusConflict, Detail: err.Error(),
+			Code: common.CodeParentBillingExportRecipientNameTaken, Errors: []common.FieldError{{Field: exporttransfer.RecipientFieldName, Reason: "taken"}}})
+	case errors.Is(err, exporttransfer.ErrRecipientNotFound):
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(err, common.CodeParentBillingExportRecipientNotFound))
+	case errors.Is(err, exporttransfer.ErrAssignmentInvalid):
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingExportFormatsInvalid))
 	default:
-		common.Respond(w, r, http.StatusOK, recipient, "Export recipient saved successfully")
+		common.RenderError(w, r, common.ErrorInternalServer(err))
 	}
+}
+
+func (rs *RecipientResource) recipients(w http.ResponseWriter, r *http.Request) {
+	organizationID, _, ok := session(w, r)
+	if !ok {
+		return
+	}
+	page, err := rs.transfers.Recipients(r.Context(), organizationID, journalLimit)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, page, "Export recipients retrieved successfully")
+}
+
+func (rs *RecipientResource) recipient(w http.ResponseWriter, r *http.Request) {
+	organizationID, _, ok := session(w, r)
+	if !ok {
+		return
+	}
+	id, ok := recipientID(w, r)
+	if !ok {
+		return
+	}
+	page, err := rs.transfers.Recipient(r.Context(), organizationID, id, journalLimit)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, page, "Export recipient retrieved successfully")
+}
+
+// bindRecipient reads the body of POST and PUT.
+func bindRecipient(w http.ResponseWriter, r *http.Request) (exporttransfer.TraegerRecipientInput, bool) {
+	req := &RecipientRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingExportRecipientInvalid))
+		return exporttransfer.TraegerRecipientInput{}, false
+	}
+	return exporttransfer.TraegerRecipientInput(*req), true
+}
+
+func (rs *RecipientResource) create(w http.ResponseWriter, r *http.Request) {
+	organizationID, accountID, ok := session(w, r)
+	if !ok {
+		return
+	}
+	input, ok := bindRecipient(w, r)
+	if !ok {
+		return
+	}
+	recipient, err := rs.transfers.CreateRecipient(r.Context(), organizationID, accountID, input)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusCreated, recipient, "Export recipient added successfully")
+}
+
+func (rs *RecipientResource) save(w http.ResponseWriter, r *http.Request) {
+	organizationID, accountID, ok := session(w, r)
+	if !ok {
+		return
+	}
+	id, ok := recipientID(w, r)
+	if !ok {
+		return
+	}
+	input, ok := bindRecipient(w, r)
+	if !ok {
+		return
+	}
+	recipient, err := rs.transfers.SaveRecipient(r.Context(), organizationID, accountID, id, input)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, recipient, "Export recipient saved successfully")
 }
 
 func (rs *RecipientResource) remove(w http.ResponseWriter, r *http.Request) {
@@ -118,10 +209,32 @@ func (rs *RecipientResource) remove(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	recipient, err := rs.transfers.DeleteRecipient(r.Context(), organizationID)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+	id, ok := recipientID(w, r)
+	if !ok {
 		return
 	}
-	common.Respond(w, r, http.StatusOK, recipient, "Export recipient removed successfully")
+	page, err := rs.transfers.DeleteRecipient(r.Context(), organizationID, id)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, page, "Export recipient removed successfully")
+}
+
+func (rs *RecipientResource) assign(w http.ResponseWriter, r *http.Request) {
+	organizationID, accountID, ok := session(w, r)
+	if !ok {
+		return
+	}
+	req := &FormatsRequest{}
+	if err := render.Bind(r, req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequestWithCode(err, common.CodeParentBillingExportFormatsInvalid))
+		return
+	}
+	page, err := rs.transfers.AssignFormats(r.Context(), organizationID, accountID, req.Assignments)
+	if err != nil {
+		renderError(w, r, err)
+		return
+	}
+	common.Respond(w, r, http.StatusOK, page, "Export formats assigned successfully")
 }

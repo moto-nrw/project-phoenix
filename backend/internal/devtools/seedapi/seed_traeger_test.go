@@ -273,8 +273,11 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		// The Abrechnung maps and downloads the Sollstellung (#4693).
 		"PUT /traeger/finance-exports/settings/sollstellung Bearer traeger-token",
 		"GET /traeger/finance-exports/runs/holiday-runs/9/sollstellung Bearer traeger-token",
-		// It enters the recipient and hands the Sollstellung over (ADR 0218).
-		"PUT /traeger/export-recipient/ Bearer traeger-token",
+		// It enters two recipients, sends each format to one of them and
+		// hands the Sollstellung over (ADR 0218, ADR 0221).
+		"POST /traeger/export-recipient/ Bearer traeger-token",
+		"POST /traeger/export-recipient/ Bearer traeger-token",
+		"PUT /traeger/export-recipient/formats Bearer traeger-token",
 		"POST /traeger/finance-handovers/runs/holiday-runs/9/sollstellung Bearer traeger-token",
 	}, calls, "the registrations go through the public link without a session; the Träger-Büro reviews them with its session")
 	assert.Equal(t, map[string]any{"registration_id": float64(9), "child_id": float64(91), "total_cents": float64(3500),

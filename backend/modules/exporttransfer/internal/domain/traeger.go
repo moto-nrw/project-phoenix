@@ -1,17 +1,23 @@
 package domain
 
 import (
+	"errors"
 	"regexp"
+	"slices"
 	"strconv"
 	"strings"
 	"time"
+	"unicode"
+	"unicode/utf8"
 )
 
-// The Träger scope (ADR 0218): the stored recipient of a Träger and the
-// rules a recipient must meet before anything is saved.
+// The Träger scope (ADR 0218, ADR 0221): the stored recipients of a Träger,
+// the format each receives and the rules a recipient must meet before
+// anything is saved.
 
 // Recipient field names in form order; the contract publishes the same.
 const (
+	FieldName        = "name"
 	FieldHost        = "host"
 	FieldPort        = "port"
 	FieldUsername    = "username"
@@ -33,10 +39,26 @@ var (
 // maxPasswordBytes bounds a password; an SFTP password is short.
 const maxPasswordBytes = 256
 
+// maxNameRunes bounds the name of a recipient, as the column does.
+const maxNameRunes = 80
+
+// Formats are the finance export formats a recipient can receive, in the
+// order the Träger sees them; the column check names the same.
+var Formats = []string{"sollstellung", "datev", "pain008"}
+
+// ErrNameTaken reports a name another recipient of the Träger has, in any
+// case.
+var ErrNameTaken = errors.New("export transfer: the recipient name is taken")
+
+// KnownFormat tells whether a format can be assigned.
+func KnownFormat(format string) bool { return slices.Contains(Formats, format) }
+
 // StoredRecipient is the recipient row of a Träger. SealedPassword is the
 // bank-ring ciphertext; the plain password never lives in this value.
 type StoredRecipient struct {
+	ID                 int64
 	OrganizationID     int64
+	Name               string
 	Enabled            bool
 	Host               string
 	Port               int
@@ -45,11 +67,16 @@ type StoredRecipient struct {
 	RemoteDirectory    string
 	HostKeyFingerprint string
 	UpdatedAt          time.Time
+	// Formats are the formats assigned to it, in the order of Formats.
+	Formats []string
+	// LastHandover is its newest journal row, when the read asked for it.
+	LastHandover *TraegerJournalRow
 }
 
 // RecipientValues is a recipient as the Träger entered it, before sealing.
 // Password is nil when the stored one stays.
 type RecipientValues struct {
+	Name               string
 	Enabled            bool
 	Host               string
 	Port               int
@@ -62,6 +89,7 @@ type RecipientValues struct {
 // Normalize trims what is always a copy-paste artefact. The password is
 // never trimmed: a different secret would fail as a wrong password.
 func (v RecipientValues) Normalize() RecipientValues {
+	v.Name = strings.TrimSpace(v.Name)
 	v.Host = strings.TrimSpace(v.Host)
 	v.Username = strings.TrimSpace(v.Username)
 	v.RemoteDirectory = strings.TrimSpace(v.RemoteDirectory)
@@ -73,6 +101,9 @@ func (v RecipientValues) Normalize() RecipientValues {
 // An empty value is not malformed; it only keeps the recipient not ready.
 func (v RecipientValues) InvalidFields() []string {
 	var invalid []string
+	if !validName(v.Name) {
+		invalid = append(invalid, FieldName)
+	}
 	if v.Host != "" && !hostPattern.MatchString(v.Host) {
 		invalid = append(invalid, FieldHost)
 	}
@@ -93,6 +124,15 @@ func (v RecipientValues) InvalidFields() []string {
 		invalid = append(invalid, FieldFingerprint)
 	}
 	return invalid
+}
+
+// validName requires a name the Träger can tell apart: present, short, and
+// without control characters.
+func validName(name string) bool {
+	if name == "" || utf8.RuneCountInString(name) > maxNameRunes || !utf8.ValidString(name) {
+		return false
+	}
+	return !strings.ContainsFunc(name, unicode.IsControl)
 }
 
 // MissingFields lists what blocks a handover, in form order. passwordOpens
@@ -121,7 +161,10 @@ func (r StoredRecipient) MissingFields(passwordOpens bool) []string {
 }
 
 // PasswordContext binds a sealed password to its column and its Träger: a
-// ciphertext copied to another Träger or another column does not open.
+// ciphertext copied to another Träger or another column does not open. The
+// recipient is not part of it, so the passwords sealed before ADR 0221 keep
+// opening; only the store writes the column, and no route moves a
+// ciphertext from one recipient to another.
 func PasswordContext(organizationID int64) []byte {
 	return []byte("config.traeger_export_recipients.password|" + strconv.FormatInt(organizationID, 10))
 }
@@ -130,6 +173,8 @@ func PasswordContext(organizationID int64) []byte {
 // journal it holds no credential and no file content.
 type TraegerJournalEntry struct {
 	OrganizationID  int64
+	RecipientID     int64
+	RecipientName   string
 	ActorAccountID  int64
 	Kind            string
 	Format          string
@@ -146,6 +191,8 @@ type TraegerJournalEntry struct {
 type TraegerJournalRow struct {
 	ID              int64
 	CreatedAt       time.Time
+	RecipientID     *int64
+	RecipientName   string
 	Format          string
 	Filename        string
 	ByteSize        int64
