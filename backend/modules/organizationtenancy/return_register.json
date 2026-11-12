@@ -2,7 +2,7 @@
   "registerVersion": 1,
   "formatVersion": 1,
   "catalogVersion": 1,
-  "catalogSHA256": "d02e1841a487cab95c11a7698defa64352423f759feb42d2da818826ad28abb7",
+  "catalogSHA256": "15ec5d8c3bd4b0d47a76269fb5498fc51c82a7e2802bf5afa88a56da335a6fcc",
   "about": "Dieses Register beschreibt das Rückgabepaket von moto: welche Tabellen und Felder es enthält, welche Typen sie haben, ob sie leer sein dürfen und wie die Tabellen verbunden sind. Es enthält keine Kundendaten. Jedes Paket enthält dieselbe Beschreibung für seine Tabellen als model.json. formatVersion und catalogSHA256 stehen auch in der manifest.json des Pakets.",
   "standards": [
     {
@@ -15545,7 +15545,8 @@
         "organization"
       ],
       "excludedColumns": {
-        "health_data": "Answers to the family health questions, sealed with HEALTH_DATA_KEYS (#4722); its ciphertext is no customer export content, the export opens it into health as the JSON it holds (#3838, #6328)."
+        "health_data": "Answers to the family health questions, sealed with HEALTH_DATA_KEYS (#4722); its ciphertext is no customer export content, the export opens it into health as the JSON it holds (#3838, #6328).",
+        "status_token": "Random token of the parents' status link (#6676); a replayable credential for reading the registration, no customer export content."
       }
     },
     {

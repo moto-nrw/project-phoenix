@@ -115,6 +115,8 @@
   "doneTitle": "Regjistrimi juaj mbërriti",
   "doneText": "Do të dërgojmë një konfirmim në {email}.",
   "doneNext": "Kjo nuk është ende një vend i konfirmuar. Organizatori e kontrollon regjistrimin dhe ju shkruan nëse fëmija merr vend.",
+  "doneToStatus": "Shiko gjendjen",
+  "doneStatusHint": "Lidhjen për gjendjen do ta merrni edhe me email. Mos ia jepni të tjerëve.",
   "placementHeading": "Vendet",
   "placementPlaced": "Vend i rezervuar",
   "placementWaitlisted": "Lista e pritjes",

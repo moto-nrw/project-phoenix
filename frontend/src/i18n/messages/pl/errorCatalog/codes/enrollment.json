@@ -148,6 +148,7 @@
   "holiday_registration_invalid": "Sprawdź zaznaczone pola.",
   "holiday_registration_not_found": "Ten link do zgłoszenia nie istnieje. Użyj linku, który dostałeś od organizatora.",
   "holiday_registration_state_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "holiday_registration_status_not_found": "Ten link do zgłoszenia na ferie nie istnieje. Użyj linku z e-maila.",
   "holiday_week_booked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "holiday_booking_unit_booked": "Na ten tydzień są już zgłoszenia. Dlatego sposób rezerwacji, a przy pojedynczych dniach także dni tygodnia, zostają bez zmian.",
   "holiday_child_day_limit": "W te ferie dziecko może przyjść najwyżej {limit} dni. Łącznie byłoby to {days} dni. Dni w innych zgłoszeniach: {elsewhere}. Wybierz mniej dni.",

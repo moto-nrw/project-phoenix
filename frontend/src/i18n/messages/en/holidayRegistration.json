@@ -115,6 +115,8 @@
   "doneTitle": "Your registration has arrived",
   "doneText": "We will send a confirmation to {email}.",
   "doneNext": "This is not yet a confirmed place. The provider checks the registration and writes to you whether your child gets a place.",
+  "doneToStatus": "View status",
+  "doneStatusHint": "You will also get the link to the status by email. Do not share it.",
   "placementHeading": "Places",
   "placementPlaced": "Place reserved",
   "placementWaitlisted": "Waiting list",

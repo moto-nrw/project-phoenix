@@ -21,26 +21,28 @@ func TestRedactFeedToken(t *testing.T) {
 	t.Parallel()
 
 	cases := map[string]string{
-		"/public/calendar/secret-token":                     "/public/calendar/[REDACTED]",
-		"/public/request-feed/rss-secret":                   "/public/request-feed/[REDACTED]",
-		"/public/calendar/tok123?refresh=1":                 "/public/calendar/[REDACTED]?refresh=1",
-		"GET /public/calendar/abc 200 12ms":                 "GET /public/calendar/[REDACTED] 200 12ms",
-		"/public/calendar/one /public/request-feed/two":     "/public/calendar/[REDACTED] /public/request-feed/[REDACTED]",
-		"/public/request-feed/one /public/request-feed/two": "/public/request-feed/[REDACTED] /public/request-feed/[REDACTED]",
-		"/public/calendar/":                                 "/public/calendar/", // no token segment
-		"/api/calendar/appointments/5/ics":                  "/api/calendar/appointments/5/ics",
-		"nothing sensitive here":                            "nothing sensitive here",
-		"POST /caterer/invitations/42/secret/accept":        "POST /caterer/invitations/42/[REDACTED]/accept",
-		"/caterer/einladung/42/secret":                      "/caterer/einladung/42/[REDACTED]",
-		"/caterer/invitations/42":                           "/caterer/invitations/42",
-		"PUT /api/enrollment/requests/st4tus-token 200":     "PUT /api/enrollment/requests/[REDACTED] 200",
-		"/auth/invitations/inv1te-token/accept":             "/auth/invitations/[REDACTED]/accept",
-		"/auth/invitations/42/resend":                       "/auth/invitations/42/resend",
-		"/auth/invitations/former-employment":               "/auth/invitations/former-employment",
-		"/auth/invitations/":                                "/auth/invitations/",
-		"/auth/guardian-invitations/gu4rdian?x=1":           "/auth/guardian-invitations/[REDACTED]?x=1",
-		"/traeger/holiday-registrations/f0rm/documents/7":   "/traeger/holiday-registrations/[REDACTED]/documents/7",
-		"/public/payroll-download/l1nk":                     "/public/payroll-download/[REDACTED]",
+		"/public/calendar/secret-token":                            "/public/calendar/[REDACTED]",
+		"/public/request-feed/rss-secret":                          "/public/request-feed/[REDACTED]",
+		"/public/calendar/tok123?refresh=1":                        "/public/calendar/[REDACTED]?refresh=1",
+		"GET /public/calendar/abc 200 12ms":                        "GET /public/calendar/[REDACTED] 200 12ms",
+		"/public/calendar/one /public/request-feed/two":            "/public/calendar/[REDACTED] /public/request-feed/[REDACTED]",
+		"/public/request-feed/one /public/request-feed/two":        "/public/request-feed/[REDACTED] /public/request-feed/[REDACTED]",
+		"/public/calendar/":                                        "/public/calendar/", // no token segment
+		"/api/calendar/appointments/5/ics":                         "/api/calendar/appointments/5/ics",
+		"nothing sensitive here":                                   "nothing sensitive here",
+		"POST /caterer/invitations/42/secret/accept":               "POST /caterer/invitations/42/[REDACTED]/accept",
+		"/caterer/einladung/42/secret":                             "/caterer/einladung/42/[REDACTED]",
+		"/caterer/invitations/42":                                  "/caterer/invitations/42",
+		"PUT /api/enrollment/requests/st4tus-token 200":            "PUT /api/enrollment/requests/[REDACTED] 200",
+		"/auth/invitations/inv1te-token/accept":                    "/auth/invitations/[REDACTED]/accept",
+		"/auth/invitations/42/resend":                              "/auth/invitations/42/resend",
+		"/auth/invitations/former-employment":                      "/auth/invitations/former-employment",
+		"/auth/invitations/":                                       "/auth/invitations/",
+		"/auth/guardian-invitations/gu4rdian?x=1":                  "/auth/guardian-invitations/[REDACTED]?x=1",
+		"/traeger/holiday-registrations/f0rm/documents/7":          "/traeger/holiday-registrations/[REDACTED]/documents/7",
+		"/traeger/holiday-registrations/status/st4tus":             "/traeger/holiday-registrations/status/[REDACTED]",
+		"https://eltern.example/ferienanmeldung/status/st4tus?x=1": "https://eltern.example/ferienanmeldung/status/[REDACTED]?x=1",
+		"/public/payroll-download/l1nk":                            "/public/payroll-download/[REDACTED]",
 	}
 	for in, want := range cases {
 		if got := RedactFeedToken(in); got != want {

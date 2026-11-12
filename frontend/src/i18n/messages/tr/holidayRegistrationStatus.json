@@ -1,0 +1,41 @@
+{
+  "loading": "Durum yükleniyor",
+  "errorObject": "Tatil kaydınızın durumu",
+  "kicker": "Tatil kaydı",
+  "title": {
+    "received": "Kaydınız ulaştı",
+    "confirmed": "Kaydınız onaylandı",
+    "cancelled": "Bu kayıt artık geçerli değil"
+  },
+  "lead": {
+    "received": "Bu henüz bir onay değil. {traeger} kaydınızı inceliyor ve size bir e-posta gönderecek.",
+    "confirmed": "{traeger} kaydınızı onayladı. Onay e-posta ile geldi.",
+    "cancelled": "{traeger} kaydı iptal etti. Aşağıdaki haftalar artık geçerli değil."
+  },
+  "periodLabel": "Dönem",
+  "submittedLabel": "Geliş tarihi",
+  "stepsTitle": "Bundan sonra ne olacak",
+  "stepsCancelled": "Sonraki bir adım yok. Sorularınız için lütfen kuruma başvurun.",
+  "stepReceived": "Kayıt ulaştı",
+  "stepReceivedDetail": "{date} tarihinde",
+  "stepReview": "Kurum inceliyor",
+  "stepReviewRunning": "İnceleme sürüyor.",
+  "stepReviewAfter": "Kayıt {date} tarihine kadar açık. Sonra kurum karar verir.",
+  "stepReviewDone": "İnceleme tamamlandı.",
+  "stepDecision": "E-posta ile onay",
+  "stepDecisionNext": "Kurum karar verir vermez bir e-posta alacaksınız.",
+  "stepDecisionDone": "Onay geldi.",
+  "stepState": {
+    "done": "tamamlandı",
+    "current": "şu anda sürüyor",
+    "next": "henüz gelmedi"
+  },
+  "weeksTitle": "Haftalar ve yerler",
+  "weeksDescription": "Yalnızca bilgi içindir. Değişiklikleri doğrudan kurumla konuşun.",
+  "weekCount": "{count, plural, one {# hafta} other {# hafta}}",
+  "noWeeks": "Hiç hafta seçilmedi.",
+  "hostSchool": "yer: {school}",
+  "privacyNote": "Bu bağlantı yalnızca kaydınızın durumunu gösterir. Başkasıyla paylaşmayın. Tatilden sonra kurum kaydı siler. O zaman bağlantı da çalışmaz.",
+  "notFoundTitle": "Bu kaydı bulamıyoruz",
+  "notFoundText": "Bağlantı eksik olabilir. Lütfen bağlantıyı e-postanızdan tekrar açın. Tatilden sonra kayıt silinir. O zaman bağlantı çalışmaz."
+}

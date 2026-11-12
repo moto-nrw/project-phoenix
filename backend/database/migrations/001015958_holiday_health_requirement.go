@@ -7,16 +7,16 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const holidayHealthRequirementVersion = "1.15.957"
+const holidayHealthRequirementVersion = "1.15.958"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     holidayHealthRequirementVersion,
 		Description: "Ferienanmeldung: Allergien und Medikamente je Formularversion freiwillig oder Pflicht (#6686)",
 		DependsOn: []string{
-			studentNoteTeamNoticesVersion, // the newest migration on development (1.15.956)
-			holidayPeriodFormsVersion,     // the versions of the form this extends
-			holidayGuardianAddressVersion, // the building block "Anschrift" this one sits beside
+			holidayHomeSchoolBookingsVersion, // the newest migration on development (1.15.957)
+			holidayPeriodFormsVersion,        // the versions of the form this extends
+			holidayGuardianAddressVersion,    // the building block "Anschrift" this one sits beside
 		},
 	})
 	Migrations.MustRegister(holidayHealthRequirementUp, holidayHealthRequirementDown)

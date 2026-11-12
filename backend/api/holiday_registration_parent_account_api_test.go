@@ -240,8 +240,8 @@ func TestHolidayRegistrationHandsTheSetupLinkOnlyToTheLocalSeeder(t *testing.T) 
 	assert.NotContains(t, remote, "parent_account_setup_url", "the seed header on another host exposes nothing")
 	withoutOffer := submitAsSeeder(t, f.public, period.PublicToken, "localhost:8080", siblingsRegistration(offer, "ohne.angebot@example.org"))
 	assert.NotContains(t, withoutOffer, "parent_account_setup_url", "no offer, no link")
-	assert.ElementsMatch(t, []string{"id", "submitted_at", "placements"}, slices.Collect(maps.Keys(remote)))
-	assert.ElementsMatch(t, []string{"id", "submitted_at", "placements"}, slices.Collect(maps.Keys(withoutOffer)))
+	assert.ElementsMatch(t, []string{"id", "submitted_at", "placements", "status_token"}, slices.Collect(maps.Keys(remote)))
+	assert.ElementsMatch(t, []string{"id", "submitted_at", "placements", "status_token"}, slices.Collect(maps.Keys(withoutOffer)))
 	offers := holidayOfferMails(t, f, office.organization)
 	assert.Len(t, offers, 2, "both registrations that asked got their offer")
 	for _, offerMail := range offers {
@@ -260,6 +260,6 @@ func TestHolidayRegistrationHandsNoSetupLinkInProduction(t *testing.T) {
 
 	data := submitAsSeeder(t, f.public, period.PublicToken, "localhost:8080", body)
 
-	assert.ElementsMatch(t, []string{"id", "submitted_at", "placements"}, slices.Collect(maps.Keys(data)))
+	assert.ElementsMatch(t, []string{"id", "submitted_at", "placements", "status_token"}, slices.Collect(maps.Keys(data)))
 	assert.Len(t, holidayOfferMails(t, f, office.organization), 1, "the offer still goes out by mail")
 }

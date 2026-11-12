@@ -1785,6 +1785,14 @@
       "target_owner": "delivery-platform"
     },
     {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.HolidayRegistrations.SubmitHolidayRegistration",
+      "binding_digest": "50dd30aba0eb5fb289acb5f33b6c2717",
+      "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayRegistrations.SubmitHolidayRegistration",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-ogs/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application.HolidayRegistrations.UploadHolidayProof",
       "binding_digest": "50dd30aba0eb5fb289acb5f33b6c2717",
       "port": "github.com/moto-ogs/project-phoenix/modules/enrollment.HolidayRegistrations.UploadHolidayProof",

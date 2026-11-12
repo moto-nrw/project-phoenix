@@ -115,6 +115,8 @@
   "doneTitle": "Kaydınız alındı",
   "doneText": "{email} adresine bir onay göndereceğiz.",
   "doneNext": "Bu henüz kesin bir yer değildir. Kurum kaydı kontrol eder ve çocuğunuzun yer alıp almadığını size yazar.",
+  "doneToStatus": "Durumu görüntüle",
+  "doneStatusHint": "Duruma ait bağlantıyı e-posta ile de alacaksınız. Başkasıyla paylaşmayın.",
   "placementHeading": "Yerler",
   "placementPlaced": "Yer ayrıldı",
   "placementWaitlisted": "Bekleme listesi",

@@ -1270,6 +1270,16 @@ child gets an `audit.data_access_log` row (`holiday_prefill`) at its school.
 The submission stays the public, captcha-gated
 `POST /traeger/holiday-registrations/{token}` and names no student.
 
+Each submission draws a random status token (#6676). The submit answer and
+the receipt mail carry it; the page `/parents/ferienanmeldung/status/{token}`
+reads `GET /traeger/holiday-registrations/status/{token}` without a session,
+under the rate limit of the public link. The token resolves in the
+administrative transaction, the read runs in the Träger transaction. The
+answer holds the state, the period and per child the first name with weeks,
+time models, host schools and placements; no health information, address,
+contact, last name or date of birth. The token lives in the registration row,
+so the link ends when the retention deletes the registration. Logs redact it.
+
 The start page of the parents app reads
 `GET /parent/me/holiday-registrations` (#6671, ADR 0207): the published
 holiday periods of the Träger of the account's children whose registration has
