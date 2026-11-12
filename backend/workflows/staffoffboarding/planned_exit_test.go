@@ -84,6 +84,16 @@ func (p *testPlanner) RunDue(ctx context.Context) error {
 	})
 }
 
+func (p *testPlanner) failedExits() map[int64]error {
+	failed := map[int64]error{}
+	for _, exit := range p.lastRun.Exits {
+		if exit.Outcome == staffoffboarding.ExitFailed {
+			failed[exit.StaffID] = exit.Err
+		}
+	}
+	return failed
+}
+
 func isolate(ctx context.Context, fn func(context.Context) error) (failed, err error) {
 	failed = tenant.WithSavepoint(ctx, fn)
 	if errors.Is(failed, tenant.ErrSavepointControl) {
@@ -438,7 +448,7 @@ func TestFailingPlannedExitClosesAccessAndIsReported(t *testing.T) {
 	f.today = "2027-10-02"
 	f.now = calendar.NewDate(2027, 10, 2).BerlinMidnight().Add(5 * time.Minute)
 	require.NoError(t, planner.RunDue(ctx))
-	require.Contains(t, planner.lastRun.Failed(), f.staffID)
+	require.Contains(t, planner.failedExits(), f.staffID)
 	require.False(t, f.retired(t), "the failed offboarding rolled back")
 	require.Equal(t, 2, f.accessRuns, "the rolled-back offboarding ran the access step, then the lock-out closed sign-in for good")
 	require.Empty(t, f.notices, "only a blocked exit has a notice of its own")
@@ -466,7 +476,7 @@ func TestTwoPlannedExitsDueInOneRunBothComplete(t *testing.T) {
 
 	f.today = "2027-10-11"
 	require.NoError(t, planner.RunDue(ctx))
-	require.Empty(t, planner.lastRun.Failed(), "both exits complete")
+	require.Empty(t, planner.failedExits(), "both exits complete")
 	require.Equal(t, 2, f.units, "each exit ran in its own transaction")
 	require.True(t, f.retired(t))
 	_, err = f.membership.FindStaff(ctx, other.ID)
@@ -492,7 +502,7 @@ func TestPlannedExitRemindersLockOnePersonPerTransaction(t *testing.T) {
 	f.today = "2027-10-03"
 	counter := testpkg.CaptureQueriesForContext(t, db)
 	require.NoError(t, planner.RunDue(counter.Context(ctx)))
-	require.Empty(t, planner.lastRun.Failed())
+	require.Empty(t, planner.failedExits())
 	require.Len(t, f.notices, 2)
 	require.Equal(t, 2, f.units, "each reminder ran in its own transaction")
 	require.Equal(t, [][]int64{{f.account}}, f.accountLocks, "only the first subject has a sign-in account")

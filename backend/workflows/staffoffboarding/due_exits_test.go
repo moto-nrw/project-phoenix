@@ -91,7 +91,7 @@ func TestDueExitLockFailureRollsBackOnlyThatExit(t *testing.T) {
 
 	require.NoError(t, planner.RunDue(ctx), "one failing exit does not end the run")
 	require.Equal(t, 3, f.units)
-	failed := planner.lastRun.Failed()
+	failed := planner.failedExits()
 	require.Len(t, failed, 1)
 	require.ErrorContains(t, failed[ids[1]], "division by zero")
 	require.True(t, f.staffRetired(t, ids[0]), "the first exit committed")
@@ -112,7 +112,7 @@ func TestDueExitLockFailureRollsBackOnlyThatExit(t *testing.T) {
 
 	f.failLockOf = 0
 	require.NoError(t, planner.RunDue(ctx))
-	require.Empty(t, planner.lastRun.Failed())
+	require.Empty(t, planner.failedExits())
 	require.True(t, f.staffRetired(t, ids[1]), "the next run completes the failed exit")
 	require.Len(t, f.deletion, 3, "every exit ran its offboarding once")
 }
@@ -154,7 +154,7 @@ func TestDueExitLockedByAnotherTransactionIsDeferred(t *testing.T) {
 		}
 	}
 	require.True(t, waited, "the run waited for the held row before it gave way")
-	require.Empty(t, planner.lastRun.Failed(), "a locked exit is no failure")
+	require.Empty(t, planner.failedExits(), "a locked exit is no failure")
 	require.Len(t, f.notices, 2, "the other reminders went out")
 	for _, notice := range f.notices {
 		require.NotEqual(t, ids[1], notice.StaffID)
@@ -209,7 +209,7 @@ func TestDueExitPersonLockedDuringExecutionIsDeferred(t *testing.T) {
 	defer cancel()
 	require.NoError(t, planner.RunDue(runCtx), "the run finishes while the person lock is still held")
 	require.Len(t, planner.lastRun.Exits, 3)
-	require.Empty(t, planner.lastRun.Failed(), "a locked person defers the exit, it does not fail it")
+	require.Empty(t, planner.failedExits(), "a locked person defers the exit, it does not fail it")
 	for _, result := range planner.lastRun.Exits {
 		if result.StaffID == ids[1] {
 			require.Equal(t, staffoffboarding.ExitDeferred, result.Outcome)
@@ -256,7 +256,7 @@ func TestDueExitUntrustedTransactionAbortsTheRun(t *testing.T) {
 	require.Equal(t, staffoffboarding.ExitSucceeded, planner.lastRun.Exits[0].Outcome)
 	aborted := planner.lastRun.Exits[1]
 	require.Equal(t, staffoffboarding.ExitAborted, aborted.Outcome)
-	require.Empty(t, planner.lastRun.Failed(), "an aborted run reports no isolated failure")
+	require.Empty(t, planner.failedExits(), "an aborted run reports no isolated failure")
 	lines := f.logs.exitLines(t)
 	require.Len(t, lines, 2)
 	require.Equal(t, staffoffboarding.ExitAborted, lines[aborted.StaffID]["outcome"])

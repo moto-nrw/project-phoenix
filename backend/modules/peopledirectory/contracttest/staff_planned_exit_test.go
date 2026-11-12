@@ -79,7 +79,9 @@ func TestPlannedExit_BlockedClosesThisSchoolThenCompletes(t *testing.T) {
 		t.Helper()
 		_, err := testpkg.TenantQuery0(t, sc.ctx, sc.db, func(ctx context.Context) (struct{}, error) {
 			result, err := run.RunDue(ctx)
-			require.Empty(t, result.Failed())
+			for _, exit := range result.Exits {
+				require.NotEqual(t, staffoffboarding.ExitFailed, exit.Outcome)
+			}
 			return struct{}{}, err
 		})
 		require.NoError(t, err)

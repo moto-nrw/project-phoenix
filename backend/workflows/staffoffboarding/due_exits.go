@@ -99,17 +99,6 @@ type DueRun struct {
 	Exits []DueExitResult
 }
 
-// Failed are the failed planned exits by staff ID.
-func (r DueRun) Failed() map[int64]error {
-	failed := map[int64]error{}
-	for _, exit := range r.Exits {
-		if exit.Outcome == ExitFailed {
-			failed[exit.StaffID] = exit.Err
-		}
-	}
-	return failed
-}
-
 // RunDue sends the reminders and runs the due exits of the school in ctx.
 // Every planned exit with work due is one unit: its own transaction takes
 // the exit's locks, bounded, and does its work (#6703). A failing or locked

@@ -172,7 +172,9 @@ func TestPlannedExitRunAndImmediateOffboardingDoNotDeadlock(t *testing.T) {
 	close(release)
 	requireFinishedWithoutDeadlock(t, barrier, "the barrier")
 	requireFinishedWithoutDeadlock(t, scheduled, "the planned exit run")
-	assert.Empty(t, run.Failed(), "the due exit ran")
+	for _, exit := range run.Exits {
+		assert.NotEqual(t, staffoffboarding.ExitFailed, exit.Outcome, "the due exit ran")
+	}
 	select {
 	case err := <-immediate.done:
 		var state interface{ Field(byte) string }
