@@ -2064,7 +2064,7 @@ export default function SlotListsPage() {
     { kind: "header", label: "Drucken oder exportieren" },
     {
       label: isExporting ? "Erstelle PDF…" : "Drucken",
-      description: "Öffnet die Liste als PDF in einem neuen Tab.",
+      description: "Öffnet die Liste als PDF zum Drucken.",
       icon: <Printer className="h-4 w-4" aria-hidden />,
       onClick: () => void handleExport("pdf", "print"),
       disabled: exportBlocked,

@@ -518,7 +518,7 @@ export default function ClassListEntriesPage() {
                 {
                   label: "Zuordnen",
                   description:
-                    "Verbindet den Eintrag mit dem angelegten Kind. moto fragt vorher nach.",
+                    "Entfernt den Eintrag, das angelegte Kind bleibt. moto fragt vorher nach.",
                   icon: <UserRoundCheck className="h-4 w-4" aria-hidden />,
                   onClick: () => {
                     clearModalErrors();

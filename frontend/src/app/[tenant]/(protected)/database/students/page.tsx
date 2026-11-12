@@ -564,7 +564,8 @@ function StudentsPageContent() {
                     ? [
                         {
                           label: "Schuljahreswechsel",
-                          description: "Setzt Kinder ins nächste Schuljahr.",
+                          description:
+                            "Öffnet die Planung für das nächste Schuljahr.",
                           icon: (
                             <GraduationCap className="h-4 w-4" aria-hidden />
                           ),

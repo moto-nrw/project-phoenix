@@ -330,7 +330,8 @@ function TeachersPageContent() {
           },
           {
             label: "Externe Person anlegen",
-            description: "Etwa von der Musikschule, ohne Zeiterfassung.",
+            description:
+              "Trägt jemanden von außen ein, etwa von der Musikschule.",
             onClick: openExternalCreate,
           },
         ]

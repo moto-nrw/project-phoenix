@@ -14,6 +14,12 @@ import { SectionCard } from "~/components/ui/section-card";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { UploadSection } from "~/components/import/upload-section";
+import {
+  DISCARD_UPLOAD_HINT,
+  IMPORT_BLOCKED_BY_ERRORS,
+  IMPORT_BLOCKED_NOTHING_TO_IMPORT,
+  TEMPLATE_DOWNLOAD_HINT,
+} from "~/components/import/import-hints";
 import { StatsCards } from "~/components/import/stats-cards";
 import { StudentRowCard } from "~/components/import/student-row-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -570,7 +576,7 @@ export default function StudentImportPage() {
             type="button"
             variant="primary"
             size="field"
-            tooltip="Speichert eine leere Vorlage im gewählten Format auf Ihrem Gerät."
+            tooltip={TEMPLATE_DOWNLOAD_HINT}
             onClick={() => void handleDownloadTemplate()}
             className="gap-2"
           >
@@ -660,7 +666,7 @@ export default function StudentImportPage() {
               variant="outline"
               size="md"
               className="flex-1"
-              tooltip="Verwirft die hochgeladene Datei, ohne etwas zu importieren."
+              tooltip={DISCARD_UPLOAD_HINT}
               onClick={resetForm}
             >
               Abbrechen
@@ -683,15 +689,17 @@ export default function StudentImportPage() {
                 isImporting || isLoading
                   ? undefined
                   : stats.errors > 0
-                    ? "Korrigieren Sie zuerst die fehlerhaften Zeilen in der Datei."
+                    ? IMPORT_BLOCKED_BY_ERRORS
                     : quotaNotice?.type === "error"
-                      ? "Die Datei hat mehr Kinder, als noch Plätze frei sind."
-                      : "Die Datei enthält keine Zeile, die sich übernehmen lässt."
+                      ? "Nehmen Sie zuerst Kinder aus der Datei, bis die freien Plätze reichen."
+                      : IMPORT_BLOCKED_NOTHING_TO_IMPORT
               }
               tooltip={
-                mode === "update"
-                  ? "Ändert die vorhandenen Kinder nach der Datei."
-                  : "Übernimmt die Kinder aus der Datei in moto."
+                mode === "create"
+                  ? "Legt die neuen Kinder aus der Datei an."
+                  : mode === "update"
+                    ? "Ändert die vorhandenen Kinder nach der Datei."
+                    : "Legt neue Kinder an und ändert vorhandene nach der Datei."
               }
               onClick={() => void handleImport()}
             >

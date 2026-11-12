@@ -30,6 +30,10 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { ModuleRouteGuard } from "~/components/tenant/module-route-guard";
 import { UploadSection } from "~/components/import/upload-section";
 import {
+  DISCARD_UPLOAD_HINT,
+  TEMPLATE_DOWNLOAD_HINT,
+} from "~/components/import/import-hints";
+import {
   useApiErrorDisplay,
   useApiFormError,
   useToast,
@@ -576,7 +580,7 @@ function OpeningBalanceImportPageContent() {
             type="button"
             variant="outline"
             size="md"
-            tooltip="Speichert eine leere Vorlage im gewählten Format auf Ihrem Gerät."
+            tooltip={TEMPLATE_DOWNLOAD_HINT}
             onClick={() => void handleDownloadTemplate()}
           >
             Vorlage herunterladen
@@ -771,7 +775,7 @@ function OpeningBalanceImportPageContent() {
             variant="outline"
             size="md"
             className="flex-1"
-            tooltip="Verwirft die hochgeladene Datei, ohne etwas zu importieren."
+            tooltip={DISCARD_UPLOAD_HINT}
             onClick={resetAll}
           >
             Abbrechen

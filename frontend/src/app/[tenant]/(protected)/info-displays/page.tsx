@@ -352,20 +352,20 @@ function InfoDisplaysPageContent() {
                   {
                     label: "Neuen Link erstellen",
                     description:
-                      "Ersetzt den Link sofort, der alte zeigt nichts mehr.",
+                      "Ersetzt den Link sofort. Der alte Link geht nicht mehr.",
                     onClick: () => void handleRegenerate(row),
                   },
                   {
                     label: row.isActive ? "Deaktivieren" : "Aktivieren",
                     description: row.isActive
-                      ? "Der Bildschirm zeigt sofort keine Anwesenheit mehr."
-                      : "Der Bildschirm zeigt sofort wieder die Anwesenheit.",
+                      ? "Der Bildschirm zeigt dann nur noch „Display deaktiviert“."
+                      : "Der Bildschirm zeigt dann wieder die Anwesenheit.",
                     onClick: () => void handleToggleActive(row),
                   },
                   {
                     label: "Löschen",
                     description:
-                      "Macht den Link ungültig. moto fragt vorher nach.",
+                      "Entfernt das Display und seinen Link. moto fragt vorher nach.",
                     destructive: true,
                     onClick: () => {
                       deleteErrors.clear();

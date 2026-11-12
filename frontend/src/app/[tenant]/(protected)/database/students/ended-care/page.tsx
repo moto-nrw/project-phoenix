@@ -190,7 +190,7 @@ export default function EndedCarePage() {
                     {
                       label: "Wieder aufnehmen",
                       description:
-                        "Setzt die Betreuung ab einem neuen Beginn fort. moto fragt vorher nach.",
+                        "Öffnet ein Fenster für den neuen Beginn der Betreuung.",
                       icon: <RotateCcw className="h-4 w-4" aria-hidden />,
                       onClick: () => setResumeTarget(entry),
                     },

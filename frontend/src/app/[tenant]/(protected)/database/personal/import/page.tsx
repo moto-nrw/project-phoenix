@@ -20,6 +20,12 @@ import { SectionCard } from "~/components/ui/section-card";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { UploadSection } from "~/components/import/upload-section";
+import {
+  DISCARD_UPLOAD_HINT,
+  IMPORT_BLOCKED_BY_ERRORS,
+  IMPORT_BLOCKED_NOTHING_TO_IMPORT,
+  TEMPLATE_DOWNLOAD_HINT,
+} from "~/components/import/import-hints";
 import { StatsCards } from "~/components/import/stats-cards";
 import { StudentRowCard } from "~/components/import/student-row-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -501,7 +507,7 @@ export default function StaffImportPage() {
             type="button"
             variant="primary"
             size="field"
-            tooltip="Speichert eine leere Vorlage im gewählten Format auf Ihrem Gerät."
+            tooltip={TEMPLATE_DOWNLOAD_HINT}
             onClick={() => void handleDownloadTemplate()}
             className="gap-2"
           >
@@ -594,7 +600,7 @@ export default function StaffImportPage() {
               variant="outline"
               size="md"
               className="flex-1"
-              tooltip="Verwirft die hochgeladene Datei, ohne etwas zu importieren."
+              tooltip={DISCARD_UPLOAD_HINT}
               onClick={resetForm}
             >
               Abbrechen
@@ -613,13 +619,15 @@ export default function StaffImportPage() {
                 isImporting || isLoading
                   ? undefined
                   : stats.errors > 0
-                    ? "Korrigieren Sie zuerst die fehlerhaften Zeilen in der Datei."
-                    : "Die Datei enthält keine Zeile, die sich übernehmen lässt."
+                    ? IMPORT_BLOCKED_BY_ERRORS
+                    : IMPORT_BLOCKED_NOTHING_TO_IMPORT
               }
               tooltip={
-                mode === "update"
-                  ? "Ändert die vorhandenen Mitarbeitenden nach der Datei."
-                  : "Übernimmt die Zeilen und schickt neuen Personen mit E-Mail eine Einladung."
+                mode === "create"
+                  ? "Legt die Personen an und schickt allen mit E-Mail eine Einladung."
+                  : mode === "update"
+                    ? "Ändert die vorhandenen Mitarbeitenden nach der Datei."
+                    : "Ändert vorhandene Personen, legt neue an und schickt Neuen mit E-Mail eine Einladung."
               }
               onClick={() => void handleImport()}
             >
