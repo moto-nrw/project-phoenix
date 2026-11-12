@@ -61,25 +61,9 @@ func (rs *ExportHandoverResource) handOver(format string) http.HandlerFunc {
 		if !ok {
 			return
 		}
-		kind, known := exportRunKinds[chi.URLParam(r, "kind")]
-		id, err := common.ParseIDParam(r, "id")
-		if !known || err != nil {
-			common.RenderError(w, r, common.ErrorNotFoundWithCode(capability.ErrExportRunNotFound, common.CodeParentBillingExportRunNotFound))
+		request, ok := handoverRequest(w, r, format)
+		if !ok {
 			return
-		}
-		body := &HandoverRequestBody{}
-		if r.ContentLength != 0 {
-			if err := render.Bind(r, body); err != nil {
-				common.RenderError(w, r, common.ErrorInvalidRequest(err))
-				return
-			}
-		}
-		request := capability.HandoverRequest{Format: format, RunKind: kind, RunID: id, Repeat: body.Repeat}
-		if format == capability.ExportFormatDatev {
-			if request.Datev, err = datevFileOptions(r); err != nil {
-				common.RenderError(w, r, common.ErrorInvalidRequest(err))
-				return
-			}
 		}
 		result, err := rs.handovers.HandOver(r.Context(), reviewer, request)
 		if err != nil {
@@ -88,6 +72,32 @@ func (rs *ExportHandoverResource) handOver(format string) http.HandlerFunc {
 		}
 		common.Respond(w, r, http.StatusOK, result, "Export handed over")
 	}
+}
+
+// handoverRequest reads the run of the path, the repeat of the body and,
+// for DATEV, the bookings of the query, as the download reads them.
+func handoverRequest(w http.ResponseWriter, r *http.Request, format string) (capability.HandoverRequest, bool) {
+	kind, known := exportRunKinds[chi.URLParam(r, "kind")]
+	id, err := common.ParseIDParam(r, "id")
+	if !known || err != nil {
+		common.RenderError(w, r, common.ErrorNotFoundWithCode(capability.ErrExportRunNotFound, common.CodeParentBillingExportRunNotFound))
+		return capability.HandoverRequest{}, false
+	}
+	body := &HandoverRequestBody{}
+	if r.ContentLength != 0 {
+		if err := render.Bind(r, body); err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return capability.HandoverRequest{}, false
+		}
+	}
+	request := capability.HandoverRequest{Format: format, RunKind: kind, RunID: id, Repeat: body.Repeat}
+	if format == capability.ExportFormatDatev {
+		if request.Datev, err = datevFileOptions(r); err != nil {
+			common.RenderError(w, r, common.ErrorInvalidRequest(err))
+			return capability.HandoverRequest{}, false
+		}
+	}
+	return request, true
 }
 
 // renderHandoverFileError answers a refused handover: the refusals of the
