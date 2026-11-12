@@ -6550,7 +6550,7 @@ export const parentHolidayRegistrationTopic =
         "Der Nachweis ist freiwillig. Sie können ihn auch später beim Träger abgeben.",
       ],
       differences: [
-        "Steht bei `Gesundheit` kein „(freiwillig)“? Dann braucht der Träger die Angaben zu Allergien und Medikamenten. Wählen Sie bei jeder Frage `Nein, keine` oder `Ja`. Bei `Ja` schreiben Sie auf, was Ihr Kind hat. Weitere Hinweise bleiben freiwillig.",
+        "Fragt das Formular `Hat Ihr Kind Allergien oder Unverträglichkeiten?`? Dann braucht der Träger die Angaben zu Allergien und Medikamenten. Wählen Sie bei jeder Frage `Nein, keine` oder `Ja`. Bei `Ja` schreiben Sie auf, was Ihr Kind hat. Weitere Hinweise bleiben freiwillig.",
         "Steht in der Eltern-App `Anmeldung ab` mit einem Datum? Dann beginnt die Anmeldung an diesem Tag. Ab dann sehen Sie den Knopf `Jetzt anmelden`.",
         "Sie haben den Link geöffnet und sind nicht angemeldet? Oben steht `Sie haben schon die Eltern-App?`. Wählen Sie `Anmelden`. Danach kommen Sie zurück zum Formular.",
         "Ist die Anmeldung verbindlich, heißt der Knopf `Verbindlich anmelden`.",

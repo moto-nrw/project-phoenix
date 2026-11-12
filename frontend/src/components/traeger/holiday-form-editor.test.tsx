@@ -197,7 +197,7 @@ describe("HolidayFormEditor (#5198)", () => {
     expect(block.getByText(/Eltern können Allergien/)).toBeInTheDocument();
     fireEvent.click(block.getByRole("button", { name: "Pflicht" }));
     expect(block.getByRole("alert")).toHaveTextContent(
-      "Diese eigenen Fragen fragen dasselbe noch einmal: „Lebensmittelunverträglichkeiten“. Entfernen Sie sie, sonst antworten Eltern doppelt.",
+      "Allergien und Medikamente fragt das Formular schon ab. Diese eigenen Fragen fragen es noch einmal: „Lebensmittelunverträglichkeiten“. Entfernen Sie sie, sonst antworten Eltern doppelt.",
     );
   });
 

@@ -145,67 +145,64 @@ export function HolidayRegistrationSummary({
     <div className="space-y-6">
       <SectionCard title={t("summaryTitle")} description={t("summaryText")} />
 
-      {draft.children.map((child, index) => (
-        <SectionCard
-          key={child.key}
-          title={`${child.firstName.trim()} ${child.lastName.trim()}`}
-          headingLevel={3}
-        >
-          <DataGrid>
-            <DataField label={t("birthDate")}>
-              {formatDate(child.birthDate, false, locale)}
-            </DataField>
-            <DataField label={t("school")}>
-              {schoolName(child.school, child.guestSchoolName)}
-            </DataField>
-            {bookedWeeks(child, offer).map((booking) => {
-              const week = offer.weeks.find((w) => w.id === booking.weekId);
-              const model = week?.timeModels.find(
-                (m) => m.id === booking.timeModelId,
-              );
-              if (!week || !model) return null;
-              return (
-                <DataField
-                  key={`${index}-${week.id}`}
-                  label={labels.range(week)}
-                >
-                  {`${labels.timeModel(model)} · ${week.hostSchoolName}`}
-                  {booking.days.length > 0 ? (
-                    <span className="block text-sm text-gray-600">
-                      {t("summaryDays", {
-                        days: holidayDayList(booking.days, locale),
-                      })}
-                    </span>
-                  ) : null}
-                </DataField>
-              );
-            })}
-            <DataField label={t("allergies")}>
-              {healthValue(
-                childHealthValues(child, offer.form).allergies,
-                child.allergiesChoice,
-              )}
-            </DataField>
-            <DataField label={t("medication")}>
-              {healthValue(
-                childHealthValues(child, offer.form).medication,
-                child.medicationChoice,
-              )}
-            </DataField>
-            <DataField label={t("healthNotes")}>
-              {child.healthNotes.trim() || none}
-            </DataField>
-            <AnswerFields
-              questions={visibleChildQuestions(draft, child, offer.form)}
-              answers={child.answers}
-            />
-            <AnswerFields
-              questions={criterionQuestions(offer, "child")}
-              answers={child.criteria ?? {}}
-            />
-          </DataGrid>
-        </SectionCard>
-      ))}
+      {draft.children.map((child, index) => {
+        const health = childHealthValues(child, offer.form);
+        return (
+          <SectionCard
+            key={child.key}
+            title={`${child.firstName.trim()} ${child.lastName.trim()}`}
+            headingLevel={3}
+          >
+            <DataGrid>
+              <DataField label={t("birthDate")}>
+                {formatDate(child.birthDate, false, locale)}
+              </DataField>
+              <DataField label={t("school")}>
+                {schoolName(child.school, child.guestSchoolName)}
+              </DataField>
+              {bookedWeeks(child, offer).map((booking) => {
+                const week = offer.weeks.find((w) => w.id === booking.weekId);
+                const model = week?.timeModels.find(
+                  (m) => m.id === booking.timeModelId,
+                );
+                if (!week || !model) return null;
+                return (
+                  <DataField
+                    key={`${index}-${week.id}`}
+                    label={labels.range(week)}
+                  >
+                    {`${labels.timeModel(model)} · ${week.hostSchoolName}`}
+                    {booking.days.length > 0 ? (
+                      <span className="block text-sm text-gray-600">
+                        {t("summaryDays", {
+                          days: holidayDayList(booking.days, locale),
+                        })}
+                      </span>
+                    ) : null}
+                  </DataField>
+                );
+              })}
+              <DataField label={t("allergies")}>
+                {healthValue(health.allergies, child.allergiesChoice)}
+              </DataField>
+              <DataField label={t("medication")}>
+                {healthValue(health.medication, child.medicationChoice)}
+              </DataField>
+              <DataField label={t("healthNotes")}>
+                {child.healthNotes.trim() || none}
+              </DataField>
+              <AnswerFields
+                questions={visibleChildQuestions(draft, child, offer.form)}
+                answers={child.answers}
+              />
+              <AnswerFields
+                questions={criterionQuestions(offer, "child")}
+                answers={child.criteria ?? {}}
+              />
+            </DataGrid>
+          </SectionCard>
+        );
+      })}
 
       <SectionCard title={t("guardianTitle")} headingLevel={3}>
         <DataGrid>

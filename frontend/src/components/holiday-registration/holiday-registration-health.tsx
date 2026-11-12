@@ -23,7 +23,8 @@ import {
   requiresHealth,
 } from "./holiday-registration-model";
 
-const QUESTION = {
+/** The draft field and the message keys of each required question. */
+const HEALTH_QUESTION_KEYS = {
   allergies: {
     choice: "allergiesChoice",
     question: "allergiesQuestion",
@@ -51,7 +52,7 @@ function RequiredHealthQuestion({
   set: (patch: Partial<ChildDraft>) => void;
 }>) {
   const t = useTranslations("holidayRegistration");
-  const keys = QUESTION[field];
+  const keys = HEALTH_QUESTION_KEYS[field];
   const choice = child[keys.choice];
   const name = `${prefix}.${field}`;
   const error = fieldError(name);

@@ -366,7 +366,7 @@ export function HolidayFormEditor({
                     type="warning"
                     size="compact"
                     className="mt-3"
-                    message={`Diese eigenen Fragen fragen dasselbe noch einmal: ${repeatedHealthQuestions
+                    message={`Allergien und Medikamente fragt das Formular schon ab. Diese eigenen Fragen fragen es noch einmal: ${repeatedHealthQuestions
                       .map((field) => `„${field.label}“`)
                       .join(
                         ", ",
