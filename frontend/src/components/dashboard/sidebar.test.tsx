@@ -1166,6 +1166,84 @@ describe("Sidebar", () => {
       );
     });
 
+    // #6863: Wer eine fremde Gruppe offen hat, sieht sie markiert unter
+    // „Gruppen“, auch ohne eigene Gruppe, und keinen Leertext dazu.
+    it("shows the open foreign group as the marked entry when the person leads none", () => {
+      mockUsePathname.mockReturnValue("/ogs-groups");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key: string) => (key === "group" ? "2" : null)),
+      );
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [],
+        groups: [
+          { id: "1", name: "Eulen", is_personal: false },
+          { id: "2", name: "Adler", is_personal: false },
+        ],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      const adler = screen.getByRole("link", { name: "Adler" });
+      expect(adler).toHaveAttribute("href", "/ogs-groups?group=2");
+      expect(adler).toHaveClass("bg-gray-100");
+      expect(screen.queryByRole("link", { name: "Eulen" })).toBeNull();
+      expect(screen.queryByText("Keine eigenen Gruppen")).toBeNull();
+    });
+
+    it("shows the open foreign group below the own groups of a group lead", () => {
+      mockUsePathname.mockReturnValue("/ogs-groups");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key: string) => (key === "group" ? "2" : null)),
+      );
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [],
+        groups: [
+          { id: "1", name: "Eulen", is_personal: true },
+          { id: "2", name: "Adler", is_personal: false },
+        ],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      const links = screen
+        .getAllByRole("link")
+        .filter((link) => ["Eulen", "Adler"].includes(link.textContent ?? ""));
+      expect(links.map((link) => link.textContent)).toEqual(["Eulen", "Adler"]);
+      expect(links[0]).not.toHaveClass("bg-gray-100");
+      expect(links[1]).toHaveClass("bg-gray-100");
+    });
+
+    it("keeps the empty text when no group is open and the person leads none", () => {
+      mockUsePathname.mockReturnValue("/ogs-groups/overview");
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [],
+        groups: [{ id: "2", name: "Adler", is_personal: false }],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      expect(screen.getByText("Keine eigenen Gruppen")).toBeVisible();
+      expect(screen.queryByRole("link", { name: "Adler" })).toBeNull();
+    });
+
     it("marks no own group on the group selection", () => {
       mockUsePathname.mockReturnValue("/ogs-groups/overview");
       mockUseSupervision.mockReturnValue({
@@ -1562,6 +1640,37 @@ describe("Sidebar", () => {
       // "Eulen" should be active sub-item (matching childGroupId "1")
       const eulenLink = screen.getByText("Eulen").closest("a");
       expect(eulenLink).toHaveClass("bg-gray-100");
+    });
+
+    // #6863: Auch von einem Kind aus einer fremden Gruppe bleibt sie markiert.
+    it("keeps the foreign group marked on student detail from that group", () => {
+      vi.spyOn(localStorage, "getItem").mockImplementation((key: string) => {
+        if (key === memoryKey("sidebar-last-group")) return "2";
+        return null;
+      });
+      mockUsePathname.mockReturnValue("/students/123");
+      mockUseSearchParams.mockReturnValue(
+        createMockSearchParams((key: string) =>
+          key === "from" ? "/ogs-groups" : null,
+        ),
+      );
+      mockUseSupervision.mockReturnValue({
+        hasGroups: true,
+        isSupervising: false,
+        isLoadingGroups: false,
+        isLoadingSupervision: false,
+        overviewEnabled: false,
+        supervisedRooms: [],
+        groups: [{ id: "2", name: "Adler", is_personal: false }],
+        refresh: vi.fn(),
+      });
+
+      render(<Sidebar />);
+
+      expect(screen.getByRole("link", { name: "Adler" })).toHaveClass(
+        "bg-gray-100",
+      );
+      expect(screen.queryByText("Keine eigenen Gruppen")).toBeNull();
     });
 
     it("renders rooms in sidebar on student detail from active-supervisions", () => {

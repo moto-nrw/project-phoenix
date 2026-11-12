@@ -1251,6 +1251,23 @@ function SidebarContent({
     childRoomKey !== null &&
       (childFromParam?.startsWith("/active-supervisions") ?? false),
   );
+  // Eine fremde Gruppe, die gerade offen ist (direkt oder als Herkunft einer
+  // Kinderseite), steht markiert unter den eigenen. Sonst sähe eine Leitung
+  // ohne eigene Gruppe „Keine eigenen Gruppen“, während sie in einer Gruppe
+  // ist, und nichts zeigte, wo sie gerade ist (#6863).
+  const openGroupId =
+    childGroupId ??
+    (pathname.startsWith("/ogs-groups") &&
+    !pathname.startsWith(OGS_GROUPS_OVERVIEW_PATH)
+      ? currentGroupParam
+      : null);
+  const openForeignGroup = useMemo(
+    () =>
+      openGroupId
+        ? groups.find((group) => group.id === openGroupId && !isOwnGroup(group))
+        : undefined,
+    [groups, openGroupId],
+  );
   const childSessionId = useLocalStorageValue(
     childSessionKey ?? "",
     childSessionKey !== null &&
@@ -1528,7 +1545,7 @@ function SidebarContent({
         }
         isLoading={isLoadingGroups}
         emptyText="Keine eigenen Gruppen"
-        hasChildren={personalGroups.length > 0}
+        hasChildren={personalGroups.length > 0 || Boolean(openForeignGroup)}
       >
         {personalGroups.map((group, index) => (
           <SidebarSubItem
@@ -1545,6 +1562,15 @@ function SidebarContent({
             )}
           />
         ))}
+        {openForeignGroup ? (
+          <SidebarSubItem
+            key={openForeignGroup.id}
+            href={ogsGroupHref(openForeignGroup.id)}
+            label={openForeignGroup.name}
+            count={formatGroupAttendanceCount(openForeignGroup.id)}
+            isActive
+          />
+        ) : null}
       </SidebarAccordionSection>
     ) : null;
 
