@@ -117,6 +117,19 @@ describe("HolidayRegistrationStatusCard", () => {
     mockFamilyChoice.mockReset();
   });
 
+  it("names a possible double registration and where the other one opens", () => {
+    // The link to the other registration sits on the child's card
+    // (holiday-registration-child-card.test.tsx); the status names it in
+    // one line, so the status actions stay close on a phone.
+    renderCard(HOLIDAY_REGISTRATION);
+
+    expect(
+      screen.getByText(
+        "Vielleicht doppelt angemeldet: Lia Muster. Die andere Anmeldung öffnen Sie beim Kind.",
+      ),
+    ).toBeInTheDocument();
+  });
+
   it("locks confirmation until the post-write read settles", async () => {
     const reload = deferred();
     mockConfirm.mockResolvedValue(HOLIDAY_CONTRIBUTION);
@@ -322,8 +335,9 @@ describe("HolidayRegistrationStatusCard", () => {
     expect(
       screen.queryByText(/berechnet den Ferienbeitrag der Geschwister neu/),
     ).not.toBeInTheDocument();
-    const buttons = screen.getAllByRole("button", { name: "Stornieren" });
-    fireEvent.click(buttons[buttons.length - 1]!);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Anmeldung stornieren" }),
+    );
 
     await waitFor(() => expect(mockCancel).toHaveBeenCalledWith("5", "7"));
     await waitFor(() => expect(onReload).toHaveBeenCalledTimes(1));
@@ -367,8 +381,9 @@ describe("HolidayRegistrationStatusCard", () => {
 
       fireEvent.click(screen.getByRole("button", { name: "Stornieren" }));
       await screen.findByText("Anmeldung stornieren?");
-      const buttons = screen.getAllByRole("button", { name: "Stornieren" });
-      fireEvent.click(buttons[buttons.length - 1]!);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Anmeldung stornieren" }),
+      );
 
       expect(await screen.findByText(reloadText)).toBeInTheDocument();
       fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
@@ -840,7 +855,7 @@ describe("HolidayRegistrationStatusCard", () => {
 
       expect(
         screen.getByText(
-          "Die Rechnung ist ausgestellt. Sie behält diese Nummer. Ändern geht nicht mehr.",
+          "Die Rechnung ist ausgestellt. Die Debitorennummer lässt sich nicht mehr ändern.",
         ),
       ).toBeInTheDocument();
       expect(screen.getByText("10 4711")).toBeInTheDocument();

@@ -7,7 +7,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { signOut, useSession } from "next-auth/react";
-import { UserPlus, Users } from "lucide-react";
+import { Pencil, Trash2, Undo2, UserPen, UserPlus, Users } from "lucide-react";
 import {
   ChangeTraegerMemberNameModal,
   ChangeTraegerRolesModal,
@@ -115,7 +115,7 @@ export default function TraegerAccountsPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "die Personen des Träger-Büros",
+        object: "die Liste der Personen",
         messageSuffix: loadedRef.current ? STALE_DATA_SUFFIX : undefined,
         retry: () => void load(),
       });
@@ -178,6 +178,13 @@ export default function TraegerAccountsPage() {
     await afterWrite.refresh();
   };
 
+  // The Träger-Büro keeps at least one Leitung; the server refuses to remove
+  // the last one, so its row does not offer it.
+  const leaders = buero.members.filter((member) =>
+    member.roles.includes("leadership"),
+  ).length;
+  const isLastLeader = (member: TraegerMember) =>
+    leaders === 1 && member.roles.includes("leadership");
   // The saved name shows at once, also when the reload after it fails.
   const showSavedMember = (saved: TraegerMember) =>
     setBuero((current) => ({
@@ -217,7 +224,18 @@ export default function TraegerAccountsPage() {
     {
       key: "roles",
       header: "Rolle",
-      render: (member) => roleNames(member.roles),
+      render: (member) => (
+        <>
+          {roleNames(member.roles)}
+          {isLastLeader(member) ? (
+            // text-balance: two even lines break after the comma, not
+            // inside „Träger-Büro“ at its hyphen.
+            <span className="block text-sm text-balance text-gray-600">
+              Einzige Leitung, bleibt im Träger-Büro
+            </span>
+          ) : null}
+        </>
+      ),
       stacked: "field",
     },
     {
@@ -226,18 +244,27 @@ export default function TraegerAccountsPage() {
       render: (member) => (
         <OverflowMenu
           ariaLabel={`Aktionen für ${member.email}`}
-          triggerSize="sm"
           items={[
             {
+              icon: <UserPen className="size-4" aria-hidden />,
               label: member.name ? "Namen ändern" : "Namen eintragen",
               onClick: () => setNaming(member),
             },
-            { label: "Rollen ändern", onClick: () => setEditing(member) },
             {
-              label: "Aus dem Träger-Büro entfernen",
-              destructive: true,
-              onClick: () => setPending({ kind: "remove", member }),
+              icon: <Pencil className="size-4" aria-hidden />,
+              label: "Rollen ändern",
+              onClick: () => setEditing(member),
             },
+            ...(isLastLeader(member)
+              ? []
+              : [
+                  {
+                    label: "Aus dem Träger-Büro entfernen",
+                    icon: <Trash2 className="size-4" aria-hidden />,
+                    destructive: true,
+                    onClick: () => setPending({ kind: "remove", member }),
+                  },
+                ]),
           ]}
         />
       ),
@@ -277,10 +304,10 @@ export default function TraegerAccountsPage() {
       render: (invitation) => (
         <OverflowMenu
           ariaLabel={`Aktionen für die Einladung an ${invitation.email}`}
-          triggerSize="sm"
           items={[
             {
               label: "Einladung zurücknehmen",
+              icon: <Undo2 className="size-4" aria-hidden />,
               destructive: true,
               onClick: () => setPending({ kind: "revoke", invitation }),
             },

@@ -24,7 +24,7 @@ export function DocumentTemplateVersionsCard({
   return (
     <SectionCard
       title="Versionen"
-      description="Jede gespeicherte Fassung bleibt erhalten. Schreiben, die schon erstellt sind, behalten ihre Version."
+      description="Jede gespeicherte Version bleibt erhalten. Schreiben, die schon erstellt sind, behalten ihre Version."
     >
       {versions.length === 0 ? (
         <p className="text-sm text-gray-600">
@@ -56,7 +56,7 @@ export function DocumentTemplateVersionsCard({
                     type="button"
                     variant="surface"
                     size="compact"
-                    aria-label={`Text von Version ${version.version} übernehmen`}
+                    aria-label={`Text übernehmen: Version ${version.version}`}
                     disabled={disabled}
                     onClick={() => onLoad(version)}
                   >

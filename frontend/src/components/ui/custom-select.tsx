@@ -178,10 +178,12 @@ export function CustomSelect({
         size={controlSize}
         className={cn(
           "w-full",
+          // A wrapped choice grows with its label; by finger the 44-px
+          // height stays a minimum, not a fixed height.
           wrapLabels &&
             (controlSize === "compact"
               ? "h-auto min-h-9 py-2"
-              : "h-auto min-h-10 py-2"),
+              : "h-auto min-h-10 py-2 pointer-coarse:h-auto pointer-coarse:min-h-11"),
           className,
         )}
         menuClassName={menuClassName}
@@ -253,7 +255,7 @@ export function CustomSelect({
       ) : null}
       {field}
       {hint && hintId ? (
-        <p id={hintId} className="mt-1 text-xs text-gray-600">
+        <p id={hintId} className="mt-1 text-sm text-gray-600">
           {hint}
         </p>
       ) : null}

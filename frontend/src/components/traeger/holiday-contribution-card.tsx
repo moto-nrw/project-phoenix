@@ -14,6 +14,8 @@ import type { HolidayContribution } from "~/lib/traeger-contributions-api";
 import type { HolidayRegistrationDetail } from "~/lib/traeger-holiday-registrations-api";
 import { contributionLineLabel, formatEuro } from "./contribution-format";
 import { ContributionRulesLink } from "./contribution-rules-link";
+import { contributionsConcept } from "~/lib/concepts/contributions";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 function description(
   contribution: HolidayContribution,
@@ -46,6 +48,7 @@ export function HolidayContributionCard({
   };
   return (
     <SectionCard
+      leading={<ConceptIconTile concept={contributionsConcept} />}
       title="Ferienbeitrag"
       description={description(contribution, registration)}
     >

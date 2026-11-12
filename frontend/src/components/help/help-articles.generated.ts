@@ -10319,7 +10319,7 @@ export const traegerAccountsTopic = function traegerAccountsTopic(): HelpTopic {
     result:
       "Die eingeladene Person steht unter `Offene Einladungen`, bis sie die Einladung annimmt.",
     notes: [
-      "`Leitung` darf Personen einladen, ihre Rollen ändern und sie entfernen. `Verwaltung` darf Anmeldungen, Verträge, Einstellungen und das Protokoll verwalten. `Dokumente` darf Dokumente für Eltern und Schulen hochladen, freigeben und löschen. `Schulzugang` darf jede Schule des Trägers öffnen. `Abrechnung` darf abrechnen und Finanz-Daten exportieren. `Personal` darf das Personal verwalten. `Nur lesen` darf die Übersicht und die Berichte ansehen.",
+      "`Leitung` darf Personen einladen, ihre Rollen ändern und sie entfernen. `Verwaltung` darf Anmeldungen, Verträge, Einstellungen und das Protokoll verwalten. `Dokumente` darf Dokumente für Eltern und Schulen hochladen, freigeben und löschen. `Schulzugang` darf jede Schule des Trägers öffnen. `Abrechnung` darf abrechnen und Finanzdaten exportieren. `Personal` darf das Personal verwalten. `Nur lesen` darf die Übersicht und die Berichte ansehen.",
       "Nur eine Person mit `Leitung` kann `Leitung` vergeben oder wegnehmen. Ihre eigene `Leitung` geben Sie erst ab, wenn eine andere Person sie hat.",
       "Eine Person kann mehrere Rollen haben. Wählen Sie alle Rollen auf einmal aus.",
       "Wer bisher `Verwaltung` hatte, hat `Dokumente` dazubekommen. Soll sich eine andere Person um die Dokumente kümmern? Geben Sie ihr `Dokumente` und nehmen Sie die Rolle bei der Verwaltung weg.",
@@ -10355,7 +10355,7 @@ export const traegerBillingRunTopic =
       audience: "traeger",
       icon: "FileText",
       requirements: [
-        "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation `Abrechnung`.",
+        "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation die Bereiche unter `Finanzen`.",
         "Der Ferienzeitraum ist veröffentlicht, und die Anmeldungen sind bestätigt.",
       ],
       steps: [],
@@ -10374,10 +10374,11 @@ export const traegerBillingRunTopic =
         {
           title: "Lauf starten und prüfen",
           steps: [
+            "Wählen Sie in der Navigation `Abrechnungsläufe`. Der Reiter `Ferien` ist schon offen.",
             "Wählen Sie `Lauf starten`.",
             "Wählen Sie den Ferienzeitraum und dann `Lauf starten`.",
             "Prüfen Sie die Vorschau unter `Rechnungen`. Je Familie steht dort eine Rechnung.",
-            "Die Positionen einer Rechnung sehen Sie im Menü mit den drei Punkten unter `Aufschlüsselung ansehen`.",
+            "Die Beträge je Kind blenden Sie mit `Aufschlüsselung zeigen` unter allen Rechnungen ein. Auf dem Handy finden Sie `Aufschlüsselung zeigen` im Menü mit den drei Punkten.",
           ],
         },
         {
@@ -10407,6 +10408,7 @@ export const traegerBillingRunTopic =
           steps: [
             "Wählen Sie `Lauf freigeben`.",
             "Prüfen Sie Zahl und Summe der Rechnungen und wählen Sie `Freigeben`.",
+            "Steht im Dialog `Noch offen`, klären Sie diese Punkte zuerst. Oder Sie geben mit `Trotzdem freigeben` frei. Zahlt eine Familie per Lastschrift ohne gültiges Mandat, geben Sie erst frei, wenn das Mandat da ist oder die Familie überweist.",
           ],
         },
         {
@@ -10480,7 +10482,7 @@ export const traegerBillingRunTopic =
             "Wählen Sie `Rechnung stornieren`.",
             "Schreiben Sie eine Begründung, zum Beispiel: Anschrift war falsch. Neue Rechnung folgt.",
             "Wählen Sie `Stornieren`.",
-            "Wählen Sie im Menü der Rechnung `Aufschlüsselung ansehen` und dann `Neu ausstellen`.",
+            "Wählen Sie im Menü der Rechnung `Aufschlüsselung zeigen` und dann `Neu ausstellen`.",
             "moto öffnet einen Lauf in der Vorschau. Dort steht die Familie mit dem Hinweis `Ersetzt` und der alten Nummer.",
             "Hatte die alte Rechnung Korrekturen, stehen sie bei `Übernommene Korrekturen`. Sie zählen schon in der neuen Rechnung mit. Prüfen Sie jede davon.",
             "Stimmt eine Korrektur nicht mehr, wählen Sie bei ihr das Menü mit den drei Punkten und dann `Ändern` oder `Entfernen`.",
@@ -10525,10 +10527,9 @@ export const traegerBillingRunTopic =
           description:
             "Hier sehen Sie alle Rechnungen, Stornos und Gutschriften einer Familie über alle Läufe und ihre Debitorennummer. Eine Familie ist eine E-Mail-Adresse. Familien aus der Ferienbetreuung stehen hier schon, wenn ihre Anmeldung mit Debitorennummer bestätigt ist.",
           steps: [
-            "Wählen Sie in der Navigation `Abrechnung`.",
-            "Wählen Sie oben den Reiter `Familien`.",
+            "Wählen Sie in der Navigation `Familien und Zahlung`. Der Reiter `Familien` ist schon offen.",
             "Die Kacheln zeigen die Summen `Ausgestellt`, `Storniert`, `Gutgeschrieben` und `Offene Forderung`. Sie rechnen mit den Familien, die die Liste gerade zeigt.",
-            "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit offener Forderung` sehen Sie nur Familien, deren Rechnungen noch Geld verlangen. Mit `Ohne Debitorennummer` sehen Sie Familien ohne Nummer. Denselben Filter setzt ein Klick auf `ohne Debitorennummer` oben in der Zeile mit den Zahlen.",
+            "Suchen Sie die Familie nach Name, E-Mail oder Debitorennummer. Mit dem Filter `Mit offener Forderung` sehen Sie nur Familien, deren Rechnungen noch Geld verlangen. Ob gezahlt wurde, sieht moto nicht. Mit `Ohne Debitorennummer` sehen Sie Familien ohne Nummer. Denselben Filter setzt ein Klick auf `ohne Debitorennummer` oben in der Zeile mit den Zahlen.",
             "Unter `Debitorennummer` steht die Nummer der Familie. Steht auf älteren Rechnungen eine andere, sehen Sie sie darunter. `Nur Ferien` heißt: Die Familie hat keinen Betreuungsvertrag.",
             "Öffnen Sie das Drei-Punkte-Menü neben der Nummer. Wählen Sie `Debitorennummer ändern` oder `Debitorennummer eintragen`. Tragen Sie die Nummer ein und wählen Sie `Speichern`. Ausgestellte Rechnungen behalten ihre Nummer.",
             "Wählen Sie die Familie. Sie sehen ihre Summen, wer zahlt, den Zahlungsweg und jedes Dokument mit Ferienzeitraum, Kindern, Betrag und Stand. Eine Familie ohne Rechnung öffnet sich nicht.",
@@ -10556,7 +10557,7 @@ export const traegerBillingRunTopic =
         "In der Spalte `Zahlung` steht `Familie zahlt selbst`, `Kostenübernahme` mit dem Namen des Kostenträgers oder `Beitragsfrei`, darunter der Zahlungsweg. Eine stornierte Rechnung zählt dabei nicht mit.",
       ],
       differences: [
-        "Sie sehen in der Navigation kein `Abrechnung`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
+        "Sie sehen in der Navigation kein `Abrechnungsläufe`? Ihre Rolle ist nicht Abrechnung. Fragen Sie im Träger-Büro nach dieser Rolle.",
         "Im Ferienzeitraum fehlt `Zur Abrechnung`? Der Zeitraum ist noch ein Entwurf, oder Ihre Rolle ist nicht Abrechnung.",
         "Im Lauf fehlt `Zum Ferienzeitraum`? Ihre Rolle darf die Ferienbetreuung nicht öffnen.",
         "`Lauf freigeben` lässt sich nicht wählen? Es fehlt das Muster der Rechnungsnummern, oder der Lauf hat keine Rechnung.",
@@ -10619,7 +10620,7 @@ export const traegerBillingTermsTopic =
           description:
             "Ein Lauf kann ein festes Datum haben, bis zu dem alle Familien zahlen. Das geht nur vor der Freigabe.",
           steps: [
-            "Öffnen Sie den Lauf unter `Abrechnung`, bei den Monatsbeiträgen oder bei den Ferien.",
+            "Öffnen Sie den Lauf unter `Abrechnungsläufe`, im Reiter `Monatsbeiträge` oder `Ferien`.",
             "Beim Monatslauf wählen Sie in der Karte `Monatslauf` beim Feld `Fällig` den Knopf `Ändern`. Beim Ferienlauf wählen Sie `Fälligkeiten ändern`. Es öffnet sich eine eigene Seite.",
             "Wählen Sie je Zahlungsweg ein Datum. Ohne Datum gilt das Zahlungsziel der Leistung.",
             "Wählen Sie `Speichern`. Sie kommen zurück zum Lauf. Bei `Fällig` steht jetzt das Datum.",
@@ -10630,12 +10631,12 @@ export const traegerBillingTermsTopic =
           description:
             "Das gilt für alle Rechnungen dieser Familie, auch für Geschwister. Die Familie ist die E-Mail-Adresse der Person im Vertrag.",
           steps: [
-            "Öffnen Sie einen Monatslauf unter `Abrechnung` und `Monatsbeiträge`.",
+            "Öffnen Sie einen Monatslauf unter `Abrechnungsläufe` und `Monatsbeiträge`.",
             "Wählen Sie bei der Rechnung des Kindes das Menü mit den drei Punkten und dann `Empfänger und Zahlung`. Es öffnet sich eine eigene Seite.",
             "Wählen Sie bei `Rechnung an`: `Person im Vertrag`, `Beide Eltern` oder `Andere Person`.",
             "Bei `Beide Eltern` tragen Sie den Namen des zweiten Elternteils ein. Beide Namen stehen dann auf der Rechnung.",
             "Bei `Andere Person` tragen Sie Name, E-Mail-Adresse und Anschrift ein. Die Rechnung geht dann an diese Person.",
-            "Wählen Sie bei Bedarf einen eigenen `Zahlungsweg`. `Wie die Leistung` nimmt den Zahlungsweg aus den Abrechnungsvorgaben.",
+            "Wählen Sie bei Bedarf einen eigenen `Zahlungsweg`. `Wie in den Abrechnungsvorgaben` nimmt den dort eingestellten Zahlungsweg.",
             "Wählen Sie bei Bedarf einen `Eigenen Zahltag`, zum Beispiel den 15. des Monats.",
             "Wählen Sie `Speichern`.",
           ],
@@ -10646,7 +10647,7 @@ export const traegerBillingTermsTopic =
       notes: [
         "Die Ferienbetreuung hat immer eine eigene Rechnung. Sie steht nie auf der Rechnung der Betreuung.",
         "Bei `Lastschrift` buchen Sie den Betrag selbst ab. Dafür braucht die Familie ein SEPA-Mandat bei Ihnen, und Sie brauchen eine Gläubiger-ID. Ohne Mandat geht die Rechnung als Überweisung. moto bucht kein Geld ab.",
-        "Unter `Abrechnung` und `Familien` sehen Sie bei jeder Familie den Zahlungsweg ihrer Rechnungen.",
+        "Unter `Familien und Zahlung` sehen Sie bei jeder Familie den Zahlungsweg ihrer Rechnungen.",
         "Beim Erstellen der Schreiben stehen die Fälligkeiten bereits fest. Das Feld `Zahlen bis` gilt nur für ältere Rechnungen ohne eigenes Datum.",
         "Welches Datum gilt: zuerst der eigene Zahltag der Familie, dann das Datum des Laufs, sonst das Zahlungsziel der Leistung.",
       ],
@@ -10667,7 +10668,7 @@ export const traegerBillingTermsTopic =
     };
   } satisfies typeof authored_traegerBillingTermsTopic;
 
-/** `/traeger/einstellungen/briefkopf` (#4653, #5685): Logo, Absender und Fußzeile; dazu Ansprechpartner und Bankverbindungen. */
+/** `/traeger/einstellungen/briefkopf` (#4653, #5685): Logo, Absender und Fußzeile; dazu Ansprechperson und Bankverbindungen. */
 export const traegerBriefkopfTopic =
   function traegerBriefkopfTopic(): HelpTopic {
     return {
@@ -10675,7 +10676,7 @@ export const traegerBriefkopfTopic =
       title: "Briefkopf und Bankverbindungen hinterlegen",
       question: "Wie sehen die Briefe meines Trägers aus?",
       summary:
-        "Logo, Absender, Farbe, Fußzeile, Ansprechpartner und Bankverbindungen stehen auf allen Briefen und Rechnungen Ihres Trägers.",
+        "Logo, Absender, Farbe, Fußzeile, Ansprechperson und Bankverbindungen stehen auf allen Briefen und Rechnungen Ihres Trägers.",
       group: "konfiguration",
       audience: "traeger",
       icon: "FileText",
@@ -10702,10 +10703,10 @@ export const traegerBriefkopfTopic =
           ],
         },
         {
-          title: "Ansprechpartner eintragen",
+          title: "Ansprechperson eintragen",
           steps: [
             "Wählen Sie in den Einstellungen `Allgemein` und dann den Bereich `Kontakt`.",
-            "Tragen Sie bei `Ansprechpartner` Name, Telefon und E-Mail-Adresse ein.",
+            "Tragen Sie bei `Ansprechperson` Name, Telefon und E-Mail-Adresse ein.",
             "Wählen Sie `Speichern`.",
           ],
         },
@@ -10728,11 +10729,11 @@ export const traegerBriefkopfTopic =
         "Eine Bankverbindung ist der `Standard`. Sie steht auf allen Briefen und Rechnungen.",
         "Eine andere Bankverbindung machen Sie im Menü der Zeile mit `Als Standard festlegen` zum Standard.",
         "Löschen Sie den Standard, wird die älteste andere Bankverbindung der Standard.",
-        "Jedes Ansehen und jede Änderung von Ansprechpartner und Bankverbindungen steht im Protokoll des Trägers.",
+        "Jedes Ansehen und jede Änderung von Ansprechperson und Bankverbindungen steht im Protokoll des Trägers.",
       ],
       differences: [
-        "Auf dem Handy öffnen Sie zuerst `Einstellungen` in der Leiste unten. `Abrechnungsvorgaben` steht dann unter `Mehr`.",
-        "Sie können die Angaben nur ansehen? Ihnen fehlt das Recht `Einstellungen`. Wenden Sie sich an eine Person mit der Rolle `Verwaltung`.",
+        "Auf dem Handy öffnen Sie in der Leiste unten `Mehr` und dann `Einstellungen`. `Abrechnungsvorgaben` steht dort wieder unter `Mehr`.",
+        "Sie können die Angaben nur ansehen? Ihnen fehlt die Rolle `Verwaltung`. Die Rollen vergibt, wer die Rolle `Leitung` hat.",
       ],
       troubleshootingDetails: [
         "Das Logo wird nicht übernommen? Es muss ein PNG- oder JPG-Bild sein, höchstens 1 MB groß und höchstens 2000 Pixel breit und hoch.",
@@ -10803,7 +10804,7 @@ export const traegerCareContractsTopic =
           title: "Später verschicken: Entwürfe erstellen",
           steps: [
             "Wählen Sie den Reiter `Verträge`.",
-            "Wählen Sie `Verträge erstellen`. Die Zahl dahinter nennt die Kinder ohne Vertrag.",
+            "Wählen Sie `Verträge erstellen`. Die Zahl dahinter nennt die Kinder ohne Vertrag. Kann ein Kind noch keinen Entwurf bekommen, steht im Fenster der Grund.",
             "Prüfen Sie die Liste. moto übernimmt Kind, Eltern, Beginn und je Wochentag die gebuchten Module mit ihrer Endzeit, zum Beispiel `Mo bis 14:00 · Di bis 16:30`.",
             "Wählen Sie die Kinder aus. Ein Vertrag umfasst alle Module eines Kindes. Fehlen bei einem Modul die Bedingungen, oder weichen sie zwischen den Modulen ab, legen Sie sie zuerst fest.",
             "Wählen Sie `Entwürfe erstellen`.",
@@ -10815,8 +10816,8 @@ export const traegerCareContractsTopic =
             "Wählen Sie in der Liste ein Kind. Die Seite zeigt die `Vertragsangaben` und die `Vorschau` des PDF.",
             "Prüfen Sie unter `Gebuchte Betreuung` jeden Wochentag: das Modul und bis wann das Kind betreut wird. Tage ohne Betreuung stehen als `Keine Betreuung` da.",
             "Prüfen Sie Beginn und Beitrag.",
-            "Wählen Sie `Vertrag senden`.",
-            "Mehrere Entwürfe auf einmal: Setzen Sie in der Liste die Haken und wählen Sie oben `Entwürfe senden`.",
+            "Wählen Sie `Vertrag senden`. moto fragt noch einmal und nennt die Mail-Adresse. Bestätigen Sie mit `Vertrag senden`.",
+            "Mehrere Entwürfe auf einmal: Setzen Sie in der Liste die Haken. Unten erscheint eine Leiste. Wählen Sie dort zum Beispiel `3 Entwürfe senden`. Gesendet werden nur die gewählten Entwürfe.",
           ],
         },
         {
@@ -10882,7 +10883,7 @@ export const traegerCareContractsTopic =
       notes: [
         "Die Suche und die Filter gelten für alle Verträge. Mit `Weitere Verträge laden` zeigen Sie ältere Treffer an.",
         "Beim ersten Senden hält moto das PDF fest. Ändern Sie danach Bedingungen oder Brieftext, bleibt der versendete Vertrag gleich.",
-        "Unter `Versand` sehen Sie, ob die Mail gesendet wurde. Mit `Versand aktualisieren` prüfen Sie den neuen Stand. Mit `Erneut senden` geht dasselbe PDF noch einmal an die Eltern. Eine zweite Nachricht aufs Handy gibt es dabei nicht. Nur eine korrigierte Mail-Adresse bekommt eine eigene Nachricht.",
+        "Unter `Versand` sehen Sie, ob die Mail gesendet wurde. Mit `Versand aktualisieren` prüfen Sie den neuen Stand. Mit `Erneut senden` geht dasselbe PDF noch einmal an die Eltern; moto fragt vorher. Bei einem aktiven Vertrag steht `Erneut senden` im Menü mit den drei Punkten oben rechts. Eine zweite Nachricht aufs Handy gibt es dabei nicht. Nur eine korrigierte Mail-Adresse bekommt eine eigene Nachricht.",
         "Neben jedem Versand steht, was aus der Mail geworden ist: wie bei der Abrechnung. Der Hinweis oben nennt den Grund und den nächsten Schritt. Bei `Verzögert` warten Sie. Hat die Schule die Mails gestoppt, klären Sie das mit der Schule. Bei `Gesperrt` klärt das der moto-Support. Solange das gilt, ist `Erneut senden` aus.",
         "Den Brieftext des Vertrags ändern Sie unter `Einstellungen` → `Briefkopf und Vorlagen` bei der Vorlage `Vertrag`.",
         "Mit `PDF herunterladen` bekommen Sie den Vertrag zum Drucken, etwa für Familien ohne Mail.",
@@ -10952,7 +10953,7 @@ export const traegerCareCostSharesTopic =
       icon: "HandCoins",
       requirements: [
         "Ihre Rolle im Träger-Büro ist Abrechnung.",
-        "Der Kostenträger steht unter `Einstellungen` und `Abrechnung`.",
+        "Der Kostenträger steht unter `Einstellungen` und `Abrechnungsvorgaben`.",
         "Sie haben den Bescheid geprüft.",
       ],
       steps: [],
@@ -10960,7 +10961,7 @@ export const traegerCareCostSharesTopic =
         {
           title: "Anteil eintragen",
           steps: [
-            "Wählen Sie `Abrechnung` und dann den Reiter `Kostenträger`.",
+            "Wählen Sie `Familien und Zahlung` und dann den Reiter `Kostenübernahmen`.",
             "Wählen Sie beim Kind das Menü und dann `Anteil eintragen`.",
             "Wählen Sie bei `Wer zahlt mit?` die Art: `Bildung und Teilhabe`, `Jugendamt` oder `Sonstiger Zuschuss`.",
             "Wählen Sie den `Kostenträger`.",
@@ -11005,7 +11006,7 @@ export const traegerCareCostSharesTopic =
       ],
       notes: [
         "moto speichert nur Art, Anteil, Zeitraum und Aktenzeichen. Den Bescheid behalten Sie.",
-        "Jedes Öffnen der Seite `Kostenträger` steht im Zugriffsprotokoll.",
+        "Jedes Öffnen des Reiters `Kostenübernahmen` steht im Zugriffsprotokoll.",
       ],
       related: [
         HELP_TOPICS.traegerCareReductions,
@@ -11039,7 +11040,7 @@ export const traegerCareMealsTopic =
         {
           title: "Preis festlegen",
           steps: [
-            "Wählen Sie `Abrechnung` und dann den Reiter `Mensa`.",
+            "Wählen Sie `Preise und Ermäßigungen` und dann den Reiter `Mensa`.",
             "Wählen Sie bei der Schule `Preis festlegen`.",
             "Wählen Sie bei `Gültig ab` den ersten Monat.",
             "Wählen Sie die Abrechnungsart: `Je Essen` oder `Pauschale`.",
@@ -11052,7 +11053,7 @@ export const traegerCareMealsTopic =
           description:
             "Die Mensa steht im Monatslauf als eigene Zeile je Monat auf der Rechnung des Kindes, zum Beispiel „2 Mittagessen im Januar 2026“.",
           steps: [
-            "Wählen Sie `Abrechnung` und dann den Reiter `Monatsbeiträge`.",
+            "Wählen Sie `Abrechnungsläufe` und dann den Reiter `Monatsbeiträge`.",
             "Starten oder öffnen Sie den Lauf eines Monats.",
             "Die Karte `Mensa` nennt Monate, die eine Schule noch nicht freigegeben hat, und Kinder ohne Vertrag.",
             "`Nicht mehr abrechenbar` heißt: Die Anwesenheiten des Monats sind nach der Aufbewahrungsfrist der Schule gelöscht. Diesen Monat rechnet kein Lauf mehr ab.",
@@ -11088,7 +11089,7 @@ export const traegerCareMonthsTopic =
       audience: "traeger",
       icon: "CalendarCheck",
       requirements: [
-        "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation `Abrechnung`.",
+        "Ihre Rolle im Träger-Büro ist Abrechnung. Nur diese Rolle sieht in der Navigation die Bereiche unter `Finanzen`.",
         "Die Kinder haben einen gültigen Betreuungsvertrag. Module und gebuchte Wochentage kommen aus dem Vertrag.",
       ],
       steps: [],
@@ -11098,7 +11099,7 @@ export const traegerCareMonthsTopic =
           description:
             "Jede Schule hat eigene Preise. Jedes Modul hat eine Preisform. `Je Wochentag`: Jeder gebuchte Tag hat einen Monatspreis, der Beitrag ist die Summe. `Nach Tagen je Woche`: Der Beitrag hängt nur von der Zahl der gebuchten Tage ab, zum Beispiel 3 Tage = 60,00 €.",
           steps: [
-            "Wählen Sie `Abrechnung` und dann den Reiter `Preisliste`.",
+            "Wählen Sie `Preise und Ermäßigungen`. Der Reiter `Preisliste` ist schon offen.",
             "Wählen Sie bei der Schule `Neue Preise`.",
             "Wählen Sie bei `Gültig ab` den Monat, ab dem die Preise gelten.",
             "Wählen Sie bei `Beitragsfreie Monate` die Monate ohne Beitrag, zum Beispiel `Aug`. Dann stellt der Monatslauf für diese Schule im August keine Rechnung aus.",
@@ -11124,7 +11125,7 @@ export const traegerCareMonthsTopic =
         {
           title: "Monatslauf starten und prüfen",
           steps: [
-            "Wählen Sie `Abrechnung` und dann den Reiter `Monatsbeiträge`.",
+            "Wählen Sie `Abrechnungsläufe` und dann den Reiter `Monatsbeiträge`.",
             "Wählen Sie `Monatslauf starten` und dann den Monat.",
             "Wählen Sie bei `Schulen` die Schulen. Alle sind schon gewählt. Eine Schule, die schon in einem offenen Lauf dieses Monats ist, lässt sich nicht wählen.",
             "Wählen Sie bei `Rechnungsdatum` das Datum, das auf jeder Rechnung steht, zum Beispiel den 30.10. für Oktober. Lassen Sie das Feld leer, gilt der Tag der Freigabe.",
@@ -11179,6 +11180,7 @@ export const traegerCareMonthsTopic =
           steps: [
             "Wählen Sie `Lauf freigeben`.",
             "Prüfen Sie Zahl und Summe der Rechnungen und wählen Sie `Freigeben`.",
+            "Steht im Dialog `Noch offen`, klären Sie diese Punkte zuerst. Oder Sie geben mit `Trotzdem freigeben` frei. Zahlt eine Familie per Lastschrift ohne gültiges Mandat, geben Sie erst frei, wenn das Mandat da ist oder die Familie überweist.",
             "Jede Rechnung bekommt ihre Nummer und das Rechnungsdatum. Danach ändert sie sich nicht mehr.",
             "Hat sich seit Ihrer Prüfung etwas geändert, zum Beispiel ein Vertrag, ein Preis oder eine Änderung einer Rechnung, gibt moto nicht frei. Die Seite zeigt den neuen Stand. Prüfen Sie ihn und geben Sie dann frei.",
             "Passt eine Änderung einer Rechnung nicht mehr, zum Beispiel weil sich der Preis geändert hat, gibt moto nicht frei. Wählen Sie in der Meldung `Rechnung öffnen` und nehmen Sie die Änderung zurück.",
@@ -11385,13 +11387,13 @@ export const traegerCareReductionsTopic =
           description:
             "Es gibt vier Arten: Einkommensstufen, Geschwister, Alleinerziehende und Höchstbetrag. Der Monatslauf rechnet sie in dieser Reihenfolge.",
           steps: [
-            "Wählen Sie `Abrechnung` und dann den Reiter `Ermäßigungen`.",
-            "Wählen Sie bei der Art den Knopf `Regel anlegen`, `Stufe anlegen` oder `Höchstbetrag anlegen`.",
+            "Wählen Sie `Preise und Ermäßigungen` und dann den Reiter `Ermäßigungen`.",
+            "Wählen Sie bei der Art den Knopf `Geschwisterregel anlegen`, `Regel für Alleinerziehende anlegen`, `Stufe anlegen` oder `Höchstbetrag anlegen`.",
             "Geben Sie einen Namen ein. Er steht so auf der Rechnung.",
             "Wählen Sie die Monate und die Schulen, für die die Regel gilt.",
             "Soll die Regel nur für einzelne Module gelten, wählen Sie die Module. Sonst lassen Sie das Feld leer.",
             "Wählen Sie die Wirkung: `Anteil weniger`, `Betrag weniger` oder `Fester Preis`. Tragen Sie die Zahl ein. Bei Geschwistern gibt es auch `Preis laut Preisliste`.",
-            "Wählen Sie `Regel speichern`.",
+            "Wählen Sie `Speichern`.",
           ],
         },
         {
@@ -11412,7 +11414,7 @@ export const traegerCareReductionsTopic =
           description:
             "Eltern geben an, wie viele Kinder ihre Familie hat: bei der Anmeldung, über den Link aus der Vertragsmail oder im Vertrag in der Eltern-App. Die Zahl aus der Anmeldung kommt mit dem Vertrag. Sie bestätigen die Zahl. Erst dann zählt sie.",
           steps: [
-            "Wählen Sie `Abrechnung` und dann den Reiter `Kinderzahl`.",
+            "Wählen Sie `Familien und Zahlung` und dann den Reiter `Kinderzahl`.",
             "Unter `Zu prüfen` stehen neue Angaben der Eltern und Zahlen, die bald ablaufen.",
             "Wählen Sie bei der Familie `Prüfen`. Im Menü einer Familie heißt es `Kinderzahl bestätigen` oder `Kinderzahl ändern`.",
             "Prüfen Sie die Zahl. Ändern Sie sie, wenn nötig.",
@@ -11425,7 +11427,7 @@ export const traegerCareReductionsTopic =
           description:
             "Einkommensstufe und Ermäßigung für Alleinerziehende brauchen einen Nachweis je Kind.",
           steps: [
-            "Wählen Sie `Abrechnung` und dann den Reiter `Nachweise`.",
+            "Wählen Sie `Familien und Zahlung` und dann den Reiter `Nachweise`.",
             "Wählen Sie beim Kind das Menü und dann `Einkommensstufe eintragen` oder `Alleinerziehend eintragen`.",
             "Wählen Sie die Stufe. Nennen Sie den geprüften Nachweis, zum Beispiel Einkommensteuerbescheid 2025.",
             "Tragen Sie ein, wann Sie ihn geprüft haben und ab wann er gilt.",
@@ -11828,7 +11830,7 @@ export const traegerDatevExportTopic =
 
 /**
  * `/traeger/einstellungen/dokumentarten` (#4688): Rechnung, Gebührenbescheid
- * oder Bestätigung mit Rechnung je Leistung; die Rechtsbehelfsbelehrung des
+ * oder Bestätigung und Rechnung je Leistung; die Rechtsbehelfsbelehrung des
  * Bescheids schreibt der Träger in der Vorlage „Bescheid“.
  */
 export const traegerDocumentKindsTopic =
@@ -11839,7 +11841,7 @@ export const traegerDocumentKindsTopic =
       question:
         "Wie lege ich fest, ob Familien eine Rechnung oder einen Bescheid bekommen?",
       summary:
-        "Je Leistung wählen Sie das Schreiben: Rechnung, Gebührenbescheid oder bei den Ferien die Bestätigung mit Rechnung. Ein Gebührenbescheid braucht Ihre Rechtsbehelfsbelehrung.",
+        "Je Leistung wählen Sie das Schreiben: Rechnung, Gebührenbescheid oder bei den Ferien die Bestätigung und Rechnung. Ein Gebührenbescheid braucht Ihre Rechtsbehelfsbelehrung.",
       group: "konfiguration",
       audience: "traeger",
       icon: "ClipboardList",
@@ -11849,17 +11851,17 @@ export const traegerDocumentKindsTopic =
         {
           title: "Dokumentart wählen",
           description:
-            "Ohne Ihre Wahl bekommen Familien bei den Ferien die Bestätigung mit Rechnung und beim Monatsbeitrag eine Rechnung.",
+            "Ohne Ihre Wahl bekommen Familien bei den Ferien die Bestätigung und Rechnung und beim Monatsbeitrag eine Rechnung.",
           steps: [
             "Wählen Sie unten in der Navigation `Einstellungen` und dann `Dokumentarten`.",
-            "In der Karte `Ferienbetreuung` oder `Monatsbeitrag` wählen Sie eine Art: `Rechnung`, `Gebührenbescheid` oder `Bestätigung mit Rechnung`.",
+            "In der Karte `Ferienbetreuung` oder `Monatsbeitrag` wählen Sie eine Art: `Rechnung`, `Gebührenbescheid` oder `Bestätigung und Rechnung`.",
             "Wählen Sie `Speichern`.",
           ],
         },
         {
           title: "Rechtsbehelfsbelehrung eintragen",
           description:
-            "Den Text ändert, wer das Recht `Einstellungen` hat. moto gibt keinen Rechtstext vor.",
+            "Den Text ändert, wer die Rolle `Verwaltung` hat. moto gibt keinen Rechtstext vor.",
           steps: [
             "Wählen Sie auf der Seite `Dokumentarten` in der Karte `Rechtsbehelfsbelehrung` den Knopf `Belehrung eintragen`.",
             "Schreiben Sie den Text in das Feld `Rechtsbehelfsbelehrung`. Nennen Sie Frist, Stelle und Form des Widerspruchs.",
@@ -11876,8 +11878,8 @@ export const traegerDocumentKindsTopic =
         "Ändern Sie die Dokumentart nach der Prüfung eines Laufs, lehnt moto die Freigabe ab. Laden Sie den Lauf neu und prüfen Sie ihn noch einmal.",
       ],
       troubleshootingDetails: [
-        "Statt `Belehrung eintragen` sehen Sie `Vorlage ansehen`? Ihnen fehlt das Recht `Einstellungen`. Bitten Sie eine Person mit diesem Recht, die Belehrung einzutragen.",
-        "Im Lauf steht `Rechtsbehelfsbelehrung fehlt` und `Freigeben` geht nicht? Tragen Sie die Belehrung in der Vorlage `Bescheid` ein. Danach können Sie freigeben.",
+        "Statt `Belehrung eintragen` sehen Sie `Vorlage ansehen`? Ihnen fehlt die Rolle `Verwaltung`. Bitten Sie eine Person mit dieser Rolle, die Belehrung einzutragen.",
+        "Im Lauf steht `Rechtsbehelfsbelehrung fehlt` und `Freigeben` geht nicht? Tragen Sie die Belehrung in der Vorlage `Gebührenbescheid` ein. Danach können Sie freigeben.",
         "Die Seite `Dokumentarten` fehlt? Ihnen fehlt die Rolle `Abrechnung`.",
       ],
       related: [
@@ -11941,11 +11943,11 @@ export const traegerDocumentTemplatesTopic =
         "Die `Vorschau` zeigt auch Anschrift, Rechnungsnummer und Debitorennummer. So sehen Sie Text, Nummern und Tabelle zusammen.",
         "Sind alle Platzhalter eines Absatzes leer, fehlt der Absatz im Brief. So entfallen zum Beispiel die Notfallnummern, wenn keine eingetragen sind.",
         "Mit `Standardtext laden` holen Sie den Text von moto zurück in den Editor.",
-        "Die Vorlage `Bescheid` hat ein eigenes Feld `Rechtsbehelfsbelehrung`. Ohne diesen Text gibt moto keinen Gebührenbescheid frei. Er steht immer nach dem Brieftext.",
+        "Die Vorlage `Gebührenbescheid` hat ein eigenes Feld `Rechtsbehelfsbelehrung`. Ohne diesen Text gibt moto keinen Gebührenbescheid frei. Er steht immer nach dem Brieftext.",
         "moto nutzt die Vorlagen für das Bestätigungsschreiben der Ferien, den Betreuungsvertrag, die Ferienrechnung und den Gebührenbescheid. Welches Schreiben ein Lauf ausstellt, legen Sie unter `Dokumentarten` fest. Die anderen Dokumente folgen.",
       ],
       differences: [
-        "Sie können die Vorlage nur ansehen? Ihnen fehlt das Recht `Einstellungen`. Wenden Sie sich an eine Person mit der Rolle `Verwaltung`.",
+        "Sie können die Vorlage nur ansehen? Ihnen fehlt die Rolle `Verwaltung`. Die Rollen vergibt, wer die Rolle `Leitung` hat.",
       ],
       troubleshootingDetails: [
         "moto nimmt die Vorlage nicht an und nennt Platzhalter? Diese kennt das Dokument nicht. Prüfen Sie die Schreibweise mit der Liste `Platzhalter`.",
@@ -12222,7 +12224,7 @@ export const traegerHolidayContributionTopic =
           steps: [
             "Wählen Sie unten in der Navigation `Einstellungen`.",
             "Wählen Sie `Abrechnungsvorgaben`.",
-            "Wählen Sie bei `Geschwister` den Knopf `Geschwisterregel hinzufügen`.",
+            "Wählen Sie bei `Geschwister` den Knopf `Geschwisterregel anlegen`.",
             "Tragen Sie ein, ab wann die Regel gilt. `Gilt bis` können Sie frei lassen.",
             "Wählen Sie `ab dem 2. Kind` oder `ab dem 3. Kind`.",
             "Wählen Sie `Anteil in Prozent` oder `Betrag in Euro` und tragen Sie den Wert ein. Zum Beispiel 50 für die Hälfte.",
@@ -12234,7 +12236,7 @@ export const traegerHolidayContributionTopic =
           description:
             "Die Regel gilt für alle Familien mit Leistungsbezug. Sie legen damit keine einzelne Familie an. Welche Familie befreit ist, wählen Sie beim Bestätigen der Anmeldung.",
           steps: [
-            "Wählen Sie bei `Befreiung bei Leistungsbezug` den Knopf `Befreiungsregel hinzufügen`.",
+            "Wählen Sie bei `Befreiung bei Leistungsbezug` den Knopf `Befreiungsregel anlegen`.",
             "Tragen Sie ein, ab wann die Regel gilt. `Gilt bis` können Sie frei lassen.",
             "Schreiben Sie den `Vermerk auf dem Beitrag`. Er steht bei jeder befreiten Familie.",
             "Wählen Sie `Speichern`.",
@@ -12320,7 +12322,7 @@ export const traegerHolidayFormTopic =
         {
           title: "Hinweise und Einwilligungen ergänzen",
           steps: [
-            "Wählen Sie unter `Hinweise und Einwilligungen` die Aktion `Eigene Zustimmung hinzufügen`.",
+            "Wählen Sie unter `Hinweise und Einwilligungen` die Aktion `Hinweis oder Einwilligung hinzufügen`.",
             "Tragen Sie `Titel` und `Text neben dem Häkchen oder Hinweis` ein.",
             "Ergänzen Sie den Text unter `Rechtstext / Erklärung`.",
             "Für ein PDF wählen Sie `PDFs hinzufügen`. Höchstens 10 MB je Datei.",
@@ -12629,7 +12631,7 @@ export const traegerHolidayRegistrationReviewTopic =
           steps: [
             "Prüfen Sie die Angaben der Eltern und der Kinder. Antworten auf eigene Fragen stehen beim Kind unter `Weitere Angaben`, allgemeine Antworten unter `Allgemeine Angaben`.",
             "Unter `Hinweise und Einwilligungen` sehen Sie, was die Eltern bestätigt haben und wann. Dort stehen die damaligen Texte und PDFs.",
-            "Unter `Eltern` stehen `Sorgerecht bestätigt`, `Name als Erklärung` und `Fassung der Texte`. Den genauen Text öffnen Sie unter `Wortlaut der Erklärung`.",
+            "Unter `Eltern` stehen `Sorgerecht bestätigt`, `Unterschrieben mit Namen` und `Version der Erklärung`. Den genauen Text öffnen Sie unter `Wortlaut der Erklärung`.",
             "Prüfen Sie unter `Ferienbeitrag`, was die Familie zahlt.",
             "Geben die Eltern an, dass sie Leistungen beziehen? Prüfen Sie den Nachweis. Haben die Eltern ihn hochgeladen, wählen Sie unter `Nachweis für den Leistungsbezug` den Dateinamen. Die Datei öffnet sich in einem neuen Tab.",
             "Bringt die Familie den Nachweis auf Papier, scannen Sie ihn. Wählen Sie unter `Nachweis für den Leistungsbezug` den Knopf `Nachweis hochladen` und dann die Datei. Erlaubt sind PDF, JPEG und PNG bis 10 MB.",
@@ -12818,7 +12820,7 @@ export const traegerHolidayRegistrationTopic =
         "Geben Sie den Link an die Eltern weiter, zum Beispiel in einem Elternbrief der Schulen.",
       ],
       result:
-        "Eltern melden ihre Kinder über den Link an. Unter dem Link steht, wie viele Anmeldungen eingegangen sind.",
+        "Eltern melden ihre Kinder über den Link an. Unter dem Link steht, wie viele Anmeldungen es bisher gibt.",
       notes: [
         "Für einen Aushang gibt es den Link auch als QR-Code. Wählen Sie neben dem Link `QR-Code`, dann `Bild speichern`. In der Mitte steht Ihr Logo aus dem Briefkopf, sonst das moto-Logo.",
         "Unter `Hinweise und Einwilligungen` öffnen Sie die PDFs. Setzen Sie die nötigen Häkchen. Die Zusammenfassung zeigt Ihre Bestätigungen.",
@@ -12966,7 +12968,7 @@ export const traegerKeyDateCountsTopic =
       title: "Stichtagszahlen der Schulen",
       question: "Nach welchen Zahlen berechnet moto meine Schulen?",
       summary:
-        "Die Stichtagszahlen zeigen je Monat die aktiven Kinder und Terminals jeder Schule am Stichtag.",
+        "Die Stichtagszahlen zeigen je Monat die aktiven Kinder und Geräte jeder Schule am Stichtag.",
       group: "einstieg",
       audience: "traeger",
       icon: "CalendarCheck",
@@ -12978,7 +12980,7 @@ export const traegerKeyDateCountsTopic =
         "Wählen Sie unter `Alle Monate` einen Monat, um seine Zahlen zu sehen.",
       ],
       result:
-        "Sie sehen für jede Schule, wie viele aktive Kinder und aktive Terminals moto am Stichtag gezählt hat.",
+        "Sie sehen für jede Schule, wie viele aktive Kinder und aktive Geräte moto am Stichtag gezählt hat.",
       notes: [
         "Suchen Sie oben nach einer Schule oder einem Ort.",
         "moto hält die Zahlen am Stichtag einmal fest. Danach ändern sie sich nicht mehr.",
@@ -13360,7 +13362,7 @@ export const traegerSepaMandatesTopic =
         {
           title: "Mandat widerrufen",
           steps: [
-            "Öffnen Sie unter `Abrechnung` im Reiter `Lastschrift` die Familie. Oder wählen Sie beim Vertrag `Mandat ansehen`.",
+            "Öffnen Sie unter `Familien und Zahlung` im Reiter `Lastschrift` die Familie. Oder wählen Sie beim Vertrag `Mandat ansehen`.",
             "Wählen Sie beim Mandat das Menü mit den drei Punkten und dann `Widerrufen`.",
             "Wählen Sie bei `Widerruf erhalten am` den Tag, an dem der Widerruf kam.",
             "Wählen Sie `Widerrufen`.",
@@ -13370,7 +13372,7 @@ export const traegerSepaMandatesTopic =
       result:
         "Im nächsten Monatslauf steht auf jeder Rechnung mit Lastschrift die Vorabankündigung: Betrag, Tag der Abbuchung, Konto (verdeckt), Gläubiger-ID und Mandatsreferenz. Der Betrag ist das, was die Familie zahlt, also ohne den Anteil eines Kostenträgers.",
       notes: [
-        "Alle Mandate sehen Sie unter `Abrechnung` im Reiter `Lastschrift`.",
+        "Die Mandate sehen Sie unter `Familien und Zahlung` im Reiter `Lastschrift`. Die Liste zeigt zuerst die gültigen; mit `Alle` sehen Sie auch die widerrufenen.",
         "Ein Mandat aus der Eltern-App hat die Herkunft `von den Eltern`. moto speichert dazu den bestätigten Text mit Prüfsumme, das Konto der Eltern und die Uhrzeit. Widerrufen die Eltern in der App, gilt das ab dem nächsten Monatslauf.",
         "Ob die App Mandate annimmt, sehen Sie unter `Abrechnungsvorgaben` in der Karte `Lastschrift` bei `Mandat in der Eltern-App`. Ohne Gläubiger-ID oder ohne Absender im Briefkopf nimmt die App kein Mandat an.",
         "Die IBAN sehen Sie nach dem Speichern nur verdeckt. So steht sie auch auf der Rechnung.",
@@ -13427,8 +13429,8 @@ export const traegerSettingsTopic = function traegerSettingsTopic(): HelpTopic {
       "`Zurücksetzen` entfernt Ihren Wert. Dann gilt wieder der Standard.",
       "Eine Schule kann einen eigenen Wert eintragen. Dann gilt dort ihr Wert.",
       "Den eigenen Wert einer Schule kann nur die Schule selbst zurücksetzen.",
-      "Im Bereich `Kontakt` tragen Sie den `Ansprechpartner` Ihres Trägers ein. Er steht auf allen Briefen und Rechnungen.",
-      "Darunter steht `Kontakt für Widerrufe`. Diese Telefonnummer und E-Mail-Adresse nennt die Widerrufsbelehrung jedes Betreuungsvertrags. Ein leeres Feld nimmt die Angabe des Ansprechpartners. Die Vorschau zeigt den Satz so, wie Eltern ihn lesen. Nach einer Änderung kopiert die Schule die Widerrufsbelehrung neu ins Anmeldeformular.",
+      "Im Bereich `Kontakt` tragen Sie die `Ansprechperson` Ihres Trägers ein. Sie steht auf allen Briefen und Rechnungen.",
+      "Darunter steht `Kontakt für Widerrufe`. Diese Telefonnummer und E-Mail-Adresse nennt die Widerrufsbelehrung jedes Betreuungsvertrags. Ein leeres Feld nimmt die Angabe der Ansprechperson. Die Vorschau zeigt den Satz so, wie Eltern ihn lesen. Nach einer Änderung kopiert die Schule die Widerrufsbelehrung neu ins Anmeldeformular.",
       "Mit `Zurück zur App` oben in der Navigation kommen Sie zur zuletzt geöffneten Seite zurück.",
       "Im Bereich `Ferienbetreuung` legen Sie fest, ob Sie beim Bestätigen einer Ferienanmeldung die Debitorennummer der Familie abfragen. Diese Einstellung gilt nur im Träger-Büro.",
       "Hat Ihre Kasse ein festes Format, schalten Sie dort `Debitorennummer: nur Ziffern` ein. Darunter tragen Sie bei `Länge` ein, von wie vielen bis wie vielen Ziffern eine Nummer hat. Für genau 5 Ziffern tragen Sie zweimal 5 ein. Das `Beispiel` zeigt eine passende Nummer.",
@@ -13440,7 +13442,7 @@ export const traegerSettingsTopic = function traegerSettingsTopic(): HelpTopic {
       "Unter `Ferienbetreuung` legen Sie bei `Ferienbeitrag` auch fest, welches Kind das erste Kind ist und was ein Kostenträger bezahlt. Mehr dazu steht im Artikel `Ferienbeitrag festlegen`.",
     ],
     differences: [
-      "Auf dem Handy steht `Einstellungen` in der Leiste unten. Der Pfeil führt zurück zur App.",
+      "Auf dem Handy öffnen Sie in der Leiste unten `Mehr` und dann `Einstellungen`. Dort führt `Zurück zur App` wieder zurück.",
       "Sie können die Werte nur ansehen? Ihnen fehlt das Recht zum Ändern. Wenden Sie sich an das moto-Team.",
     ],
     related: [HELP_TOPICS.traegerLogin, HELP_TOPICS.errorMessages],

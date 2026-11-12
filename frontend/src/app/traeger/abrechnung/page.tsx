@@ -12,12 +12,19 @@ import { Plus, Receipt } from "lucide-react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useCallback, useEffect, useState } from "react";
 import { BillingRunStartModal } from "~/components/traeger/billing-run-start-modal";
-import { billingTabs } from "~/components/traeger/billing-family-format";
+import {
+  billingAreaTitle,
+  billingTabs,
+} from "~/components/traeger/billing-family-format";
 import {
   BILLING_RUN_STATUS_LABELS,
   BILLING_RUN_STATUS_TONES,
 } from "~/components/traeger/billing-format";
 import { BILLING_PERIOD_PARAM } from "~/components/traeger/use-holiday-period-billing-href";
+import {
+  factLine,
+  invoiceCountLabel,
+} from "~/components/traeger/care-billing-format";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import { formatDateRange } from "~/components/traeger/holiday-period-format";
 import { Button } from "~/components/ui/button";
@@ -30,6 +37,7 @@ import type {
 } from "~/components/ui/page-header/types";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
+import { ListSkeleton } from "~/components/ui/page-skeletons";
 import { useApiLoadError } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
@@ -43,11 +51,49 @@ import { traegerPath } from "~/lib/traeger-url";
 
 const logger = createLogger({ component: "TraegerAbrechnungPage" });
 
-const COLUMNS: DataTableColumn<BillingRun>[] = [
+// On a phone a run is one line: its holiday period, the status beside it,
+// and below the care days with what the run issued. Only the first "meta"
+// column shows there, so the status is the one meta value.
+/**
+ * The number of a run within its holiday period, oldest first, for periods
+ * with more than one run: two rows of one period differ by more than a pill.
+ */
+function runOrdinals(runs: readonly BillingRun[]): Map<string, number> {
+  const byPeriod = new Map<string, BillingRun[]>();
+  for (const run of runs) {
+    byPeriod.set(run.holidayPeriodId, [
+      ...(byPeriod.get(run.holidayPeriodId) ?? []),
+      run,
+    ]);
+  }
+  const ordinals = new Map<string, number>();
+  for (const periodRuns of byPeriod.values()) {
+    if (periodRuns.length < 2) continue;
+    [...periodRuns]
+      .sort((a, b) => a.createdAt.localeCompare(b.createdAt))
+      .forEach((run, index) => ordinals.set(run.id, index + 1));
+  }
+  return ordinals;
+}
+
+const columnsFor = (
+  ordinals: ReadonlyMap<string, number>,
+): DataTableColumn<BillingRun>[] => [
   {
     key: "period",
     header: "Ferienzeitraum",
     render: (run) => (
+      <span className="block">
+        <span className="font-medium text-gray-900">{run.periodName}</span>
+        {ordinals.has(run.id) ? (
+          <span className="block text-sm text-gray-600">
+            {ordinals.get(run.id)}. Lauf für diesen Zeitraum
+          </span>
+        ) : null}
+      </span>
+    ),
+    // A phone row names the run's number once, in the line below.
+    stackedRender: (run) => (
       <span className="font-medium text-gray-900">{run.periodName}</span>
     ),
     stacked: "title",
@@ -55,8 +101,26 @@ const COLUMNS: DataTableColumn<BillingRun>[] = [
   {
     key: "days",
     header: "Betreuung",
-    render: (run) => formatDateRange(run.serviceFrom, run.serviceUntil),
-    stacked: "meta",
+    // A date range reads as one value: it never breaks after „bis“.
+    render: (run) => (
+      <span className="md:whitespace-nowrap">
+        {formatDateRange(run.serviceFrom, run.serviceUntil)}
+      </span>
+    ),
+    // On a phone the title keeps one line; the run's number leads the
+    // line below, so two runs of one period still differ.
+    stackedRender: (run) =>
+      factLine([
+        ordinals.has(run.id) ? `${ordinals.get(run.id)}. Lauf` : null,
+        formatDateRange(run.serviceFrom, run.serviceUntil),
+        run.documentCount === null
+          ? null
+          : invoiceCountLabel(run.documentCount),
+        run.documentCount === null ? null : formatEuro(run.totalCents ?? 0),
+        run.issuedOn ? `ausgestellt am ${formatDate(run.issuedOn)}` : null,
+      ]),
+    // The line names itself; „Betreuung“ in front would only label the dates.
+    stackedLabel: false,
   },
   {
     key: "status",
@@ -72,17 +136,25 @@ const COLUMNS: DataTableColumn<BillingRun>[] = [
   {
     key: "invoices",
     header: "Rechnungen",
+    // Same cell as the monthly runs: count with its word, or why none.
     render: (run) =>
-      run.documentCount === null
-        ? "–"
-        : `${run.documentCount} · ${formatEuro(run.totalCents ?? 0)}`,
-    stacked: "meta",
+      run.documentCount === null ? (
+        <span className="whitespace-nowrap text-gray-600">
+          noch nicht ausgestellt
+        </span>
+      ) : (
+        <span className="whitespace-nowrap tabular-nums">
+          {`${invoiceCountLabel(run.documentCount)} · ${formatEuro(run.totalCents ?? 0)}`}
+        </span>
+      ),
+    stacked: "hidden",
   },
   {
     key: "issued",
     header: "Ausgestellt am",
+    headerClassName: "whitespace-nowrap",
     render: (run) => (run.issuedOn ? formatDate(run.issuedOn) : "–"),
-    stacked: "meta",
+    stacked: "hidden",
   },
 ];
 
@@ -127,7 +199,9 @@ function filteredEmptyText(
 export default function TraegerAbrechnungPage() {
   // `useSearchParams` braucht eine Suspense-Grenze; bis dahin lädt die Seite.
   return (
-    <Suspense fallback={<TenantPage title="Abrechnung" loading />}>
+    <Suspense
+      fallback={<TenantPage title={billingAreaTitle("laeufe")} loading />}
+    >
       <BillingRunsPage />
     </Suspense>
   );
@@ -194,8 +268,10 @@ function BillingRunsPage() {
     (period) => period.id === periodFilter,
   );
 
+  // The filter stands from the start, so the head does not jump when the
+  // runs arrive; without any period it has nothing to choose.
   const filters: FilterConfig[] =
-    options.length > 0
+    !data || options.length > 0
       ? [
           {
             id: "period",
@@ -219,7 +295,7 @@ function BillingRunsPage() {
 
   return (
     <TenantPage
-      title="Abrechnung"
+      title={billingAreaTitle("laeufe")}
       info="Hier rechnen Sie die Ferienbetreuung im Voraus ab, nach den bestätigten Buchungen. Ein Lauf erstellt die Rechnungen für einen Ferienzeitraum. Sie prüfen die Vorschau und geben den Lauf dann frei."
       stats={
         shownRuns.length > 0 ? (
@@ -256,13 +332,31 @@ function BillingRunsPage() {
         </Button>
       }
       error={pageLoad.error}
-      loading={!pageLoad.error && !data}
+      // A list loads in the shape of its rows.
+      loading={
+        !pageLoad.error && !data ? (
+          <ListSkeleton rows={6} avatar={false} />
+        ) : (
+          false
+        )
+      }
       overlays={
         data ? (
           <BillingRunStartModal
             isOpen={starting}
             periods={data.periods}
             initialPeriodId={periodFilter}
+            openRunIds={
+              new Map(
+                data.runs
+                  .filter((run) => run.status === "calculated")
+                  .map((run) => [run.holidayPeriodId, run.id]),
+              )
+            }
+            onOpenRun={(runId) => {
+              setStarting(false);
+              router.push(traegerPath(`/traeger/abrechnung/${runId}`));
+            }}
             onClose={() => setStarting(false)}
             onStarted={(run) => {
               setStarting(false);
@@ -282,11 +376,15 @@ function BillingRunsPage() {
             />
           ) : null}
           <DataTable
-            columns={COLUMNS}
+            columns={columnsFor(runOrdinals(data.runs))}
             rows={shownRuns}
             getRowKey={(run) => run.id}
+            // Five columns beside the period's name: narrower gaps leave the
+            // name its line on a tablet.
+            dense
             stackedOnMobile
             stackedLayout="row"
+            stackedDetailKey="days"
             onRowClick={openRun}
             emptyState={
               <EmptyState

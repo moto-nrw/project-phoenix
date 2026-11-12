@@ -8,12 +8,12 @@
 
 import { isRefusal } from "~/components/traeger/use-traeger-confirmed-resource";
 import { SepaMandateStatusCard } from "~/components/traeger/sepa-mandate-status-card";
-import { Download, RotateCw, Send, Trash2 } from "lucide-react";
+import { ChevronDown, Download, RotateCw, Send, Trash2 } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import {
   CONTRACT_STATUS_LABELS,
-  CONTRACT_STATUS_TONES,
+  contractStatusTone,
   MAIL_STATE_LABELS,
   MAIL_STATE_TONES,
   SEND_SKIP_LABELS,
@@ -29,9 +29,15 @@ import {
   plannedVersion,
 } from "~/components/traeger/care-contract-versions";
 import { CareContractSignatureCard } from "~/components/traeger/care-contract-signature-card";
+import { EmailText } from "~/components/traeger/email-text";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import {
+  OverflowMenu,
+  type OverflowMenuItem,
+} from "~/components/ui/page-header/OverflowMenu";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
+import { ConfirmationModal } from "~/components/ui/modal";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { Input } from "~/components/ui/input";
 import {
@@ -52,6 +58,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { careContractsConcept } from "~/lib/concepts/careContracts";
+import { careTimesConcept } from "~/lib/concepts/careTimes";
 import { parentsConcept } from "~/lib/concepts/parents";
 import {
   formatBerlinDate,
@@ -72,6 +79,7 @@ import {
   resendCareContract,
 } from "~/lib/traeger-care-contracts-api";
 import { traegerPath } from "~/lib/traeger-url";
+import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 
 const logger = createLogger({ component: "TraegerVertragPage" });
 
@@ -88,6 +96,7 @@ export default function TraegerVertragPage() {
   const [refreshing, setRefreshing] = useState(false);
   const [discarding, setDiscarding] = useState(false);
   const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [confirmingSend, setConfirmingSend] = useState(false);
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
   const actionError = useApiErrorDisplay();
@@ -278,9 +287,57 @@ export default function TraegerVertragPage() {
       contract.status === "widerrufen" ||
       contract.status === "beendet");
 
+  const sendBlocked =
+    sending ||
+    refreshing ||
+    lastMail?.state === "queued" ||
+    (!isDraft && !!lastMail?.sendBlock);
+  // An active contract is mostly looked up, not mailed again: its PDF is
+  // the visible action, and a new mail sits with the mail history in the
+  // card „Versand“, as does checking the delivery.
+  const resendInCard = contract?.status === "aktiv";
+  const sendInHead = canSend && !resendInCard;
+  const refreshInCard = !!contract && !isDraft && contract.mailings.length > 0;
+
+  const headMenu: OverflowMenuItem[] = [];
+  // The mail actions of the card „Versand“ are also one tap away from the
+  // head: on a phone that card sits several cards down the page.
+  if (refreshInCard) {
+    headMenu.push({
+      label: "Versand aktualisieren",
+      icon: <RotateCw className="h-4 w-4" aria-hidden="true" />,
+      onClick: () => {
+        if (!refreshing) void refreshDelivery();
+      },
+    });
+  }
+  if (contract && resendInCard && !sendBlocked) {
+    headMenu.push({
+      label: "Erneut senden",
+      icon: <Send className="h-4 w-4" aria-hidden="true" />,
+      onClick: () => setConfirmingSend(true),
+    });
+  }
+  if (contract && sendInHead) {
+    headMenu.push({
+      label: "PDF herunterladen",
+      icon: <Download className="h-4 w-4" aria-hidden="true" />,
+      onClick: () => void download(),
+    });
+  }
+  if (isDraft) {
+    headMenu.push({
+      label: "Entwurf verwerfen",
+      icon: <Trash2 className="h-4 w-4" aria-hidden="true" />,
+      destructive: true,
+      onClick: () => setConfirmDiscard(true),
+    });
+  }
+
   return (
     <TenantPage
       title={contract ? childName(contract) : "Vertrag"}
+      leading={<ConceptIconTile concept={careContractsConcept} size="page" />}
       back
       backHref={LIST_HREF}
       backLabel="Zurück zu den Verträgen"
@@ -289,12 +346,15 @@ export default function TraegerVertragPage() {
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-gray-600">
             <StatusBadge
               label={CONTRACT_STATUS_LABELS[contract.status]}
-              tone={CONTRACT_STATUS_TONES[contract.status]}
+              tone={contractStatusTone(contract)}
             />
             <span>
-              {contract.modulesText || "–"} · {contract.schoolName} · ab{" "}
-              {formatDate(contract.effectiveFrom)}
-              {contract.endsOn ? ` bis ${formatDate(contract.endsOn)}` : ""}
+              {contract.modulesText || "–"} · {contract.schoolName} ·{" "}
+              {/* A date keeps its word: „ab 01.08.2026“ never parts. */}
+              {`ab\u00A0${formatDate(contract.effectiveFrom)}`}
+              {contract.endsOn
+                ? ` bis\u00A0${formatDate(contract.endsOn)}`
+                : ""}
             </span>
           </span>
         ) : null
@@ -303,62 +363,54 @@ export default function TraegerVertragPage() {
       actions={
         contract ? (
           <>
-            {isDraft ? (
-              <Button
-                type="button"
-                variant="ghost_danger"
-                size="md"
-                onClick={() => setConfirmDiscard(true)}
-              >
-                <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
-                Entwurf verwerfen
-              </Button>
-            ) : null}
-            <Button
-              type="button"
-              variant="outline"
-              size="md"
-              onClick={() => void download()}
-            >
-              <Download className="mr-2 h-4 w-4" aria-hidden="true" />
-              PDF herunterladen
-            </Button>
-            {!isDraft && contract.mailings.length > 0 ? (
-              <Button
-                type="button"
-                variant="ghost"
-                size="md"
-                disabled={refreshing || sending}
-                onClick={() => void refreshDelivery()}
-              >
-                <RotateCw className="mr-2 h-4 w-4" aria-hidden="true" />
-                {refreshing ? "Wird aktualisiert …" : "Versand aktualisieren"}
-              </Button>
-            ) : null}
-            {canSend ? (
+            {sendInHead ? (
               <Button
                 type="button"
                 variant={isDraft ? "success" : "outline"}
                 size="md"
-                disabled={
-                  sending ||
-                  refreshing ||
-                  lastMail?.state === "queued" ||
-                  (!isDraft && !!lastMail?.sendBlock)
-                }
-                onClick={() => void send()}
+                disabled={sendBlocked}
+                onClick={() => setConfirmingSend(true)}
               >
-                {isDraft ? (
-                  <Send className="mr-2 h-4 w-4" aria-hidden="true" />
-                ) : (
-                  <RotateCw className="mr-2 h-4 w-4" aria-hidden="true" />
-                )}
+                <Send className="mr-2 h-4 w-4" aria-hidden="true" />
                 {sending
                   ? "Wird gesendet …"
                   : isDraft
                     ? "Vertrag senden"
                     : "Erneut senden"}
               </Button>
+            ) : (
+              <Button
+                type="button"
+                variant="outline"
+                size="md"
+                onClick={() => void download()}
+              >
+                <Download className="mr-2 h-4 w-4" aria-hidden="true" />
+                PDF herunterladen
+              </Button>
+            )}
+            {/* One visible action; the rest waits in the menu (TENANT-PAGE-SPEC
+                rule 4). An entry that cannot run right now stays out. For an
+                active contract the menu holds only the mail actions, so it
+                is named „Versand“ instead of a bare ⋮. */}
+            {headMenu.length > 0 ? (
+              resendInCard && !isDraft ? (
+                <OverflowMenu
+                  items={headMenu}
+                  ariaLabel="Versand"
+                  triggerButton={{ variant: "outline", size: "md" }}
+                  // The arrow says that a menu opens, as on the download menus.
+                  triggerClassName="gap-2 whitespace-nowrap"
+                  triggerContent={
+                    <>
+                      Versand
+                      <ChevronDown className="h-4 w-4" aria-hidden />
+                    </>
+                  }
+                />
+              ) : (
+                <OverflowMenu items={headMenu} ariaLabel="Weitere Aktionen" />
+              )
             ) : null}
           </>
         ) : null
@@ -366,21 +418,44 @@ export default function TraegerVertragPage() {
       error={contract ? pageLoad.error : (afterSend.error ?? pageLoad.error)}
       loading={!pageLoad.error && !afterSend.error && !contract}
       overlays={
-        <ConfirmDeleteModal
-          isOpen={confirmDiscard}
-          title="Entwurf verwerfen?"
-          description={
-            contract
-              ? `Der Entwurf für ${childName(contract)} wird gelöscht. Die Anmeldung bleibt; Sie können danach einen neuen Entwurf erstellen.`
-              : ""
-          }
-          gate={{ mode: "twoStep" }}
-          confirmLabel="Entwurf verwerfen"
-          loading={discarding}
-          error={discardErrors.error}
-          onConfirm={discard}
-          onClose={() => setConfirmDiscard(false)}
-        />
+        <>
+          {/* Sending mails the parents at once and cannot be taken back,
+              so the button asks first and names who gets it. */}
+          <ConfirmationModal
+            isOpen={confirmingSend}
+            title={isDraft ? "Vertrag senden?" : "Vertrag noch einmal senden?"}
+            confirmText={isDraft ? "Vertrag senden" : "Erneut senden"}
+            isConfirmLoading={sending}
+            loadingText="Wird gesendet …"
+            onClose={() => setConfirmingSend(false)}
+            onConfirm={() => {
+              setConfirmingSend(false);
+              void send();
+            }}
+          >
+            <p className="text-sm text-gray-700">
+              {`Der Vertrag geht per Mail an ${party?.email ?? "die Eltern"}${
+                party?.hasAccount ? " und in die Eltern-App" : ""
+              }.`}{" "}
+              Eine gesendete Mail lässt sich nicht zurückholen.
+            </p>
+          </ConfirmationModal>
+          <ConfirmDeleteModal
+            isOpen={confirmDiscard}
+            title="Entwurf verwerfen?"
+            description={
+              contract
+                ? `Der Entwurf für ${childName(contract)} wird gelöscht. Die Anmeldung bleibt; Sie können danach einen neuen Entwurf erstellen.`
+                : ""
+            }
+            gate={{ mode: "twoStep" }}
+            confirmLabel="Entwurf verwerfen"
+            loading={discarding}
+            error={discardErrors.error}
+            onConfirm={discard}
+            onClose={() => setConfirmDiscard(false)}
+          />
+        </>
       }
     >
       {contract ? (
@@ -437,6 +512,7 @@ export default function TraegerVertragPage() {
                 </DataGrid>
               </SectionCard>
               <SectionCard
+                leading={<ConceptIconTile concept={careTimesConcept} />}
                 title="Gebuchte Betreuung"
                 description={
                   contract.versions.length > 1
@@ -495,7 +571,9 @@ export default function TraegerVertragPage() {
               <SectionCard concept={parentsConcept} title="Eltern">
                 {party ? (
                   <DataGrid columns={1}>
-                    <DataField label="Vertragspartei">
+                    {/* „Vertragspartner“ names the Träger's side on this
+                        page; the family's side is named by what it is. */}
+                    <DataField label="Vertrag mit">
                       {`${party.firstName} ${party.lastName}`.trim()}
                     </DataField>
                     <DataField label="E-Mail bei Vertragserstellung">
@@ -511,7 +589,7 @@ export default function TraegerVertragPage() {
                   </DataGrid>
                 ) : (
                   <p className="text-sm text-gray-600">
-                    Keine Vertragspartei hinterlegt.
+                    Im Vertrag steht kein Elternteil.
                   </p>
                 )}
               </SectionCard>
@@ -520,6 +598,41 @@ export default function TraegerVertragPage() {
               ) : null}
               <SectionCard
                 title="Versand"
+                actions={
+                  resendInCard || refreshInCard ? (
+                    <div className="flex flex-wrap gap-2">
+                      {refreshInCard ? (
+                        <Button
+                          type="button"
+                          variant="surface"
+                          size="compact"
+                          disabled={refreshing}
+                          onClick={() => void refreshDelivery()}
+                        >
+                          <RotateCw
+                            className="mr-1.5 h-4 w-4"
+                            aria-hidden="true"
+                          />
+                          {refreshing
+                            ? "Wird aktualisiert …"
+                            : "Versand aktualisieren"}
+                        </Button>
+                      ) : null}
+                      {resendInCard ? (
+                        <Button
+                          type="button"
+                          variant="surface"
+                          size="compact"
+                          disabled={sendBlocked}
+                          onClick={() => setConfirmingSend(true)}
+                        >
+                          <Send className="mr-1.5 h-4 w-4" aria-hidden="true" />
+                          {sending ? "Wird gesendet …" : "Erneut senden"}
+                        </Button>
+                      ) : null}
+                    </div>
+                  ) : undefined
+                }
                 description={
                   contract.mailings.length > 0
                     ? undefined
@@ -531,23 +644,22 @@ export default function TraegerVertragPage() {
                 {contract.mailings.length > 0 ? (
                   <ol className="space-y-3">
                     {contract.mailings.map((mailing) => (
-                      <li
-                        key={mailing.sentAt}
-                        className="flex items-start justify-between gap-3"
-                      >
-                        <span className="min-w-0 text-sm">
-                          <span className="block font-medium text-gray-900">
+                      // The state sits beside the time; the address gets
+                      // the full width of the card, so it rarely breaks.
+                      <li key={mailing.sentAt} className="min-w-0 text-sm">
+                        <span className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1">
+                          <span className="font-medium text-gray-900">
                             {formatBerlinDate(mailing.sentAt)},{" "}
                             {formatBerlinTime(mailing.sentAt)} Uhr
                           </span>
-                          <span className="block wrap-anywhere text-gray-500">
-                            an {mailing.recipient}
-                          </span>
+                          <StatusBadge
+                            label={contractMailBadge(mailing).label}
+                            tone={contractMailBadge(mailing).tone}
+                          />
                         </span>
-                        <StatusBadge
-                          label={contractMailBadge(mailing).label}
-                          tone={contractMailBadge(mailing).tone}
-                        />
+                        <span className="mt-0.5 block text-gray-500">
+                          an <EmailText email={mailing.recipient} />
+                        </span>
                       </li>
                     ))}
                   </ol>
@@ -572,6 +684,7 @@ export default function TraegerVertragPage() {
                       Versanddaten bleiben erhalten.
                     </p>
                     <Input
+                      controlSize="touch"
                       name="recipient_email"
                       type="email"
                       label="Neue Versandadresse"
@@ -751,7 +864,17 @@ function StatusNotice({
     return (
       <Alert
         type="success"
-        message={`Der Vertrag gilt seit der Annahme der Anmeldung am ${formatBerlinDate(contract.concluded.at)}. Die Eltern bekommen ihn per E-Mail und in der Eltern-App. Sie müssen nichts unterschreiben.`}
+        // The app shows the contract only with a linked parent account. Once
+        // the mail is out, „Versand“ names it: the banner says only the app.
+        message={`Der Vertrag gilt seit der Annahme der Anmeldung am ${formatBerlinDate(contract.concluded.at)}. ${
+          last?.state === "sent"
+            ? contract.parties.some((party) => party.hasAccount)
+              ? "Die Eltern sehen ihn auch in der Eltern-App."
+              : "In der Eltern-App sehen die Eltern ihn, sobald sie ein Konto verknüpft haben."
+            : contract.parties.some((party) => party.hasAccount)
+              ? "Die Eltern bekommen ihn per E-Mail und in der Eltern-App."
+              : "Die Eltern bekommen ihn per E-Mail. In der Eltern-App sehen sie ihn, sobald sie ein Konto verknüpft haben."
+        }`}
       />
     );
   }
@@ -759,7 +882,7 @@ function StatusNotice({
     return (
       <Alert
         type="info"
-        message="Die Mail wartet auf den Versand. Mit „Versand aktualisieren“ prüfen Sie den Stand."
+        message="Die Mail wartet auf den Versand. Mit „Versand aktualisieren“ unter „Versand“ prüfen Sie den Stand."
       />
     );
   }
@@ -767,7 +890,7 @@ function StatusNotice({
     return (
       <Alert
         type="warning"
-        message="Das Ergebnis des Mail-Versands ist unbekannt. Mit „Versand aktualisieren“ prüfen Sie den Stand."
+        message="Das Ergebnis des Mail-Versands ist unbekannt. Mit „Versand aktualisieren“ unter „Versand“ prüfen Sie den Stand."
       />
     );
   }
@@ -775,7 +898,7 @@ function StatusNotice({
     return (
       <Alert
         type="success"
-        message={`Gesendet am ${formatBerlinDate(last.sentAt)}. Die Mail ging an ${last.recipient}.`}
+        message={`Versendet am ${formatBerlinDate(last.sentAt)}. Die Mail ging an ${last.recipient}.`}
       />
     );
   }

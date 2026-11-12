@@ -262,7 +262,13 @@ export function PasswordResetModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onClose={handleClose} title="" footer={undefined}>
+    <Modal
+      isOpen={isOpen}
+      onClose={handleClose}
+      title=""
+      ariaLabel={isSuccess ? copy.successTitle : copy.title}
+      footer={undefined}
+    >
       <div className="text-center">
         {isSuccess ? (
           <>

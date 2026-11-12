@@ -27,8 +27,9 @@ import {
   type DraftDocumentSave,
 } from "~/components/enrollment/draft-documents";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, buttonClassName } from "~/components/ui/button";
 import { EditActions } from "~/components/ui/edit-actions";
+import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { EmptyState } from "~/components/ui/empty-state";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
@@ -80,8 +81,7 @@ const logger = createLogger({ component: "HolidayFormEditor" });
 const HOLIDAY_CONDITION_SOURCES: readonly ConditionSource[] = ["field"];
 
 const HOLIDAY_FREE_QUESTION_NOTE = {
-  title: "Eltern beantworten diese Frage bei der Ferienanmeldung.",
-  text: "Die Antwort sehen Sie in der Anmeldung. Ohne Gesundheitsangabe steht sie auch im Export.",
+  text: "Die Antworten sehen Sie in der Anmeldung. Ohne Gesundheitsangabe stehen sie auch im Export.",
 } as const;
 
 /** Marks a health question and a question the hosting OGS sees in the preview. */
@@ -141,6 +141,27 @@ export function HolidayFormEditor({
     address !== form.addressRequirement ||
     health !== form.healthRequirement;
   const missingTemplateFields = templateFieldsMissing(fields, form.template);
+  // On a phone a question folds to its head, so the long form stays
+  // walkable; from tablet width on every question starts open, all fields
+  // in view. A new question opens, and so does one the check marks.
+  const isPhone = useMediaQuery(BELOW_SM);
+  const foldByDefault = isPhone;
+  const [foldChoice, setFoldChoice] = useState<ReadonlyMap<string, boolean>>(
+    () => new Map(),
+  );
+  const fieldKey = (field: HolidayFormField) =>
+    getStableObjectKey(field, "holiday-field");
+  const isOpen = (key: string) => foldChoice.get(key) ?? !foldByDefault;
+  const setOpen = (keys: readonly string[], open: boolean) =>
+    setFoldChoice((current) => {
+      const next = new Map(current);
+      for (const key of keys) next.set(key, open);
+      return next;
+    });
+  const addField = (field: HolidayFormField) => {
+    setOpen([fieldKey(field)], true);
+    setFields((current) => [...current, field]);
+  };
   // With required health fields an own question about allergies or
   // medication asks parents a second time (#6686).
   const repeatedHealthQuestions =
@@ -169,6 +190,13 @@ export function HolidayFormEditor({
   const save = async () => {
     const errors = validateHolidayForm(fields);
     if (Object.keys(errors).length > 0) {
+      const marked = new Set(
+        Object.keys(errors).map((name) => /^fields\.(\d+)\./.exec(name)?.[1]),
+      );
+      setOpen(
+        fields.filter((_, index) => marked.has(String(index))).map(fieldKey),
+        true,
+      );
       errorPath.invalid("Bitte prüfen Sie die markierten Fragen.", errors);
       return;
     }
@@ -209,6 +237,27 @@ export function HolidayFormEditor({
   const familyFields = fields.filter((field) => !field.applies_to_child);
   const childFields = fields.filter((field) => field.applies_to_child);
 
+  const editActions = (
+    <EditActions
+      onCancel={() => {
+        errorPath.clear();
+        void draftDocuments.cleanup();
+        setLegalBlocks([...(form.legalBlocks ?? [])]);
+        setAddress(form.addressRequirement);
+        setHealth(form.healthRequirement);
+        // New row identities also discard row-local input drafts.
+        setFields(form.fields.map((field) => ({ ...field })));
+      }}
+      onSave={() => void save()}
+      saving={saving}
+      cancelDisabled={uploading}
+      disabled={!dirty || uploading}
+      // A phone keeps both buttons on one line under the long list.
+      cancelLabel={isPhone ? "Verwerfen" : "Änderungen verwerfen"}
+      saveLabel="Als neue Version speichern"
+    />
+  );
+
   return (
     <DraftDocumentContext.Provider value={draftDocuments.lifecycle}>
       <FieldErrorContext.Provider value={fieldError}>
@@ -218,40 +267,39 @@ export function HolidayFormEditor({
         >
           <SectionCard
             title="Fragen"
-            description="Diese Fragen stehen in der Ferienanmeldung zusätzlich zu den festen Angaben."
-            footer={
-              <EditActions
-                onCancel={() => {
-                  errorPath.clear();
-                  void draftDocuments.cleanup();
-                  setLegalBlocks([...(form.legalBlocks ?? [])]);
-                  setAddress(form.addressRequirement);
-                  setHealth(form.healthRequirement);
-                  // New row identities also discard row-local input drafts.
-                  setFields(form.fields.map((field) => ({ ...field })));
-                }}
-                onSave={() => void save()}
-                saving={saving}
-                cancelDisabled={uploading}
-                disabled={!dirty || uploading}
-                cancelLabel="Änderungen verwerfen"
-                saveLabel="Als neue Version speichern"
-              />
-            }
+            description={`Diese Fragen stehen in der Ferienanmeldung zusätzlich zu den festen Angaben. ${HOLIDAY_FREE_QUESTION_NOTE.text}`}
+            // The save stays in the card and in view while the long list of
+            // questions scrolls.
+            stickyFooter
+            footer={editActions}
             action={
-              <Button
-                type="button"
-                variant="outline"
-                size="md"
-                disabled={saving || uploading || missingTemplateFields === 0}
-                onClick={() =>
-                  setFields((current) =>
-                    insertTemplateFields(current, form.template),
-                  )
-                }
-              >
-                Standardvorlage einfügen
-              </Button>
+              <div className="flex flex-wrap gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="md"
+                  disabled={saving || uploading || missingTemplateFields === 0}
+                  onClick={() =>
+                    setFields((current) =>
+                      insertTemplateFields(current, form.template),
+                    )
+                  }
+                >
+                  Standardvorlage einfügen
+                </Button>
+                {/* Below xl the preview stands after all questions: the
+                    way there is one tap, not a long scroll. */}
+                <a
+                  href="#holiday-form-preview"
+                  className={buttonClassName({
+                    variant: "ghost",
+                    size: "md",
+                    className: "xl:hidden",
+                  })}
+                >
+                  Zur Vorschau
+                </a>
+              </div>
             }
           >
             <div className="space-y-4">
@@ -271,7 +319,12 @@ export function HolidayFormEditor({
                 <div className="space-y-3">
                   {fields.map((field, index) => (
                     <FieldEditorRow
-                      key={getStableObjectKey(field, "holiday-field")}
+                      key={fieldKey(field)}
+                      fold={{
+                        open: isOpen(fieldKey(field)),
+                        onToggle: () =>
+                          setOpen([fieldKey(field)], !isOpen(fieldKey(field))),
+                      }}
                       field={field}
                       index={index}
                       total={fields.length}
@@ -284,7 +337,9 @@ export function HolidayFormEditor({
                       fieldTypes={HOLIDAY_FORM_FIELD_TYPES}
                       conditionSources={HOLIDAY_CONDITION_SOURCES}
                       allowAttachments={false}
-                      freeQuestionNote={HOLIDAY_FREE_QUESTION_NOTE}
+                      // Said once in the card's description, not on every
+                      // question.
+                      freeQuestionNote={null}
                       healthToggle={
                         field.type === "information"
                           ? undefined
@@ -314,10 +369,10 @@ export function HolidayFormEditor({
                   disabled={saving || uploading}
                   className="inline-flex items-center gap-2"
                   onClick={() =>
-                    setFields((current) => [
-                      ...current,
-                      { ...blankField(current.length), share_with_host: true },
-                    ])
+                    addField({
+                      ...blankField(fields.length),
+                      share_with_host: true,
+                    })
                   }
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
@@ -330,12 +385,7 @@ export function HolidayFormEditor({
                   size="md"
                   disabled={saving || uploading}
                   className="inline-flex items-center gap-2"
-                  onClick={() =>
-                    setFields((current) => [
-                      ...current,
-                      blankInfoField(current.length),
-                    ])
-                  }
+                  onClick={() => addField(blankInfoField(fields.length))}
                 >
                   <Plus className="h-4 w-4" aria-hidden="true" />
                   <FileText className="h-4 w-4" aria-hidden="true" />
@@ -404,9 +454,14 @@ export function HolidayFormEditor({
             </div>
           </SectionCard>
 
-          <aside>
+          <aside
+            id="holiday-form-preview"
+            aria-label="Vorschau für Eltern"
+            className="scroll-mt-24"
+          >
             <FormPreview
               title="Ferienanmeldung"
+              headerInside
               header={
                 <FormPreviewHeading
                   title="Vorschau für Eltern"
