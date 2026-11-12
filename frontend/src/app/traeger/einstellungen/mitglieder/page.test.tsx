@@ -10,6 +10,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { deferred } from "~/test/helpers/form-modal-pending";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { ErrorContactProvider } from "~/lib/error-contact";
 import { catalogText } from "~/test/error-catalog-text";
 import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 
@@ -471,6 +472,27 @@ describe("TraegerAccountsPage", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.queryByText("Verlauf")).not.toBeInTheDocument();
+  });
+
+  // #6871: the billing role without „Konten verwalten“ gets the 403 of the
+  // permission check, and the page sends it to the Leitung of its Büro.
+  it("sends the billing role to the Leitung of the Träger-Büro", async () => {
+    api.fetchTraegerBuero.mockRejectedValue(new ApiError("Forbidden", 403));
+    render(
+      <ErrorContactProvider contact="traeger">
+        <ToastProvider>
+          <TraegerAccountsPage />
+        </ToastProvider>
+      </ErrorContactProvider>,
+    );
+
+    expect(
+      await screen.findByText(
+        "Für die Personen des Träger-Büros fehlt Ihnen die Berechtigung. Bitte fragen Sie die Leitung Ihres Träger-Büros.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/fragen Sie die Schule/)).not.toBeInTheDocument();
+    expect(screen.queryByText("kasse@traeger.example")).not.toBeInTheDocument();
   });
 
   it("shows the history with the right to manage the accounts", async () => {
