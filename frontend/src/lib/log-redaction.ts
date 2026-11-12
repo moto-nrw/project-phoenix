@@ -33,7 +33,7 @@ export const SIGNING_TOKEN_PATH_PATTERN = new RegExp(
 );
 
 const SENSITIVE_PATH_SEGMENT_PATTERN =
-  /((?:^|\/)(?:anmeldung\/status|enroll\/status|accept-guardian-invite|calendar-feed|request-feed|public\/calendar|public\/request-feed|enrollment\/requests|guardian-invitations|ferienkonto|holiday-parent-setups)\/)[^/?#\s"']+/gi;
+  /((?:^|\/)(?:anmeldung\/status|enroll\/status|accept-guardian-invite|calendar-feed|request-feed|public\/calendar|public\/request-feed|enrollment\/requests|guardian-invitations|ferienkonto|ferienanmeldung\/status|holiday-registrations\/status|holiday-parent-setups)\/)[^/?#\s"']+/gi;
 // The caterer's mailed invitation names its school, then the token (ADR 0077).
 const SENSITIVE_CATERER_INVITATION_PATTERN =
   /((?:^|\/)(?:einladung|caterer\/invitations)\/[^/?#\s"']+\/)[^/?#\s"']+/gi;

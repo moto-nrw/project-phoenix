@@ -126,7 +126,7 @@ func (h *HolidayPeriods) CreateHolidayPeriod(ctx context.Context, organizationID
 	if err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
-	if _, err := h.forms.InsertHolidayPeriodForm(ctx, organizationID, periodID, 0, enrollment.HolidayFormTemplate(), nil, enrollment.HolidayAddressOff); err != nil {
+	if _, err := h.forms.InsertHolidayPeriodForm(ctx, organizationID, periodID, 0, enrollment.HolidayFormTemplate(), nil, enrollment.HolidayAddressOff, enrollment.HolidayHealthOptional); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
 	return h.markedPeriod(ctx, organizationID, periodID)

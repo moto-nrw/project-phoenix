@@ -245,7 +245,10 @@ func TestHolidayRegistrationStoresSiblingsAndAHolidayGuestWithItsReceipt(t *test
 	require.NoError(t, json.Unmarshal(rec.Body.Bytes(), &receipt))
 	// The placements name each booking by the child's position and week
 	// (#4699), never by a name.
-	assert.ElementsMatch(t, []string{"id", "submitted_at", "placements"}, keysOf(receipt.Data), "the answer repeats no personal data")
+	// The status token opens the status page (#6676); it names nobody.
+	assert.ElementsMatch(t, []string{"id", "submitted_at", "placements", "status_token"}, keysOf(receipt.Data), "the answer repeats no personal data")
+	statusToken, _ := receipt.Data["status_token"].(string)
+	require.Len(t, statusToken, 43, "32 random bytes, URL-safe")
 	assert.NotContains(t, rec.Body.String(), "Lia", "the placements name no child")
 	assert.NotContains(t, rec.Body.String(), "Muster", "the placements name no family")
 
@@ -302,6 +305,9 @@ func TestHolidayRegistrationStoresSiblingsAndAHolidayGuestWithItsReceipt(t *test
 	assert.NotContains(t, string(mail.Payload), "Erdnüsse", "the receipt carries no health information")
 	assert.NotContains(t, string(mail.Payload), "2018-03-01", "the receipt carries no date of birth")
 	assert.Contains(t, string(mail.Payload), "Ben Muster")
+	assert.Contains(t, string(mail.Payload), statusToken, "the receipt carries the status link")
+
+	assertHolidayRegistrationStatus(t, f, statusToken, "Träger Bissendorf Anmeldung")
 
 	rec = traegerJSON(t, f.traeger, office.token, http.MethodGet, holidayPeriodPath(period.ID), nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
@@ -309,6 +315,53 @@ func TestHolidayRegistrationStoresSiblingsAndAHolidayGuestWithItsReceipt(t *test
 	rec = traegerJSON(t, f.traeger, other.token, http.MethodGet, holidayPeriodPath(period.ID), nil)
 	assert.Equal(t, http.StatusNotFound, rec.Code, "another Träger sees neither the period nor its registrations")
 }
+
+// assertHolidayRegistrationStatus reads the status link of the siblings'
+// registration (#6676): the state, the period and per child the first name
+// with its weeks, time models and host schools; no health information,
+// address, contact, last name or date of birth. An unknown token is not
+// found.
+func assertHolidayRegistrationStatus(t *testing.T, f holidayRegistrationFixture, token, traegerName string) {
+	t.Helper()
+	rec := publicJSON(t, f.public, http.MethodGet, holidayStatusPath(token), nil)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	for _, hidden := range []string{"Muster", "Erdnüsse", "2018-03-01", "0151", "Melle", "Oma", "example.org"} {
+		assert.NotContains(t, rec.Body.String(), hidden, "the status page shows no personal data beyond first names")
+	}
+	type week struct {
+		TimeModelName  string `json:"time_model_name"`
+		HostSchoolName string `json:"host_school_name"`
+		Placement      string `json:"placement"`
+		StartsAt       string `json:"starts_at"`
+	}
+	status := decodeSchoolPortalData[struct {
+		TraegerName string `json:"traeger_name"`
+		Status      string `json:"status"`
+		FirstDay    string `json:"first_day"`
+		Children    []struct {
+			FirstName string `json:"first_name"`
+			Weeks     []week `json:"weeks"`
+		} `json:"children"`
+	}](t, rec.Body.Bytes())
+	assert.Equal(t, traegerName, status.TraegerName)
+	assert.Equal(t, enrollment.HolidayRegistrationReceived, status.Status)
+	assert.NotEmpty(t, status.FirstDay)
+	require.Len(t, status.Children, 2)
+	assert.Equal(t, "Lia", status.Children[0].FirstName)
+	require.Len(t, status.Children[0].Weeks, 1)
+	assert.NotEmpty(t, status.Children[0].Weeks[0].HostSchoolName)
+	assert.NotEmpty(t, status.Children[0].Weeks[0].TimeModelName)
+	assert.Regexp(t, `^\d{2}:\d{2}$`, status.Children[0].Weeks[0].StartsAt)
+	assert.Equal(t, enrollment.HolidayPlacementPlaced, status.Children[0].Weeks[0].Placement)
+	assert.Equal(t, "Ben", status.Children[1].FirstName)
+	assert.Len(t, status.Children[1].Weeks, 2)
+
+	rec = publicJSON(t, f.public, http.MethodGet, holidayStatusPath("x"+token[1:]), nil)
+	assert.Equal(t, http.StatusNotFound, rec.Code)
+	assert.Contains(t, rec.Body.String(), "enrollment.holiday_registration_status_not_found")
+}
+
+func holidayStatusPath(token string) string { return "/traeger/holiday-registrations/status/" + token }
 
 // TestHolidayRegistrationNameAndBirthDateUnlockNoChild pins user story 30: a
 // registration that names a child of a school of the Träger by name and date
@@ -457,6 +510,7 @@ func TestHolidayRegistrationsGoThreeMonthsAfterTheirPeriod(t *testing.T) {
 	t.Parallel()
 	f := newHolidayRegistrationFixture(t)
 	office := newTraegerOffice(t, f.db, f.traeger, "Träger Löschfrist", identityaccess.TraegerRoleAdministration)
+	tokens := map[int64]string{}
 	register := func(firstWeek, secondWeek [2]string) int64 {
 		body := januaryHolidays(office)
 		body.RegistrationOpensOn, body.RegistrationClosesOn = "2020-01-01", "2099-12-31"
@@ -469,6 +523,9 @@ func TestHolidayRegistrationsGoThreeMonthsAfterTheirPeriod(t *testing.T) {
 		offer := holidayOffer(t, f, period.PublicToken)
 		rec = publicJSON(t, f.public, http.MethodPost, registrationPath(period.PublicToken), siblingsRegistration(offer, "frist@example.org"))
 		require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+		tokens[period.ID] = decodeSchoolPortalData[struct {
+			StatusToken string `json:"status_token"`
+		}](t, rec.Body.Bytes()).StatusToken
 		return period.ID
 	}
 	ended := register([2]string{"2020-07-06", "2020-07-10"}, [2]string{"2020-07-13", "2020-07-17"})
@@ -489,4 +546,7 @@ func TestHolidayRegistrationsGoThreeMonthsAfterTheirPeriod(t *testing.T) {
 	}
 	assert.Zero(t, countRows(ended), "the registrations of the ended period are gone with their children and bookings")
 	assert.Equal(t, 1+2+3, countRows(later), "the registration of the later period stays")
+	// The status link ends with its registration (#6676).
+	assert.Equal(t, http.StatusNotFound, publicJSON(t, f.public, http.MethodGet, holidayStatusPath(tokens[ended]), nil).Code)
+	assert.Equal(t, http.StatusOK, publicJSON(t, f.public, http.MethodGet, holidayStatusPath(tokens[later]), nil).Code)
 }

@@ -304,3 +304,47 @@ Tag der Woche) gilt dafür mit dieser Erweiterung:
   Zugriffsprotokoll der Schule steht: Soll und Ist je Kind (`view_student`),
   Überschreitungsliste und Export, Statistikbericht mit der Belegung nach
   Uhrzeit, und die Auswertung des Trägers je Schule (ADR 0156 Punkt 5).
+
+## Nachtrag 2026-11-12: Heimatschule sieht die Ferienbuchungen ihrer Kinder an anderen OGS (#6679)
+
+**Status: Akzeptiert.** Entschieden im Termin mit der Gemeinde Bissendorf am
+11.11.2026 ([#6679](https://github.com/moto-ogs/project-phoenix/issues/6679)):
+Die Heimatschule sieht die Ferienbuchungen ihrer Kinder an anderen OGS.
+
+Punkt 2 („Eine andere Schule des Trägers … sieht nichts“) gilt mit dieser
+Ausnahme: Die Heimatschule eines Kindes plant ihre eigene Betreuung und
+informiert ihre Familien. Dafür muss sie wissen, welche ihrer Kinder in den
+Ferien an einer anderen OGS betreut werden und wann
+([Regel zum Informationsfluss](../../.claude/rules/information-flow.md)).
+
+- **Was die Heimatschule liest.** `enrollment.holiday_home_school_bookings()`
+  (Migration `1.15.957`, `SECURITY DEFINER`) liefert in der Tenant-Transaktion
+  der Heimatschule je Buchung Vor- und Nachname und Geburtsdatum des Kindes,
+  Woche und Zeitraum, die ausrichtende Schule, das Zeitmodell mit Zeiten und
+  die gebuchten Tage. Keine Gesundheitsangaben, keine Kontakte, keine
+  Antworten, keine Eltern. Das Geburtsdatum dient der Zuordnung zur Kinderakte
+  wie bei den eigenen Kindern (#6678); die Schule kennt es aus ihren
+  Stammdaten.
+- **Nur bestätigt, nur mit Platz, nur derselbe Träger.** Es zählt eine
+  Buchung mit Platz (`placement = 'placed'`) einer bestätigten Anmeldung in
+  einem veröffentlichten Zeitraum, deren Kind die Schule als Heimatschule
+  nennt. Heimatschule, ausrichtende Schule und Anmeldung gehören demselben
+  Träger. Eine Woche, die die Heimatschule selbst ausrichtet, fehlt: Dort
+  stehen die Kinder in ihrer Teilnehmerliste. Storniert oder bucht das
+  Träger-Büro um, ist der Eintrag sofort weg.
+- **Dauer.** Wie Punkt 4: bis zum letzten Tag der Woche, im Code nach der
+  Uhr von Enrollment, in der Datenbank zusätzlich nach dem Berliner
+  Kalendertag.
+- **Route und Recht.** `GET /api/holiday-weeks/home-school-children` im
+  Schul-Router hinter `config:read` wie die Ferienwochen. Die Namen der
+  ausrichtenden Schulen liest die Route wie die Teilnehmerliste vor der
+  Tenant-Transaktion (Punkt 7). Die Seite „Ferienwochen“ zeigt die Kinder im
+  Reiter „Kinder bei anderen OGS“.
+- **Zugriffsprotokoll.** Jedes Lesen mit mindestens einem Kind schreibt in
+  derselben Transaktion `holiday_home_school_bookings` in
+  `audit.data_access_log` der Heimatschule, mit Wochen und Zahl der Kinder.
+  Eine leere Antwort ist kein Lesen.
+- **Register.** Query-Budget `api.holiday_weeks.home_school_children`
+  (5, exact). Keine neue Tabelle, kein neuer `data_objects`-Eintrag, keine
+  neue Regel in `policy.json`. Die Bindung des Zugriffsprotokolls
+  (`holidayGuestAccessLog`) nennt die neue Art des Eintrags.

@@ -150,6 +150,10 @@ const (
 	// HolidayGuestAccessOwnChild is a read of what the registrations say
 	// about a child of the hosting school itself (#6678).
 	HolidayGuestAccessOwnChild = "own_child"
+	// HolidayGuestAccessHomeSchool is a read of the bookings of the
+	// school's own children at other schools of its Träger (#6679); Guests
+	// counts the children, WeekIDs names their weeks.
+	HolidayGuestAccessHomeSchool = "home_school"
 )
 
 // HolidayGuestAccess is one access to holiday guest data for the access log
@@ -166,7 +170,7 @@ type HolidayGuestAccess struct {
 	EndsOn         calendar.Date
 	Guests         int
 	Automatic      bool
-	// WeekIDs names the weeks an own-child read covered.
+	// WeekIDs names the weeks an own-child or home-school read covered.
 	WeekIDs []int64
 }
 

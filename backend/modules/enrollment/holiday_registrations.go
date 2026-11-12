@@ -232,6 +232,10 @@ type HolidayRegistrationInput struct {
 	// the registration sets it, from a ParentAccountProof it opened;
 	// whatever a caller puts in is dropped.
 	ParentAccountID int64
+	// StatusToken is the random token of the registration's status link
+	// (#6676). Only the registration sets it; whatever a caller puts in is
+	// replaced.
+	StatusToken string
 }
 
 // HolidayRegistrationReceipt confirms a stored registration. It repeats no
@@ -247,6 +251,9 @@ type HolidayRegistrationReceipt struct {
 	// a parent account (ADR 0216 point 4). The offer carries no link; the
 	// mail issues it when it is sent. No answer of the public route tells.
 	ParentAccountOffered bool
+	// StatusToken opens the status page of the registration (#6676); the
+	// parent who sent it gets it in the answer and in the receipt mail.
+	StatusToken string
 }
 
 // HolidayRegistrations serves the public holiday registration.
@@ -268,6 +275,13 @@ type HolidayRegistrations interface {
 	// period of the link while its registration window is open, and returns
 	// the token the submission claims it with (#5238).
 	UploadHolidayProof(ctx context.Context, link HolidayRegistrationLink, upload HolidayProofUpload) (HolidayProofReceipt, error)
+	// ResolveHolidayRegistrationStatus names the registration and the
+	// Träger of a status link (#6676) in the administrative transaction; an
+	// unknown token is ErrHolidayRegistrationStatusNotFound.
+	ResolveHolidayRegistrationStatus(ctx context.Context, token string) (HolidayRegistrationStatusLink, error)
+	// HolidayRegistrationStatus reads what the status link shows, in the
+	// Träger transaction of the link's Träger.
+	HolidayRegistrationStatus(ctx context.Context, link HolidayRegistrationStatusLink) (HolidayRegistrationStatus, error)
 }
 
 // HolidayRegistrationMailKind is the Delivery outbox kind of the receipt
@@ -320,6 +334,10 @@ type HolidayRegistrationMail struct {
 	Binding      bool                                `json:"binding"`
 	Children     []HolidayRegistrationMailChild      `json:"children"`
 	Declaration  *HolidayRegistrationMailDeclaration `json:"declaration,omitempty"`
+	// StatusToken is the token of the status link (#6676); the renderer
+	// builds the link to the parents host from it. A mail enqueued before
+	// has none and shows no link.
+	StatusToken string `json:"status_token,omitempty"`
 }
 
 // HolidayRegistrationDeletionLogRetentionYears is how long the deletion log

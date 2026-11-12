@@ -8,16 +8,17 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const pickupChangeTeamNoticesVersion = "1.15.957"
+const pickupChangeTeamNoticesVersion = "1.15.960"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     pickupChangeTeamNoticesVersion,
 		Description: "Geänderte Abholzeit für einen Tag: Hinweis an das Team des Kindes mit Lesestand je Person (#6855)",
 		DependsOn: []string{
-			studentNoteTeamNoticesVersion,     // the school erasure functions this one extends (1.15.956)
-			careScheduleChangeRequestsVersion, // the requests a notice points at
-			createAccountTenantsVersion,       // the school membership of a recipient
+			holidayRegistrationStatusTokenVersion, // the newest migration on development (1.15.959)
+			studentNoteTeamNoticesVersion,         // the school erasure functions this one extends (1.15.956)
+			careScheduleChangeRequestsVersion,     // the requests a notice points at
+			createAccountTenantsVersion,           // the school membership of a recipient
 		},
 	})
 	Migrations.MustRegister(pickupChangeTeamNoticesUp, pickupChangeTeamNoticesDown)

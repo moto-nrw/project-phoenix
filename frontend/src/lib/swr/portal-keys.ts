@@ -433,6 +433,8 @@ export const holidayKeys = {
   /** Zuordnung der eigenen Kinder einer Ferienwoche (#6678). */
   ownChildren: (weekId: string) =>
     `holiday-own-children:${encodeURIComponent(weekId)}`,
+  /** Eigene Kinder in Ferienwochen anderer OGS (#6679). */
+  homeSchoolBookings: () => "holiday-home-school-bookings",
   /** Feriengruppen, deren Woche noch nicht begonnen hat (#6680). */
   guestGroupHints: () => "holiday-guest-group-hints",
   /** Die Feriengruppen der Gruppenverwaltung (ADR 0120, Nachtrag 2026-11-11). */

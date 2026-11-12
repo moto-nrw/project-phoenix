@@ -148,6 +148,7 @@
   "holiday_registration_invalid": "Bitte prüfen Sie die markierten Felder.",
   "holiday_registration_not_found": "Diesen Anmeldelink gibt es nicht. Bitte nutzen Sie den Link, den Sie vom Träger bekommen haben.",
   "holiday_registration_state_conflict": "Das geht bei dieser Anmeldung gerade nicht. Bitte laden Sie die Seite neu.",
+  "holiday_registration_status_not_found": "Diesen Link zu einer Ferienanmeldung gibt es nicht. Bitte nutzen Sie den Link aus Ihrer E-Mail.",
   "holiday_week_booked": "Für diese Woche gibt es schon Anmeldungen. Darum lassen sich die Woche und ihre gebuchten Zeitmodelle nicht entfernen. Ein gebuchtes Zeitmodell können Sie archivieren. Dann kann es niemand mehr neu buchen.",
   "holiday_booking_unit_booked": "Für diese Woche gibt es schon Anmeldungen. Darum bleiben die Buchungsart und bei einzelnen Tagen auch die Tage der Woche so.",
   "holiday_child_day_limit": "Für ein Kind sind in diesen Ferien höchstens {limit} Tage möglich. Mit allen Anmeldungen des Kindes wären es {days} Tage, davon {elsewhere} in anderen Anmeldungen. Bitte wählen Sie weniger Tage.",

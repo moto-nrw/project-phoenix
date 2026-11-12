@@ -249,6 +249,7 @@ type HolidayPeriods interface {
 	HolidayPeriodForm(ctx context.Context, organizationID, periodID int64) (HolidayFormEditor, error)
 	// SaveHolidayPeriodForm writes the next version of the period's form
 	// and returns it. accountID is the person of the Träger-Büro who saves;
-	// address is the building block "Anschrift" of the version (#5625).
-	SaveHolidayPeriodForm(ctx context.Context, organizationID, periodID, accountID int64, fields []HolidayFormField, blocks []FormLegalBlock, address HolidayAddressRequirement) (HolidayFormEditor, error)
+	// address is the building block "Anschrift" of the version (#5625),
+	// health the building block "Gesundheit" (#6686).
+	SaveHolidayPeriodForm(ctx context.Context, organizationID, periodID, accountID int64, fields []HolidayFormField, blocks []FormLegalBlock, address HolidayAddressRequirement, health HolidayHealthRequirement) (HolidayFormEditor, error)
 }

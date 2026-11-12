@@ -34,6 +34,7 @@ const form = {
   legalBlocks: [],
   template: [],
   addressRequirement: "off" as const,
+  healthRequirement: "optional" as const,
   createdAt: "2026-09-01T10:00:00Z",
 };
 
@@ -175,6 +176,7 @@ describe("Holiday form legal blocks", () => {
         }),
       ]),
       "off",
+      "optional",
     );
     // Anker: the complete form was saved with both Träger uploads.
     expect(upload).toHaveBeenNthCalledWith(1, "5", expect.any(File));

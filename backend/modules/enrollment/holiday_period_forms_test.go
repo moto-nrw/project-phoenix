@@ -118,3 +118,22 @@ func TestHolidayAddressRequirementTakesThreeSettings(t *testing.T) {
 	assert.Equal(t, "address_requirement", rejection.Field)
 	assert.Equal(t, CodeHolidayFormFieldNotAllowed, rejection.Code)
 }
+
+// TestHolidayHealthRequirementTakesTwoSettings pins the building block
+// "Gesundheit" (#6686): an empty setting keeps the fixed health fields
+// optional, both settings stay, anything else is refused at its path.
+func TestHolidayHealthRequirementTakesTwoSettings(t *testing.T) {
+	t.Parallel()
+	for in, want := range map[HolidayHealthRequirement]HolidayHealthRequirement{
+		"": HolidayHealthOptional, HolidayHealthOptional: HolidayHealthOptional, HolidayHealthRequired: HolidayHealthRequired,
+	} {
+		got, err := ValidateHolidayHealthRequirement(in)
+		require.NoError(t, err, in)
+		assert.Equal(t, want, got)
+	}
+	_, err := ValidateHolidayHealthRequirement("off")
+	var rejection *InvalidInputError
+	require.True(t, errors.As(err, &rejection), "%v", err)
+	assert.Equal(t, "health_requirement", rejection.Field)
+	assert.Equal(t, CodeHolidayFormFieldNotAllowed, rejection.Code)
+}

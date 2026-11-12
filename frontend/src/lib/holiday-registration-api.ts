@@ -1,5 +1,6 @@
 import {
   holidayAddressRequirement,
+  holidayHealthRequirement,
   holidayLegalBlocks,
   type HolidayLegalBlockWire,
 } from "~/lib/holiday-form-field";
@@ -155,6 +156,7 @@ interface BackendOffer {
     fields?: HolidayFormField[] | null;
     legal_blocks?: HolidayLegalBlockWire[] | null;
     address_requirement?: string | null;
+    health_requirement?: string | null;
   } | null;
   consent_texts?: BackendConsentTexts | null;
   holiday_wish_mode?: HolidayWishMode;
@@ -286,6 +288,9 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
       addressRequirement: holidayAddressRequirement(
         offer.form?.address_requirement,
       ),
+      healthRequirement: holidayHealthRequirement(
+        offer.form?.health_requirement,
+      ),
     },
     consentTexts: consentTextsFromBackend(offer.consent_texts),
     holidayWishMode: offer.holiday_wish_mode ?? "off",
@@ -369,11 +374,20 @@ function receiptPlacement(value: string): HolidayReceiptPlacement["placement"] {
   return "placed";
 }
 
+/**
+ * The answer of a sent registration: the place of every booking and the
+ * token of its status page (#6676), "" when the answer has none.
+ */
+export interface HolidayRegistrationReceipt {
+  readonly placements: readonly HolidayReceiptPlacement[];
+  readonly statusToken: string;
+}
+
 /** Sends the registration and answers with the place of every booking. */
 export async function submitHolidayRegistration(
   token: string,
   payload: HolidayRegistrationPayload,
-): Promise<readonly HolidayReceiptPlacement[]> {
+): Promise<HolidayRegistrationReceipt> {
   const response = await request(registrationPath(token), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -389,13 +403,17 @@ export async function submitHolidayRegistration(
     data?: {
       placements?:
         { child_position: number; week_id: number; placement: string }[] | null;
+      status_token?: string | null;
     };
   } | null;
-  return (body?.data?.placements ?? []).map((entry) => ({
-    childPosition: entry.child_position,
-    weekId: String(entry.week_id),
-    placement: receiptPlacement(entry.placement),
-  }));
+  return {
+    placements: (body?.data?.placements ?? []).map((entry) => ({
+      childPosition: entry.child_position,
+      weekId: String(entry.week_id),
+      placement: receiptPlacement(entry.placement),
+    })),
+    statusToken: body?.data?.status_token ?? "",
+  };
 }
 
 /** The bookings of one child of the form, for its contribution (#4664). */

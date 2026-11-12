@@ -47,7 +47,7 @@ func TestSchoolVacationsMigrationRoundTrip(t *testing.T) {
 	// #5504) and the Nachweisarten (1.15.724, #4808) extend this erasure; they
 	// go first.
 	// 1.15.942 (ADR 0196) extends the erasure functions of 1.15.811; it goes first.
-	// The pickup change notices (1.15.957, #6855) extend the erasure of 1.15.956; they go first.
+	// The pickup change notices (1.15.960, #6855) extend the erasure of 1.15.956; they go first.
 	require.NoError(t, pickupChangeTeamNoticesDown(t.Context(), db))
 	// The note notices (1.15.956, #6854) extend the erasure of 1.15.942; they go first.
 	require.NoError(t, studentNoteTeamNoticesDown(t.Context(), db))

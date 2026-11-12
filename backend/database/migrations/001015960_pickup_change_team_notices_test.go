@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// The five school erasure functions of 1.15.957 are those of 1.15.956 with
+// The five school erasure functions of 1.15.960 are those of 1.15.956 with
 // the pickup change notices added and nothing else changed: taking the added
 // lines out again (and the fingerprint back) yields the base byte for byte.
 func TestPickupChangeTeamNoticeErasureExtendsTheErasureOf956(t *testing.T) {

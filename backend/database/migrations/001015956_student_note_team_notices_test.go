@@ -81,7 +81,7 @@ func TestStudentNoteTeamNoticesMigrationRoundTrip(t *testing.T) {
 		require.NoError(t, db.NewRaw(`SELECT pg_get_functiondef('platform.school_erasure_preflight(bigint,bigint)'::regprocedure)`).Scan(ctx, &definition))
 		return definition
 	}
-	// The pickup change notices (1.15.957, #6855) extend this erasure; they go first.
+	// The pickup change notices (1.15.960, #6855) extend this erasure; they go first.
 	require.NoError(t, pickupChangeTeamNoticesDown(ctx, db))
 	require.True(t, exists())
 	assert.Contains(t, preflight(), studentNoteTeamNoticesFingerprint)

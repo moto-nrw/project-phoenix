@@ -86,6 +86,8 @@ import type { holidayGuestGroupTopic as authored_holidayGuestGroupTopic } from "
 
 import type { holidayGuestsTopic as authored_holidayGuestsTopic } from "./articles/holiday-guests";
 
+import type { holidayHomeSchoolChildrenTopic as authored_holidayHomeSchoolChildrenTopic } from "./articles/holiday-home-school-children";
+
 import type { holidayWeeksTopic as authored_holidayWeeksTopic } from "./articles/holiday-weeks";
 
 import type { homeworkFeedbackTopic as authored_homeworkFeedbackTopic } from "./articles/homework-feedback";
@@ -3372,6 +3374,53 @@ export const holidayGuestsTopic = function holidayGuestsTopic(): HelpTopic {
 } satisfies typeof authored_holidayGuestsTopic;
 
 /**
+ * `/ferienwochen`, Reiter `Kinder bei anderen OGS` (#6679): Die Heimatschule
+ * sieht die bestätigten Ferienbuchungen ihrer Kinder in Wochen, die eine
+ * andere OGS des Trägers ausrichtet, bis zum letzten Tag der Woche. Ohne
+ * Gesundheitsangaben und Kontakte.
+ */
+export const holidayHomeSchoolChildrenTopic =
+  function holidayHomeSchoolChildrenTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.leadHolidayHomeSchoolChildren,
+      title: "Kinder Ihrer OGS in Ferienwochen anderer OGS",
+      question: "Welche unserer Kinder betreut in den Ferien eine andere OGS?",
+      summary:
+        "Sie sehen, welche Kinder Ihrer OGS in den Ferien eine andere OGS des Trägers betreut.",
+      group: "auswertung",
+      audience: "lead",
+      icon: "MapPin",
+      requirements: [
+        "Der Träger hat die Ferienanmeldung des Kindes für die Woche einer anderen OGS bestätigt.",
+        "In der Anmeldung steht Ihre OGS als Schule des Kindes.",
+      ],
+      steps: [
+        "Klappen Sie in der Seitenleiste `Verwaltung` auf.",
+        "Öffnen Sie `Ferienwochen`.",
+        "Richtet Ihre OGS selbst eine Ferienwoche aus, wählen Sie oben `Kinder bei anderen OGS`.",
+        "Unter `Ihre Kinder in Ferienwochen anderer OGS` steht jedes Kind mit Woche, `Betreut von`, Zeitmodell und Status.",
+        "Mit `Akte öffnen` öffnen Sie die Kinderakte des Kindes.",
+      ],
+      result:
+        "Sie wissen, welche Kinder in den Ferien woanders betreut werden, wann und in welcher Zeit. So können Sie planen und die Familien informieren.",
+      notes: [
+        "Unter Status steht, ab wann das Kind woanders betreut wird, zum Beispiel `Ab 04.01.`. Ab diesem Tag steht dort `Läuft gerade`. Hat die Familie nur einzelne Tage gebucht, zählen diese Tage. Nach dem letzten gebuchten Tag steht dort `Vorbei`, bis die Woche endet.",
+        "Gesundheitsangaben und Kontakte sehen Sie hier nicht. Die hat die OGS, die das Kind betreut.",
+        "Jeder Abruf mit Kindern steht im Zugriffsprotokoll Ihrer OGS.",
+      ],
+      differences: [
+        "Richtet Ihre OGS keine Ferienwoche aus, gibt es keine Reiter. Die Seite zeigt dann nur diese Kinder.",
+        "Nach dem letzten Tag der Woche steht das Kind nicht mehr hier.",
+      ],
+      troubleshootingDetails: [
+        "Fehlt ein Kind? Offene und abgesagte Anmeldungen und Plätze auf der Warteliste stehen hier nicht. Fragen Sie beim Träger nach.",
+        "Steht bei einem Kind `Nicht zugeordnet`? Dann passen Vorname, Nachname oder Geburtsdatum zu keinem Kind in moto oder zu mehreren. Prüfen Sie die Kinderakte oder bitten Sie den Träger, die Anmeldung zu ändern.",
+      ],
+      related: [HELP_TOPICS.leadHolidayWeeks],
+    };
+  } satisfies typeof authored_holidayHomeSchoolChildrenTopic;
+
+/**
  * `/ferienwochen` (#4665): die bestätigten Kinder der Ferienwochen, die die
  * OGS für ihren Träger ausrichtet, nur bis zum letzten Tag der Woche. Dazu
  * die freigegebenen Antworten und die zweite sorgeberechtigte Person (#5202)
@@ -3421,6 +3470,7 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
       "In der Kinderakte steht unter `Angaben aus der Ferienanmeldung`, was die Eltern angegeben haben: Betreuung, Notfall, Abholung und Gesundheit. Die Stammdaten des Kindes ändern sich nicht.",
       "Ändern Sie an einem eingeplanten Tag die Abholzeit, bleibt Ihre Zeit stehen.",
       "E-Mail-Adressen sehen Sie nicht. Sie bleiben beim Träger.",
+      "Kinder Ihrer OGS, die in den Ferien eine andere OGS betreut, stehen im Reiter `Kinder bei anderen OGS`.",
       "Jeder Abruf und jede Datei wird im Zugriffsprotokoll Ihrer OGS vermerkt.",
     ],
     differences: [
@@ -3435,6 +3485,7 @@ export const holidayWeeksTopic = function holidayWeeksTopic(): HelpTopic {
     ],
     related: [
       HELP_TOPICS.leadHolidayGuestGroup,
+      HELP_TOPICS.leadHolidayHomeSchoolChildren,
       HELP_TOPICS.leadStatistics,
       HELP_TOPICS.leadExports,
     ],
@@ -6489,7 +6540,8 @@ export const parentGuardiansTopic = function parentGuardiansTopic(): HelpTopic {
  * `/ferienanmeldung/<link>` (#4661): der Link eines Trägers, ohne Konto, oder
  * die Karte `Ferienbetreuung` auf der Startseite der Eltern-App (#6671).
  * Die Frage nach dem Elternkonto, die zweite E-Mail und der Stand unter
- * `Ferienanmeldungen` (#6673).
+ * `Ferienanmeldungen` (#6673). Der Stand über den Link der E-Mail, ohne
+ * Konto (#6676).
  */
 export const parentHolidayRegistrationTopic =
   function parentHolidayRegistrationTopic(): HelpTopic {
@@ -6529,18 +6581,19 @@ export const parentHolidayRegistrationTopic =
         "Wählen Sie dann `Anmeldung absenden`.",
       ],
       result:
-        "Sie bekommen eine E-Mail: Die Anmeldung ist eingegangen. Das ist noch keine Zusage. Der Träger schreibt Ihnen, ob Ihr Kind einen Platz bekommt. In der E-Mail steht auch `Ihre Erklärung` mit dem genauen Text. Heben Sie die E-Mail auf. In der Eltern-App sehen Sie den Stand unter `Ferienanmeldungen`.",
+        "Sie bekommen eine E-Mail: Die Anmeldung ist eingegangen. Das ist noch keine Zusage. Der Träger schreibt Ihnen, ob Ihr Kind einen Platz bekommt. In der E-Mail steht auch `Ihre Erklärung` mit dem genauen Text. Heben Sie die E-Mail auf. Mit `Stand ansehen` in der E-Mail sehen Sie jederzeit, wie weit Ihre Anmeldung ist. In der Eltern-App sehen Sie den Stand unter `Ferienanmeldungen`.",
       notes: [
         "Achtet der Träger auf den Ferienwunsch aus der OGS-Anmeldung, steht das über den Kindern. Mit Elternkonto sehen Sie beim Kind, was in der OGS-Anmeldung steht.",
         "Ein Elternkonto brauchen Sie nicht. Mit Konto sehen Sie in der Eltern-App den Stand der Anmeldung, die Bestätigung und die Rechnung.",
         "Haben Sie bei `Möchten Sie ein Elternkonto anlegen?` `Ja` gewählt? Dann bekommen Sie eine zweite E-Mail. Öffnen Sie den Link darin. Legen Sie zweimal Ihr Passwort fest und wählen Sie `Konto anlegen`. Danach wählen Sie `Anmelden`.",
         "Haben Sie schon ein Elternkonto? Dann steht nach dem Link `Sie haben schon ein Elternkonto`. Wählen Sie `Anmelden`. Ihr Passwort bleibt gleich.",
         "Unter `Ferienanmeldungen` steht jede Anmeldung mit ihrem Stand: `Eingegangen`, `Bestätigt` oder `Storniert`. Bei jedem Kind sehen Sie die Wochen mit `Platz reserviert`, `Warteliste` oder `Platz offen`. Auf der Startseite steht dazu die Karte `Ihre Ferienanmeldungen`.",
+        "Den Stand sehen Sie auch ohne Elternkonto. Wählen Sie nach dem Absenden oder in der E-Mail `Stand ansehen`. Die Seite zeigt `Eingegangen`, `Bestätigt` oder `Storniert` und bei jedem Kind die Wochen mit ihrem Platz. Ändern können Sie dort nichts. Geben Sie den Link nicht weiter.",
         "Ist die Anmeldung bestätigt, finden Sie die Bestätigung und die Rechnung unter `Dokumente`.",
         "Vergibt der Träger die Plätze nach festen Regeln? Dann steht im Formular `Fragen für die Platzvergabe`. Beantworten Sie jede Frage mit Ja oder Nein. Das Büro kann nach einem Nachweis fragen. Nach dem Absenden steht bei jeder Woche `Platz offen`. Das Büro vergibt die Plätze. Sie bekommen eine E-Mail.",
         "Nach dem Absenden sehen Sie bei jeder Woche `Platz` oder `Warteliste`. Ist eine Woche voll, steht Ihr Kind dort auf der Warteliste. Wird ein Platz frei, bekommt Ihr Kind ihn automatisch. Sie bekommen dann eine E-Mail. Bei einer verbindlichen Anmeldung ist auch dieser Platz verbindlich.",
         "Lesen Sie die Anmeldung in einer anderen Sprache? Dann steht unter jeder Erklärung eine Übersetzung. Es gilt der deutsche Text.",
-        "Gesundheitsangaben sind freiwillig. Sie sehen der Träger und die OGS, die Ihr Kind in der Ferienwoche betreut. Nur wenn Sie zustimmen.",
+        "Gesundheitsangaben sehen der Träger und die OGS, die Ihr Kind in der Ferienwoche betreut. Nur wenn Sie zustimmen.",
         "Die OGS, die Ihr Kind in einer Ferienwoche betreut, sieht Name und Telefon der zweiten sorgeberechtigten Person. Sie sieht auch die Antworten, die der Träger für sie freigibt. Zum Beispiel, ob Ihr Kind allein nach Hause gehen darf.",
         "Die OGS sieht diese Angaben schon vor der Ferienwoche. So kann sie sich vorbereiten. Die Liste der Kinder sieht sie bis zum letzten Tag der Woche. Name, Telefon und Antworten kann sie danach höchstens 7 Tage lesen. Dann werden sie gelöscht. Gesundheitsangaben sieht sie nur bis zum letzten Tag der Woche.",
         "Ein Kind von einer anderen Schule kommt als Feriengast.",
@@ -6552,6 +6605,7 @@ export const parentHolidayRegistrationTopic =
         "Der Nachweis ist freiwillig. Sie können ihn auch später beim Träger abgeben.",
       ],
       differences: [
+        "Fragt das Formular `Hat Ihr Kind Allergien oder Unverträglichkeiten?`? Dann braucht der Träger die Angaben zu Allergien und Medikamenten. Wählen Sie bei jeder Frage `Nein, keine` oder `Ja`. Bei `Ja` schreiben Sie auf, was Ihr Kind hat. Weitere Hinweise bleiben freiwillig.",
         "Steht in der Eltern-App `Anmeldung ab` mit einem Datum? Dann beginnt die Anmeldung an diesem Tag. Ab dann sehen Sie den Knopf `Jetzt anmelden`.",
         "Sie haben den Link geöffnet und sind nicht angemeldet? Oben steht `Sie haben schon die Eltern-App?`. Wählen Sie `Anmelden`. Danach kommen Sie zurück zum Formular.",
         "Ist die Anmeldung verbindlich, heißt der Knopf `Verbindlich anmelden`.",
@@ -6564,6 +6618,7 @@ export const parentHolidayRegistrationTopic =
         "moto meldet zu viele Tage je Kind? Die Grenze gilt für alle Anmeldungen des Kindes zusammen. Bitte wählen Sie weniger Tage oder fragen Sie das Träger-Büro. Der Hinweis zeigt keine Tage aus anderen Anmeldungen.",
         "moto sagt, die Anmeldung sei nicht offen? Oben auf der Seite stehen die Tage, an denen Sie anmelden können.",
         "moto sagt, den Anmeldelink gebe es nicht? Fragen Sie den Träger nach dem richtigen Link.",
+        "Steht nach `Stand ansehen` `Wir finden diese Anmeldung nicht`? Öffnen Sie den Link noch einmal aus der E-Mail. Nach den Ferien löscht der Träger die Anmeldung. Dann gilt auch der Link nicht mehr.",
         "Der Link zum Elternkonto gilt nicht mehr? Er gilt 30 Tage. Haben Sie schon ein Konto, melden Sie sich an. Sonst bitten Sie den Träger um einen neuen Link.",
         "Sie sehen eine Anmeldung nicht unter `Ferienanmeldungen`? Dort stehen Anmeldungen mit der E-Mail-Adresse Ihres Kontos. Haben Sie eine andere Adresse eingetragen, fragen Sie den Träger.",
       ],
@@ -12292,6 +12347,15 @@ export const traegerHolidayFormTopic =
           ],
         },
         {
+          title: "Allergien und Medikamente zur Pflicht machen",
+          steps: [
+            "Wählen Sie unter `Gesundheit` die Einstellung `Pflicht`.",
+            "Wählen Sie `Als neue Version speichern`.",
+            "Eltern beantworten dann für jedes Kind zwei Fragen: Allergien und Medikamente. Hat das Kind keine, wählen sie `Nein, keine`. Bei `Ja` schreiben sie auf, was ihr Kind hat.",
+            "In der Anmeldung steht dann „Keine“ oder der Text der Eltern. Ein leeres Feld gibt es nicht mehr.",
+          ],
+        },
+        {
           title: "Anschrift abfragen",
           steps: [
             "Wählen Sie unter `Anschrift`, ob Eltern Straße, PLZ und Ort angeben: `Nicht abfragen`, `Freiwillig` oder `Pflicht`.",
@@ -12323,6 +12387,8 @@ export const traegerHolidayFormTopic =
         "Neue Anmeldungen nutzen das gespeicherte Formular. Rechts sehen Sie, wie Eltern es sehen.",
       notes: [
         "Name, Geburtsdatum, Schule, Wochen, Allergien, Medikamente, Kontakte und Zustimmungen fragt die Anmeldung immer ab.",
+        "Allergien und Medikamente sind zuerst freiwillig. Mit `Pflicht` unter `Gesundheit` brauchen Sie keine eigene Frage dafür. Eine eigene Pflichtfrage zu Allergien fragt dasselbe ein zweites Mal.",
+        "Bei `Pflicht` brauchen Eltern immer die Zustimmung zu den Gesundheitsangaben. Auch „Keine“ ist eine Gesundheitsangabe. Weitere Hinweise zur Gesundheit bleiben freiwillig.",
         "Ein neuer Ferienzeitraum fragt keine Anschrift ab. Ältere Versionen fragen auch keine ab. Bei `Freiwillig` geben Eltern alle drei Angaben an oder keine.",
         "Ein neuer Ferienzeitraum startet mit der Standardvorlage. Alle Fragen darin sind zuerst freiwillig. Alle Fragen sind für die ausrichtende OGS freigegeben. Antworten auf Gesundheitsfragen sieht sie nur, wenn die Eltern zustimmen.",
         "Schon verwendete PDFs bleiben bei der alten Anmeldung lesbar. Neue Anmeldungen sehen die neue Version.",
