@@ -43,7 +43,7 @@
     "cancel": "Anulo",
     "noChange": "Ndryshoni të paktën një të dhënë.",
     "required": "Një e dhënë e ndryshuar nuk mund të jetë bosh.",
-    "submitTooltip": "E dërgon kërkesën menjëherë te {careTerm}. Ajo i kontrollon të dhënat."
+    "submitTooltip": "E dërgon kërkesën menjëherë te {careTerm} për shqyrtim."
   },
   "sections": {
     "child": "Të dhënat personale",
@@ -250,7 +250,7 @@
     "errorObject": "lista e orareve të kujdesit",
     "requestErrorObject": "kërkesa për planin javor",
     "requestButtonTooltip": "Hap një formular për të kërkuar ndryshime në planin javor.",
-    "requestSubmitTooltip": "E dërgon kërkesën menjëherë te {careTerm}. Ajo e kontrollon ndryshimin."
+    "requestSubmitTooltip": "E dërgon kërkesën menjëherë te {careTerm} për shqyrtim."
   },
   "errorObject": "përmbledhja e të dhënave",
   "errorObjectChange": "ndryshimi",

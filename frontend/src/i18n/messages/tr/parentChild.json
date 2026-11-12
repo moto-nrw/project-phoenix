@@ -83,7 +83,7 @@
     "grantSuccess": "Fotoğraf izni yeniden verildi.",
     "errorObjectList": "izinler listesi",
     "errorObjectPhoto": "fotoğraf izni",
-    "withdrawTooltip": "Fotoğraf iznini bitirir ve fotoğrafı siler. moto önce sorar.",
+    "withdrawTooltip": "Fotoğraf iznini bitirir ve kayıtlı fotoğrafı siler. moto önce sorar.",
     "grantTooltip": "{careTerm} için fotoğrafa yeniden izin verir. moto önce sorar."
   },
   "errorObject": "çocuklarınızın listesi",

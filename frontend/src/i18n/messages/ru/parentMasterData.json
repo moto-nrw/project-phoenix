@@ -43,7 +43,7 @@
     "cancel": "Отмена",
     "noChange": "Измените хотя бы одно значение.",
     "required": "Изменённое значение не может быть пустым.",
-    "submitTooltip": "Сразу отправляет запрос в {careTerm}. Там проверят данные."
+    "submitTooltip": "Сразу отправляет запрос в {careTerm} на проверку."
   },
   "sections": {
     "child": "Личные данные",
@@ -250,7 +250,7 @@
     "errorObject": "список времени пребывания",
     "requestErrorObject": "запрос на изменение недельного плана",
     "requestButtonTooltip": "Открывает форму, чтобы запросить изменения недельного плана.",
-    "requestSubmitTooltip": "Сразу отправляет запрос в {careTerm}. Там проверят изменение."
+    "requestSubmitTooltip": "Сразу отправляет запрос в {careTerm} на проверку."
   },
   "errorObject": "обзор сведений",
   "errorObjectChange": "изменение",

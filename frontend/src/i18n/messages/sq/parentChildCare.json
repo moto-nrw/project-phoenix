@@ -112,7 +112,7 @@
     "savingEdit": "Po ruhet …",
     "resetTooltip": "E heq ndryshimin tuaj për këtë ditë. moto pyet më parë.",
     "saveEditTooltip": "Ndryshon kërkesën tuaj të hapur. {careTerm} duhet ta konfirmojë ende.",
-    "submitTooltip": "E dërgon kërkesën menjëherë te {careTerm}. Ajo duhet ta konfirmojë.",
+    "submitTooltip": "E dërgon kërkesën menjëherë te {careTerm} për konfirmim.",
     "disabledBlocked": "{careTerm} nuk pranon këtu ndryshime të marrjes së fëmijës.",
     "alreadyHomeBlocked": "Fëmija juaj është sot tashmë në shtëpi.",
     "cutoffBlocked": "Koha për ndryshime për sot ka mbaruar.",

@@ -43,7 +43,7 @@
     "cancel": "Cancel",
     "noChange": "Please change at least one detail.",
     "required": "A changed detail must not be empty.",
-    "submitTooltip": "Sends the request to the {careTerm} right away. It checks the details."
+    "submitTooltip": "Sends the request to the {careTerm} for review right away."
   },
   "sections": {
     "child": "Personal details",
@@ -250,7 +250,7 @@
     "errorObject": "the list of care times",
     "requestErrorObject": "the weekly plan request",
     "requestButtonTooltip": "Opens a form to request changes to the weekly plan.",
-    "requestSubmitTooltip": "Sends the request to the {careTerm} right away. It checks the change."
+    "requestSubmitTooltip": "Sends the request to the {careTerm} for review right away."
   },
   "errorObject": "the overview of the details",
   "errorObjectChange": "the change",

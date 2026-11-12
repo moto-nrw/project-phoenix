@@ -112,7 +112,7 @@
     "savingEdit": "Kaydediliyor …",
     "resetTooltip": "Bu gün için değişikliğinizi kaldırır. moto önce sorar.",
     "saveEditTooltip": "Açık talebinizi değiştirir. {careTerm} yine de onaylamalıdır.",
-    "submitTooltip": "Talebi hemen {careTerm} ekibine gönderir. Ekip onaylamalıdır.",
+    "submitTooltip": "Talebi onay için hemen {careTerm} ekibine gönderir.",
     "disabledBlocked": "{careTerm} burada alınış değişikliği almıyor.",
     "alreadyHomeBlocked": "Çocuğunuz bugün zaten evde.",
     "cutoffBlocked": "Bugün için değişiklik süresi doldu.",

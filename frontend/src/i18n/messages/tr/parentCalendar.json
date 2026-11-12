@@ -31,7 +31,7 @@
   "responseRequired": "Yanıt gerekli",
   "errorObjectList": "randevu listesi",
   "errorObjectResponse": "yanıt",
-  "openEventTooltip": "Bu randevunun ayrıntılarını açar.",
+  "openEventTooltip": "Bu randevunun ayrıntılarını gösterir veya gizler.",
   "acceptTooltip": "Hemen kabul eder. Cevabı sonra burada değiştiremezsiniz.",
   "declineTooltip": "Hemen reddeder. Cevabı sonra burada değiştiremezsiniz.",
   "previousMonthTooltip": "Önceki ayın randevularını gösterir.",

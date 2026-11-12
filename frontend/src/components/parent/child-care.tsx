@@ -975,7 +975,11 @@ export function SickNoteModal({
                     ? "sick.submitDirectTooltip"
                     : "sick.submitTooltip",
               )}
-              disabledReason={t("sick.submitBlocked")}
+              disabledReason={
+                !sickEnabled && !excusedEnabled
+                  ? t("sick.submitBlocked")
+                  : undefined
+              }
               isLoading={submitting}
               loadingText={t("sick.submitting")}
             >
@@ -1315,6 +1319,7 @@ export function PickupTimeModal({
   const todayLocked = date === today && (todayClosed || cutoffReported);
   // Gründe für gesperrte Knöpfe, in der Reihenfolge der Sperren (#6756).
   // Kurz und anders als die Hinweise im Dialog, die die Lage ausführen.
+  // Ein Grund sperrt „Anfrage senden“, ohne Grund bleibt der Knopf frei.
   const alreadyHomeText = t("pickup.alreadyHomeBlocked");
   const cutoffClosedText = t("pickup.cutoffBlocked");
   const submitBlockedReason = alreadyHome
@@ -1655,15 +1660,7 @@ export function PickupTimeModal({
               size="md"
               className="w-full whitespace-nowrap sm:w-auto"
               onClick={() => void handleSubmit()}
-              disabled={
-                submitting ||
-                alreadyHome ||
-                todayLocked ||
-                staffOwned ||
-                !pickupChangeEnabled ||
-                !careExceptionsLoaded ||
-                !pickupChangeRequestsLoaded
-              }
+              disabled={submitting || submitBlockedReason !== undefined}
               tooltip={t("pickup.submitTooltip")}
               disabledReason={submitBlockedReason}
               isLoading={submitting}

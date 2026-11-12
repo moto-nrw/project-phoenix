@@ -40,7 +40,7 @@
     "requestSentPartlyBody": "Wolne dni są zgłoszone. Na pozostałe dni {careTerm} sprawdzi Państwa zgłoszenie. Do tego czasu obowiązuje jej wpis.",
     "errorObject": "zgłoszenie nieobecności",
     "submitting": "Zgłaszanie …",
-    "submitDirectTooltip": "Od razu zgłasza nieobecność dziecka. {careTerm} widzi to od razu.",
+    "submitDirectTooltip": "Od razu zgłasza nieobecność Państwa dziecka. {careTerm} widzi to od razu.",
     "submitRequestTooltip": "Od razu wysyła nieobecność jako prośbę. {careTerm} musi potwierdzić.",
     "submitTooltip": "Od razu wysyła zgłoszenie nieobecności do {careTerm}.",
     "submitBlocked": "{careTerm} nie przyjmuje tu teraz zgłoszeń nieobecności."
@@ -110,11 +110,11 @@
     "errorStaffConflictGeneric": "{careTerm} wpisała już zmianę na ten dzień. Proszę skontaktować się z zespołem.",
     "submitting": "Wysyłanie …",
     "savingEdit": "Zapisywanie …",
-    "resetTooltip": "Usuwa Twoją zmianę na ten dzień. moto najpierw zapyta.",
-    "saveEditTooltip": "Zmienia Twoją otwartą prośbę. {careTerm} musi ją jeszcze potwierdzić.",
-    "submitTooltip": "Od razu wysyła prośbę do {careTerm}. Placówka musi ją potwierdzić.",
+    "resetTooltip": "Usuwa Państwa zmianę na ten dzień. moto najpierw zapyta.",
+    "saveEditTooltip": "Zmienia Państwa otwartą prośbę. {careTerm} musi ją jeszcze potwierdzić.",
+    "submitTooltip": "Od razu wysyła prośbę do {careTerm} do potwierdzenia.",
     "disabledBlocked": "{careTerm} nie przyjmuje tu zmian odbioru.",
-    "alreadyHomeBlocked": "Twoje dziecko jest dziś już w domu.",
+    "alreadyHomeBlocked": "Państwa dziecko jest dziś już w domu.",
     "cutoffBlocked": "Czas na zmiany na dziś już minął.",
     "staffSetBlocked": "{careTerm} już ustaliła ten dzień.",
     "loadBlocked": "Brakuje dotychczasowych godzin. Proszę odświeżyć stronę."
@@ -138,5 +138,5 @@
   "requiredHint": "Pola oznaczone * są wymagane.",
   "timeFormatHint": "Godzina w formacie 15:30",
   "timeExample": "np. 15:30",
-  "requestEditTooltip": "Otwiera Twoją otwartą prośbę do zmiany."
+  "requestEditTooltip": "Otwiera Państwa otwartą prośbę do zmiany."
 }

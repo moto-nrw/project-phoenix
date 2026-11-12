@@ -5922,7 +5922,8 @@ const TOOLTIP_SCOPE = [
   "src/app/[tenant]/(protected)/settings/",
   "src/app/traeger/einstellungen/",
   "src/components/settings/",
-  // Elternportal: Kind, Buchungen, Kurse, Einstellungen (#6756).
+  // Elternportal: Kind, Kalender, Buchungen, Kurse, Vertrag, Ferienanmeldung,
+  // Einstellungen (#6756).
   "src/app/parents/children/[id]/elternsprechtag/page.tsx",
   "src/app/parents/error.tsx",
   "src/app/parents/ferienanmeldung/[token]/page.tsx",
@@ -5939,6 +5940,7 @@ const TOOLTIP_SCOPE = [
   "src/components/parent/child/child-page.tsx",
   "src/components/parent/child/courses-section.tsx",
   "src/components/parent/child/weekly-schedule-section.tsx",
+  "src/components/parent/parent-holiday-registrations-page.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {

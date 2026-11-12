@@ -112,7 +112,7 @@
     "savingEdit": "Wird gespeichert …",
     "resetTooltip": "Entfernt Ihre Änderung für diesen Tag. moto fragt vorher nach.",
     "saveEditTooltip": "Ändert Ihre offene Anfrage. Die {careTerm} muss sie noch bestätigen.",
-    "submitTooltip": "Schickt die Anfrage sofort an die {careTerm}. Sie muss bestätigen.",
+    "submitTooltip": "Schickt die Anfrage sofort an die {careTerm} zur Bestätigung.",
     "disabledBlocked": "Die {careTerm} nimmt hier keine Änderung der Abholung an.",
     "alreadyHomeBlocked": "Ihr Kind ist heute schon zuhause.",
     "cutoffBlocked": "Für heute ist die Zeit für Änderungen vorbei.",

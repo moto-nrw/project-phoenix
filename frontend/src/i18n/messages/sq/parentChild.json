@@ -83,7 +83,7 @@
     "grantSuccess": "Pëlqimi për fotografinë u dha përsëri.",
     "errorObjectList": "lista e pëlqimeve",
     "errorObjectPhoto": "pëlqimi për fotografinë",
-    "withdrawTooltip": "Përfundon pëlqimin për foto dhe fshin foton. moto pyet më parë.",
+    "withdrawTooltip": "Përfundon pëlqimin për foto dhe fshin foton e ruajtur. moto pyet më parë.",
     "grantTooltip": "I lejon sërish {careTerm} një foto. moto pyet më parë."
   },
   "errorObject": "lista e fëmijëve tuaj",

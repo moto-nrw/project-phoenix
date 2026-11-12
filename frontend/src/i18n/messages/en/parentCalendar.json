@@ -31,7 +31,7 @@
   "responseRequired": "Response required",
   "errorObjectList": "the list of appointments",
   "errorObjectResponse": "the reply",
-  "openEventTooltip": "Opens the details of this appointment.",
+  "openEventTooltip": "Shows or hides the details of this appointment.",
   "acceptTooltip": "Accepts right away. You cannot change the answer here afterwards.",
   "declineTooltip": "Declines right away. You cannot change the answer here afterwards.",
   "previousMonthTooltip": "Shows the appointments of the previous month.",

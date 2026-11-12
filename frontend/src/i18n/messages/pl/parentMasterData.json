@@ -43,7 +43,7 @@
     "cancel": "Anuluj",
     "noChange": "Proszę zmienić przynajmniej jedną informację.",
     "required": "Zmienione pole nie może być puste.",
-    "submitTooltip": "Od razu wysyła prośbę do {careTerm}. Placówka sprawdzi dane."
+    "submitTooltip": "Od razu wysyła prośbę do {careTerm} do sprawdzenia."
   },
   "sections": {
     "child": "Dane osobowe",
@@ -204,7 +204,7 @@
     "errorObjectWithdraw": "wycofanie prośby o kurs",
     "requestTooltip": "Od razu wysyła prośbę o kurs do {careTerm}.",
     "withdrawTooltip": "Od razu wycofuje prośbę o kurs.",
-    "requestBlocked": "Najpierw napisz uzasadnienie."
+    "requestBlocked": "Proszę najpierw napisać uzasadnienie."
   },
   "careSchedule": {
     "arrival": "Godzina przyjścia",
@@ -250,13 +250,13 @@
     "errorObject": "lista godzin opieki",
     "requestErrorObject": "prośba o zmianę planu tygodnia",
     "requestButtonTooltip": "Otwiera formularz, aby poprosić o zmianę planu tygodnia.",
-    "requestSubmitTooltip": "Od razu wysyła prośbę do {careTerm}. Placówka sprawdzi zmianę."
+    "requestSubmitTooltip": "Od razu wysyła prośbę do {careTerm} do sprawdzenia."
   },
   "errorObject": "zestawienie danych",
   "errorObjectChange": "zmiana",
   "errorObjectRequest": "prośba",
   "errorNoEnrollment": "Państwa dziecko nie ma już ważnego zapisu. Proszę skontaktować się ze szkołą.",
   "identityRequestButtonTooltip": "Otwiera formularz, aby poprosić o zmianę danych.",
-  "requestEditTooltip": "Otwiera Twoją otwartą prośbę do zmiany.",
+  "requestEditTooltip": "Otwiera Państwa otwartą prośbę do zmiany.",
   "departureEditTooltip": "Otwiera odbiór na każdy dzień tygodnia. Zmiany sprawdza {careTerm}."
 }

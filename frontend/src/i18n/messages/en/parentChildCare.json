@@ -112,7 +112,7 @@
     "savingEdit": "Saving …",
     "resetTooltip": "Removes your change for this day. moto asks first.",
     "saveEditTooltip": "Changes your open request. The {careTerm} still has to confirm it.",
-    "submitTooltip": "Sends the request to the {careTerm} right away. It must confirm it.",
+    "submitTooltip": "Sends the request to the {careTerm} for confirmation right away.",
     "disabledBlocked": "The {careTerm} does not accept pickup changes here.",
     "alreadyHomeBlocked": "Your child is already home today.",
     "cutoffBlocked": "The time for changes today is over.",

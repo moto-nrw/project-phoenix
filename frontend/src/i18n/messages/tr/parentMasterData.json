@@ -43,7 +43,7 @@
     "cancel": "İptal",
     "noChange": "Lütfen en az bir bilgiyi değiştirin.",
     "required": "Değiştirilen bir bilgi boş bırakılamaz.",
-    "submitTooltip": "Talebi hemen {careTerm} ekibine gönderir. Ekip bilgileri inceler."
+    "submitTooltip": "Talebi inceleme için hemen {careTerm} ekibine gönderir."
   },
   "sections": {
     "child": "Kişisel bilgiler",
@@ -250,7 +250,7 @@
     "errorObject": "bakım saatleri listesi",
     "requestErrorObject": "haftalık plan talebi",
     "requestButtonTooltip": "Haftalık plan değişikliği istemek için bir form açar.",
-    "requestSubmitTooltip": "Talebi hemen {careTerm} ekibine gönderir. Ekip değişikliği inceler."
+    "requestSubmitTooltip": "Talebi inceleme için hemen {careTerm} ekibine gönderir."
   },
   "errorObject": "bilgi özeti",
   "errorObjectChange": "değişiklik",

@@ -216,6 +216,7 @@ describe("CoursesSection", () => {
     await user.type(reason, "Ich möchte mein Kind anmelden.");
 
     expect(request).toBeEnabled();
+    expect(request).not.toHaveAttribute("aria-disabled");
     await user.click(request);
     await waitFor(() =>
       expect(mockedRequest).toHaveBeenCalledWith(

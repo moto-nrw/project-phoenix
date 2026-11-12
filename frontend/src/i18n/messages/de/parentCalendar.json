@@ -31,7 +31,7 @@
   "responseRequired": "Antwort erforderlich",
   "errorObjectList": "die Liste der Termine",
   "errorObjectResponse": "die Antwort",
-  "openEventTooltip": "Öffnet die Einzelheiten zu diesem Termin.",
+  "openEventTooltip": "Klappt die Einzelheiten zu diesem Termin auf oder zu.",
   "acceptTooltip": "Sagt sofort zu. Ändern können Sie die Antwort hier danach nicht.",
   "declineTooltip": "Sagt sofort ab. Ändern können Sie die Antwort hier danach nicht.",
   "previousMonthTooltip": "Zeigt die Termine im Monat davor.",

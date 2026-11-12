@@ -206,6 +206,9 @@ describe("ParentCalendarPage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Nächster Monat" }),
+    ).not.toBeDisabled();
+    expect(
+      screen.getByRole("button", { name: "Nächster Monat" }),
     ).not.toHaveAttribute("aria-disabled");
 
     fireEvent.click(screen.getByRole("button", { name: "Nächster Monat" }));

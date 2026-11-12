@@ -83,8 +83,8 @@
     "grantSuccess": "Photo consent was given again.",
     "errorObjectList": "the list of consents",
     "errorObjectPhoto": "the photo consent",
-    "withdrawTooltip": "Ends the photo consent and deletes a photo. moto asks first.",
-    "grantTooltip": "Allows the {careTerm} a photo again. moto asks first."
+    "withdrawTooltip": "Ends the photo consent and deletes a stored photo. moto asks first.",
+    "grantTooltip": "Lets the {careTerm} store a photo again. moto asks first."
   },
   "errorObject": "the list of your children",
   "errorObjectCare": "the care overview"

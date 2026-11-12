@@ -83,7 +83,7 @@
     "grantSuccess": "Die Foto-Einwilligung wurde erneut gegeben.",
     "errorObjectList": "die Liste der Einwilligungen",
     "errorObjectPhoto": "die Foto-Einwilligung",
-    "withdrawTooltip": "Beendet die Foto-Einwilligung und löscht ein Foto. moto fragt vorher nach.",
+    "withdrawTooltip": "Beendet die Foto-Einwilligung und löscht ein gespeichertes Foto. moto fragt vorher nach.",
     "grantTooltip": "Erlaubt der {careTerm} wieder ein Foto. moto fragt vorher nach."
   },
   "errorObject": "die Liste Ihrer Kinder",

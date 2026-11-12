@@ -43,7 +43,7 @@
     "cancel": "Abbrechen",
     "noChange": "Bitte ändern Sie mindestens eine Angabe.",
     "required": "Eine geänderte Angabe darf nicht leer sein.",
-    "submitTooltip": "Schickt die Anfrage sofort an die {careTerm}. Sie prüft die Angaben."
+    "submitTooltip": "Schickt die Anfrage sofort an die {careTerm} zur Prüfung."
   },
   "sections": {
     "child": "Persönliche Angaben",
@@ -250,7 +250,7 @@
     "errorObject": "die Liste der Betreuungszeiten",
     "requestErrorObject": "die Anfrage zum Wochenplan",
     "requestButtonTooltip": "Öffnet ein Formular, um Änderungen am Wochenplan anzufragen.",
-    "requestSubmitTooltip": "Schickt die Anfrage sofort an die {careTerm}. Sie prüft die Änderung."
+    "requestSubmitTooltip": "Schickt die Anfrage sofort an die {careTerm} zur Prüfung."
   },
   "errorObject": "die Übersicht der Angaben",
   "errorObjectChange": "die Änderung",

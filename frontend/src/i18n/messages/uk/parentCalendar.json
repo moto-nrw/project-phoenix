@@ -31,7 +31,7 @@
   "responseRequired": "Потрібна відповідь",
   "errorObjectList": "список зустрічей",
   "errorObjectResponse": "відповідь",
-  "openEventTooltip": "Відкриває подробиці цієї події.",
+  "openEventTooltip": "Показує або приховує подробиці цієї події.",
   "acceptTooltip": "Одразу підтверджує участь. Потім відповідь тут не змінити.",
   "declineTooltip": "Одразу відмовляється. Потім відповідь тут не змінити.",
   "previousMonthTooltip": "Показує події попереднього місяця.",

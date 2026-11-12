@@ -43,7 +43,7 @@
     "cancel": "Скасувати",
     "noChange": "Змініть хоча б одне поле.",
     "required": "Змінене поле не може бути порожнім.",
-    "submitTooltip": "Одразу надсилає запит до {careTerm}. Там перевірять дані."
+    "submitTooltip": "Одразу надсилає запит до {careTerm} на перевірку."
   },
   "sections": {
     "child": "Особисті дані",
@@ -250,7 +250,7 @@
     "errorObject": "список годин догляду",
     "requestErrorObject": "запит на зміну тижневого плану",
     "requestButtonTooltip": "Відкриває форму, щоб попросити зміни тижневого плану.",
-    "requestSubmitTooltip": "Одразу надсилає запит до {careTerm}. Там перевірять зміну."
+    "requestSubmitTooltip": "Одразу надсилає запит до {careTerm} на перевірку."
   },
   "errorObject": "огляд даних",
   "errorObjectChange": "зміна",
