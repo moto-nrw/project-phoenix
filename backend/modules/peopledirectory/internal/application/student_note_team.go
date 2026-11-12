@@ -44,8 +44,10 @@ func NewStudentNoteTeam(
 }
 
 // InformStudentNoteTeam stores the markers and runs the device notification
-// in the same unit. The child row is locked before the note, in the order the
-// deletion takes them, so a note cannot be announced while it is removed.
+// in a savepoint of the caller's unit: a failure of either leaves neither
+// behind, whatever the caller answers. The child row is locked before the
+// note, in the order the deletion takes them, so a note cannot be announced
+// while it is removed.
 func (s *StudentNoteTeamService) InformStudentNoteTeam(ctx context.Context, input peopledirectory.InformStudentNoteTeam) (informed int, err error) {
 	if input.NoteID <= 0 || input.StudentID <= 0 || input.ActorAccountID <= 0 {
 		return 0, peopledirectory.ErrStudentNoteInvalid
@@ -54,7 +56,7 @@ func (s *StudentNoteTeamService) InformStudentNoteTeam(ctx context.Context, inpu
 		NoteID: input.NoteID, StudentID: input.StudentID, ActorAccountID: input.ActorAccountID,
 		RecipientAccountIDs: input.RecipientAccountIDs, Notify: input.Notify,
 	}
-	err = observeRun(ctx, s.observe, "inform_student_note_team", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = observeRun(ctx, s.observe, "inform_student_note_team", s.inCallerSavepoint, func(txCtx context.Context, stats *domain.OperationStats) error {
 		note, lockErr := s.lockTeamNote(txCtx, stats, command)
 		if lockErr != nil {
 			return lockErr
@@ -62,27 +64,54 @@ func (s *StudentNoteTeamService) InformStudentNoteTeam(ctx context.Context, inpu
 		if allowErr := note.AllowsTeamNotice(command.ActorAccountID); allowErr != nil {
 			return allowErr
 		}
-		recipients := command.Recipients()
-		if len(recipients) == 0 {
-			return nil
-		}
-		count, writeStats, writeErr := s.team.UpsertTeamNotices(txCtx, note.ID, recipients)
-		stats.Add(writeStats)
-		if writeErr != nil {
-			return writeErr
-		}
-		if command.Notify != nil {
-			if notifyErr := command.Notify(txCtx, recipients); notifyErr != nil {
-				return notifyErr
-			}
-		}
-		informed = count
-		return nil
+		var tellErr error
+		informed, tellErr = s.tellTeam(txCtx, stats, note.ID, command)
+		return tellErr
 	})
 	if err != nil {
 		return 0, MapError(err)
 	}
 	return informed, nil
+}
+
+// tellTeam stores the markers of the colleagues and runs the device
+// notification in the same unit; its error rolls the markers back.
+func (s *StudentNoteTeamService) tellTeam(
+	ctx context.Context, stats *domain.OperationStats, noteID int64, command domain.InformStudentNoteTeam,
+) (int, error) {
+	recipients := command.Recipients()
+	if len(recipients) == 0 {
+		return 0, nil
+	}
+	count, writeStats, err := s.team.UpsertTeamNotices(ctx, noteID, recipients)
+	stats.Add(writeStats)
+	if err != nil {
+		return 0, err
+	}
+	if command.Notify != nil {
+		if err := command.Notify(ctx, recipients); err != nil {
+			return 0, err
+		}
+	}
+	return count, nil
+}
+
+// inCallerUnit runs fn in the caller's school unit; the routes and the
+// workflows that reach this capability already hold one.
+func (s *StudentNoteTeamService) inCallerUnit(ctx context.Context, fn func(context.Context) error) error {
+	if err := s.tx.RequireTransaction(ctx); err != nil {
+		return err
+	}
+	return fn(ctx)
+}
+
+// inCallerSavepoint is inCallerUnit inside a savepoint, so a failed write
+// rolls back only its own rows.
+func (s *StudentNoteTeamService) inCallerSavepoint(ctx context.Context, fn func(context.Context) error) error {
+	if err := s.tx.RequireTransaction(ctx); err != nil {
+		return err
+	}
+	return s.tx.RunSavepoint(ctx, fn)
 }
 
 func (s *StudentNoteTeamService) lockTeamNote(
@@ -114,7 +143,7 @@ func (s *StudentNoteTeamService) ListUnreadStudentNoteTeamNotices(ctx context.Co
 	if readerAccountID <= 0 {
 		return nil, peopledirectory.ErrStudentNoteInvalid
 	}
-	err = observeRun(ctx, s.observe, "list_student_note_team_notices", s.tx.RunRead, func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = observeRun(ctx, s.observe, "list_student_note_team_notices", s.inCallerUnit, func(txCtx context.Context, stats *domain.OperationStats) error {
 		var listErr error
 		result, listErr = s.unread(txCtx, stats, readerAccountID)
 		return listErr
@@ -131,7 +160,7 @@ func (s *StudentNoteTeamService) MarkStudentNoteTeamNoticesRead(ctx context.Cont
 	if readerAccountID <= 0 || studentID <= 0 {
 		return nil, peopledirectory.ErrStudentNoteInvalid
 	}
-	err = observeRun(ctx, s.observe, "mark_student_note_team_notices_read", s.tx.RunWrite, func(txCtx context.Context, stats *domain.OperationStats) error {
+	err = observeRun(ctx, s.observe, "mark_student_note_team_notices_read", s.inCallerUnit, func(txCtx context.Context, stats *domain.OperationStats) error {
 		markStats, markErr := s.team.MarkTeamNoticesRead(txCtx, readerAccountID, studentID)
 		stats.Add(markStats)
 		if markErr != nil {

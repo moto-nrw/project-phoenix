@@ -7,6 +7,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -38,6 +39,40 @@ func teamNote(t *testing.T, module *Directory, ctx context.Context, studentID, a
 	return note
 }
 
+// The capability runs in the caller's school unit, as on the routes.
+func inSchool[T any](t *testing.T, db *testpkg.DB, ctx context.Context, call func(context.Context) (T, error)) (value T, err error) {
+	t.Helper()
+	txErr := testpkg.WithinTenantContext(t, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		value, err = call(txCtx)
+		return err
+	})
+	if err == nil {
+		err = txErr
+	}
+	return value, err
+}
+
+func informTeam(t *testing.T, db *testpkg.DB, module *Directory, ctx context.Context, input peopledirectory.InformStudentNoteTeam) (int, error) {
+	t.Helper()
+	return inSchool(t, db, ctx, func(txCtx context.Context) (int, error) {
+		return module.StudentNoteTeam.InformStudentNoteTeam(txCtx, input)
+	})
+}
+
+func unreadNotices(t *testing.T, db *testpkg.DB, module *Directory, ctx context.Context, reader int64) ([]peopledirectory.StudentNoteTeamNotice, error) {
+	t.Helper()
+	return inSchool(t, db, ctx, func(txCtx context.Context) ([]peopledirectory.StudentNoteTeamNotice, error) {
+		return module.StudentNoteTeam.ListUnreadStudentNoteTeamNotices(txCtx, reader)
+	})
+}
+
+func readNotices(t *testing.T, db *testpkg.DB, module *Directory, ctx context.Context, reader, studentID int64) ([]peopledirectory.StudentNoteTeamNotice, error) {
+	t.Helper()
+	return inSchool(t, db, ctx, func(txCtx context.Context) ([]peopledirectory.StudentNoteTeamNotice, error) {
+		return module.StudentNoteTeam.MarkStudentNoteTeamNoticesRead(txCtx, reader, studentID)
+	})
+}
+
 func noticeNotes(notices []peopledirectory.StudentNoteTeamNotice) []int64 {
 	ids := make([]int64, 0, len(notices))
 	for _, notice := range notices {
@@ -59,7 +94,7 @@ func TestStudentNoteTeamTellsTheColleaguesAndClearsOnRead(t *testing.T) {
 	note := teamNote(t, module, ctx, child.ID, author, peopledirectory.StudentNoteVisibilityAllStaff)
 
 	var notified []int64
-	informed, err := module.StudentNoteTeam.InformStudentNoteTeam(ctx, peopledirectory.InformStudentNoteTeam{
+	informed, err := informTeam(t, db, module, ctx, peopledirectory.InformStudentNoteTeam{
 		NoteID: note.ID, StudentID: child.ID, ActorAccountID: author,
 		RecipientAccountIDs: []int64{author, colleague, other, colleague},
 		Notify: func(_ context.Context, recipients []int64) error {
@@ -71,7 +106,7 @@ func TestStudentNoteTeamTellsTheColleaguesAndClearsOnRead(t *testing.T) {
 	assert.Equal(t, 2, informed, "the author is not told about their own note, a repeated colleague once")
 	assert.Equal(t, []int64{colleague, other}, notified, "the device notification reaches the same colleagues")
 
-	unread, err := module.StudentNoteTeam.ListUnreadStudentNoteTeamNotices(ctx, colleague)
+	unread, err := unreadNotices(t, db, module, ctx, colleague)
 	require.NoError(t, err)
 	require.Len(t, unread, 1)
 	assert.Equal(t, note.ID, unread[0].NoteID)
@@ -80,27 +115,27 @@ func TestStudentNoteTeamTellsTheColleaguesAndClearsOnRead(t *testing.T) {
 	assert.Equal(t, "Teamnotiz", unread[0].StudentLastName)
 	assert.Equal(t, "Anja Autorin", unread[0].AuthorName)
 
-	own, err := module.StudentNoteTeam.ListUnreadStudentNoteTeamNotices(ctx, author)
+	own, err := unreadNotices(t, db, module, ctx, author)
 	require.NoError(t, err)
 	assert.Empty(t, own, "the author has no marker")
 
-	remaining, err := module.StudentNoteTeam.MarkStudentNoteTeamNoticesRead(ctx, colleague, child.ID)
+	remaining, err := readNotices(t, db, module, ctx, colleague, child.ID)
 	require.NoError(t, err)
 	assert.Empty(t, remaining, "opening the child's notes clears the colleague's marker")
-	stillUnread, err := module.StudentNoteTeam.ListUnreadStudentNoteTeamNotices(ctx, other)
+	stillUnread, err := unreadNotices(t, db, module, ctx, other)
 	require.NoError(t, err)
 	assert.Equal(t, []int64{note.ID}, noticeNotes(stillUnread), "one colleague reading clears nobody else's marker")
 
-	_, err = module.StudentNoteTeam.InformStudentNoteTeam(ctx, peopledirectory.InformStudentNoteTeam{
+	_, err = informTeam(t, db, module, ctx, peopledirectory.InformStudentNoteTeam{
 		NoteID: note.ID, StudentID: child.ID, ActorAccountID: author, RecipientAccountIDs: []int64{colleague},
 	})
 	require.NoError(t, err)
-	again, err := module.StudentNoteTeam.ListUnreadStudentNoteTeamNotices(ctx, colleague)
+	again, err := unreadNotices(t, db, module, ctx, colleague)
 	require.NoError(t, err)
 	assert.Equal(t, []int64{note.ID}, noticeNotes(again), "telling the team again makes the note unread again")
 
 	t.Run("another school never sees the markers", func(t *testing.T) {
-		foreign, err := module.StudentNoteTeam.ListUnreadStudentNoteTeamNotices(testpkg.OwnCtx(t), colleague)
+		foreign, err := unreadNotices(t, db, module, testpkg.OwnCtx(t), colleague)
 		require.NoError(t, err)
 		assert.Empty(t, foreign)
 	})
@@ -120,7 +155,7 @@ func TestStudentNoteTeamOnlyTheAuthorSharesANoteForTheWholeTeam(t *testing.T) {
 	narrow := teamNote(t, module, ctx, child.ID, author, peopledirectory.StudentNoteVisibilityCareTeam)
 
 	inform := func(noteID, studentID, actor int64) error {
-		_, err := module.StudentNoteTeam.InformStudentNoteTeam(ctx, peopledirectory.InformStudentNoteTeam{
+		_, err := informTeam(t, db, module, ctx, peopledirectory.InformStudentNoteTeam{
 			NoteID: noteID, StudentID: studentID, ActorAccountID: actor, RecipientAccountIDs: []int64{author, colleague},
 		})
 		return err
@@ -131,7 +166,7 @@ func TestStudentNoteTeamOnlyTheAuthorSharesANoteForTheWholeTeam(t *testing.T) {
 	require.ErrorIs(t, inform(wide.ID, sibling.ID, author), peopledirectory.ErrStudentNoteNotFound,
 		"a note is shared only through the child it belongs to")
 
-	unread, err := module.StudentNoteTeam.ListUnreadStudentNoteTeamNotices(ctx, colleague)
+	unread, err := unreadNotices(t, db, module, ctx, colleague)
 	require.NoError(t, err)
 	assert.Empty(t, unread)
 }
@@ -151,16 +186,21 @@ func TestStudentNoteTeamFailedNotificationLeavesNoMarker(t *testing.T) {
 	note := teamNote(t, module, ctx, child.ID, author, peopledirectory.StudentNoteVisibilityAllStaff)
 
 	outboxDown := errors.New("push outbox unavailable")
-	informed, err := module.StudentNoteTeam.InformStudentNoteTeam(ctx, peopledirectory.InformStudentNoteTeam{
-		NoteID: note.ID, StudentID: child.ID, ActorAccountID: author, RecipientAccountIDs: []int64{colleague},
-		Notify: func(context.Context, []int64) error { return outboxDown },
-	})
-	require.ErrorIs(t, err, outboxDown)
-	assert.Zero(t, informed)
+	var informErr error
+	// The caller's unit commits anyway, as a request whose handler answered
+	// with a refusal would: the savepoint alone has to take the markers back.
+	require.NoError(t, testpkg.WithinTenantContext(t, ctx, db, tenant.FromContext(ctx), func(txCtx context.Context) error {
+		_, informErr = module.StudentNoteTeam.InformStudentNoteTeam(txCtx, peopledirectory.InformStudentNoteTeam{
+			NoteID: note.ID, StudentID: child.ID, ActorAccountID: author, RecipientAccountIDs: []int64{colleague},
+			Notify: func(context.Context, []int64) error { return outboxDown },
+		})
+		return nil
+	}))
+	require.ErrorIs(t, informErr, outboxDown)
 
 	var rows int
 	require.NoError(t, db.NewRaw(`SELECT count(*) FROM users.student_note_team_notices WHERE note_id = ?`, note.ID).Scan(ctx, &rows))
-	assert.Zero(t, rows, "the markers roll back with the failed notification")
+	assert.Zero(t, rows, "the markers roll back with the failed notification, although the caller committed")
 
 	notes, err := module.ListStudentNotes(ctx, peopledirectory.StudentNoteFilter{
 		StudentID: child.ID, Audience: peopledirectory.StudentNoteAudience{ReaderAccountID: author},
@@ -185,7 +225,7 @@ func TestStudentNoteTeamMarkerFollowsNoteAndRecipient(t *testing.T) {
 	deleted := teamNote(t, module, ctx, child.ID, author, peopledirectory.StudentNoteVisibilityAllStaff)
 	kept := teamNote(t, module, ctx, child.ID, author, peopledirectory.StudentNoteVisibilityAllStaff)
 	for _, note := range []peopledirectory.StudentNote{narrowed, deleted, kept} {
-		_, err := module.StudentNoteTeam.InformStudentNoteTeam(ctx, peopledirectory.InformStudentNoteTeam{
+		_, err := informTeam(t, db, module, ctx, peopledirectory.InformStudentNoteTeam{
 			NoteID: note.ID, StudentID: child.ID, ActorAccountID: author, RecipientAccountIDs: []int64{colleague, leaver},
 		})
 		require.NoError(t, err)
@@ -202,7 +242,7 @@ func TestStudentNoteTeamMarkerFollowsNoteAndRecipient(t *testing.T) {
 		Authorization: peopledirectory.StudentNoteDeleteAuthorization{Admin: true},
 	}))
 
-	unread, err := module.StudentNoteTeam.ListUnreadStudentNoteTeamNotices(ctx, colleague)
+	unread, err := unreadNotices(t, db, module, ctx, colleague)
 	require.NoError(t, err)
 	assert.Equal(t, []int64{kept.ID}, noticeNotes(unread))
 

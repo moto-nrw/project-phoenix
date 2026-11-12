@@ -282,6 +282,7 @@ func init() {
 	registerPickupTypes()
 	registerActivityTypes()
 	registerStaffMessageTypes()
+	registerStaffNoteTypes()
 	registerStaffQualificationTypes()
 	registerParentMessageTypes()
 	registerParentStatusTypes()
@@ -351,17 +352,8 @@ func registerActivityTypes() {
 	})
 }
 
-func registerStaffMessageTypes() {
-
-	RegisterType(TypeDefinition{
-		Key:         TypeStudentAbsenceReported,
-		Label:       "Krankmeldung eines Kindes",
-		Description: "Wenn für ein Kind aus Ihren Gruppen eine Krankmeldung oder Entschuldigung für heute eingetragen wird.",
-		Group:       GroupChildren,
-		Portal:      PortalStaff,
-		TenantGate:  settingAbsenceReportedEnabled,
-		SortOrder:   1,
-	})
+// registerStaffNoteTypes adds the notes a colleague shares with the team.
+func registerStaffNoteTypes() {
 	// A colleague chose "Speichern und Team informieren" (#6854): on until
 	// the person switches it off, and only offered to those who may read the
 	// notes. The notice names no child; the link opens the note.
@@ -374,6 +366,19 @@ func registerStaffMessageTypes() {
 		Permission:  permissionUsersRead,
 		DefaultOn:   true,
 		SortOrder:   2,
+	})
+}
+
+func registerStaffMessageTypes() {
+
+	RegisterType(TypeDefinition{
+		Key:         TypeStudentAbsenceReported,
+		Label:       "Krankmeldung eines Kindes",
+		Description: "Wenn für ein Kind aus Ihren Gruppen eine Krankmeldung oder Entschuldigung für heute eingetragen wird.",
+		Group:       GroupChildren,
+		Portal:      PortalStaff,
+		TenantGate:  settingAbsenceReportedEnabled,
+		SortOrder:   1,
 	})
 	RegisterType(TypeDefinition{
 		Key:         TypeStaffParentMessage,

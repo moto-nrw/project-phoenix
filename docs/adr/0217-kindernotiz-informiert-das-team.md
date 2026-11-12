@@ -47,12 +47,13 @@ dem Team teilen können, ohne dass jede gewöhnliche Notiz alle benachrichtigt.
 - **Benachrichtigung auf dem Gerät.** Über den vorhandenen Weg: Delivery-Typ
   `staff_student_note_shared` (Gruppe „Kinder“, für Inhaber von
   `users:read`, voreingestellt an, in den Einstellungen abschaltbar). Der
-  Text nennt kein Kind. Der Push-Eintrag entsteht in derselben Transaktion
-  wie die Markierungen; die Zustellung folgt den Regeln der Push-Outbox.
+  Text nennt kein Kind. Markierungen und Push-Eintrag entstehen in einem
+  Savepoint der Transaktion des Aufrufers; die Zustellung folgt den Regeln
+  der Push-Outbox.
   Ist die Benachrichtigung der Schule aus oder liegt die Zeit außerhalb ihres
   Benachrichtigungsfensters, entsteht kein Push, die Markierung in moto
-  reicht. Scheitert das Speichern des Push-Eintrags, rollt das Teilen
-  vollständig zurück.
+  reicht. Scheitert das Speichern der Markierungen oder des Push-Eintrags,
+  rollt der Savepoint beides zurück, auch wenn der Aufrufer committet.
 
 ## Grenzen
 
@@ -60,8 +61,9 @@ People Directory besitzt Notiz und Markierung und entscheidet, wer teilen
 darf. Wer das Team ist und wie es auf dem Gerät erfährt, bindet die Root am
 Mount der Schülerrouten über die Mitarbeiterverzeichnis-Projektion und den
 Delivery-Router: beide entstehen im Owner-Graphen nach People Directory. Der
-Befehl ruft den Push als Rückruf in seiner eigenen Transaktion auf
-(ADR 0067, Beteiligung an einem fremden Befehl mit Outbox, kein Workflow).
+Befehl ruft den Push als Rückruf im selben Savepoint auf (ADR 0067,
+Beteiligung an einem fremden Befehl mit Outbox, kein Workflow). Er öffnet
+keine eigene Transaktion, sondern verlangt die der Schülerroute.
 Der Root-Baustein `owners.StaffPushNotifier` ist allgemein gehalten, damit
 weitere Hinweise an das Personal (etwa #6855) denselben Weg nutzen.
 

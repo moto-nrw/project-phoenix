@@ -2,7 +2,9 @@ package api
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"strings"
 )
 
 // seedStudentNotesStep fills the note card ("Notizen") of a few demo children
@@ -76,15 +78,17 @@ func (seedStudentNotesStep) Run(_ context.Context, rt *Runtime) error {
 func seedInformNoteTeam(rt *Runtime, studentID int64, created []byte) (int, error) {
 	var note struct {
 		Data struct {
-			ID string `json:"id"`
+			// The API sends IDs as strings; a number is read the same way.
+			ID json.RawMessage `json:"id"`
 		} `json:"data"`
 	}
 	if err := parseJSON(created, &note); err != nil {
 		return 0, fmt.Errorf("parse created student note: %w", err)
 	}
-	raw, err := rt.Client.Post(fmt.Sprintf("/api/students/%d/notes/%s/team-notices", studentID, note.Data.ID), map[string]any{})
+	noteID := strings.Trim(string(note.Data.ID), `"`)
+	raw, err := rt.Client.Post(fmt.Sprintf("/api/students/%d/notes/%s/team-notices", studentID, noteID), map[string]any{})
 	if err != nil {
-		return 0, fmt.Errorf("inform the team about student note %s: %w", note.Data.ID, err)
+		return 0, fmt.Errorf("inform the team about student note %s: %w", noteID, err)
 	}
 	var response struct {
 		Data struct {

@@ -14403,9 +14403,20 @@
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.InformStudentNoteTeam",
-      "reason": "Platform protocol participation (scope): people-directory reaches *tenant.TransactionRunner.RunInTx (tenant-runtime) through *modules/peopledirectory/internal/application.StudentNoteTeamService.InformStudentNoteTeam. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Added by #6854: the team markers of a child's note run in the tenant unit.",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through *modules/peopledirectory/internal/application.StudentNoteTeamService.InformStudentNoteTeam (#6854). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "people-directory",
-      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.InformStudentNoteTeam",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.InformStudentNoteTeam",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.WithSavepoint (tenant-runtime) through *modules/peopledirectory/internal/application.StudentNoteTeamService.InformStudentNoteTeam (#6854). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithSavepoint",
       "target_owner": "tenant-runtime"
     },
     {
@@ -14426,9 +14437,9 @@
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.ListUnreadStudentNoteTeamNotices",
-      "reason": "Platform protocol participation (scope): people-directory reaches *tenant.TransactionRunner.RunInTx (tenant-runtime) through *modules/peopledirectory/internal/application.StudentNoteTeamService.ListUnreadStudentNoteTeamNotices. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Added by #6854: the team markers of a child's note run in the tenant unit.",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through *modules/peopledirectory/internal/application.StudentNoteTeamService.ListUnreadStudentNoteTeamNotices (#6854). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "people-directory",
-      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
       "target_owner": "tenant-runtime"
     },
     {
@@ -14449,9 +14460,9 @@
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.MarkStudentNoteTeamNoticesRead",
-      "reason": "Platform protocol participation (scope): people-directory reaches *tenant.TransactionRunner.RunInTx (tenant-runtime) through *modules/peopledirectory/internal/application.StudentNoteTeamService.MarkStudentNoteTeamNoticesRead. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Added by #6854: the team markers of a child's note run in the tenant unit.",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through *modules/peopledirectory/internal/application.StudentNoteTeamService.MarkStudentNoteTeamNoticesRead (#6854). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "people-directory",
-      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
       "target_owner": "tenant-runtime"
     },
     {

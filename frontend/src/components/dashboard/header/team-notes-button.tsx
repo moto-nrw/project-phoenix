@@ -19,7 +19,7 @@ import { useTenantAwarePath } from "~/lib/tenant-path";
 const TITLE = "Neue Notizen vom Team";
 
 /** The child's notes; opening them clears the marker. */
-export function teamNoteHref(notice: StudentNoteTeamNotice): string {
+function teamNoteHref(notice: StudentNoteTeamNotice): string {
   return `/students/${encodeURIComponent(notice.studentId)}?tab=notizen`;
 }
 

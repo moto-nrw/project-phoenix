@@ -36,9 +36,10 @@ func TestStaffPushDropsDeclinesAndKeepsTheRest(t *testing.T) {
 			return nil
 		}),
 	}
-	require.NoError(t, notifier.Notify(t.Context(), StaffPush{TenantID: 7, Type: "staff_kind", IdempotencyKey: "k", Title: "T", AccountIDs: []int64{1, 2, 3}}))
+	push := StaffPush{TenantID: 7, Type: "staff_kind", IdempotencyKey: "k", Title: "T", AccountIDs: []int64{1, 2, 3}}
+	require.NoError(t, notifier.Notify(t.Context(), push))
 	assert.Equal(t, []int64{2, 3}, sent.Audience.StaffAccountIDs)
-	assert.Equal(t, int64(7), sent.Audience.TenantID)
+	assert.Equal(t, push.TenantID, sent.Audience.TenantID)
 	assert.Equal(t, deliveryCompose.NotificationAudienceScope("staff"), sent.Audience.Scope)
 }
 

@@ -113,7 +113,7 @@ func TestStudentNoteTeamNoticesListQueryBudget(t *testing.T) {
 				Body: "Eintrag.", Subject: peopledirectory.StudentNoteSubject{Date: &date},
 			})
 			require.NoError(t, err)
-			_, err = module.StudentNoteTeam.InformStudentNoteTeam(ctx, peopledirectory.InformStudentNoteTeam{
+			_, err = informTeam(t, db, module, ctx, peopledirectory.InformStudentNoteTeam{
 				NoteID: note.ID, StudentID: child.ID, ActorAccountID: account.ID, RecipientAccountIDs: []int64{reader.ID},
 			})
 			require.NoError(t, err)
@@ -131,7 +131,7 @@ func TestStudentNoteTeamNoticesListQueryBudget(t *testing.T) {
 	list := func(expected int) int {
 		t.Helper()
 		counter.Reset()
-		notices, listErr := module.StudentNoteTeam.ListUnreadStudentNoteTeamNotices(ctx, reader.ID)
+		notices, listErr := unreadNotices(t, db, module, ctx, reader.ID)
 		require.NoError(t, listErr)
 		require.Len(t, notices, expected)
 		for _, notice := range notices {

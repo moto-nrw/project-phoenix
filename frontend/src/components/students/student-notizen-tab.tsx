@@ -72,7 +72,7 @@ const TEAM_INFORM_NEEDS_ALL_STAFF =
   "Wählen Sie bei „Wer sieht die Notiz?“ zuerst „Ganzes Team“.";
 
 /** What the author reads after the team was told. */
-export function teamInformedMessage(informed: number): string {
+function teamInformedMessage(informed: number): string {
   if (informed === 0) {
     return "Notiz gespeichert. Sonst darf niemand im Team Notizen lesen.";
   }

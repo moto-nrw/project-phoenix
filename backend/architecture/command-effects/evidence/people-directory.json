@@ -10074,10 +10074,18 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.InformStudentNoteTeam",
-      "binding_digest": "d5349101396c74a6f997482c10fd407a",
+      "binding_digest": "05b26a22d12d74354c60930bfa26ec5c",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.InformStudentNoteTeam",
       "source_owner": "people-directory",
-      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.InformStudentNoteTeam",
+      "binding_digest": "ccd79bd4bb01e567856fe8cd1f8a60c2",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.InformStudentNoteTeam",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithSavepoint",
       "target_owner": "tenant-runtime"
     },
     {
@@ -10090,10 +10098,10 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.ListUnreadStudentNoteTeamNotices",
-      "binding_digest": "cc8defacd9ecbc079b1a173bdb9f7904",
+      "binding_digest": "05b26a22d12d74354c60930bfa26ec5c",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.ListUnreadStudentNoteTeamNotices",
       "source_owner": "people-directory",
-      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
       "target_owner": "tenant-runtime"
     },
     {
@@ -10106,10 +10114,10 @@
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.MarkStudentNoteTeamNoticesRead",
-      "binding_digest": "d5349101396c74a6f997482c10fd407a",
+      "binding_digest": "05b26a22d12d74354c60930bfa26ec5c",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.MarkStudentNoteTeamNoticesRead",
       "source_owner": "people-directory",
-      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
       "target_owner": "tenant-runtime"
     },
     {
