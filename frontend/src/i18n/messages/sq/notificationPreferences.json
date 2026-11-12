@@ -45,5 +45,7 @@
   "errorObjectList": "lista e njoftimeve",
   "errorObjectType": "njoftimi „{name}“",
   "errorObjectEnableAll": "aktivizimi i të gjitha njoftimeve",
-  "errorObjectDisableAll": "çaktivizimi i të gjitha njoftimeve"
+  "errorObjectDisableAll": "çaktivizimi i të gjitha njoftimeve",
+  "enableAllTooltip": "Aktivizon të gjitha njoftimet njëherësh.",
+  "disableAllTooltip": "Çaktivizon menjëherë të gjitha njoftimet e moto për ju."
 }

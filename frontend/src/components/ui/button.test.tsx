@@ -614,3 +614,42 @@ describe("Button", () => {
     expect(link.className).toContain("ring-gray-300");
   });
 });
+
+describe("noTooltip", () => {
+  const reason = "Abbrechen schließt nur den Dialog.";
+
+  it("keeps the reason out of the DOM and the accessible description", () => {
+    const { container } = render(
+      <>
+        <Button type="button" noTooltip={reason}>
+          Abbrechen
+        </Button>
+        <ButtonLink href="/zurueck" noTooltip={reason}>
+          Zurück
+        </ButtonLink>
+      </>,
+    );
+
+    const button = screen.getByRole("button", { name: "Abbrechen" });
+    const link = screen.getByRole("link", { name: "Zurück" });
+    for (const element of [button, link]) {
+      expect(element).not.toHaveAttribute("notooltip");
+      expect(element).not.toHaveAttribute("noTooltip");
+      expect(element).not.toHaveAccessibleDescription();
+    }
+    expect(container).toHaveTextContent("AbbrechenZurück");
+    expect(container.innerHTML).not.toContain(reason);
+  });
+
+  it("rejects tooltip and noTooltip together at type level", () => {
+    // Der Nachweis ist `@ts-expect-error`: tsc schlägt fehl, wenn die
+    // Kombination erlaubt wäre.
+    const invalid = (
+      // @ts-expect-error: a button either explains itself or names a reason
+      <Button type="button" tooltip="Schließt den Dialog." noTooltip={reason}>
+        Abbrechen
+      </Button>
+    );
+    expect(invalid.props).toMatchObject({ noTooltip: reason });
+  });
+});
