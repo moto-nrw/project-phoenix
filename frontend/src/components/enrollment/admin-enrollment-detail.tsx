@@ -70,6 +70,7 @@ import {
   existingChildHintMessage,
   needsExistingChildChoice,
 } from "~/components/enrollment/existing-child-choice";
+import { ActionHint } from "~/components/ui/action-hint";
 import { Button, buttonClassName } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
 import { Alert } from "~/components/ui/alert";
@@ -108,13 +109,38 @@ interface ActionDef {
   status: DecisionStatus;
   label: string;
   tone: "primary" | "outline" | "danger" | "success";
+  /** Was der Klick auslöst, auch ob die Eltern davon erfahren (#6749). */
+  tooltip: string;
 }
 
 const ACTIONS: ActionDef[] = [
-  { status: "approved", label: "Bestätigen", tone: "success" },
-  { status: "waitlisted", label: "Warteliste", tone: "outline" },
-  { status: "rejected", label: "Ablehnen", tone: "danger" },
-  { status: "under_review", label: "Zur Prüfung", tone: "primary" },
+  {
+    status: "approved",
+    label: "Bestätigen",
+    tone: "success",
+    tooltip:
+      "Vergibt den Platz verbindlich und informiert die Eltern per E-Mail.",
+  },
+  {
+    status: "waitlisted",
+    label: "Warteliste",
+    tone: "outline",
+    tooltip:
+      "Setzt das Kind auf die Warteliste und informiert die Eltern per E-Mail.",
+  },
+  {
+    status: "rejected",
+    label: "Ablehnen",
+    tone: "danger",
+    tooltip:
+      "Lehnt die Anmeldung des Kindes ab und informiert die Eltern per E-Mail.",
+  },
+  {
+    status: "under_review",
+    label: "Zur Prüfung",
+    tone: "primary",
+    tooltip: "Setzt das Kind auf „In Prüfung“, ohne die Eltern zu informieren.",
+  },
 ];
 
 interface Props {
@@ -741,17 +767,19 @@ function ChildInformationCard({
         <div className="flex max-w-full min-w-0 flex-wrap items-center gap-2">
           {child.status === "approved" && child.created_student_id ? (
             <>
-              <NavigationLink
-                href={studentHref}
-                className={buttonClassName({
-                  variant: "outline",
-                  size: "md",
-                  className: "gap-2",
-                })}
-              >
-                Kind &amp; Einladung verwalten
-                <ExternalLink className="h-4 w-4" aria-hidden="true" />
-              </NavigationLink>
+              <ActionHint text="Öffnet die Akte des Kindes mit der Einladung für die Eltern.">
+                <NavigationLink
+                  href={studentHref}
+                  className={buttonClassName({
+                    variant: "outline",
+                    size: "md",
+                    className: "gap-2",
+                  })}
+                >
+                  Kind &amp; Einladung verwalten
+                  <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                </NavigationLink>
+              </ActionHint>
               <AdminChildDataCorrection
                 requestId={requestId}
                 child={child}
@@ -831,6 +859,7 @@ function ChildInformationCard({
                 type="button"
                 variant="outline_danger"
                 size="md"
+                tooltip="Löscht das Kind aus der Anmeldung; moto fragt vorher nach."
                 onClick={onDelete}
               >
                 <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -899,25 +928,28 @@ function ReviewSidebar({
             <DataField label="Eingegangen">{submittedAt}</DataField>
           </DataGrid>
         </div>
-        <a
-          href={statusHref}
-          target="_blank"
-          rel="noreferrer"
-          className={buttonClassName({
-            variant: "outline",
-            size: "md",
-            className: "mt-4 w-full gap-2",
-          })}
-        >
-          Statusseite öffnen
-          <ExternalLink className="h-4 w-4" aria-hidden="true" />
-        </a>
+        <ActionHint text="Öffnet in einem neuen Tab die Statusseite, die die Eltern sehen.">
+          <a
+            href={statusHref}
+            target="_blank"
+            rel="noreferrer"
+            className={buttonClassName({
+              variant: "outline",
+              size: "md",
+              className: "mt-4 w-full gap-2",
+            })}
+          >
+            Statusseite öffnen
+            <ExternalLink className="h-4 w-4" aria-hidden="true" />
+          </a>
+        </ActionHint>
         {onRestoreRequest ? (
           <Button
             type="button"
             variant="outline"
             size="md"
             className="mt-3 w-full"
+            tooltip="Öffnet zurückgezogene Kinder wieder zur Prüfung; moto fragt vorher nach."
             onClick={onRestoreRequest}
           >
             <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -929,6 +961,7 @@ function ReviewSidebar({
           variant="outline_danger"
           size="md"
           className="mt-3 w-full"
+          tooltip="Löscht die ganze Anmeldung mit allen Kindern; moto fragt vorher nach."
           onClick={onDeleteRequest}
         >
           <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -1032,6 +1065,10 @@ function DecisionPanel({
               size="md"
               variant={getDecisionButtonVariant(action.tone)}
               disabled={busy || isCurrent}
+              disabledReason={
+                isCurrent ? "Das Kind hat diesen Stand schon." : undefined
+              }
+              tooltip={action.tooltip}
               onClick={() => onDecide(action.status)}
               className="inline-flex items-center justify-center gap-2"
             >

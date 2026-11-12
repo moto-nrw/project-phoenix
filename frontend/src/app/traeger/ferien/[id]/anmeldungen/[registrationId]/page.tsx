@@ -95,6 +95,8 @@ const PDF_LABELS: AttachmentLabels = {
   download: "Herunterladen",
   openLabel: (label) => `${label} öffnen`,
   downloadLabel: (label) => `${label} herunterladen`,
+  openHint: "Öffnet die PDF in einem neuen Tab.",
+  downloadHint: "Speichert die PDF auf diesem Gerät.",
   popupBlocked:
     "Das PDF konnte nicht geöffnet werden. Bitte erlauben Sie neue Fenster.",
   errorObject: "die PDF-Datei",

@@ -278,6 +278,8 @@ export function EnrollmentForm({
             openLabel: (label) => tr("attachments.openLabel", { label }),
             downloadLabel: (label) =>
               tr("attachments.downloadLabel", { label }),
+            openHint: tr("attachments.openHint"),
+            downloadHint: tr("attachments.downloadHint"),
             popupBlocked: tr("attachments.popupBlocked"),
             errorObject: tr("attachments.errorObject"),
           },

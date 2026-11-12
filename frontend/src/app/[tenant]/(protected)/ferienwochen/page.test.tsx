@@ -506,7 +506,10 @@ describe("FerienwochenPage", () => {
       ),
     ).toBeInTheDocument();
     const take = screen.getByRole("button", { name: "Feriengäste übernehmen" });
-    expect(take).toBeDisabled();
+    expect(take).toHaveAttribute("aria-disabled", "true");
+    expect(take).toHaveAccessibleDescription(
+      "Wählen Sie zuerst eine Gruppe aus.",
+    );
     await waitFor(() =>
       expect(
         screen.getByRole("combobox", { name: "Gruppe für die Feriengäste" }),
@@ -578,9 +581,11 @@ describe("FerienwochenPage", () => {
         "Sommerferien 2026 · 21.09. bis 25.09.2026 · 2 Kinder",
       ),
     ).toBeInTheDocument();
-    expect(
-      screen.getByRole("button", { name: "Feriengäste übernehmen" }),
-    ).toBeDisabled();
+    const take = screen.getByRole("button", { name: "Feriengäste übernehmen" });
+    expect(take).toHaveAttribute("aria-disabled", "true");
+    expect(take).toHaveAccessibleDescription(
+      "Wählen Sie zuerst eine Gruppe aus.",
+    );
     expect(assignMock).not.toHaveBeenCalled();
   });
 

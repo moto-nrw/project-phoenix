@@ -74,6 +74,7 @@ import { MultiSelect } from "~/components/ui/multi-select";
 import { Alert } from "~/components/ui/alert";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { ActionHint } from "~/components/ui/action-hint";
 import { Button, ButtonLink, buttonClassName } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
 import { StatCard } from "~/components/ui/stat-card";
@@ -966,6 +967,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
                 variant="primary"
                 size="md"
                 className="inline-flex items-center justify-center gap-2"
+                tooltip="Öffnet das Anmeldeformular für Eltern in einem neuen Tab."
               >
                 Elternansicht öffnen
                 <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -984,6 +986,7 @@ export function AdminEnrollmentPhaseDetail({ phaseId }: Props) {
             items={[
               {
                 label: "Phase bearbeiten",
+                description: "Öffnet die Liste der Anmeldephasen zum Ändern.",
                 href: tenantPath("/enrollment-phases"),
                 // Navigation only: OverflowMenu verlangt onClick auch bei href.
                 onClick: () => undefined,
@@ -1462,6 +1465,7 @@ function PhaseChildActions({
               event.stopPropagation();
               onDecide("approved");
             }}
+            tooltip="Vergibt den Platz verbindlich und informiert die Eltern per E-Mail."
             className="inline-flex items-center justify-center gap-1.5"
           >
             <Check className="text-moto-green h-3.5 w-3.5" aria-hidden="true" />
@@ -1476,6 +1480,7 @@ function PhaseChildActions({
               event.stopPropagation();
               onDecide("rejected");
             }}
+            tooltip="Lehnt die Anmeldung des Kindes ab und informiert die Eltern per E-Mail."
             className="inline-flex items-center justify-center gap-1.5"
           >
             <X className="text-moto-red h-3.5 w-3.5" aria-hidden="true" />
@@ -1483,20 +1488,22 @@ function PhaseChildActions({
           </Button>
         </>
       ) : null}
-      <NavigationLink
-        href={href}
-        className={buttonClassName({
-          variant: "outline",
-          size: "compact",
-          className: "",
-        })}
-        onClick={(event: React.MouseEvent<HTMLAnchorElement>) =>
-          event.stopPropagation()
-        }
-      >
-        Anmeldung ansehen
-        <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
-      </NavigationLink>
+      <ActionHint text="Öffnet die Anmeldung mit allen Kindern dieser Familie.">
+        <NavigationLink
+          href={href}
+          className={buttonClassName({
+            variant: "outline",
+            size: "compact",
+            className: "",
+          })}
+          onClick={(event: React.MouseEvent<HTMLAnchorElement>) =>
+            event.stopPropagation()
+          }
+        >
+          Anmeldung ansehen
+          <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
+        </NavigationLink>
+      </ActionHint>
       {canToggleRead ? (
         <OverflowMenu
           ariaLabel={`Aktionen für die Anmeldung von ${row.child_first_name} ${row.child_last_name}`}
@@ -1506,6 +1513,8 @@ function PhaseChildActions({
               label: unread
                 ? "Als gelesen markieren"
                 : "Als ungelesen markieren",
+              description:
+                "Ändert die Markierung nur für Sie, nicht für andere.",
               onClick: () => onToggleRead(unread),
             },
           ]}

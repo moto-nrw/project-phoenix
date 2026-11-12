@@ -69,6 +69,7 @@ export function AdminEnrollmentSignature({
           isLoading={downloading}
           loadingText="Nachweis wird geladen …"
           disabled={downloading}
+          tooltip="Lädt den Nachweis über die Unterschrift der Eltern als PDF."
         >
           <Download className="h-4 w-4" aria-hidden="true" />
           Nachweis als PDF

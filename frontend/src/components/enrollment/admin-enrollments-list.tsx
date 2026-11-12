@@ -70,6 +70,8 @@ interface SetupStep {
   readonly description: string;
   readonly href: string;
   readonly action: string;
+  /** Wohin der Knopf des Schritts führt (#6749). */
+  readonly hint: string;
   readonly status: SetupStepStatus;
   readonly meta: string;
   readonly icon: LucideIcon;
@@ -332,6 +334,7 @@ function ChangeRequestsOverview({
           variant="primary"
           size="md"
           className="inline-flex w-full shrink-0 items-center justify-center gap-2 sm:w-auto"
+          tooltip="Öffnet alle Änderungsanfragen der Familien zum Prüfen."
         >
           Anfragen prüfen
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -427,6 +430,7 @@ function EnrollmentPhaseOverview({
               variant="primary"
               size="md"
               className="inline-flex items-center justify-center gap-2"
+              tooltip="Öffnet die Anmeldephasen, um die erste anzulegen."
             >
               Anmeldephase anlegen
             </ButtonLink>
@@ -450,6 +454,7 @@ function EnrollmentPhaseOverview({
             variant="primary"
             size="md"
             className="inline-flex items-center justify-center gap-2"
+            tooltip="Öffnet das Anmeldeformular für Eltern in einem neuen Tab."
           >
             Elternansicht öffnen
             <ExternalLink className="h-4 w-4" aria-hidden="true" />
@@ -459,6 +464,7 @@ function EnrollmentPhaseOverview({
             variant="outline"
             size="md"
             className="inline-flex items-center justify-center"
+            tooltip="Öffnet die Liste der Anmeldephasen zum Anlegen und Ändern."
           >
             Anmeldephasen verwalten
           </ButtonLink>
@@ -549,6 +555,7 @@ function PhasePublicLinkActions({
           variant="outline"
           size="md"
           className="inline-flex items-center justify-center gap-1.5"
+          tooltip="Öffnet das Anmeldeformular dieser Phase in einem neuen Tab."
         >
           Formular ansehen
           <ExternalLink className="h-3.5 w-3.5" aria-hidden="true" />
@@ -559,6 +566,7 @@ function PhasePublicLinkActions({
         variant="primary"
         size="md"
         className="inline-flex items-center justify-center"
+        tooltip="Öffnet die eingegangenen Anmeldungen dieser Phase."
       >
         Anmeldungen ansehen
       </ButtonLink>
@@ -636,6 +644,7 @@ function EnrollmentSetupGuide({
         "Schaltet den Link für Eltern frei. Sie finden ihn dann in den Einstellungen.",
       href: "/settings?tab=enrollment&highlight=enrollment.enabled",
       action: enrollmentEnabled ? "Einstellungen prüfen" : "Einschalten",
+      hint: "Öffnet die Einstellungen zur Online-Anmeldung.",
       status: enrollmentEnabled ? "done" : "todo",
       meta: enrollmentEnabled ? "Eingeschaltet" : "Ausgeschaltet",
       icon: Settings2,
@@ -646,6 +655,7 @@ function EnrollmentSetupGuide({
       description: "Zum Beispiel ein Halbjahr oder Schuljahr mit Anmeldefrist.",
       href: tenantPath("/enrollment-phases"),
       action: phaseCount > 0 ? "Anmeldephasen prüfen" : "Anlegen",
+      hint: "Öffnet die Liste der Anmeldephasen.",
       status: activePhaseCount > 0 ? "done" : "todo",
       meta:
         phaseCount === 0
@@ -664,6 +674,7 @@ function EnrollmentSetupGuide({
         careOfferingCount > 0
           ? "Betreuungsangebote prüfen"
           : "Betreuungsangebot anlegen",
+      hint: "Öffnet die Betreuungsangebote der Schule.",
       status: activeCareOfferingCount > 0 ? "done" : "todo",
       meta:
         activePhaseCount === 0
@@ -682,6 +693,10 @@ function EnrollmentSetupGuide({
         activePhaseCount === 0 ? "/enrollment-phases" : "/enrollment-form",
       ),
       action: formStepAction,
+      hint:
+        activePhaseCount === 0
+          ? "Öffnet die Liste der Anmeldephasen."
+          : "Öffnet die Vorlagen für das Anmeldeformular.",
       status: formStepStatus,
       meta: formStepMeta,
       icon: FileText,
@@ -693,6 +708,7 @@ function EnrollmentSetupGuide({
         "Öffnen Sie die öffentliche Anmeldung und senden Sie eine Testanmeldung ab.",
       href: tenantPath("/anmeldung"),
       action: "Preview öffnen",
+      hint: "Öffnet die Anmeldung so, wie Eltern sie sehen.",
       status: readyForPreview ? "done" : "blocked",
       meta: readyForPreview ? "Bereit" : "Nicht bereit",
       icon: Eye,
@@ -872,6 +888,7 @@ function EnrollmentSetupGuide({
                     variant="primary"
                     size="md"
                     className="inline-flex w-full items-center justify-center"
+                    tooltip="Springt weiter unten zur Übersicht der Anmeldephasen."
                   >
                     Zur Phasenübersicht
                   </ButtonLink>
@@ -881,6 +898,7 @@ function EnrollmentSetupGuide({
                     variant="primary"
                     size="md"
                     className="inline-flex w-full items-center justify-center"
+                    tooltip={nextActionStep.hint}
                   >
                     {nextActionStep.status === "blocked"
                       ? "Setup prüfen"

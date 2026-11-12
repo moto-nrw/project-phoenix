@@ -5922,6 +5922,19 @@ const TOOLTIP_SCOPE = [
   "src/app/[tenant]/(protected)/settings/",
   "src/app/traeger/einstellungen/",
   "src/components/settings/",
+  // Anmeldung – Ferienwochen und Verwaltung der Anmeldungen (#6749).
+  "src/app/[tenant]/(protected)/ferienwochen/holiday-guest-group-card.tsx",
+  "src/app/[tenant]/(protected)/ferienwochen/page.tsx",
+  "src/components/enrollment/admin-child-data-correction.tsx",
+  "src/components/enrollment/admin-enrollment-change-requests.tsx",
+  "src/components/enrollment/admin-enrollment-detail.tsx",
+  "src/components/enrollment/admin-enrollment-phase-detail.tsx",
+  "src/components/enrollment/admin-enrollment-signature.tsx",
+  "src/components/enrollment/admin-enrollments-list.tsx",
+  "src/components/enrollment/attachment-editor.tsx",
+  "src/components/enrollment/attachment-list.tsx",
+  "src/components/enrollment/care-offerings-editor.tsx",
+  "src/components/enrollment/child-offering-adjustment.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {

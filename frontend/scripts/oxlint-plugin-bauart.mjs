@@ -321,7 +321,7 @@ const ROW_ACTION_BASELINE = new Map(
       "Entfernen@2042",
     ],
     "src/components/enrollment/care-offerings-editor.tsx": [
-      "Bedingung löschen@2024",
+      "Bedingung löschen@2036",
     ],
     "src/components/guardians/guardian-form-modal.tsx": [
       "Entfernen@596",
