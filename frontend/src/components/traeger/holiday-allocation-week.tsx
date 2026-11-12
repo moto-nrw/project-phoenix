@@ -146,6 +146,7 @@ function AllocationRow({
           size="compact"
           disabled={busy}
           aria-label={`${name}: Platz geben`}
+          tooltip="Gibt dem Kind den Platz, die Eltern bekommen eine E-Mail. moto fragt vorher nach."
           onClick={() => onDecide("placed")}
         >
           Platz geben
@@ -156,6 +157,7 @@ function AllocationRow({
           size="compact"
           disabled={busy}
           aria-label={`${name}: auf die Warteliste`}
+          tooltip="Setzt das Kind auf die Warteliste, die Eltern bekommen eine E-Mail. moto fragt vorher nach."
           onClick={() => onDecide("waitlisted")}
         >
           Auf die Warteliste
@@ -226,6 +228,7 @@ export function HolidayAllocationWeekCard({
           size="md"
           disabled={busy}
           aria-label={`Vorschlag für die Woche ${title} übernehmen`}
+          tooltip="Entscheidet die ganze Woche wie vorgeschlagen, die Eltern bekommen E-Mails. moto fragt vorher nach."
           onClick={onTakeProposal}
         >
           Vorschlag übernehmen

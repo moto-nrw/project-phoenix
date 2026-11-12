@@ -228,6 +228,14 @@ export function HolidayFormEditor({
                 variant="outline"
                 size="md"
                 disabled={saving || uploading || missingTemplateFields === 0}
+                disabledReason={
+                  missingTemplateFields === 0
+                    ? form.template.length === 0
+                      ? "Für dieses Formular gibt es keine Standardvorlage."
+                      : "Alle Fragen der Standardvorlage sind schon im Formular."
+                    : undefined
+                }
+                tooltip="Fügt die fehlenden Fragen der Standardvorlage unten im Formular an."
                 onClick={() =>
                   setFields((current) =>
                     insertTemplateFields(current, form.template),
@@ -297,6 +305,7 @@ export function HolidayFormEditor({
                   size="md"
                   disabled={saving || uploading}
                   className="inline-flex items-center gap-2"
+                  tooltip="Fügt eine leere Frage an, die Eltern beantworten."
                   onClick={() =>
                     setFields((current) => [
                       ...current,
@@ -314,6 +323,7 @@ export function HolidayFormEditor({
                   size="md"
                   disabled={saving || uploading}
                   className="inline-flex items-center gap-2"
+                  tooltip="Fügt einen Text an, den Eltern nur lesen."
                   onClick={() =>
                     setFields((current) => [
                       ...current,

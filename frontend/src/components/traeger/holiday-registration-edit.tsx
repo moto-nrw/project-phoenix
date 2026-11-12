@@ -371,6 +371,7 @@ export function GuardiansEditor(
                   type="button"
                   variant="outline_danger"
                   size="md"
+                  tooltip="Nimmt die zweite Person aus dem Formular, wirksam erst nach dem Speichern."
                   onClick={() => setSecond(null)}
                 >
                   Zweite Person entfernen
@@ -381,6 +382,7 @@ export function GuardiansEditor(
                 type="button"
                 variant="outline"
                 size="md"
+                tooltip="Zeigt Felder für eine zweite sorgeberechtigte Person."
                 onClick={() => setSecond(EMPTY_PERSON)}
               >
                 Zweite Person hinzufügen
@@ -477,6 +479,7 @@ function ContactFields({
           type="button"
           variant="outline"
           size="md"
+          tooltip="Fügt unten leere Felder für eine weitere Person an."
           onClick={() =>
             onChange([
               ...contacts,

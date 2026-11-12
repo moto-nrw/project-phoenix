@@ -524,6 +524,7 @@ export function HolidayRegistrationStatusCard({
           isLoading={running === "reopen"}
           loadingText="Öffnet …"
           disabled={running !== null}
+          tooltip="Öffnet die Anmeldung wieder, damit Sie stornieren oder umbuchen können."
           onClick={() => void run("reopen")}
         >
           Wieder öffnen
@@ -535,6 +536,7 @@ export function HolidayRegistrationStatusCard({
             variant="outline_danger"
             size="md"
             disabled={running !== null}
+            tooltip="Storniert die Anmeldung ohne Nachricht an die Eltern. moto fragt vorher nach."
             onClick={() => setConfirmingCancel(true)}
           >
             Stornieren
@@ -546,6 +548,7 @@ export function HolidayRegistrationStatusCard({
             isLoading={running === "freeze"}
             loadingText="Friert ein …"
             disabled={running !== null}
+            tooltip="Sperrt die Anmeldung sofort gegen Stornieren und Umbuchen."
             onClick={() => void run("freeze")}
           >
             Einfrieren
@@ -558,6 +561,7 @@ export function HolidayRegistrationStatusCard({
           variant="outline"
           size="md"
           disabled={running !== null}
+          tooltip="Öffnet das Feld für die Debitorennummer dieser Anmeldung."
           onClick={() => setEditingDebtorNumber(true)}
         >
           {registration.debtorNumber
@@ -573,6 +577,7 @@ export function HolidayRegistrationStatusCard({
           isLoading={running === "confirm"}
           loadingText="Bestätigt …"
           disabled={confirmBlocked}
+          tooltip="Bestätigt die Anmeldung und schickt den Eltern sofort die Annahme-Mail."
           onClick={() => confirmRef.current?.requestSubmit()}
         >
           Bestätigen

@@ -8,6 +8,7 @@
 
 import { Download, ExternalLink } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { ActionHint } from "~/components/ui/action-hint";
 import { Button, buttonClassName } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { PdfPreview, useObjectUrl } from "~/components/ui/pdf-preview";
@@ -15,6 +16,8 @@ import { useApiLoadError } from "~/contexts/ToastContext";
 import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import type { BillingFile } from "~/lib/traeger-billing-api";
+
+const OPEN_TAB_HINT = "Öffnet das Schreiben als PDF in einem neuen Tab.";
 
 const logger = createLogger({ component: "LetterFileView" });
 
@@ -87,6 +90,7 @@ export function LetterFileView({
           size="compact"
           disabled={!file}
           aria-label={`${title} herunterladen`}
+          tooltip="Lädt das Schreiben als PDF auf Ihr Gerät."
           onClick={() => {
             if (file) downloadBlob(file.blob, file.filename);
           }}
@@ -96,26 +100,29 @@ export function LetterFileView({
           Herunterladen
         </Button>
         {url ? (
-          <a
-            href={url}
-            target="_blank"
-            rel="noopener noreferrer"
-            aria-label={`${title} in neuem Tab öffnen`}
-            className={buttonClassName({
-              variant: "surface",
-              size: "compact",
-              className: "gap-1.5",
-            })}
-          >
-            <ExternalLink className="h-4 w-4" aria-hidden="true" />
-            In neuem Tab öffnen
-          </a>
+          <ActionHint text={OPEN_TAB_HINT}>
+            <a
+              href={url}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label={`${title} in neuem Tab öffnen`}
+              className={buttonClassName({
+                variant: "surface",
+                size: "compact",
+                className: "gap-1.5",
+              })}
+            >
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              In neuem Tab öffnen
+            </a>
+          </ActionHint>
         ) : (
           <Button
             type="button"
             variant="surface"
             size="compact"
             disabled
+            tooltip={OPEN_TAB_HINT}
             className="gap-1.5"
           >
             <ExternalLink className="h-4 w-4" aria-hidden="true" />

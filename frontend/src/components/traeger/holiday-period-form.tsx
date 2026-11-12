@@ -381,6 +381,7 @@ export function HolidayPeriodForm({
                 variant="outline"
                 size="md"
                 className="gap-2"
+                tooltip="Fügt unten eine leere Woche an, wirksam erst nach dem Speichern."
                 onClick={() =>
                   setDraft({ ...draft, weeks: [...draft.weeks, emptyWeek()] })
                 }

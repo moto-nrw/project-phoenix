@@ -150,6 +150,11 @@ export function HolidayWishSection({
                 isLoading={saving === wish}
                 disabled={saving !== null}
                 aria-label={`${name}: ${wish === "yes" ? "Mit Ferienwunsch" : "Ohne Ferienwunsch"}`}
+                tooltip={
+                  wish === "yes"
+                    ? "Speichert sofort den Ferienwunsch, er zählt bei der Platzvergabe."
+                    : "Speichert sofort ohne Ferienwunsch, das Kind wartet dann hinter Kindern mit Wunsch."
+                }
                 onClick={() => void decide(wish)}
               >
                 {child.holidayWishCheck

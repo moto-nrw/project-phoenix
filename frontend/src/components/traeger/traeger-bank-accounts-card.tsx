@@ -147,6 +147,7 @@ export function TraegerBankAccountsCard({
           items={[
             {
               label: "Ändern",
+              description: "Öffnet die Bankverbindung zum Bearbeiten.",
               onClick: () => setEdit({ kind: "change", account }),
             },
             ...(account.isDefault
@@ -154,11 +155,14 @@ export function TraegerBankAccountsCard({
               : [
                   {
                     label: "Als Standard festlegen",
+                    description:
+                      "Diese Bankverbindung steht dann auf Briefen und Rechnungen.",
                     onClick: () => void makeDefault(account),
                   },
                 ]),
             {
               label: "Löschen",
+              description: "Löscht die Bankverbindung. moto fragt vorher nach.",
               destructive: true,
               onClick: () => setDeleting(account),
             },
@@ -180,6 +184,7 @@ export function TraegerBankAccountsCard({
             type="button"
             variant="outline"
             size="md"
+            tooltip="Öffnet ein Fenster für eine neue Bankverbindung."
             onClick={() =>
               setEdit({ kind: "create", first: accounts.length === 0 })
             }

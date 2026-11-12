@@ -202,6 +202,7 @@ export function HolidayRegistrationCriteriaCard({
             variant="outline"
             size="md"
             aria-label="Angaben für die Vergabe prüfen"
+            tooltip="Öffnet die Angaben, damit Ihr Büro sie als geprüft festhält."
             onClick={startEditing}
           >
             Prüfen

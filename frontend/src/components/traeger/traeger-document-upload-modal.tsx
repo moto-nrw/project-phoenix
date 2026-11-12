@@ -166,6 +166,7 @@ export function TraegerDocumentUploadModal({
               type="button"
               variant="ghost"
               size="compact"
+              tooltip="Verwirft die gewählte Datei, damit Sie eine andere wählen."
               onClick={() => setFile(null)}
             >
               Andere Datei
