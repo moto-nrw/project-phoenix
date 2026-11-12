@@ -3,6 +3,7 @@
 import { useCallback, useLayoutEffect, useRef } from "react";
 
 import { useApiLoadError } from "~/contexts/ToastContext";
+import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import { reloadDocument } from "~/lib/reload-document";
 import { isAccessRefusal, shownDataRefusalCount } from "~/lib/access-refusal";
@@ -39,8 +40,9 @@ export type RefreshAfterWrite<A extends unknown[] = []> = (
  * A refused reload (401/403, #6801) is no stale display: the account may no
  * longer see the shown data. The hook then loads the whole page again
  * (`reloadDocument`), so the data, its actions and open dialogs go and the
- * page's first load shows the refusal; there is no "saved" text and no
- * retry. It sees the refusal either way a reload can meet it: `reload`
+ * page's first load shows the refusal. Before navigating it sets a load
+ * error in case the navigation guard cancels the document reload; there is
+ * no "saved" text and no retry. It sees the refusal either way: `reload`
  * rejects with it, or an SWR revalidation it ran was refused while its key
  * still held data (SWR keeps the data and never rejects; the middleware in
  * `~/lib/swr/hooks` counts it). There is no option to turn this off, so no
@@ -90,6 +92,15 @@ export function useRefreshAfterWrite<A extends unknown[] = []>(
           status: isAccessRefusal(failure) ? failure.status : undefined,
         });
         void logger.flush();
+        // Keep an error if beforeunload cancels navigation. Use the shared
+        // permission code without an HTTP status: showing the original 401
+        // would start a second navigation through useApiLoadError.
+        await show(
+          new ApiError("Access to refreshed data was refused", undefined, {
+            code: "general.permission",
+          }),
+          { object },
+        );
         reloadDocument();
         return false;
       }

@@ -307,7 +307,7 @@ describe("reload after a write (#6652)", () => {
     );
   }
 
-  it("loads the page anew when a post-write reload refuses access", async () => {
+  it("keeps a visible refusal when a post-write document reload does not navigate", async () => {
     resetPageReloads();
     const reload = deferred<{
       supply: null;
@@ -323,6 +323,15 @@ describe("reload after a write (#6652)", () => {
     await act(async () => reload.reject(new ApiError("refused", 403)));
     // #6801: the page loads anew; its first load shows the refusal.
     await expectPageReloadedAfterRefusal();
+    // A cancelled navigation must leave an error, not an endless skeleton.
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      catalogText("general.permission", "die Anzeige des Caterers"),
+    );
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+    expect(screen.queryByText(invitation.email)).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("button", { name: "Caterer einladen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("ignores an older invitation reload after a newer one succeeded", async () => {

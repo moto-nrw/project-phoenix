@@ -7,6 +7,7 @@ import { describe, expect, it, vi } from "vitest";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { ApiError } from "~/lib/api-error";
 import { reloadDocument } from "~/lib/reload-document";
+import { catalogText } from "~/test/error-catalog-text";
 
 import { useRefreshAfterWrite } from "./use-refresh-after-write";
 
@@ -58,6 +59,9 @@ describe("useRefreshAfterWrite with an SWR reload", () => {
 
     await waitFor(() => expect(reloadDocument).toHaveBeenCalledTimes(1));
     expect(fetcher).toHaveBeenCalledTimes(2);
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      catalogText("general.permission", "die Liste"),
+    );
   });
 
   it("keeps the page when the revalidation fails for a while", async () => {

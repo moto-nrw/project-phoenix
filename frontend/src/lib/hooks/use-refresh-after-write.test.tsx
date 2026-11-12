@@ -122,6 +122,10 @@ describe("useRefreshAfterWrite", () => {
 
       await waitFor(() => expect(onResult).toHaveBeenCalledWith(false));
       expect(reloadDocument).toHaveBeenCalledTimes(1);
+      // The navigation guard can cancel the reload, leaving this document.
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        catalogText("general.permission", "die Liste"),
+      );
       expect(
         screen.queryByText(SAVED_BUT_STALE_SUFFIX, { exact: false }),
       ).not.toBeInTheDocument();
