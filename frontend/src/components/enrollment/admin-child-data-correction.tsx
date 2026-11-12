@@ -163,7 +163,7 @@ export function AdminChildDataCorrection({
               size="md"
               isLoading={saving}
               loadingText="Speichert…"
-              tooltip="Ändert Anmeldung und Akte des Kindes, ohne die Eltern zu benachrichtigen."
+              tooltip="Ändert Anmeldung und Akte des Kindes und erledigt offene Änderungsanfragen."
             >
               Korrektur speichern
             </Button>

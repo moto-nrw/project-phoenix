@@ -464,7 +464,7 @@ function EnrollmentPhaseOverview({
             variant="outline"
             size="md"
             className="inline-flex items-center justify-center"
-            tooltip="Öffnet die Liste der Anmeldephasen zum Anlegen und Ändern."
+            tooltip="Öffnet die Liste der Anmeldephasen."
           >
             Anmeldephasen verwalten
           </ButtonLink>

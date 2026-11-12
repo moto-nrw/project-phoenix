@@ -71,6 +71,7 @@ import {
   needsExistingChildChoice,
 } from "~/components/enrollment/existing-child-choice";
 import { ActionHint } from "~/components/ui/action-hint";
+import { DECISION_HINTS } from "~/components/enrollment/decision-hints";
 import { Button, buttonClassName } from "~/components/ui/button";
 import NavigationLink from "~/components/ui/navigation-link";
 import { Alert } from "~/components/ui/alert";
@@ -109,8 +110,6 @@ interface ActionDef {
   status: DecisionStatus;
   label: string;
   tone: "primary" | "outline" | "danger" | "success";
-  /** Was der Klick auslöst, auch ob die Eltern davon erfahren (#6749). */
-  tooltip: string;
 }
 
 const ACTIONS: ActionDef[] = [
@@ -118,28 +117,21 @@ const ACTIONS: ActionDef[] = [
     status: "approved",
     label: "Bestätigen",
     tone: "success",
-    tooltip:
-      "Vergibt den Platz verbindlich und informiert die Eltern per E-Mail.",
   },
   {
     status: "waitlisted",
     label: "Warteliste",
     tone: "outline",
-    tooltip:
-      "Setzt das Kind auf die Warteliste und informiert die Eltern per E-Mail.",
   },
   {
     status: "rejected",
     label: "Ablehnen",
     tone: "danger",
-    tooltip:
-      "Lehnt die Anmeldung des Kindes ab und informiert die Eltern per E-Mail.",
   },
   {
     status: "under_review",
     label: "Zur Prüfung",
     tone: "primary",
-    tooltip: "Setzt das Kind auf „In Prüfung“, ohne die Eltern zu informieren.",
   },
 ];
 
@@ -859,7 +851,7 @@ function ChildInformationCard({
                 type="button"
                 variant="outline_danger"
                 size="md"
-                tooltip="Löscht das Kind aus der Anmeldung; moto fragt vorher nach."
+                tooltip="moto fragt vorher nach und löscht dann das Kind aus der Anmeldung."
                 onClick={onDelete}
               >
                 <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -949,7 +941,7 @@ function ReviewSidebar({
             variant="outline"
             size="md"
             className="mt-3 w-full"
-            tooltip="Öffnet zurückgezogene Kinder wieder zur Prüfung; moto fragt vorher nach."
+            tooltip="moto fragt vorher nach und öffnet dann zurückgezogene Kinder wieder."
             onClick={onRestoreRequest}
           >
             <RotateCcw className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -961,7 +953,7 @@ function ReviewSidebar({
           variant="outline_danger"
           size="md"
           className="mt-3 w-full"
-          tooltip="Löscht die ganze Anmeldung mit allen Kindern; moto fragt vorher nach."
+          tooltip="moto fragt vorher nach und löscht dann die ganze Anmeldung."
           onClick={onDeleteRequest}
         >
           <Trash2 className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -1068,7 +1060,7 @@ function DecisionPanel({
               disabledReason={
                 isCurrent ? "Das Kind hat diesen Stand schon." : undefined
               }
-              tooltip={action.tooltip}
+              tooltip={DECISION_HINTS[action.status]}
               onClick={() => onDecide(action.status)}
               className="inline-flex items-center justify-center gap-2"
             >

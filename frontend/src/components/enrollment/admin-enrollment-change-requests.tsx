@@ -365,7 +365,7 @@ export function AdminEnrollmentChangeRequestDetail({
                     onClick={() => void handleQuestion()}
                     disabled={!canReview || busy !== null || !question.trim()}
                     disabledReason={questionBlockedReason}
-                    tooltip="Schickt den Eltern Ihre Nachricht per E-Mail."
+                    tooltip="Zeigt den Eltern Ihre Rückfrage auf ihrer Statusseite."
                     className="mt-3 inline-flex w-full items-center justify-center gap-2"
                   >
                     <MotoConceptIcon
@@ -404,7 +404,7 @@ export function AdminEnrollmentChangeRequestDetail({
                       onClick={() => void handleReview(true)}
                       disabled={!canReview || busy !== null}
                       disabledReason={reviewBlockedReason}
-                      tooltip="Übernimmt die Änderung in die Anmeldung und schreibt den Eltern."
+                      tooltip="Übernimmt die Änderung, die Eltern sehen das auf ihrer Statusseite."
                       className="inline-flex items-center justify-center gap-2"
                     >
                       <Check className="h-4 w-4" aria-hidden="true" />
@@ -417,7 +417,7 @@ export function AdminEnrollmentChangeRequestDetail({
                       onClick={() => void handleReview(false)}
                       disabled={!canReview || busy !== null}
                       disabledReason={reviewBlockedReason}
-                      tooltip="Lehnt die Änderung ab und schickt den Eltern die Begründung."
+                      tooltip="Lehnt die Änderung ab, die Eltern sehen die Begründung auf ihrer Statusseite."
                       className="inline-flex items-center justify-center gap-2"
                     >
                       <X className="h-4 w-4" aria-hidden="true" />

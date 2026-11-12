@@ -1360,7 +1360,7 @@ function CareOfferingActions({
           { kind: "separator" },
           {
             label: deleting ? "Löscht…" : "Löschen",
-            description: "Löscht das Angebot, moto fragt vorher nach.",
+            description: "moto fragt vorher nach und löscht dann das Angebot.",
             icon: <Trash2 className="h-4 w-4" aria-hidden />,
             destructive: true,
             disabled: deleting || saving,
