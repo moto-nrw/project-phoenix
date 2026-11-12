@@ -1,5 +1,6 @@
 "use client";
 
+import { useKitDefault } from "~/components/ui/kit-locale";
 import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import { useId, useState } from "react";
 import { ChevronDown } from "lucide-react";
@@ -101,11 +102,6 @@ function SectionCardConceptIcon({
   );
 }
 
-/**
- * The disclosure toggle of a collapsible `SectionCard`. Exported for a
- * section whose expanded head is drawn by its content (the block roster on a
- * released room's page, #3281), so both states carry the same control.
- */
 /** What the collapse toggle does in each state (#6744). */
 export interface SectionCollapseTooltip {
   /** While collapsed: what a click shows. */
@@ -119,12 +115,17 @@ const DEFAULT_COLLAPSE_TOOLTIP: SectionCollapseTooltip = {
   collapse: "Blendet den Inhalt dieses Abschnitts aus.",
 };
 
+/**
+ * The disclosure toggle of a collapsible `SectionCard`. Exported for a
+ * section whose expanded head is drawn by its content (the block roster on a
+ * released room's page, #3281), so both states carry the same control.
+ */
 export function SectionCollapseToggle({
   title,
   collapsed,
   controls,
   onToggle,
-  tooltip = DEFAULT_COLLAPSE_TOOLTIP,
+  tooltip,
 }: Readonly<{
   title?: string;
   collapsed: boolean;
@@ -133,6 +134,9 @@ export function SectionCollapseToggle({
   controls?: string;
   onToggle: () => void;
 }>) {
+  const kitDefault = useKitDefault();
+  const sentences = tooltip ?? DEFAULT_COLLAPSE_TOOLTIP;
+  const sentence = collapsed ? sentences.expand : sentences.collapse;
   return (
     <Button
       type="button"
@@ -149,7 +153,7 @@ export function SectionCollapseToggle({
       }
       aria-expanded={!collapsed}
       aria-controls={controls}
-      tooltip={collapsed ? tooltip.expand : tooltip.collapse}
+      tooltip={tooltip ? sentence : kitDefault(sentence)}
       onClick={onToggle}
     >
       <ChevronDown

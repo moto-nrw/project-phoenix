@@ -1,4 +1,5 @@
 import { NextIntlClientProvider } from "next-intl";
+import { KitLocaleFromIntl } from "~/components/ui/kit-locale";
 
 /**
  * Public enrollment is the only parent-facing surface on a tenant subdomain,
@@ -17,5 +18,10 @@ export default function EnrollLayout({
 }: {
   readonly children: React.ReactNode;
 }) {
-  return <NextIntlClientProvider>{children}</NextIntlClientProvider>;
+  return (
+    <NextIntlClientProvider>
+      {/* Kit-Standardtexte sind deutsch; übersetzte Anmeldungen lassen sie weg. */}
+      <KitLocaleFromIntl>{children}</KitLocaleFromIntl>
+    </NextIntlClientProvider>
+  );
 }

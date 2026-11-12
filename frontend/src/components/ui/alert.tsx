@@ -4,6 +4,7 @@ import type { CSSProperties, HTMLAttributes, ReactNode } from "react";
 
 import { Button } from "~/components/ui/button";
 import { CloseIcon } from "~/components/ui/close-icon";
+import { useKitDefault } from "~/components/ui/kit-locale";
 import { getLocationBadgeTone } from "~/lib/location-helper";
 
 export type AlertType = "error" | "success" | "warning" | "info";
@@ -77,6 +78,7 @@ export function Alert({
   style,
   ...props
 }: Readonly<AlertProps>) {
+  const kitDefault = useKitDefault();
   if (message === null || message === undefined || message === "") return null;
   const compact = size === "compact";
   const isAssertive = type === "error" || type === "warning";
@@ -236,13 +238,7 @@ export function Alert({
           variant="ghost_tone"
           size="icon"
           aria-label={dismissLabel ?? "Hinweis schließen"}
-          // Der deutsche Satz nur, solange auch der Name deutsch bleibt.
-          tooltip={
-            dismissTooltip ??
-            (dismissLabel === undefined
-              ? "Blendet den Hinweis aus."
-              : undefined)
-          }
+          tooltip={dismissTooltip ?? kitDefault("Blendet den Hinweis aus.")}
           onClick={onDismiss}
           className="absolute top-2.5 right-2.5"
         >

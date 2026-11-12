@@ -14,6 +14,8 @@ import {
   Z_LAYER,
 } from "./overlay-styles";
 import { Button } from "./button";
+import { CONFIRM_TOOLTIP } from "./confirm-tooltip";
+import { useKitDefault } from "./kit-locale";
 import { CloseIcon } from "./close-icon";
 import { SpinnerIcon } from "./icons";
 import { useBusyFocus } from "./hooks/useBusyFocus";
@@ -23,10 +25,6 @@ const visibleModals: string[] = [];
 const DEFAULT_CLOSE_LABEL = "Modal schließen";
 // Neutral: Ob Eingaben verloren gehen, entscheidet der Inhalt, nicht das X.
 const DEFAULT_CLOSE_TOOLTIP = "Schließt das Fenster.";
-
-/** Confirm button of a confirmation dialog: the dialog already asked. */
-export const CONFIRM_TOOLTIP =
-  "Führt die Aktion sofort aus, ohne weitere Nachfrage.";
 
 // Shared a11y contract for all modal dialogs.
 const dialogAriaProps = {
@@ -82,8 +80,8 @@ interface ModalProps {
   readonly closeLabel?: string;
   /**
    * What a click on the close X does (#6744). Defaults to a German sentence
-   * while `closeLabel` keeps its German default; a localized surface that
-   * passes `closeLabel` passes its own translated sentence here.
+   * on German surfaces (`KitLocaleProvider`); a localized surface passes its
+   * own translated sentence here.
    */
   readonly closeTooltip?: string;
   /**
@@ -145,10 +143,9 @@ export function Modal({
   // Stable id so the dialog can reference its heading via aria-labelledby,
   // giving the dialog an accessible name (role="dialog" alone has none).
   const titleId = React.useId();
+  const kitDefault = useKitDefault();
   const closeName = closeLabel ?? DEFAULT_CLOSE_LABEL;
-  const closeHint =
-    closeTooltip ??
-    (closeLabel === undefined ? DEFAULT_CLOSE_TOOLTIP : undefined);
+  const closeHint = closeTooltip ?? kitDefault(DEFAULT_CLOSE_TOOLTIP);
   const descriptionId = React.useId();
   const visible = isOpen && !suspended;
   const titleRef = React.useRef<HTMLHeadingElement>(null);
@@ -480,9 +477,9 @@ interface ConfirmationModalProps {
   readonly cancelText?: string;
   /**
    * What the confirm button does (#6744), e.g. „Archiviert das Kind und
-   * benachrichtigt die Eltern.“ Defaults to „Führt die Aktion sofort aus, ohne weitere
-   * Nachfrage.“ while the dialog keeps its German `cancelText` and
-   * `closeLabel`; a localized surface passes its own translated sentence.
+   * benachrichtigt die Eltern.“ Defaults to „Führt die Aktion sofort aus,
+   * ohne weitere Nachfrage.“ on German surfaces; a localized surface passes
+   * its own translated sentence.
    */
   readonly confirmTooltip?: string;
   /**
@@ -553,10 +550,8 @@ export function ConfirmationModal({
   backdropLabel,
   mobileSheet = false,
 }: ConfirmationModalProps) {
-  // Der deutsche Standardsatz gilt nur, solange der Dialog deutsch spricht.
-  const germanFrame = cancelText === undefined && closeLabel === undefined;
-  const confirmHint =
-    confirmTooltip ?? (germanFrame ? CONFIRM_TOOLTIP : undefined);
+  const kitDefault = useKitDefault();
+  const confirmHint = confirmTooltip ?? kitDefault(CONFIRM_TOOLTIP);
   const dismissLocked =
     isDismissDisabled || (isConfirmLoading && !dismissibleWhileLoading);
   const modalFooter = (

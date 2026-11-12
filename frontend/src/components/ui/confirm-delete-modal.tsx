@@ -8,16 +8,15 @@ import {
   useState,
 } from "react";
 import { Button } from "./button";
+import { CONFIRM_TOOLTIP, FIRST_STEP_TOOLTIP } from "./confirm-tooltip";
 import { ChoiceTile } from "./choice-tile";
 import { FieldLabel } from "./field-label";
 import type { FormErrorInput } from "./form-error";
 import { FormErrorAlert } from "./form-error-alert";
 import { Input } from "./input";
-import { CONFIRM_TOOLTIP, Modal } from "./modal";
+import { useKitDefault } from "./kit-locale";
+import { Modal } from "./modal";
 
-// Der erste Schritt von `twoStep` löscht noch nichts.
-const FIRST_STEP_TOOLTIP =
-  "Löscht noch nicht, moto fragt ein letztes Mal nach.";
 import { Radio } from "./radio";
 
 // Shared destructive-confirmation shell for every destructive action in the
@@ -104,8 +103,8 @@ interface ConfirmDeleteModalProps {
   /**
    * What the final delete button does (#6744), e.g. „Löscht den Raum sofort,
    * seine Termine bleiben.“ Defaults to „Führt die Aktion sofort aus, ohne
-   * weitere Nachfrage.“ while the dialog keeps its German `cancelLabel` and
-   * `closeLabel`; a localized surface passes its own translated sentence.
+   * weitere Nachfrage.“ on German surfaces; a localized surface passes its
+   * own translated sentence.
    */
   readonly confirmTooltip?: string;
   readonly loadingLabel?: string;
@@ -202,11 +201,9 @@ export function ConfirmDeleteModal({
   const confirmDisabled =
     gateBlocked || (gate.mode === "textConfirm" && !textGatePassed);
 
-  // Die deutschen Standardsätze gelten nur, solange der Dialog deutsch spricht.
-  const germanFrame = cancelLabel === undefined && closeLabel === undefined;
-  const firstStepHint = germanFrame ? FIRST_STEP_TOOLTIP : undefined;
-  const confirmHint =
-    confirmTooltip ?? (germanFrame ? CONFIRM_TOOLTIP : undefined);
+  const kitDefault = useKitDefault();
+  const firstStepHint = kitDefault(FIRST_STEP_TOOLTIP);
+  const confirmHint = confirmTooltip ?? kitDefault(CONFIRM_TOOLTIP);
 
   const footer = (
     <>

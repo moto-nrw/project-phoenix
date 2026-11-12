@@ -4,6 +4,9 @@ import { DataTable } from "./data-table";
 import { Dropzone } from "./dropzone";
 import { EditActions } from "./edit-actions";
 import { ExportMenu, exportFormatOptions } from "./export-menu";
+import { ConfirmDeleteModal } from "./confirm-delete-modal";
+import { ConfirmationModal } from "./modal";
+import { ModalProvider } from "./modal-context";
 import { OverflowMenu } from "./page-header/OverflowMenu";
 import { SectionCard } from "./section-card";
 
@@ -63,3 +66,38 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Standardtexte: Story = {};
+
+/** Bestätigen, Abbrechen und das Schließen-X eines Bestätigungsdialogs. */
+export const Bestaetigungsdialog: Story = {
+  render: () => (
+    <ModalProvider>
+      <ConfirmationModal
+        isOpen
+        onClose={() => undefined}
+        onConfirm={() => undefined}
+        title="Kind archivieren?"
+        confirmText="Archivieren"
+      >
+        Das Kind erscheint danach nicht mehr in den Listen.
+      </ConfirmationModal>
+    </ModalProvider>
+  ),
+};
+
+/** Die zwei Schritte des Löschdialogs. */
+export const Loeschdialog: Story = {
+  render: () => (
+    <ModalProvider>
+      <ConfirmDeleteModal
+        isOpen
+        title="Raum löschen"
+        description="Der Raum wird endgültig gelöscht."
+        gate={{ mode: "twoStep" }}
+        onConfirm={() => undefined}
+        onClose={() => undefined}
+        loading={false}
+        error=""
+      />
+    </ModalProvider>
+  ),
+};

@@ -1,5 +1,6 @@
 "use client";
 
+import { useKitDefault } from "~/components/ui/kit-locale";
 import { useRef, useState, type DragEvent } from "react";
 import { Upload } from "lucide-react";
 import { Button } from "~/components/ui/button";
@@ -105,7 +106,7 @@ export function Dropzone({
   label,
   dragLabel,
   buttonLabel,
-  buttonTooltip = "Öffnet die Dateiauswahl Ihres Geräts.",
+  buttonTooltip,
   inputLabel = buttonLabel,
   hint,
   loading = false,
@@ -115,6 +116,7 @@ export function Dropzone({
   onFile,
   onFiles,
 }: DropzoneProps) {
+  const kitDefault = useKitDefault();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const inactive = disabled || loading;
@@ -191,7 +193,9 @@ export function Dropzone({
         variant="outline"
         size="md"
         disabled={inactive}
-        tooltip={buttonTooltip}
+        tooltip={
+          buttonTooltip ?? kitDefault("Öffnet die Dateiauswahl Ihres Geräts.")
+        }
         onClick={() => inputRef.current?.click()}
         // A disabled button swallows drag events: let them through to the frame.
         className="after:absolute after:inset-0 disabled:pointer-events-none"

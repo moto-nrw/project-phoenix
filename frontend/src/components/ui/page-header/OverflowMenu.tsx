@@ -13,6 +13,7 @@ import {
 } from "react";
 import { createPortal } from "react-dom";
 import { ActionHint } from "~/components/ui/action-hint";
+import { useKitDefault } from "~/components/ui/kit-locale";
 import { buttonClassName } from "~/components/ui/button";
 import type { ButtonSize, ButtonVariant } from "~/components/ui/button-styles";
 import Link from "~/components/ui/navigation-link";
@@ -160,6 +161,10 @@ interface OverflowMenuProps {
   readonly portalZIndex?: number;
 }
 
+const KEBAB_TOOLTIP = "Zeigt weitere Aktionen.";
+// Ein Menü hinter einem Textknopf: erst ein Eintrag darin wirkt.
+const TEXT_TRIGGER_TOOLTIP = "Öffnet die Auswahl, noch passiert nichts.";
+
 /**
  * Generic kebab (⋮) overflow menu. Anchored bottom-right of the trigger by
  * default; flips to bottom-left if the page edge is too close on the right, and
@@ -169,11 +174,6 @@ interface OverflowMenuProps {
  * popover library to avoid adding a Radix dep just for one use site — the
  * menu is small, anchored, and modal enough for a single page header.
  */
-const KEBAB_TOOLTIP = "Zeigt weitere Aktionen.";
-// Ein Menü hinter einem Textknopf: erst ein Eintrag darin wirkt.
-const TEXT_TRIGGER_TOOLTIP =
-  "Zeigt die Auswahl, erst ein Eintrag löst etwas aus.";
-
 export function OverflowMenu({
   items,
   ariaLabel = "Weitere Aktionen",
@@ -192,6 +192,7 @@ export function OverflowMenu({
   portalOwnerId,
   portalZIndex,
 }: OverflowMenuProps) {
+  const kitDefault = useKitDefault();
   // Size variant: the "default" values are byte-for-byte the previous hardcoded
   // ones, so unchanged callers keep the exact 36px trigger + 20px icon +
   // gray-600 color. "sm" shrinks to a 24px trigger (44px under pointer:
@@ -470,8 +471,8 @@ export function OverflowMenu({
     triggerTooltip ??
     (triggerRole === undefined
       ? triggerContent == null
-        ? KEBAB_TOOLTIP
-        : TEXT_TRIGGER_TOOLTIP
+        ? kitDefault(KEBAB_TOOLTIP)
+        : kitDefault(TEXT_TRIGGER_TOOLTIP)
       : undefined);
   const trigger = (
     <button

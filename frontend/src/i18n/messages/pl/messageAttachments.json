@@ -20,6 +20,6 @@
   "notViewable": "Tego pliku nie można tu wyświetlić. Pobierz go, aby go otworzyć.",
   "notViewableOnDevice": "Na tym urządzeniu nie można tu wyświetlić tego pliku. Otwórz go w nowej karcie lub pobierz.",
   "position": "{current} z {total}",
-  "downloadHint": "Zapisuje plik na Twoim urządzeniu.",
+  "downloadHint": "Zapisuje plik na urządzeniu.",
   "openInNewTabHint": "Otwiera plik w nowej karcie."
 }

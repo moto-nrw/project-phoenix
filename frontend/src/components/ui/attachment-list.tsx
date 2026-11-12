@@ -3,6 +3,7 @@
 import { Download, ExternalLink, X } from "lucide-react";
 import { ActionHint } from "~/components/ui/action-hint";
 import { Button, buttonClassName } from "~/components/ui/button";
+import { useKitDefault } from "~/components/ui/kit-locale";
 import { FileTypeIcon } from "~/components/ui/file-type-icon";
 import { formatBytes, isViewableInBrowser } from "~/lib/files-api";
 import { cn } from "~/lib/utils";
@@ -70,6 +71,7 @@ export function AttachmentList({
   openLabel = "Im Browser öffnen",
   fileActions = false,
 }: AttachmentListProps) {
+  const kitDefault = useKitDefault();
   if (attachments.length === 0) return null;
 
   return (
@@ -140,10 +142,7 @@ export function AttachmentList({
                 disabled={busy}
                 aria-label={`${removeLabel ?? "Anhang entfernen"}: ${attachment.filename}`}
                 tooltip={
-                  removeTooltip ??
-                  (removeLabel === undefined
-                    ? "Entfernt den Anhang sofort."
-                    : undefined)
+                  removeTooltip ?? kitDefault("Entfernt den Anhang sofort.")
                 }
                 onClick={() => onRemove(attachment.id)}
               >

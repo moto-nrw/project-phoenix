@@ -1,5 +1,6 @@
 "use client";
 
+import { useKitDefault } from "~/components/ui/kit-locale";
 import { useState } from "react";
 import { Button } from "~/components/ui/button";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
@@ -26,6 +27,7 @@ export function RequestIdButton({
 }: RequestIdButtonProps) {
   const [feedback, setFeedback] = useState<string | null>(null);
   const { copy } = useClipboardCopy("RequestIdButton");
+  const kitDefault = useKitDefault();
 
   const handleCopy = async () => {
     const copied = await copy(requestId);
@@ -40,9 +42,14 @@ export function RequestIdButton({
         variant="link_tone"
         size="compact"
         aria-label={copyLabel}
-        // Sichtbar steht nur die Kennung; die Blase nennt die Aktion in der
-        // Sprache des Aufrufers. Vorgelesen wird sie nicht doppelt.
-        tooltip={copyLabel}
+        // Sichtbar steht nur die Kennung. Auf einer übersetzten Fläche nennt
+        // die Blase die Aktion mit dem übersetzten Namen; ActionHint liest
+        // ihn dann nicht doppelt vor, weil er schon der Name ist.
+        tooltip={
+          kitDefault(
+            "Kopiert die Kennung, damit Sie sie dem Support nennen können.",
+          ) ?? copyLabel
+        }
         onClick={() => void handleCopy()}
         // A request ID is a 36-character UUID: let it wrap inside the alert
         // or toast instead of running past its edge.

@@ -19,6 +19,7 @@ import {
 } from "~/lib/hooks/use-media-query";
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { Button } from "~/components/ui/button";
+import { useKitDefault } from "~/components/ui/kit-locale";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Skeleton } from "~/components/ui/skeleton";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -562,7 +563,7 @@ function StackedRows<T>({
   emptyState?: ReactNode;
   hasMore: boolean;
   loadMore: () => void;
-  loadMoreTooltip: string;
+  loadMoreTooltip: string | undefined;
   totalCount: number;
   layout: "lines" | "row" | "form";
   stackedTitle?: (row: T) => ReactNode;
@@ -791,7 +792,7 @@ export function DataTable<T>({
   defaultSortKey,
   defaultSortDirection = "asc",
   pageSize,
-  loadMoreTooltip = LOAD_MORE_TOOLTIP,
+  loadMoreTooltip,
   paginationResetKey,
   stackedOnMobile = false,
   stackedLayout = "lines",
@@ -807,6 +808,8 @@ export function DataTable<T>({
   rowTone,
   dense = false,
 }: Readonly<DataTableProps<T>>) {
+  const kitDefault = useKitDefault();
+  const loadMoreHint = loadMoreTooltip ?? kitDefault(LOAD_MORE_TOOLTIP);
   const clickable = Boolean(onRowClick);
   const headCell = dense ? denseHeadCellClass : headCellClass;
   const bodyCell = dense ? denseBodyCellClass : bodyCellClass;
@@ -948,7 +951,7 @@ export function DataTable<T>({
             emptyState={emptyState}
             hasMore={hasMore}
             loadMore={loadMore}
-            loadMoreTooltip={loadMoreTooltip}
+            loadMoreTooltip={loadMoreHint}
             totalCount={sortedRows.length}
             layout={stackedLayout}
             stackedTitle={stackedTitle}
@@ -1259,7 +1262,7 @@ export function DataTable<T>({
                 variant="surface"
                 size="md"
                 onClick={loadMore}
-                tooltip={loadMoreTooltip}
+                tooltip={loadMoreHint}
               >
                 {`Mehr laden (${visibleRows.length} von ${sortedRows.length})`}
               </Button>

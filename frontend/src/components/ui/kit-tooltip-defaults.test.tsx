@@ -8,7 +8,10 @@ import { Dropzone } from "./dropzone";
 import { EditActions } from "./edit-actions";
 import { ExportMenu, exportFormatOptions } from "./export-menu";
 import { ConfirmationModal, Modal } from "./modal";
+import { Alert } from "./alert";
+import { KitLocaleProvider } from "./kit-locale";
 import { ModalProvider } from "./modal-context";
+import { NumberStepper } from "./number-stepper";
 import { OverflowMenu } from "./page-header/OverflowMenu";
 import { SectionCard } from "./section-card";
 
@@ -47,13 +50,58 @@ describe("kit tooltip defaults", () => {
     expect(button("Close")).toHaveAccessibleDescription("Closes the window.");
   });
 
-  it("Modal: a translated close label drops the German default", () => {
+  it("a translated surface drops every German default", () => {
     inModal(
-      <Modal isOpen onClose={vi.fn()} title="Window" closeLabel="Close">
-        Content
-      </Modal>,
+      <KitLocaleProvider locale="tr">
+        <Modal isOpen onClose={vi.fn()} title="Pencere" closeLabel="Kapat">
+          <Alert
+            type="info"
+            message="Not"
+            onDismiss={vi.fn()}
+            dismissLabel="Gizle"
+          />
+          <NumberStepper
+            id="n"
+            name="n"
+            value="1"
+            onChange={vi.fn()}
+            onStep={vi.fn()}
+            decrementLabel="Azalt"
+            incrementLabel="Artır"
+          />
+        </Modal>
+      </KitLocaleProvider>,
     );
-    expect(button("Close")).not.toHaveAccessibleDescription();
+    for (const name of ["Kapat", "Gizle", "Azalt", "Artır"]) {
+      expect(button(name)).not.toHaveAccessibleDescription();
+    }
+  });
+
+  it("Alert and NumberStepper explain their icon buttons", () => {
+    render(
+      <>
+        <Alert type="info" message="Hinweis" onDismiss={vi.fn()} />
+        <NumberStepper
+          id="n"
+          name="n"
+          value="1"
+          onChange={vi.fn()}
+          onStep={vi.fn()}
+          decrementLabel="Weniger"
+          incrementLabel="Mehr"
+          incrementTooltip="Erhöht die Zahl der Tage um einen."
+        />
+      </>,
+    );
+    expect(button("Hinweis schließen")).toHaveAccessibleDescription(
+      "Blendet den Hinweis aus.",
+    );
+    expect(button("Weniger")).toHaveAccessibleDescription(
+      "Verringert den Wert um einen Schritt.",
+    );
+    expect(button("Mehr")).toHaveAccessibleDescription(
+      "Erhöht die Zahl der Tage um einen.",
+    );
   });
 
   it("ConfirmationModal: confirm has a default, cancel stays plain", () => {

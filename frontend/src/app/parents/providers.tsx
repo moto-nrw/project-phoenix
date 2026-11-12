@@ -15,6 +15,7 @@ import { SentrySessionContext } from "~/components/auth/sentry-session-context";
 import { PushSubscriptionSync } from "~/components/notifications/service-worker-registrar";
 import { ModulePortalProvider } from "~/lib/module-portal-context";
 import { ParentLocaleProvider } from "~/lib/parent-locale-context";
+import { KitLocaleFromIntl } from "~/components/ui/kit-locale";
 
 // Where a page lands that still showed another account (#5000).
 const parentsHome = () => parentPath("/parents");
@@ -58,7 +59,12 @@ export function ParentProviders({
       <ParentPortalAnalyticsSession />
       <SentrySessionContext portal="parent" />
       <ParentLocaleProvider>
-        <ModulePortalProvider portal="parent">{children}</ModulePortalProvider>
+        {/* Kit-Standardtexte sind deutsch; andere Sprachen lassen sie weg. */}
+        <KitLocaleFromIntl>
+          <ModulePortalProvider portal="parent">
+            {children}
+          </ModulePortalProvider>
+        </KitLocaleFromIntl>
       </ParentLocaleProvider>
     </SessionProvider>
   );

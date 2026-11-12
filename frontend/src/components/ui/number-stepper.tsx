@@ -1,5 +1,6 @@
 "use client";
 
+import { useKitDefault } from "~/components/ui/kit-locale";
 import { Minus, Plus } from "lucide-react";
 import type { InputHTMLAttributes } from "react";
 
@@ -20,8 +21,8 @@ export function NumberStepper({
   onStep,
   decrementLabel,
   incrementLabel,
-  decrementTooltip = "Verringert den Wert um einen Schritt.",
-  incrementTooltip = "Erhöht den Wert um einen Schritt.",
+  decrementTooltip,
+  incrementTooltip,
   canDecrement = true,
   canIncrement = true,
   disabled = false,
@@ -49,6 +50,7 @@ export function NumberStepper({
     error?: string;
   }
 >) {
+  const kitDefault = useKitDefault();
   return (
     <div className="flex items-start gap-2">
       <Button
@@ -59,7 +61,10 @@ export function NumberStepper({
         onClick={() => onStep(-1)}
         disabled={disabled || !canDecrement}
         aria-label={decrementLabel}
-        tooltip={decrementTooltip}
+        tooltip={
+          decrementTooltip ??
+          kitDefault("Verringert den Wert um einen Schritt.")
+        }
       >
         <Minus className="h-4 w-4" aria-hidden="true" />
       </Button>
@@ -82,7 +87,9 @@ export function NumberStepper({
         onClick={() => onStep(1)}
         disabled={disabled || !canIncrement}
         aria-label={incrementLabel}
-        tooltip={incrementTooltip}
+        tooltip={
+          incrementTooltip ?? kitDefault("Erhöht den Wert um einen Schritt.")
+        }
       >
         <Plus className="h-4 w-4" aria-hidden="true" />
       </Button>

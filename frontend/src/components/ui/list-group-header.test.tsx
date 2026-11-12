@@ -98,9 +98,7 @@ describe("ListGroupHeader", () => {
 
     expect(
       screen.getByRole("button", { name: "Aktivitäten" }),
-    ).toHaveAccessibleDescription(
-      "2/5 Blendet die Einträge dieser Gruppe aus.",
-    );
+    ).toHaveAccessibleDescription("2/5");
   });
 
   it("renders no toggle without collapsible", () => {

@@ -52,7 +52,9 @@ import { Drawer as DrawerPrimitive } from "vaul";
 
 import { BELOW_SM } from "~/lib/hooks/use-media-query";
 import { cn } from "~/lib/utils";
+import { ActionHint } from "./action-hint";
 import { buttonClassName } from "./button";
+import { useKitDefault } from "./kit-locale";
 import { CloseIcon } from "./close-icon";
 import { FormErrorAlert } from "./form-error-alert";
 import { useBusyFocus } from "./hooks/useBusyFocus";
@@ -356,11 +358,16 @@ SlideOverContent.displayName = "SlideOverContent";
  */
 const SlideOverCloseButton = React.forwardRef<
   React.ComponentRef<typeof DrawerPrimitive.Close>,
-  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Close>
->(({ className, children, disabled = false, ...props }, ref) => {
+  React.ComponentPropsWithoutRef<typeof DrawerPrimitive.Close> & {
+    /** What a click does (#6744); defaults to „Schließt das Seitenfenster.“ */
+    readonly tooltip?: string;
+  }
+>(({ className, children, disabled = false, tooltip, ...props }, ref) => {
   const busy = React.useContext(SlideOverBusyContext);
+  const kitDefault = useKitDefault();
+  const hint = tooltip ?? kitDefault("Schließt das Seitenfenster.");
 
-  return (
+  const close = (
     <DrawerPrimitive.Close
       ref={ref}
       type="button"
@@ -379,6 +386,7 @@ const SlideOverCloseButton = React.forwardRef<
       {children ?? <CloseIcon />}
     </DrawerPrimitive.Close>
   );
+  return hint ? <ActionHint text={hint}>{close}</ActionHint> : close;
 });
 SlideOverCloseButton.displayName = "SlideOverCloseButton";
 
