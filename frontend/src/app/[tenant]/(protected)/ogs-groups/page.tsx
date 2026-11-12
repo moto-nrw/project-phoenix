@@ -39,7 +39,10 @@ import type {
 } from "~/components/ui/page-header/types";
 import type { Student } from "~/lib/student-helpers";
 import { teacherHintKey, teacherHintText } from "~/lib/student-helpers";
-import { isNotCheckedInLocation } from "~/lib/location-helper";
+import {
+  isInClassLocation,
+  isNotCheckedInLocation,
+} from "~/lib/location-helper";
 import { countedDayStatus } from "~/lib/presence-status";
 import {
   countCheckedInStudents,
@@ -1022,6 +1025,8 @@ function OGSGroupPageContent() {
             isGroupRoom={isStudentInGroupRoom(student, currentGroup)}
             variant="modern"
             size="md"
+            // „seit“ nennt, wann das Kind zum Unterricht ging (#5710).
+            showLocationSince={isInClassLocation(student.current_location)}
           />
         )),
         classColumn({ defaultVisible: false, label: holidayGuestLabel }),
@@ -1212,6 +1217,9 @@ function OGSGroupPageContent() {
                       isGroupRoom={inGroupRoom}
                       variant="modern"
                       size="md"
+                      showLocationSince={isInClassLocation(
+                        student.current_location,
+                      )}
                     />
                   }
                   extraContent={

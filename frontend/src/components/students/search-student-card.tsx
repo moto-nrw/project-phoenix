@@ -43,6 +43,7 @@ import {
 } from "~/lib/student-time-status";
 import { getDayPlanningNotComingLabel } from "~/lib/day-planning-helper";
 import { deriveCheckinState } from "~/lib/hooks/use-school-checkin-mode";
+import { isInClassLocation } from "~/lib/location-helper";
 import {
   dayHomeChange,
   type StudentTableDay,
@@ -92,6 +93,8 @@ export function SearchStudentStatusBadge({
       supervisedRooms={supervisedRooms}
       variant="modern"
       size="md"
+      // „seit“ nennt, wann das Kind zum Unterricht ging, wie in der Kindakte (#5710).
+      showLocationSince={isInClassLocation(student.current_location)}
     />
   ) : (
     // Non-today dates show the planned expectation, never the live

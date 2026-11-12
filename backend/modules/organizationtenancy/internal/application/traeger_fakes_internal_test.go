@@ -34,6 +34,14 @@ func (fakeOwnerStore) DeactivateTraegerMembership(context.Context, int64, int64)
 	return false, domain.OperationStats{}, nil
 }
 
+func (fakeOwnerStore) ListTraegerMemberNames(context.Context, int64, []int64) ([]organizationtenancy.TraegerMemberName, domain.OperationStats, error) {
+	return nil, domain.OperationStats{}, nil
+}
+
+func (fakeOwnerStore) SetTraegerMemberName(context.Context, int64, int64, string) (bool, domain.OperationStats, error) {
+	return false, domain.OperationStats{}, nil
+}
+
 func (*fakeIdentity) FindAccountIDByEmail(context.Context, string) (int64, bool, error) {
 	return 0, false, nil
 }

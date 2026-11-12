@@ -90,7 +90,7 @@ func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, repo
 			return nil, fmt.Errorf("identity access composition: %w", err)
 		}
 		traeger := *base.Traeger
-		traeger.Memberships = TraegerBueroDirectory{Organizations: repos.traeger}
+		traeger.Memberships = TraegerBueroDirectory{Organizations: repos.traeger, Names: NewTraegerMemberNames()}
 		traeger.Audit = TraegerAccountLedger{Command: audit, Changes: ledger.TraegerAccountChanges}
 		base.Traeger = &traeger
 	}

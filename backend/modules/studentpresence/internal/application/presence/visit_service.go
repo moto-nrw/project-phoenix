@@ -195,7 +195,7 @@ func (s *service) updateVisit(ctx context.Context, visit *studentpresence.Visit)
 
 	if intervalChanged {
 		if err := s.syncAttendanceForVisitRevision(ctx, existing, visit); err != nil {
-			return &ActiveError{Op: "UpdateVisit", Err: ErrDatabaseOperation}
+			return &ActiveError{Op: "UpdateVisit", Err: errors.Join(ErrDatabaseOperation, err)}
 		}
 	}
 
@@ -245,6 +245,9 @@ func (s *service) prepareVisitRevision(ctx context.Context, visit *studentpresen
 
 	if existing.StudentID != previous.StudentID {
 		return nil, &ActiveError{Op: "UpdateVisit", Err: studentpresence.ErrVisitWriteConflict}
+	}
+	if err := s.ensureRevisionDoesNotOverlap(ctx, existing, visit); err != nil {
+		return nil, err
 	}
 	return existing, nil
 }

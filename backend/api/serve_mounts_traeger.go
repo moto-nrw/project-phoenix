@@ -132,9 +132,12 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 	masterData := organizationTenancyTraeger.NewMasterDataResource(organizationTenancyCompose.NewTraegerMasterData(), organizationTenancyCompose.NewTraegerDocumentTemplates(),
 		common.RequiresPermission(identityaccess.TraegerRightOverviewRead), common.RequiresPermission(identityaccess.TraegerRightSettingsManage))
 	overviewRoutes := traegerViewHTTP.NewResource(overview)
+	// The names of the Träger-Büro (#4693); a route-sized test identity
+	// without them answers 500 on those routes, the serving root refuses it.
+	profiles, _ := identity.(identityaccess.TraegerMemberProfiles)
 	return traegerportal.NewResource(TraegerPortalAuth(identity), TraegerPortalMFA(identity),
 		portalauth.PasswordResetRoutes(identity, identityaccess.PasswordResetScopeTraeger), overviewRoutes, holidayPeriods,
-		traegerViewHTTP.NewAccessLogResource(overview), traegerSettings, masterData, identity, overviewRoutes, identity), nil
+		traegerViewHTTP.NewAccessLogResource(overview), traegerSettings, masterData, identity, profiles, overviewRoutes, identity), nil
 }
 
 // TraegerPortalSettings is the Träger level of the settings system as the

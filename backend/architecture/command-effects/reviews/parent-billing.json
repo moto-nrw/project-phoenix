@@ -577,6 +577,16 @@
       "target_owner": "settings-platform"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/api.parentBillingActorNames.TraegerActorNames",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/parentbilling.ExportActorNames.TraegerActorNames",
+      "reason": "Read-only: the export protocol, the runs and the invoice history name the colleagues of the session's Träger (#4693) through Organisation \u0026 Tenancy's names of the Träger memberships, in one statement in the caller's Träger transaction (platform.traeger_member_names answers only for app.current_org_id). No persistent, lock or scope effect.",
+      "source_owner": "parent-billing",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMemberNames.ListTraegerMemberNames",
+      "target_owner": "organization-tenancy"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/carecontract.ContractBilling.FamiliesWithContracts",
       "classification": "query",
       "effect": "query",

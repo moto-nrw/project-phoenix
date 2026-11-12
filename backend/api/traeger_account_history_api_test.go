@@ -30,6 +30,7 @@ type traegerHistoryAnswer struct {
 		Action      string   `json:"action"`
 		ActorEmail  string   `json:"actor_email"`
 		TargetEmail string   `json:"target_email"`
+		TargetName  string   `json:"target_name"`
 		RolesBefore []string `json:"roles_before"`
 		RolesAfter  []string `json:"roles_after"`
 	} `json:"entries"`

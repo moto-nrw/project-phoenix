@@ -220,3 +220,91 @@ func TestAttendanceExportRows_SortsChronologicallyAcrossSources(t *testing.T) {
 	assert.Equal(t, "15.07.2026", rows[2].Values[attendanceColumnDate])
 	assert.Equal(t, "Nachmittagsbetreuung", rows[2].Values[attendanceColumnOffering])
 }
+
+// A child who goes to class and comes back into the same slot keeps the stay
+// before class as its own row. The row names the slot it belonged to, not
+// "Ohne Zuordnung" (#5710).
+func TestAttendanceExportRows_StayBeforeClassNamesItsSlot(t *testing.T) {
+	t.Parallel()
+
+	date := calendar.NewDate(2026, 11, 4)
+	at := func(hour, minute int) time.Time { return time.Date(2026, 11, 4, hour, minute, 0, 0, calendar.Berlin) }
+	beforeClass := at(13, 0)
+	leftForClass := at(13, 30)
+	back := at(14, 30)
+	class := studentpresence.CheckoutReasonClass
+	rows := attendanceExportRows([]*studentpresence.HistorySlot{{
+		Instance: &studentpresence.HistorySlotInstance{
+			Date: date, Title: "Nachmittag",
+			StartTime: time.Date(1, 1, 1, 12, 0, 0, 0, time.UTC),
+			EndTime:   time.Date(1, 1, 1, 16, 0, 0, 0, time.UTC),
+		},
+		// The return re-stamped the slot's check-in.
+		Attendance: &studentpresence.HistorySlotAttendance{Status: studentpresence.SessionAttendancePresent, CheckedInAt: &back},
+	}}, []*studentpresence.Attendance{
+		{Date: date.String(), CheckInTime: beforeClass, CheckOutTime: &leftForClass, CheckOutReason: &class},
+		{Date: date.String(), CheckInTime: back},
+	}, studentpresence.NewAttendanceRecorders(nil))
+
+	require.Len(t, rows, 2)
+	stay := rows[1].Values // the stay at 13:00 sorts after the slot row at 12:00
+	assert.Equal(t, "Nachmittag", stay[attendanceColumnOffering])
+	assert.Equal(t, "Gebucht", stay[attendanceColumnAssignment])
+	assert.Equal(t, "13:00", stay[attendanceColumnCheckIn])
+	assert.Equal(t, "13:30", stay[attendanceColumnCheckOut])
+	assert.Equal(t, attendanceWentToClassNote, stay[attendanceColumnNote])
+	for _, row := range rows {
+		assert.NotEqual(t, "Ohne Zuordnung", row.Values[attendanceColumnOffering])
+	}
+}
+
+// A school stay can span several slots. Only the recorded slot interval can
+// identify the offering at departure; ambiguous overwritten intervals stay neutral.
+func TestAttendanceExportRows_ClassStaySlotAssociation(t *testing.T) {
+	t.Parallel()
+	date := calendar.NewDate(2026, 11, 4)
+	at := func(hour, minute int) time.Time { return time.Date(2026, 11, 4, hour, minute, 0, 0, calendar.Berlin) }
+	morningIn, morningOut := at(7, 30), at(12, 0)
+	afternoonIn, left, back := at(13, 0), at(13, 30), at(14, 30)
+	class := studentpresence.CheckoutReasonClass
+	slot := func(title string, start, end int, in, out *time.Time, unplanned bool) *studentpresence.HistorySlot {
+		return &studentpresence.HistorySlot{
+			Instance: &studentpresence.HistorySlotInstance{Date: date, Title: title,
+				StartTime: time.Date(1, 1, 1, start, 0, 0, 0, time.UTC), EndTime: time.Date(1, 1, 1, end, 0, 0, 0, time.UTC)},
+			Attendance: &studentpresence.HistorySlotAttendance{Status: studentpresence.SessionAttendancePresent, CheckedInAt: in, CheckedOutAt: out, IsUnplanned: unplanned},
+		}
+	}
+	morning := slot("Morgen", 7, 12, &morningIn, &morningOut, false)
+	afternoon := slot("Nachmittag", 12, 16, &afternoonIn, nil, true)
+	overwritten := slot("Nachmittag", 12, 16, &back, nil, true)
+	overlapping := slot("Anderes Angebot", 12, 16, &back, nil, false)
+	alsoRecorded := slot("Zweites erfasstes Angebot", 12, 16, &afternoonIn, nil, false)
+	for _, tt := range []struct {
+		name                 string
+		slots                []*studentpresence.HistorySlot
+		checkIn              time.Time
+		offering, assignment string
+	}{
+		{"stay spans slots with recorded afternoon association", []*studentpresence.HistorySlot{morning, afternoon}, morningIn, "Nachmittag", "Ungeplant, ohne Buchung"},
+		{"spanning stay lost its afternoon association", []*studentpresence.HistorySlot{morning, overwritten}, morningIn, "Ohne Zuordnung", "Nicht zugeordnet"},
+		{"overlapping overwritten slots", []*studentpresence.HistorySlot{overwritten, overlapping}, afternoonIn, "Ohne Zuordnung", "Nicht zugeordnet"},
+		{"overlapping overwritten slots reversed", []*studentpresence.HistorySlot{overlapping, overwritten}, afternoonIn, "Ohne Zuordnung", "Nicht zugeordnet"},
+		{"recorded association beats overlapping window", []*studentpresence.HistorySlot{overlapping, afternoon}, afternoonIn, "Nachmittag", "Ungeplant, ohne Buchung"},
+		{"ambiguous recorded associations", []*studentpresence.HistorySlot{afternoon, alsoRecorded}, afternoonIn, "Ohne Zuordnung", "Nicht zugeordnet"},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			t.Parallel()
+			rows := attendanceExportRows(tt.slots, []*studentpresence.Attendance{{Date: date.String(), CheckInTime: tt.checkIn, CheckOutTime: &left, CheckOutReason: &class}}, studentpresence.NewAttendanceRecorders(nil))
+			var stay lists.Row
+			for _, row := range rows {
+				if row.Values[attendanceColumnNote] == attendanceWentToClassNote {
+					stay = row
+				}
+			}
+			require.NotNil(t, stay.Values)
+			assert.Equal(t, tt.offering, stay.Values[attendanceColumnOffering])
+			assert.Equal(t, tt.assignment, stay.Values[attendanceColumnAssignment])
+			assert.Equal(t, "13:30", stay.Values[attendanceColumnCheckOut])
+		})
+	}
+}

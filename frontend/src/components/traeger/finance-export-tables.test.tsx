@@ -26,6 +26,7 @@ function holidayFile(fallbacks: CostCenterFallback[]): ExportProtocolEntry {
     costCenterFallbacks: fallbacks,
     exportedByYou: true,
     exportedByAccount: true,
+    exportedByName: "",
     exportedAt: "2026-11-09T10:00:00Z",
     submittedAt: null,
   };
@@ -104,4 +105,43 @@ it("shows no fallback note for a file without one", () => {
     screen.getAllByText("EXTF_Buchungsstapel_21.csv").length,
   ).toBeGreaterThan(0);
   expect(screen.queryByText(/Ersatz-Kostenstelle/)).toBeNull();
+});
+
+// #4693: who downloaded a file, by name and never by e-mail address.
+it("names who downloaded each file", () => {
+  render(
+    <ExportProtocolTable
+      entries={[
+        { ...holidayFile([]), id: "1", fileNumber: 1 },
+        {
+          ...holidayFile([]),
+          id: "2",
+          fileNumber: 2,
+          exportedByYou: false,
+          exportedByName: "Eva Müller",
+        },
+        {
+          ...holidayFile([]),
+          id: "3",
+          fileNumber: 3,
+          exportedByYou: false,
+        },
+        {
+          ...holidayFile([]),
+          id: "4",
+          fileNumber: 4,
+          exportedByYou: false,
+          exportedByAccount: false,
+        },
+      ]}
+    />,
+  );
+  expect(screen.getAllByText("von Ihnen").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("von Eva Müller").length).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("von einem Konto ohne Namen").length,
+  ).toBeGreaterThan(0);
+  expect(
+    screen.getAllByText("von einem gelöschten Konto").length,
+  ).toBeGreaterThan(0);
 });

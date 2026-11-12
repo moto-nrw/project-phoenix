@@ -24,7 +24,7 @@ func NewTraegerAccountChanges(runtime Runtime) *TraegerAccountChanges {
 // traegerAccountChangesQuery lists the changes of a Träger older than ?1
 // (0 starts at the newest). The reads of the member list (?3) are no change.
 const traegerAccountChangesQuery = `SELECT change.id, change.created_at, change.actor_account_id, change.action,
-		change.target_account_id, change.target_email, change.roles_before, change.roles_after
+		change.target_account_id, change.target_email, change.target_name, change.roles_before, change.roles_after
 	FROM audit.traeger_account_changes AS change
 	WHERE change.organization_id = ?0 AND change.action <> ?3 AND (?1 = 0 OR change.id < ?1)
 	ORDER BY change.id DESC
@@ -50,6 +50,7 @@ func (r *TraegerAccountChanges) ListTraegerAccountChanges(ctx context.Context, o
 		Action          string    `bun:"action"`
 		TargetAccountID *int64    `bun:"target_account_id"`
 		TargetEmail     *string   `bun:"target_email"`
+		TargetName      *string   `bun:"target_name"`
 		RolesBefore     []string  `bun:"roles_before,array"`
 		RolesAfter      []string  `bun:"roles_after,array"`
 	}
@@ -59,7 +60,7 @@ func (r *TraegerAccountChanges) ListTraegerAccountChanges(ctx context.Context, o
 	for _, row := range rows {
 		result = append(result, auditlog.TraegerAccountChange{
 			ID: row.ID, OccurredAt: row.CreatedAt, ActorAccountID: row.ActorAccountID, Action: row.Action,
-			TargetAccountID: row.TargetAccountID, TargetEmail: row.TargetEmail,
+			TargetAccountID: row.TargetAccountID, TargetEmail: row.TargetEmail, TargetName: row.TargetName,
 			RolesBefore: nonNilRoles(row.RolesBefore), RolesAfter: nonNilRoles(row.RolesAfter),
 		})
 	}
