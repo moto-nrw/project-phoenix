@@ -33,6 +33,7 @@ GET /api/students/ended-care
 GET /api/students/offering-change-requests/course-waitlists
 GET /api/students/ogs-group-live
 GET /api/students/ogs-group-navigation
+GET /api/students/pickup-change-notices
 GET /api/students/privacy-consent/defaults
 GET /api/students/school-classes
 GET /api/students/status-days
@@ -96,6 +97,7 @@ POST /api/students/{id}/notes
 POST /api/students/{id}/notes/{noteId}/team-notices
 POST /api/students/{id}/partial-absences
 POST /api/students/{id}/photo
+POST /api/students/{id}/pickup-change-notices/read
 POST /api/students/{id}/pickup-exceptions
 POST /api/students/{id}/pickup-notes
 POST /api/students/{id}/pickup-schedules/apply

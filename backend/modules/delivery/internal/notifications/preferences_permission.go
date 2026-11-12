@@ -86,3 +86,28 @@ func (s *preferenceService) declineDefaultOnTypes(ctx context.Context, accountID
 	}
 	return nil
 }
+
+func (s *preferenceService) FilterPermitted(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error) {
+	def, known := GetType(notificationType)
+	if !known {
+		return nil, fmt.Errorf("%w: %s", ErrUnknownNotificationType, notificationType)
+	}
+	if def.Permission == "" || len(accountIDs) == 0 {
+		return accountIDs, nil
+	}
+	tenantID := tenant.FromContext(ctx)
+	if s.accountPermissions == nil || tenantID <= 0 {
+		return nil, nil
+	}
+	names, err := s.accountPermissions.FindEffectivePermissionNamesByAccountIDsForTenant(ctx, accountIDs, tenantID)
+	if err != nil {
+		return nil, fmt.Errorf("load notification permissions: %w", err)
+	}
+	permitted := make([]int64, 0, len(accountIDs))
+	for _, accountID := range accountIDs {
+		if s.permissions.permits(def.Permission, names[accountID]) {
+			permitted = append(permitted, accountID)
+		}
+	}
+	return permitted, nil
+}

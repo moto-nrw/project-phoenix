@@ -68,7 +68,7 @@ func buildPickupPermissionService(t *testing.T) pickupPermissionFixture {
 		owners.NewParentStudentGuardianReads(reposPeople.StudentGuardian),
 		owners.NewParentGuardianPolicy(), permissions,
 	)
-	requests := owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+	requests := owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(nil,
 		repos.CarePlan(), persons, schedules.Arrivals, schedules.Pickups, presence,
 		newPickupExcusal(t, db, repos.CarePlan(),
 			newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)),

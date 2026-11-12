@@ -12580,6 +12580,37 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.pickupChangeTeamReach.NotifyPickupChanged",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeTeamReach.NotifyPickupChanged",
+      "reason": "Platform protocol participation (durable): care-plan reaches modules/delivery/internal/notifications.Notifier.Notify (delivery-platform) through roots/owners.pickupChangeTeamReach.NotifyPickupChanged and the shared owners.StaffPushNotifier (#6855). The push outbox entry joins the care request decision's unit with the team markers; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/internal/notifications.Notifier.Notify",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.pickupChangeTeamReach.NotifyPickupChanged",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeTeamReach.NotifyPickupChanged",
+      "reason": "Read-only target: care-plan reaches modules/delivery/internal/notifications.PreferenceService.FilterNotOptedOut (delivery-platform) through roots/owners.pickupChangeTeamReach.NotifyPickupChanged (#6855). No persistent, lock or scope effect.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/internal/notifications.PreferenceService.FilterNotOptedOut",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.pickupChangeTeamReach.ResponsibleAccountIDs",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeTeamReach.ResponsibleAccountIDs",
+      "reason": "Reviewed responsibility read (#6855): care-plan reaches Delivery's staff responsibility rule (group supervisors and admins of the caller's school, narrowed to users:read) through roots/owners.pickupChangeTeamReach.ResponsibleAccountIDs. The target only SELECTs group, staff, account and permission facts, with no row mutation or locking read.",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/contract.ResponsibleStaff.ResponsibleStaffAccountIDs",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/api.PickupReviewBlocks.PreviewPickupBlocks",
       "classification": "query",
       "effect": "query",

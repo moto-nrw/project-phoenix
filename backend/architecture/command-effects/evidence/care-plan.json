@@ -9193,6 +9193,30 @@
       "target_owner": "student-presence"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.pickupChangeTeamReach.NotifyPickupChanged",
+      "binding_digest": "20ad49e39c6ab94f1fc4dc1e32ef5ce9",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeTeamReach.NotifyPickupChanged",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/internal/notifications.Notifier.Notify",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.pickupChangeTeamReach.NotifyPickupChanged",
+      "binding_digest": "115f503500888064fb2618558a886d9b",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeTeamReach.NotifyPickupChanged",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/internal/notifications.PreferenceService.FilterNotOptedOut",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.pickupChangeTeamReach.ResponsibleAccountIDs",
+      "binding_digest": "ce8d3cb6c363f54e31c0c9d480878afc",
+      "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupChangeTeamReach.ResponsibleAccountIDs",
+      "source_owner": "care-plan",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/contract.ResponsibleStaff.ResponsibleStaffAccountIDs",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/api.PickupReviewBlocks.PreviewPickupBlocks",
       "binding_digest": "7dd72ec123429bd8b8e4682b0d038b14",
       "port": "github.com/moto-ogs/project-phoenix/modules/careplan.PickupReviewBlocks.PreviewPickupBlocks",

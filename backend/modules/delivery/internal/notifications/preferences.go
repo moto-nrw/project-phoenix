@@ -92,6 +92,12 @@ type PreferenceService interface {
 	// push and in-app hints stay consent-first via FilterOptedIn.
 	FilterNotOptedOut(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error)
 
+	// FilterPermitted keeps the accounts that hold the type's Permission in
+	// the current school, in one read; a type without one keeps everyone. It
+	// is no personal choice: it says who may hear about the type at all
+	// (#6855).
+	FilterPermitted(ctx context.Context, notificationType string, accountIDs []int64) ([]int64, error)
+
 	// GetForParent and SetForParent are the guardian-portal counterparts. The
 	// parents app has no tenant context of its own, so both resolve the
 	// account's active school mappings and act across all of them: one set of
