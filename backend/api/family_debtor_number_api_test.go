@@ -19,7 +19,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/moto-nrw/project-phoenix/api/common"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/roots/owners"
@@ -273,7 +272,7 @@ func TestFamilyNumberOutlivesTheRegistrationAndHasItsOwnPeriod(t *testing.T) {
 	retain := func(today calendar.Date) {
 		t.Helper()
 		admin(func(adminCtx context.Context) error {
-			_, err := enrollmentCompose.NewHolidayRegistrationRetention(func() calendar.Date { return today }).DeleteExpiredHolidayRegistrations(adminCtx)
+			_, err := owners.NewHolidayRegistrationRetention(func() calendar.Date { return today }).DeleteExpiredHolidayRegistrations(adminCtx)
 			return err
 		})
 		admin(func(adminCtx context.Context) error {

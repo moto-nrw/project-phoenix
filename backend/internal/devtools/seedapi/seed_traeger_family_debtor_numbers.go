@@ -43,6 +43,18 @@ const (
 var seedSiblingsConfirmation = map[string]any{"benefits_exemption": false, "debtor_number": seedHolidayDebtorNumber,
 	"family_debtor_number": "keep"}
 
+// seedHolidayFamilies adds the families after the first confirmation: a child
+// the school knows, a sibling group and the remembered debtor numbers (#6692).
+func seedHolidayFamilies(rt *Runtime, auth AuthRef, token string, periodID int64, registration map[string]any, siblings int64) error {
+	if err := seedHolidayKnownChild(rt, auth, token, periodID, registration); err != nil {
+		return err
+	}
+	if err := seedHolidaySiblingGroup(rt, auth, token, periodID, registration, siblings); err != nil {
+		return err
+	}
+	return seedHolidayFamilyDebtorNumbers(rt, auth, token, periodID, registration)
+}
+
 // seedHolidayFamilyDebtorNumbers registers and confirms the families above in
 // the seeded period. A server that refuses a registration (captcha, rate
 // limit) keeps the period without them.

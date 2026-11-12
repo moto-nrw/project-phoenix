@@ -389,13 +389,7 @@ func seedHolidayAfterConfirmation(rt *Runtime, auth AuthRef, token string, perio
 	if err := seedHolidayCostTakeover(rt, auth, periodID, duplicate); err != nil {
 		return err
 	}
-	if err := seedHolidayKnownChild(rt, auth, token, periodID, registration); err != nil {
-		return err
-	}
-	if err := seedHolidaySiblingGroup(rt, auth, token, periodID, registration, siblings); err != nil {
-		return err
-	}
-	return seedHolidayFamilyDebtorNumbers(rt, auth, token, periodID, registration)
+	return seedHolidayFamilies(rt, auth, token, periodID, registration, siblings)
 }
 
 // seedHolidayRegistrationEdit lets the Träger-Büro correct the confirmed
