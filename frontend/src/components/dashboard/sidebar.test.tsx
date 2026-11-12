@@ -1262,8 +1262,9 @@ describe("Sidebar", () => {
     ])(
       "marks $case on the group page without a group parameter",
       ({ remembered, groups, marked, unmarked }) => {
+        let storedGroup = remembered;
         vi.spyOn(localStorage, "getItem").mockImplementation((key: string) =>
-          key === memoryKey("sidebar-last-group") ? remembered : null,
+          key === memoryKey("sidebar-last-group") ? storedGroup : null,
         );
         mockUsePathname.mockReturnValue("/ogs-groups");
         mockUseSupervision.mockReturnValue({
@@ -1283,6 +1284,19 @@ describe("Sidebar", () => {
           "bg-gray-100",
         );
         expect(screen.getByRole("link", { name: unmarked })).not.toHaveClass(
+          "bg-gray-100",
+        );
+
+        act(() => {
+          storedGroup = groups.find((group) => group.name === unmarked)!.id;
+          window.dispatchEvent(
+            new StorageEvent("storage", {
+              key: memoryKey("sidebar-last-group"),
+              newValue: storedGroup,
+            }),
+          );
+        });
+        expect(screen.getByRole("link", { name: unmarked })).toHaveClass(
           "bg-gray-100",
         );
       },
