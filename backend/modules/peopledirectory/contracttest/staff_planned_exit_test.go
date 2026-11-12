@@ -63,6 +63,8 @@ func TestPlannedExit_BlockedClosesThisSchoolThenCompletes(t *testing.T) {
 			notices = append(notices, notice)
 			return true, nil
 		},
+		Within:         api.PlannedExitTransaction,
+		BoundLockWaits: api.BoundPlannedExitLockWaits(30 * time.Second),
 		Isolate: func(ctx context.Context, fn func(context.Context) error) (error, error) {
 			failed := tenant.WithSavepoint(ctx, fn)
 			if errors.Is(failed, tenant.ErrSavepointControl) {
@@ -77,7 +79,7 @@ func TestPlannedExit_BlockedClosesThisSchoolThenCompletes(t *testing.T) {
 		t.Helper()
 		_, err := testpkg.TenantQuery0(t, sc.ctx, sc.db, func(ctx context.Context) (struct{}, error) {
 			result, err := run.RunDue(ctx)
-			require.Empty(t, result.Failed)
+			require.Empty(t, result.Failed())
 			return struct{}{}, err
 		})
 		require.NoError(t, err)

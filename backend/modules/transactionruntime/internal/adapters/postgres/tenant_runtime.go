@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime/protocol"
 	"github.com/uptrace/bun"
+	"github.com/uptrace/bun/driver/pgdriver"
 )
 
 type tenantTxKey struct{}
@@ -318,19 +319,37 @@ func (r *PostgresUnitOfWork) AcquireLock(ctx context.Context, key string, shared
 // the second. When fn fails, the caller's enclosing savepoint rollback undoes
 // the setting (tenant.WithStatementTimeout).
 func (r *PostgresUnitOfWork) BoundStatements(ctx context.Context, limit time.Duration, fn func(context.Context) error) error {
+	return boundSetting(ctx, "statement_timeout", limit, fn)
+}
+
+// BoundLocks runs fn with lock_timeout set to limit for the active
+// transaction, like BoundStatements. A lock wait the limit ends fails with
+// 55P03 (IsLockNotAvailable).
+func (r *PostgresUnitOfWork) BoundLocks(ctx context.Context, limit time.Duration, fn func(context.Context) error) error {
+	return boundSetting(ctx, "lock_timeout", limit, fn)
+}
+
+// IsLockNotAvailable reports PostgreSQL's lock_not_available (55P03): a lock
+// wait that lock_timeout ended, or a NOWAIT lock another transaction holds.
+func IsLockNotAvailable(err error) bool {
+	pgErr, ok := operationAs[pgdriver.Error](err)
+	return ok && pgErr.Field('C') == "55P03"
+}
+
+func boundSetting(ctx context.Context, setting string, limit time.Duration, fn func(context.Context) error) error {
 	tx, err := savepointTx(ctx)
 	if err != nil {
 		return err
 	}
 	var previous, applied string
-	if err := tx.NewRaw(`SELECT current_setting('statement_timeout'), set_config('statement_timeout', ?, true)`,
-		fmt.Sprintf("%dms", limit.Milliseconds())).Scan(ctx, &previous, &applied); err != nil {
+	if err := tx.NewRaw(`SELECT current_setting(?), set_config(?, ?, true)`,
+		setting, setting, fmt.Sprintf("%dms", limit.Milliseconds())).Scan(ctx, &previous, &applied); err != nil {
 		return err
 	}
 	if err := fn(ctx); err != nil {
 		return err
 	}
-	_, err = tx.ExecContext(ctx, `SELECT set_config('statement_timeout', ?, true)`, previous)
+	_, err = tx.ExecContext(ctx, `SELECT set_config(?, ?, true)`, setting, previous)
 	return err
 }
 
