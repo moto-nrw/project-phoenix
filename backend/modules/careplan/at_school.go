@@ -4,6 +4,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
@@ -29,8 +30,7 @@ type AtSchoolInputs struct {
 // it: an early-care child can be planned to leave before class even starts.
 // Without a configured end the status holds for the rest of the day.
 func InClassUntilCareDayEnd(careDayEnd string, now time.Time) bool {
-	end := strings.TrimSpace(careDayEnd)
-	return end == "" || now.In(calendar.Berlin).Format("15:04") < end
+	return !carerequests.CareDayEnded(careDayEnd, now)
 }
 
 // IsAtSchoolBeforeCheckIn reports whether a child should read "Schule"

@@ -84,6 +84,9 @@ func (s *Service) editPickupChangeInTx(txCtx context.Context, child *Child, acco
 	if student.CareEndedOn(s.todayDate()) {
 		return nil, ErrChildCareEnded
 	}
+	if err := s.guardTodayPickupOpen(txCtx, child.TenantID, studentID, edit.Date, s.todayDate()); err != nil {
+		return nil, err
+	}
 	cutoff, err := s.pickupChangeCutoffInTx(txCtx, child.TenantID)
 	if err != nil {
 		return nil, err
@@ -172,7 +175,7 @@ func (s *Service) SubmitPickupChange(ctx context.Context, accountID, studentID i
 // alone, stores the request and its share in one tenant transaction.
 func (s *Service) submitPickupChangeInTx(txCtx context.Context, child *Child, accountID, studentID int64, submission PickupChangeSubmission, reasonRequired bool, today calendar.Date) (*carerequests.Request, error) {
 	legs := pickupChangeLegs{pickupTime: !submission.PickupTime.IsZero(), departureMode: submission.DepartureMode != ""}
-	if err := s.lockPickupChangeDay(txCtx, studentID, submission.Date, today, legs); err != nil {
+	if err := s.lockPickupChangeDay(txCtx, child.TenantID, studentID, submission.Date, today, legs); err != nil {
 		return nil, err
 	}
 	policy, err := s.pickupChangePolicyInTx(txCtx, child.TenantID)
@@ -313,8 +316,8 @@ type pickupChangeLegs struct {
 
 // lockPickupChangeDay locks the student and the exception day, then refuses a
 // day the child's care has ended on, a leg the OGS already set for that day,
-// or a day the child has already left.
-func (s *Service) lockPickupChangeDay(txCtx context.Context, studentID int64, date, today calendar.Date, legs pickupChangeLegs) error {
+// or today once the child has left or the care day has ended.
+func (s *Service) lockPickupChangeDay(txCtx context.Context, tenantID, studentID int64, date, today calendar.Date, legs pickupChangeLegs) error {
 	student, err := s.StudentRepo.FindByIDForUpdate(txCtx, studentID)
 	if err != nil {
 		return err
@@ -343,14 +346,7 @@ func (s *Service) lockPickupChangeDay(txCtx context.Context, studentID int64, da
 			return ErrCareExceptionConflict
 		}
 	}
-	alreadyLeft, checkErr := s.childAlreadyLeftToday(txCtx, studentID, date, today)
-	if checkErr != nil {
-		return checkErr
-	}
-	if alreadyLeft {
-		return ErrCareExceptionAlreadyLeft
-	}
-	return nil
+	return s.guardTodayPickupOpen(txCtx, tenantID, studentID, date, today)
 }
 
 // requireDaySignature refuses an unsigned one-day request that names a

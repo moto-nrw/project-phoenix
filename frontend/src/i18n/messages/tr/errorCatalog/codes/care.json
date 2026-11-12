@@ -60,6 +60,7 @@
   "offering_changes_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
   "payer_guardian_protected": "{object} için erişim izniniz yok. Okulla iletişime geçin.",
   "photo_consent_not_withdrawn": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "pickup_change_care_day_ended": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "pickup_change_cutoff_passed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "pickup_change_disabled": "{object} şu anda burada kullanılamıyor. Lütfen ilgili kişinize danışın.",
   "pickup_permission_request_required": "Yeni bir alma izni imzanızı gerektirir. Ardından OGS onaylar.",

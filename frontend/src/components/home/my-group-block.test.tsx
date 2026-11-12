@@ -137,6 +137,21 @@ describe("MyGroupBlock (#2180)", () => {
     ).toHaveAttribute("href", "/test-tenant/ogs-groups");
   });
 
+  // #5710: zum Unterricht abgemeldet heißt „Im Unterricht“, auch krank gemeldet.
+  it("nennt ein zum Unterricht abgemeldetes krankes Kind „Im Unterricht“", () => {
+    snapshot.current = withGroup({
+      away: [
+        student({ id: "1", sick: true, current_location: "Im Unterricht" }),
+      ],
+      present: 20,
+    });
+
+    render(<MyGroupBlock />);
+
+    expect(screen.getByText("Im Unterricht")).toBeInTheDocument();
+    expect(screen.queryByText("Krank")).not.toBeInTheDocument();
+  });
+
   // Die Reihenfolge ist die Dringlichkeit: wer längst da sein sollte, dann
   // was auf einen zukommt, zuletzt, was schon entschieden ist.
   it("stellt Fehlende vor Abholungen vor Abwesende", () => {

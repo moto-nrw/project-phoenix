@@ -89,8 +89,10 @@ func (s *service) applyDashboardAbsences(ctx context.Context, analytics *Dashboa
 		)
 		return
 	}
-	analytics.StudentsSick = len(studentpresence.WithoutCheckedIn(statusCounts.SickIDs, studentsPresent))
-	analytics.StudentsExcused = len(studentpresence.WithoutCheckedIn(statusCounts.ExcusedIDs, studentsPresent))
+	analytics.SickCandidateIDs = studentpresence.WithoutCheckedIn(statusCounts.SickIDs, studentsPresent)
+	analytics.ExcusedCandidateIDs = studentpresence.WithoutCheckedIn(statusCounts.ExcusedIDs, studentsPresent)
+	analytics.StudentsSick = len(analytics.SickCandidateIDs)
+	analytics.StudentsExcused = len(analytics.ExcusedCandidateIDs)
 	analytics.HomeCandidateIDs = homeCandidateIDs(statusCounts.UnaccountedIDs, studentsPresent)
 	analytics.StudentsHome = len(analytics.HomeCandidateIDs)
 }

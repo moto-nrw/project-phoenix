@@ -401,6 +401,7 @@ function ChildSections({
           reasonRequired={requiresGuardianReason(care.features)}
           cutoffTime={care.features.pickup_change_cutoff_time}
           todayClosed={care.features.pickup_change_today_closed}
+          careDayEnded={care.features.pickup_change_care_day_ended}
           onCutoffPassed={care.refresh}
         />
       )}

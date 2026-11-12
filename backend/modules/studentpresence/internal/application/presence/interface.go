@@ -179,6 +179,12 @@ type DashboardAnalytics struct {
 	// present, not sick or excused. The caller holding the day plan moves the
 	// ones still in class to "Schule" (#3260). Not serialized.
 	HomeCandidateIDs []int64
+	// SickCandidateIDs and ExcusedCandidateIDs are the students StudentsSick
+	// and StudentsExcused count. The caller holding the care day end moves the
+	// ones staff checked out to class to "Im Unterricht" (#5710). Not
+	// serialized.
+	SickCandidateIDs    []int64
+	ExcusedCandidateIDs []int64
 
 	// Activities & Rooms
 	ActiveActivities    int
