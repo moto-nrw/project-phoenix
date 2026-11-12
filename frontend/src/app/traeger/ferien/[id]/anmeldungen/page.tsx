@@ -2,12 +2,13 @@
 
 // Ferienanmeldungen eines Zeitraums prüfen (#4663): alle Anmeldungen mit
 // Status, Schule, Woche und Zeitmodell, mit Filtern, Hinweis auf mögliche
-// Doppelanmeldungen und Export als CSV oder Excel. Anmeldungen derselben
+// Doppelanmeldungen, Hinweis auf an einer Schule bekannte Kinder (#6683) und
+// Export als CSV oder Excel. Anmeldungen derselben
 // Familie führt das Büro hier als Geschwister zusammen (#5628); gleiche
 // E-Mail oder gleicher Nachname sind nur ein Hinweis. Ausgewählte
 // Anmeldungen bestätigt das Büro hier auch gesammelt (#6674).
 
-import { ClipboardList } from "lucide-react";
+import { ClipboardList, School } from "lucide-react";
 import { useSession } from "next-auth/react";
 import { useParams, useRouter } from "next/navigation";
 import {
@@ -35,11 +36,17 @@ import {
   HOLIDAY_WISH_FILTER_OPTIONS,
   holidayWishView,
 } from "~/components/traeger/holiday-wish";
+import {
+  knownChildView,
+  knownChildrenKey,
+  useHolidayKnownChildren,
+} from "~/components/traeger/holiday-known-child";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import NavigationLink from "~/components/ui/navigation-link";
 import {
   ExportMenu,
@@ -74,6 +81,8 @@ import {
 import { hasPermission } from "~/lib/auth-utils";
 import { formatBerlinDate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
+import { ApiError } from "~/lib/api-error";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import {
   SIBLING_HINT_LABELS,
   type SiblingHint,
@@ -211,6 +220,7 @@ function columns(
   debtorNumber: boolean,
   siblings: SiblingView,
   wishRule: boolean,
+  known: ReadonlyMap<string, string>,
 ): DataTableColumn<HolidayRegistrationSummary>[] {
   return [
     {
@@ -259,6 +269,11 @@ function columns(
         <ul className="space-y-2">
           {registration.children.map((child) => {
             const wish = holidayWishView(child, wishRule);
+            // A cancelled registration needs no check of the school.
+            const knownChild =
+              registration.status === "cancelled"
+                ? null
+                : knownChildView(child, known.get(child.id), names);
             return (
               <li key={child.id}>
                 <div className="flex flex-wrap items-center gap-2">
@@ -273,6 +288,15 @@ function columns(
                       tone={wish.tone}
                       label={wish.label}
                       icon={wish.icon}
+                    />
+                  ) : null}
+                  {knownChild ? (
+                    <StatusBadge
+                      tone={knownChild.tone}
+                      label={knownChild.label}
+                      icon={School}
+                      title={knownChild.title}
+                      wrap
                     />
                   ) : null}
                   {child.duplicateRegistrationIds.length > 0 ? (
@@ -444,13 +468,25 @@ export default function TraegerHolidayRegistrationsPage() {
     [status, school, weekId, timeModel, wish],
   );
 
-  const load = useCallback(async () => {
-    const current = ++generation.current;
-    setLoading(true);
-    try {
+  // Reads the list for generation `current` and sets it; rejects on a
+  // failure. An answer for an older generation is dropped.
+  const readRegistrations = useCallback(
+    async (current: number) => {
+      const discardRefusal = (error: unknown): never => {
+        if (
+          current === generation.current &&
+          error instanceof ApiError &&
+          (error.status === 401 || error.status === 403)
+        ) {
+          setList(null);
+          setGroups([]);
+          setSelected(new Set());
+        }
+        throw error;
+      };
       const [loaded, loadedGroups] = await Promise.all([
-        fetchHolidayRegistrations(periodId, filter),
-        fetchHolidaySiblingGroups(periodId),
+        fetchHolidayRegistrations(periodId, filter).catch(discardRefusal),
+        fetchHolidaySiblingGroups(periodId).catch(discardRefusal),
       ]);
       if (current !== generation.current) return;
       setList(loaded);
@@ -464,6 +500,16 @@ export default function TraegerHolidayRegistrationsPage() {
         const kept = [...selection].filter((id) => shown.has(id));
         return kept.length === selection.size ? selection : new Set(kept);
       });
+    },
+    [periodId, filter],
+  );
+
+  const load = useCallback(async () => {
+    const current = ++generation.current;
+    setLoading(true);
+    try {
+      await readRegistrations(current);
+      if (current !== generation.current) return;
       clearLoadError();
     } catch (err) {
       if (current !== generation.current) return;
@@ -477,11 +523,28 @@ export default function TraegerHolidayRegistrationsPage() {
     } finally {
       if (current === generation.current) setLoading(false);
     }
-  }, [periodId, filter, clearLoadError, showLoadError]);
+  }, [readRegistrations, clearLoadError, showLoadError]);
 
   useEffect(() => {
     void load();
   }, [load]);
+
+  // Reload after a merge: a failure there is a load error above the
+  // confirmed rows, not a failed merge (#6652). The rows stay; a reload that
+  // a newer filter overtook fails silently, the newer load answers for it.
+  const afterMerge = useRefreshAfterWrite(
+    "die Anzeige der Ferienanmeldungen",
+    async () => {
+      const current = ++generation.current;
+      try {
+        await readRegistrations(current);
+      } catch (err) {
+        if (current === generation.current) throw err;
+      } finally {
+        if (current === generation.current) setLoading(false);
+      }
+    },
+  );
 
   // A new filter shows other rows; a selection the list no longer shows
   // would be merged unseen.
@@ -531,21 +594,30 @@ export default function TraegerHolidayRegistrationsPage() {
     setMerging(true);
     try {
       await mergeHolidaySiblings(periodId, [...selected]);
-      success("Die Anmeldungen sind als Geschwister zusammengeführt.");
-      setSelected(new Set());
-      await load();
     } catch (err) {
       logger.error("traeger_holiday_siblings_merge_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      await showActionError(err, { object: "die Geschwister" });
-    } finally {
       setMerging(false);
+      await showActionError(err, { object: "die Geschwister" });
+      return;
     }
+    success("Die Anmeldungen sind als Geschwister zusammengeführt.");
+    setSelected(new Set());
+    // The selection stays locked until the new rows are there.
+    await afterMerge.refresh();
+    setMerging(false);
   };
 
   const names = schoolNames(schools);
   const registrationsShown = list?.registrations ?? [];
+  const known = useHolidayKnownChildren(
+    periodId,
+    undefined,
+    knownChildrenKey(
+      registrationsShown.flatMap((registration) => registration.children),
+    ),
+  );
 
   const openBulkConfirmation = () => {
     if (merging || loading || selected.size === 0) return;
@@ -600,6 +672,7 @@ export default function TraegerHolidayRegistrationsPage() {
   const duplicates = duplicateCount(list);
   const loadError =
     listLoad.error ??
+    (!list ? afterMerge.error : null) ??
     metadataLoadError(
       periodError ?? schoolsError,
       Boolean(list && period && schools),
@@ -762,6 +835,7 @@ export default function TraegerHolidayRegistrationsPage() {
       onClearAllFilters={clearFilters}
       error={loadError}
     >
+      <LoadErrorAlert error={afterMerge.error} className="mb-4" />
       {deletionNotice ? <Alert type="info" message={deletionNotice} /> : null}
       {duplicates > 0 ? (
         <Alert
@@ -819,6 +893,7 @@ export default function TraegerHolidayRegistrationsPage() {
           debtorNumberColumn,
           siblings,
           wishRule,
+          known,
         )}
         rows={[...registrationsShown]}
         getRowKey={(registration) => registration.id}

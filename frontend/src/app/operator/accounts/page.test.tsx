@@ -476,6 +476,68 @@ describe("OperatorAccountsPage", () => {
     });
   });
 
+  it.each(["all", "org", "school"])(
+    "hides cached %s accounts and closes overlays after access refusal",
+    async (scope) => {
+      mockSearchParamsGet.mockImplementation((key: string) => {
+        if (scope === "school" && key === "schoolId") return "10";
+        if (scope !== "all" && key === "orgId") return "1";
+        return null;
+      });
+      const accounts = {
+        allAccounts: [mockOrgAccount],
+        orgAccounts: [mockOrgAccount],
+        schoolAccounts: [mockAccount],
+      };
+      withDefaultSWR(accounts);
+      const { rerender } = render(<OperatorAccountsPage />);
+      expect(screen.getByText("teacher@school.de")).toBeVisible();
+      fireEvent.click(screen.getByText("Betreuung verwalten"));
+      expect(
+        await screen.findByTestId("caregiver-capability-modal"),
+      ).toBeVisible();
+
+      withDefaultSWR({
+        ...accounts,
+        accountsError: new ApiError("refused", 403),
+        staleData: true,
+      });
+      rerender(<OperatorAccountsPage />);
+      expect(
+        await screen.findByText(
+          catalogText("general.permission", "die Liste der Konten"),
+        ),
+      ).toBeVisible();
+      expect(screen.queryByText("teacher@school.de")).not.toBeInTheDocument();
+      expect(
+        screen.queryByTestId("caregiver-capability-modal"),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText("1 Konto")).not.toBeInTheDocument();
+
+      withDefaultSWR(accounts);
+      rerender(<OperatorAccountsPage />);
+      expect(await screen.findByText("teacher@school.de")).toBeVisible();
+      expect(
+        screen.queryByTestId("caregiver-capability-modal"),
+      ).not.toBeInTheDocument();
+    },
+  );
+
+  it("keeps cached accounts after a transient reload failure", async () => {
+    withDefaultSWR({
+      allAccounts: [mockOrgAccount],
+      accountsError: new ApiError("down", 503),
+      staleData: true,
+    });
+    render(<OperatorAccountsPage />);
+    expect(
+      await screen.findByText(
+        /Die angezeigten Angaben sind vielleicht nicht mehr aktuell/,
+      ),
+    ).toBeVisible();
+    expect(screen.getByText("teacher@school.de")).toBeVisible();
+  });
+
   // --- Sorting ---
 
   it("sorts accounts by clicking column header", () => {

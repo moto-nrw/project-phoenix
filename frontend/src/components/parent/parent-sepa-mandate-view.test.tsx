@@ -2,6 +2,8 @@ import { fireEvent, render, screen, within } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { catalogText } from "~/test/error-catalog-text";
 import type {
   SepaMandateText,
   SepaMandateView,
@@ -218,6 +220,98 @@ describe("ParentSepaMandateView", () => {
     ).toBeInTheDocument();
     expect(mocks.revoke).toHaveBeenCalledWith("4", "75");
   });
+});
+
+// #6652: the revocation holds once the write is through; a failed reload
+// keeps the mandate card and says the change is saved.
+describe("Reload after the revocation (#6652)", () => {
+  beforeEach(() => vi.clearAllMocks());
+
+  it.each([
+    [403, "general.permission"],
+    [404, "parent_billing.parent_document_not_found"],
+  ] as const)(
+    "hides the mandate and its actions when the reload refuses access (%s)",
+    async (status, code) => {
+      mocks.fetch
+        .mockResolvedValueOnce(granted)
+        .mockRejectedValueOnce(new ApiError("refused", status, { code }))
+        .mockResolvedValue(open);
+      mocks.revoke.mockResolvedValue(granted);
+      renderView();
+      expect(
+        await screen.findByText(granted.mandate!.ibanMasked),
+      ).toBeVisible();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Mandat widerrufen" }),
+      );
+      fireEvent.click(
+        within(await screen.findByRole("dialog")).getByRole("button", {
+          name: "Widerrufen",
+        }),
+      );
+
+      // Anker: die gespeicherte Änderung wird auch ohne Mandatsdaten bestätigt.
+      expect(
+        await screen.findByText(
+          `${catalogText(code, "die Anzeige des Mandats")} ${SAVED_BUT_STALE_SUFFIX}`,
+        ),
+      ).toBeVisible();
+      expect(
+        screen.queryByText(granted.mandate!.ibanMasked),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByText("Eva Muster")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Mandat widerrufen" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Als Datei speichern" }),
+      ).not.toBeInTheDocument();
+      expect(mocks.revoke).toHaveBeenCalledTimes(1);
+    },
+  );
+
+  it.each([true, false])(
+    "keeps the revocation when the reload fails (can manage: %s)",
+    async (canManage) => {
+      mocks.fetch
+        .mockResolvedValueOnce(granted)
+        .mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+        .mockResolvedValue(open);
+      mocks.revoke.mockResolvedValue({
+        ...open,
+        canManage,
+        mandate: { ...granted.mandate, revokedOn: "2026-09-09" },
+      });
+      renderView();
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Mandat widerrufen" }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Widerrufen" }),
+      );
+
+      expect(
+        await screen.findByText(
+          `${catalogText("general.unavailable", "die Anzeige des Mandats")} ${SAVED_BUT_STALE_SUFFIX}`,
+        ),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Mandat widerrufen" }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(granted.mandate!.ibanMasked),
+      ).not.toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(
+        await screen.findByRole("button", { name: "Weiter" }),
+      ).toBeInTheDocument();
+      expect(mocks.revoke).toHaveBeenCalledTimes(1);
+    },
+  );
 });
 
 describe("Mandate collection status", () => {

@@ -45,6 +45,7 @@ import {
   toISODate,
   berlinTodayISO,
 } from "~/lib/date-helpers";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   type ClassArrivalException,
@@ -337,6 +338,12 @@ function ClassArrivalExceptionPanelBody({
     setExceptions(list.exceptions);
     setCanEdit(list.can_edit);
   }, [api, schoolClass]);
+  // Nachladen nach Speichern oder Entfernen: ein Fehler dabei steht über der
+  // Liste, nicht im Formular oder Dialog der Aktion (#6652).
+  const afterWrite = useRefreshAfterWrite(
+    "die Anzeige der Abweichungen",
+    reload,
+  );
 
   useEffect(() => {
     let cancelled = false;
@@ -427,7 +434,7 @@ function ClassArrivalExceptionPanelBody({
           setDate(null);
           setTime("");
           setReason("");
-          await reload();
+          await afterWrite.refresh();
         }
         onChanged?.();
       } catch (err) {
@@ -455,7 +462,7 @@ function ClassArrivalExceptionPanelBody({
       notify.success(
         `Die Abweichung am ${formatDate(exception.date)} ist entfernt.`,
       );
-      await reload();
+      await afterWrite.refresh();
       onChanged?.();
     } catch (err) {
       logger.error("class_arrival_exception_delete_failed", {
@@ -485,6 +492,7 @@ function ClassArrivalExceptionPanelBody({
         <Alert type="info" message="Abweichungen werden geladen." />
       ) : null}
       {loadError ? <LoadErrorAlert error={load.error} /> : null}
+      <LoadErrorAlert error={afterWrite.error} />
 
       {!loading && !loadError && canEdit ? (
         <div ref={formRef}>

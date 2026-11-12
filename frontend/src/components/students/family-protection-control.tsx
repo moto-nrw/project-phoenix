@@ -178,6 +178,9 @@ function ProtectionModal(props: ProtectionModalProps) {
       confirmText={enabled ? "Schutz aufheben" : "Schutz einschalten"}
       cancelText="Zurück"
       isConfirmLoading={saving}
+      loadingText={
+        enabled ? "Schutz wird aufgehoben …" : "Schutz wird eingeschaltet …"
+      }
       isConfirmDisabled={reason.trim() === ""}
       isDismissDisabled={saving}
       mobileSheet

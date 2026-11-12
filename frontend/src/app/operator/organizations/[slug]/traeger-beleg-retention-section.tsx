@@ -25,6 +25,7 @@ import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
 import {
   STALE_DATA_SUFFIX,
   useRefreshAfterWrite,
+  type RefreshAfterWrite,
 } from "~/lib/hooks/use-refresh-after-write";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
@@ -91,6 +92,12 @@ export function TraegerBelegRetentionSection({
   const [formSession, setFormSession] = useState(0);
   const [reviewing, setReviewing] = useState<BelegClarification | null>(null);
   const reload = useCallback(() => mutate(), [mutate]);
+  // A dialog's reload runs after its write and stands above the tables,
+  // also after the dialog closed (#6652).
+  const savedRefresh = useRefreshAfterWrite(
+    "die Anzeige der Belegaufbewahrung",
+    reload,
+  );
 
   if (loadError && data === undefined)
     return <LoadErrorAlert error={loadError} />;
@@ -100,6 +107,7 @@ export function TraegerBelegRetentionSection({
   return (
     <>
       <LoadErrorAlert error={loadError} />
+      <LoadErrorAlert error={savedRefresh.error} />
       <SectionCard
         title="Klärungsliste"
         description="Belege ohne Weisung oder ohne berechenbares Datum. moto löscht sie nicht. Klären Sie sie bis zum Prüfdatum mit dem Träger und erfassen Sie jede Prüfung."
@@ -206,20 +214,20 @@ export function TraegerBelegRetentionSection({
         isOpen={instructionOpen}
         organizationId={organizationId}
         onClose={() => setInstructionOpen(false)}
-        onSaved={reload}
+        onSaved={savedRefresh.refresh}
       />
       <SuspensionModal
         key={`suspension-${formSession}`}
         isOpen={suspensionOpen}
         organizationId={organizationId}
         onClose={() => setSuspensionOpen(false)}
-        onSaved={reload}
+        onSaved={savedRefresh.refresh}
       />
       <ClarificationReviewModal
         entry={reviewing}
         organizationId={organizationId}
         onClose={() => setReviewing(null)}
-        onSaved={reload}
+        onSaved={savedRefresh.refresh}
       />
     </>
   );
@@ -524,7 +532,8 @@ function InstructionModal({
   readonly isOpen: boolean;
   readonly organizationId: string;
   readonly onClose: () => void;
-  readonly onSaved: () => Promise<unknown>;
+  /** Reloads the section; never rejects (#6652). */
+  readonly onSaved: RefreshAfterWrite;
 }) {
   const [type, setType] = useState<BelegType>("holiday_document");
   const [trigger, setTrigger] = useState("issued");
@@ -587,16 +596,17 @@ function InstructionModal({
           instruction_reference: reference.trim(),
           statutes_not_applicable_confirmed: withoutStatutes && confirmed,
         });
-        success("Die Weisung ist erfasst.");
-        if (op.isCurrent()) onClose();
-        await onSaved();
       } catch (saveError) {
         logger.warn("beleg_instruction_record_failed", {
           error: errorMessage(saveError),
         });
         if (!op.isCurrent()) return;
         void formErrors.show(saveError, { object: "die Weisung" });
+        return;
       }
+      success("Die Weisung ist erfasst.");
+      if (op.isCurrent()) onClose();
+      await onSaved();
     });
   };
 
@@ -755,7 +765,8 @@ function SuspensionModal({
   readonly isOpen: boolean;
   readonly organizationId: string;
   readonly onClose: () => void;
-  readonly onSaved: () => Promise<unknown>;
+  /** Reloads the section; never rejects (#6652). */
+  readonly onSaved: RefreshAfterWrite;
 }) {
   const [type, setType] = useState<string>("holiday_document");
   const [reason, setReason] = useState("");
@@ -786,16 +797,17 @@ function SuspensionModal({
           responsible: responsible.trim(),
           review_on: reviewOn,
         });
-        success("Die Löschung ist ausgesetzt.");
-        if (op.isCurrent()) onClose();
-        await onSaved();
       } catch (saveError) {
         logger.warn("beleg_suspension_record_failed", {
           error: errorMessage(saveError),
         });
         if (!op.isCurrent()) return;
         void formErrors.show(saveError, { object: "die Aussetzung" });
+        return;
       }
+      success("Die Löschung ist ausgesetzt.");
+      if (op.isCurrent()) onClose();
+      await onSaved();
     });
   };
 

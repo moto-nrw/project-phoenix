@@ -283,7 +283,11 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0212: the message attachments of modules/communication/composition
 // (+25) and their port of workflows/parentportal/compose (+1).
 // #6702 lowered devicescan (-8), schoolmembership (-7), identityaccess (-1).
-const moduleComposeBudgetTotal = 13304
+// ADR 0214: the registered children and the trail of the known child hint of
+// modules/enrollment/compose (+10) and the namesakes constructor of
+// modules/peopledirectory/compose (+13) add exactly 23 LOC.
+// ADR 0196: the holiday closure notices (-1).
+const moduleComposeBudgetTotal = 13326
 
 // moduleComposeBudgets maps every owner composition package to its production
 // LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
@@ -338,7 +342,8 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0202: the Students field of the phase administration (+2).
 	// ADR 0205: the Bookings field of the phase administration (+2).
 	// ADR 0207: the constructor of the announced holiday periods (+5).
-	"modules/enrollment/compose":                   613,
+	// ADR 0214: the registered children and the known child trail (+10).
+	"modules/enrollment/compose":                   623,
 	"modules/exporttransfer/compose":               149,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
@@ -394,13 +399,14 @@ var moduleComposeBudgets = map[string]int{
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	// ADR 0188: the guardian bank backfill/rekey constructor (+6).
 	// ADR 0197: the export opener of the sealed guardian bank data (+5).
-	"modules/peopledirectory/compose":    984,
+	// ADR 0214: the namesakes of the known child hint (+13).
+	"modules/peopledirectory/compose":    997,
 	"modules/presenceprojection/compose": 7,
 	"modules/requestreview/compose":      12,
 	"modules/schedulerruntime/compose":   45,
 	// Raised by ADR 0142: the Elternsprechtag constructor (+7) and by
 	// ADR 0144: the school vacation constructor (+11).
-	"modules/schoolcalendar/compose":        159,
+	"modules/schoolcalendar/compose":        158,
 	"modules/schoolcalendar/portal/compose": 112,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	// ADR 0151: the school figure constructor (+6).

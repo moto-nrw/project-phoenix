@@ -13,6 +13,7 @@ import {
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { berlinTodayISO } from "~/lib/date-helpers";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   type ContributionRule,
@@ -107,7 +108,8 @@ export function ContributionRuleModal({
 }: Readonly<{
   edit: ContributionRuleEdit | null;
   onClose: () => void;
-  onSaved: () => Promise<unknown>;
+  /** Reloads the card; never rejects (#6652). */
+  onSaved: RefreshAfterWrite;
 }>) {
   const [draft, setDraft] = useState<Draft | null>(null);
   const save = useFormModalPending(edit !== null);
@@ -176,8 +178,6 @@ export function ContributionRuleModal({
           await updateContributionRule(edit.rule.id, rule);
           success("Die Regel ist geändert.");
         }
-        if (op.isCurrent()) onClose();
-        await onSaved();
       } catch (err) {
         logger.error("contribution_rule_save_failed", {
           kind: edit.kind,
@@ -185,7 +185,10 @@ export function ContributionRuleModal({
         });
         if (!op.isCurrent()) return;
         void formErrors.show(err, { object: "die Regel" });
+        return;
       }
+      if (op.isCurrent()) onClose();
+      await onSaved();
     });
   };
 

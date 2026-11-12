@@ -4,6 +4,7 @@ import { useCallback, useState } from "react";
 
 import type { OperatorPerson } from "~/lib/operator/provisioning-helpers";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { Alert } from "~/components/ui/alert";
@@ -14,7 +15,9 @@ const logger = createLogger({ component: "DeletePersonModal" });
 interface DeletePersonModalProps {
   person: OperatorPerson | null;
   onClose: () => void;
-  onDeleted: (person: OperatorPerson) => Promise<void> | void;
+  /** Drops the person from the shown lists and reloads them; never rejects
+   *  (#6652). */
+  onDeleted: RefreshAfterWrite<[person: OperatorPerson]>;
 }
 
 export function DeletePersonModal({
@@ -37,16 +40,17 @@ export function DeletePersonModal({
     clearError();
     try {
       await operatorProvisioningService.softDeletePerson(person.id);
-      await onDeleted(person);
-      onClose();
     } catch (err) {
       logger.error("person_soft_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       void showError(err, { object: "das Löschen der Person" });
-    } finally {
       setLoading(false);
+      return;
     }
+    setLoading(false);
+    onClose();
+    await onDeleted(person);
   }, [person, onClose, onDeleted, showError, clearError]);
 
   return (

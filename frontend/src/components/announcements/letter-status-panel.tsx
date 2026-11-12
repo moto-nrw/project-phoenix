@@ -26,6 +26,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { formatDate } from "~/lib/date-helpers";
 import {
   CHECK_ADDRESS_AT_GUARDIAN,
@@ -122,6 +123,7 @@ export function LetterStatusPanel({
 }) {
   const [status, setStatus] = useState<LetterStatus | null>(null);
   const [loadFailed, setLoadFailed] = useState(false);
+  const latestRequest = useRef(0);
   const loadError = useApiLoadError();
   const showLoadError = loadError.show;
   const clearLoadError = loadError.clear;
@@ -135,12 +137,32 @@ export function LetterStatusPanel({
     () => undefined,
   );
 
-  const load = useCallback(async () => {
+  // Rejects on failure: after an action the caller shows it as a reload of a
+  // saved change (#6652).
+  const readStatus = useCallback(async () => {
+    const request = ++latestRequest.current;
     try {
-      setStatus(await withApiBase(fetchLetterStatus, announcementId, apiBase));
+      const next = await withApiBase(
+        fetchLetterStatus,
+        announcementId,
+        apiBase,
+      );
+      if (request !== latestRequest.current) return;
+      setStatus(next);
       setLoadFailed(false);
       clearLoadError();
     } catch (error) {
+      if (request !== latestRequest.current) return;
+      throw error;
+    }
+  }, [announcementId, apiBase, clearLoadError]);
+  // Never rejects: a failed load shows its error in place.
+  const load = useCallback(async () => {
+    const request = latestRequest.current + 1;
+    try {
+      await readStatus();
+    } catch (error) {
+      if (request !== latestRequest.current) return;
       logger.error("letter_status_load_failed", {
         error: error instanceof Error ? error.message : String(error),
       });
@@ -150,14 +172,22 @@ export function LetterStatusPanel({
         retry: () => latestLoadRef.current(),
       });
     }
-  }, [announcementId, apiBase, showLoadError, clearLoadError]);
+  }, [readStatus, showLoadError]);
+  const afterAction = useRefreshAfterWrite(
+    "die Anzeige der Übersicht zum Elternbrief",
+    readStatus,
+  );
   useLayoutEffect(() => {
     latestLoadRef.current = () => void load();
   });
 
+  const invalidateRequest = useCallback(() => {
+    latestRequest.current++;
+  }, []);
   useEffect(() => {
     void load();
-  }, [load]);
+    return invalidateRequest;
+  }, [load, invalidateRequest]);
 
   const children = useMemo(() => {
     const all = status?.children ?? [];
@@ -169,22 +199,14 @@ export function LetterStatusPanel({
   }, [status, childFilter]);
 
   const runAction = async (action: "remind" | "resend") => {
+    if (busy !== null) return;
     setBusy(action);
+    let count: number;
     try {
-      const count =
+      count =
         action === "remind"
           ? await withApiBase(remindUnanswered, announcementId, apiBase)
           : await withApiBase(resendFailedEmails, announcementId, apiBase);
-      toastSuccess(
-        action === "remind"
-          ? count === 0
-            ? "Alle Kinder sind bestätigt. Es wurde niemand erinnert."
-            : `${count} ${count === 1 ? "Bezugsperson ist" : "Bezugspersonen sind"} erinnert.`
-          : count === 0
-            ? "Es gab keine fehlgeschlagenen E-Mails."
-            : `${count} ${count === 1 ? "E-Mail wird" : "E-Mails werden"} erneut gesendet.`,
-      );
-      await load();
     } catch (error) {
       logger.error("letter_status_action_failed", {
         action,
@@ -197,9 +219,20 @@ export function LetterStatusPanel({
             : "das erneute Senden der E-Mails",
         retry: () => latestActionRef.current(action),
       });
-    } finally {
       setBusy(null);
+      return;
     }
+    toastSuccess(
+      action === "remind"
+        ? count === 0
+          ? "Alle Kinder sind bestätigt. Es wurde niemand erinnert."
+          : `${count} ${count === 1 ? "Bezugsperson ist" : "Bezugspersonen sind"} erinnert.`
+        : count === 0
+          ? "Es gab keine fehlgeschlagenen E-Mails."
+          : `${count} ${count === 1 ? "E-Mail wird" : "E-Mails werden"} erneut gesendet.`,
+    );
+    await afterAction.refresh();
+    setBusy(null);
   };
   useLayoutEffect(() => {
     latestActionRef.current = (action) => void runAction(action);
@@ -402,9 +435,11 @@ export function LetterStatusPanel({
         </div>
       )}
 
-      {/* Ein Neuladen nach einer Aktion ist gescheitert: der alte Stand
-          bleibt sichtbar, der Fehler steht darüber. */}
+      {/* Ein Neuladen ist gescheitert: der alte Stand bleibt sichtbar, der
+          Fehler steht darüber. Nach einer Aktion sagt er, dass sie
+          gespeichert ist (#6652). */}
       <LoadErrorAlert error={loadFailed ? loadError.error : null} />
+      <LoadErrorAlert error={afterAction.error} className="mb-4" />
 
       <section>
         <div className="mb-2 flex flex-wrap items-center justify-between gap-2">

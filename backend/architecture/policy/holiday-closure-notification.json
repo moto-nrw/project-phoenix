@@ -1,0 +1,138 @@
+{
+  "packages": [
+    {
+      "path": "workflows/holidayclosurenotification",
+      "owner": "holiday-closure-notification",
+      "role": "public",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/holidayclosurenotification/ports",
+      "owner": "holiday-closure-notification",
+      "role": "port",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "workflows/holidayclosurenotification/http",
+      "owner": "holiday-closure-notification",
+      "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    }
+  ],
+  "rules": [
+    {
+      "id": "holiday-closure-notification.public.enrollment",
+      "description": "ADR 0196: the workflow's Träger view names Enrollment's affected weeks of a notice.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "holiday-closure-notification",
+      "source_role": "public",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "holiday-closure-notification.port.school-calendar",
+      "description": "ADR 0196: the workflow consumes School Calendar's proposals, commands and read channel.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "holiday-closure-notification",
+      "source_role": "port",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "holiday-closure-notification.port.enrollment",
+      "description": "ADR 0196: the workflow consumes Enrollment's closure plan, notice and delivery summary.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "holiday-closure-notification",
+      "source_role": "port",
+      "target_owner": "enrollment",
+      "target_role": "public"
+    },
+    {
+      "id": "holiday-closure-notification.public.ports",
+      "description": "ADR 0196: the protocol uses its own consumer-owned ports.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "holiday-closure-notification",
+      "source_role": "public",
+      "target_owner": "holiday-closure-notification",
+      "target_role": "port"
+    },
+    {
+      "id": "holiday-closure-notification.public.school-calendar",
+      "description": "ADR 0196: the protocol reads School Calendar's notice states and errors.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "holiday-closure-notification",
+      "source_role": "public",
+      "target_owner": "school-calendar",
+      "target_role": "public"
+    },
+    {
+      "id": "holiday-closure-notification.http.public",
+      "description": "ADR 0196: the school's and the Büro's routes call the public workflow.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "holiday-closure-notification",
+      "source_role": "http",
+      "target_owner": "holiday-closure-notification",
+      "target_role": "public"
+    },
+    {
+      "id": "holiday-closure-notification.http.tenant-runtime.common",
+      "description": "ADR 0196: the school's and the Büro's routes render, gate and bind requests through the shared HTTP runtime of api/common.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "holiday-closure-notification",
+      "source_role": "http",
+      "target_owner": "tenant-runtime",
+      "target_role": "http",
+      "target_package": "api/common"
+    },
+    {
+      "id": "holiday-closure-notification.port.organization-tenancy",
+      "description": "ADR 0196 section 3.1: the Träger-Büro's notices are checked against Organisation & Tenancy's current schools of the Träger.",
+      "scopes": [
+        "production"
+      ],
+      "source_owner": "holiday-closure-notification",
+      "source_role": "port",
+      "target_owner": "organization-tenancy",
+      "target_role": "public"
+    },
+    {
+      "id": "holiday-closure-notification.adapter-test.delivery-platform-compose",
+      "description": "ADR 0196: the workflow's behavior tests send through the real Delivery outbox to prove one mail per family and the protected repetition.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "holiday-closure-notification",
+      "source_role": "adapter-test",
+      "target_owner": "delivery-platform",
+      "target_role": "compose"
+    },
+    {
+      "id": "holiday-closure-notification.adapter-test.school-calendar-compose",
+      "description": "ADR 0196: the workflow's behavior tests read School Calendar's commands as the worker does, to prove the filters beneath row security.",
+      "scopes": [
+        "external_test"
+      ],
+      "source_owner": "holiday-closure-notification",
+      "source_role": "adapter-test",
+      "target_owner": "school-calendar",
+      "target_role": "compose"
+    }
+  ]
+}

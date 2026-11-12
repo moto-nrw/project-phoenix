@@ -2,6 +2,8 @@
   "title": "Lastschrift",
   "intro": "Mit dem Mandat erlauben Sie Ihrem Träger, die Beiträge von Ihrem Konto abzubuchen.",
   "errorObject": "das Lastschrift-Mandat",
+  "reloadObject": "die Anzeige des Mandats",
+  "savedButStale": "Ihre Änderung ist gespeichert. Nur die Anzeige ist noch nicht aktuell.",
   "offTitle": "Lastschrift hier nicht möglich",
   "off": "Ihr Träger nimmt das Mandat nicht in der App an. Fragen Sie den Träger nach einem Formular auf Papier.",
   "creditorMissing": "Ihr Träger kann noch keine Lastschrift annehmen. Bitte versuchen Sie es später noch einmal.",

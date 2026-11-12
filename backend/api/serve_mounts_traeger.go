@@ -115,7 +115,7 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 		Sick: carePlanCompose.NewSickStudents(), OnSite: workforceCompose.NewOnSiteStaff(),
 		KeyDates:    traegerKeyDateCounts{organizations: organizations},
 		Enrollments: enrollmentCompose.NewOpenEnrollments(), Alerts: traegerAlertSettings{settings: settings},
-		Occupancy: traegerOccupancyPorts(),
+		Occupancy: traegerOccupancyPorts(), Known: traegerKnownChildrenPorts(),
 	})
 	if err != nil {
 		return nil, err
@@ -125,6 +125,7 @@ func NewTraegerPortalHTTP(identity TraegerPortalIdentity, organizations organiza
 	decide := newHolidayAllocation(allocationBilling, review, places, allocation)
 	_, wishes := enrollmentCompose.NewHolidayWishes(healthData)
 	holidayPeriods := enrollmentAPI.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(nil, holidayCalendar), review, records, wishes, places, allocation, decide, holidaySchoolNames{overview: overview},
+		holidayKnownChildren{overview: overview}, enrollmentCompose.NewHolidayKnownChildTrail(),
 		common.RequiresPermission(identityaccess.TraegerRightEnrollmentManage), common.RequiresPermission(identityaccess.TraegerRightHealthRead))
 	traegerSettings := settingsHTTP.NewTraegerSettingsResource(settings, identityaccess.TraegerRightOverviewRead,
 		identityaccess.TraegerRightSettingsManage, identityaccess.TraegerRightStaffManage, identityaccess.TraegerRightBillingManage)

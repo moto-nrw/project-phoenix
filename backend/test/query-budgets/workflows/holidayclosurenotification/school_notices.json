@@ -1,0 +1,6 @@
+{
+  "scenario": "workflows.holidayclosurenotification.school_notices",
+  "max": 11,
+  "exact": true,
+  "description": "workflows/holidayclosurenotification — the school's list of parent notices (ADR 0196): the\nschool's proposals in its own unit, then one Träger unit that plans every notice waiting for a\nclick together (one calendar lock, one calendar read through the read channel, the bookings and\nthe told days). Flat in the number of notices, weeks and bookings."
+}

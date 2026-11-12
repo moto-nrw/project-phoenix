@@ -45,5 +45,7 @@
   "errorObjectList": "lista powiadomień",
   "errorObjectType": "powiadomienie „{name}”",
   "errorObjectEnableAll": "włączanie wszystkich powiadomień",
-  "errorObjectDisableAll": "wyłączanie wszystkich powiadomień"
+  "errorObjectDisableAll": "wyłączanie wszystkich powiadomień",
+  "enableAllTooltip": "Włącza wszystkie powiadomienia naraz.",
+  "disableAllTooltip": "Od razu wyłącza dla Ciebie wszystkie powiadomienia moto."
 }

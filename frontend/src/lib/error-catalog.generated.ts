@@ -1448,6 +1448,10 @@ export const ERROR_CATALOG = {
         "Bitte prüfen Sie die markierten Angaben zum Schließtag.",
       "timetable.closing_day_not_found":
         "Den Schließtag gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+      "timetable.closing_day_notice_changed":
+        "Der Schließtag wurde geändert. Bitte prüfen Sie den Hinweis und klicken Sie erneut.",
+      "timetable.closing_day_notice_not_found":
+        "Den Hinweis gibt es nicht mehr. Bitte laden Sie die Seite neu.",
       "timetable.complete_too_early":
         "Der Termin kann erst nach seinem Ende abgeschlossen werden.",
       "timetable.completion_confirmation_stale":
@@ -2527,6 +2531,10 @@ export const ERROR_CATALOG = {
         "Some days already have an entry. These days were not changed.",
       "substitutions.last_supervisor":
         "You are the only supervisor. Hand the supervision over to someone or end the activity.",
+      "timetable.closing_day_notice_changed":
+        "The closing day changed. Please check the notice and click again.",
+      "timetable.closing_day_notice_not_found":
+        "{object} could not be changed. Please check its current status.",
       "timetable.homework_feedback_child_not_in_supervision":
         "This child is not part of this supervision. Please reload the page.",
       "timetable.homework_feedback_not_allowed":
@@ -3147,6 +3155,8 @@ export const ERROR_CATALOG = {
         "На некоторые дни уже есть запись. Эти дни не изменены.",
       "substitutions.last_supervisor":
         "Вы единственный, кто ведёт присмотр. Передайте присмотр другому человеку или завершите занятие.",
+      "timetable.closing_day_notice_not_found":
+        "Не удалось изменить: {object}. Проверьте текущее состояние.",
       "timetable.homework_feedback_child_not_in_supervision":
         "Этот ребёнок не относится к этому присмотру. Обновите страницу.",
       "timetable.homework_feedback_not_allowed":
@@ -3731,6 +3741,8 @@ export const ERROR_CATALOG = {
         "Disa ditë kanë tashmë një regjistrim. Këto ditë nuk u ndryshuan.",
       "substitutions.last_supervisor":
         "Jeni i vetmi mbikëqyrës. Ia dorëzoni mbikëqyrjen dikujt tjetër ose përfundoni aktivitetin.",
+      "timetable.closing_day_notice_not_found":
+        "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
       "timetable.homework_feedback_child_not_in_supervision":
         "Ky fëmijë nuk i përket këtij mbikëqyrjeje. Ringarkoni faqen.",
       "timetable.homework_feedback_not_allowed":
@@ -4301,6 +4313,8 @@ export const ERROR_CATALOG = {
         "Niektóre dni mają już wpis. Tych dni nie zmieniono.",
       "substitutions.last_supervisor":
         "Jesteś jedyną osobą sprawującą opiekę. Przekaż opiekę innej osobie lub zakończ zajęcia.",
+      "timetable.closing_day_notice_not_found":
+        "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
       "timetable.homework_feedback_child_not_in_supervision":
         "To dziecko nie należy do tej opieki. Odśwież stronę.",
       "timetable.homework_feedback_not_allowed":
@@ -4878,6 +4892,8 @@ export const ERROR_CATALOG = {
         "Bazı günlerde zaten bir kayıt var. Bu günler değiştirilmedi.",
       "substitutions.last_supervisor":
         "Gözetimi yapan tek kişi sizsiniz. Gözetimi başka birine devredin veya etkinliği bitirin.",
+      "timetable.closing_day_notice_not_found":
+        "{object} değiştirilemedi. Güncel durumu kontrol edin.",
       "timetable.homework_feedback_child_not_in_supervision":
         "Bu çocuk bu gözetime ait değil. Lütfen sayfayı yenileyin.",
       "timetable.homework_feedback_not_allowed":
@@ -5446,6 +5462,8 @@ export const ERROR_CATALOG = {
         "На деякі дні вже є запис. Ці дні не змінено.",
       "substitutions.last_supervisor":
         "Ви єдина особа, що здійснює нагляд. Передайте нагляд іншій особі або завершіть заняття.",
+      "timetable.closing_day_notice_not_found":
+        "Не вдалося змінити: {object}. Перевірте поточний стан.",
       "timetable.homework_feedback_child_not_in_supervision":
         "Ця дитина не належить до цього нагляду. Оновіть сторінку.",
       "timetable.homework_feedback_not_allowed":

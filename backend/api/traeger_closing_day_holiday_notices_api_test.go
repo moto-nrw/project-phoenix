@@ -68,6 +68,21 @@ func bookHolidayWeek(t *testing.T, organization, school int64, email string) int
 	return week
 }
 
+// proposeSchoolClosingDay saves a closing day of the school in the booked
+// holiday week and the notice it proposes, as School Calendar records it.
+func proposeSchoolClosingDay(t *testing.T, db *bun.DB, school int64, day string) {
+	t.Helper()
+	ctx := context.Background()
+	var closingDay int64
+	require.NoError(t, db.NewRaw(`INSERT INTO schedule.closing_days (tenant_id, start_date, end_date, reason)
+		VALUES (?, ?::date, ?::date, 'Pädagogischer Tag') RETURNING id`, school, day, day).Scan(ctx, &closingDay))
+	_, err := db.ExecContext(ctx, `INSERT INTO calendar.holiday_closure_proposals (tenant_id, organization_id, source_kind, source_id,
+			operation_id, reason, current_start, current_end, span_from, span_to, revision)
+		VALUES (?, 0, 'school_closing_day', ?, gen_random_uuid(), 'Pädagogischer Tag', ?::date, ?::date, ?::date, ?::date, 1)`,
+		school, closingDay, day, day, day, day)
+	require.NoError(t, err)
+}
+
 func closureMails(t *testing.T, db *bun.DB, organization int64) int {
 	t.Helper()
 	var count int
@@ -162,4 +177,13 @@ func TestTraegerHolidayClosurePendingQueryBudget(t *testing.T) {
 	bookHolidayWeek(t, office.organization, office.schools[0], "drei@example.org")
 	assert.Len(t, read().Statements, len(one.Statements), "the pending notices read the same statements for any number of weeks")
 	querybudgets.AssertQueryBudget(t, "api.traeger.holiday_closures_pending", one)
+
+	// Notices that wait for a click are planned together: one more notice,
+	// at another school, reads no further statement.
+	proposeSchoolClosingDay(t, db, office.schools[0], "2030-07-09")
+	single := read()
+	require.Greater(t, len(single.Statements), len(one.Statements), "a waiting notice is planned")
+	proposeSchoolClosingDay(t, db, office.schools[1], "2030-07-10")
+	proposeSchoolClosingDay(t, db, office.schools[0], "2030-07-11")
+	assert.Len(t, read().Statements, len(single.Statements), "the waiting notices are planned in the same statements for any number of notices")
 }

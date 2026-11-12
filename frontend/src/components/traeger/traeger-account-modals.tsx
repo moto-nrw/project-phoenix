@@ -6,6 +6,7 @@ import { FormModal } from "~/components/ui/form-modal";
 import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   changeTraegerRoles,
@@ -45,7 +46,8 @@ export function InviteTraegerAccountModal({
 }: Readonly<{
   isOpen: boolean;
   onClose: () => void;
-  onInvited: () => Promise<unknown>;
+  /** Reloads the list; never rejects (#6652). */
+  onInvited: RefreshAfterWrite;
   invite?: (input: TraegerInvitationInput) => Promise<unknown>;
   title?: string;
   hint?: string;
@@ -79,16 +81,17 @@ export function InviteTraegerAccountModal({
     await save.run(async (op) => {
       try {
         await invite({ email: email.trim(), roles });
-        if (op.isCurrent()) onClose();
-        success(successText);
-        await onInvited();
       } catch (err) {
         logger.error("traeger_invitation_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
         if (!op.isCurrent()) return;
         void formErrors.show(err, { object: "die Einladung" });
+        return;
       }
+      if (op.isCurrent()) onClose();
+      success(successText);
+      await onInvited();
     });
   };
 
@@ -166,7 +169,8 @@ export function ChangeTraegerRolesModal({
   member: TraegerMember | null;
   members: readonly TraegerMember[];
   onClose: () => void;
-  onChanged: () => Promise<unknown>;
+  /** Reloads the list; never rejects (#6652). */
+  onChanged: RefreshAfterWrite;
 }>) {
   const isLastLeader =
     member?.roles.includes("leadership") === true &&
@@ -195,16 +199,17 @@ export function ChangeTraegerRolesModal({
     await save.run(async (op) => {
       try {
         await changeTraegerRoles(member.accountId, roles);
-        if (op.isCurrent()) onClose();
-        success("Die Rollen sind geändert.");
-        await onChanged();
       } catch (err) {
         logger.error("traeger_roles_change_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
         if (!op.isCurrent()) return;
         void formErrors.show(err, { object: "die Rollen" });
+        return;
       }
+      if (op.isCurrent()) onClose();
+      success("Die Rollen sind geändert.");
+      await onChanged();
     });
   };
 

@@ -1,6 +1,7 @@
 import { SWRConfig } from "~/lib/swr/testing";
 vi.unmock("swr");
 import {
+  act,
   fireEvent,
   render as rtlRender,
   screen,
@@ -9,7 +10,10 @@ import {
 } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { ApiError, unavailableApiError } from "~/lib/api-error";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { catalogText } from "~/test/error-catalog-text";
 import type { HolidayRegistrationFilter } from "~/lib/traeger-holiday-registrations-api";
 import {
   HOLIDAY_PERIOD,
@@ -20,6 +24,7 @@ import {
 const { mockConfirmationSettings } = vi.hoisted(() => ({
   mockConfirmationSettings: vi.fn(),
 }));
+const { mockFetchKnown } = vi.hoisted(() => ({ mockFetchKnown: vi.fn() }));
 const {
   mockPush,
   mockFetchList,
@@ -63,6 +68,8 @@ vi.mock("~/lib/traeger-holiday-registrations-api", async (importOriginal) => ({
     withHealth: boolean,
   ) => mockDownloadPdfs(periodId, filter, withHealth),
   fetchHolidayConfirmationSettings: () => mockConfirmationSettings(),
+  fetchHolidayKnownChildren: (periodId: string, registrationId?: string) =>
+    mockFetchKnown(periodId, registrationId),
 }));
 const { mockFetchGroups, mockMerge } = vi.hoisted(() => ({
   mockFetchGroups: vi.fn(),
@@ -102,6 +109,8 @@ describe("TraegerHolidayRegistrationsPage", () => {
     mockDownload.mockReset();
     mockDownloadBlob.mockReset();
     mockFetchList.mockResolvedValue(HOLIDAY_REGISTRATION_LIST);
+    mockFetchKnown.mockReset();
+    mockFetchKnown.mockResolvedValue(new Map());
     mockConfirmationSettings.mockResolvedValue({ debtorNumberRequired: false });
     mockFetchGroups.mockReset();
     mockMerge.mockReset();
@@ -152,6 +161,124 @@ describe("TraegerHolidayRegistrationsPage", () => {
       timeModel: "",
       wish: "",
     });
+  });
+
+  it("names the school that knows a registered child (#6683)", async () => {
+    // Lia is registered at OGS Nord and known there; Ben came as a holiday
+    // guest, but OGS Süd knows him.
+    mockFetchKnown.mockResolvedValue(
+      new Map([
+        ["9", "31"],
+        ["10", "32"],
+      ]),
+    );
+    renderPage();
+
+    const table = within(await screen.findByRole("table"));
+    expect(await table.findByText("Bekannt an OGS Süd")).toHaveClass(
+      "max-w-full",
+      "min-w-0",
+      "whitespace-normal",
+    );
+    expect(table.getByText("An der Schule bekannt")).toBeInTheDocument();
+    // The whole period is compared once, not per filter.
+    expect(mockFetchKnown).toHaveBeenCalledTimes(1);
+    expect(mockFetchKnown).toHaveBeenCalledWith("5", undefined);
+  });
+
+  it("shows no school hint on a cancelled registration (#6683)", async () => {
+    mockFetchList.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION_LIST,
+      registrations: HOLIDAY_REGISTRATION_LIST.registrations.map(
+        (registration) => ({ ...registration, status: "cancelled" as const }),
+      ),
+    });
+    mockFetchKnown.mockResolvedValue(new Map([["10", "32"]]));
+    renderPage();
+
+    const table = within(await screen.findByRole("table"));
+    // Anker: die stornierte Zeile ist geladen, und der Abgleich ist da.
+    expect(await table.findByText("Storniert")).toBeInTheDocument();
+    await waitFor(() => expect(mockFetchKnown).toHaveBeenCalledTimes(1));
+    expect(table.queryByText("Bekannt an OGS Süd")).not.toBeInTheDocument();
+  });
+
+  it.each([
+    { firstName: "Benedikt" },
+    { lastName: "Meier" },
+    { birthDate: "2016-09-13" },
+  ])(
+    "refreshes school matches after a loaded identity changes: %o",
+    async (correction) => {
+      let finish!: (matches: ReadonlyMap<string, string>) => void;
+      mockFetchKnown
+        .mockResolvedValueOnce(new Map([["10", "32"]]))
+        .mockReturnValueOnce(
+          new Promise<ReadonlyMap<string, string>>((resolve) => {
+            finish = resolve;
+          }),
+        );
+      renderPage();
+      expect(await screen.findByText("Bekannt an OGS Süd")).toBeInTheDocument();
+
+      mockFetchList.mockResolvedValue({
+        ...HOLIDAY_REGISTRATION_LIST,
+        registrations: HOLIDAY_REGISTRATION_LIST.registrations.map(
+          (registration) => ({
+            ...registration,
+            children: registration.children.map((child) =>
+              child.id === "10" ? { ...child, ...correction } : child,
+            ),
+          }),
+        ),
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Alle Schulen" }));
+      fireEvent.click(
+        await screen.findByRole("option", { name: "Feriengäste" }),
+      );
+
+      await waitFor(() => expect(mockFetchKnown).toHaveBeenCalledTimes(2));
+      const table = within(await screen.findByRole("table"));
+      expect(
+        table.getByText(
+          `${correction.firstName ?? "Ben"} ${correction.lastName ?? "Muster"}`,
+        ),
+      ).toBeInTheDocument();
+      expect(table.queryByText("Bekannt an OGS Süd")).not.toBeInTheDocument();
+
+      await act(async () => finish(new Map([["10", "31"]])));
+      expect(await table.findByText("Bekannt an OGS Nord")).toBeInTheDocument();
+    },
+  );
+
+  it("loads school matches for newly loaded children", async () => {
+    mockFetchKnown
+      .mockResolvedValueOnce(new Map())
+      .mockResolvedValueOnce(new Map([["11", "32"]]));
+    renderPage();
+    await within(await screen.findByRole("table")).findByText("Ben Muster");
+    await waitFor(() => expect(mockFetchKnown).toHaveBeenCalledTimes(1));
+
+    mockFetchList.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION_LIST,
+      registrations: HOLIDAY_REGISTRATION_LIST.registrations.map(
+        (registration) => ({
+          ...registration,
+          children: [
+            ...registration.children,
+            { ...registration.children[1]!, id: "11", firstName: "Nora" },
+          ],
+        }),
+      ),
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Alle Schulen" }));
+    fireEvent.click(await screen.findByRole("option", { name: "Feriengäste" }));
+
+    const table = within(await screen.findByRole("table"));
+    expect(await table.findByText("Nora Muster")).toBeInTheDocument();
+    expect(await table.findByText("Bekannt an OGS Süd")).toBeInTheDocument();
+    expect(mockFetchKnown).toHaveBeenCalledTimes(2);
+    expect(mockFetchKnown).toHaveBeenLastCalledWith("5", undefined);
   });
 
   it("shows the debtor number column only while the Träger asks for it (#5621)", async () => {
@@ -228,6 +355,8 @@ describe("TraegerHolidayRegistrationsPage", () => {
         wish: "",
       }),
     );
+    await within(await screen.findByRole("table")).findByText("Ben Muster");
+    expect(mockFetchKnown).toHaveBeenCalledTimes(1);
   });
 
   it("opens a registration from the list", async () => {
@@ -475,6 +604,61 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
     ).not.toBeInTheDocument();
   });
 
+  it.each([false, true])(
+    "unlocks after a merge refresh supersedes a pending filter (failure: %s)",
+    async (fails) => {
+      const merge = deferred();
+      const filter = deferred<typeof SIBLING_LIST>();
+      const refresh = deferred<typeof SIBLING_LIST>();
+      mockMerge.mockReturnValueOnce(merge.promise);
+      renderPage();
+      const table = within(await screen.findByRole("table"));
+      fireEvent.click(
+        await table.findByRole("checkbox", {
+          name: "Anmeldung Nr. 7 von Eva Muster auswählen",
+        }),
+      );
+      fireEvent.click(
+        table.getByRole("checkbox", {
+          name: "Anmeldung Nr. 8 von Tom Muster auswählen",
+        }),
+      );
+      fireEvent.click(
+        screen.getByRole("button", { name: "Als Geschwister zusammenführen" }),
+      );
+      mockFetchList
+        .mockReturnValueOnce(filter.promise)
+        .mockReturnValueOnce(refresh.promise);
+      fireEvent.click(screen.getByRole("button", { name: "Alle Status" }));
+      fireEvent.click(
+        await screen.findByRole("option", { name: "Eingegangen" }),
+      );
+      await waitFor(() => expect(mockFetchList).toHaveBeenCalledTimes(2));
+      await act(async () => merge.resolve());
+      expect(mockFetchList).toHaveBeenCalledTimes(3);
+      const checkbox = table.getByRole("checkbox", {
+        name: "Anmeldung Nr. 7 von Eva Muster auswählen",
+      });
+      expect(checkbox).toBeDisabled();
+      await act(async () => {
+        if (fails)
+          refresh.reject(
+            new ApiError("down", 503, { code: "general.unavailable" }),
+          );
+        else refresh.resolve(SIBLING_LIST);
+      });
+      expect(checkbox).toBeEnabled();
+      expect(
+        screen.getByRole("button", { name: "Anmeldungen herunterladen" }),
+      ).toBeEnabled();
+      await act(async () =>
+        filter.resolve({ ...SIBLING_LIST, registrations: [] }),
+      );
+      expect(table.getByText("Eva Muster")).toBeVisible();
+      expect(checkbox).toBeEnabled();
+    },
+  );
+
   it("locks the selection while new results load and keeps only shown rows", async () => {
     renderPage();
     const table = within(await screen.findByRole("table"));
@@ -549,6 +733,103 @@ describe("TraegerHolidayRegistrationsPage siblings (#5628)", () => {
       ),
     ).toBeInTheDocument();
     expect(screen.getByText(/2 Anmeldungen ausgewählt/)).toBeInTheDocument();
+  });
+  // #6652: after a confirmed merge a failed reload is a load error above the
+  // list, not a failed merge or a page error that replaces the rows.
+  describe("reload after a write (#6652)", () => {
+    it("discards registrations and sibling groups after a refused merge reload", async () => {
+      mockMerge.mockResolvedValue({ id: "3", registrationIds: ["7", "8"] });
+      renderPage();
+      const table = within(await screen.findByRole("table"));
+      fireEvent.click(
+        await table.findByRole("checkbox", {
+          name: "Anmeldung Nr. 7 von Eva Muster auswählen",
+        }),
+      );
+      fireEvent.click(
+        table.getByRole("checkbox", {
+          name: "Anmeldung Nr. 8 von Tom Muster auswählen",
+        }),
+      );
+      mockFetchList.mockRejectedValueOnce(new ApiError("refused", 403));
+      mockFetchGroups.mockResolvedValue([
+        { id: "3", registrationIds: ["7", "8"] },
+      ]);
+      fireEvent.click(
+        screen.getByRole("button", { name: "Als Geschwister zusammenführen" }),
+      );
+      expect(
+        await screen.findByText(
+          `${catalogText("general.permission", "die Anzeige der Ferienanmeldungen")} ${SAVED_BUT_STALE_SUFFIX}`,
+        ),
+      ).toBeVisible();
+      expect(
+        screen.queryByText("Es ist noch keine Anmeldung eingegangen."),
+      ).not.toBeInTheDocument();
+      expect(screen.queryByRole("table")).not.toBeInTheDocument();
+      expect(screen.queryByText("Eva Muster")).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("checkbox", { name: /Anmeldung Nr/ }),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", {
+          name: "Als Geschwister zusammenführen",
+        }),
+      ).not.toBeInTheDocument();
+    });
+
+    it("keeps merged siblings merged when the reload fails", async () => {
+      mockMerge.mockResolvedValue({ id: "3", registrationIds: ["7", "8"] });
+      renderPage();
+      const table = within(await screen.findByRole("table"));
+      fireEvent.click(
+        await table.findByRole("checkbox", {
+          name: "Anmeldung Nr. 7 von Eva Muster auswählen",
+        }),
+      );
+      fireEvent.click(
+        table.getByRole("checkbox", {
+          name: "Anmeldung Nr. 8 von Tom Muster auswählen",
+        }),
+      );
+      mockFetchList.mockClear();
+      mockFetchList.mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      );
+      mockFetchGroups.mockResolvedValue([
+        { id: "3", registrationIds: ["7", "8"] },
+      ]);
+
+      fireEvent.click(
+        screen.getByRole("button", { name: "Als Geschwister zusammenführen" }),
+      );
+
+      const reloadText = `${catalogText(
+        "general.unavailable",
+        "die Anzeige der Ferienanmeldungen",
+      )} ${SAVED_BUT_STALE_SUFFIX}`;
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(mockMerge).toHaveBeenCalledTimes(1);
+      // Anker: the confirmed rows stay listed.
+      expect(screen.getByText("Tom Muster")).toBeInTheDocument();
+      expect(screen.getByText("Ute Muster")).toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          catalogText("general.unavailable", "die Geschwister"),
+        ),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText(
+          catalogText("general.unavailable", "die Ferienanmeldungen"),
+        ),
+      ).not.toBeInTheDocument();
+
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      expect(await table.findByText("mit Nr. 8")).toBeInTheDocument();
+      expect(screen.queryByText(reloadText)).not.toBeInTheDocument();
+      expect(mockFetchList).toHaveBeenCalledTimes(2);
+      expect(mockMerge).toHaveBeenCalledTimes(1);
+    });
   });
 });
 

@@ -16,8 +16,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/tenant"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
@@ -459,7 +459,7 @@ func TestHolidayRegistrationAuditGoesWithItsPeriod(t *testing.T) {
 
 	ctx := tenant.WithUnitOfWork(context.Background(), testpkg.TenantRuntime(t, f.db))
 	require.NoError(t, tenant.WithinAdmin(ctx, func(adminCtx context.Context) error {
-		_, err := enrollmentCompose.NewHolidayRegistrationRetention(nil).DeleteExpiredHolidayRegistrations(adminCtx)
+		_, err := owners.NewHolidayRegistrationRetention(nil).DeleteExpiredHolidayRegistrations(adminCtx)
 		return err
 	}))
 	count := func(period int64) int {

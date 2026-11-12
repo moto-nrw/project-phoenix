@@ -2,15 +2,17 @@ package compose
 
 import (
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/postgres"
 	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/application"
+	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
 )
 
-// NewRetention composes the delivery retention of the nightly cleanup
-// (#3955). It runs on the tenant transaction of the school in context and
-// needs neither a provider nor the people directory.
+// NewRetention binds the school's nightly cleanup (#3955) to its tenant transaction.
 func NewRetention() deliveryContract.Retention {
-	store := postgres.New(postgres.RequireTenantDatabase, postgres.RequireAdminDatabase)
-	return application.NewRetention(store)
+	return application.NewRetention(postgres.New(postgres.RequireTenantDatabase, postgres.RequireAdminDatabase))
+}
+
+// NewHolidayRegistrationMailErasure needs only the caller's admin transaction.
+func NewHolidayRegistrationMailErasure() delivery.HolidayRegistrationMailErasure {
+	return postgres.New(postgres.RequireTenantDatabase, postgres.RequireAdminDatabase)
 }

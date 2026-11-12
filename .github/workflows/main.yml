@@ -215,6 +215,9 @@ jobs:
               - 'scripts/go-test-link-cache_test.sh'
               - 'scripts/backend-test-matrix.sh'
               - 'scripts/backend-test-matrix_test.sh'
+              - 'scripts/backend-package-budgets.mjs'
+              - 'scripts/backend-package-budgets.json'
+              - 'scripts/backend-package-budgets.test.mjs'
               - 'scripts/test-changed.sh'
               - 'scripts/test-changed_test.sh'
               - 'scripts/test-run-id.sh'
@@ -457,7 +460,7 @@ jobs:
         if: matrix.suite == 'unit'
         run: |
           node scripts/check-agent-context.mjs
-          node --test scripts/check-migration-versions.test.mjs scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs scripts/check-caddyfile.test.mjs scripts/check-exit-status.test.mjs scripts/dev-bench.test.mjs scripts/test-perf.test.mjs scripts/ci-failures.test.mjs scripts/check-changed.test.mjs scripts/query-budget-scoreboard.test.mjs scripts/capture-query-budget-routes.test.mjs .github/actions/ci-cost/ci-cost.test.mjs .agents/skills/security-audit/validate-coverage-ledger.test.cjs .agents/skills/security-audit/validate-findings.test.cjs
+          node --test scripts/check-migration-versions.test.mjs scripts/student-contract-monitor.test.mjs scripts/check-agent-context.test.mjs scripts/check-test-runners.test.mjs scripts/check-pr-body.test.mjs scripts/db-snapshot-roles.test.mjs scripts/check-caddyfile.test.mjs scripts/check-exit-status.test.mjs scripts/dev-bench.test.mjs scripts/test-perf.test.mjs scripts/ci-failures.test.mjs scripts/check-changed.test.mjs scripts/backend-package-budgets.test.mjs scripts/query-budget-scoreboard.test.mjs scripts/capture-query-budget-routes.test.mjs .github/actions/ci-cost/ci-cost.test.mjs .agents/skills/security-audit/validate-coverage-ledger.test.cjs .agents/skills/security-audit/validate-findings.test.cjs
           node scripts/check-caddyfile.mjs deploy/caddy/Caddyfile
           python3 -m unittest scripts/runtime_checkpoint_compare_test.py scripts/runtime_checkpoint_report_test.py scripts/check_runtime_env_test.py scripts/normalize_ci_needs_test.py
 
@@ -477,7 +480,7 @@ jobs:
       - name: Verify encrypted daily backup and isolated restore
         if: matrix.suite == 'restore'
         run: |
-          node --test scripts/daily-backup.integration.test.mjs scripts/daily-backup-alerts.integration.test.mjs scripts/nightly-cleanup-alerts.integration.test.mjs scripts/db-pool-alerts.integration.test.mjs
+          node --test scripts/daily-backup.integration.test.mjs scripts/daily-backup-alerts.integration.test.mjs scripts/nightly-cleanup-alerts.integration.test.mjs scripts/db-pool-alerts.integration.test.mjs scripts/holiday-closure-alerts.integration.test.mjs
           sudo install -d /usr/local/lib/moto-backup
           sudo install scripts/daily-backup.sh /usr/local/lib/moto-backup/
           systemd-analyze verify scripts/systemd/moto-daily-backup.service scripts/systemd/moto-daily-backup.timer scripts/systemd/moto-backup-failure@.service

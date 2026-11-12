@@ -45,5 +45,7 @@
   "errorObjectList": "список уведомлений",
   "errorObjectType": "уведомление «{name}»",
   "errorObjectEnableAll": "включение всех уведомлений",
-  "errorObjectDisableAll": "выключение всех уведомлений"
+  "errorObjectDisableAll": "выключение всех уведомлений",
+  "enableAllTooltip": "Включает все уведомления сразу.",
+  "disableAllTooltip": "Сразу отключает для вас все уведомления moto."
 }

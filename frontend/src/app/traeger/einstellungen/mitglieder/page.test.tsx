@@ -1,4 +1,5 @@
 import {
+  act,
   fireEvent,
   render,
   screen,
@@ -6,9 +7,11 @@ import {
   within,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 
 const api = vi.hoisted(() => ({
   fetchTraegerBuero: vi.fn(),
@@ -399,5 +402,146 @@ describe("TraegerAccountsPage", () => {
       expect(api.fetchTraegerAccountHistory).toHaveBeenCalledTimes(2),
     );
     expect(api.fetchTraegerAccountHistory).toHaveBeenLastCalledWith();
+  });
+
+  it.each([403, 503])(
+    "handles a %s reload while another member dialog is open",
+    async (status) => {
+      const read = deferred<typeof BUERO>();
+      api.fetchTraegerBuero
+        .mockResolvedValueOnce(BUERO)
+        .mockReturnValueOnce(read.promise);
+      api.revokeTraegerInvitation.mockResolvedValue(undefined);
+      renderPage();
+      await openMenu("die Einladung an neu@traeger.example");
+      fireEvent.click(
+        await screen.findByRole("menuitem", { name: /zurücknehmen/ }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Ja, zurücknehmen" }),
+      );
+      fireEvent.click(
+        await within(dialog).findByRole("button", { name: "Zurücknehmen" }),
+      );
+      await waitFor(() =>
+        expect(api.fetchTraegerBuero).toHaveBeenCalledTimes(2),
+      );
+      await openMenu("kasse@traeger.example");
+      fireEvent.click(
+        await screen.findByRole("menuitem", { name: "Rollen ändern" }),
+      );
+      expect(await screen.findByRole("dialog")).toBeVisible();
+      await act(async () => read.reject(new ApiError("failed", status)));
+      const code =
+        status === 403 ? "general.permission" : "general.unavailable";
+      // Anker: der Nachladefehler bestätigt den abgeschlossenen Widerruf.
+      expect(
+        await screen.findByText(
+          `${catalogText(code, "die Anzeige des Träger-Büros")} ${SAVED_BUT_STALE_SUFFIX}`,
+        ),
+      ).toBeVisible();
+      if (status === 403) {
+        expect(screen.queryAllByText("kasse@traeger.example")).toHaveLength(0);
+        expect(screen.queryAllByText("neu@traeger.example")).toHaveLength(0);
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole("button", { name: "Person einladen" }),
+        ).not.toBeInTheDocument();
+      } else {
+        expect(
+          screen.getAllByText("kasse@traeger.example").length,
+        ).toBeGreaterThan(0);
+        expect(screen.getByRole("dialog")).toBeVisible();
+      }
+    },
+  );
+
+  // #6652: a confirmed write whose reload fails is no failed action and does
+  // not replace the list: the error stands above it, says the change is
+  // saved, and its retry only reads the list again.
+  describe("reload after a confirmed write (#6652)", () => {
+    const reloadText = `${catalogText("general.unavailable", "die Anzeige des Träger-Büros")} ${SAVED_BUT_STALE_SUFFIX}`;
+
+    beforeEach(() => {
+      api.fetchTraegerBuero
+        .mockReset()
+        .mockResolvedValueOnce(BUERO)
+        .mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+        .mockResolvedValue(BUERO);
+    });
+
+    async function expectListKept(write: ReturnType<typeof vi.fn>) {
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      // Anker: die bestätigte Liste bleibt stehen.
+      expect(
+        screen.getAllByText("kasse@traeger.example").length,
+      ).toBeGreaterThan(0);
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() =>
+        expect(api.fetchTraegerBuero).toHaveBeenCalledTimes(3),
+      );
+      expect(write).toHaveBeenCalledTimes(1);
+    }
+
+    it("keeps an invitation sent and the list shown when the reload fails", async () => {
+      api.inviteTraegerAccount.mockResolvedValue(undefined);
+      renderPage();
+      await screen.findAllByText("kasse@traeger.example");
+
+      fireEvent.click(screen.getByRole("button", { name: "Person einladen" }));
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.change(within(dialog).getByLabelText(/E-Mail-Adresse/), {
+        target: { value: "personal@traeger.example" },
+      });
+      fireEvent.click(
+        within(dialog).getByRole("checkbox", { name: /Personal/ }),
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Einladung senden" }),
+      );
+
+      await expectListKept(api.inviteTraegerAccount);
+    });
+
+    it("keeps changed roles and the list shown when the reload fails", async () => {
+      api.changeTraegerRoles.mockResolvedValue(undefined);
+      renderPage();
+
+      await openMenu("kasse@traeger.example");
+      fireEvent.click(
+        await screen.findByRole("menuitem", { name: "Rollen ändern" }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(
+        within(dialog).getByRole("checkbox", { name: /Personal/ }),
+      );
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Speichern" }),
+      );
+
+      await expectListKept(api.changeTraegerRoles);
+    });
+
+    it("keeps a revoked invitation revoked and the list shown when the reload fails", async () => {
+      api.revokeTraegerInvitation.mockResolvedValue(undefined);
+      renderPage();
+
+      await openMenu("die Einladung an neu@traeger.example");
+      fireEvent.click(
+        await screen.findByRole("menuitem", { name: /zurücknehmen/ }),
+      );
+      const dialog = await screen.findByRole("dialog");
+      fireEvent.click(
+        within(dialog).getByRole("button", { name: "Ja, zurücknehmen" }),
+      );
+      fireEvent.click(
+        await within(dialog).findByRole("button", { name: "Zurücknehmen" }),
+      );
+
+      await expectListKept(api.revokeTraegerInvitation);
+    });
   });
 });

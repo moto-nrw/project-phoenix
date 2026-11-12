@@ -27,6 +27,7 @@ import {
 } from "~/contexts/ToastContext";
 import { formatClosingDayRange } from "~/lib/closing-day-helpers";
 import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { SCHOOL_VACATION_HINTS_KEY } from "~/lib/school-vacations-api";
 import { useTenantMutateMatching } from "~/lib/swr";
@@ -110,6 +111,12 @@ export function BulkCancelAppointmentsModal({
   const latestConfirmRef = useRef<() => void>(() => undefined);
   const { success: toastSuccess } = useToast();
   const refreshPlan = useTenantMutateMatching(PLAN_CACHE_PREFIXES);
+  // Nach der Absage lädt der Plan nach. Das ist nur eine Invalidierung der
+  // Plan-Schlüssel; deren Flächen zeigen ihre Ladefehler selbst. Sie läuft
+  // nach dem Schreiben, nie in dessen catch (#6652).
+  const planAfterWrite = useRefreshAfterWrite("die Anzeige des Plans", () =>
+    refreshPlan(),
+  );
   const rangeLabelId = useId();
   const includeSeriesId = useId();
 
@@ -174,21 +181,14 @@ export function BulkCancelAppointmentsModal({
   const handleConfirm = async () => {
     setCancelling(true);
     formErrors.clear();
+    let result: Awaited<ReturnType<typeof timetableService.bulkCancel>>;
     try {
-      const result = await timetableService.bulkCancel(
+      result = await timetableService.bulkCancel(
         from,
         to,
         false,
         includeSeries,
       );
-      toastSuccess(
-        result.count === 1
-          ? "1 Termin ist abgesagt."
-          : `${result.count} Termine sind abgesagt.`,
-      );
-      await refreshPlan();
-      onCancelled?.(result.count);
-      onClose();
     } catch (err) {
       logger.error("bulk_cancel_failed", {
         from,
@@ -199,9 +199,18 @@ export function BulkCancelAppointmentsModal({
         object: "die Absage der Termine",
         retry: () => latestConfirmRef.current(),
       });
-    } finally {
       setCancelling(false);
+      return;
     }
+    setCancelling(false);
+    toastSuccess(
+      result.count === 1
+        ? "1 Termin ist abgesagt."
+        : `${result.count} Termine sind abgesagt.`,
+    );
+    onCancelled?.(result.count);
+    onClose();
+    await planAfterWrite.refresh();
   };
 
   useLayoutEffect(() => {
@@ -250,6 +259,7 @@ export function BulkCancelAppointmentsModal({
           {countState.kind === "error" && (
             <LoadErrorAlert error={countLoad.error} />
           )}
+          <LoadErrorAlert error={planAfterWrite.error} />
           {ready && ready.count === 0 && keptSeries.length === 0 && (
             <p>{rangeText} sind keine Termine mehr geplant.</p>
           )}

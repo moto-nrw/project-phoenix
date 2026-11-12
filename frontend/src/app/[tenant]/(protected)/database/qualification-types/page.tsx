@@ -6,7 +6,7 @@
 // Erinnerung und Pflicht für alle. Archivieren statt Löschen: eingetragene
 // Nachweise behalten ihre Art.
 
-import { Suspense, useCallback } from "react";
+import { Suspense, useCallback, useLayoutEffect } from "react";
 import { useSearchParams } from "next/navigation";
 
 import {
@@ -18,12 +18,15 @@ import { staffConcept } from "~/lib/concepts/staff";
 import type { SectionConfig } from "~/lib/database/types";
 import { formatCount } from "~/lib/format-utils";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
+import { STALE_DATA_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import {
   staffQualificationService,
   type QualificationType,
   type QualificationTypeInput,
 } from "~/lib/staff-qualification-api";
 import { staffQualificationKeys } from "~/lib/swr/staff-keys";
+import { ApiError } from "~/lib/api-error";
+import { useDiscardRefusedEntity } from "~/lib/swr/hooks";
 import { useSWRAuth, useTenantMutate } from "~/lib/swr";
 
 const CACHE_KEY = staffQualificationKeys.types();
@@ -157,6 +160,7 @@ const config: CatalogConfig<QualificationType> = {
     menuLabel: "Archivieren",
     confirmTitle: "Nachweisart archivieren?",
     confirmLabel: "Archivieren",
+    loadingLabel: "Wird archiviert …",
     describe: (type) =>
       `„${type.name}“ steht bei neuen Nachweisen nicht mehr zur Auswahl. Eingetragene Nachweise bleiben, und ihre Erinnerungen kommen weiter.`,
     run: (type) =>
@@ -174,18 +178,32 @@ const config: CatalogConfig<QualificationType> = {
 function QualificationTypesPageContent() {
   const searchParams = useSearchParams();
   const tenantMutate = useTenantMutate();
+  const discardRefused = useDiscardRefusedEntity();
   const {
-    data,
+    data: cachedData,
     isLoading,
     error: swrError,
     mutate,
   } = useSWRAuth<QualificationType[]>(CACHE_KEY, () =>
     staffQualificationService.listTypes(),
   );
+  const accessRefused =
+    swrError instanceof ApiError &&
+    (swrError.status === 401 || swrError.status === 403);
+  const data = accessRefused ? undefined : cachedData;
+  useLayoutEffect(() => {
+    if (!accessRefused) return;
+    discardRefused(swrError, {
+      codes: [swrError.code ?? "general.permission"],
+      matches: (key) => key === CACHE_KEY,
+      refusedKey: CACHE_KEY,
+    });
+  }, [accessRefused, swrError, discardRefused]);
   const loadError = useSwrLoadError(
     swrError,
     "die Liste der Nachweisarten",
     () => mutate(),
+    data === undefined ? undefined : STALE_DATA_SUFFIX,
   );
   const onChanged = useCallback(() => tenantMutate(CACHE_KEY), [tenantMutate]);
 

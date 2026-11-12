@@ -266,7 +266,9 @@ const modulePassthroughApplicationSegment = "/internal/application/"
 // Lowered by #6583: offboarding locks the whole roster in two phases (-1).
 // Raised by ADR 0209: the billing lock command of the holiday allocation
 // workflow of modules/parentbilling (+1).
-const modulePassthroughOwnerBudgetTotal = 1406
+// Lowered by ADR 0196: the holiday closure notices leave School Calendar two
+// pass-throughs fewer (-2).
+const modulePassthroughOwnerBudgetTotal = 1404
 
 // modulePassthroughOwnerBudgets is the register: module directory →
 // pass-throughs measured in its application layer and its compositions
@@ -322,7 +324,7 @@ var modulePassthroughOwnerBudgets = map[string]int{
 	"modules/requestreview":    15,
 	"modules/schedulerruntime": 4,
 	// Raised by ADR 0073: the feed cleanup keeps only the staff feed tombstones.
-	"modules/schoolcalendar":   16,
+	"modules/schoolcalendar":   14,
 	"modules/schoolmembership": 15,
 	"modules/schoolsetup":      1,
 	"modules/schoolstructure":  43,

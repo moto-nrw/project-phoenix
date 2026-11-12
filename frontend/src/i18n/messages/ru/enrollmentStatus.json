@@ -3,6 +3,8 @@
   "errorObjectEdit": "изменение",
   "errorObjectReply": "ответ",
   "errorObjectChangeRequests": "список запросов на изменение",
+  "reloadObject": "отображение записи",
+  "savedButStale": "Ваше изменение сохранено. Только отображение ещё не обновлено.",
   "changeRequestSent": "Запрос на изменение отправлен. {careTerm} его проверит.",
   "loading": "Статус загружается…",
   "invalidTitle": "Недействительная ссылка на статус",

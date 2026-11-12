@@ -41,6 +41,14 @@ vi.mock("~/lib/school-vacations-api", () => ({
   },
 }));
 
+// useRefreshAfterWrite (#6652) reads the load-error path; a stable stub keeps
+// its callbacks stable across renders.
+const loadErrorStub = vi.hoisted(() => ({
+  error: null,
+  show: vi.fn(() => Promise.resolve()),
+  clear: vi.fn(),
+}));
+
 vi.mock("~/contexts/ToastContext", () => ({
   useToast: () => ({
     success: (message: string) => state.success.push(message),
@@ -51,6 +59,7 @@ vi.mock("~/contexts/ToastContext", () => ({
       return Promise.resolve();
     },
   }),
+  useApiLoadError: () => loadErrorStub,
 }));
 
 vi.mock("~/lib/tenant-path", () => ({

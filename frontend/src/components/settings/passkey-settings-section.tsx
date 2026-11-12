@@ -27,6 +27,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { suggestCurrentDeviceLabel } from "~/lib/device-label";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   isPasskeyCeremonyIncompleteError,
@@ -98,6 +99,17 @@ export function PasskeySettingsSection({
     }
   }, [clear, scope, showLoadError]);
 
+  // Nachladen nach dem Hinzufügen oder Entfernen: ein Fehler dabei steht
+  // über der Liste, die bestätigten Passkeys bleiben stehen (#6652).
+  const credentialsAfterWrite = useRefreshAfterWrite(
+    "die Liste der Passkeys",
+    async () => {
+      setCredentials(await listPasskeys(scope));
+      setLoadFailed(false);
+      clear();
+    },
+  );
+
   useEffect(() => {
     setSupported(isPasskeySupported());
     void loadCredentials();
@@ -137,7 +149,7 @@ export function PasskeySettingsSection({
       setName("");
       setMaskedEmail("");
       toast.success("Der Passkey ist hinzugefügt.");
-      await loadCredentials();
+      await credentialsAfterWrite.refresh();
     } catch (err) {
       // Abgebrochen am Gerät: kein Fehler, der Bereich bleibt offen und
       // „Speichern“ startet den Vorgang erneut.
@@ -178,7 +190,7 @@ export function PasskeySettingsSection({
       await revokePasskey(scope, revokeTarget.id);
       setRevokeTarget(null);
       toast.success("Der Passkey ist entfernt.");
-      await loadCredentials();
+      await credentialsAfterWrite.refresh();
     } catch (err) {
       logger.warn("passkey_revoke_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -215,6 +227,7 @@ export function PasskeySettingsSection({
             variant="outline"
             size="md"
             className="gap-2"
+            tooltip="Öffnet die Schritte, um einen neuen Passkey anzulegen."
             disabled={busy}
             onClick={() => {
               enrollErrors.clear();
@@ -256,6 +269,7 @@ export function PasskeySettingsSection({
                 variant="primary"
                 size="md"
                 className="gap-2"
+                tooltip="Schickt sofort einen sechsstelligen Code an Ihre E-Mail-Adresse."
                 disabled={busy}
                 onClick={() => void startEnrollment()}
               >
@@ -266,6 +280,7 @@ export function PasskeySettingsSection({
                 type="button"
                 variant="outline"
                 size="md"
+                noTooltip="Abbrechen schließt nur den Schritt, ohne etwas zu ändern."
                 disabled={busy}
                 onClick={() => {
                   setConfirmingEnrollment(false);
@@ -315,6 +330,7 @@ export function PasskeySettingsSection({
                 type="button"
                 variant="primary"
                 size="md"
+                tooltip="Speichert den Passkey, nachdem Ihr Gerät nach PIN oder Fingerabdruck fragt."
                 disabled={busy || code.trim().length === 0}
                 onClick={() => void finishEnrollment()}
               >
@@ -324,6 +340,7 @@ export function PasskeySettingsSection({
                 type="button"
                 variant="outline"
                 size="md"
+                noTooltip="Abbrechen schließt nur den Schritt, ohne etwas zu ändern."
                 disabled={busy}
                 onClick={() => {
                   setConfirmingEnrollment(false);
@@ -343,6 +360,7 @@ export function PasskeySettingsSection({
 
       {/* Bis der Text eines Ladefehlers da ist, bleibt der Ladehinweis
           stehen; danach steht der Fehler statt einer leeren Liste. */}
+      <LoadErrorAlert error={credentialsAfterWrite.error} />
       {loading || (loadFailed && !loadError) ? (
         <Loading message="Passkeys werden geladen …" />
       ) : loadFailed ? (

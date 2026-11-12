@@ -11,6 +11,7 @@ import { useState } from "react";
 
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -21,6 +22,7 @@ import {
   formatDate,
 } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   type CareContractDetail,
@@ -58,6 +60,12 @@ export function CareContractSignatureCard({
   onChanged,
 }: Readonly<{ contract: CareContractDetail; onChanged: () => Promise<void> }>) {
   const [paperOpen, setPaperOpen] = useState(false);
+  // The reload after the paper contract stands above the card, also after
+  // the dialog closed (#6652).
+  const afterPaper = useRefreshAfterWrite(
+    "die Anzeige des Vertrags",
+    onChanged,
+  );
   const signature = contract.signature;
   const waiting =
     contract.status === "entwurf" || contract.status === "versendet";
@@ -101,6 +109,7 @@ export function CareContractSignatureCard({
           ) : null
         }
       >
+        <LoadErrorAlert error={afterPaper.error} className="mb-4" />
         {signature ? (
           <SignatureDetails contractId={contract.id} signature={signature} />
         ) : (
@@ -111,9 +120,9 @@ export function CareContractSignatureCard({
         <PaperSignatureModal
           contract={contract}
           onClose={() => setPaperOpen(false)}
-          onSaved={async () => {
+          onSaved={() => {
             setPaperOpen(false);
-            await onChanged();
+            return afterPaper.refresh();
           }}
         />
       ) : null}

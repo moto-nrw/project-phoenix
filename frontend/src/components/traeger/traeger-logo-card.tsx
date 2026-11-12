@@ -11,6 +11,8 @@ import {
   useApiFormError,
   useToast,
 } from "~/contexts/ToastContext";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   removeTraegerLogo,
@@ -44,6 +46,9 @@ export function TraegerLogoCard({
   const { show: showError, showMessage } = useApiErrorDisplay();
   const removeErrors = useApiFormError();
   const { success } = useToast();
+  // The reload after a change stands above the card as a load error, never
+  // as an error of the upload or the removal (#6652).
+  const afterChange = useRefreshAfterWrite("die Anzeige des Logos", onChanged);
 
   const upload = async (file: File) => {
     if (!LOGO_TYPES.includes(file.type)) {
@@ -57,17 +62,19 @@ export function TraegerLogoCard({
     setUploading(true);
     try {
       await uploadTraegerLogo(file);
-      success("Das Logo ist gespeichert.");
-      await onChanged();
     } catch (err) {
       logger.error("traeger_logo_upload_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       void showError(err, { object: "das Logo" });
-    } finally {
       setUploading(false);
       if (inputRef.current) inputRef.current.value = "";
+      return;
     }
+    setUploading(false);
+    if (inputRef.current) inputRef.current.value = "";
+    success("Das Logo ist gespeichert.");
+    await afterChange.refresh();
   };
 
   const remove = async () => {
@@ -75,17 +82,18 @@ export function TraegerLogoCard({
     removeErrors.clear();
     try {
       await removeTraegerLogo();
-      setConfirming(false);
-      success("Das Logo ist entfernt.");
-      await onChanged();
     } catch (err) {
       logger.error("traeger_logo_remove_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       void removeErrors.show(err, { object: "das Entfernen des Logos" });
-    } finally {
       setRemoving(false);
+      return;
     }
+    setRemoving(false);
+    setConfirming(false);
+    success("Das Logo ist entfernt.");
+    await afterChange.refresh();
   };
 
   return (
@@ -120,6 +128,7 @@ export function TraegerLogoCard({
         ) : null
       }
     >
+      <LoadErrorAlert error={afterChange.error} className="mb-4" />
       <input
         ref={inputRef}
         type="file"

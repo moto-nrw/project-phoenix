@@ -8,6 +8,7 @@ import {
   useApiFormError,
   useToast,
 } from "~/contexts/ToastContext";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type {
@@ -40,7 +41,8 @@ export function TraegerBueroTable({
   invitations: readonly TraegerInvitation[];
   isLoading: boolean;
   onResetMfa: (member: TraegerMember) => void;
-  onChanged: () => Promise<unknown>;
+  /** Reloads both lists; never rejects (#6652). */
+  onChanged: RefreshAfterWrite;
 }>) {
   const [revoking, setRevoking] = useState<TraegerInvitation | null>(null);
   const [confirming, setConfirming] = useState(false);
@@ -60,18 +62,19 @@ export function TraegerBueroTable({
         organizationId,
         invitation.id,
       );
-      success(
-        `Die Einladung an ${invitation.email} ist neu verschickt. Der alte Link funktioniert nicht mehr.`,
-      );
-      await onChanged();
     } catch (err) {
       logger.error("traeger_invitation_resend_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       void showError(err, { object: "die Einladung" });
-    } finally {
       resending.current = null;
+      return;
     }
+    success(
+      `Die Einladung an ${invitation.email} ist neu verschickt. Der alte Link funktioniert nicht mehr.`,
+    );
+    await onChanged();
+    resending.current = null;
   };
 
   const closeConfirm = () => {
@@ -88,17 +91,18 @@ export function TraegerBueroTable({
         organizationId,
         revoking.id,
       );
-      success("Die Einladung ist zurückgenommen.");
-      setRevoking(null);
-      await onChanged();
     } catch (err) {
       logger.error("traeger_invitation_revoke_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
       void confirmErrors.show(err, { object: "das Zurücknehmen" });
-    } finally {
       setConfirming(false);
+      return;
     }
+    success("Die Einladung ist zurückgenommen.");
+    setRevoking(null);
+    setConfirming(false);
+    await onChanged();
   };
 
   return (

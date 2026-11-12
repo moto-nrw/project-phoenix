@@ -1322,6 +1322,7 @@ export function SettingsField({
         confirmText="Aktivieren"
         cancelText="Abbrechen"
         isConfirmLoading={legalActivationSaving}
+        loadingText="Wird eingeschaltet …"
         isConfirmDisabled={
           legalActivationTextKey === ENROLLMENT_LEGAL_AGB_TEXT_KEY
             ? !hasEnrollmentLegalAGBSourceContent(
@@ -1395,6 +1396,7 @@ export function SettingsField({
         confirmText="Speichern"
         cancelText="Abbrechen"
         isConfirmLoading={legalTextEditSaving}
+        loadingText="Wird gespeichert …"
         isConfirmDisabled={
           setting.key === ENROLLMENT_LEGAL_AGB_TEXT_KEY
             ? !hasEnrollmentLegalAGBSourceContent(

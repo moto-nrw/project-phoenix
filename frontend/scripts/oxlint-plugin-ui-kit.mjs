@@ -122,9 +122,12 @@ import {
 //                                     isConfirmLoading (#6594); the opt-out
 //                                     `dismissibleWhileLoading` carries its
 //                                     reason as a non-empty string literal.
-//   ui-kit/confirmation-loading-text — a ConfirmationModal's confirmText
-//                                     does not switch on its isConfirmLoading
-//                                     value: the button shows `loadingText`
+//   ui-kit/confirmation-loading-text — a ConfirmationModal that passes
+//                                     isConfirmLoading also passes its own
+//                                     `loadingText` („Wird gespeichert …“),
+//                                     never the generic default (#6652), and
+//                                     its confirmText does not switch on the
+//                                     flag: the button shows `loadingText`
 //                                     then, the switched text never (#6636).
 //   ui-kit/no-raw-input             — no hand-built <input> or <textarea>
 //                                     outside RAW_INPUT_KIT_PRIMITIVES; use Input,
@@ -2261,7 +2264,7 @@ const confirmationDismissLock = {
     },
     messages: {
       reason:
-        "`dismissibleWhileLoading` hebt die Schließsperre während `isConfirmLoading` auf (#6594) und braucht als Wert die Begründung als Text, z. B. `dismissibleWhileLoading=\"Lädt nur die Vorschau; nichts wird gespeichert.\"`. Eine späte Antwort muss dann an den Dialog gebunden sein (useFormModalPending, op.isCurrent()).",
+        '`dismissibleWhileLoading` hebt die Schließsperre während `isConfirmLoading` auf (#6594) und braucht als Wert die Begründung als Text, z. B. `dismissibleWhileLoading="Lädt nur die Vorschau; nichts wird gespeichert."`. Eine späte Antwort muss dann an den Dialog gebunden sein (useFormModalPending, op.isCurrent()).',
     },
     schema: [],
   },
@@ -2295,6 +2298,12 @@ const confirmationDismissLock = {
 // same flag („Wird angemeldet…“) writes a text nobody sees; the reader gets
 // the generic default instead (#6636). The rule follows the flag through a
 // local `const` (`const label = busy ? "Wird …" : "Senden"`).
+//
+// A caller that passes `isConfirmLoading` without `loadingText` shows the
+// kit default „Wird geladen...“ during a write; the reader cannot tell which
+// action runs (#6652). Every such caller names its action. A spread does not
+// count as `loadingText`: the rule cannot see into it. Import aliases of
+// ConfirmationModal count as ConfirmationModal.
 
 /** `busy`, `state.busy`, `!busy` as one comparable key; null otherwise. */
 function flagKey(node) {
@@ -2349,7 +2358,9 @@ const confirmationLoadingText = {
     },
     messages: {
       switched:
-        "`confirmText` wechselt mit `isConfirmLoading`, aber während der Aktion zeigt der Knopf `loadingText` (#6636). Setzen Sie den Ladetext als `loadingText=\"Wird …\"` und `confirmText` auf die Aktion.",
+        '`confirmText` wechselt mit `isConfirmLoading`, aber während der Aktion zeigt der Knopf `loadingText` (#6636). Setzen Sie den Ladetext als `loadingText="Wird …"` und `confirmText` auf die Aktion.',
+      missing:
+        '`isConfirmLoading` ohne `loadingText`: Während der Aktion zeigt der Knopf sonst „Wird geladen...“ (#6652). Nennen Sie die laufende Aktion, z. B. `loadingText="Wird gespeichert …"`.',
     },
     schema: [],
   },
@@ -2357,10 +2368,44 @@ const confirmationLoadingText = {
     const key = fileKey(context);
     if (!key.startsWith("src/")) return {};
     if (key.startsWith(UI_KIT_DIR) || EXEMPT_FILE_RE.test(key)) return {};
+    const names = new Set(["ConfirmationModal"]);
     return {
+      ImportDeclaration(node) {
+        if (!/(?:^|\/)components\/ui\/modal$/.test(String(node.source.value))) {
+          return;
+        }
+        for (const specifier of node.specifiers) {
+          if (
+            specifier.type === "ImportSpecifier" &&
+            (specifier.imported?.name ?? specifier.imported?.value) ===
+              "ConfirmationModal"
+          ) {
+            names.add(specifier.local.name);
+          }
+        }
+      },
       JSXOpeningElement(node) {
         if (node.name?.type !== "JSXIdentifier") return;
-        if (node.name.name !== "ConfirmationModal") return;
+        if (!names.has(node.name.name)) return;
+        const loadingAttribute = node.attributes.find(
+          (item) =>
+            item.type === "JSXAttribute" &&
+            item.name?.name === "isConfirmLoading",
+        );
+        const hasLoadingText = node.attributes.some(
+          (item) =>
+            item.type === "JSXAttribute" && item.name?.name === "loadingText",
+        );
+        if (loadingAttribute && !hasLoadingText) {
+          const value = loadingAttribute.value;
+          const alwaysFalse =
+            value?.type === "JSXExpressionContainer" &&
+            value.expression?.type === "Literal" &&
+            value.expression.value === false;
+          if (!alwaysFalse) {
+            context.report({ node: loadingAttribute, messageId: "missing" });
+          }
+        }
         const flag = flagKey(attributeExpression(node, "isConfirmLoading"));
         if (flag == null) return;
         const confirmText = attributeExpression(node, "confirmText");
@@ -5847,9 +5892,316 @@ const noHandRolledCopyField = {
   },
 };
 
+// ui-kit/button-needs-tooltip (#6742, Epic #6643)
+//
+// Jeder Knopf sagt in einem Satz, was ein Klick tut. Gemeldet wird ein
+// `Button` oder `ButtonLink` ohne `tooltip` und ohne begründetes
+// `noTooltip="<Grund>"`, und ein `a` oder `label` mit `buttonClassName(…)` im
+// `className`, das nicht das eine Kind eines `ActionHint` ist (`ActionHint`
+// klont genau dieses Kind, ein Fragment oder eine Hülle dazwischen bekäme die
+// Blase also nicht). Ein leerer, nur aus Leerzeichen bestehender oder
+// `undefined` gesetzter Grund ist ein Fehler, ebenso ein leerer `tooltip`. Ein
+// `title` an diesen Knöpfen wird immer gemeldet: Er ersetzt den `tooltip` nicht.
+//
+// Gespreizte Props (`{...props}`) gelten als erfüllt: ob der Typ hinter
+// `props` einen `tooltip` durchreicht, ist ohne Typinformation nicht
+// entscheidbar, und eine Meldung wäre dann geraten. Nur ein gespreiztes
+// Objektliteral mit statischen Schlüsseln wird geprüft, weil seine Belegung im
+// Code steht; ein berechneter Schlüssel ist wie ein unbekannter Spread. Steht
+// ein unbekannter Spread hinter `tooltip`/`noTooltip`, wird gemeldet: Er kann
+// die Erklärung überschreiben, und der Spread davor kostet nichts.
+//
+// Die Regel gilt nur in TOOLTIP_SCOPE. Die Liste wächst nur: Jedes
+// Bereichs-Ticket des Epics trägt seine Ordner oder Dateien ein. Ordner enden
+// auf „/“, alles andere ist eine einzelne Datei. Das Abschluss-Ticket (#6757)
+// ersetzt die Liste durch „überall außer Ausnahmen“.
+// `ui-kit/menu-item-needs-description` (#6745) nutzt dieselbe Liste.
+
+const TOOLTIP_SCOPE = [
+  // Einstellungen der Schule und des Trägers, begonnen in #6669.
+  "src/app/[tenant]/(protected)/settings/",
+  "src/app/traeger/einstellungen/",
+  "src/components/settings/",
+];
+
+function inTooltipScope(key, scope = TOOLTIP_SCOPE) {
+  if (EXEMPT_FILE_RE.test(key) || key.includes("src/test/")) return false;
+  return scope.some((entry) =>
+    entry.endsWith("/") ? key.startsWith(entry) : key === entry,
+  );
+}
+
+function tooltipPropsFromAttributes(openingElement) {
+  const props = {
+    tooltip: null,
+    noTooltip: null,
+    title: null,
+  };
+  let unknownSpread = false;
+  // Ein unbekannter Spread hinter `tooltip`/`noTooltip` kann die Erklärung zur
+  // Laufzeit überschreiben, auch mit `undefined`.
+  let spreadAfterExplanation = false;
+  for (const attribute of openingElement.attributes) {
+    if (attribute.type === "JSXAttribute") {
+      const name = attribute.name?.name;
+      if (name === "tooltip" || name === "noTooltip")
+        spreadAfterExplanation = false;
+      if (name === "tooltip" || name === "noTooltip" || name === "title") {
+        props[name] = {
+          node: attribute,
+          value: attribute.value,
+          attribute: true,
+        };
+      }
+      continue;
+    }
+    const argument = attribute.argument;
+    if (argument?.type !== "ObjectExpression") {
+      unknownSpread = true;
+      if (props.tooltip || props.noTooltip) spreadAfterExplanation = true;
+      continue;
+    }
+    for (const property of argument.properties) {
+      if (property.type === "SpreadElement" || property.computed) {
+        unknownSpread = true;
+        if (props.tooltip || props.noTooltip) spreadAfterExplanation = true;
+        continue;
+      }
+      const name = propertyName(property);
+      if (name === "tooltip" || name === "noTooltip" || name === "title") {
+        props[name] = {
+          node: property,
+          value: property.value,
+          attribute: false,
+        };
+      }
+    }
+  }
+  return { props, unknownSpread, spreadAfterExplanation };
+}
+
+/** Static string of an expression, also from a template without expressions. */
+function staticExpressionText(expression) {
+  if (expression.type === "Literal") return String(expression.value);
+  if (
+    expression.type === "TemplateLiteral" &&
+    expression.expressions.length === 0
+  ) {
+    return expression.quasis.map((quasi) => quasi.value.cooked).join("");
+  }
+  return null;
+}
+
+function isBlankExpression(expression) {
+  if (expression?.type === "Identifier" && expression.name === "undefined") {
+    return true;
+  }
+  const text = expression ? staticExpressionText(expression) : null;
+  return text !== null && text.trim() === "";
+}
+
+function isBlankAttribute(attribute) {
+  if (!attribute.value) return true;
+  if (attribute.value.type === "Literal") {
+    return String(attribute.value.value).trim() === "";
+  }
+  if (attribute.value.type !== "JSXExpressionContainer") return false;
+  return isBlankExpression(attribute.value.expression);
+}
+
+function isBlankTooltipProp(prop) {
+  return prop.attribute
+    ? isBlankAttribute(prop.node)
+    : isBlankExpression(prop.value);
+}
+
+function usesButtonClassName(node, bindings, constants, depth = 0) {
+  if (!node || depth > 4) return false;
+  switch (node.type) {
+    case "JSXExpressionContainer":
+      return usesButtonClassName(node.expression, bindings, constants, depth);
+    case "CallExpression":
+      if (
+        node.callee.type === "Identifier" &&
+        bindings.buttonClassNames.has(node.callee.name)
+      ) {
+        return true;
+      }
+      return node.arguments.some((argument) =>
+        usesButtonClassName(argument, bindings, constants, depth + 1),
+      );
+    case "ConditionalExpression":
+      return [node.consequent, node.alternate].some((branch) =>
+        usesButtonClassName(branch, bindings, constants, depth + 1),
+      );
+    case "LogicalExpression":
+      return [node.left, node.right].some((side) =>
+        usesButtonClassName(side, bindings, constants, depth + 1),
+      );
+    case "TemplateLiteral":
+      return node.expressions.some((expression) =>
+        usesButtonClassName(expression, bindings, constants, depth + 1),
+      );
+    case "Identifier":
+      return usesButtonClassName(
+        constants.get(node.name),
+        bindings,
+        constants,
+        depth + 1,
+      );
+    default:
+      return false;
+  }
+}
+
+function isActionHintChild(openingElement, actionHints) {
+  const element = openingElement.parent;
+  let parent = element?.parent;
+  // `<ActionHint>{cond ? <a … /> : <label … />}</ActionHint>`
+  while (
+    parent &&
+    (parent.type === "JSXExpressionContainer" ||
+      parent.type === "ConditionalExpression" ||
+      parent.type === "LogicalExpression")
+  ) {
+    parent = parent.parent;
+  }
+  return (
+    parent?.type === "JSXElement" &&
+    actionHints.has(jsxName(parent.openingElement.name))
+  );
+}
+
+const buttonNeedsTooltip = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Every button says in one sentence what a click does: tooltip, or noTooltip with a reason.",
+    },
+    messages: {
+      missing:
+        'Knopf ohne Erklärung: `tooltip` mit einem Satz zur Folge des Klicks setzen oder `noTooltip="<Grund>"`, wenn das Wort schon alles sagt (#6643, Schreibregel in .claude/rules/frontend-ui-kit.md).',
+      title:
+        "`title` ersetzt keine Erklärung: den Satz als `tooltip` setzen (#6643).",
+      emptyReason:
+        "`noTooltip` braucht einen Grund, warum das Wort auf dem Knopf reicht (#6643).",
+      emptyTooltip:
+        'Leerer `tooltip`: einen Satz zur Folge des Klicks schreiben oder `noTooltip="<Grund>"` setzen (#6643).',
+      conflictingExplanation:
+        "`tooltip` und `noTooltip` dürfen nicht zusammen gesetzt sein (#6643).",
+      spreadAfterExplanation:
+        "Gespreizte Props hinter `tooltip`/`noTooltip` können die Erklärung überschreiben: den Spread vor die Erklärung stellen (#6643).",
+      missingHint:
+        'Element in Knopf-Optik ohne Erklärung: in `ActionHint text="…"` einschließen (#6643).',
+    },
+    schema: [],
+  },
+  create(context) {
+    if (!inTooltipScope(fileKey(context))) return {};
+    const constants = new Map();
+    const bindings = {
+      actionComponents: new Set(ACTION_COMPONENTS),
+      buttonClassNames: new Set(["buttonClassName"]),
+      kitButtons: new Set(KIT_BUTTONS),
+      navigationRows: new Set(NAVIGATION_ROWS),
+    };
+    const actionHints = new Set(["ActionHint"]);
+    // Elemente mit Knopf-Optik werden erst am Dateiende geprüft: Eine
+    // Klassen-Konstante darf unter der Komponente stehen.
+    const styledElements = [];
+    return {
+      Program(node) {
+        for (const statement of node.body) {
+          if (statement.type !== "ImportDeclaration") continue;
+          buttonRatchetImports(statement, bindings);
+          for (const specifier of statement.specifiers) {
+            if (
+              specifier.type === "ImportSpecifier" &&
+              specifier.imported.type === "Identifier" &&
+              specifier.imported.name === "ActionHint"
+            ) {
+              actionHints.add(specifier.local.name);
+            }
+          }
+        }
+      },
+      VariableDeclarator(node) {
+        if (node.id?.type === "Identifier" && node.init) {
+          constants.set(node.id.name, node.init);
+        }
+      },
+      JSXOpeningElement(node) {
+        const name = jsxName(node.name);
+        if (name === null || actionHints.has(name)) return;
+        if (bindings.kitButtons.has(name)) {
+          const {
+            props: tooltipProps,
+            unknownSpread,
+            spreadAfterExplanation,
+          } = tooltipPropsFromAttributes(node);
+          const { title, tooltip, noTooltip } = tooltipProps;
+          if (title) {
+            context.report({ node: title.node, messageId: "title" });
+            return;
+          }
+          if (tooltip && noTooltip) {
+            context.report({
+              node: noTooltip.node,
+              messageId: "conflictingExplanation",
+            });
+            return;
+          }
+          if ((tooltip || noTooltip) && spreadAfterExplanation) {
+            context.report({ node, messageId: "spreadAfterExplanation" });
+            return;
+          }
+          if (tooltip) {
+            if (isBlankTooltipProp(tooltip)) {
+              context.report({ node: tooltip.node, messageId: "emptyTooltip" });
+            }
+            return;
+          }
+          if (noTooltip) {
+            if (isBlankTooltipProp(noTooltip)) {
+              context.report({
+                node: noTooltip.node,
+                messageId: "emptyReason",
+              });
+            }
+            return;
+          }
+          if (unknownSpread) return;
+          context.report({ node, messageId: "missing" });
+          return;
+        }
+        if (name === "a" || name === "label") styledElements.push(node);
+      },
+      "Program:exit"() {
+        for (const node of styledElements) {
+          const className = jsxAttribute(node, "className");
+          if (
+            !className?.value ||
+            !usesButtonClassName(className.value, bindings, constants)
+          ) {
+            continue;
+          }
+          const title = jsxAttribute(node, "title");
+          if (title) {
+            context.report({ node: title, messageId: "title" });
+          } else if (!isActionHintChild(node, actionHints)) {
+            context.report({ node, messageId: "missingHint" });
+          }
+        }
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "ui-kit" },
   rules: {
+    "button-needs-tooltip": buttonNeedsTooltip,
     "form-modal-pending": formModalPending,
     "slide-over-pending": slideOverPending,
     "confirmation-dismiss-lock": confirmationDismissLock,

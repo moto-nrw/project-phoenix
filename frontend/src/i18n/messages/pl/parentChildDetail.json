@@ -99,6 +99,7 @@
       "inviteSent": "Zaproszenie wysłano na adres {email}.",
       "inviteLinked": "Ta osoba jest teraz połączona.",
       "grant": "Daj dostęp",
+      "grantLoading": "Udzielanie dostępu…",
       "grantTitle": "Dać pełny dostęp?",
       "grantBody": "{name} ma konto, ale nie ma jeszcze dostępu do tego dziecka. Po Państwa potwierdzeniu prośba trafi do {careTerm}. Po zatwierdzeniu ta osoba zobaczy wszystko, co dotyczy Państwa dziecka.",
       "grantBodyWithRole": "{name} figuruje już jako {role}, ale nie ma jeszcze dostępu do aplikacji. Po Państwa potwierdzeniu prośba trafi do {careTerm}. Po zatwierdzeniu ta osoba zobaczy wszystko, co dotyczy Państwa dziecka.",
@@ -116,6 +117,8 @@
     "errorObjectAccounts": "lista połączonych kont",
     "errorObjectInvite": "zaproszenie",
     "errorObjectRemove": "dostęp dla tego konta",
+    "reloadObject": "widok kontaktów",
+    "savedButStale": "Twoja zmiana została zapisana. Tylko widok nie jest jeszcze aktualny.",
     "errorObjectContact": "zmiana kontaktu",
     "errorObjectPickup": "ustalenie dotyczące odbioru"
   },

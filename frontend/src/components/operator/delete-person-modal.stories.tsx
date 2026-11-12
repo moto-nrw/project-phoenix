@@ -29,7 +29,7 @@ const meta = {
   args: {
     person,
     onClose: () => {},
-    onDeleted: async () => {},
+    onDeleted: () => Promise.resolve(true),
   },
 } satisfies Meta<typeof DeletePersonModal>;
 

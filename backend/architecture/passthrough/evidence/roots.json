@@ -954,6 +954,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (k holidayKnownChildren) KnownHolidayChildren(ctx context.Context, organizationID, periodID, registrationID int64) ([]enrollment.HolidayKnownChild, error) {\n\tknown, err := k.overview.KnownHolidayChildren(ctx, organizationID, periodID, registrationID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]enrollment.HolidayKnownChild, 0, len(known))\n\tfor _, child := range known {\n\t\tresult = append(result, enrollment.HolidayKnownChild(child))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/holidayKnownChildren.KnownHolidayChildren",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (u holidayProofUnits) UploadHolidayProof(ctx context.Context, link enrollmentOwner.HolidayRegistrationLink, upload enrollmentOwner.HolidayProofUpload) (enrollmentOwner.HolidayProofReceipt, error) {\n\tvar receipt enrollmentOwner.HolidayProofReceipt\n\terr := tenant.WithinTraeger(ctx, link.OrganizationID, func(txCtx context.Context) error {\n\t\tvar uploadErr error\n\t\treceipt, uploadErr = u.registrations.UploadHolidayProof(txCtx, link, upload)\n\t\treturn uploadErr\n\t})\n\treturn receipt, err\n}",
       "form": "unclassified-evidence",
       "id": "api/holidayProofUnits.UploadHolidayProof",
@@ -1748,6 +1755,13 @@
       "evidence": "func (d traegerPersonDirectory) PersonsByID(ctx context.Context, personIDs []int64) ([]traegerview.Person, error) {\n\tpersons, err := d.persons.ListPersonsByID(ctx, personIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]traegerview.Person, 0, len(persons))\n\tfor _, person := range persons {\n\t\tresult = append(result, traegerAccessPerson(person))\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/traegerPersonDirectory.PersonsByID",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c traegerRegisteredChildren) RegisteredChildren(ctx context.Context, organizationID, periodID, registrationID int64) ([]traegerview.RegisteredChild, error) {\n\tchildren, err := c.children.HolidayRegisteredChildren(ctx, organizationID, periodID, registrationID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]traegerview.RegisteredChild, 0, len(children))\n\tfor _, child := range children {\n\t\tresult = append(result, traegerview.RegisteredChild(child))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/traegerRegisteredChildren.RegisteredChildren",
       "owner": "roots"
     },
     {
@@ -2742,6 +2756,13 @@
       "evidence": "func (r *GroupTeacherRepositoryBinding) Update(ctx context.Context, assignment *schoolmembership.GroupAssignment) error {\n\tif assignment == nil {\n\t\treturn nilEntity(\"GroupTeacher\")\n\t}\n\tif err := schoolmembership.ValidateGroupAssignment(assignment.GroupID, assignment.TeacherID); err != nil {\n\t\treturn err\n\t}\n\tupdated, err := r.Membership.UpdateGroupAssignment(ctx, schoolmembership.UpdateGroupAssignment{ID: assignment.ID, GroupID: assignment.GroupID, TeacherID: assignment.TeacherID})\n\tif err != nil {\n\t\treturn fmt.Errorf(\"update group assignment: %w\", err)\n\t}\n\tcopyGroupAssignment(assignment, updated)\n\treturn nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/GroupTeacherRepositoryBinding.Update",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m HolidayClosureMail) EnqueueTraegerMail(ctx context.Context, mail enrollment.TraegerMail) error {\n\t_, err := m.Delivery.EnqueueEmail(ctx, deliveryContract.EmailIntent{OrganizationID: mail.OrganizationID, Template: mail.Kind, Recipient: deliveryContract.EmailRecipient{Address: mail.Recipient}, Payload: mail.Payload, IdempotencyKey: mail.IdempotencyKey, Related: deliveryContract.RelatedEntity{Type: mail.RelatedType, ID: mail.RelatedID}})\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/HolidayClosureMail.EnqueueTraegerMail",
       "owner": "roots"
     },
     {
@@ -6102,6 +6123,13 @@
       "evidence": "func (a holidayParticipantAccessLog) RecordHolidayStudentHealthAccess(ctx context.Context, access enrollmentOwner.HolidayStudentHealthAccess) error {\n\tstudentID := access.StudentID\n\treturn a.writer.Create(ctx, \u0026auditModels.DataAccessLog{ActorAccountID: access.ActorAccountID, ActorRole: access.ActorRole, ResourceType: auditModels.ResourceTypeHolidayStudentHealth, StudentID: \u0026studentID, RangeStart: access.StartsOn.BerlinMidnight(), RangeEnd: access.EndsOn.EndOfDay(), AccessedAt: time.Now(), Metadata: map[string]any{\"week_ids\": access.WeekIDs}})\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/holidayParticipantAccessLog.RecordHolidayStudentHealthAccess",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m holidayRegistrationMailErasure) EraseHolidayRegistrationMails(ctx context.Context, registrations []enrollment.HolidayRegistrationReference) (int, error) {\n\torganizations, ids := make([]int64, len(registrations)), make([]int64, len(registrations))\n\tfor i, registration := range registrations {\n\t\torganizations[i], ids[i] = registration.OrganizationID, registration.RegistrationID\n\t}\n\treturn m.HolidayRegistrationMailErasure.EraseHolidayRegistrationMails(ctx, organizations, ids)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/holidayRegistrationMailErasure.EraseHolidayRegistrationMails",
       "owner": "roots"
     },
     {
