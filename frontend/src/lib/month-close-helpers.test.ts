@@ -14,6 +14,7 @@ const summary: BackendMonthSummary = {
   carry_in_minutes: 30,
   target_minutes: 7_200,
   target_minutes_to_date: 7_200,
+  has_target: true,
   actual_minutes: 7_260,
   credited_sick_minutes: 0,
   credited_vacation_minutes: 0,

@@ -44,6 +44,7 @@ import { useInvalidateMatching, useSWRAuth } from "~/lib/swr";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
+import { workTimeModelPath } from "~/components/staff/missing-target-notice";
 import { isAdmin, hasPermission } from "~/lib/auth-utils";
 import { useStaffPendingAbsences } from "~/lib/hooks/use-staff-pending-absences";
 import { SchoolOverviewSection } from "~/components/staff/school-overview-section";
@@ -1016,9 +1017,14 @@ function StaffPageContent() {
               error={accountsLoadError}
               onRowClick={(row) =>
                 router.push(
-                  `/staff/${row.staffId}${canAccessDocuments && !userIsAdmin ? "?tab=dokumente" : ""}`,
+                  // Ohne Soll führt die Zeile dorthin, wo es fehlt (#6887);
+                  // den Reiter sieht nur die Leitung.
+                  !row.hasTarget && userIsAdmin
+                    ? workTimeModelPath(row.staffId)
+                    : `/staff/${row.staffId}${canAccessDocuments && !userIsAdmin ? "?tab=dokumente" : ""}`,
                 )
               }
+              canSetTarget={userIsAdmin}
               saldoPreset={saldoPreset}
               onSaldoPresetChange={setSaldoPreset}
               customSaldoHours={customSaldoHours}

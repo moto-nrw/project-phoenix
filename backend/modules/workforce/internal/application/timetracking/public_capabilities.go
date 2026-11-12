@@ -132,7 +132,7 @@ func (c workTimeMonthCapability) MonthSummary(ctx context.Context, staffID int64
 	}
 	result := &workforce.MonthSummary{
 		StaffID: summary.StaffID, Year: summary.Year, Month: summary.Month, CarryInMinutes: summary.CarryInMinutes,
-		TargetMinutes: summary.TargetMinutes, TargetMinutesToDate: summary.TargetMinutesToDate, ActualMinutes: summary.ActualMinutes,
+		TargetMinutes: summary.TargetMinutes, TargetMinutesToDate: summary.TargetMinutesToDate, HasTarget: summary.HasTarget, ActualMinutes: summary.ActualMinutes,
 		CreditedSickMinutes: summary.CreditedSickMinutes, CreditedVacationMinutes: summary.CreditedVacationMinutes,
 		CreditedTrainingMinutes: summary.CreditedTrainingMinutes, CreditedOtherMinutes: summary.CreditedOtherMinutes,
 		SickDays: summary.SickDays, VacationDays: summary.VacationDays, TrainingDays: summary.TrainingDays,

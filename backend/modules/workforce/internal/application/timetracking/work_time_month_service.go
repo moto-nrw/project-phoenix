@@ -164,6 +164,9 @@ func (s *workTimeMonthService) computeAggregates(ctx context.Context, staffID in
 		target := resolver.TargetFor(d)
 		agg := aggregates[monthOf(d)]
 		agg.target += target
+		if resolver.HasSource(d) {
+			agg.hasTarget = true
+		}
 		if !d.After(today) {
 			agg.targetToDate += target
 		}

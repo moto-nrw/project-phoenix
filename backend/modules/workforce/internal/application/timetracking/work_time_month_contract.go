@@ -26,9 +26,13 @@ type MonthSummary struct {
 	Year    int   `json:"year"`
 	Month   int   `json:"month"`
 
-	CarryInMinutes          int     `json:"carry_in_minutes"`
-	TargetMinutes           int     `json:"target_minutes"`
-	TargetMinutesToDate     int     `json:"target_minutes_to_date"`
+	CarryInMinutes      int `json:"carry_in_minutes"`
+	TargetMinutes       int `json:"target_minutes"`
+	TargetMinutesToDate int `json:"target_minutes_to_date"`
+	// HasTarget is false when no Soll is maintained for any day of the month:
+	// no schedule, no stand-in work-time model, no Sonderarbeitszeit (#6887).
+	// Absences then credit nothing.
+	HasTarget               bool    `json:"has_target"`
 	ActualMinutes           int     `json:"actual_minutes"`
 	CreditedSickMinutes     int     `json:"credited_sick_minutes"`
 	CreditedVacationMinutes int     `json:"credited_vacation_minutes"`
