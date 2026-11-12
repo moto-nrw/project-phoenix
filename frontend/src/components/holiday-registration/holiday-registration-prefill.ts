@@ -28,11 +28,7 @@ type ContactValues = Pick<
 export type RelationshipLabel = (relationshipType: string) => string;
 
 /** The relationship types the form names; "other" stays without a label. */
-export const NAMED_RELATIONSHIP_TYPES = [
-  "parent",
-  "guardian",
-  "relative",
-] as const;
+const NAMED_RELATIONSHIP_TYPES = ["parent", "guardian", "relative"] as const;
 export type NamedRelationshipType = (typeof NAMED_RELATIONSHIP_TYPES)[number];
 
 export function isNamedRelationshipType(
