@@ -511,6 +511,7 @@ export default function TraegerVertraegePage() {
               variant="success"
               size="md"
               disabled={sending}
+              tooltip="Schickt die Entwürfe sofort per E-Mail und in die Eltern-App."
               onClick={() => void sendSelected()}
             >
               <Send className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -526,6 +527,7 @@ export default function TraegerVertraegePage() {
             variant="primary"
             size="md"
             disabled={!data}
+            tooltip="Erstellt Entwürfe für angenommene Kinder, Eltern bekommen noch nichts."
             onClick={() => setCreating(true)}
           >
             <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -560,6 +562,7 @@ export default function TraegerVertraegePage() {
                 href={traegerPath("/traeger/einstellungen")}
                 variant="surface"
                 size="compact"
+                tooltip="Öffnet die Einstellungen, ab wann Verträge an jeder Schule gelten."
               >
                 In den Einstellungen ändern
               </ButtonLink>
@@ -634,6 +637,7 @@ export default function TraegerVertraegePage() {
           disabled={loadingMore || sending}
           isLoading={loadingMore}
           loadingText="Wird geladen …"
+          noTooltip="Das Wort sagt alles: Die Liste zeigt nur mehr Verträge."
           onClick={() => void load(contracts.length)}
         >
           Weitere Verträge laden

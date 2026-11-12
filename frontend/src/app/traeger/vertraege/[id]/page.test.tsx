@@ -373,7 +373,7 @@ describe("TraegerVertragPage", () => {
       expect(screen.queryByText(/Prüfen Sie die Adresse/)).toBeNull();
       expect(
         screen.getByRole("button", { name: "Erneut senden" }),
-      ).toBeDisabled();
+      ).toHaveAttribute("aria-disabled", "true");
     },
   );
 
@@ -445,7 +445,7 @@ describe("TraegerVertragPage", () => {
     renderPage();
     expect(
       await screen.findByRole("button", { name: "Erneut senden" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.getByText(/Die Mail wartet auf den Versand/),
     ).toBeInTheDocument();

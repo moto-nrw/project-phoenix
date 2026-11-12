@@ -19,7 +19,10 @@ import { StatCard } from "~/components/ui/stat-card";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
 import { formatBerlinTime } from "~/lib/date-helpers";
 import type { TraegerSchoolView } from "~/lib/traeger-api";
-import { TRAEGER_HANDOFF_OPEN } from "~/lib/traeger-handoff";
+import {
+  TRAEGER_HANDOFF_OPEN,
+  TRAEGER_HANDOFF_OPEN_HINT,
+} from "~/lib/traeger-handoff";
 import { traegerPath } from "~/lib/traeger-url";
 
 type SchoolTab = "uebersicht" | "stammdaten";
@@ -172,7 +175,7 @@ export default function TraegerSchoolPage() {
             type="button"
             variant="surface"
             aria-label={`${TRAEGER_HANDOFF_OPEN}: ${school.name}, neuer Tab`}
-            title="Öffnet in einem neuen Tab"
+            tooltip={TRAEGER_HANDOFF_OPEN_HINT}
             disabled={opening !== null}
             onClick={() => void open(school)}
           >

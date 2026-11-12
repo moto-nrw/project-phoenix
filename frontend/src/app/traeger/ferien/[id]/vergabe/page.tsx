@@ -232,6 +232,7 @@ export default function TraegerHolidayAllocationPage() {
             variant="primary"
             size="md"
             disabled={busy}
+            tooltip="moto fragt vorher nach, dann bekommen alle betroffenen Eltern eine E-Mail."
             onClick={() => setProposalScope("all")}
           >
             Vorschlag für alle Wochen übernehmen
@@ -261,6 +262,7 @@ export default function TraegerHolidayAllocationPage() {
                 variant="outline"
                 size="md"
                 className="gap-2"
+                tooltip="Öffnet die Kriterien für die Platzvergabe in allen Ferien."
               >
                 <ListChecks className="h-4 w-4" aria-hidden="true" />
                 Kriterien ändern

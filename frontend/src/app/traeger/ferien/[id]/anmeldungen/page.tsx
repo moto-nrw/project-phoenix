@@ -69,7 +69,10 @@ import {
   planHolidayBulkConfirmation,
   registrationCount,
 } from "~/components/traeger/holiday-bulk-confirm-model";
-import { useHolidayPeriodBillingHref } from "~/components/traeger/use-holiday-period-billing-href";
+import {
+  HOLIDAY_BILLING_HINT,
+  useHolidayPeriodBillingHref,
+} from "~/components/traeger/use-holiday-period-billing-href";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import { billingConcept } from "~/lib/concepts/billing";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -803,7 +806,12 @@ export default function TraegerHolidayRegistrationsPage() {
       actions={
         <>
           {billingHref ? (
-            <ButtonLink href={billingHref} variant="outline" size="md">
+            <ButtonLink
+              href={billingHref}
+              variant="outline"
+              size="md"
+              tooltip={HOLIDAY_BILLING_HINT}
+            >
               <MotoConceptIcon
                 concept={billingConcept}
                 size={18}
@@ -877,6 +885,7 @@ export default function TraegerHolidayRegistrationsPage() {
                 variant="primary"
                 size="compact"
                 disabled={loading || merging}
+                tooltip="moto fragt vorher nach, dann bekommen die Eltern eine Bestätigung per E-Mail."
                 onClick={openBulkConfirmation}
                 className="max-sm:grow"
               >

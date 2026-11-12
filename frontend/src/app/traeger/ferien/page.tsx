@@ -94,11 +94,17 @@ export default function TraegerHolidayPeriodsPage() {
             href={traegerPath("/traeger/ferien/kriterien")}
             variant="outline"
             size="md"
+            tooltip="Öffnet die Kriterien für die Platzvergabe in allen Ferien."
           >
             <ListChecks className="h-4 w-4" aria-hidden="true" />
             Kriterien der Platzvergabe
           </ButtonLink>
-          <ButtonLink href={newHref} variant="primary" size="md">
+          <ButtonLink
+            href={newHref}
+            variant="primary"
+            size="md"
+            tooltip="Öffnet einen neuen Ferienzeitraum als Entwurf, Eltern sehen ihn noch nicht."
+          >
             <Plus className="h-4 w-4" aria-hidden="true" />
             Ferienzeitraum anlegen
           </ButtonLink>

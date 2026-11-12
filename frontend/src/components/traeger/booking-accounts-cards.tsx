@@ -179,6 +179,7 @@ function RevenueRow({
           variant="surface"
           size="compact"
           aria-label={`Erlöskonto für ${title} ändern`}
+          tooltip={`Öffnet das Erlöskonto für ${title} zum Bearbeiten.`}
           onClick={() => setDraft(own)}
         >
           Ändern
@@ -233,6 +234,7 @@ export function RevenueAccountsCard({
               variant="surface"
               size="compact"
               aria-label="Standard-Erlöskonto in den DATEV-Werten ändern"
+              tooltip="Öffnet die DATEV-Werte in den Einstellungen."
             >
               DATEV-Werte
             </ButtonLink>
@@ -436,6 +438,11 @@ function CostCenterRow({
               size="compact"
               aria-expanded={history}
               aria-label={`Verlauf der Kostenstellen für ${title}`}
+              tooltip={
+                history
+                  ? "Blendet die früheren und geplanten Kostenstellen wieder aus."
+                  : "Zeigt alle früheren und geplanten Kostenstellen mit Startdatum."
+              }
               onClick={() => setHistory((shown) => !shown)}
             >
               {history
@@ -452,6 +459,8 @@ function CostCenterRow({
           size="compact"
           aria-label={`Neue ${label} für ${title}`}
           disabled={adding}
+          tooltip="Öffnet ein Formular für eine Kostenstelle ab einem gewählten Tag."
+          disabledReason="Das Formular für die neue Kostenstelle ist schon offen."
           onClick={() => setAdding(true)}
         >
           Neue Kostenstelle

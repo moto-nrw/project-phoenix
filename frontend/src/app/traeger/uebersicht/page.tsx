@@ -58,7 +58,10 @@ import type {
   TraegerSchoolToday,
   TraegerSchoolsToday,
 } from "~/lib/traeger-api";
-import { TRAEGER_HANDOFF_OPEN } from "~/lib/traeger-handoff";
+import {
+  TRAEGER_HANDOFF_OPEN,
+  TRAEGER_HANDOFF_OPEN_HINT,
+} from "~/lib/traeger-handoff";
 import { traegerPath } from "~/lib/traeger-url";
 import { foldForSearch } from "~/lib/search-fold";
 
@@ -477,7 +480,7 @@ export default function TraegerDashboardPage() {
                 variant="surface"
                 size="compact"
                 aria-label={`${TRAEGER_HANDOFF_OPEN}: ${school.name}, neuer Tab`}
-                title="Öffnet in einem neuen Tab"
+                tooltip={TRAEGER_HANDOFF_OPEN_HINT}
                 disabled={opening !== null}
                 onClick={(event) => {
                   // Die Aktion öffnet die Schul-App, nicht die Schulansicht.
@@ -548,6 +551,7 @@ export default function TraegerDashboardPage() {
               type="button"
               variant="ghost_tone"
               size="compact"
+              tooltip="Lädt die Zahlen aller Schulen noch einmal."
               onClick={reload}
             >
               Erneut laden
@@ -615,6 +619,7 @@ export default function TraegerDashboardPage() {
                 variant="link"
                 size="md"
                 className="shrink-0 self-start sm:self-auto"
+                tooltip="Öffnet Ihre Grenzen für Auffälligkeiten in den Einstellungen."
               >
                 {canChangeThresholds ? "Grenzen ändern" : "Grenzen ansehen"}
               </ButtonLink>
@@ -676,6 +681,7 @@ export default function TraegerDashboardPage() {
                       variant="surface"
                       size="compact"
                       aria-label={`Zur Schule: ${school.name}`}
+                      tooltip="Öffnet die Zahlen und Angaben dieser Schule."
                     >
                       Zur Schule
                     </ButtonLink>
@@ -692,6 +698,7 @@ export default function TraegerDashboardPage() {
               className="mt-2 w-full"
               aria-expanded={alertsExpanded}
               aria-controls={listId}
+              noTooltip="Das Wort sagt alles: Die Liste klappt nur auf oder zu."
               onClick={() => setAlertsExpanded((current) => !current)}
             >
               {alertsExpanded ? (
