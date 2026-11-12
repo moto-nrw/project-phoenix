@@ -198,7 +198,7 @@
   "doneToRegistrations": "Te regjistrimet tuaja për pushimet",
   "fromAccountHint": "Nga llogaria e prindit",
   "healthNotPrefilled": "Të dhënat shëndetësore nuk i marrim. Ju lutemi shkruajini këtu.",
-  "knownContactPhoneHint": "Këtë numër nuk e shihni në llogarinë e prindit. Ju lutemi shkruajeni.",
+  "knownContactPhoneHint": "Shkolla nuk e ka numrin e këtij personi. Ju lutemi shkruajeni.",
   "relationshipTypes": {
     "parent": "Prind",
     "guardian": "Kujdestar ligjor",

@@ -198,7 +198,7 @@
   "doneToRegistrations": "Do Państwa zgłoszeń na ferie",
   "fromAccountHint": "Z konta rodzica",
   "healthNotPrefilled": "Nie przenosimy informacji o zdrowiu. Proszę wpisać je tutaj.",
-  "knownContactPhoneHint": "Tego numeru nie widać na koncie rodzica. Proszę go wpisać.",
+  "knownContactPhoneHint": "Szkoła nie ma numeru tej osoby. Proszę go wpisać.",
   "relationshipTypes": {
     "parent": "Rodzic",
     "guardian": "Opiekun prawny",

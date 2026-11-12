@@ -198,7 +198,7 @@
   "doneToRegistrations": "До ваших заявок на канікули",
   "fromAccountHint": "З батьківського акаунта",
   "healthNotPrefilled": "Дані про здоров’я ми не переносимо. Будь ласка, впишіть їх тут.",
-  "knownContactPhoneHint": "Цей номер не видно в батьківському акаунті. Будь ласка, впишіть його.",
+  "knownContactPhoneHint": "У школи немає номера цієї людини. Будь ласка, впишіть його.",
   "relationshipTypes": {
     "parent": "Батько або мати",
     "guardian": "Опікун",

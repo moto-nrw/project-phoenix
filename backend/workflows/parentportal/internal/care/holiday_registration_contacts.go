@@ -10,15 +10,15 @@ import (
 // Contacts of the holiday registration prefill (#6682): the other guardians
 // of a child the parent may register, as the school knows them. The form
 // offers a full guardian as the second custodian and every emergency or
-// pickup contact as a contact. The parent reads here what the child's
-// guardian list in the parent portal already shows (ListChildGuardians; the
-// offered children come from the account's child list, which requires
-// parent_portal.access):
-// the same predicate redacts the contact data of a guardian with an own
-// account, of a social worker and of a contact shared with another family,
-// so those come with their name only. Social workers stay out entirely:
-// the school manages them, they are no family contact. Health data is not
-// part of the prefill (Art. 9 DSGVO, issue decision option A).
+// pickup contact as a contact, each with the email and phone the school
+// knows. The offered children come from the account's child list, which
+// requires parent_portal.access. Unlike the guardian list, the prefill does
+// not redact a guardian with an own account or a contact shared with
+// another family: the parent registers the child with exactly these
+// contacts, and the school knows them (product decision on #6682). Social
+// workers stay out entirely: the school manages them, they are no family
+// contact. Health data is not part of the prefill (Art. 9 DSGVO, issue
+// decision option A).
 
 // HolidayRegistrationAddress is the postal address of the calling guardian.
 type HolidayRegistrationAddress struct {
@@ -28,7 +28,7 @@ type HolidayRegistrationAddress struct {
 }
 
 // HolidayRegistrationContact is another guardian of an offered child.
-// Email and Phone are empty when the parent portal redacts them. FullGuardian
+// Email and Phone are empty when the school knows none. FullGuardian
 // marks a custodian (primary, legal or co-guardian), Emergency and Pickup the
 // child's arrangement at the school.
 type HolidayRegistrationContact struct {
@@ -64,7 +64,7 @@ func (s *Service) attachHolidayRegistrationContacts(ctx context.Context, account
 	if len(profileIDs) == 0 {
 		return nil
 	}
-	sources, err := s.loadHolidayContactSources(ctx, accountID, profileIDs)
+	sources, err := s.loadHolidayContactSources(ctx, profileIDs)
 	if err != nil {
 		return err
 	}
@@ -87,7 +87,7 @@ func (s *Service) attachHolidayRegistrationContacts(ctx context.Context, account
 			)
 			return fmt.Errorf("parent: student_guardian %d references missing guardian profile %d", link.ID, link.GuardianProfileID)
 		}
-		if contact, ok := s.holidayRegistrationContact(profile, link, sources.phones[profile.ID], accountID, sources.shared[profile.ID]); ok {
+		if contact, ok := s.holidayRegistrationContact(profile, link, sources.phones[profile.ID], accountID); ok {
 			child.Contacts = append(child.Contacts, contact)
 		}
 	}
@@ -98,13 +98,11 @@ func (s *Service) attachHolidayRegistrationContacts(ctx context.Context, account
 type holidayContactSources struct {
 	profiles map[int64]*GuardianProfile
 	phones   map[int64][]*GuardianPhoneNumber
-	shared   map[int64]bool
 }
 
-// loadHolidayContactSources reads profiles, phones and the cross-family reach
-// of the guardians in three statements plus the caller's own links, as the
-// child's guardian list does.
-func (s *Service) loadHolidayContactSources(ctx context.Context, accountID int64, profileIDs []int64) (*holidayContactSources, error) {
+// loadHolidayContactSources reads the profiles and phones of the guardians in
+// two statements.
+func (s *Service) loadHolidayContactSources(ctx context.Context, profileIDs []int64) (*holidayContactSources, error) {
 	profiles, err := s.GuardianProfileRepo.FindByIDs(ctx, profileIDs)
 	if err != nil {
 		return nil, err
@@ -113,21 +111,13 @@ func (s *Service) loadHolidayContactSources(ctx context.Context, accountID int64
 	if err != nil {
 		return nil, err
 	}
-	callerStudents, editableStudents, err := s.callerStudentSets(ctx, accountID)
-	if err != nil {
-		return nil, err
-	}
-	shared, _, err := s.profilesEscapingFamily(ctx, profileIDs, callerStudents, editableStudents)
-	if err != nil {
-		return nil, err
-	}
-	return &holidayContactSources{profiles: profiles, phones: phones, shared: shared}, nil
+	return &holidayContactSources{profiles: profiles, phones: phones}, nil
 }
 
 // holidayRegistrationContact projects one guardian of a child for the
 // prefill. It reports false for the caller, a social worker, and a guardian
 // who is neither custodian nor emergency nor pickup contact.
-func (s *Service) holidayRegistrationContact(profile *GuardianProfile, link *GuardianRelationship, phones []*GuardianPhoneNumber, accountID int64, sharedAcrossFamilies bool) (HolidayRegistrationContact, bool) {
+func (s *Service) holidayRegistrationContact(profile *GuardianProfile, link *GuardianRelationship, phones []*GuardianPhoneNumber, accountID int64) (HolidayRegistrationContact, bool) {
 	isSelf := profile.AccountID != nil && *profile.AccountID == accountID
 	if isSelf || link.GuardianRole == GuardianRoleSocialWorker {
 		return HolidayRegistrationContact{}, false
@@ -139,9 +129,6 @@ func (s *Service) holidayRegistrationContact(profile *GuardianProfile, link *Gua
 	}
 	if !contact.FullGuardian && !contact.Emergency && !contact.Pickup {
 		return HolidayRegistrationContact{}, false
-	}
-	if contactProtected(profile, link, false, sharedAcrossFamilies) {
-		return contact, true
 	}
 	contact.Email = deref(profile.Email)
 	if primary := pickPrimaryPhone(phones, func(phone *GuardianPhoneNumber) bool { return phone.IsPrimary }); primary != nil {

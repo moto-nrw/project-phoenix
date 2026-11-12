@@ -198,7 +198,7 @@
   "doneToRegistrations": "Tatil kayıtlarınıza git",
   "fromAccountHint": "Veli hesabından",
   "healthNotPrefilled": "Sağlık bilgilerini aktarmıyoruz. Lütfen buraya yazın.",
-  "knownContactPhoneHint": "Bu numarayı veli hesabında göremezsiniz. Lütfen yazın.",
+  "knownContactPhoneHint": "Okulda bu kişinin numarası yok. Lütfen yazın.",
   "relationshipTypes": {
     "parent": "Ebeveyn",
     "guardian": "Vasi",

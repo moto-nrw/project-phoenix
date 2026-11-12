@@ -573,8 +573,8 @@ export function ContactList({
               type="tel"
               label={contact.emergency ? t("phone") : t("phoneOptional")}
               required={contact.emergency}
-              // A contact from the account whose number the parent may not
-              // see (own account, other family) still needs one (#6682).
+              // A contact from the account for whom the school knows no
+              // number still needs one (#6682).
               hint={
                 contact.knownGuardianId &&
                 contact.emergency &&

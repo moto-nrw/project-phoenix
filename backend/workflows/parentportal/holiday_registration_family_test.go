@@ -209,9 +209,9 @@ func TestHolidayRegistrationFamilyCarriesTheAccountProofForEveryAccount(t *testi
 // TestHolidayRegistrationFamilyOffersAddressAndContacts pins #6682 (option
 // A): the prefill carries the parent's own postal address and, per offered
 // child, the other guardians the school knows: a custodian for the second
-// custodian and the emergency and pickup contacts. It shows the parent no
-// more than the child's guardian list in the parent portal: a guardian with
-// an own account comes with the name only, a social worker not at all.
+// custodian and the emergency and pickup contacts, each with the email and
+// phone the school knows, also a guardian with an own account. A social
+// worker is no family contact and stays out.
 func TestHolidayRegistrationFamilyOffersAddressAndContacts(t *testing.T) {
 	t.Parallel()
 	svc, db := buildHolidayRegistrationFamilyService(t)
@@ -233,6 +233,8 @@ func TestHolidayRegistrationFamilyOffersAddressAndContacts(t *testing.T) {
 	_, err = db.ExecContext(ctx, `UPDATE users.guardian_profiles SET account_id = ?, has_account = true WHERE id = ?`, ownAccount.ID, stepParent.ID)
 	require.NoError(t, err)
 	testpkg.CreateTestStudentGuardianLink(t, db, chain.StudentID, stepParent.ID, "emergency_contact")
+	_, err = db.ExecContext(ctx, `INSERT INTO users.guardian_phone_numbers (tenant_id, guardian_profile_id, phone_number, phone_type, is_primary) VALUES (?, ?, '+49 5402 5555', 'mobile', true)`, chain.TenantID, stepParent.ID)
+	require.NoError(t, err)
 	socialWorker := testpkg.CreateTestGuardianProfileNamed(t, db, "Paul", "Amt", "paul.amt")
 	testpkg.CreateTestStudentGuardianLinkOfType(t, db, chain.TenantID, chain.StudentID, socialWorker.ID, "other", "social_worker")
 
@@ -264,9 +266,9 @@ func TestHolidayRegistrationFamilyOffersAddressAndContacts(t *testing.T) {
 	assert.Equal(t, "+49 5402 9876", oma.Phone)
 
 	step := byProfile[stepParent.ID]
-	assert.Equal(t, "Lena", step.FirstName, "the name stays, as in the guardian list")
-	assert.Empty(t, step.Email, "a guardian with an own account keeps the contact data")
-	assert.Empty(t, step.Phone)
+	assert.Equal(t, "Lena", step.FirstName)
+	assert.Equal(t, *stepParent.Email, step.Email, "an own account does not hide the contact data from the registration")
+	assert.Equal(t, "+49 5402 5555", step.Phone)
 
 	// Without parent_portal.access the guardian list stays closed. The
 	// account's child list already drops such a child, so the prefill offers

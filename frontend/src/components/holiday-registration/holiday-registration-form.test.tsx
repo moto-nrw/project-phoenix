@@ -1150,10 +1150,10 @@ describe("HolidayRegistrationForm", () => {
     // Back to the account's value: the line and the link to the child return.
     type(contacts.getByLabelText(/Beziehung/), "Elternteil");
     expect(contacts.getAllByText("Aus dem Elternkonto")).toHaveLength(2);
-    // The account shows this number to nobody else: the parent types it.
+    // The school knows no number for this emergency contact: the parent types it.
     expect(
       contacts.getByText(
-        "Diese Nummer sehen Sie im Elternkonto nicht. Bitte tragen Sie sie ein.",
+        "Für diese Person kennt die Schule keine Nummer. Bitte tragen Sie sie ein.",
       ),
     ).toBeInTheDocument();
     expect(

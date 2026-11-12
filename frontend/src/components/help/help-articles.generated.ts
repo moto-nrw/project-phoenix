@@ -6612,7 +6612,7 @@ export const parentHolidayRegistrationTopic =
         "Ist die Anmeldung verbindlich, heißt der Knopf `Verbindlich anmelden`.",
         "Sind Sie mit Ihrem Elternkonto in moto angemeldet? Dann steht unter `Kinder` der Abschnitt `Ihre Kinder aus dem Elternkonto`. Setzen Sie den Haken bei Ihrem Kind. Name, Geburtsdatum und Schule stehen dann schon im Formular, Ihre Angaben und Ihre Anschrift auch.",
         "Mit dem Haken trägt moto auch die `Zweite sorgeberechtigte Person` und die `Kontakte` ein. Die Angaben kommen von der Schule. Unter jedem Feld, das moto so ausfüllt, steht `Aus dem Elternkonto`. Ändern Sie das Feld, verschwindet der Satz.",
-        "Hat eine Person ein eigenes Elternkonto, steht nur ihr Name im Formular. Tragen Sie die Telefonnummer selbst ein.",
+        "Kennt die Schule keine Telefonnummer einer Person, tragen Sie sie selbst ein.",
         "Gesundheitsangaben übernimmt moto nicht. Tragen Sie sie bei jedem Kind selbst ein.",
         "Sie können alle Angaben vor dem Absenden ändern. Das gilt nur für die Ferienanmeldung. Bei der Schule ändert sich nichts.",
         "Mit Elternkonto fragt moto am Ende nicht nach einem Konto. Die Anmeldung steht sofort unter `Ferienanmeldungen`. Nach dem Absenden führt `Zu Ihren Ferienanmeldungen` dorthin.",

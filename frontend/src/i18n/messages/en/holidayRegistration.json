@@ -198,7 +198,7 @@
   "doneToRegistrations": "To your holiday registrations",
   "fromAccountHint": "From the parent account",
   "healthNotPrefilled": "We do not copy health details. Please enter them here.",
-  "knownContactPhoneHint": "You cannot see this number in the parent account. Please enter it.",
+  "knownContactPhoneHint": "The school has no number for this person. Please enter it.",
   "relationshipTypes": {
     "parent": "Parent",
     "guardian": "Legal guardian",
