@@ -6,7 +6,7 @@
 "use client";
 
 import { useEffect, useMemo, useState } from "react";
-import { Inbox } from "lucide-react";
+import { Newspaper } from "lucide-react";
 import { AnchoredPopover } from "~/components/ui/anchored-popover";
 import { Button } from "~/components/ui/button";
 import { ListRowLink } from "~/components/ui/list-row-link";
@@ -55,10 +55,7 @@ function noteSubtitle(notice: StudentNoteTeamNotice): string {
 }
 
 /** „Morgen: neue Abholzeit 15:00 Uhr“ or „Fr, 20.11.2026: wieder normale Abholzeit“. */
-export function pickupSubtitle(
-  notice: PickupChangeNotice,
-  today: string,
-): string {
+function pickupSubtitle(notice: PickupChangeNotice, today: string): string {
   const day = pickupDayLabel(notice.date, today);
   return notice.withdrawn
     ? `${day}: wieder normale Abholzeit`
@@ -151,7 +148,7 @@ export function StaffNewsButton() {
           tooltip="Zeigt neue Notizen vom Team und geänderte Abholzeiten."
           className="relative"
         >
-          <Inbox className="h-5 w-5" aria-hidden="true" />
+          <Newspaper className="h-5 w-5" aria-hidden="true" />
           <NotificationBadge
             count={count}
             tone="danger"

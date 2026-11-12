@@ -292,10 +292,12 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0215: workflows/traegercatalog (+38) and modules/enrollment/compose
 // (+2: NewTraegerPhases and NewOfferingSelectionReferences, less shortened
 // comments); modules/careplan/compose stays.
-const moduleComposeBudgetTotal = 13378
+// ADR 0220: the pickup change team constructor of modules/careplan/compose
+// adds exactly 13 LOC.
+const moduleComposeBudgetTotal = 13391
 
 // moduleComposeBudgets maps every owner composition package to its production
-// LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
+// LOC (ADR 0220 adds 13 to modules/careplan/compose), raised by ADR 0159 for withdrawal and termination (#4682), first
 // measured on 2026-10-15 on top of development c49b81c3a9: 61 packages,
 // 90627 LOC. #4084 carries the reduction to construction only;
 // modules/timetable/compose is the largest by far. Shrink-only — a new owner
@@ -318,7 +320,7 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0154: the booked care offering constructor (+13).
 	// #4704 (ADR 0215): the Träger offering constructors fit in shortened
 	// comments (±0).
-	"modules/careplan/compose":             1675,
+	"modules/careplan/compose":             1688, // ADR 0220: +13, the pickup change team constructor
 	"modules/careplan/requestfeed/compose": 53,
 	// Raised by ADR 0102: the class-trip status-day seam (#4799).
 	"modules/classday/compose": 210,

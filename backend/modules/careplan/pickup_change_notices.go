@@ -84,6 +84,14 @@ type PickupChangeNoticeRevision struct {
 	InformedAt time.Time
 }
 
+// PickupChangeTeam tells the child's team about a changed one-day pickup
+// time and serves its unread markers: the care request decisions call it,
+// the student routes read it.
+type PickupChangeTeam interface {
+	PickupChangeNotifier
+	PickupChangeTeamNotices
+}
+
 // PickupChangeTeamNotices is the read side of the markers.
 type PickupChangeTeamNotices interface {
 	// ListUnreadPickupChangeNotices returns the reader's unread markers on

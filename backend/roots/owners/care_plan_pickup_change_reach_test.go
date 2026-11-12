@@ -51,15 +51,16 @@ func TestPickupChangeReachUsesTheSharedStaffPush(t *testing.T) {
 	assert.Equal(t, []int64{11, 12}, responsible)
 
 	ctx := tenant.WithTenantID(t.Context(), 4)
-	require.NoError(t, reach.NotifyPickupChanged(ctx, careplan.PickupChangePush{
+	push := careplan.PickupChangePush{
 		StudentID: 77, RequestID: 501, RecipientAccountIDs: responsible, Title: "Abholzeit geändert", Body: "B", DeepLink: "/students/77",
-	}))
+	}
+	require.NoError(t, reach.NotifyPickupChanged(ctx, push))
 	assert.Equal(t, deliveryContract.NotificationStudentPickupChanged, sent.Type)
 	assert.Equal(t, []int64{12}, sent.Audience.StaffAccountIDs)
-	assert.Equal(t, int64(4), sent.Audience.TenantID)
+	assert.Equal(t, tenant.FromContext(ctx), sent.Audience.TenantID)
 	assert.Equal(t, "/students/77", sent.DeepLink)
 	assert.Equal(t, "care_schedule_request", sent.RelatedType)
-	assert.Equal(t, int64(501), sent.RelatedID)
+	assert.Equal(t, push.RequestID, sent.RelatedID)
 	assert.Equal(t, "student_pickup_changed:501:false:100000000000", sent.IdempotencyKey)
 }
 

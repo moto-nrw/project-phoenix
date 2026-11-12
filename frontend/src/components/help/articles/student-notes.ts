@@ -55,7 +55,7 @@ export function studentNotesTopic(): HelpTopic {
       {
         title: "Eine geteilte Notiz lesen",
         steps: [
-          "Oben in der Kopfzeile erscheint ein Postfach mit rotem Zähler.",
+          "Oben in der Kopfzeile erscheint ein Zeitungssymbol mit rotem Zähler.",
           "Tippen Sie darauf. Die Liste `Neu für Sie` zeigt die Notiz.",
           "Tippen Sie auf das Kind. Die Notizen des Kindes öffnen sich.",
           "Die geteilte Notiz trägt `Neu`. Der Zähler geht zurück.",

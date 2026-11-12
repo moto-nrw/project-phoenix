@@ -44,7 +44,6 @@ type PickupChangeTeamService struct {
 	reach   ports.PickupChangeTeamReach
 	observe ports.Observer
 	today   func() calendar.Date
-	inTx    func(context.Context, func(context.Context) error) error
 }
 
 var (
@@ -52,19 +51,23 @@ var (
 	_ careplan.PickupChangeTeamNotices = (*PickupChangeTeamService)(nil)
 )
 
-// NewPickupChangeTeam binds the service. inTx joins the caller's tenant
-// transaction or opens one; today nil is the school's today.
+// NewPickupChangeTeam binds the service. It opens no transaction: the store
+// joins the caller's school unit (the decision, the student route) and
+// refuses to run without one. observe nil records nothing; today nil is the
+// school's today.
 func NewPickupChangeTeam(
-	store ports.PickupChangeTeamStore, reach ports.PickupChangeTeamReach, observe ports.Observer,
-	inTx func(context.Context, func(context.Context) error) error, today func() calendar.Date,
+	store ports.PickupChangeTeamStore, reach ports.PickupChangeTeamReach, observe ports.Observer, today func() calendar.Date,
 ) *PickupChangeTeamService {
-	if store == nil || reach == nil || observe == nil || inTx == nil {
-		panic("care plan pickup change team: store, reach, observer and transaction are required")
+	if store == nil || reach == nil {
+		panic("care plan pickup change team: store and reach are required")
+	}
+	if observe == nil {
+		observe = func(ports.Observation) {}
 	}
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	return &PickupChangeTeamService{store: store, reach: reach, observe: observe, inTx: inTx, today: today}
+	return &PickupChangeTeamService{store: store, reach: reach, observe: observe, today: today}
 }
 
 // NotifyPickupChangeApproved stores the markers of the responsible staff and
@@ -160,15 +163,15 @@ func (s *PickupChangeTeamService) unread(ctx context.Context, stats *domain.Oper
 	return out, nil
 }
 
-// run joins the caller's tenant transaction or opens one and reports the
-// operation to the observer.
+// run reports the operation to the observer; the store joins the caller's
+// school unit.
 func (s *PickupChangeTeamService) run(ctx context.Context, operation string, command func(context.Context, *domain.OperationStats) error) (err error) {
 	started := time.Now()
 	stats := domain.OperationStats{}
 	defer func() {
 		s.observe(ports.Observation{Operation: operation, Duration: time.Since(started), Stats: stats, Err: err})
 	}()
-	return s.inTx(ctx, func(txCtx context.Context) error { return command(txCtx, &stats) })
+	return command(ctx, &stats)
 }
 
 func withoutAccount(accountIDs []int64, excluded int64) []int64 {

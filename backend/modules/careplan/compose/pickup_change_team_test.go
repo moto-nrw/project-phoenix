@@ -37,7 +37,7 @@ func (r *fixedPickupReach) NotifyPickupChanged(_ context.Context, push careplan.
 // pickupTeamToday is a fixed Thursday; the requests lie after it.
 var pickupTeamToday = calendar.NewDate(2026, 11, 12)
 
-func pickupTeam(reach careplan.PickupChangeTeamReach) PickupChangeTeam {
+func pickupTeam(reach careplan.PickupChangeTeamReach) careplan.PickupChangeTeam {
 	return NewPickupChangeTeam(reach, testpkg.StudentDirectory{}, nil, func() calendar.Date { return pickupTeamToday })
 }
 
@@ -64,7 +64,7 @@ func inPickupSchool[T any](t *testing.T, db *testpkg.DB, ctx context.Context, ca
 	return value, err
 }
 
-func approvePickup(t *testing.T, db *testpkg.DB, ctx context.Context, team PickupChangeTeam, notice careplan.PickupChangeNotice) {
+func approvePickup(t *testing.T, db *testpkg.DB, ctx context.Context, team careplan.PickupChangeTeam, notice careplan.PickupChangeNotice) {
 	t.Helper()
 	_, err := inPickupSchool(t, db, ctx, func(txCtx context.Context) (struct{}, error) {
 		return struct{}{}, team.NotifyPickupChangeApproved(txCtx, notice)
@@ -72,7 +72,7 @@ func approvePickup(t *testing.T, db *testpkg.DB, ctx context.Context, team Picku
 	require.NoError(t, err)
 }
 
-func unreadPickups(t *testing.T, db *testpkg.DB, ctx context.Context, team PickupChangeTeam, reader int64) []careplan.PickupChangeTeamNotice {
+func unreadPickups(t *testing.T, db *testpkg.DB, ctx context.Context, team careplan.PickupChangeTeam, reader int64) []careplan.PickupChangeTeamNotice {
 	t.Helper()
 	notices, err := inPickupSchool(t, db, ctx, func(txCtx context.Context) ([]careplan.PickupChangeTeamNotice, error) {
 		return team.ListUnreadPickupChangeNotices(txCtx, reader)

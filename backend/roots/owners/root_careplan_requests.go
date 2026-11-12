@@ -38,7 +38,7 @@ type CarePlanRequests struct {
 	// PickupChangeTeam tells the child's team about an approved one-day
 	// pickup time and serves its unread markers (#6855); nil without
 	// Delivery's notifications.
-	PickupChangeTeam carePlanCompose.PickupChangeTeam
+	PickupChangeTeam careplan.PickupChangeTeam
 }
 
 // NewRequestShareVisibility builds People Directory's sharing rules over the
@@ -106,7 +106,7 @@ func BuildCarePlanRequests(
 
 // newPickupChangeTeam builds Care Plan's notice to the child's team over the
 // root's reach; without one there is nobody to tell.
-func newPickupChangeTeam(reach careplan.PickupChangeTeamReach, env RootEnvironment) carePlanCompose.PickupChangeTeam {
+func newPickupChangeTeam(reach careplan.PickupChangeTeamReach, env RootEnvironment) careplan.PickupChangeTeam {
 	if reach == nil {
 		return nil
 	}

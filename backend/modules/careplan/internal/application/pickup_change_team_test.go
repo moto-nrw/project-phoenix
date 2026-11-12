@@ -63,8 +63,7 @@ func (r *pickupTeamReachDouble) NotifyPickupChanged(_ context.Context, push care
 var pickupTeamToday = calendar.NewDate(2026, 11, 12)
 
 func newPickupTeam(store *pickupTeamStoreDouble, reach *pickupTeamReachDouble) *PickupChangeTeamService {
-	direct := func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }
-	return NewPickupChangeTeam(store, reach, func(ports.Observation) {}, direct, func() calendar.Date { return pickupTeamToday })
+	return NewPickupChangeTeam(store, reach, nil, func() calendar.Date { return pickupTeamToday })
 }
 
 func pickupNotice(date calendar.Date) careplan.PickupChangeNotice {
@@ -76,9 +75,10 @@ func TestPickupChangeTeamMarksAndTellsTheResponsibleStaff(t *testing.T) {
 	store := &pickupTeamStoreDouble{}
 	reach := &pickupTeamReachDouble{responsible: []int64{11, 9, 12, 11}}
 
-	require.NoError(t, newPickupTeam(store, reach).NotifyPickupChangeApproved(t.Context(), pickupNotice(pickupTeamToday.AddDays(1))))
+	notice := pickupNotice(pickupTeamToday.AddDays(1))
+	require.NoError(t, newPickupTeam(store, reach).NotifyPickupChangeApproved(t.Context(), notice))
 
-	assert.Equal(t, int64(9), reach.excluded, "the person who decided needs no notice")
+	assert.Equal(t, notice.ReviewerAccountID, reach.excluded, "the person who decided needs no notice")
 	assert.Equal(t, []int64{11, 12}, store.upserted, "one marker per colleague, never the decider")
 	assert.Equal(t, int64(501), store.requestID)
 	assert.Equal(t, pickupTeamToday.AddDays(1), store.date)
