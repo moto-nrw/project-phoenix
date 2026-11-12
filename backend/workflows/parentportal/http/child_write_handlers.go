@@ -271,18 +271,21 @@ type ChildFeaturesResponse struct {
 	// PickupChangeCutoffTime is the same-day cutoff for the one-day pickup
 	// change as HH:MM, "" without one (#3163). PickupChangeTodayClosed is true
 	// once it has passed: today is closed for guardians, later days are not.
-	PickupChangeCutoffTime       string `json:"pickup_change_cutoff_time"`
-	PickupChangeTodayClosed      bool   `json:"pickup_change_today_closed"`
-	PickupManageAllowed          bool   `json:"pickup_manage_allowed"`
-	GuardianContactManageAllowed bool   `json:"guardian_contact_manage_allowed"`
-	AbsenceRequestEditEnabled    bool   `json:"absence_request_edit_enabled"`
-	RelatedAccountsInviteEnabled bool   `json:"related_accounts_invite_enabled"`
-	RelatedAccountsRemoveEnabled bool   `json:"related_accounts_remove_enabled"`
-	MasterDataEditEnabled        bool   `json:"master_data_edit_enabled"`
-	MasterDataContactEditEnabled bool   `json:"master_data_contact_edit_enabled"`
-	MasterDataRequestEnabled     bool   `json:"master_data_request_enabled"`
-	MealPlanEnabled              bool   `json:"meal_plan_enabled"`
-	MealRegistrationEnabled      bool   `json:"meal_registration_enabled"`
+	PickupChangeCutoffTime  string `json:"pickup_change_cutoff_time"`
+	PickupChangeTodayClosed bool   `json:"pickup_change_today_closed"`
+	// PickupChangeCareDayEnded is true once the school's care day is over:
+	// today's pickup is closed for guardians, later days are not (#5710).
+	PickupChangeCareDayEnded     bool `json:"pickup_change_care_day_ended"`
+	PickupManageAllowed          bool `json:"pickup_manage_allowed"`
+	GuardianContactManageAllowed bool `json:"guardian_contact_manage_allowed"`
+	AbsenceRequestEditEnabled    bool `json:"absence_request_edit_enabled"`
+	RelatedAccountsInviteEnabled bool `json:"related_accounts_invite_enabled"`
+	RelatedAccountsRemoveEnabled bool `json:"related_accounts_remove_enabled"`
+	MasterDataEditEnabled        bool `json:"master_data_edit_enabled"`
+	MasterDataContactEditEnabled bool `json:"master_data_contact_edit_enabled"`
+	MasterDataRequestEnabled     bool `json:"master_data_request_enabled"`
+	MealPlanEnabled              bool `json:"meal_plan_enabled"`
+	MealRegistrationEnabled      bool `json:"meal_registration_enabled"`
 	// HasOpenChangeRequest is STATE (not a capability): the child has a pending
 	// change request awaiting an OGS decision, so the overview can badge the
 	// Stammdaten entry.
@@ -327,6 +330,7 @@ func (rs *Resource) getChildFeatures(w http.ResponseWriter, r *http.Request) {
 		PickupChangeModeEnabled:      flags.PickupChangeModeEnabled,
 		PickupChangeCutoffTime:       flags.PickupChangeCutoffTime,
 		PickupChangeTodayClosed:      flags.PickupChangeTodayClosed,
+		PickupChangeCareDayEnded:     flags.PickupChangeCareDayEnded,
 		PickupManageAllowed:          flags.PickupManageAllowed,
 		GuardianContactManageAllowed: flags.GuardianContactManageAllowed,
 		AbsenceRequestEditEnabled:    flags.AbsenceRequestEditEnabled,

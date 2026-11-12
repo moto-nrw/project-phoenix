@@ -60,6 +60,7 @@
   "offering_changes_disabled": "{object} is not available here at the moment. Please ask your contact person.",
   "payer_guardian_protected": "You cannot access {object}. Please contact the school.",
   "photo_consent_not_withdrawn": "{object} could not be changed. Please check its current status.",
+  "pickup_change_care_day_ended": "{object} could not be changed. Please check its current status.",
   "pickup_change_cutoff_passed": "{object} could not be changed. Please check its current status.",
   "pickup_change_disabled": "{object} is not available here at the moment. Please ask your contact person.",
   "pickup_permission_request_required": "A new pickup permission needs your signature. The OGS then confirms it.",

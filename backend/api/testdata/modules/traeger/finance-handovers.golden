@@ -1,0 +1,3 @@
+POST /traeger/finance-handovers/runs/{kind}/{id}/datev -> basis
+POST /traeger/finance-handovers/runs/{kind}/{id}/pain008 -> basis
+POST /traeger/finance-handovers/runs/{kind}/{id}/sollstellung -> basis

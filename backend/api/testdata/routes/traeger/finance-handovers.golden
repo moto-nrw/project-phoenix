@@ -1,0 +1,3 @@
+POST /traeger/finance-handovers/runs/{kind}/{id}/datev
+POST /traeger/finance-handovers/runs/{kind}/{id}/pain008
+POST /traeger/finance-handovers/runs/{kind}/{id}/sollstellung

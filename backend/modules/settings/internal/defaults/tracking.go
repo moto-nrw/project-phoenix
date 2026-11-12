@@ -111,6 +111,64 @@ var tracking_init_zeiterfassung_1Definitions = []config.Definition{
 		Validation:      config.Range(0, 240),
 		DependsOn:       config.DependsOnEq(config.KeyTrackingAutoCheckoutEnabled, true),
 	},
+	// --- Arbeitszeit-Gutschrift (#6851, #6852) ---
+	// Both apply to work blocks closed after the change: the rule is stored
+	// on each block when it is closed, so earlier blocks keep their values.
+	// Order: stamped duration, plus pack-up time, then rounding, then breaks.
+	{
+		Key:             config.KeyTrackingPackUpMinutes,
+		Label:           "Wegpackzeit beim Ausstempeln (Minuten)",
+		Description:     "Diese Minuten zählt moto bei jedem Ausstempeln zur Arbeitszeit dazu, zum Beispiel für das Aufräumen. Nicht beim Pausenbeginn und nicht beim automatischen Ausstempeln. 0 heißt: aus. Gilt ab jetzt, frühere Tage bleiben gleich.",
+		Type:            config.FieldNumber,
+		Default:         0,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "zeiterfassung",
+		SortOrder:       9,
+		Validation:      config.Range(0, 60),
+	},
+	{
+		Key:             config.KeyTrackingRoundingIntervalMinutes,
+		Label:           "Arbeitszeit runden",
+		Description:     "moto rundet die Dauer jedes Arbeitsblocks, nachdem die Wegpackzeit dazugezählt ist. Danach wird die Pause abgezogen. Die gestempelten Uhrzeiten bleiben unverändert sichtbar. Gilt ab jetzt, frühere Tage bleiben gleich.",
+		Type:            config.FieldSelect,
+		Default:         config.TrackingRoundingOff,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "zeiterfassung",
+		SortOrder:       10,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Nicht runden", Value: config.TrackingRoundingOff},
+				{Label: "Auf 5 Minuten", Value: "5"},
+				{Label: "Auf 10 Minuten", Value: "10"},
+				{Label: "Auf 15 Minuten", Value: "15"},
+				{Label: "Auf 30 Minuten", Value: "30"},
+			},
+		},
+	},
+	{
+		Key:             config.KeyTrackingRoundingMode,
+		Label:           "Wie gerundet wird",
+		Description:     "Kaufmännisch: ab der Hälfte nach oben, sonst nach unten. Bei 15 Minuten wird 1:07 Std. zu 1:00 Std. und 1:08 Std. zu 1:15 Std.",
+		Type:            config.FieldSelect,
+		Default:         config.TrackingRoundingNearest,
+		ReadPermission:  "config:read",
+		WritePermission: "config:update",
+		Tab:             "operations",
+		Category:        "zeiterfassung",
+		SortOrder:       11,
+		Options: &config.SelectOptions{
+			Static: []config.SelectOption{
+				{Label: "Kaufmännisch", Value: config.TrackingRoundingNearest},
+				{Label: "Immer aufrunden", Value: config.TrackingRoundingUp},
+				{Label: "Immer abrunden", Value: config.TrackingRoundingDown},
+			},
+		},
+		DependsOn: config.DependsOnNeq(config.KeyTrackingRoundingIntervalMinutes, config.TrackingRoundingOff),
+	},
 }
 
 var indicatorPattern = `^[a-zA-ZäöüÄÖÜß\s]{0,30}$`

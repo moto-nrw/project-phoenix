@@ -313,7 +313,7 @@ func (seedWorkSessionBreakStep) Run(_ context.Context, rt *Runtime) error {
 		return err
 	}
 	day := breakSessionDay(today, holidays)
-	if err := seedSessionWithBreakViaAPI(client, rng); err != nil {
+	if err := withSeedPackUpTime(rt, func() error { return seedSessionWithBreakViaAPI(client, rng) }); err != nil {
 		return fmt.Errorf("seed live break session: %w", err)
 	}
 	admin := NewClientWithAdapter(rt.Adapter, rt.Verbose)

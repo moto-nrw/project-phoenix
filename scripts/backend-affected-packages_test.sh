@@ -428,6 +428,13 @@ assert_workflow_filter backend-test-infra 'scripts/test-run-id.sh' present
 assert_workflow_filter backend-test-infra 'scripts/backend-test-matrix.sh' present
 assert_workflow_filter backend-test-infra 'scripts/backend-test-matrix_test.sh' present
 assert_workflow_filter backend-test-infra 'scripts/backend-source-ratchets.mjs' present
+# Local wrappers start their self-tests in ci-scripts, not the full backend suite.
+for path in 'scripts/test-changed.sh' 'scripts/test-changed_test.sh' 'scripts/test-backend.sh' 'scripts/go-test-link-cache.sh'; do
+  assert_workflow_filter backend-test-infra "$path" absent
+  assert_workflow_filter backend-local-test-scripts "$path" present
+done
+assert_workflow_output_contains run-ci-scripts "steps.filter.outputs.backend-local-test-scripts == 'true'"
+assert_workflow_output_contains toolchain-changed "steps.filter.outputs.backend-local-test-scripts == 'true'"
 for path in 'scripts/backend-source-ratchets.mjs' 'backend/test/*_test.go'; do
   assert_workflow_filter script-tests "$path" present
   # Do not buy the release-restore or extra toolchain-ratchet jobs for these.

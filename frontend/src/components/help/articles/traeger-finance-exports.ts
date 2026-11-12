@@ -44,7 +44,7 @@ export function traegerFinanceExportsTopic(): HelpTopic {
         steps: [
           "Wählen Sie `Abrechnung`, dann den Reiter `Exporte`.",
           "Wählen Sie beim Lauf `Sollstellung`. Die Datei wird heruntergeladen.",
-          "Geben Sie die Datei an Ihre Kämmerei.",
+          "Geben Sie die Datei an Ihre Kämmerei. Oder lassen Sie moto sie übergeben, siehe „Exporte an einen Empfänger übergeben“.",
         ],
       },
     ],
@@ -69,6 +69,7 @@ export function traegerFinanceExportsTopic(): HelpTopic {
       "Beim Import einer Datei zeigt eine Zeile `Geschwister haben verschiedene Nummern`? moto führt eine Nummer je Familie. Tragen Sie die richtige Nummer bei der Familie ein.",
     ],
     related: [
+      HELP_TOPICS.traegerExportHandover,
       HELP_TOPICS.traegerDatevExport,
       HELP_TOPICS.traegerCareMonths,
       HELP_TOPICS.traegerSepaDebitFile,
