@@ -3,9 +3,9 @@ package compose_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/classday"
-	"github.com/moto-nrw/project-phoenix/modules/classday/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/classday"
+	"github.com/moto-ogs/project-phoenix/modules/classday/compose"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 	"github.com/stretchr/testify/assert"
 )
 

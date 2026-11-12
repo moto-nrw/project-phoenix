@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The connectivity retry of DecideAndInvite on the real tenant runtime

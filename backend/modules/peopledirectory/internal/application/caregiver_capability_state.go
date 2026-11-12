@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"strings"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain/userscontract"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 type caregiverRoleFlags struct {

@@ -6,10 +6,10 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/filestorage"
-	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
 )
 
 // ListFolders returns the folders the actor may see plus what the actor may

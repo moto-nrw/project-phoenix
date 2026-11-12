@@ -13,15 +13,15 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	education "github.com/moto-ogs/project-phoenix/modules/schoolstructure/contract"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // CallerGroups resolves the educational groups of the request's caller.

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // renderHolidayWeekWithoutCare answers a week that contains a day without

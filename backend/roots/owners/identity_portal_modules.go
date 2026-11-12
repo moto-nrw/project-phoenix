@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	settings "github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	settings "github.com/moto-ogs/project-phoenix/modules/settings"
 )
 
 // PortalModuleBooking binds Identity & Access's portal lock (#4895) to the

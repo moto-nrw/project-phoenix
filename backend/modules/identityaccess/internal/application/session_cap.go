@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // capSessionsUnlessDemo enforces the session cap for every account except one

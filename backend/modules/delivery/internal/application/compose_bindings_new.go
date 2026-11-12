@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	delivery "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
 )
 
 type Provider interface {

@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // Announcement priority levels (mirrors the chk_parent_announcements_priority

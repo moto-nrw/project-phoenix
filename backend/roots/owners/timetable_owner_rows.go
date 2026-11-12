@@ -3,11 +3,11 @@ package owners
 import (
 	"context"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	schoolStructureCompose "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // timetableGroupLookup is the School Structure group read the owner rows

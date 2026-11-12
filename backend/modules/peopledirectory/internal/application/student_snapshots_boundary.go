@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	directory "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // The bound facade invokes the exact same retained reads, including their

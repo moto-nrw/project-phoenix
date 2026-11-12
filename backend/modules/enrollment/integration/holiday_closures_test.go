@@ -13,12 +13,12 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Closing days in booked holiday weeks (#6434). The week of newPlacesWeek

@@ -3,7 +3,7 @@ package users
 import (
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // applyQueryOptions translates the persistence-neutral query specification

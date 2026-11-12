@@ -12,11 +12,11 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/traegercatalog"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/workflows/traegercatalog"
 )
 
 // Resource serves /traeger/catalog.

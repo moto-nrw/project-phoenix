@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // calendarZone is where deadlines are read as wall-clock times.

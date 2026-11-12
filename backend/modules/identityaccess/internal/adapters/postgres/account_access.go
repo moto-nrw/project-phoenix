@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // Identity-owned reads and writes behind the operator-led school access

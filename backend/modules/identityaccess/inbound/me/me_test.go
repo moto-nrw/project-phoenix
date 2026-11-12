@@ -19,18 +19,18 @@ import (
 	"path/filepath"
 	"testing"
 
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/me"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/api/testutil/routetest"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/me"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // init seeds JWT viper defaults before any test (and before setupUserContextRoute

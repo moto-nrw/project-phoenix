@@ -4,7 +4,7 @@ import (
 	errors "errors"
 	sync "sync"
 
-	enrollment "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollment "github.com/moto-ogs/project-phoenix/modules/enrollment"
 	prometheus "github.com/prometheus/client_golang/prometheus"
 )
 

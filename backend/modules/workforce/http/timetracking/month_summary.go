@@ -5,9 +5,9 @@ import (
 	"net/http"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // ParseYearMonthQuery extracts and validates the year/month query parameters

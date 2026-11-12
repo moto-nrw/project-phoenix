@@ -4,15 +4,15 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // factorySchools reads the seeded schools through the repository factory's

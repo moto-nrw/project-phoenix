@@ -6,11 +6,11 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	displayHTTP "github.com/moto-nrw/project-phoenix/api/display"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	displayHTTP "github.com/moto-ogs/project-phoenix/api/display"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // newDisplayHTTPResource wires the display routes to the shared inbound middleware.

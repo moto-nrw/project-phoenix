@@ -13,10 +13,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
-	"github.com/moto-nrw/project-phoenix/modules/emergencysnapshot"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil/routetest"
+	"github.com/moto-ogs/project-phoenix/modules/emergencysnapshot"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func TestMain(m *testing.M) {

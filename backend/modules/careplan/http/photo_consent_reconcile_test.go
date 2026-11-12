@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	peopleState "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleState "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 func TestReconcilePhotoConsentRequest_StaleUnchangedValuesAreNoOp(t *testing.T) {

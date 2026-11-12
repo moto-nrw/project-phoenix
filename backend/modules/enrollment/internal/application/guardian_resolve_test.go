@@ -7,10 +7,10 @@ import (
 	"strings"
 	"testing"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

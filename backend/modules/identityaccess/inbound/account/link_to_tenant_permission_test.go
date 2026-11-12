@@ -6,13 +6,13 @@ import (
 	"testing"
 	"time"
 
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // POST /auth/link-to-tenant assigns a role to an existing account inside the

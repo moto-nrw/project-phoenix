@@ -8,9 +8,9 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	parentBillingCompose "github.com/moto-ogs/project-phoenix/modules/parentbilling/compose"
 )
 
 // CareContractFamilyNumbers binds the Betreuungsvertrag's port of the

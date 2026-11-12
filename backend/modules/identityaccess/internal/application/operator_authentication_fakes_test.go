@@ -13,8 +13,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // The operator half of the fake store (ports.OperatorStore) and the doubles

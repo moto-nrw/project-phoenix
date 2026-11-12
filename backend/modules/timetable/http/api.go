@@ -9,15 +9,15 @@ import (
 	"time"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/planexport"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/planexport"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
 
-	"github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 const dateLayout = "2006-01-02"

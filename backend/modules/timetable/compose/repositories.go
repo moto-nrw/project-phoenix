@@ -7,12 +7,12 @@ package compose
 // RepositoryDirectories.
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/application"
 )
 
 // RepositoryDependencies are what the retained Timetable rows compose.

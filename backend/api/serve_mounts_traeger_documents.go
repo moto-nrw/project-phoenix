@@ -9,19 +9,19 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationTenancyCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	organizationTenancyCompose "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
 
-	organizationTenancyTraeger "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/traeger"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	organizationTenancyTraeger "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/inbound/traeger"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	schoolStructureCompose "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // traegerDocumentGroupLimit bounds the groups one school offers a release.

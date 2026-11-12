@@ -6,10 +6,10 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	education "github.com/moto-ogs/project-phoenix/modules/schoolstructure/contract"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // The children of a group and where they are: the group's student list and

@@ -3,17 +3,17 @@ package contracttest_test
 import (
 	"encoding/json"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func coverageChangeRequest(studentID, accountID, tenantID int64, target, field, status, value string) *careplan.StudentDataChangeRequest {

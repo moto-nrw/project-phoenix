@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // SickReportAbsences is the one Workforce absence read the materializer's

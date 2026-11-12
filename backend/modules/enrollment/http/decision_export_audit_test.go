@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	enrollmentModels "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/api"
+	enrollmentModels "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // stubAccessLogRepo is an in-memory audit.DataAccessLogRepository that

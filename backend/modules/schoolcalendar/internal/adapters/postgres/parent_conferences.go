@@ -7,8 +7,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 )

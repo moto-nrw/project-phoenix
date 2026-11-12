@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/appointments"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/appointments"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	calendarSvc "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // setupSchoolCalendarService composes the calendar with the School

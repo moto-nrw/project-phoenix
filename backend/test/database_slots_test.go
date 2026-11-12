@@ -10,7 +10,7 @@ import (
 	"testing/synctest"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/internal/testdb"
+	"github.com/moto-ogs/project-phoenix/internal/testdb"
 	"github.com/stretchr/testify/require"
 )
 

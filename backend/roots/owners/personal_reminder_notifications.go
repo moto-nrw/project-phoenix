@@ -5,11 +5,11 @@ import (
 	"errors"
 	"log/slog"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	schedulerPorts "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	reminder "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery"
 )
 
 // newPersonalReminderTick builds Reminder Delivery's personal reminder

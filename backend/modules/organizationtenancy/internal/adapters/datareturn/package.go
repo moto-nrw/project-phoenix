@@ -16,7 +16,7 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 )
 
 // checkedPackage is a package directory whose COMPLETE marker, manifest and

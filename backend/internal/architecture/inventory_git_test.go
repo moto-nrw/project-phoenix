@@ -8,8 +8,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
-	"github.com/moto-nrw/project-phoenix/internal/gitfixture"
+	"github.com/moto-ogs/project-phoenix/architecture/artifacts"
+	"github.com/moto-ogs/project-phoenix/internal/gitfixture"
 )
 
 func TestInventoryBaseRemainsImmutableAfterCandidateMutation(t *testing.T) {

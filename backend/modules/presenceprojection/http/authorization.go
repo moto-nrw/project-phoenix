@@ -5,13 +5,13 @@ import (
 	errors "errors"
 	http "net/http"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	permissions "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	absencerecords "github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	securityruntime "github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	permissions "github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	absencerecords "github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	securityruntime "github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // CallerContext is the slice of the Identity & Access caller context the

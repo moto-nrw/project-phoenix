@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/notifications"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

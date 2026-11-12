@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5/middleware"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/testutil/routetest"
 	"github.com/stretchr/testify/require"
 )
 

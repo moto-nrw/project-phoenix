@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // SupervisionRepository reads and writes the supervision of room sessions

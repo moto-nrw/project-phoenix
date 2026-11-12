@@ -3,7 +3,7 @@ package schedulerecords
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // SetWallClockTimes records explicit TIME values, including midnight. Legacy

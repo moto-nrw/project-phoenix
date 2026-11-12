@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The evaluation of overruns over all schools of a Träger (#4683, User

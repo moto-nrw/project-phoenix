@@ -3,7 +3,7 @@ package application
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
 )
 
 // publicError keeps the owner's stable error values and display reasons intact

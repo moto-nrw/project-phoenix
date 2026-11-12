@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func (rs *Resource) presenceSupervisionResponses(ctx context.Context, filter studentpresence.GroupSupervisionFilter, operation string) ([]SupervisorResponse, error) {

@@ -5,10 +5,10 @@ import (
 	"errors"
 	"testing"
 
-	reviewbindings "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding"
+	reviewbindings "github.com/moto-ogs/project-phoenix/roots/requestreviewbinding"
 
-	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	reviewidentity "github.com/moto-ogs/project-phoenix/modules/identityaccess/requestreview"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 
 	"github.com/stretchr/testify/require"
 )

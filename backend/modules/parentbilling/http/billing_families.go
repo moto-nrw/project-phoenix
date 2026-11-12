@@ -8,9 +8,9 @@ import (
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	capability "github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	capability "github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // BillingFamilyResource serves the invoices and amounts per family of a

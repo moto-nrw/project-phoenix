@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 const accountMFAChallengeColumns = "id, account_id, scope, tenant_id, code_hash, expires_at, consumed_at, ip_address, created_at, updated_at, mfa_reset_generation"

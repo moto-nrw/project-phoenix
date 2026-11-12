@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // TraegerMembership is an active Träger membership as Organisation & Tenancy

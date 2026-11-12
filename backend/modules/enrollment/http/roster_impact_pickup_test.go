@@ -6,12 +6,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // childWithEnteredPickups approves a child that books the early offering on

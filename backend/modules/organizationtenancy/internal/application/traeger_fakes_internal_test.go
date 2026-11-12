@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/domain"
 )
 
 // The owner fakes hold no Träger membership (ADR 0084); the Träger flows are

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
 // The data import binds the new-guardian batch slice outside Owner (#5552).

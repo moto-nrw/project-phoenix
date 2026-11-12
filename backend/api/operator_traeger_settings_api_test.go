@@ -19,12 +19,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	provisioningAPI "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
-	"github.com/moto-nrw/project-phoenix/modules/settings/records"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	provisioningAPI "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/inbound/operator"
+	"github.com/moto-ogs/project-phoenix/modules/settings/records"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func TestOperatorChangesTheSettingsOfOneTraeger(t *testing.T) {

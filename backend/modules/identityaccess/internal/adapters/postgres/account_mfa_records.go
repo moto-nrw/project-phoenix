@@ -8,7 +8,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // AccountMFARecords persists the account second factor on the caller's connection.

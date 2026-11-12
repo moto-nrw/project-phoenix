@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/settings"
-	app "github.com/moto-nrw/project-phoenix/modules/settings/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
+	app "github.com/moto-ogs/project-phoenix/modules/settings/internal/application"
 )
 
 // NewAnalyseFreigabe answers whether a school has the Analyse-Freigabe

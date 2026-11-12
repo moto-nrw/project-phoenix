@@ -6,9 +6,9 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/planexport"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/planexport"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

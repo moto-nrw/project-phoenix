@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
+	"github.com/moto-ogs/project-phoenix/architecture/artifacts"
 )
 
 // fixtureEffectTargets returns the targets discovered for the fixture's ports.

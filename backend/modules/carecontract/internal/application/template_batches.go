@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/modules/carecontract/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract/internal/ports"
 )
 
 // PrepareTemplateBatch validates the complete module set in the caller's

@@ -1,7 +1,7 @@
 package careplanhttp
 
 import (
-	parentrequests "github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	parentrequests "github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
 )
 
 // Wire names of the parent-request types, owned by the shared request-review

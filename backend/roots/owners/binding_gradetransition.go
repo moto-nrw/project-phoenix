@@ -5,12 +5,12 @@ import (
 	"fmt"
 	"log/slog"
 
-	gradetransitioncompose "github.com/moto-nrw/project-phoenix/workflows/gradetransition/compose"
+	gradetransitioncompose "github.com/moto-ogs/project-phoenix/workflows/gradetransition/compose"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/workflows/gradetransition"
 )
 
 // operationPermissions maps every workflow operation onto the tenant

@@ -3,7 +3,7 @@ package application
 import (
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
 )
 
 // NewWorker constructs and validates the complete embedded worker before the

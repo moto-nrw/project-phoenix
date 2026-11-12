@@ -1,4 +1,4 @@
-module github.com/moto-nrw/project-phoenix/tools
+module github.com/moto-ogs/project-phoenix/tools
 
 go 1.27.3
 

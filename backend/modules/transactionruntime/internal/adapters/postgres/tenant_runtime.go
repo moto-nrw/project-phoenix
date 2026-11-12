@@ -7,7 +7,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime/protocol"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime/protocol"
 	"github.com/uptrace/bun"
 )
 

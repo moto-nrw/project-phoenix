@@ -3,7 +3,7 @@ package ports
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // OperatorAudit appends operator actions to the Audit platform's

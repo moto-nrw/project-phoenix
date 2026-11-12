@@ -5,17 +5,17 @@ import (
 	"encoding/json"
 	"errors"
 
-	guardianLinkView "github.com/moto-nrw/project-phoenix/modules/guardianlinkview/compose"
+	guardianLinkView "github.com/moto-ogs/project-phoenix/modules/guardianlinkview/compose"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	careplanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 )
 
 // ComposePeopleDirectory composes the person and student owner over the

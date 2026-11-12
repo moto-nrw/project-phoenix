@@ -6,8 +6,8 @@ import (
 	"fmt"
 	strconv "strconv"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // GroupDayLog is one group's live day log as the weekly protocol records it

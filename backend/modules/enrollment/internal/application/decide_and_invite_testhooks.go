@@ -5,7 +5,7 @@ package application
 import (
 	"context"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // DecideAndInviteWith runs the decision command's unit and connectivity

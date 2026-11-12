@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
 )
 
 // Revert undoes the most recently applied transition. It takes the same

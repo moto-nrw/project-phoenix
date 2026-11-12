@@ -9,9 +9,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The limits of the public submission count stored submissions only (#6726):

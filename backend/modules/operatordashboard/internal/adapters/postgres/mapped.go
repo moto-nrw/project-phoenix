@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/operatordashboard/contract"
+	"github.com/moto-ogs/project-phoenix/modules/operatordashboard/contract"
 )
 
 // Rows maps the projection's rows onto the consumer's values. The owner's

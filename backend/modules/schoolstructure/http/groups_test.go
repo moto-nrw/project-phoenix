@@ -13,17 +13,17 @@ import (
 	"testing"
 	"time"
 
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	schoolstructurehttp "github.com/moto-nrw/project-phoenix/modules/schoolstructure/http"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	schoolstructurehttp "github.com/moto-ogs/project-phoenix/modules/schoolstructure/http"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // init seeds JWT viper defaults so jwt.MustNewTokenAuth (called by

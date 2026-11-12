@@ -7,8 +7,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Notice kinds of a planned exit.

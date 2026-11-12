@@ -6,8 +6,8 @@ import (
 	"net/http"
 
 	"github.com/go-chi/render"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 )
 
 // createStaff creates a staff record, optionally with a teacher profile.

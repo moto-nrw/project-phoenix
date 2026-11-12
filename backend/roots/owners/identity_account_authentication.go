@@ -8,16 +8,16 @@ import (
 	"sync"
 	"time"
 
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	identityBindingPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	organizationCompose "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // sessionRepositories are the retained repositories the session seams read:

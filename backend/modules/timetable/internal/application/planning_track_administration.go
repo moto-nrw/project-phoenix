@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 type PlanningTrackAdministration struct {

@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	enrollmentTest "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // A phase edit that shortens the end names the children already in care

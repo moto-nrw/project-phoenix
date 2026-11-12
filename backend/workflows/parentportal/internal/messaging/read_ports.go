@@ -3,8 +3,8 @@ package messaging
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/care"
 )
 
 // The read ports below are the rows of other owners the messaging flows read.

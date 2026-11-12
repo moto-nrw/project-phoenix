@@ -8,7 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest"
 )
 
 // CreateTestUnstampedEnrollmentApplicant submits one enrollment request for

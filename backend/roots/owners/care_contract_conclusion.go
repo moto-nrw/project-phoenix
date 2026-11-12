@@ -1,10 +1,10 @@
 package owners
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	deliveryRuntime "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	schedulerPorts "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
 )
 
 // CareContractConclusionBuilder builds the Worker's conclusion of care

@@ -4,10 +4,10 @@ status: accepted
 
 # Test roles may import test infrastructure directly
 
-[#3215](https://github.com/moto-nrw/project-phoenix/issues/3215) asks whether a
+[#3215](https://github.com/moto-ogs/project-phoenix/issues/3215) asks whether a
 test role may reach the ORM, the HTTP router and the test framework directly, or
 must go through its owner's facade. The migration programme in
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580) answers yes for
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580) answers yes for
 exactly these three external classes.
 
 The policy already expressed this permission 65 times, once per owner and role,

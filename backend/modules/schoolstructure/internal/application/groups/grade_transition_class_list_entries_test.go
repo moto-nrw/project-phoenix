@@ -12,8 +12,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/gradetransition"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/workflows/gradetransition"
 )
 
 // classListEntryClassesOf reads the current classes an entry name sits in,

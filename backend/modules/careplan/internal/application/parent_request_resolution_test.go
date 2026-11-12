@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
 )
 
 // conflictPortStub records what the resolver asked of a queue, in order, so a

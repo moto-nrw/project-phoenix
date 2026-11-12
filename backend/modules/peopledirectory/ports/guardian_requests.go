@@ -1,7 +1,7 @@
 package ports
 
 import (
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // GuardianCreateRequest represents data for creating a new guardian

@@ -6,8 +6,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/traegerview"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/traegerview"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The access log of the Träger-Portal (#4655, ADR 0109). It reads the access

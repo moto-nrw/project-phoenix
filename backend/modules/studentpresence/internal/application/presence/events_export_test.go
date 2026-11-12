@@ -1,6 +1,6 @@
 package presence
 
-import "github.com/moto-nrw/project-phoenix/realtime"
+import "github.com/moto-ogs/project-phoenix/realtime"
 
 // BroadcastEvent is one realtime notification as the root shapes the
 // announcements of these services. Named here so the suites checking what the

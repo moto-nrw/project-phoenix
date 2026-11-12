@@ -18,10 +18,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
-	parent "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
+	"github.com/moto-ogs/project-phoenix/api"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
+	parent "github.com/moto-ogs/project-phoenix/workflows/parentportal/http"
 )
 
 // guardianContactCapture records what the create-contact route hands to the

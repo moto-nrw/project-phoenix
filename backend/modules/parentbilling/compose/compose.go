@@ -2,11 +2,11 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling/internal/adapters/rendering"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling/internal/application"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling/internal/adapters/rendering"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling/internal/application"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // NewContributionRules builds the rules and cost bearers (#5627) of a Träger in its Träger transaction (ADR 0105).

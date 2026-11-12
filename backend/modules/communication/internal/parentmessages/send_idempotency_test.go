@@ -5,10 +5,10 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	messaging "github.com/moto-ogs/project-phoenix/modules/communication/internal/parentmessages"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 

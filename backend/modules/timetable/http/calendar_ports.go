@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
 )
 
 // CalendarPeriods is the slice of the School Calendar the period editor

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // The read state of the enrollment queue is per account (#3778): each

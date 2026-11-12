@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	deliveryRuntime "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	schedulerPorts "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // CareContractConclusionJob builds the Worker's conclusion at the

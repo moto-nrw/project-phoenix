@@ -1,7 +1,7 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 )
 
 // NewChildQuotaLimits composes the tenant-safe read of the Kinderkontingent

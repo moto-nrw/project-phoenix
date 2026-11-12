@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
 )
 
 // SchoolSettings resolves the request tenant's settings inside its tenant

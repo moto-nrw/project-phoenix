@@ -4,8 +4,8 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // ReadOnlyPreviewMiddleware enforces the write block for admin staff-view

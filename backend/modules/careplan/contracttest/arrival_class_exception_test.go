@@ -5,15 +5,15 @@ import (
 	"testing"
 	"time"
 
-	timetable "github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetable "github.com/moto-ogs/project-phoenix/modules/timetable"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/api"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	arrivalTimetable "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -3,11 +3,11 @@ package compose
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/offeringrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/offeringrequests"
 	"github.com/stretchr/testify/assert"
 )
 

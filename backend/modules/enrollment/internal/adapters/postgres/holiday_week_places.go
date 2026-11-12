@@ -7,8 +7,8 @@ import (
 
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Places of the holiday weeks (#4699). Every statement runs in the Träger

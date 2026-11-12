@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Failure in row k (ADR 0067 addendum of 2026-11-08, "Jeder Schritt prüft"):

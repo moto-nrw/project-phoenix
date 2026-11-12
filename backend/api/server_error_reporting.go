@@ -9,7 +9,7 @@ import (
 	"regexp"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/common"
 
 	"github.com/getsentry/sentry-go"
 	sentryhttp "github.com/getsentry/sentry-go/http"

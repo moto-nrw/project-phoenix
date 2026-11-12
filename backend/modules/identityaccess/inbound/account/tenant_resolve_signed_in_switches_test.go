@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
-	"github.com/moto-nrw/project-phoenix/modules/settings"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	authAPI "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 )
 
 func TestResolveTenant_KeepsSignedInSwitchesPrivate(t *testing.T) {

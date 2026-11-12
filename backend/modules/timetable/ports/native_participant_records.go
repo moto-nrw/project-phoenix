@@ -6,8 +6,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // NativeParticipantRecords are the legacy participant row reads and writes

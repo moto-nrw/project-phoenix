@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	ports "github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	ports "github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

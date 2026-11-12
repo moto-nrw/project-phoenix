@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	parentportal "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 func NewParentGuardianAbsenceReports(source careplan.GuardianAbsenceReports) parentportal.GuardianAbsenceReports {

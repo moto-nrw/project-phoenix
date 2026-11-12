@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api"
-	httpadapter "github.com/moto-nrw/project-phoenix/modules/facilities/http"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	httpadapter "github.com/moto-ogs/project-phoenix/modules/facilities/http"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )

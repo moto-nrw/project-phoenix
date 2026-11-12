@@ -3,10 +3,10 @@ package careplanhttp
 import (
 	context "context"
 
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	realtime "github.com/moto-nrw/project-phoenix/realtime"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	realtime "github.com/moto-ogs/project-phoenix/realtime"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // broadcastStudentUpdated emits an SSE student_updated event to the

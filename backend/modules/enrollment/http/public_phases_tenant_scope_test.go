@@ -8,17 +8,17 @@ import (
 	"testing"
 	"time"
 
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentAPI "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func TestListPublicPhasesHandler_DoesNotLeakOtherTenantPhases(t *testing.T) {

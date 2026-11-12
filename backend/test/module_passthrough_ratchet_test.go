@@ -10,7 +10,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/passthrough"
+	"github.com/moto-ogs/project-phoenix/internal/passthrough"
 )
 
 // TestModulePassthroughRatchet enforces .claude/rules/backend-conventions.md

@@ -1,8 +1,8 @@
 package api
 
 import (
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	workforceModule "github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // The retained models/schedule Dienstplan rows are served by the Timetable

@@ -8,9 +8,9 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

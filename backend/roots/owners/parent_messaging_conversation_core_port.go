@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	parentportal "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // BindParentConversationCore binds Communication's shared conversation rules

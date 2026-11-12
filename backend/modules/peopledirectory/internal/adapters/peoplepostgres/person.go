@@ -7,12 +7,12 @@ import (
 	"errors"
 	"fmt"
 
-	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	directory "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
 	"github.com/uptrace/bun"
 
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
-	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	users "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
+	ports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // Error messages (S1192 - avoid duplicate string literals)

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // HolidayClosureCalendar owns revision checks and no-care date resolution.

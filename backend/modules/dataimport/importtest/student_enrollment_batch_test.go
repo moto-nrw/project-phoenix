@@ -14,12 +14,12 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	importPorts "github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	importPorts "github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Step 7 of #5552 (PR #6558): in a batch segment the profiles of the

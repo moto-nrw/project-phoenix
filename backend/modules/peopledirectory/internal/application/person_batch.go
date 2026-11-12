@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // The data import binds the person batch slice outside Owner (#5552).

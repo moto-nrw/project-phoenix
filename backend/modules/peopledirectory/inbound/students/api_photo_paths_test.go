@@ -7,11 +7,11 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	"github.com/moto-nrw/project-phoenix/modules/settings"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

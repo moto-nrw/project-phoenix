@@ -7,23 +7,23 @@ import (
 	"log/slog"
 	"time"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
+	settingsModule "github.com/moto-ogs/project-phoenix/modules/settings"
 
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	schoolCalendarCompose "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	careContractCompose "github.com/moto-ogs/project-phoenix/modules/carecontract/compose"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	careplanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	schoolCalendarCompose "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // StatisticsTestModule is Student Presence's statistics reports over the

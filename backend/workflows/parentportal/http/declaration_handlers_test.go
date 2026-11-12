@@ -13,7 +13,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // The portal names who settled a child under "any" together with the date,

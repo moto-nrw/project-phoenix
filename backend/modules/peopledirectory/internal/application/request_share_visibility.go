@@ -6,7 +6,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 type RequestShareRecipients struct {

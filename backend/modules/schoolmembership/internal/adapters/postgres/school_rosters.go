@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/adapters/postgres/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/adapters/postgres/calendar"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )

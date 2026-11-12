@@ -15,11 +15,11 @@ import (
 	"image/png"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

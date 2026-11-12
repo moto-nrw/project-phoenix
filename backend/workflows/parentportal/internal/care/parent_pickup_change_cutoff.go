@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type pickupChangePolicy struct {

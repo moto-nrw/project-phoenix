@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 )
 
 // enqueueReleaseNotice puts the push of a newly stored release for parents

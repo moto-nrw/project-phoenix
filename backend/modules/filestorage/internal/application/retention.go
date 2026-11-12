@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage/internal/ports"
 )
 
 // CleanupRetention deletes a school's finished cleanup intents (#4046) and

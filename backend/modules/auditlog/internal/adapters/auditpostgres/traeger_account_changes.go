@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/auditlog"
-	auditModel "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/auditlog"
+	auditModel "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 )
 
 // TraegerAccountChanges reads the Träger-Büro account ledger (#5474) in the

@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 func (failingSchemaRepo) Schemas(context.Context, []int64) ([]*capability.FormSchema, error) {

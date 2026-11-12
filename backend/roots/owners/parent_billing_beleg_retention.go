@@ -3,11 +3,11 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	careContractCompose "github.com/moto-ogs/project-phoenix/modules/carecontract/compose"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	parentBillingCompose "github.com/moto-ogs/project-phoenix/modules/parentbilling/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // NewBelegRetention binds the retention of the Belege of every Träger

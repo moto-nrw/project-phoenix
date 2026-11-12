@@ -3,7 +3,7 @@
 package api
 
 import (
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func NewEnrollmentBookingFixture() EnrollmentBookingFixture {

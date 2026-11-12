@@ -3,7 +3,7 @@ package migrations
 import (
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // TestMain gives every top-level test its own disposable database clone and

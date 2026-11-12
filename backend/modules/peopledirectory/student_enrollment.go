@@ -1,7 +1,7 @@
 package peopledirectory
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/enrollment"
 )
 
 // EnrollmentStudent contains only the student facts an enrollment decision

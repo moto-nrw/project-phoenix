@@ -4,14 +4,14 @@ import (
 	"context"
 	"fmt"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
 
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 
-	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	educationRepo "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // NewGroupRepository is the retained group store of the School Structure

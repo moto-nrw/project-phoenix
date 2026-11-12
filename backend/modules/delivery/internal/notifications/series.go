@@ -4,8 +4,8 @@ import (
 	"context"
 	"slices"
 
-	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	deliveryModels "github.com/moto-ogs/project-phoenix/modules/delivery/subscriptions"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // A series is several events a producer would otherwise notify one after the

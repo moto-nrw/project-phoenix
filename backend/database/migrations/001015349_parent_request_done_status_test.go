@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The four queues must accept the new terminal state; the Down must refuse to

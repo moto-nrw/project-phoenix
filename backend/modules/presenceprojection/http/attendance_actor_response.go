@@ -3,8 +3,8 @@ package presenceprojectionhttp
 import (
 	time "time"
 
-	lists "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	lists "github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // AttendanceActorResponse says who recorded an arrival or a pickup (#4761):

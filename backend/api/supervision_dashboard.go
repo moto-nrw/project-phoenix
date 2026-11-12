@@ -15,23 +15,23 @@ import (
 	"fmt"
 	"time"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	supervisionDashboardHTTP "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/http"
+	supervisionDashboardHTTP "github.com/moto-ogs/project-phoenix/modules/supervisiondashboard/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	educationService "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	settingsplatform "github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/supervisiondashboard"
-	supervisiondashboardCompose "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	calendarpkg "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	educationService "github.com/moto-ogs/project-phoenix/modules/schoolstructure/contract"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	settingsplatform "github.com/moto-ogs/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/supervisiondashboard"
+	supervisiondashboardCompose "github.com/moto-ogs/project-phoenix/modules/supervisiondashboard/compose"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	calendarpkg "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // SupervisionCallerContext is the Identity & Access caller context the

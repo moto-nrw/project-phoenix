@@ -3,7 +3,7 @@ package groups
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
 )
 
 // NewManagement serves the public group management from the group

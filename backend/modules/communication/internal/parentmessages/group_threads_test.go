@@ -6,22 +6,22 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/communicationtest"
+	"github.com/moto-ogs/project-phoenix/modules/communication/communicationtest"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	composition "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	messaging "github.com/moto-nrw/project-phoenix/modules/communication/internal/parentmessages"
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	composition "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	messaging "github.com/moto-ogs/project-phoenix/modules/communication/internal/parentmessages"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 // Integration tests for the group threads (#4784): the OGS writes to a class,

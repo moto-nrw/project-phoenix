@@ -4,11 +4,11 @@ import (
 	context "context"
 	time "time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 
-	absencerecords "github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	absencerecords "github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func boolPtrValue(v *bool) bool {

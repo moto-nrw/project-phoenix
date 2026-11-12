@@ -6,10 +6,10 @@ import (
 	"testing"
 	"time"
 
-	scheduler "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	scheduler "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 

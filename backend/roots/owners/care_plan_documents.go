@@ -5,15 +5,15 @@ import (
 	"errors"
 	"time"
 
-	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
+	securitycontract "github.com/moto-ogs/project-phoenix/modules/securityruntime/ports"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // studentDocumentAccess answers Care Plan's document authority questions

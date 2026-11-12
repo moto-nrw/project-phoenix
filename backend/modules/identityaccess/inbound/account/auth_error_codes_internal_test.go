@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 )
 
 // The invitation, reset and registration forms show a text per code

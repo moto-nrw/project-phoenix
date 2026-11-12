@@ -5,8 +5,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Care-status windows of the staff directory. Running and Ended are the two

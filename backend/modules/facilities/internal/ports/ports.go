@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/facilities/internal/domain"
 )
 
 type Store interface {

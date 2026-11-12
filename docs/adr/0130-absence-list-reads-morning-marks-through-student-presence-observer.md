@@ -5,7 +5,7 @@ status: accepted
 # Absence list reads the morning marks through Student Presence's observer
 
 Decision of 2026-10-27 for
-[#4793](https://github.com/moto-nrw/project-phoenix/issues/4793). It approves
+[#4793](https://github.com/moto-ogs/project-phoenix/issues/4793). It approves
 one new command-effect diagnostic. It adds no owner, no policy rule and no
 runtime exception.
 

@@ -17,7 +17,7 @@ import { measureBase } from "./bundle-base.mjs";
 import { validBytes } from "./bundle-policy.mjs";
 
 const MEASUREMENT_FORMAT = "moto-bundle-measurement/v1";
-const PROJECT = "moto-nrw/project-phoenix/frontend";
+const PROJECT = "moto-ogs/project-phoenix/frontend";
 const SHA = /^(?:[a-f0-9]{40}|[a-f0-9]{64})$/;
 const CONFIG_SHA = /^[a-f0-9]{64}$/;
 const RESULTS = "perf-results";

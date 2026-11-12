@@ -8,8 +8,8 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The confirmation letters of the released runs (#4669, ADR 0121). The

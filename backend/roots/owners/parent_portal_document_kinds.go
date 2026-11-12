@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // The pushes „Neues Dokument vom Träger“ of a sent care contract and of a

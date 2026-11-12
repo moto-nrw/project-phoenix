@@ -1,7 +1,7 @@
 package application
 
 import (
-	portsCallback "github.com/moto-nrw/project-phoenix/modules/workforce/internal/ports"
+	portsCallback "github.com/moto-ogs/project-phoenix/modules/workforce/internal/ports"
 )
 
 func NewOptionalObserver(observe func(portsCallback.Observation)) func(observation portsCallback.Observation) {

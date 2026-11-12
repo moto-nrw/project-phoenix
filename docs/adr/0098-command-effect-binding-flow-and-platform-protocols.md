@@ -4,7 +4,7 @@ status: accepted
 
 # Command effects follow callable binding flow and record platform protocols
 
-Decision of 2026-10-24 for [#4836](https://github.com/moto-nrw/project-phoenix/issues/4836).
+Decision of 2026-10-24 for [#4836](https://github.com/moto-ogs/project-phoenix/issues/4836).
 It closes what [ADR 0094](0094-command-effect-gap-reconciliation.md) left
 open: root closures behind domain-owned callable fields (M3), generic instance
 flow, and platform/protocol effects, which ADR 0083 named as follow-up work.

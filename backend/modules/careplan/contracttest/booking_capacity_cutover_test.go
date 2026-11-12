@@ -4,14 +4,14 @@ import (
 	"context"
 	"testing"
 
-	api "github.com/moto-nrw/project-phoenix/roots/owners"
+	api "github.com/moto-ogs/project-phoenix/roots/owners"
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanTest "github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanTest "github.com/moto-ogs/project-phoenix/modules/careplan/careplantest"
+	enrollmentTest "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func TestBookingCapacityCutoverPreservesBoundariesAndTenantIsolation(t *testing.T) {

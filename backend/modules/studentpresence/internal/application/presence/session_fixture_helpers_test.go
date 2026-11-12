@@ -1,10 +1,10 @@
 package presence_test
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // sessionGroups returns the session repository behind the composed session

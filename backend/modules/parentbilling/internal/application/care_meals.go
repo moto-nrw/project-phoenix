@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // careMealHorizon is how many months back a run looks for released Mensa

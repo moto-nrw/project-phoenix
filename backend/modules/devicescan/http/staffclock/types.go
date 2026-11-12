@@ -6,7 +6,7 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
 )
 
 type StateRequest struct {
