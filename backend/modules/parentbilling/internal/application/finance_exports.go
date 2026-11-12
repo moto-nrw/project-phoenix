@@ -379,25 +379,8 @@ func (f *FinanceExports) SollstellungFile(ctx context.Context, reviewer parentbi
 	if err != nil {
 		return parentbilling.ExportedFile{}, err
 	}
-	file := exportFile{format: parentbilling.ExportFormatSollstellung, runKind: runKind, runID: runID, resolvedPositions: resolved,
-		fileName: func(number int64) string { return sollFileName(soll.Mapping.FileNamePattern, number) },
-		render: func(number int64) ([]byte, error) {
-			return renderSollRows(soll.Mapping, rows, number)
-		}}
-	for _, invoice := range content.Invoices {
-		file.totalCents += invoice.TotalCents
-		if invoice.CareInvoiceID > 0 && !slices.Contains(file.careInvoices, invoice.CareInvoiceID) {
-			file.careInvoices = append(file.careInvoices, invoice.CareInvoiceID)
-		}
-		if invoice.DocumentID > 0 {
-			file.documents = append(file.documents, invoice.DocumentID)
-		}
-	}
-	file.documentCount = len(content.Invoices)
-	file.costCenterFallbacks = sollCostCenterFallbacks(soll.Mapping, rows)
-	// The rows without the file number: a mapping that writes the number
-	// into every row still repeats the same content (ADR 0218 section 6).
-	if file.bookingContent, err = renderSollRows(soll.Mapping, rows, 0); err != nil {
+	file, err := sollExportFile(runKind, runID, soll.Mapping, rows, resolved, content.Invoices)
+	if err != nil {
 		return parentbilling.ExportedFile{}, err
 	}
 	entry, data, err := recordExportFile(ctx, f.store, reviewer, file)
@@ -406,6 +389,35 @@ func (f *FinanceExports) SollstellungFile(ctx context.Context, reviewer parentbi
 	}
 	entry.RunLabel = content.Run.Label
 	return parentbilling.ExportedFile{Entry: entry, ContentType: sollContentType(soll.Mapping.Encoding), Data: data}, nil
+}
+
+// sollExportFile assembles the Sollstellung of a run for the protocol.
+func sollExportFile(runKind string, runID int64, mapping parentbilling.SollstellungMapping, rows []sollRow, resolved int,
+	invoices []parentbilling.ExportInvoice,
+) (exportFile, error) {
+	file := exportFile{format: parentbilling.ExportFormatSollstellung, runKind: runKind, runID: runID, resolvedPositions: resolved,
+		fileName: func(number int64) string { return sollFileName(mapping.FileNamePattern, number) },
+		render: func(number int64) ([]byte, error) {
+			return renderSollRows(mapping, rows, number)
+		}}
+	for _, invoice := range invoices {
+		file.totalCents += invoice.TotalCents
+		if invoice.CareInvoiceID > 0 && !slices.Contains(file.careInvoices, invoice.CareInvoiceID) {
+			file.careInvoices = append(file.careInvoices, invoice.CareInvoiceID)
+		}
+		if invoice.DocumentID > 0 {
+			file.documents = append(file.documents, invoice.DocumentID)
+		}
+	}
+	file.documentCount = len(invoices)
+	file.costCenterFallbacks = sollCostCenterFallbacks(mapping, rows)
+	// The rows without the file number: a mapping that writes the number
+	// into every row still repeats the same content (ADR 0218 section 6).
+	var err error
+	if file.bookingContent, err = renderSollRows(mapping, rows, 0); err != nil {
+		return exportFile{}, err
+	}
+	return file, nil
 }
 
 // sollCostCenterFallbacks names the holiday positions on the KOST1 of the
