@@ -52,7 +52,7 @@ const KEEPS_TEXT = "Die Schule hat geändert – bleibt so";
  * Die Kürzung beendet keine Betreuung (#6813, ADR 0211): das Büro erfährt,
  * wie viele Kinder länger betreut werden, und sagt der Schule Bescheid.
  */
-export function careBeyondEndText(count: number): string {
+function careBeyondEndText(count: number): string {
   const children = count === 1 ? "1 Kind wird" : `${count} Kinder werden`;
   return `${children} länger betreut, als die Anmeldephase dauert. moto beendet keine Betreuung. Sagen Sie der Schule Bescheid.`;
 }
