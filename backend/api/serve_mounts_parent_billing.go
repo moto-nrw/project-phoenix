@@ -101,15 +101,6 @@ func mountParentBillingRoutes(root, publicLink chi.Router, organizations Holiday
 	root.Mount("/traeger/export-recipient", NewExportRecipientHTTP(transfers).Router(ProtectedTraegerRoutes))
 }
 
-// NewSEPADebitHTTP binds the SEPA direct debit file of the issued runs
-// (#4697, ADR 0181) to the right "Abrechnung", to the letterhead with the
-// default bank account of the Träger, whose read the master data of
-// Organisation & Tenancy logs, and to the field cipher that sealed the
-// account of each mandate.
-func NewSEPADebitHTTP(settings TraegerBrandingSettings, cipher parentbilling.BankDataCipher) *parentBillingHTTP.SEPADebitResource {
-	return newSEPADebitResource(parentBillingCompose.NewSEPADebits(newParentBillingLetterheads(settings), cipher, securityruntime.Fingerprint))
-}
-
 func newSEPADebitResource(debits parentbilling.SEPADebits) *parentBillingHTTP.SEPADebitResource {
 	return parentBillingHTTP.NewSEPADebitResource(debits, common.RequiresPermission(identityaccess.TraegerRightBillingManage))
 }

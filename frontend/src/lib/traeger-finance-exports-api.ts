@@ -7,13 +7,16 @@
  */
 
 import { traegerRequest } from "./traeger-api";
-import type { HandoverState } from "./traeger-export-handovers-api";
 import { type BillingFile, billingFile } from "./traeger-billing-api";
 
 /** The kind of run, as the path names it. */
 export type ExportRunPathKind = "care-runs" | "holiday-runs" | "notice-months";
 type ExportRunKind = "care" | "holiday" | "notice";
 export type ExportFormat = "sollstellung" | "pain008" | "datev";
+
+/** The outcome of a handover, as the journal and the protocol name it. */
+export type HandoverState =
+  "transferred" | "failed" | "in_progress" | "unknown";
 
 export type SollField =
   | "invoice_number"

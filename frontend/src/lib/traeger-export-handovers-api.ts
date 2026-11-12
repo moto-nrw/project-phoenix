@@ -9,6 +9,7 @@
 import type {
   ExportFormat,
   ExportRunPathKind,
+  HandoverState,
 } from "./traeger-finance-exports-api";
 import { traegerRequest } from "./traeger-api";
 
@@ -41,9 +42,7 @@ export interface ExportRecipient {
   readonly updatedAt: string | null;
 }
 
-/** The outcome of a handover, as the journal and the protocol name it. */
-export type HandoverState =
-  "transferred" | "failed" | "in_progress" | "unknown";
+export type { HandoverState } from "./traeger-finance-exports-api";
 
 export interface ExportHandover {
   readonly id: string;
