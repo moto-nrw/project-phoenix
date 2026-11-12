@@ -106,7 +106,7 @@ function DebtorCell({
   const name = familyName(family) || family.familyEmail;
   const number = family.familyDebtorNumber;
   return (
-    <span className="block w-32 min-w-0">
+    <span className="block w-40 min-w-0">
       <span className="flex min-w-0 items-center justify-between gap-3">
         {number ? (
           <span
@@ -218,27 +218,31 @@ function familyColumns(
     },
     {
       key: "payment",
-      header: "Wer zahlt",
-      render: (family) =>
-        family.payments.length > 0 ? (
-          <span className="flex max-w-48 min-w-0 flex-wrap gap-1.5">
-            {family.payments.map((payment) => (
-              <StatusBadge
-                key={`${payment.kind}-${payment.costBearerName}`}
-                label={paymentLabel(payment)}
-                tone={PAYMENT_TONES[payment.kind]}
-                truncate
-              />
-            ))}
+      header: "Zahlung",
+      render: (family) => {
+        const method = paymentMethodsText(family.paymentMethods);
+        if (family.payments.length === 0 && !method) return "–";
+        // Who pays and how, in one column so the amounts stay in view.
+        return (
+          <span className="block max-w-48 min-w-0 space-y-1">
+            {family.payments.length > 0 ? (
+              <span className="flex min-w-0 flex-wrap gap-1.5">
+                {family.payments.map((payment) => (
+                  <StatusBadge
+                    key={`${payment.kind}-${payment.costBearerName}`}
+                    label={paymentLabel(payment)}
+                    tone={PAYMENT_TONES[payment.kind]}
+                    truncate
+                  />
+                ))}
+              </span>
+            ) : null}
+            {method ? (
+              <span className="block text-sm text-gray-600">{method}</span>
+            ) : null}
           </span>
-        ) : (
-          "–"
-        ),
-    },
-    {
-      key: "method",
-      header: "Zahlungsweg",
-      render: (family) => paymentMethodsText(family.paymentMethods) ?? "–",
+        );
+      },
     },
     {
       key: "issued",
