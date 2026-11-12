@@ -119,6 +119,11 @@ export interface StudentNoteTeamNotice {
   informedAt: string;
 }
 
+export type StudentNoteTeamNoticeRevision = Pick<
+  StudentNoteTeamNotice,
+  "noteId" | "informedAt"
+>;
+
 interface BackendTeamNotice {
   note_id: string;
   student_id: string;
@@ -227,15 +232,24 @@ class StudentNotesService {
   }
 
   /**
-   * Marks the shared notes of one child as read, because the reader opened
-   * them; answers with the notes still unread.
+   * Marks only the announcement revisions loaded by the reader as read;
+   * answers with the notes still unread.
    */
   async markTeamNoticesRead(
     studentId: string,
+    observed: readonly StudentNoteTeamNoticeRevision[],
   ): Promise<StudentNoteTeamNotice[]> {
     const notices = await bffJson<BackendTeamNotice[] | null>(
       `/api/students/${encodeURIComponent(studentId)}/team-notices/read`,
-      { method: "POST", body: {} },
+      {
+        method: "POST",
+        body: {
+          notices: observed.map((notice) => ({
+            note_id: notice.noteId,
+            informed_at: notice.informedAt,
+          })),
+        },
+      },
     );
     return (notices ?? []).map(mapTeamNotice);
   }

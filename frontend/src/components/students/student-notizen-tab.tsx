@@ -550,8 +550,9 @@ export function StudentNotizenTab({
         });
         throw error;
       };
+      const refreshedNotes = studentNotesService.list(studentId);
       const revalidations: Promise<unknown>[] = [
-        mutate(studentNotesService.list(studentId), {
+        mutate(refreshedNotes, {
           revalidate: false,
         }).catch(failedRead),
       ];
@@ -565,6 +566,7 @@ export function StudentNotizenTab({
         );
       }
       await Promise.all(revalidations);
+      return refreshedNotes;
     },
     [discardRefused, mutate, studentId, tenantMutate],
   );
@@ -598,9 +600,7 @@ export function StudentNotizenTab({
   );
   const unreadHere = useMemo(
     () =>
-      teamNotices.notices
-        .filter((notice) => notice.studentId === studentId)
-        .map((notice) => notice.noteId),
+      teamNotices.notices.filter((notice) => notice.studentId === studentId),
     [teamNotices.notices, studentId],
   );
   const notesShown = data !== undefined;
@@ -609,11 +609,19 @@ export function StudentNotizenTab({
     let cancelled = false;
     // The notice poll does not refresh the notes cache. Load the current
     // content even for a repeat announcement before clearing its marker.
-    void revalidateNotes(false)
-      .then(async () => {
+    void revalidateNotes(true)
+      .then(async (refreshedNotes) => {
         if (cancelled) return;
-        setSharedWithMe((previous) => new Set([...previous, ...unreadHere]));
-        await markTeamNoticesRead(studentId);
+        const loadedIDs = new Set(refreshedNotes.map((note) => note.id));
+        const observed = unreadHere.filter((notice) =>
+          loadedIDs.has(notice.noteId),
+        );
+        if (observed.length === 0) return;
+        setSharedWithMe(
+          (previous) =>
+            new Set([...previous, ...observed.map((notice) => notice.noteId)]),
+        );
+        await markTeamNoticesRead(studentId, observed);
       })
       .catch((caught: unknown) => {
         // A failed refresh or acknowledgement leaves the header counter intact.

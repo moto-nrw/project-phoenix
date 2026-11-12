@@ -103,8 +103,12 @@ const swrState: {
   data: unknown;
   isLoading: boolean;
   error: unknown;
-  mutate: () => Promise<void>;
-  tenantMutate: (key: string) => Promise<unknown>;
+  mutate: (data?: Promise<unknown>, options?: unknown) => Promise<unknown>;
+  tenantMutate: (
+    key: string,
+    data?: Promise<unknown>,
+    options?: unknown,
+  ) => Promise<unknown>;
 } = {
   started: false,
   data: undefined,
@@ -159,8 +163,8 @@ describe("StudentNotizenTab", () => {
     vi.clearAllMocks();
     activityState.data = [];
     activityState.error = undefined;
-    swrState.mutate = vi.fn(async () => undefined);
-    swrState.tenantMutate = vi.fn(async () => undefined);
+    swrState.mutate = vi.fn(async (data) => data);
+    swrState.tenantMutate = vi.fn(async (_key, data) => data);
     teamState.notices = [];
   });
 
@@ -774,8 +778,16 @@ describe("StudentNotizenTab", () => {
         note({ id: "2", body: "Anderer Eintrag." }),
       ]);
 
-      await waitFor(() => expect(markReadMock).toHaveBeenCalledWith("7"));
+      await waitFor(() =>
+        expect(markReadMock).toHaveBeenCalledWith("7", [teamState.notices[0]]),
+      );
       expect(markReadMock).toHaveBeenCalledTimes(1);
+      expect(listMock).toHaveBeenCalledWith("7", "permanent");
+      expect(swrState.tenantMutate).toHaveBeenCalledWith(
+        "student-permanent-notes-7",
+        expect.any(Promise),
+        { revalidate: false },
+      );
       expect(
         screen.getAllByText("Neu: Diese Notiz wurde mit Ihnen geteilt."),
       ).toHaveLength(1);
@@ -795,6 +807,71 @@ describe("StudentNotizenTab", () => {
       renderTab([note({ id: "1" })]);
       expect(markReadMock).not.toHaveBeenCalled();
       expect(screen.getByText("Hat heute vorgelesen.")).toBeInTheDocument();
+    });
+
+    it("waits for permanent hints to refresh before acknowledging the observed revision", async () => {
+      const notice = {
+        noteId: "1",
+        studentId: "7",
+        informedAt: "2026-09-09T10:00:00.123456Z",
+      };
+      teamState.notices = [notice];
+      const notes = [note({ kind: "permanent" })];
+      let finishRefresh!: (notes: StudentNote[]) => void;
+      const pending = new Promise<StudentNote[]>((resolve) => {
+        finishRefresh = resolve;
+      });
+      listMock
+        .mockResolvedValueOnce(notes)
+        .mockResolvedValueOnce(notes)
+        .mockReturnValueOnce(pending);
+      renderTab(notes);
+
+      // Anker: der geladene Hinweis bleibt sichtbar, während Stammdaten nachlädt.
+      expect(screen.getByText("Hat heute vorgelesen.")).toBeInTheDocument();
+      await waitFor(() =>
+        expect(listMock).toHaveBeenCalledWith("7", "permanent"),
+      );
+      expect(markReadMock).not.toHaveBeenCalled();
+      finishRefresh(notes);
+      await waitFor(() =>
+        expect(markReadMock).toHaveBeenCalledWith("7", [notice]),
+      );
+    });
+
+    it("keeps the notice unread if refreshing permanent hints fails", async () => {
+      teamState.notices = [
+        { noteId: "1", studentId: "7", informedAt: "2026-09-09T10:00:00Z" },
+      ];
+      const notes = [note()];
+      const failure = new ApiError("down", 500, { code: "general.server" });
+      listMock
+        .mockResolvedValueOnce(notes)
+        .mockResolvedValueOnce(notes)
+        .mockRejectedValueOnce(failure);
+      renderTab(notes);
+
+      // Anker: die bestätigten Notizen sind trotz fehlgeschlagener Aktualisierung sichtbar.
+      expect(screen.getByText("Hat heute vorgelesen.")).toBeInTheDocument();
+      await waitFor(() =>
+        expect(discardRefusedMock).toHaveBeenCalledWith(
+          failure,
+          expect.anything(),
+        ),
+      );
+      expect(markReadMock).not.toHaveBeenCalled();
+    });
+
+    it("does not acknowledge an announced note missing from the refreshed content", async () => {
+      teamState.notices = [
+        { noteId: "99", studentId: "7", informedAt: "2026-09-09T10:00:00Z" },
+      ];
+      renderTab([note()]);
+
+      // Anker: eine andere Notiz wurde geladen, nicht die angekündigte Notiz.
+      expect(screen.getByText("Hat heute vorgelesen.")).toBeInTheDocument();
+      await waitFor(() => expect(swrState.tenantMutate).toHaveBeenCalled());
+      expect(markReadMock).not.toHaveBeenCalled();
     });
   });
 });

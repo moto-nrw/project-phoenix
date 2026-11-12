@@ -154,14 +154,21 @@ func (s *StudentNoteTeamService) ListUnreadStudentNoteTeamNotices(ctx context.Co
 	return result, nil
 }
 
-// MarkStudentNoteTeamNoticesRead clears the reader's markers on the child's
-// notes and returns those still unread.
-func (s *StudentNoteTeamService) MarkStudentNoteTeamNoticesRead(ctx context.Context, readerAccountID, studentID int64) (result []peopledirectory.StudentNoteTeamNotice, err error) {
+// MarkStudentNoteTeamNoticesRead clears the observed announcement revisions
+// on the child's notes and returns those still unread.
+func (s *StudentNoteTeamService) MarkStudentNoteTeamNoticesRead(ctx context.Context, readerAccountID, studentID int64, observed []peopledirectory.StudentNoteTeamNoticeRevision) (result []peopledirectory.StudentNoteTeamNotice, err error) {
 	if readerAccountID <= 0 || studentID <= 0 {
 		return nil, peopledirectory.ErrStudentNoteInvalid
 	}
+	revisions := make([]domain.StudentNoteTeamNoticeRevision, 0, len(observed))
+	for _, notice := range observed {
+		if notice.NoteID <= 0 || notice.InformedAt.IsZero() {
+			return nil, peopledirectory.ErrStudentNoteInvalid
+		}
+		revisions = append(revisions, domain.StudentNoteTeamNoticeRevision{NoteID: notice.NoteID, InformedAt: notice.InformedAt})
+	}
 	err = observeRun(ctx, s.observe, "mark_student_note_team_notices_read", s.inCallerUnit, func(txCtx context.Context, stats *domain.OperationStats) error {
-		markStats, markErr := s.team.MarkTeamNoticesRead(txCtx, readerAccountID, studentID)
+		markStats, markErr := s.team.MarkTeamNoticesRead(txCtx, readerAccountID, studentID, revisions)
 		stats.Add(markStats)
 		if markErr != nil {
 			return markErr

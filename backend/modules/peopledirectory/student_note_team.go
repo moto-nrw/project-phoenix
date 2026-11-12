@@ -47,6 +47,12 @@ type StudentNoteTeamNotice struct {
 	InformedAt time.Time
 }
 
+// StudentNoteTeamNoticeRevision identifies the announcement loaded by a reader.
+type StudentNoteTeamNoticeRevision struct {
+	NoteID     int64
+	InformedAt time.Time
+}
+
 // StudentNoteTeamNotices is the capability behind "Speichern und Team
 // informieren" and the unread markers. It stands beside the owner's facade.
 type StudentNoteTeamNotices interface {
@@ -59,8 +65,8 @@ type StudentNoteTeamNotices interface {
 	// newest first. A deleted note, a note no longer meant for the whole team
 	// and a child that left no longer appear.
 	ListUnreadStudentNoteTeamNotices(ctx context.Context, readerAccountID int64) ([]StudentNoteTeamNotice, error)
-	// MarkStudentNoteTeamNoticesRead clears the reader's markers for one
-	// child (the reader opened the child's notes) and returns the markers
-	// still unread, so the header updates without a second request.
-	MarkStudentNoteTeamNoticesRead(ctx context.Context, readerAccountID, studentID int64) ([]StudentNoteTeamNotice, error)
+	// MarkStudentNoteTeamNoticesRead clears only the observed revisions for
+	// one child and returns the markers still unread. A new announcement
+	// arriving while the notes load must be read separately.
+	MarkStudentNoteTeamNoticesRead(ctx context.Context, readerAccountID, studentID int64, observed []StudentNoteTeamNoticeRevision) ([]StudentNoteTeamNotice, error)
 }
