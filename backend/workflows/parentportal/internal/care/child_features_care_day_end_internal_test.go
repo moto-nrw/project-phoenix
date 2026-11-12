@@ -10,8 +10,8 @@ import (
 // TestChildFeaturesCloseTodayAtCareDayEnd pins #5710: from the school's care
 // day end (operations.session_end_time) the portal closes today's pickup
 // change, with the same rule that ends "Im Unterricht". The end minute itself
-// is closed; without a configured end, or with the pickup change off, nothing
-// closes.
+// is closed even with pickup changes disabled, since existing exceptions and
+// requests remain manageable. Without a configured end, nothing closes.
 func TestChildFeaturesCloseTodayAtCareDayEnd(t *testing.T) {
 	t.Parallel()
 
@@ -30,5 +30,10 @@ func TestChildFeaturesCloseTodayAtCareDayEnd(t *testing.T) {
 	assert.True(t, flags(true, "14:00").PickupChangeCareDayEnded, "at the end")
 	assert.True(t, flags(true, "13:00").PickupChangeCareDayEnded, "after the end")
 	assert.False(t, flags(true, "").PickupChangeCareDayEnded, "no configured end")
-	assert.False(t, flags(false, "13:00").PickupChangeCareDayEnded, "pickup change off")
+	assert.False(t, flags(false, "14:01").PickupChangeCareDayEnded, "pickup change off, before the end")
+	assert.True(t, flags(false, "14:00").PickupChangeCareDayEnded, "pickup change off, at the end")
+	disabled := flags(false, "13:00")
+	assert.True(t, disabled.PickupChangeCareDayEnded, "pickup change off, after the end")
+	assert.False(t, disabled.PickupChangeEnabled, "closure must not enable pickup changes")
+	assert.False(t, flags(false, "").PickupChangeCareDayEnded, "pickup change off, no configured end")
 }

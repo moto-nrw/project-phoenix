@@ -62,7 +62,7 @@ func (f childFeatureSettings) activeChildFlags(child *Child, hasOpenChangeReques
 		PickupChangeModeEnabled:      f.pickupChangeMode && canManagePickup,
 		PickupChangeCutoffTime:       f.pickupCutoff.Clock,
 		PickupChangeTodayClosed:      f.pickupCutoff.Closed(calendar.DateFromTime(f.pickupCutoff.Now)),
-		PickupChangeCareDayEnded:     f.pickupChange && carerequests.CareDayEnded(f.careDayEnd, f.pickupCutoff.Now),
+		PickupChangeCareDayEnded:     carerequests.CareDayEnded(f.careDayEnd, f.pickupCutoff.Now),
 		PickupManageAllowed:          f.guardianManagement && canManagePickup,
 		GuardianContactManageAllowed: f.guardianManagement && canManageGuardianContacts,
 		AbsenceRequestEditEnabled:    child.HasPermission(GuardianPermissionSickNoteSubmit),
