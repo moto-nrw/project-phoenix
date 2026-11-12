@@ -34,6 +34,8 @@ func TestPayrollWageTypesMigrationRoundTrip(t *testing.T) {
 	db := testpkg.SetupIsolatedTestDB(t)
 	// The message attachments (1.15.936, #6685) extend the erasure functions
 	// this test restores; they go first.
+	// The note notices (1.15.956, #6854) extend the erasure of 1.15.942; they go first.
+	require.NoError(t, studentNoteTeamNoticesDown(t.Context(), db))
 	require.NoError(t, messageAttachmentsDown(t.Context(), db))
 	ctx := context.Background()
 	exists := func(relation string) bool {

@@ -109,6 +109,41 @@ function mapNote(data: BackendStudentNote): StudentNote {
   };
 }
 
+/** A note a colleague shared with the team that this reader has not read (#6854). */
+export interface StudentNoteTeamNotice {
+  noteId: string;
+  studentId: string;
+  studentFirstName: string;
+  studentLastName: string;
+  authorName: string;
+  informedAt: string;
+}
+
+export type StudentNoteTeamNoticeRevision = Pick<
+  StudentNoteTeamNotice,
+  "noteId" | "informedAt"
+>;
+
+interface BackendTeamNotice {
+  note_id: string;
+  student_id: string;
+  student_first_name: string;
+  student_last_name: string;
+  author_name?: string;
+  informed_at: string;
+}
+
+function mapTeamNotice(data: BackendTeamNotice): StudentNoteTeamNotice {
+  return {
+    noteId: data.note_id,
+    studentId: data.student_id,
+    studentFirstName: data.student_first_name,
+    studentLastName: data.student_last_name,
+    authorName: data.author_name ?? "",
+    informedAt: data.informed_at,
+  };
+}
+
 function toPayload(draft: StudentNoteDraft): Record<string, unknown> {
   return {
     kind: draft.kind,
@@ -151,22 +186,72 @@ class StudentNotesService {
     }));
   }
 
-  async create(studentId: string, draft: StudentNoteDraft): Promise<void> {
-    await bffJson<unknown>(notesPath(studentId), {
+  /** Returns the note as stored, so a follow-up action can name it. */
+  async create(
+    studentId: string,
+    draft: StudentNoteDraft,
+  ): Promise<StudentNote> {
+    const note = await bffJson<BackendStudentNote>(notesPath(studentId), {
       method: "POST",
       body: toPayload(draft),
     });
+    return mapNote(note);
   }
 
   async update(
     studentId: string,
     noteId: string,
     draft: StudentNoteDraft,
-  ): Promise<void> {
-    await bffJson<unknown>(notesPath(studentId, noteId), {
-      method: "PUT",
-      body: toPayload(draft),
-    });
+  ): Promise<StudentNote> {
+    const note = await bffJson<BackendStudentNote>(
+      notesPath(studentId, noteId),
+      { method: "PUT", body: toPayload(draft) },
+    );
+    return mapNote(note);
+  }
+
+  /**
+   * „Speichern und Team informieren“ (#6854): tells the colleagues who may
+   * read the child's notes about a saved note. Returns how many were told;
+   * zero means nobody else in the team may read the notes.
+   */
+  async informTeam(studentId: string, noteId: string): Promise<number> {
+    const result = await bffJson<{ informed: number }>(
+      `${notesPath(studentId, noteId)}/team-notices`,
+      { method: "POST", body: {} },
+    );
+    return result.informed;
+  }
+
+  /** The reader's notes shared by the team and not yet read, newest first. */
+  async listTeamNotices(): Promise<StudentNoteTeamNotice[]> {
+    const notices = await bffJson<BackendTeamNotice[] | null>(
+      "/api/students/team-notices",
+    );
+    return (notices ?? []).map(mapTeamNotice);
+  }
+
+  /**
+   * Marks only the announcement revisions loaded by the reader as read;
+   * answers with the notes still unread.
+   */
+  async markTeamNoticesRead(
+    studentId: string,
+    observed: readonly StudentNoteTeamNoticeRevision[],
+  ): Promise<StudentNoteTeamNotice[]> {
+    const notices = await bffJson<BackendTeamNotice[] | null>(
+      `/api/students/${encodeURIComponent(studentId)}/team-notices/read`,
+      {
+        method: "POST",
+        body: {
+          notices: observed.map((notice) => ({
+            note_id: notice.noteId,
+            informed_at: notice.informedAt,
+          })),
+        },
+      },
+    );
+    return (notices ?? []).map(mapTeamNotice);
   }
 
   async remove(studentId: string, noteId: string): Promise<void> {

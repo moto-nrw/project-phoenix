@@ -72,6 +72,9 @@
     "DELETE tenant /api/students/id%2F1/notes/noteId%2F1",
     "PUT tenant /api/students/id%2F1/notes/noteId%2F1"
   ],
+  "api/students/[id]/notes/[noteId]/team-notices": [
+    "POST tenant /api/students/id%2F1/notes/noteId%2F1/team-notices"
+  ],
   "api/students/[id]/partial-absences": [
     "GET tenant /api/students/id%2F1/partial-absences",
     "POST tenant /api/students/id%2F1/partial-absences"
@@ -122,6 +125,9 @@
   ],
   "api/students/[id]/status-days/[statusDayId]": [
     "DELETE tenant /api/students/id%2F1/status-days/statusDayId%2F1"
+  ],
+  "api/students/[id]/team-notices/read": [
+    "POST tenant /api/students/id%2F1/team-notices/read"
   ],
   "api/students/arrival-schedules/bulk": [
     "POST tenant /api/students/arrival-schedules/bulk"
@@ -220,5 +226,6 @@
   "api/students/status-days": ["GET tenant /api/students/status-days"],
   "api/students/status-days/bulk": [
     "POST tenant /api/students/status-days/bulk"
-  ]
+  ],
+  "api/students/team-notices": ["GET tenant /api/students/team-notices"]
 }

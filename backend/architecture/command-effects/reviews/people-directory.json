@@ -14399,6 +14399,86 @@
     },
     {
       "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.InformStudentNoteTeam",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.InformStudentNoteTeam",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through *modules/peopledirectory/internal/application.StudentNoteTeamService.InformStudentNoteTeam (#6854). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.InformStudentNoteTeam",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.InformStudentNoteTeam",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.WithSavepoint (tenant-runtime) through *modules/peopledirectory/internal/application.StudentNoteTeamService.InformStudentNoteTeam (#6854). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.WithSavepoint",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0219",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.InformStudentNoteTeam",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.InformStudentNoteTeam",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:modules/peopledirectory/internal/application.observe. Same observer callable as the note commands (#4836, ADR 0098); added for the team markers of #6854 and approved by ADR 0219.",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.ListUnreadStudentNoteTeamNotices",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.ListUnreadStudentNoteTeamNotices",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through *modules/peopledirectory/internal/application.StudentNoteTeamService.ListUnreadStudentNoteTeamNotices (#6854). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0219",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.ListUnreadStudentNoteTeamNotices",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.ListUnreadStudentNoteTeamNotices",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:modules/peopledirectory/internal/application.observe. Same observer callable as the note commands (#4836, ADR 0098); added for the team markers of #6854 and approved by ADR 0219.",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.MarkStudentNoteTeamNoticesRead",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.MarkStudentNoteTeamNoticesRead",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through *modules/peopledirectory/internal/application.StudentNoteTeamService.MarkStudentNoteTeamNoticesRead (#6854). The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0219",
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.MarkStudentNoteTeamNoticesRead",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.MarkStudentNoteTeamNoticesRead",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:modules/peopledirectory/internal/application.observe. Same observer callable as the note commands (#4836, ADR 0098); added for the team markers of #6854 and approved by ADR 0219.",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
       "binding": "*github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare",
       "classification": "platform",
       "effect": "scope",
@@ -15719,6 +15799,47 @@
       "source_owner": "people-directory",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.StudentDocuments.CanSeeStudentDocumentCategory",
       "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/api.studentNoteTeamReach.NoteReaderAccountIDs",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/inbound/students.StudentNoteTeamReach.NoteReaderAccountIDs",
+      "reason": "Reviewed note-reader read (#6854): the root lists the live staff whose active account holds users:read in the caller's tenant scope. The target only constructs the directory or SELECTs account/staff facts, with no row mutation or locking read. Target *modules/staffdirectoryview.Directory.StaffWithPermission.",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-ogs/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/api.studentNoteTeamReach.NoteReaderAccountIDs",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/inbound/students.StudentNoteTeamReach.NoteReaderAccountIDs",
+      "reason": "Reviewed note-reader read (#6854): the root lists the live staff whose active account holds users:read in the caller's tenant scope. The target only constructs the directory or SELECTs account/staff facts, with no row mutation or locking read. Target modules/staffdirectoryview.New.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-ogs/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-ogs/project-phoenix/api.studentNoteTeamReach.NotifyStudentNoteShared",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/inbound/students.StudentNoteTeamReach.NotifyStudentNoteShared",
+      "reason": "Platform protocol participation (durable): people-directory reaches modules/delivery/internal/notifications.Notifier.Notify (delivery-platform) through api.studentNoteTeamReach.NotifyStudentNoteShared (#6854). The push outbox entry joins the caller's unit with the team markers; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/internal/notifications.Notifier.Notify",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/api.studentNoteTeamReach.NotifyStudentNoteShared",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/inbound/students.StudentNoteTeamReach.NotifyStudentNoteShared",
+      "reason": "Read-only target: people-directory reaches modules/delivery/internal/notifications.PreferenceService.FilterNotOptedOut (delivery-platform) through api.studentNoteTeamReach.NotifyStudentNoteShared (#6854). No persistent, lock or scope effect.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/internal/notifications.PreferenceService.FilterNotOptedOut",
+      "target_owner": "delivery-platform"
     },
     {
       "adr": "0098",

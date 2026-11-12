@@ -10073,6 +10073,62 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.InformStudentNoteTeam",
+      "binding_digest": "0ff8abd9a3c0d09cf2dc596cc841da34",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.InformStudentNoteTeam",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.InformStudentNoteTeam",
+      "binding_digest": "96e4364c2cdb6c3d9d3cc71d91a9f61a",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.InformStudentNoteTeam",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.WithSavepoint",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.InformStudentNoteTeam",
+      "binding_digest": "6cdc81b797832cc1539502ea4216aa98",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.InformStudentNoteTeam",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.ListUnreadStudentNoteTeamNotices",
+      "binding_digest": "0ff8abd9a3c0d09cf2dc596cc841da34",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.ListUnreadStudentNoteTeamNotices",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.ListUnreadStudentNoteTeamNotices",
+      "binding_digest": "6cdc81b797832cc1539502ea4216aa98",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.ListUnreadStudentNoteTeamNotices",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.MarkStudentNoteTeamNoticesRead",
+      "binding_digest": "0ff8abd9a3c0d09cf2dc596cc841da34",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.MarkStudentNoteTeamNoticesRead",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-ogs/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.StudentNoteTeamService.MarkStudentNoteTeamNoticesRead",
+      "binding_digest": "6cdc81b797832cc1539502ea4216aa98",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.StudentNoteTeamNotices.MarkStudentNoteTeamNoticesRead",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
       "binding": "*github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare",
       "binding_digest": "c3620e119505023dca142a0731317c89",
       "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
@@ -11023,6 +11079,38 @@
       "source_owner": "people-directory",
       "target": "github.com/moto-ogs/project-phoenix/modules/careplan.StudentDocuments.CanSeeStudentDocumentCategory",
       "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/api.studentNoteTeamReach.NoteReaderAccountIDs",
+      "binding_digest": "fcffde801edf23b0304b30a477aa3b16",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/inbound/students.StudentNoteTeamReach.NoteReaderAccountIDs",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-ogs/project-phoenix/modules/staffdirectoryview.Directory.StaffWithPermission",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/api.studentNoteTeamReach.NoteReaderAccountIDs",
+      "binding_digest": "8374a739bcc4d27da14bbe394f2ea8dc",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/inbound/students.StudentNoteTeamReach.NoteReaderAccountIDs",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-ogs/project-phoenix/modules/staffdirectoryview.New",
+      "target_owner": "staff-directory-view"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/api.studentNoteTeamReach.NotifyStudentNoteShared",
+      "binding_digest": "a44b8549820bd9da9d16f44a0477b096",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/inbound/students.StudentNoteTeamReach.NotifyStudentNoteShared",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/internal/notifications.Notifier.Notify",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/api.studentNoteTeamReach.NotifyStudentNoteShared",
+      "binding_digest": "ca234980010223d5ae6d95ce61709b42",
+      "port": "github.com/moto-ogs/project-phoenix/modules/peopledirectory/inbound/students.StudentNoteTeamReach.NotifyStudentNoteShared",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/internal/notifications.PreferenceService.FilterNotOptedOut",
+      "target_owner": "delivery-platform"
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/modules/peopledirectory.Capability.CreateStudentNote",

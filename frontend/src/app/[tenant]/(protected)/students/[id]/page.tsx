@@ -2270,6 +2270,7 @@ function FullAccessView({
         {notesTabSeen && tabs.includes("notizen") ? (
           <StudentNotizenTab
             studentId={studentId}
+            active={activeTab === "notizen"}
             educationGroupId={student.group_id ?? ""}
             educationGroupName={student.group_name ?? ""}
           />

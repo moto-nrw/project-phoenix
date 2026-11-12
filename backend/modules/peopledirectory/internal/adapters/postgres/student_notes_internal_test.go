@@ -25,7 +25,7 @@ func TestStudentNoteStoreSoftDeleteReturnsAffectedRowsError(t *testing.T) {
 	db := testpkg.NewBunDB(sqlDB)
 	store := NewStudentNoteStore(func(context.Context) (bun.IDB, TenantScope, error) {
 		return db, TenantScope{TenantID: 42}, nil
-	})
+	}, testpkg.StudentDirectory{})
 	rowsAffectedErr := errors.New("affected rows unavailable")
 	mock.ExpectExec("UPDATE.*student_notes").
 		WillReturnResult(sqlmock.NewErrorResult(rowsAffectedErr))
