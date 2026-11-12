@@ -536,7 +536,7 @@ export function HolidayRegistrationStatusCard({
             variant="outline_danger"
             size="md"
             disabled={running !== null}
-            tooltip="Storniert die Anmeldung ohne Nachricht an die Eltern. moto fragt vorher nach."
+            tooltip="Storniert die Anmeldung, Nachrückende bekommen eine E-Mail. moto fragt vorher nach."
             onClick={() => setConfirmingCancel(true)}
           >
             Stornieren
@@ -577,7 +577,7 @@ export function HolidayRegistrationStatusCard({
           isLoading={running === "confirm"}
           loadingText="Bestätigt …"
           disabled={confirmBlocked}
-          tooltip="Bestätigt die Anmeldung und schickt den Eltern sofort die Annahme-Mail."
+          tooltip="Bestätigt die Anmeldung und schickt den Eltern sofort die Zusage per E-Mail."
           onClick={() => confirmRef.current?.requestSubmit()}
         >
           Bestätigen

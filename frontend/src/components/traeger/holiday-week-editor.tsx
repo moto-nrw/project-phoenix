@@ -200,7 +200,7 @@ function TimeModelRow({
             size="compact"
             className="gap-1.5"
             aria-label={`Zeitmodell ${model.name || "ohne Namen"} archivieren`}
-            tooltip="Nimmt das Zeitmodell aus dem Angebot, gebuchte Tage bleiben bestehen."
+            tooltip="Nimmt das Zeitmodell nach dem Speichern aus dem Angebot, Buchungen bleiben."
             onClick={() => onChange({ ...model, archived: true })}
           >
             <Archive className="h-4 w-4" aria-hidden="true" />

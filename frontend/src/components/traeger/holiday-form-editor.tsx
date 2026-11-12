@@ -229,7 +229,7 @@ export function HolidayFormEditor({
                 size="md"
                 disabled={saving || uploading || missingTemplateFields === 0}
                 disabledReason={
-                  missingTemplateFields === 0
+                  missingTemplateFields === 0 && !saving && !uploading
                     ? form.template.length === 0
                       ? "Für dieses Formular gibt es keine Standardvorlage."
                       : "Alle Fragen der Standardvorlage sind schon im Formular."

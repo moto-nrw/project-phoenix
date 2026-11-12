@@ -155,8 +155,7 @@ export function TraegerBankAccountsCard({
               : [
                   {
                     label: "Als Standard festlegen",
-                    description:
-                      "Diese Bankverbindung steht dann auf Briefen und Rechnungen.",
+                    description: "Gilt sofort für Briefe und Rechnungen.",
                     onClick: () => void makeDefault(account),
                   },
                 ]),

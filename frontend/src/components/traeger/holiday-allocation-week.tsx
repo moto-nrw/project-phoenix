@@ -228,7 +228,7 @@ export function HolidayAllocationWeekCard({
           size="md"
           disabled={busy}
           aria-label={`Vorschlag für die Woche ${title} übernehmen`}
-          tooltip="Entscheidet die ganze Woche wie vorgeschlagen, die Eltern bekommen E-Mails. moto fragt vorher nach."
+          tooltip="Entscheidet die Woche wie vorgeschlagen, Eltern bekommen E-Mails. moto fragt vorher nach."
           onClick={onTakeProposal}
         >
           Vorschlag übernehmen

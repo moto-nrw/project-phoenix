@@ -18,6 +18,8 @@ import { createLogger } from "~/lib/logger";
 import type { BillingFile } from "~/lib/traeger-billing-api";
 
 const OPEN_TAB_HINT = "Öffnet das Schreiben als PDF in einem neuen Tab.";
+const LOAD_FAILED_REASON =
+  "Das Schreiben ließ sich nicht laden. Bitte laden Sie es erneut.";
 
 const logger = createLogger({ component: "LetterFileView" });
 
@@ -89,6 +91,7 @@ export function LetterFileView({
           variant="surface"
           size="compact"
           disabled={!file}
+          disabledReason={error ? LOAD_FAILED_REASON : undefined}
           aria-label={`${title} herunterladen`}
           tooltip="Lädt das Schreiben als PDF auf Ihr Gerät."
           onClick={() => {
@@ -122,6 +125,7 @@ export function LetterFileView({
             variant="surface"
             size="compact"
             disabled
+            disabledReason={error ? LOAD_FAILED_REASON : undefined}
             tooltip={OPEN_TAB_HINT}
             className="gap-1.5"
           >

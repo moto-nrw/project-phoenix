@@ -104,7 +104,7 @@ export function HolidayPeriodPublishCard({
           size="md"
           disabled={blocker !== null}
           disabledReason={blocker ?? undefined}
-          tooltip="Gibt die Ferienanmeldung für Eltern frei. moto fragt vorher nach."
+          tooltip="Gibt die Anmeldung für alle Schulen des Zeitraums frei. moto fragt vorher nach."
           onClick={() => setConfirming(true)}
         >
           Veröffentlichen

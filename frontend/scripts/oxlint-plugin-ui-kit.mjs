@@ -5926,6 +5926,7 @@ const TOOLTIP_SCOPE = [
   "src/components/traeger/holiday-allocation-decision-modal.tsx",
   "src/components/traeger/holiday-allocation-mode-field.tsx",
   "src/components/traeger/holiday-allocation-week.tsx",
+  "src/components/traeger/holiday-bulk-confirm-modal.tsx",
   "src/components/traeger/holiday-criteria-editor.tsx",
   "src/components/traeger/holiday-form-editor.tsx",
   "src/components/traeger/holiday-period-form.tsx",
