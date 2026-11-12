@@ -296,7 +296,7 @@ export const ERROR_CATALOG = {
       "communication.staff_messaging_disabled":
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "communication.staff_notice_outdated":
-        "Diese Tagesinformation hat sich inzwischen geändert. Bitte laden Sie die Seite neu.",
+        "Dieser Hinweis hat sich inzwischen geändert. Bitte laden Sie die Seite neu.",
       "communication.survey_already_answered":
         "Sie haben an dieser Umfrage schon teilgenommen. Die Antwort lässt sich nicht mehr ändern.",
       "communication.survey_anonymous":

@@ -112,6 +112,7 @@ import {
   STAFF_FLAT_PAGES,
 } from "~/lib/section-navigation";
 import {
+  getStaffNavDefaultOpenGroups,
   STAFF_NAV_BOTTOM,
   STAFF_NAV_CONCEPTS,
   STAFF_NAV_GROUPS,
@@ -120,6 +121,7 @@ import {
   type StaffNavSectionKey,
 } from "~/lib/staff-navigation";
 import { databaseConcept } from "~/lib/concepts/database";
+import { payrollConcept } from "~/lib/concepts/payroll";
 import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { groupsConcept } from "~/lib/concepts/groups";
 import { supervisionConcept } from "~/lib/concepts/supervision";
@@ -343,6 +345,14 @@ const NAV_ITEMS: NavItem[] = [
     activeColor: "text-moto-blue",
   },
   {
+    // Lohnabrechnung (#6670 aus der Planung in die Verwaltung): die Routen
+    // schreibt das Backend mit config:manage, dasselbe Recht wie zuvor im
+    // Planungskatalog.
+    ...STAFF_FLAT_PAGES.payroll,
+    concept: payrollConcept,
+    requiresPermission: "config:manage",
+  },
+  {
     // Ferienwochen (#4665): Teilnehmerliste der ausrichtenden OGS. Das
     // Backend verlangt config:read wie die Anmeldelisten.
     ...STAFF_FLAT_PAGES.holidayWeeks,
@@ -528,6 +538,7 @@ const ENROLLMENT_NAV_ICON =
 // slug. No-op in subdomain mode.
 const TENANT_SCOPED_HREFS = new Set<string>([
   "/anfragen",
+  STAFF_FLAT_PAGES.payroll.href,
   ...PARENT_SUB_PAGES.map((page) => page.href),
   ...COMMUNICATION_SUB_PAGES.map((page) => page.href),
   ...PLANNING_SUB_PAGES.map((page) => page.href),
@@ -543,7 +554,7 @@ const ROW_BADGE_LABELS: Readonly<
   "/anfragen": { tone: "staff", noun: "offene Anfragen" },
   "/messages": { tone: "parents", noun: "ungelesene Nachrichten" },
   "/team-chat": { tone: "staff", noun: "ungelesene Nachrichten" },
-  "/tagesinformationen": { tone: "staff", noun: "offene Tagesinformationen" },
+  "/tagesinformationen": { tone: "staff", noun: "offene Hinweise der Leitung" },
 };
 
 /** Determine if a group sub-item should be highlighted as active */
@@ -704,18 +715,23 @@ function SidebarContent({
     fromParam,
     "groups",
   );
-  // Die fünf Gruppen der Seitenleiste (#2826): Tagesbetrieb offen, der Rest
-  // zu, bis die Person etwas aufklappt oder eine Seite darin öffnet.
-  const { isGroupOpen, toggleGroup } = useSidebarGroups(pathname, fromParam);
-
   const userIsAdmin = hasRole(session, "admin");
   const userHasEffectiveAdminScope = hasEffectiveAdminScope(session);
   const userIsCaregiver = isCaregiver(session);
   const canReadSupervisions = canReadSupervisionData(session);
   // Leitung der Einrichtung: Adminzuschnitt oder config:manage, das Recht
   // hinter Anmeldungen und Einstellungen (#3469). Entscheidet über die
-  // Anmeldungen und die Rolle der Hilfe, nicht über einzelne Rechte.
+  // Anmeldungen, die Rolle der Hilfe und die beim ersten Besuch offenen
+  // Gruppen, nicht über einzelne Rechte.
   const userLeadsSchool = leadsSchool(session);
+  // Die fünf Gruppen der Seitenleiste (#2826): beim ersten Besuch stehen der
+  // Tagesbetrieb und die Gruppe der eigenen Arbeit offen (#6670), der Rest
+  // bleibt zu, bis die Person etwas aufklappt oder eine Seite darin öffnet.
+  const { isGroupOpen, toggleGroup } = useSidebarGroups(
+    pathname,
+    fromParam,
+    getStaffNavDefaultOpenGroups(userLeadsSchool),
+  );
   // Elternmitteilungen (#1669) authoring is ADMIN-ONLY in v1: every
   // /api/parent-announcements route is guarded by the admin:* wildcard
   // (backend api/announcement/api.go), because the service does no per-caller

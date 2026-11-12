@@ -574,7 +574,7 @@ describe("Startseite anpassen", () => {
     expect(screen.queryByTestId("staff-notices-block")).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", {
-        name: /^Tagesinformationen auswählen, Spalte 2, Zeile 1, Breit/,
+        name: /^Hinweise der Leitung auswählen, Spalte 2, Zeile 1, Breit/,
       }),
     ).toBeInTheDocument();
     // Der Weg zu allen weiteren Bausteinen steht in der Leiste, nicht unter
@@ -604,7 +604,7 @@ describe("Startseite anpassen", () => {
       }),
     );
     startEditing();
-    select("Tagesinformationen");
+    select("Hinweise der Leitung");
     fireEvent.click(screen.getByRole("button", { name: "Volle Breite" }));
     fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
 
@@ -621,7 +621,7 @@ describe("Startseite anpassen", () => {
 
   it("ändert die Breite der ausgewählten Karte und speichert sie", async () => {
     startEditing();
-    select("Tagesinformationen");
+    select("Hinweise der Leitung");
 
     fireEvent.click(screen.getByRole("button", { name: "Volle Breite" }));
     fireEvent.click(screen.getByRole("button", { name: "Fertig" }));
@@ -716,7 +716,7 @@ describe("Startseite anpassen", () => {
     startEditing();
 
     fireEvent.keyDown(
-      screen.getByRole("button", { name: /^Tagesinformationen auswählen/ }),
+      screen.getByRole("button", { name: /^Hinweise der Leitung auswählen/ }),
       { key: "ArrowLeft" },
     );
     expect(

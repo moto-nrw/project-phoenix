@@ -17,7 +17,7 @@ export function schoolTraegerDocumentsTopic(): HelpTopic {
     icon: "Download",
     requirements: ["Sie dürfen die Dateien Ihrer Schule verwalten."],
     steps: [
-      "Klappen Sie in der Seitenleiste `Verwaltung` auf und öffnen Sie `Dateien`.",
+      "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Dateien`.",
       "Oben steht die Karte `Vom Träger`.",
       "Unter jedem Titel steht, für wen der Träger das Dokument freigegeben hat.",
       "Wählen Sie `Herunterladen`.",

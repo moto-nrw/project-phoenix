@@ -102,6 +102,7 @@ import { mealPlanConcept } from "~/lib/concepts/mealPlan";
 import { activitiesConcept } from "~/lib/concepts/activities";
 import { announcementsConcept } from "~/lib/concepts/announcements";
 import { calendarConcept } from "~/lib/concepts/calendar";
+import { payrollConcept } from "~/lib/concepts/payroll";
 import { carePlanConcept } from "~/lib/concepts/carePlan";
 import { childrenConcept } from "~/lib/concepts/children";
 import { dashboardConcept } from "~/lib/concepts/dashboard";
@@ -543,6 +544,13 @@ const PAGE_ITEMS: readonly AdditionalNavItem[] = [
     iconKey: "chart",
     concept: reportsConcept,
     requiresAllPermissions: ["config:read", "users:read"],
+  },
+  {
+    // Lohnabrechnung (#6670): wie in der Seitenleiste das Recht der Routen.
+    ...STAFF_FLAT_PAGES.payroll,
+    iconKey: "chart",
+    concept: payrollConcept,
+    requiresPermission: "config:manage",
   },
   {
     ...STAFF_FLAT_PAGES.holidayWeeks,

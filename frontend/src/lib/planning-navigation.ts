@@ -6,8 +6,7 @@ export type PlanningPageHref =
   | "/vertretung"
   | "/lists"
   | "/wochenprotokolle"
-  | "/calendar-periods"
-  | "/payroll";
+  | "/calendar-periods";
 
 export interface PlanningSubPage {
   readonly href: PlanningPageHref;
@@ -21,8 +20,8 @@ export interface PlanningSubPage {
   readonly openCarePermission?: string;
   /**
    * Die Seite gehört zum Betreuungsplan und verschwindet, wenn die Schule
-   * ihn ausschaltet (`timetable.enabled`). Dienstplan und Abrechnung hängen
-   * nicht daran: sie folgen ihren Modulen (#4894).
+   * ihn ausschaltet (`timetable.enabled`). Der Dienstplan hängt nicht daran:
+   * er folgt seinem Modul (#4894).
    */
   readonly requiresTimetable: boolean;
 }
@@ -108,17 +107,6 @@ export const PLANNING_SUB_PAGES: readonly PlanningSubPage[] = [
     showInMobileNav: true,
     requiresTimetable: false,
     nonAdminPermission: "schedules:manage",
-  },
-  {
-    // Abrechnung war ein eigener flacher Eintrag; sie gehört inhaltlich zur
-    // Planung (Lohnabrechnung aus Dienstplan und Zeiterfassung) und steht
-    // deshalb hier. Mobil hatte sie bisher keinen Eintrag; als Planungsseite
-    // bekommt sie einen, wie jede andere auch (siehe Regel oben).
-    href: "/payroll",
-    label: "Abrechnung",
-    showInMobileNav: true,
-    requiresTimetable: false,
-    nonAdminPermission: "config:manage",
   },
 ];
 

@@ -15,7 +15,7 @@ export function sharedFilesTopic(): HelpTopic {
       {
         title: "Eine Datei öffnen",
         steps: [
-          "Klappen Sie in der Seitenleiste `Verwaltung` auf und öffnen Sie `Dateien`.",
+          "Klappen Sie in der Seitenleiste `Team` auf und öffnen Sie `Dateien`.",
           "Wählen Sie links unter `Ordner` den passenden aus.",
           "Suchen Sie die Datei in der Liste.",
           // Live geprueft: die Aktionen liegen im Zeilenmenue und heissen

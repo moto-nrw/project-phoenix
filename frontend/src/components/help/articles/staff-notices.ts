@@ -9,19 +9,19 @@ import { HELP_TOPICS } from "~/lib/help-topics";
 export function staffNoticesTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.leadStaffNotices,
-    title: "Tagesinformationen an das Team schreiben",
+    title: "Hinweise der Leitung an das Team schreiben",
     question: "Wie erreiche ich das ganze Team mit einem Hinweis?",
-    summary: "Eine Tagesinformation sehen alle, die heute arbeiten.",
+    summary: "Einen Hinweis der Leitung sehen alle, die heute arbeiten.",
     group: "planung",
     audience: "lead",
     icon: "Megaphone",
     image: "/help/screens/tagesinformationen-anlegen.webp",
     imageAlt:
-      "Das Fenster für eine neue Tagesinformation mit Titel, Hinweis, Empfängern und Wochentagen.",
+      "Das Fenster für einen neuen Hinweis mit Titel, Hinweis, Empfängern und Wochentagen.",
     steps: [
       "Klappen Sie in der Seitenleiste `Team` auf.",
-      "Öffnen Sie `Tagesinformationen`.",
-      "Wählen Sie `Neue Tagesinformation`.",
+      "Öffnen Sie `Hinweise der Leitung`.",
+      "Wählen Sie `Neuer Hinweis`.",
       "Tragen Sie `Titel` und `Hinweis` ein.",
       "Wählen Sie bei `Für wen` `Alle`, `Nur Betreuung` oder `Nur Lehrkräfte`.",
       "Wählen Sie bei `Wichtigkeit`, wie dringend der Hinweis ist.",

@@ -399,11 +399,10 @@ describe("breadcrumb-utils", () => {
         );
       });
 
-      it("should resolve /payroll to Planung › Abrechnung", () => {
-        const result = getSectionBreadcrumb("/payroll");
-        expect(result?.sectionLabel).toBe("Planung");
-        expect(result?.pageLabel).toBe("Abrechnung");
-        expect(result?.sectionHref).toBeUndefined();
+      it("no longer files /payroll under Planung (#6670)", () => {
+        // Die Abrechnung steht seit #6670 als eigene Seite in der Verwaltung.
+        expect(getSectionBreadcrumb("/payroll")).toBeNull();
+        expect(getPageTitle("/payroll")).toBe("Abrechnung");
       });
 
       it("should map canonical planning paths to their current entry", () => {

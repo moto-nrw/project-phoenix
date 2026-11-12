@@ -26,7 +26,7 @@ describe("SchoolSidebar", () => {
     // Seit #2527 führt eine Lehrkraft auch ihre eigenen Aufsichten.
     expect(screen.getByText("Meine Aufsichten")).toBeInTheDocument();
     // Seit #2208 liest sie die Tagesinformationen der OGS-Leitung.
-    expect(screen.getByText("Tagesinformationen")).toBeInTheDocument();
+    expect(screen.getByText("Hinweise der Leitung")).toBeInTheDocument();
     // Seit #4798 führt sie ihren Kalender mit den Schulterminen.
     expect(screen.getByText("Kalender")).toBeInTheDocument();
     // Seit #4800 schreibt sie Elternbriefe an ihre Klasse.
@@ -64,7 +64,7 @@ describe("SchoolSidebar", () => {
     const item = document.querySelector('[data-school-nav-item="notices"]');
     expect(item).toHaveAttribute("href", "/tagesinformationen");
     expect(
-      screen.getByLabelText("2 offene Tagesinformationen"),
+      screen.getByLabelText("2 offene Hinweise der Leitung"),
     ).toBeInTheDocument();
   });
 

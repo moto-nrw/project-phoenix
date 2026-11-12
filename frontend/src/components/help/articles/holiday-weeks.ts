@@ -27,7 +27,7 @@ export function holidayWeeksTopic(): HelpTopic {
       "Der Träger hat Anmeldungen für diese Woche bestätigt.",
     ],
     steps: [
-      "Klappen Sie in der Seitenleiste `Verwaltung` auf.",
+      "Klappen Sie in der Seitenleiste `Eltern` auf.",
       "Öffnen Sie `Ferienwochen`.",
       "Richtet Ihre OGS mehrere Wochen aus, wählen Sie oben die Woche.",
       "Lesen Sie unter `Je Zeitmodell` und `Je Heimatschule` die Zahlen.",

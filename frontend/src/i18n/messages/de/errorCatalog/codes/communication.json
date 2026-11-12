@@ -8,7 +8,7 @@
   "poll_not_open": "{object} ist nicht mehr geöffnet. Bitte fragen Sie Ihre Ansprechperson.",
   "staff_counterpart_unavailable": "{object} ist gerade nicht erreichbar. Bitte versuchen Sie es erneut.",
   "staff_messaging_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
-  "staff_notice_outdated": "Diese Tagesinformation hat sich inzwischen geändert. Bitte laden Sie die Seite neu.",
+  "staff_notice_outdated": "Dieser Hinweis hat sich inzwischen geändert. Bitte laden Sie die Seite neu.",
   "system_announcement_immutable": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
   "announcement_not_found": "Diese Ankündigung gibt es nicht mehr. Bitte laden Sie die Seite neu.",
   "group_thread_closed": "Diese Gruppennachricht ist geschlossen. Eine Antwort ist nicht mehr möglich.",

@@ -227,7 +227,9 @@ export const COMMUNICATION_SUB_PAGES: readonly CommunicationSubPage[] = [
   // Lesen alle, anlegen nur Admins — die Seite selbst trennt das.
   {
     href: "/tagesinformationen",
-    label: "Tagesinformationen",
+    // „Hinweise der Leitung“, nicht „Tagesinformationen“: neben „Heute“ las
+    // sich der alte Name wie dieselbe Seite (#6670).
+    label: "Hinweise der Leitung",
     feature: "staffNotices",
   },
   // Umfragen (#4781): jede Person im Team beantwortet hier Umfragen an das
@@ -317,6 +319,9 @@ export const STAFF_FLAT_PAGES = {
   // Ferienwochen (#4665): die bestätigten Kinder der Wochen, die die OGS für
   // ihren Träger ausrichtet, nur bis zum Ende der Woche.
   holidayWeeks: { href: "/ferienwochen", label: "Ferienwochen" },
+  // Lohnabrechnung aus Dienstplan und Zeiterfassung. Stand bis #6670 im
+  // Planungskatalog; als Büroarbeit steht sie jetzt in der Verwaltung.
+  payroll: { href: "/payroll", label: "Abrechnung" },
   emergency: { href: "/emergency", label: "Notfall" },
   help: { href: "/help", label: "Hilfe" },
   settings: { href: "/settings", label: "Einstellungen" },

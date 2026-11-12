@@ -89,7 +89,7 @@ export const SCHOOL_PRIMARY_NAV: readonly SchoolNavItem[] = [
   {
     key: "notices",
     href: "/school/tagesinformationen",
-    label: "Tagesinformationen",
+    label: "Hinweise der Leitung",
     concept: announcementsConcept,
     portalPath: true,
     badge: "notices",

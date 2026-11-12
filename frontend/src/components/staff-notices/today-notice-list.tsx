@@ -55,7 +55,7 @@ export function TodayNoticeList({
   // Nachladen nach der Kenntnisnahme: ein Fehler dabei ist ein Ladefehler
   // über der Liste, keine gescheiterte Kenntnisnahme (#6652).
   const afterAcknowledge = useRefreshAfterWrite(
-    "die Anzeige der Tagesinformationen",
+    "die Anzeige der Hinweise der Leitung",
     onChanged,
   );
   const latestConfirmRef = useRef<(notice: StaffNotice) => void>(

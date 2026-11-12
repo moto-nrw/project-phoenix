@@ -21,7 +21,7 @@ export function payrollTopic(): HelpTopic {
       {
         title: "Lohnarten und DATEV eintragen",
         steps: [
-          "Klappen Sie in der Seitenleiste `Planung` auf.",
+          "Klappen Sie in der Seitenleiste `Verwaltung` auf.",
           "Öffnen Sie `Abrechnung`.",
           "Prüfen Sie oben unter `Vollständigkeit`, was noch fehlt.",
           "Tragen Sie unter `Feste Lohnarten` die Nummern Ihres Lohnsystems ein.",

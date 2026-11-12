@@ -175,7 +175,7 @@ export function StaffNoticeModal({
         if (!op.isCurrent()) return;
         // Protokolliert hat die Seite schon. Der Fehler bleibt im Dialog.
         await formErrors.show(err, {
-          object: "das Speichern der Tagesinformation",
+          object: "das Speichern des Hinweises",
           retry: () => latestSubmitRef.current(),
         });
       }
@@ -191,7 +191,7 @@ export function StaffNoticeModal({
       isOpen={isOpen}
       onClose={onClose}
       pending={save}
-      title={notice ? "Tagesinformation bearbeiten" : "Neue Tagesinformation"}
+      title={notice ? "Hinweis bearbeiten" : "Neuer Hinweis"}
       error={formErrors.error}
       footer={
         <div className="flex justify-end gap-2">

@@ -93,12 +93,12 @@ export default function TagesinformationenPage() {
 
   const todayLoadError = useSwrLoadError(
     todayError,
-    "die Liste der Tagesinformationen von heute",
+    "die Liste der Hinweise von heute",
     () => mutateToday(),
   );
   const listLoadError = useSwrLoadError(
     noticesError,
-    "die Liste aller Tagesinformationen",
+    "die Liste aller Hinweise",
     () => mutate(),
   );
 
@@ -147,8 +147,8 @@ export default function TagesinformationenPage() {
     }
     toast.success(
       editing
-        ? `Die Tagesinformation „${input.title}“ ist gespeichert.`
-        : `Die Tagesinformation „${input.title}“ ist angelegt.`,
+        ? `Der Hinweis „${input.title}“ ist gespeichert.`
+        : `Der Hinweis „${input.title}“ ist angelegt.`,
     );
     await Promise.all([mutate(), mutateToday()]);
   };
@@ -159,7 +159,7 @@ export default function TagesinformationenPage() {
     deleteErrors.clear();
     try {
       await deleteStaffNotice(deleting.id);
-      toast.success(`Die Tagesinformation „${deleting.title}“ ist gelöscht.`);
+      toast.success(`Der Hinweis „${deleting.title}“ ist gelöscht.`);
       await Promise.all([mutate(), mutateToday()]);
       setDeleting(null);
     } catch (err) {
@@ -167,7 +167,7 @@ export default function TagesinformationenPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       void deleteErrors.show(err, {
-        object: "das Löschen der Tagesinformation",
+        object: "das Löschen des Hinweises",
         retry: () => latestDeleteRef.current(),
       });
     } finally {
@@ -193,7 +193,7 @@ export default function TagesinformationenPage() {
 
   return (
     <TenantPage
-      title="Tagesinformationen"
+      title="Hinweise der Leitung"
       stats={statusLine}
       statsLoading={todayLoading && todayNotices.length === 0}
       actions={
@@ -207,7 +207,7 @@ export default function TagesinformationenPage() {
               setModalOpen(true);
             }}
           >
-            Neue Tagesinformation
+            Neuer Hinweis
           </Button>
         ) : undefined
       }
@@ -234,7 +234,7 @@ export default function TagesinformationenPage() {
           />
           <ConfirmDeleteModal
             isOpen={deleting !== null}
-            title="Tagesinformation löschen"
+            title="Hinweis löschen"
             description={
               deleting
                 ? `„${deleting.title}“ wird für alle entfernt. Bereits erfasste Kenntnisnahmen gehen mit verloren.`
@@ -272,7 +272,7 @@ export default function TagesinformationenPage() {
       </SectionCard>
 
       {isAdmin && (
-        <SectionCard title="Alle Tagesinformationen">
+        <SectionCard title="Alle Hinweise">
           {listLoadError ? (
             <LoadErrorAlert error={listLoadError} />
           ) : (isLoading && notices.length === 0) || noticesError ? (
@@ -280,8 +280,8 @@ export default function TagesinformationenPage() {
           ) : notices.length === 0 ? (
             <EmptyState
               icon={<Megaphone className="h-6 w-6" />}
-              title="Noch keine Tagesinformationen"
-              description="Hinweise wie „Jeden Dienstag ist die Turnhalle bis 15 Uhr belegt“ sehen damit alle Mitarbeitenden unter Team -> Tagesinformationen."
+              title="Noch keine Hinweise"
+              description="Hinweise wie „Jeden Dienstag ist die Turnhalle bis 15 Uhr belegt“ sehen damit alle Mitarbeitenden unter Team -> Hinweise der Leitung."
             />
           ) : (
             // Zeilen in EINER Karte statt einer Karte je Hinweis: die

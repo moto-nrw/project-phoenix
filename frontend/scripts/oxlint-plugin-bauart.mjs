@@ -1615,7 +1615,7 @@ const EDIT_OVERLAY_BASELINE = new Map(
       "Schließtag bearbeiten Schließtag anlegen@154",
     ],
     "src/components/staff-notices/staff-notice-modal.tsx": [
-      "Tagesinformation bearbeiten Neue Tagesinformation@190",
+      "Hinweis bearbeiten Neuer Hinweis@190",
     ],
     "src/components/timetable/calendar-period-modal.tsx": [
       "Kalenderzeitraum bearbeiten Kalenderzeitraum anlegen@432",

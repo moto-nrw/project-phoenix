@@ -658,7 +658,9 @@ describe("Sidebar", () => {
       // Team-Chat ist aus, Tagesinformationen brauchen users:read — die
       // Gruppe bleibt wegen der Zeiterfassung trotzdem da.
       expect(screen.queryByText("Team-Chat")).not.toBeInTheDocument();
-      expect(screen.queryByText("Tagesinformationen")).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Hinweise der Leitung"),
+      ).not.toBeInTheDocument();
       expect(screen.getByRole("button", { name: "Team" })).toBeInTheDocument();
       expect(screen.getByText("Zeiterfassung")).toBeInTheDocument();
     });
@@ -3282,11 +3284,14 @@ describe("Sidebar", () => {
       mockUsePathname.mockReturnValue("/home");
 
       render(<Sidebar />);
+      // Für die Leitung steht Planung beim ersten Besuch offen (#6670).
       const header = screen.getByRole("button", { name: "Planung" });
+      expect(header).toHaveAttribute("aria-expanded", "true");
+
+      fireEvent.click(header);
       expect(header).toHaveAttribute("aria-expanded", "false");
 
       fireEvent.click(header);
-
       expect(header).toHaveAttribute("aria-expanded", "true");
       expect(mockRouterPush).not.toHaveBeenCalled();
     });
@@ -3308,11 +3313,10 @@ describe("Sidebar", () => {
     });
   });
 
-  // Abrechnung (#1417) war ein flacher Top-Level-Eintrag mit
-  // config:manage-Gate und ist jetzt Unterpunkt des Planung-Akkordeons. Damit
-  // gilt dort dasselbe Gate wie für den ganzen Bereich: nur Admins, und nur
-  // solange timetable.enabled nicht ausgeschaltet ist.
-  describe("Abrechnung im Planung-Akkordeon", () => {
+  // Abrechnung (#1417) hängt an config:manage. Seit #6670 steht sie in der
+  // Verwaltung, nicht mehr in der Planung: eine Büro-Rolle ohne Planungsrecht
+  // sah dort eine Gruppe „Planung“ mit nur diesem Eintrag.
+  describe("Abrechnung in der Verwaltung (#6670)", () => {
     beforeEach(() => {
       mockIsAdmin.mockReturnValue(true);
       mockUseSession.mockReturnValue(createMockSession(true));
@@ -3322,18 +3326,23 @@ describe("Sidebar", () => {
       restoreDefaultHasPermission();
     });
 
-    it("renders Abrechnung as a row of the Planung group, not as a top-level entry", () => {
+    it("renders Abrechnung as a row of the Verwaltung group, not of Planung", () => {
       render(<Sidebar />);
+      fireEvent.click(screen.getByRole("button", { name: "Verwaltung" }));
 
       const abrechnungLink = screen.getByText("Abrechnung").closest("a");
       expect(abrechnungLink).toHaveAttribute("href", "/test-tenant/payroll");
 
-      // Der Eintrag steckt in der Gruppe Planung (gemeinsamer Container mit
-      // der Gruppenzeile), nicht als eigener Eintrag daneben (#2826).
+      // Der Eintrag steckt in der Gruppe Verwaltung (gemeinsamer Container
+      // mit der Gruppenzeile), nicht in der Planung (#6670).
+      const adminGroup = screen
+        .getByRole("button", { name: "Verwaltung" })
+        .closest("div");
+      expect(adminGroup).toContainElement(abrechnungLink);
       const planningGroup = screen
         .getByRole("button", { name: "Planung" })
         .closest("div");
-      expect(planningGroup).toContainElement(abrechnungLink);
+      expect(planningGroup).not.toContainElement(abrechnungLink);
 
       // Zeilen einer Gruppe tragen ein Icon und stehen im Zeilenraster;
       // nur die Unterpunkte der Akkordeons sind eingerückt.
@@ -3362,12 +3371,14 @@ describe("Sidebar", () => {
       );
 
       render(<Sidebar />);
+      fireEvent.click(screen.getByRole("button", { name: "Verwaltung" }));
 
-      expect(screen.getByText("Planung")).toBeInTheDocument();
       expect(screen.getByText("Abrechnung").closest("a")).toHaveAttribute(
         "href",
         "/test-tenant/payroll",
       );
+      // Ohne Planungsrecht keine Gruppe „Planung“, nur wegen der Abrechnung.
+      expect(screen.queryByText("Planung")).not.toBeInTheDocument();
       expect(screen.queryByText("Betreuungsplan")).not.toBeInTheDocument();
     });
 
@@ -3618,7 +3629,10 @@ describe("Sidebar", () => {
       localStorage.setItem("sidebar-collapsed", "true");
       const { container } = render(<Sidebar />);
 
+      // Team steht ohne Leitungsrolle beim ersten Besuch offen (#6670).
       const team = screen.getByRole("button", { name: "Team" });
+      expect(team).toHaveAttribute("aria-expanded", "true");
+      fireEvent.click(team);
       expect(team).toHaveAttribute("aria-expanded", "false");
       fireEvent.click(team);
 

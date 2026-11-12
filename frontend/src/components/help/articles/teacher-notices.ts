@@ -5,14 +5,14 @@ import { HELP_TOPICS } from "~/lib/help-topics";
 export function teacherNoticesTopic(): HelpTopic {
   return {
     id: HELP_TOPICS.teacherNotices,
-    title: "Tagesinformationen lesen",
+    title: "Hinweise der Leitung lesen",
     question: "Wo stehen die Hinweise der OGS-Leitung?",
-    summary: "Unter `Tagesinformationen` steht, was für heute gilt.",
+    summary: "Unter `Hinweise der Leitung` steht, was für heute gilt.",
     group: "nachrichten",
     audience: "teacher",
     icon: "Megaphone",
     steps: [
-      "Öffnen Sie `Tagesinformationen`.",
+      "Öffnen Sie `Hinweise der Leitung`.",
       "Lesen Sie die Hinweise für heute.",
       "Wählen Sie bei Bedarf `Zur Kenntnis nehmen`.",
     ],
