@@ -12942,13 +12942,14 @@ export const traegerProfileTopic = function traegerProfileTopic(): HelpTopic {
       "Wählen Sie `Speichern`.",
     ],
     result:
-      "Neue Einträge im Exportprotokoll und im Verlauf der Rechnungen zeigen Ihren Namen. Sie selbst sehen dort „von Ihnen“.",
+      "Oben rechts steht sofort Ihr Name. Neue Einträge im Exportprotokoll und im Verlauf der Rechnungen zeigen ihn auch. Sie selbst sehen dort „von Ihnen“.",
     notes: [
-      "Ihre E-Mail-Adresse steht dort nie. Sie sehen sie nur unter `Konto` bei `Anmeldung`.",
+      "Im Protokoll und im Verlauf steht Ihre E-Mail-Adresse nie. Sie sehen sie im Profil-Menü unter Ihrem Namen und unter `Konto` bei `Anmeldung`.",
       "Ihren Namen geben Sie schon beim Annehmen der Einladung an.",
       "Wer die Rolle `Leitung` hat, kann Namen auch unter `Mitglieder und Rollen` eintragen.",
     ],
     troubleshootingDetails: [
+      "Oben rechts steht Ihre E-Mail-Adresse statt eines Namens? Sie haben noch keinen Namen. Tragen Sie ihn unter `Konto` ein.",
       "Im Protokoll steht „von einem Konto ohne Namen“? Diese Person hat noch keinen Namen. Sie kann ihn unter `Konto` eintragen.",
       "Im Protokoll steht „von einem gelöschten Konto“? Das Konto gibt es nicht mehr. Der Name lässt sich nicht mehr zeigen.",
     ],

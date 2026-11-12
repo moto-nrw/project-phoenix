@@ -11,6 +11,7 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
+import { usePublishTraegerOwnProfile } from "~/components/traeger/traeger-own-name";
 import { TenantPage } from "~/components/ui/tenant-page";
 import {
   useApiFormError,
@@ -118,11 +119,20 @@ export default function TraegerAccountPage() {
   const [loading, setLoading] = useState(true);
   const profileLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = profileLoad;
+  // The header shows the same name as this page (#6870).
+  const publishToHeader = usePublishTraegerOwnProfile();
+  const showProfile = useCallback(
+    (next: TraegerProfile) => {
+      setProfile(next);
+      publishToHeader(next);
+    },
+    [publishToHeader],
+  );
 
   const load = useCallback(async () => {
     setLoading(true);
     try {
-      setProfile(await fetchTraegerProfile());
+      showProfile(await fetchTraegerProfile());
       clearLoadError();
     } catch (err) {
       logger.error("traeger_profile_load_failed", {
@@ -135,7 +145,7 @@ export default function TraegerAccountPage() {
     } finally {
       setLoading(false);
     }
-  }, [clearLoadError, showLoadError]);
+  }, [clearLoadError, showLoadError, showProfile]);
 
   useEffect(() => {
     void load();
@@ -159,7 +169,7 @@ export default function TraegerAccountPage() {
               </DataField>
             </DataGrid>
           </SectionCard>
-          <NameCard name={profile.name} onSaved={setProfile} />
+          <NameCard name={profile.name} onSaved={showProfile} />
         </>
       ) : null}
     </TenantPage>

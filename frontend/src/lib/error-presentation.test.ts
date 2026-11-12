@@ -182,6 +182,50 @@ describe("presentError", () => {
     );
   });
 
+  // #6871: a Träger-Büro asks its own Leitung, every other portal its school.
+  describe("contact of a missing right", () => {
+    const refusal = new ApiError("Forbidden", 403);
+    const traegerText =
+      "Für die Personen des Träger-Büros fehlt Ihnen die Berechtigung. Bitte fragen Sie die Leitung Ihres Träger-Büros.";
+
+    it("sends a Träger-Büro to its Leitung, not to a school", () => {
+      expect(
+        presentError(refusal, "die Personen des Träger-Büros", "de", "traeger"),
+      ).toMatchObject({ errorClass: "permission", message: traegerText });
+    });
+
+    it("keeps the school for every other portal", () => {
+      expect(
+        presentError(refusal, "die Personen des Träger-Büros"),
+      ).toMatchObject({
+        errorClass: "permission",
+        message:
+          "Für die Personen des Träger-Büros fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
+      });
+    });
+
+    it("leaves the own text of a code and other classes unchanged", () => {
+      const ownText = new ApiError("forbidden", 403, {
+        code: "traeger.no_membership",
+      });
+      expect(presentError(ownText, "Ihr Konto", "de", "traeger").message).toBe(
+        presentError(ownText, "Ihr Konto").message,
+      );
+      const input = new ApiError("bad", 400);
+      expect(presentError(input, "Ihr Name", "de", "traeger").message).toBe(
+        presentError(input, "Ihr Name").message,
+      );
+    });
+
+    it("names the Leitung in every language", () => {
+      for (const locale of ["en", "pl", "ru", "sq", "tr", "uk"] as const) {
+        expect(presentError(refusal, "X", locale, "traeger").message).not.toBe(
+          presentError(refusal, "X", locale).message,
+        );
+      }
+    });
+  });
+
   it("distinguishes an API class error from an uncoded crash", () => {
     const api = presentError(new ApiError("backend", 400), "Das Kind");
     const crash = presentError(new TypeError("frontend crash"), "Das Kind");
