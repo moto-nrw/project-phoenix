@@ -66,7 +66,7 @@ export function requiresHealth(form: HolidayFormVersion): boolean {
 }
 
 /** The fixed health fields a required form asks with a choice. */
-export const REQUIRED_HEALTH_FIELDS = ["allergies", "medication"] as const;
+const REQUIRED_HEALTH_FIELDS = ["allergies", "medication"] as const;
 export type RequiredHealthField = (typeof REQUIRED_HEALTH_FIELDS)[number];
 
 function healthChoice(

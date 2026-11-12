@@ -215,10 +215,8 @@ func seedHolidayGuests(rt *Runtime, weekID int64) error {
 }
 
 // seedHolidayAddressForm saves the next version of the period's form with
-// its questions, the postal address as optional (#5625), so the
-// registration, its export, the invoice and the letter show an address, and
-// allergies and medication as required (#6686), so the form shows the
-// answer "Keine".
+// its questions and the postal address as optional (#5625), so the
+// registration, its export, the invoice and the letter show an address.
 func seedHolidayAddressForm(client *Client, auth AuthRef, periodID int64) error {
 	path := fmt.Sprintf("/traeger/holiday-periods/%d/form", periodID)
 	raw, err := client.GetWithAuth(auth, path)
@@ -238,14 +236,14 @@ func seedHolidayAddressForm(client *Client, auth AuthRef, periodID int64) error 
 	if len(fields) == 0 {
 		fields = json.RawMessage(`[]`)
 	}
-	body := map[string]any{"fields": fields, "address_requirement": "optional", "health_requirement": "required"}
+	body := map[string]any{"fields": fields, "address_requirement": "optional"}
 	if len(form.Data.LegalBlocks) > 0 {
 		body["legal_blocks"] = form.Data.LegalBlocks
 	}
 	if _, err := client.PutWithAuth(auth, path, body); err != nil {
 		return fmt.Errorf("ask for the postal address in the holiday form: %w", err)
 	}
-	fmt.Println("  Träger-Büro: the holiday form asks for the postal address (optional) and requires allergies and medication")
+	fmt.Println("  Träger-Büro: the holiday form asks for the postal address (optional)")
 	return nil
 }
 
@@ -562,7 +560,7 @@ func seedHolidayDuplicate(registration map[string]any, proof string) map[string]
 		child[key] = value
 	}
 	guestBookings := children[1]["bookings"].([]map[string]any)
-	child["allergies"] = "Keine"
+	child["allergies"] = ""
 	child["bookings"] = guestBookings[len(guestBookings)-1:]
 	duplicate := map[string]any{}
 	for key, value := range registration {
@@ -630,11 +628,11 @@ func seedHolidayRegistration(published []byte, homeSchool int64) (string, map[st
 		"guardian_address": map[string]any{"street": "Sonnenweg 7", "postal_code": "49143", "city": "Bissendorf"},
 		"children": []map[string]any{
 			{"first_name": "Lotta", "last_name": "Ferienkind", "birth_date": "2018-04-12", "home_school_id": homeSchool,
-				"allergies": "Erdnüsse", "medication": "Keine", "bookings": []map[string]any{booking(0, 1)},
+				"allergies": "Erdnüsse", "bookings": []map[string]any{booking(0, 1)},
 				"custom_data": map[string]any{"lebensmittelunvertraeglichkeiten": "Laktose", "tetanus_impfschutz": "ja",
 					"darf_allein_nach_hause": false, "darf_an_ausfluegen_teilnehmen": true}},
 			{"first_name": "Jonas", "last_name": "Ferienkind", "birth_date": "2016-09-03", "home_school_id": 0,
-				"guest_school_name": "Grundschule am See", "allergies": "Keine", "medication": "Asthmaspray bei Bedarf",
+				"guest_school_name": "Grundschule am See", "medication": "Asthmaspray bei Bedarf",
 				"bookings": []map[string]any{booking(0, 0), booking(1, 0)},
 				"custom_data": map[string]any{"tetanus_impfschutz": "weiss_nicht", "darf_allein_nach_hause": true,
 					"darf_an_ausfluegen_teilnehmen": true}},
