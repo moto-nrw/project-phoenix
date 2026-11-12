@@ -4,7 +4,10 @@ import {
   enrollmentWindowIsOrdered,
   phaseHasPublicForm,
 } from "~/lib/enrollment-phase-rules";
-import type { CareOfferingSelectionMode } from "~/lib/enrollment-phase-api";
+import type {
+  CareBeyondPhaseEnd,
+  CareOfferingSelectionMode,
+} from "~/lib/enrollment-phase-api";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import {
   useCallback,
@@ -26,6 +29,7 @@ import {
   Link2,
   Pencil,
   Power,
+  QrCode,
   Trash2,
 } from "lucide-react";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -48,6 +52,11 @@ import {
   updatePhase,
 } from "~/lib/enrollment-phase-api";
 import { Alert } from "~/components/ui/alert";
+import { useSession } from "next-auth/react";
+import { hasPermission } from "~/lib/auth-utils";
+import { CareExitModal } from "~/components/students/care-exit-modal";
+import { ConfirmationModal, Modal } from "~/components/ui/modal";
+import { FramedList } from "~/components/ui/framed-list";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { DateTimePicker } from "~/components/ui/date-time-picker";
@@ -61,6 +70,8 @@ import {
   listSchemas,
   type FormSchema,
 } from "~/lib/enrollment-form-schema-api";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { RolloverForm } from "./rollover-form";
 import { useTenant } from "~/lib/tenant-context";
@@ -74,6 +85,8 @@ import {
 import { useEnrollmentPublicUrl } from "~/lib/enrollment-public-url";
 import { useTenantAwarePath } from "~/lib/tenant-path";
 import { useClipboardCopy } from "~/lib/use-clipboard-copy";
+import { LazyQrCodeDialog } from "~/components/qr-code/qr-code-button";
+import { ENROLLMENT_QR_CODE } from "~/components/enrollment/public-link-copy-button";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import { StatCard } from "~/components/ui/stat-card";
 import { Button } from "~/components/ui/button";
@@ -84,11 +97,14 @@ import { Radio } from "~/components/ui/radio";
 import {
   SlideOver,
   SlideOverBody,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import {
+  type FormModalOperation,
+  useFormModalPending,
+} from "~/components/ui/use-form-modal-pending";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { DesktopOnlyNotice } from "~/components/ui/desktop-only-notice";
 import {
@@ -120,33 +136,22 @@ import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { SpinnerIcon } from "~/components/ui/icons";
 import { RemovableChip } from "~/components/ui/removable-chip";
 import { FormFieldset } from "~/components/ui/form-fieldset";
+import {
+  PHASE_AUDIENCE_LABELS,
+  PHASE_CARE_SELECTION_LABELS,
+  PHASE_KIND_LABELS,
+  PHASE_OVERFLOW_LABELS,
+} from "~/lib/enrollment-phase-labels";
 
 const logger = createLogger({ component: "PhasesEditor" });
 
-const KIND_LABELS: Record<PhaseKind, string> = {
-  school_year: "Schuljahr",
-  holiday: "Ferienbetreuung",
-  custom: "Sonstiges",
-};
+const KIND_LABELS = PHASE_KIND_LABELS;
+const OVERFLOW_LABELS = PHASE_OVERFLOW_LABELS;
+const CARE_SELECTION_LABELS = PHASE_CARE_SELECTION_LABELS;
+const AUDIENCE_LABELS = PHASE_AUDIENCE_LABELS;
 
-const OVERFLOW_LABELS: Record<PhaseCareOverflowMode, string> = {
-  waitlist: "Auf Warteliste setzen",
-  reject: "Anmeldung blockieren",
-  allow: "Ohne Hinweis akzeptieren",
-};
-
-const CARE_SELECTION_LABELS: Record<CareOfferingSelectionMode, string> = {
-  optional: "Optional",
-  at_least_one: "Mindestens ein Angebot",
-  exactly_one: "Genau ein Angebot",
-};
-
-const AUDIENCE_LABELS: Record<PhaseAudience, string> = {
-  open: "Offen für alle",
-  new_students: "Nur neue Kinder",
-  existing_students: "Nur bereits angemeldete Kinder",
-  linked_parents: "Nur Eltern mit Konto an der Schule",
-};
+// Entspricht careplan.MaxCareExitBatchSize: jede Gruppe wird einzeln bestätigt.
+const CARE_EXIT_BATCH_SIZE = 500;
 
 // Compact labels for the phases table badge (the full labels are too long
 // for a table cell). "open" needs no badge, so it is intentionally omitted.
@@ -266,7 +271,8 @@ export function PhasesEditor() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<PhaseInput | null>(null);
   const [schemaSource, setSchemaSource] = useState<SchemaSource>("base");
-  const [saving, setSaving] = useState(false);
+  // Aktivieren/Ausschalten aus der Liste, außerhalb des Panels.
+  const [togglingActive, setTogglingActive] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   // Delete-confirmation modal state. deleteTarget drives visibility;
   // deleteImpact holds the fetched blast-radius counts.
@@ -291,8 +297,27 @@ export function PhasesEditor() {
   const impactRequestRef = useRef(0);
   const rolloverRequestRef = useRef<string | null>(null);
   const [rolloverSource, setRolloverSource] = useState<Phase | null>(null);
+  // Kinder, deren Betreuung nach dem Kürzen der Phase länger läuft (#6598).
+  // Erst der Hinweis, dann auf Wunsch einzeln bestätigte Gruppen bis 500 Kinder.
+  const [careBeyondEnd, setCareBeyondEnd] = useState<{
+    phaseName: string;
+    phaseEnd: string;
+    students: CareBeyondPhaseEnd[];
+  } | null>(null);
+  const [careExitOpen, setCareExitOpen] = useState(false);
+  const { data: session } = useSession();
+  // „Betreuung beenden“ verlangt users:delete wie im Backend.
+  const canEndCare = hasPermission(session, "users:delete");
   const [highlightFormSection, setHighlightFormSection] = useState(false);
   const [highlightActions, setHighlightActions] = useState(false);
+  const panelOpen = Boolean((editingId && draft) ?? rolloverSource);
+  // Saving a phase or creating a rollover locks the panel (#6593); a late
+  // answer must not close or fill the panel for another phase.
+  const panelSave = useFormModalPending(
+    panelOpen,
+    rolloverSource ? `rollover-${rolloverSource.id}` : editingId,
+  );
+  const saving = panelSave.pending || togglingActive;
   const { tenantSlug, tenant } = useTenant();
   const resolvedGradeLevelMax = tenant?.gradeLevelMax;
   const gradeLevelMax = supportedGradeLevelMax(resolvedGradeLevelMax);
@@ -316,43 +341,50 @@ export function PhasesEditor() {
 
   // „Wiederholen“ lädt mit der aktuellen Fassung neu.
   const latestLoadAll = useRef<() => Promise<void>>(async () => undefined);
-  const loadAll = useCallback(async () => {
-    setLoading(true);
-    try {
-      const [phasesData, schemasData, periodsData] = await Promise.all([
-        listPhases(),
-        // Without the templates the form column and the template picker
-        // would claim „Eigene Vorlage“ / none; the load fails as a whole.
-        listSchemas(),
-        // Calendar periods are optional context for the phase form —
-        // a load failure must not block phase management. Deliberately
-        // silent beyond the log: the form then offers no period to link.
-        calendarPeriodService.list().catch((periodError: unknown) => {
-          logger.warn("phase_calendar_periods_load_failed", {
-            error:
-              periodError instanceof Error
-                ? periodError.message
-                : String(periodError),
-          });
-          return [] as CalendarPeriod[];
-        }),
-      ]);
-      setPhases(phasesData);
-      setSchemas(schemasData);
-      setPeriods(periodsData);
-      clearLoadError();
-    } catch (err) {
-      logger.error("phases_load_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await showLoadError(err, {
-        object: "die Liste der Anmeldephasen",
-        retry: () => void latestLoadAll.current(),
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [showLoadError, clearLoadError]);
+  const loadAll = useCallback(
+    async (options: { rethrow?: boolean } = {}) => {
+      // Nach einem Schreiben bleibt die bestätigte Liste stehen (#6652).
+      if (!options.rethrow) setLoading(true);
+      try {
+        const [phasesData, schemasData, periodsData] = await Promise.all([
+          listPhases(),
+          // Without the templates the form column and the template picker
+          // would claim „Eigene Vorlage“ / none; the load fails as a whole.
+          listSchemas(),
+          // Calendar periods are optional context for the phase form —
+          // a load failure must not block phase management. Deliberately
+          // silent beyond the log: the form then offers no period to link.
+          calendarPeriodService.list().catch((periodError: unknown) => {
+            logger.warn("phase_calendar_periods_load_failed", {
+              error:
+                periodError instanceof Error
+                  ? periodError.message
+                  : String(periodError),
+            });
+            return [] as CalendarPeriod[];
+          }),
+        ]);
+        setPhases(phasesData);
+        setSchemas(schemasData);
+        setPeriods(periodsData);
+        clearLoadError();
+      } catch (err) {
+        logger.error("phases_load_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Nach einem Schreiben zeigt der Aufrufer den Fehler als Nachladefehler
+        // über der stehenden Liste (#6652).
+        if (options.rethrow) throw err;
+        await showLoadError(err, {
+          object: "die Liste der Anmeldephasen",
+          retry: () => void latestLoadAll.current(),
+        });
+      } finally {
+        setLoading(false);
+      }
+    },
+    [showLoadError, clearLoadError],
+  );
   useLayoutEffect(() => {
     latestLoadAll.current = loadAll;
   });
@@ -360,6 +392,11 @@ export function PhasesEditor() {
   useEffect(() => {
     void loadAll();
   }, [loadAll]);
+  // Nachladen nach Speichern, Löschen oder Umschalten: ein Fehler dabei ist
+  // ein Ladefehler, kein Fehler der Aktion (#6652).
+  const afterWrite = useRefreshAfterWrite("die Anzeige der Anmeldephasen", () =>
+    loadAll({ rethrow: true }),
+  );
 
   useEffect(() => {
     if (!highlightFormSection) return;
@@ -506,29 +543,37 @@ export function PhasesEditor() {
         return;
       }
     }
-    setSaving(true);
-    try {
-      if (editingId === "new") {
-        const created = await createPhase(payload);
-        toast.success(`Die Anmeldephase „${created.name}“ ist angelegt.`);
-      } else if (editingId) {
-        const updated = await updatePhase(editingId, payload);
-        toast.success(`Die Anmeldephase „${updated.name}“ ist gespeichert.`);
+    await panelSave.run(async (op) => {
+      try {
+        if (editingId === "new") {
+          const created = await createPhase(payload);
+          toast.success(`Die Anmeldephase „${created.name}“ ist angelegt.`);
+        } else if (editingId) {
+          const updated = await updatePhase(editingId, payload);
+          toast.success(`Die Anmeldephase „${updated.name}“ ist gespeichert.`);
+          if (updated.careBeyondEnd?.length) {
+            setCareBeyondEnd({
+              phaseName: updated.name,
+              phaseEnd: updated.service_end_date,
+              students: updated.careBeyondEnd,
+            });
+          }
+        }
+        if (op.isCurrent()) cancelEdit();
+        await afterWrite.refresh();
+        refreshPhaseExpiryWarnings();
+      } catch (err) {
+        logger.error("phase_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "die Anmeldephase",
+          retry: () => void latestSave.current(),
+        });
       }
-      cancelEdit();
-      await loadAll();
-      refreshPhaseExpiryWarnings();
-    } catch (err) {
-      logger.error("phase_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: "die Anmeldephase",
-        retry: () => void latestSave.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
   // „Wiederholen“ sendet den aktuellen Entwurf.
   const latestSave = useRef(save);
@@ -600,7 +645,7 @@ export function PhasesEditor() {
       await deletePhase(phase.id);
       toast.success(`Die Anmeldephase „${phase.name}“ ist gelöscht.`);
       closeDelete();
-      await loadAll();
+      await afterWrite.refresh();
       refreshPhaseExpiryWarnings();
     } catch (err) {
       logger.error("phase_delete_failed", {
@@ -619,7 +664,7 @@ export function PhasesEditor() {
     clearDeleteErrors,
     showDeleteError,
     closeDelete,
-    loadAll,
+    afterWrite,
     refreshPhaseExpiryWarnings,
     toast,
   ]);
@@ -675,8 +720,11 @@ export function PhasesEditor() {
     startRolloverByID,
   ]);
 
-  const handleRolloverSuccess = (result: RolloverResult) => {
-    setRolloverSource(null);
+  const handleRolloverSuccess = (
+    result: RolloverResult,
+    op: FormModalOperation,
+  ) => {
+    if (op.isCurrent()) setRolloverSource(null);
     const summaryBits: string[] = [];
     if (result.summary.rolled_count > 0) {
       summaryBits.push(`${result.summary.rolled_count} übernommen`);
@@ -700,18 +748,21 @@ export function PhasesEditor() {
   );
   const handleToggleActive = useCallback(
     async (phase: Phase) => {
-      setSaving(true);
+      setTogglingActive(true);
       try {
         const updated = await updatePhase(phase.id, {
           ...phaseToInput(phase),
           is_active: !phase.is_active,
         });
+        setPhases((current) =>
+          current.map((item) => (item.id === updated.id ? updated : item)),
+        );
         toast.success(
           updated.is_active
             ? `Die Anmeldephase „${updated.name}“ ist jetzt aktiv.`
             : `Die Anmeldephase „${updated.name}“ ist jetzt nicht mehr aktiv.`,
         );
-        await loadAll();
+        await afterWrite.refresh();
         refreshPhaseExpiryWarnings();
       } catch (err) {
         logger.error("phase_toggle_active_failed", {
@@ -722,10 +773,10 @@ export function PhasesEditor() {
           retry: () => void latestToggleActive.current(phase),
         });
       } finally {
-        setSaving(false);
+        setTogglingActive(false);
       }
     },
-    [loadAll, refreshPhaseExpiryWarnings, showActionError, toast],
+    [afterWrite, refreshPhaseExpiryWarnings, showActionError, toast],
   );
   useLayoutEffect(() => {
     latestToggleActive.current = handleToggleActive;
@@ -863,6 +914,57 @@ export function PhasesEditor() {
     ],
   );
 
+  const careBeyondEndContent = careBeyondEnd ? (
+    <div className="space-y-4">
+      <p className="text-sm leading-6 text-gray-600">
+        {`Die Anmeldephase „${careBeyondEnd.phaseName}“ endet jetzt am ${formatDate(careBeyondEnd.phaseEnd)}. Bei ${careBeyondEnd.students.length === 1 ? "1 Kind" : `${careBeyondEnd.students.length} Kindern`} ist die Betreuung länger eingetragen. moto beendet sie nicht von selbst. Diese Liste sehen Sie nur jetzt.`}
+      </p>
+      <FramedList maxHeight="md">
+        {careBeyondEnd.students.map((child) => (
+          <li
+            key={child.studentId}
+            className="flex flex-col gap-1 px-4 py-3 text-sm sm:flex-row sm:items-center sm:justify-between sm:gap-3"
+          >
+            <span className="min-w-0">
+              <span className="block font-medium wrap-anywhere text-gray-900">
+                {`${child.firstName} ${child.lastName}`}
+              </span>
+              {child.schoolClass ? (
+                <span className="block text-xs text-gray-500">
+                  {schoolClassLabel(child.schoolClass)}
+                </span>
+              ) : null}
+            </span>
+            <span className="text-gray-700 sm:shrink-0 sm:text-right">
+              {`Betreuung bis ${formatDate(child.careEnd)}`}
+            </span>
+          </li>
+        ))}
+      </FramedList>
+      {canEndCare ? (
+        <>
+          <p className="text-sm leading-6 text-gray-600">
+            {careBeyondEnd.phaseEnd < berlinTodayISO()
+              ? "Soll die Betreuung mit der Phase enden? Das neue Ende ist schon vorbei. Die Betreuung kann frühestens heute enden."
+              : `Soll die Betreuung mit der Phase enden? Dann beenden Sie sie zum ${formatDate(careBeyondEnd.phaseEnd)}.`}
+          </p>
+          {careBeyondEnd.students.length > CARE_EXIT_BATCH_SIZE ? (
+            <p className="text-sm leading-6 text-gray-600">
+              Sie beenden zuerst die Betreuung der ersten 500 Kinder. Danach
+              bleiben die übrigen Kinder in dieser Liste.
+            </p>
+          ) : null}
+        </>
+      ) : (
+        <Alert
+          type="warning"
+          announce="off"
+          message="Die Betreuung beenden darf nur, wer Kinder verwalten darf. Notieren Sie die Namen und geben Sie sie an diese Person weiter."
+        />
+      )}
+    </div>
+  ) : null;
+
   return (
     <TenantPage
       title="Anmeldephasen"
@@ -896,7 +998,7 @@ export function PhasesEditor() {
       // Ein Ladefehler steht an Stelle der Liste, nie ein Leerzustand.
       error={pageLoad.error}
       empty={
-        !loading && phases.length === 0
+        !loading && phases.length === 0 && !afterWrite.error
           ? {
               title: "Noch keine Anmeldephase angelegt",
               description:
@@ -913,7 +1015,8 @@ export function PhasesEditor() {
           Formular ist zu breit für eine aufgeklappte Tabellenzeile, und die
           Liste darf beim Bearbeiten nicht verschwinden. */}
           <SlideOver
-            open={Boolean((editingId && draft) ?? rolloverSource)}
+            pending={panelSave}
+            open={panelOpen}
             onOpenChange={(open) => {
               if (open) return;
               if (rolloverSource) {
@@ -924,9 +1027,7 @@ export function PhasesEditor() {
             }}
           >
             <SlideOverContent size="lg">
-              <SlideOverHeader
-                close={<SlideOverCloseButton disabled={saving} />}
-              >
+              <SlideOverHeader>
                 <SlideOverTitle>
                   {rolloverSource
                     ? "Anmeldephase übertragen"
@@ -939,6 +1040,7 @@ export function PhasesEditor() {
                 {rolloverSource ? (
                   <RolloverForm
                     source={rolloverSource}
+                    pending={panelSave}
                     onCancel={() => setRolloverSource(null)}
                     onSuccess={handleRolloverSuccess}
                   />
@@ -963,6 +1065,76 @@ export function PhasesEditor() {
             </SlideOverContent>
           </SlideOver>
 
+          {careBeyondEnd && !careExitOpen ? (
+            canEndCare ? (
+              <ConfirmationModal
+                isOpen
+                mobileSheet
+                title="Betreuung läuft länger als die Phase"
+                confirmText="Betreuung beenden"
+                cancelText="Schließen"
+                onConfirm={() => setCareExitOpen(true)}
+                onClose={() => setCareBeyondEnd(null)}
+              >
+                {careBeyondEndContent}
+              </ConfirmationModal>
+            ) : (
+              <Modal
+                isOpen
+                mobileSheet
+                title="Betreuung läuft länger als die Phase"
+                onClose={() => setCareBeyondEnd(null)}
+                footer={
+                  <Button
+                    type="button"
+                    variant="primary"
+                    size="md"
+                    onClick={() => setCareBeyondEnd(null)}
+                  >
+                    Schließen
+                  </Button>
+                }
+              >
+                {careBeyondEndContent}
+              </Modal>
+            )
+          ) : null}
+          {careBeyondEnd && careExitOpen ? (
+            <CareExitModal
+              isOpen
+              studentIds={careBeyondEnd.students
+                .slice(0, CARE_EXIT_BATCH_SIZE)
+                .map((child) => child.studentId)}
+              suggestedLastCareDay={careBeyondEnd.phaseEnd}
+              onExcludeBlocked={(studentIds) => {
+                const excluded = new Set(studentIds);
+                setCareExitOpen(false);
+                setCareBeyondEnd((current) => {
+                  if (!current) return null;
+                  const remaining = current.students.filter(
+                    (child) => !excluded.has(child.studentId),
+                  );
+                  return remaining.length > 0
+                    ? { ...current, students: remaining }
+                    : null;
+                });
+              }}
+              onClose={() => setCareExitOpen(false)}
+              onFinished={() => {
+                setCareExitOpen(false);
+                setCareBeyondEnd((current) => {
+                  if (!current) return null;
+                  const remaining =
+                    current.students.slice(CARE_EXIT_BATCH_SIZE);
+                  return remaining.length > 0
+                    ? { ...current, students: remaining }
+                    : null;
+                });
+                toast.success("Das Ende der Betreuung ist eingetragen.");
+              }}
+            />
+          ) : null}
+
           {deleteTarget && (
             <ConfirmDeleteModal
               isOpen={Boolean(deleteTarget)}
@@ -971,8 +1143,8 @@ export function PhasesEditor() {
                 <p>
                   Möchten Sie die Anmeldephase{" "}
                   <span className="font-medium">„{deleteTarget.name}“</span>{" "}
-                  wirklich endgültig löschen? Sie kann jederzeit gelöscht
-                  werden, während des Betreuungszeitraums, davor und danach.
+                  wirklich endgültig löschen? Sind noch Kinder gebucht, geht das
+                  erst, wenn ihre Buchungen beendet sind.
                 </p>
               }
               warningSlot={
@@ -1008,6 +1180,7 @@ export function PhasesEditor() {
         </>
       }
     >
+      <LoadErrorAlert error={afterWrite.error} />
       <DesktopOnlyNotice />
       {/* Flex-Spalte statt Block: so wächst die Tabelle als letzte Fläche
           bis zur Unterkante des Bildschirms (`.moto-tenant-body`). */}
@@ -1198,6 +1371,7 @@ function PhaseActions({
 }: PhaseActionsProps) {
   const [lateInviteOpen, setLateInviteOpen] = useState(false);
   const [manualOpen, setManualOpen] = useState(false);
+  const [qrCodeOpen, setQrCodeOpen] = useState(false);
   const toast = useToast();
   const { showMessage } = useApiErrorDisplay();
   const { copy } = useClipboardCopy(`PhaseActions:${phase.id}`);
@@ -1254,6 +1428,11 @@ function PhaseActions({
                   label: "Elternlink kopieren",
                   icon: <Copy className="h-4 w-4" aria-hidden />,
                   onClick: () => void copyPhaseUrl(phaseUrl),
+                },
+                {
+                  label: "QR-Code anzeigen",
+                  icon: <QrCode className="h-4 w-4" aria-hidden />,
+                  onClick: () => setQrCodeOpen(true),
                 },
               ]
             : []),
@@ -1343,6 +1522,15 @@ function PhaseActions({
         phase={phase}
         gradeLevelMax={gradeLevelMax}
       />
+      {qrCodeOpen && phaseUrl ? (
+        <LazyQrCodeDialog
+          isOpen
+          onClose={() => setQrCodeOpen(false)}
+          url={phaseUrl}
+          {...ENROLLMENT_QR_CODE}
+          brand="school"
+        />
+      ) : null}
     </>
   );
 }

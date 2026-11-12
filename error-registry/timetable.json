@@ -112,6 +112,18 @@
       "legacy": "timetable.closing_day_not_found"
     },
     {
+      "code": "timetable.closing_day_notice_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "timetable.closing_day_notice_changed"
+    },
+    {
+      "code": "timetable.closing_day_notice_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "timetable.closing_day_notice_not_found"
+    },
+    {
       "code": "timetable.complete_too_early",
       "class": "business_rejection",
       "parameters": [],

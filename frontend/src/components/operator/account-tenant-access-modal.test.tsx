@@ -328,6 +328,29 @@ describe("AccountTenantAccessModal", () => {
     await waitFor(() => expect(onUpdated).toHaveBeenCalled());
   });
 
+  // #6652: the grant is done once the write holds; the page's reload runs on
+  // its own and never holds the dialog in its saving state.
+  it("finishes a grant while the page reload still runs", async () => {
+    mockGrant.mockResolvedValue([access(), access({ tenantId: "3" })]);
+    const onUpdated = vi.fn(() => new Promise<boolean>(() => undefined));
+    renderModal({ onUpdated });
+
+    const schoolSelect = await screen.findByLabelText("account-access-school");
+    fireEvent.change(schoolSelect, { target: { value: "3" } });
+    const roleSelect = screen.getByLabelText("account-access-role");
+    await waitFor(() =>
+      expect(roleSelect.querySelector('option[value="1"]')).toBeInTheDocument(),
+    );
+    fireEvent.change(roleSelect, { target: { value: "1" } });
+    fireEvent.click(screen.getByText("Zugang erteilen"));
+
+    await waitFor(() => expect(onUpdated).toHaveBeenCalledTimes(1));
+    // Anker: the grant section is back to its idle state.
+    expect(await screen.findByText("Zugang erteilen")).toBeInTheDocument();
+    expect(screen.queryByText("Wird gespeichert...")).toBeNull();
+    expect(mockGrant).toHaveBeenCalledTimes(1);
+  });
+
   // #2519: the catalog text by code, in the grant section, not the backend sentence.
   it("shows a rejected grant in its section", async () => {
     mockGrant.mockRejectedValue(

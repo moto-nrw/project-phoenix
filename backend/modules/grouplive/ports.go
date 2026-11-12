@@ -73,6 +73,9 @@ type GroupRecord struct {
 type GroupDirectory interface {
 	// SupervisedGroups are the caller's own groups, including substitutions.
 	SupervisedGroups(ctx context.Context) ([]GroupRecord, error)
+	// SupervisedGroupIDs marks the same groups by ID, for a caller who sees
+	// every group anyway and needs only to mark its own.
+	SupervisedGroupIDs(ctx context.Context) (map[int64]bool, error)
 	// TenantGroups are every group of the tenant.
 	TenantGroups(ctx context.Context) ([]GroupRecord, error)
 	// SubstitutedGroupIDs marks the groups the caller reaches only through a
@@ -105,6 +108,9 @@ type Roster interface {
 	// GroupMembers returns the participation candidates of the group with
 	// their person names; members without a person row are omitted.
 	GroupMembers(ctx context.Context, groupID int64) ([]RosterStudent, error)
+	// GroupMemberIDs returns the participation candidates of many groups
+	// at once, by group.
+	GroupMemberIDs(ctx context.Context, groupIDs []int64) (map[int64][]int64, error)
 	// CareParticipants reports which of the students take part in care on
 	// the date. The resolver loads open roster check-ins itself.
 	CareParticipants(ctx context.Context, studentIDs []int64, date Date) (map[int64]bool, error)
@@ -294,4 +300,18 @@ type ClassHandover struct {
 // among studentIDs the Lehrkraft handed over to the OGS.
 type HandoverReader interface {
 	ClassHandovers(ctx context.Context, studentIDs []int64, day Date) (map[int64]ClassHandover, error)
+}
+
+// HolidayGroupWeek is a hosted holiday week whose Feriengruppe a group is
+// (ADR 0120), from its first to its last day.
+type HolidayGroupWeek struct {
+	GroupID  int64
+	StartsOn Date
+	EndsOn   Date
+}
+
+// HolidayGroups lists the Feriengruppen of the school's hosted holiday
+// weeks whose last day is today or later.
+type HolidayGroups interface {
+	HolidayGroupWeeks(ctx context.Context) ([]HolidayGroupWeek, error)
 }

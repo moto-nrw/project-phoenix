@@ -515,6 +515,31 @@ describe("TenantPage", () => {
     expect(screen.getByText("·")).toBeInTheDocument();
   });
 
+  it("macht ein Paar mit onSelect zum Textknopf und lässt die übrigen Anzeige", () => {
+    const onSelect = vi.fn();
+    render(
+      <TenantPageStats
+        items={[
+          { value: 12, label: "Familien" },
+          {
+            value: 3,
+            label: "ohne Debitorennummer",
+            onSelect,
+            selectLabel: "Familien ohne Debitorennummer zeigen",
+          },
+        ]}
+      />,
+    );
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Familien ohne Debitorennummer zeigen",
+      }),
+    );
+    expect(onSelect).toHaveBeenCalledTimes(1);
+    expect(screen.getAllByRole("button")).toHaveLength(1);
+  });
+
   it("zeigt mehrere Werte ohne Label ohne doppelten Schlüssel", () => {
     const consoleError = vi
       .spyOn(console, "error")

@@ -34,8 +34,8 @@ export interface BackendWorkSession {
 }
 
 export interface BackendWorkSessionBreak {
-  id: number;
-  session_id: number;
+  id: number | string;
+  session_id: number | string;
   started_at: string;
   ended_at: string | null;
   duration_minutes: number;
@@ -346,8 +346,11 @@ export function indexWorkSessionMinutesByBerlinDate(
       const nextMidnight =
         new Date(endOfBerlinDayISO(parseISODate(date))).getTime() + 1_000;
       const segmentEnd = Math.min(end.getTime(), nextMidnight);
-      const minutes = Math.floor((segmentEnd - cursor.getTime()) / 60_000);
-      if (minutes > 0) grossByDate.set(date, minutes);
+      // Allocate differences of cumulative minutes, as the backend does.
+      const minutes =
+        Math.floor((segmentEnd - start.getTime()) / 60_000) -
+        Math.floor((cursor.getTime() - start.getTime()) / 60_000);
+      grossByDate.set(date, minutes);
       cursor = new Date(segmentEnd);
     }
 
@@ -364,12 +367,25 @@ export function indexWorkSessionMinutesByBerlinDate(
         const nextMidnight =
           new Date(endOfBerlinDayISO(parseISODate(date))).getTime() + 1_000;
         const segmentEnd = Math.min(clippedEnd, nextMidnight);
-        const minutes = Math.floor((segmentEnd - cursor) / 60_000);
+        const round = workBreak.endedAt == null ? Math.floor : Math.round;
+        const minutes =
+          round((segmentEnd - breakStart.getTime()) / 60_000) -
+          round((cursor - breakStart.getTime()) / 60_000);
         if (minutes > 0) {
           breakByDate.set(date, (breakByDate.get(date) ?? 0) + minutes);
         }
         cursor = segmentEnd;
       }
+    }
+
+    // A rounded pause may exceed a day's full gross minutes. Carry the
+    // deduction forward, matching netMinutesByDate on the backend.
+    let pendingBreakMinutes = 0;
+    for (const [date, gross] of grossByDate) {
+      pendingBreakMinutes += breakByDate.get(date) ?? 0;
+      const deducted = Math.min(gross, pendingBreakMinutes);
+      breakByDate.set(date, deducted);
+      pendingBreakMinutes -= deducted;
     }
 
     // Legacy rows only retain the total. The server assigns it to the earliest
@@ -393,18 +409,23 @@ export function indexWorkSessionMinutesByBerlinDate(
       0,
     );
     let allocated = 0;
-    const portions = [...grossByDate.entries()].map(([date, gross]) => {
-      const net = Math.floor(
-        (netTotal * Math.max(0, gross - (breakByDate.get(date) ?? 0))) /
-          Math.max(
-            1,
-            grossTotal -
-              [...breakByDate.values()].reduce((sum, value) => sum + value, 0),
-          ),
-      );
-      allocated += net;
-      return { date, net, gross };
-    });
+    const portions = [...grossByDate.entries()]
+      .filter(([, gross]) => gross > 0)
+      .map(([date, gross]) => {
+        const net = Math.floor(
+          (netTotal * Math.max(0, gross - (breakByDate.get(date) ?? 0))) /
+            Math.max(
+              1,
+              grossTotal -
+                [...breakByDate.values()].reduce(
+                  (sum, value) => sum + value,
+                  0,
+                ),
+            ),
+        );
+        allocated += net;
+        return { date, net, gross };
+      });
     // Keep integer totals exact; the final minute belongs to the latest segment.
     if (portions.length > 0)
       portions[portions.length - 1]!.net += netTotal - allocated;

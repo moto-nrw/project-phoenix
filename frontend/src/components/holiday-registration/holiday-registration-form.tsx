@@ -9,7 +9,8 @@ import { HolidayRegistrationLegal } from "./holiday-registration-legal";
 import { Turnstile } from "@marsidev/react-turnstile";
 import { useTranslations } from "next-intl";
 import { useEffect, useRef, useState } from "react";
-import { Button } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
@@ -17,9 +18,11 @@ import { useApiFormError } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
 import {
   type HolidayKnownFamily,
+  type HolidayReceiptPlacement,
   type HolidayRegistrationOffer,
   submitHolidayRegistration,
 } from "~/lib/holiday-registration-api";
+import { HolidayRegistrationPlacements } from "./holiday-registration-placements";
 import { createLogger } from "~/lib/logger";
 import { isFieldVisible } from "~/lib/enrollment-field-visibility";
 import {
@@ -46,8 +49,13 @@ import {
   SecondGuardianCard,
 } from "./holiday-registration-sections";
 import { HolidayQuestions } from "./holiday-registration-questions";
+import { HolidayRegistrationCriteria } from "./holiday-registration-criteria";
 import { HolidayRegistrationDeclaration } from "./holiday-registration-declaration";
 import { HolidayRegistrationSummary } from "./holiday-registration-summary";
+import { HolidayRegistrationAccountQuestion } from "./holiday-registration-account-question";
+import { parentPath } from "~/lib/parent-url";
+import { useInvalidateMatching } from "~/lib/swr";
+import { parentKeys } from "~/lib/swr/parent-keys";
 
 /** The code of a refusal because the Träger changed the form (#5198). */
 const FORM_CHANGED = "enrollment.holiday_registration_form_changed";
@@ -58,10 +66,18 @@ const logger = createLogger({ component: "HolidayRegistrationForm" });
 
 export type HolidayRegistrationStep = "form" | "summary" | "done";
 
+/**
+ * How the registration meets the parent account (#6673): "ask" puts the
+ * question at the end of the summary, "signed-in" sends the account's proof
+ * and leads back to the parents app after sending.
+ */
+export type HolidayRegistrationParentAccount = "ask" | "signed-in";
+
 export function HolidayRegistrationForm({
   token,
   offer,
   family = null,
+  parentAccount,
   onFormChanged,
   onStepChange,
 }: Readonly<{
@@ -69,6 +85,8 @@ export function HolidayRegistrationForm({
   offer: HolidayRegistrationOffer;
   /** What the schools know of a parent with an account (#4662). */
   family?: HolidayKnownFamily | null;
+  /** Without a value the form neither asks nor links back (#6673). */
+  parentAccount?: HolidayRegistrationParentAccount;
   /**
    * Loads the offer again after the Träger changed the form (#5198). The
    * answers stay: they are kept by the key of their question.
@@ -86,7 +104,14 @@ export function HolidayRegistrationForm({
   const [step, setStep] = useState<HolidayRegistrationStep>("form");
   const [captchaToken, setCaptchaToken] = useState("");
   const [submitting, setSubmitting] = useState(false);
+  const [placements, setPlacements] = useState<
+    readonly HolidayReceiptPlacement[]
+  >([]);
   const fieldError = (name: string) => errorPath.fieldError(name) ?? undefined;
+  const accountFieldsetRef = useRef<HTMLFieldSetElement>(null);
+  const [accountError, setAccountError] = useState<string | undefined>();
+  const asksForAccount = parentAccount === "ask";
+  const invalidate = useInvalidateMatching();
 
   useEffect(() => {
     onStepChange?.(step);
@@ -114,12 +139,28 @@ export function HolidayRegistrationForm({
   };
 
   const submit = async () => {
+    // The question has no preselection: without an answer the send waits
+    // and the group names what is missing (#6673).
+    if (asksForAccount && draft.parentAccountRequested === undefined) {
+      setAccountError(t("account.required"));
+      accountFieldsetRef.current
+        ?.querySelector<HTMLInputElement>("input[type=radio]")
+        ?.focus();
+      return;
+    }
     setSubmitting(true);
     try {
-      await submitHolidayRegistration(
+      const placed = await submitHolidayRegistration(
         token,
         payloadFromDraft(draft, offer, captchaToken),
       );
+      if (parentAccount === "signed-in") {
+        await invalidate(
+          (key) => key === parentKeys.holidayRegistrationEntries(),
+          { clear: true },
+        );
+      }
+      setPlacements(placed ?? []);
       setStep("done");
       window.scrollTo({ top: 0 });
     } catch (err) {
@@ -130,7 +171,22 @@ export function HolidayRegistrationForm({
       setStep("form");
       setCaptchaToken("");
       if (err instanceof ApiError && err.code === FORM_CHANGED) {
-        setDraft((current) => ({ ...current, legalAcceptances: {} }));
+        // The privacy text may name another retention now (#6691): the
+        // parent agrees to the text the reloaded form shows, not the old one.
+        setDraft((current) => ({
+          ...current,
+          legalAcceptances: {},
+          privacyConsent: false,
+        }));
+        await onFormChanged?.();
+      } else if (
+        err instanceof ApiError &&
+        err.errors?.some(({ field }) =>
+          /^(children\.\d+\.)?criteria(?:\.|$)/.test(field),
+        )
+      ) {
+        // The catalog can change without a new form version. Reload its
+        // questions so parents can answer them, keeping the entire draft.
         await onFormChanged?.();
       }
       // The parent uploads the proof again; the old token claims nothing.
@@ -152,9 +208,38 @@ export function HolidayRegistrationForm({
   if (step === "done") {
     return (
       <SectionCard title={t("doneTitle")}>
-        <div className="space-y-2 text-sm text-gray-700">
-          <p>{t("doneText", { email: draft.guardian.email.trim() })}</p>
-          <p>{t("doneNext")}</p>
+        <div className="space-y-5">
+          <div className="space-y-2 text-sm text-gray-700">
+            <p>{t("doneText", { email: draft.guardian.email.trim() })}</p>
+            <p>{t("doneNext")}</p>
+          </div>
+          <HolidayRegistrationPlacements
+            childDrafts={draft.children}
+            weeks={offer.weeks}
+            placements={placements}
+          />
+          {asksForAccount && draft.parentAccountRequested === true ? (
+            // The second mail goes out for every address; the text does
+            // not say whether an account already exists (ADR 0216).
+            <Alert
+              type="info"
+              announce="off"
+              title={t("doneAccountTitle")}
+              message={t("doneAccountText", {
+                email: draft.guardian.email.trim(),
+              })}
+            />
+          ) : null}
+          {parentAccount === "signed-in" ? (
+            <ButtonLink
+              href={parentPath("/parents/ferienanmeldungen")}
+              variant="primary"
+              size="md"
+              className="max-sm:w-full"
+            >
+              {t("doneToRegistrations")}
+            </ButtonLink>
+          ) : null}
         </div>
       </SectionCard>
     );
@@ -184,8 +269,23 @@ export function HolidayRegistrationForm({
             <p className="text-sm text-gray-700">{t("captchaMissing")}</p>
           )
         }
+        accountQuestion={
+          asksForAccount ? (
+            <HolidayRegistrationAccountQuestion
+              value={draft.parentAccountRequested}
+              email={draft.guardian.email}
+              error={accountError}
+              fieldsetRef={accountFieldsetRef}
+              onChange={(parentAccountRequested) => {
+                setAccountError(undefined);
+                setDraft((current) => ({ ...current, parentAccountRequested }));
+              }}
+            />
+          ) : null
+        }
         onBack={() => {
           setCaptchaToken("");
+          setAccountError(undefined);
           setStep("form");
         }}
         onSubmit={() => void submit()}
@@ -222,6 +322,18 @@ export function HolidayRegistrationForm({
 
       <SectionCard title={t("childrenTitle")} description={t("childrenText")}>
         <div className="space-y-4">
+          {offer.holidayWishMode === "off" ? null : (
+            <Alert
+              type="info"
+              announce="off"
+              title={t("wishRuleTitle")}
+              message={t(
+                offer.holidayWishMode === "wish_only"
+                  ? "wishRuleWishOnly"
+                  : "wishRulePriority",
+              )}
+            />
+          )}
           {family && family.children.length > 0 ? (
             <KnownChildPicker
               known={family.children}
@@ -358,6 +470,13 @@ export function HolidayRegistrationForm({
           />
         </SectionCard>
       ) : null}
+
+      <HolidayRegistrationCriteria
+        offer={offer}
+        draft={draft}
+        fieldError={fieldError}
+        onChange={setDraft}
+      />
 
       <ContactList
         contacts={draft.contacts}

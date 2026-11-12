@@ -1,11 +1,8 @@
 // app/api/activities/[id]/schedules/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPost } from "~/lib/api-helpers.server";
+import { apiGet } from "~/lib/api-helpers.server";
 import { ApiResponseError } from "~/lib/api-response-error.server";
-import {
-  createGetHandler,
-  createPostHandler,
-} from "~/lib/route-wrapper.server";
+import { createGetHandler } from "~/lib/route-wrapper.server";
 import type { BackendActivitySchedule } from "~/lib/activity-helpers";
 import { mapActivityScheduleResponse } from "~/lib/activity-helpers";
 
@@ -55,48 +52,5 @@ export const GET = createGetHandler(
         { cause: error },
       );
     }
-  },
-);
-
-/**
- * Handler for POST /api/activities/[id]/schedules
- * Creates a new schedule for a specific activity
- */
-export const POST = createPostHandler<
-  BackendActivitySchedule,
-  { weekday: string; timeframe_id?: number }
->(
-  async (
-    request: NextRequest,
-    body: { weekday: string; timeframe_id?: number },
-    token: string,
-    params: Record<string, unknown>,
-  ): Promise<BackendActivitySchedule> => {
-    const id = params.id as string;
-    const endpoint = `/api/activities/${encodeURIComponent(id)}/schedules`;
-
-    const response = await apiPost<
-      | { status: string; data: BackendActivitySchedule }
-      | BackendActivitySchedule,
-      { weekday: string; timeframe_id?: number }
-    >(endpoint, token, body);
-
-    // Handle wrapped response { status: "success", data: BackendActivitySchedule }
-    if (
-      response &&
-      typeof response === "object" &&
-      "status" in response &&
-      response.status === "success" &&
-      "data" in response
-    ) {
-      return response.data;
-    }
-
-    // Handle direct response (BackendActivitySchedule)
-    if (response && typeof response === "object" && "id" in response) {
-      return response;
-    }
-
-    throw new Error("Unexpected response structure from schedule creation API");
   },
 );

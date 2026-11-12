@@ -9,6 +9,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
@@ -57,11 +58,19 @@ func (s *instanceSeriesConversion) ConvertInstanceToSeries(ctx context.Context, 
 
 func (s *instanceSeriesConversion) convertLocked(ctx context.Context, in timetable.ConvertInstanceToSeriesInput) (timetable.ConvertInstanceToSeriesResult, error) {
 	var none timetable.ConvertInstanceToSeriesResult
-	if err := s.deps.RecurrenceLock.LockRecurrenceWrites(ctx); err != nil {
+	// Both tenant gates before the template's supervisor rows take their
+	// staff rows (#6583): the seed edit below needs the grade-transition
+	// gate, and no gate may follow a staff row.
+	if err := s.deps.RecurrenceLock.LockRecurrenceWritesThenGradeTransitions(ctx); err != nil {
 		return none, &ports.ScheduleError{Op: "convert instance to series: lock recurrence", Err: err}
 	}
 	instance, err := s.convertibleInstance(ctx, in.InstanceID)
 	if err != nil {
+		return none, err
+	}
+	// Catalogue rows, days and people in the lock order before the first
+	// write; the later writes only take held locks again (#6702).
+	if err := s.deps.Templates.LockSeriesSeed(ctx, in.Template, instance.ID, calendar.Date(instance.Date), *in.Template.ScheduleValidFrom); err != nil {
 		return none, err
 	}
 	created, err := s.deps.Templates.CreateTemplate(ctx, in.Template)

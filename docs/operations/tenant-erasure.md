@@ -1,6 +1,6 @@
 # Mandantenlöschung: internes Verfahren (3837-c/d)
 
-Stand: 23.10.2026. Refs #3837, Teil von #3846.
+Stand: 09.11.2026. Refs #3837, #4720, Teil von #3846.
 
 ## Stand und Grenzen
 
@@ -29,6 +29,29 @@ Mitgliedschaften, Träger-Rollen und Träger-Sitzungen
 Schulen; nach einem Restore den Trägerauftrag mit derselben Referenz erneut
 ausführen. Restore-Verfahren: siehe [Restore-Prüfung](daily-backup.md).
 Nebensystemfristen und deren produktive Nachweise: 3837-f.
+
+**Aufbewahrungspflichtige Unterlagen vor dem Löschauftrag (#4720, Migration
+`1.15.879`):** Vor dem Erfassen eines Löschauftrags zeigt das Operator-Portal
+den Hinweis nach AVV Ziff. 8.4: Der Träger sichert seine Belege selbst.
+Das moto-Team bietet die Rückgabe an (`tenant export --organization`, siehe
+[Auskunft und Rückgabe](auskunft-und-rueckgabe.md#3-ausführen-und-prüfen), Trägerpaket)
+und erfasst mit dem Auftrag, dass der Hinweis gegeben wurde, und die Wahl des
+Kunden: „Rückgabe übergeben“ mit Tag und optional der Prüfsumme aus
+`COMPLETE`, oder „Kunde wählt Löschung“. Ohne beides nimmt das Backend den
+Auftrag nicht an. Die Wahl der Löschung genügt; die Löschung hängt nie von
+einer Bestätigung externer Archivierung ab (Löschkonzept Träger-Finanzdaten,
+Abschnitt 5). Auftrag und Operator-Protokoll (`record_erasure_order`) halten
+Wahl, Tag und Prüfsumme ohne Personendaten fest. Aufträge von vor `1.15.879`
+haben keinen Eintrag. Das Löschverfahren führt sie nicht aus und setzt sie
+nicht fort, auch wenn es schon begonnen hat: `organization_erasure_check`
+meldet `records_choice_missing`, die CLI bricht mit diesem Status ab, und
+`begin_organization_erasure` sowie ein Trigger auf Start und Abschluss
+verweigern den Auftrag. Das Operator-Portal zeigt am offenen Auftrag eine
+Warnung und das Formular „Wahl eintragen“: Hinweis bestätigen, Wahl des
+Kunden eintragen, dann das Löschverfahren erneut starten. Das gilt auch für
+einen begonnenen Auftrag, der sich nicht zurücknehmen lässt. Der Eintrag
+steht im Operator-Protokoll (`record_erasure_order_records`) und ändert sich
+danach nicht mehr.
 
 **Test-Träger (#4658, Migration `1.15.560`):** Ein Test-Träger mit seinen
 Test-Schulen und erfundenen Beispielkindern (Operator-Portal → Träger →
@@ -131,10 +154,18 @@ Löschweg für Test-Träger gibt es nicht.
 ## 1. Auftrag und Wartungsfenster freigeben (Mensch)
 
 1. Im zugriffsbeschränkten internen Vorgang Weisung und Berechtigung,
-   Schul-/Träger-ID, Umfang, Freigabe, Rückgabe und Zeitpunkt prüfen.
+   Schul-/Träger-ID, Umfang, Freigabe, Rückgabe und Zeitpunkt prüfen. Bei
+   einem Träger muss der Löschauftrag im Operator-Portal die Wahl des Kunden
+   zu seinen aufbewahrungspflichtigen Unterlagen zeigen (#4720).
    Data-Act-Abruffrist und gesetzliche Aufbewahrung getrennt prüfen.
    Keine pauschale zusätzliche 30-Tage-Wartefrist; kein vorheriges Soft Delete.
    Offene Rückgabe, Abruffrist oder Aufbewahrungsentscheidung sperrt den Lauf.
+   Ein zum Abruf freigegebenes Rückgabepaket (ADR 0203) liegt außerhalb der
+   Upload-Wurzel, die diese Löschung bearbeitet. `tenant erase` verweigert
+   deshalb Schule oder Träger, solange ein Paket davon nicht bereinigt ist,
+   und löscht dann nichts. Nach Ende der Abruffrist mit dem Freigabezugang
+   `tenant return revoke --archive` und `tenant return purge` ausführen
+   ([Runbook](auskunft-und-rueckgabe.md#8-paket-zum-abruf-freigeben-art-30-abs-2-data-act)).
 2. Gesperrte Abrechnungsreferenzen bleiben nach dem
    [DB-Vertrag](../reference/mandantenloeschung-datenbank.md) erhalten.
    Weitere Ausnahmen vorab klären, nicht durch manuelle Kopien umgehen.
@@ -149,8 +180,8 @@ Löschweg für Test-Träger gibt es nicht.
    Shell-History, Ausgabe oder dieses Runbook schreiben. Kein neues Env-Schema.
    **Nach einem Restore ist dieser Zugang zunächst NOLOGIN.** Der Restore
    akzeptiert nur eine ausschließliche Mitgliedschaft in genau einer der
-   Gruppen `phoenix_school_erasure`, `phoenix_billing_retention` oder
-   `phoenix_diagnostics`, ohne ADMIN-/INHERIT-Option, mit SET-Option und ohne
+   Gruppen `phoenix_school_erasure`, `phoenix_billing_retention`,
+   `phoenix_data_return` oder `phoenix_diagnostics`, ohne ADMIN-/INHERIT-Option, mit SET-Option und ohne
    erhöhte Attribute, Einstellungen, zusätzliche Mitglieder/Mitgliedschaften,
    direkte Rechte oder Objektbesitz. Für `tenant erase` den Löschzugang bewusst
    einzeln neu freischalten: Auftrag und Rechte erneut prüfen, neues Passwort

@@ -19,6 +19,29 @@ describe("Modal", () => {
     vi.useRealTimers();
   });
 
+  it("dismisses only the top visible modal on Escape", async () => {
+    const parentClose = vi.fn();
+    const childClose = vi.fn();
+    render(
+      <TestWrapper>
+        <Modal isOpen onClose={parentClose} title="Edit">
+          <input defaultValue="draft" />
+        </Modal>
+        <Modal isOpen onClose={childClose} title="Confirm">
+          <p>Confirm deletion</p>
+        </Modal>
+      </TestWrapper>,
+    );
+    expect(screen.getByRole("dialog", { name: "Confirm" })).toBeInTheDocument();
+    fireEvent.keyDown(document, { key: "Escape" });
+    await act(async () => {
+      vi.advanceTimersByTime(300);
+    });
+    expect(childClose).toHaveBeenCalledOnce();
+    expect(parentClose).not.toHaveBeenCalled();
+    expect(screen.getByDisplayValue("draft")).toBeInTheDocument();
+  });
+
   // #5579: Kopf mit Symbol und Untertitel, ohne eigenen Kopf im Inhalt.
   it("names the dialog by its title and describes it with the subtitle next to the icon", async () => {
     render(
@@ -756,6 +779,35 @@ describe("ConfirmationModal", () => {
     expect(screen.getByText("Wird geladen...")).toBeInTheDocument();
   });
 
+  // #6636: the caller's action text stands on the busy confirm button; the
+  // confirmText is hidden while the action runs.
+  it("shows the caller's loadingText instead of confirmText while loading", async () => {
+    render(
+      <TestWrapper>
+        <ConfirmationModal
+          isOpen={true}
+          onClose={vi.fn()}
+          onConfirm={vi.fn()}
+          title="Kind anmelden"
+          confirmText="Anmelden"
+          isConfirmLoading={true}
+          loadingText="Wird angemeldet…"
+        >
+          <p>Sure?</p>
+        </ConfirmationModal>
+      </TestWrapper>,
+    );
+
+    await act(async () => {
+      vi.advanceTimersByTime(20);
+    });
+
+    const confirm = screen.getByRole("button", { name: "Wird angemeldet…" });
+    expect(confirm).toBeDisabled();
+    expect(confirm).not.toHaveTextContent("Anmelden");
+    expect(screen.queryByText("Wird geladen...")).not.toBeInTheDocument();
+  });
+
   it("should disable confirm button when loading", async () => {
     render(
       <TestWrapper>
@@ -873,7 +925,9 @@ describe("ConfirmationModal", () => {
     expect(screen.getByRole("dialog")).toHaveClass("animate-modalEnter");
   });
 
-  it("should keep dismissal open while loading without isDismissDisabled", async () => {
+  // #6594: Loading locks dismissal by default; leaving while loading needs a
+  // stated opt-out (the former default, now explicit).
+  it("keeps dismissal open while loading only with a stated opt-out", async () => {
     const onClose = vi.fn();
     render(
       <TestWrapper>
@@ -883,6 +937,7 @@ describe("ConfirmationModal", () => {
           onConfirm={vi.fn()}
           title="Confirm"
           isConfirmLoading={true}
+          dismissibleWhileLoading="Lädt nur eine Vorschau."
         >
           <p>Sure?</p>
         </ConfirmationModal>
@@ -909,6 +964,138 @@ describe("ConfirmationModal", () => {
       vi.advanceTimersByTime(300);
     });
     expect(onClose).toHaveBeenCalled();
+  });
+
+  describe("Schließsperre beim Laden (#6594)", () => {
+    function LoadingConfirmation({
+      loading,
+      onClose = vi.fn(),
+      mobileSheet = false,
+    }: {
+      readonly loading: boolean;
+      readonly onClose?: () => void;
+      readonly mobileSheet?: boolean;
+    }) {
+      return (
+        <TestWrapper>
+          <ConfirmationModal
+            isOpen={true}
+            onClose={onClose}
+            onConfirm={vi.fn()}
+            title="Confirm"
+            isConfirmLoading={loading}
+            mobileSheet={mobileSheet}
+          >
+            <p>Sure?</p>
+          </ConfirmationModal>
+        </TestWrapper>
+      );
+    }
+
+    it.each([
+      ["Desktop", false],
+      ["Handy", true],
+    ])(
+      "sperrt X, Escape, Hintergrund und Abbrechen ohne Opt-in (%s)",
+      async (_label, mobileSheet) => {
+        const onClose = vi.fn();
+        render(
+          <LoadingConfirmation
+            loading={true}
+            onClose={onClose}
+            mobileSheet={mobileSheet}
+          />,
+        );
+        await act(async () => {
+          vi.advanceTimersByTime(20);
+        });
+
+        const cancel = screen.getByRole("button", { name: "Abbrechen" });
+        const close = screen.getByRole("button", { name: "Modal schließen" });
+        const backdrop = screen.getByRole("button", {
+          name: "Hintergrund - Klicken zum Schließen",
+        });
+        expect(cancel).toBeDisabled();
+        expect(close).toBeDisabled();
+        expect(backdrop).toBeDisabled();
+        expect(screen.getByRole("dialog")).toHaveAttribute("aria-busy", "true");
+
+        fireEvent.click(cancel);
+        fireEvent.click(close);
+        fireEvent.click(backdrop);
+        fireEvent.keyDown(document, { key: "Escape" });
+        await act(async () => {
+          vi.advanceTimersByTime(300);
+        });
+        expect(onClose).not.toHaveBeenCalled();
+        expect(screen.getByText("Sure?")).toBeInTheDocument();
+      },
+    );
+
+    it("gibt nach dem Laden (etwa einem Fehler) alle Wege frei und behält den Inhalt", async () => {
+      const onClose = vi.fn();
+      const { rerender } = render(
+        <LoadingConfirmation loading={true} onClose={onClose} />,
+      );
+      await act(async () => {
+        vi.advanceTimersByTime(20);
+      });
+      // Anker: während des Ladens ist der Dialog gesperrt.
+      expect(screen.getByRole("button", { name: "Abbrechen" })).toBeDisabled();
+
+      rerender(<LoadingConfirmation loading={false} onClose={onClose} />);
+
+      expect(screen.getByText("Sure?")).toBeInTheDocument();
+      expect(screen.getByRole("dialog")).not.toHaveAttribute("aria-busy");
+      expect(
+        screen.getByRole("button", { name: "Modal schließen" }),
+      ).toBeEnabled();
+      fireEvent.keyDown(document, { key: "Escape" });
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+      expect(onClose).toHaveBeenCalledTimes(1);
+    });
+
+    it("hält den Fokus im Dialog, solange Bestätigen gesperrt ist", async () => {
+      const { rerender } = render(<LoadingConfirmation loading={false} />);
+      await act(async () => {
+        vi.advanceTimersByTime(20);
+      });
+      const confirm = screen.getByRole("button", { name: "Bestätigen" });
+      confirm.focus();
+
+      rerender(<LoadingConfirmation loading={true} />);
+
+      expect(document.activeElement).toBe(screen.getByRole("dialog"));
+      rerender(<LoadingConfirmation loading={false} />);
+      expect(document.activeElement).toBe(
+        screen.getByRole("button", { name: "Bestätigen" }),
+      );
+    });
+
+    it("bricht ein laufendes Schließen ab, wenn das Laden in der Animation beginnt", async () => {
+      const onClose = vi.fn();
+      const { rerender } = render(
+        <LoadingConfirmation loading={false} onClose={onClose} />,
+      );
+      await act(async () => {
+        vi.advanceTimersByTime(20);
+      });
+      fireEvent.click(
+        screen.getByRole("button", {
+          name: "Hintergrund - Klicken zum Schließen",
+        }),
+      );
+
+      rerender(<LoadingConfirmation loading={true} onClose={onClose} />);
+      await act(async () => {
+        vi.advanceTimersByTime(300);
+      });
+
+      expect(onClose).not.toHaveBeenCalled();
+      expect(screen.getByRole("dialog")).toHaveClass("animate-modalEnter");
+    });
   });
 
   // #2932: the footer buttons are the kit Button (size="md"), so the confirm

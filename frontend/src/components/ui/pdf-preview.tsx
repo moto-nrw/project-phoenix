@@ -33,7 +33,7 @@ const noSubscription = () => () => {};
  * viewer report false (`navigator.pdfViewerEnabled`); the server render and
  * browsers without the property count as able.
  */
-function usePdfViewerEnabled(): boolean {
+export function usePdfViewerEnabled(): boolean {
   return useSyncExternalStore(
     noSubscription,
     () => globalThis.navigator?.pdfViewerEnabled !== false,

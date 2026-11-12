@@ -33,27 +33,14 @@ func PerTestDatabases() { perTestDatabases = true }
 // parallel.
 const maxConcurrentIsolatedTestDatabases = 1
 
-type isolatedTestDatabaseLimiter struct {
-	slots chan struct{}
-}
-
-func newIsolatedTestDatabaseLimiter(limit int) *isolatedTestDatabaseLimiter {
-	return &isolatedTestDatabaseLimiter{slots: make(chan struct{}, limit)}
-}
-
-func (l *isolatedTestDatabaseLimiter) acquire() func() {
-	l.slots <- struct{}{}
-	var once sync.Once
-	return func() {
-		once.Do(func() { <-l.slots })
-	}
-}
-
 var isolatedTestDatabaseSlots = newIsolatedTestDatabaseLimiter(maxConcurrentIsolatedTestDatabases)
 
 type isolatedTestDatabase struct {
 	once        sync.Once
 	dropOnce    sync.Once
+	users       int           // guarded by isolatedTestDatabaseUsersMu
+	leaving     bool          // guarded by isolatedTestDatabaseUsersMu; the last user left
+	dropped     chan struct{} // closed once the drop finished and the scope is free again
 	db          *bun.DB
 	clone       *testdb.CloneHandle
 	runtime     tenant.UnitOfWork
@@ -64,31 +51,73 @@ type isolatedTestDatabase struct {
 
 var isolatedTestDatabases sync.Map // top-level test name -> *isolatedTestDatabase
 
+// isolatedTestDatabaseUsersMu serializes joining a scope's clone with its last
+// user leaving, so no test can join a clone that is about to be dropped.
+var isolatedTestDatabaseUsersMu sync.Mutex
+
 func hasIsolatedTestDB(tb testing.TB) bool {
 	_, ok := isolatedTestDatabases.Load(topLevelTestName(tb))
 	return ok
 }
 
+// setupIsolatedTestDB returns the clone of tb's scope (its top-level test, or
+// the nearest OwnTenant ancestor). Every call is one user of that clone and
+// leaves it in tb's cleanup; the last user to leave drops it. A parent and its
+// subtests, and parallel sibling subtests, therefore share one clone for as
+// long as any of them runs, whichever of them opened it. A test that sets up
+// after the last user left gets a fresh clone.
 func setupIsolatedTestDB(tb testing.TB) *bun.DB {
 	tb.Helper()
 	name := topLevelTestName(tb)
-	value, _ := isolatedTestDatabases.LoadOrStore(name, &isolatedTestDatabase{})
-	entry := value.(*isolatedTestDatabase)
+	var entry *isolatedTestDatabase
+	for {
+		isolatedTestDatabaseUsersMu.Lock()
+		value, _ := isolatedTestDatabases.LoadOrStore(name, &isolatedTestDatabase{dropped: make(chan struct{})})
+		entry = value.(*isolatedTestDatabase)
+		if !entry.leaving {
+			entry.users++
+			isolatedTestDatabaseUsersMu.Unlock()
+			break
+		}
+		// The clone name is derived from the scope: wait until the old clone
+		// is gone before creating its successor.
+		isolatedTestDatabaseUsersMu.Unlock()
+		<-entry.dropped
+	}
 	entry.once.Do(func() {
 		entry.err = entry.open(tb, name)
 	})
 	if entry.err != nil {
+		isolatedTestDatabases.CompareAndDelete(name, entry)
 		tb.Fatalf("setup isolated test database: %v", entry.err)
 	}
+	tb.Cleanup(func() { entry.leave(tb, name) })
 	return entry.db
 }
 
+func (entry *isolatedTestDatabase) leave(tb testing.TB, name string) {
+	isolatedTestDatabaseUsersMu.Lock()
+	entry.users--
+	entry.leaving = entry.users == 0
+	last := entry.leaving
+	isolatedTestDatabaseUsersMu.Unlock()
+	if !last {
+		return
+	}
+	if err := entry.drop(); err != nil {
+		tb.Errorf("drop isolated test database: %v", err)
+	}
+	isolatedTestDatabases.CompareAndDelete(name, entry)
+	testTenants.Delete(name)
+	close(entry.dropped)
+}
+
 func (entry *isolatedTestDatabase) open(tb testing.TB, name string) (err error) {
-	if !perTestDatabases {
-		entry.releaseSlot = isolatedTestDatabaseSlots.acquire()
+	if err = entry.acquireSlot(tb, name); err != nil {
+		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), isolatedTestDatabaseOpenTimeout)
 	defer cancel()
 
 	entry.clone, err = testdb.CreateClone(ctx, packageCloneCfg, testdb.RunID()+"-"+name)
@@ -124,18 +153,16 @@ func (entry *isolatedTestDatabase) open(tb testing.TB, name string) (err error) 
 		}
 	}
 
-	entry.registerCleanup(tb, name)
 	return nil
 }
 
-func (entry *isolatedTestDatabase) registerCleanup(tb testing.TB, name string) {
-	tb.Cleanup(func() {
-		if err := entry.drop(); err != nil {
-			tb.Errorf("drop isolated test database: %v", err)
-		}
-		isolatedTestDatabases.Delete(name)
-		testTenants.Delete(name)
-	})
+func (entry *isolatedTestDatabase) acquireSlot(tb testing.TB, name string) error {
+	if perTestDatabases {
+		return nil
+	}
+	var err error
+	entry.releaseSlot, err = isolatedTestDatabaseSlots.acquireForTest(tb, name)
+	return err
 }
 
 func setCloneSearchPath(ctx context.Context, clone *testdb.CloneHandle) error {
@@ -173,7 +200,7 @@ func (entry *isolatedTestDatabase) drop() error {
 		}
 		if entry.clone != nil {
 			entry.dropErr = errors.Join(entry.dropErr, entry.clone.Close())
-			ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
+			ctx, cancel := context.WithTimeout(context.Background(), isolatedTestDatabaseDropTimeout)
 			defer cancel()
 			entry.dropErr = errors.Join(entry.dropErr, testdb.DropClone(ctx, packageCloneCfg, entry.clone.Name))
 		}

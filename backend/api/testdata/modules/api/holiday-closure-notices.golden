@@ -1,0 +1,2 @@
+GET /api/holiday-closure-notices/ -> basis
+POST /api/holiday-closure-notices/{id}/notify -> basis

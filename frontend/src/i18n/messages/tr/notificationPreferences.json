@@ -45,5 +45,7 @@
   "errorObjectList": "bildirim listesi",
   "errorObjectType": "„{name}“ bildirimi",
   "errorObjectEnableAll": "tüm bildirimleri açma",
-  "errorObjectDisableAll": "tüm bildirimleri kapatma"
+  "errorObjectDisableAll": "tüm bildirimleri kapatma",
+  "enableAllTooltip": "Tüm bildirimleri tek seferde açar.",
+  "disableAllTooltip": "Sizin için tüm moto bildirimlerini hemen kapatır."
 }

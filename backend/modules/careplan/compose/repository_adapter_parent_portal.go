@@ -11,12 +11,9 @@ import (
 	"github.com/uptrace/bun"
 )
 
-// The retained guardian-portal repositories (database/repositories/parent)
-// list an account's children, the enrollment phases it may apply to and its
-// applications. They name the parent models, so they are built by the Care
-// Plan composition (#2743). The People Directory and Organisation & Tenancy
-// facts they read reach them through the consumer-owned ports below; the
-// composition root binds those owners.
+// The retained guardian-portal repositories list an account's children, phases and applications;
+// they name the parent models, so Care Plan builds them (#2743). People Directory and
+// Organisation & Tenancy reach them through the ports below, bound by the root.
 
 // ParentPortalDependencies bind the guardian-portal repositories.
 type ParentPortalDependencies struct {

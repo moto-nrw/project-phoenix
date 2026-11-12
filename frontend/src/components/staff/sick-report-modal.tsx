@@ -8,6 +8,7 @@ import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { DatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { useApiFormError } from "~/contexts/ToastContext";
 import {
@@ -59,7 +60,8 @@ export function SickReportModal({
   const [dateEnd, setDateEnd] = useState(() => initialDate ?? berlinTodayISO());
   const [halfDay, setHalfDay] = useState(false);
   const [note, setNote] = useState("");
-  const [submitting, setSubmitting] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const submitting = save.pending;
   const formErrors = useApiFormError();
   const clearFormErrors = formErrors.clear;
   // „Wiederholen“ sendet den aktuellen Entwurf, nicht den vom Fehlerzeitpunkt.
@@ -78,7 +80,6 @@ export function SickReportModal({
       setNote("");
       clearFormErrors();
       setCreatedStart(null);
-      setSubmitting(false);
     }
   }, [isOpen, initialDate, clearFormErrors]);
 
@@ -100,30 +101,31 @@ export function SickReportModal({
   };
 
   const handleSubmit = async () => {
-    setSubmitting(true);
-    formErrors.clear();
-    try {
-      const created = await staffAbsenceService.createAbsence(staff.id, {
-        absence_type: "sick",
-        date_start: dateStart,
-        date_end: halfDay ? dateStart : dateEnd,
-        half_day: halfDay || undefined,
-        note: note.trim() || undefined,
-      });
-      onCreated(created);
-      setCreatedStart(dateStart);
-    } catch (err) {
-      logger.error("sick_report_create_failed", {
-        staff_id: staff.id,
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: "die Krankmeldung",
-        retry: () => void latestSubmitRef.current(),
-      });
-    } finally {
-      setSubmitting(false);
-    }
+    await save.run(async (op) => {
+      formErrors.clear();
+      try {
+        const created = await staffAbsenceService.createAbsence(staff.id, {
+          absence_type: "sick",
+          date_start: dateStart,
+          date_end: halfDay ? dateStart : dateEnd,
+          half_day: halfDay || undefined,
+          note: note.trim() || undefined,
+        });
+        onCreated(created);
+        // Eine späte Antwort zeigt ihren Erfolg nicht in einem neuen Dialog.
+        if (op.isCurrent()) setCreatedStart(dateStart);
+      } catch (err) {
+        logger.error("sick_report_create_failed", {
+          staff_id: staff.id,
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "die Krankmeldung",
+          retry: () => void latestSubmitRef.current(),
+        });
+      }
+    });
   };
 
   useLayoutEffect(() => {
@@ -185,6 +187,7 @@ export function SickReportModal({
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
+      pending={save}
       title={`Krank melden: ${staffName}`}
       size="md"
       footer={footer}

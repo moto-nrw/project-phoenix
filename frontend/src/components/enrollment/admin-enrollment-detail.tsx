@@ -473,6 +473,7 @@ export function AdminEnrollmentDetail({ requestId }: Props) {
             title="Anmeldung wiederherstellen"
             confirmText="Wiederherstellen"
             isConfirmLoading={restoring}
+            loadingText="Wird wiederhergestellt …"
           >
             <FormErrorAlert message={restoreErrors.error} className="mb-3" />
             <p className="text-sm text-gray-600">
@@ -723,6 +724,16 @@ function ChildInformationCard({
             {enrolledClassLabel(child) ? (
               <StatusBadge tone="gray" label={enrolledClassLabel(child)} />
             ) : null}
+            {child.holiday_care_wish === undefined ? null : (
+              <StatusBadge
+                tone="gray"
+                label={
+                  child.holiday_care_wish
+                    ? "Ferienbetreuung: gewünscht"
+                    : "Ferienbetreuung: nicht gewünscht"
+                }
+              />
+            )}
           </div>
         </div>
         {/* Aktionen des Kindes rechts im Kartenkopf statt als eigene

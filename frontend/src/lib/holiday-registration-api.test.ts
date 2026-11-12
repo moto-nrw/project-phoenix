@@ -66,6 +66,8 @@ describe("fetchHolidayRegistrationFamily (#4662)", () => {
           firstName: "Felix",
           lastName: "Schneider",
           birthDate: "2018-03-01",
+          holidayWish: "",
+          holidayWishProof: "",
         },
         {
           studentId: "42",
@@ -73,9 +75,34 @@ describe("fetchHolidayRegistrationFamily (#4662)", () => {
           firstName: "Mia",
           lastName: "Schneider",
           birthDate: "",
+          holidayWish: "",
+          holidayWishProof: "",
         },
       ],
+      accountProof: "",
     });
+  });
+
+  it("hands the account's proof on for the registration (#6673)", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi.fn().mockResolvedValue(
+        answer(200, {
+          data: {
+            guardian: {
+              first_name: "Sabine",
+              last_name: "Schneider",
+              email: "s@example.org",
+              phone: "0151",
+            },
+            children: [],
+            account_proof: "sealed-proof",
+          },
+        }),
+      ),
+    );
+    const family = await fetchHolidayRegistrationFamily("token");
+    expect(family?.accountProof).toBe("sealed-proof");
   });
 
   it("starts empty without a parent session", async () => {

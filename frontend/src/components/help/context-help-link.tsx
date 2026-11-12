@@ -4,7 +4,6 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { useMemo } from "react";
 import { QuestionIcon } from "@phosphor-icons/react";
 import { ButtonLink } from "~/components/ui/button";
-import { Tooltip } from "~/components/ui/tooltip";
 import { useShellAuth } from "~/lib/shell-auth-context";
 import {
   useNFCEnabled,
@@ -91,22 +90,15 @@ export function ContextHelpLink({
   if (!hasArticleForRole) return null;
 
   return (
-    <Tooltip
-      content="Hilfe zu dieser Seite"
-      asChild
-      iconOnly
-      className={containerClassName}
-      bubbleClassName="right-0 left-auto"
+    <ButtonLink
+      href={href}
+      variant="ghost"
+      size="icon"
+      aria-label="Hilfe zu dieser Seite"
+      tooltip="Hilfe zu dieser Seite"
+      className={cn("shrink-0", containerClassName, className)}
     >
-      <ButtonLink
-        href={href}
-        variant="ghost"
-        size="icon"
-        aria-label="Hilfe zu dieser Seite"
-        className={cn("shrink-0", className)}
-      >
-        <QuestionIcon className="size-5" weight="bold" aria-hidden="true" />
-      </ButtonLink>
-    </Tooltip>
+      <QuestionIcon className="size-5" weight="bold" aria-hidden="true" />
+    </ButtonLink>
   );
 }

@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
@@ -75,6 +76,9 @@ func (d *DueExits) RunDue(ctx context.Context) (DueRun, error) {
 	if err != nil {
 		return run, err
 	}
+	if err := d.lockActedPlans(ctx, plans, today); err != nil {
+		return run, err
+	}
 	for _, plan := range plans {
 		var exitErr error
 		failed, err := d.deps.Isolate(ctx, func(spCtx context.Context) (err error) {
@@ -89,6 +93,69 @@ func (d *DueExits) RunDue(ctx context.Context) (DueRun, error) {
 		}
 	}
 	return run, nil
+}
+
+// lockActedPlans takes, before the first savepoint, the locks of every
+// planned exit this run acts on (#6583): Workforce's absence and staff-shift
+// gates (all absence gates before any shift gate), then the membership
+// rows, each ascending by staff id. The run keeps every lock until commit,
+// so the exits share one lock order: an exit's offboarding takes a gate, and
+// no gate may follow another person's staff row (tenant.LockStaffRows).
+func (d *DueExits) lockActedPlans(ctx context.Context, plans []schoolmembership.PlannedExit, today calendar.Date) error {
+	staffIDs := make([]int64, 0, len(plans))
+	for _, plan := range plans {
+		if day := plan.LastWorkingDay; !day.After(today) || inReminderWeek(today, day) {
+			staffIDs = append(staffIDs, plan.StaffID)
+		}
+	}
+	slices.Sort(staffIDs)
+	staffIDs = slices.Compact(staffIDs)
+	if err := d.lockActedAccounts(ctx, staffIDs); err != nil {
+		return err
+	}
+	if err := d.planner.workflow.deps.Workforce.Lock(ctx, staffIDs...); err != nil {
+		return err
+	}
+	for _, staffID := range staffIDs {
+		_, err := d.planner.exits.FindPlannedExitForMutation(ctx, staffID)
+		if err != nil && !errors.Is(err, schoolmembership.ErrPlannedExitNotFound) && !errors.Is(err, schoolmembership.ErrStaffNotFound) {
+			return err
+		}
+	}
+	return nil
+}
+
+// lockActedAccounts locks the sign-in accounts of the acted exits, ascending,
+// before every gate (Konto → Schule → Profil, #6702). An exit's offboarding
+// and a closed sign-in lock the account; an immediate offboarding locks it
+// before its gates too, so a run holding gates and staff rows never waits
+// for an account that offboarding holds while it waits for those gates.
+func (d *DueExits) lockActedAccounts(ctx context.Context, staffIDs []int64) error {
+	deps := d.planner.workflow.deps
+	if len(staffIDs) == 0 {
+		return nil
+	}
+	// Retired or missing members are no exit any more; their plans fail
+	// alone, as before.
+	staff, err := deps.ListStaff(ctx, schoolmembership.StaffFilter{IDs: staffIDs, MembershipOnly: true})
+	if err != nil {
+		return err
+	}
+	personIDs := make([]int64, 0, len(staff))
+	for _, member := range staff {
+		personIDs = append(personIDs, member.PersonID)
+	}
+	people, err := deps.People.ListPersonsByID(ctx, personIDs)
+	if err != nil {
+		return err
+	}
+	accounts := make([]int64, 0, len(people))
+	for _, person := range people {
+		if person.AccountID != nil {
+			accounts = append(accounts, *person.AccountID)
+		}
+	}
+	return deps.LockAccounts(ctx, accounts)
 }
 
 // runPlan does what is due for one planned exit. exitErr is a failed

@@ -51,14 +51,19 @@ func validHolidayRules(rules []parentbilling.ContributionRule, day calendar.Date
 	return valid
 }
 
-// firstHolidayDay is the first booked day of the children, the day whose
-// rules apply. Without a booking it is the zero date and no rule applies.
+// firstHolidayDay is the first requested day, including waiting bookings.
+// Eligibility can apply before a place is available; pricing still filters
+// waiting bookings separately. Without a request no rule applies.
 func firstHolidayDay(children []parentbilling.HolidayChild) calendar.Date {
 	var first calendar.Date
 	for _, child := range children {
 		for _, booking := range child.Bookings {
-			if first == "" || booking.WeekStartsOn.Before(first) {
-				first = booking.WeekStartsOn
+			day := booking.WeekStartsOn
+			if len(booking.Days) > 0 {
+				day = slices.Min(booking.Days)
+			}
+			if first == "" || day.Before(first) {
+				first = day
 			}
 		}
 	}
@@ -94,6 +99,7 @@ func computeHolidaySiblings(members []holidayMember, rules holidayRules) []paren
 	results := make([]parentbilling.HolidayContribution, len(members))
 	var ranked []rankedChild
 	for m, member := range members {
+		member.children = placedHolidayChildren(member.children)
 		results[m] = parentbilling.HolidayContribution{
 			Children:           make([]parentbilling.HolidayChildContribution, len(member.children)),
 			ExemptionAvailable: rules.exemption != nil,
@@ -171,6 +177,18 @@ func olderFirst(a, b rankedChild) int {
 	return a.ageRank - b.ageRank
 }
 
+// placedHolidayChildren leaves out the bookings on the waiting list (#4699):
+// they are not billed, and a child with only such bookings ranks as a child
+// without a booking.
+func placedHolidayChildren(children []parentbilling.HolidayChild) []parentbilling.HolidayChild {
+	placed := make([]parentbilling.HolidayChild, len(children))
+	for i, child := range children {
+		child.Bookings = slices.DeleteFunc(slices.Clone(child.Bookings), func(booking parentbilling.HolidayBooking) bool { return booking.Waitlisted })
+		placed[i] = child
+	}
+	return placed
+}
+
 // holidayBaseLines writes one base line per booked week, in the order of
 // the weeks.
 func holidayBaseLines(child parentbilling.HolidayChild) parentbilling.HolidayChildContribution {
@@ -181,10 +199,15 @@ func holidayBaseLines(child parentbilling.HolidayChild) parentbilling.HolidayChi
 	}
 	for _, booking := range bookings {
 		startsOn, endsOn := booking.WeekStartsOn, booking.WeekEndsOn
-		contribution.Lines = append(contribution.Lines, parentbilling.HolidayContributionLine{
+		line := parentbilling.HolidayContributionLine{
 			Kind: parentbilling.LineBase, AmountCents: booking.PriceCents,
-			WeekStartsOn: &startsOn, WeekEndsOn: &endsOn, TimeModelName: booking.TimeModelName,
-		})
+			WeekStartsOn: &startsOn, WeekEndsOn: &endsOn, TimeModelName: booking.TimeModelName, WeekID: booking.WeekID,
+		}
+		if booking.BookedDays > 0 {
+			days := booking.BookedDays
+			line.BookedDays = &days
+		}
+		contribution.Lines = append(contribution.Lines, line)
 		contribution.TotalCents += booking.PriceCents
 	}
 	return contribution
@@ -256,9 +279,8 @@ func siblingDiscount(base int64, rule *parentbilling.ContributionRule) int64 {
 // applyExemption frees the child from what is left of its contribution and
 // writes the rule's note, even when nothing is left.
 func applyExemption(child *parentbilling.HolidayChildContribution, rule *parentbilling.ContributionRule) {
-	if len(child.Lines) == 0 {
-		return
-	}
+	// A zero line persists the confirmed exemption even while every week
+	// waits. Otherwise the stored contribution loses that choice on read.
 	child.Lines = append(child.Lines, parentbilling.HolidayContributionLine{
 		Kind: parentbilling.LineBenefitsExemption, AmountCents: -child.TotalCents, Note: rule.Note,
 	})
@@ -269,9 +291,9 @@ func applyExemption(child *parentbilling.HolidayChildContribution, rule *parentb
 // contribution and copies its ID and name into the line, even when nothing
 // is left (#5627).
 func applyCostTakeover(child *parentbilling.HolidayChildContribution, bearer *parentbilling.CostBearer) {
-	if len(child.Lines) == 0 {
-		return
-	}
+	// A zero line persists the confirmed cost bearer even while every week
+	// waits (#4699): the stored contribution names it only in its lines, and
+	// a later move up would otherwise bill the family.
 	id := bearer.ID
 	child.Lines = append(child.Lines, parentbilling.HolidayContributionLine{
 		Kind: parentbilling.LineCostTakeover, AmountCents: -child.TotalCents, CostBearerID: &id, CostBearerName: bearer.Name,

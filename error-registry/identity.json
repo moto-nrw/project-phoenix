@@ -121,6 +121,12 @@
       "legacy": "identity.guardian_invitation_address_changed"
     },
     {
+      "code": "identity.holiday_parent_setup_invalid",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "identity.holiday_parent_setup_invalid"
+    },
+    {
       "code": "identity.guardian_invitation_email_not_queued",
       "class": "unavailable",
       "parameters": [],

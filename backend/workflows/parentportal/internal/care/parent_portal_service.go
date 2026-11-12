@@ -215,33 +215,12 @@ func (s *Service) GetProfile(ctx context.Context, accountID int64) (*Profile, er
 	}
 	profile := &Profile{Locale: s.Locales.Default(), Explicit: false}
 	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
-		row, err := s.GuardianProfileRepo.FindByAccountID(adminCtx, accountID)
-		if err != nil {
-			return err
-		}
-		if row != nil {
-			profile.FirstName = row.FirstName
-			profile.LastName = row.LastName
-		}
-		// portal_locale IS NULL → the guardian has never chosen a portal
-		// language. Leave Explicit=false so the caller keeps the anonymous
-		// locale instead of forcing the default.
-		if row != nil && row.PortalLocale != nil && *row.PortalLocale != "" {
-			profile.Locale = s.Locales.Normalize(*row.PortalLocale)
-			profile.Explicit = true
-		}
-		return nil
+		return s.readPortalProfile(adminCtx, accountID, profile)
 	})
 	if err != nil {
-		// No guardian_profiles row for an authenticated parent is a
-		// data-integrity fault, not a normal state: the guardian role and the
-		// profile link are written in the same transaction (auth
-		// guardianInvitationService.linkProfileToAccount / enrollment
-		// decisionService.ensureGuardianRoleForTenant), and these endpoints sit
-		// behind ParentScopeMiddleware, which login only reaches once the account
-		// has that role. Log it so the corruption is observable, then degrade
-		// to the anonymous locale rather than failing a read just to render a
-		// language. Any other error is a real fault and must surface unmasked.
+		// Older compositions without the global account preference degrade a
+		// missing guardian profile to the anonymous locale. Other failures
+		// must remain visible.
 		if errors.Is(err, ErrGuardianProfileNotFound) {
 			s.Logger.Warn("parent: guardian profile missing for authenticated account",
 				slog.Int64("account_id", accountID),
@@ -251,6 +230,30 @@ func (s *Service) GetProfile(ctx context.Context, accountID int64) (*Profile, er
 		return nil, fmt.Errorf("parent: get profile: %w", err)
 	}
 	return profile, nil
+}
+
+// readPortalProfile keeps the school's explicit choice and falls back to the
+// account preference when the parent has no profile or no choice there yet.
+func (s *Service) readPortalProfile(ctx context.Context, accountID int64, profile *Profile) error {
+	row, err := s.GuardianProfileRepo.FindByAccountID(ctx, accountID)
+	if err != nil && (!errors.Is(err, ErrGuardianProfileNotFound) || s.ParentAccounts == nil) {
+		return err
+	}
+	var locale *string
+	if row != nil {
+		profile.FirstName, profile.LastName = row.FirstName, row.LastName
+		locale = row.PortalLocale
+	}
+	if (locale == nil || *locale == "") && s.ParentAccounts != nil {
+		locale, err = s.ParentAccounts.FindAccountPortalLocale(ctx, accountID)
+		if err != nil {
+			return err
+		}
+	}
+	if locale != nil && *locale != "" {
+		profile.Locale, profile.Explicit = s.Locales.Normalize(*locale), true
+	}
+	return nil
 }
 
 func (s *Service) UpdatePortalLocale(ctx context.Context, accountID int64, locale string) (*Profile, error) {
@@ -269,8 +272,8 @@ func (s *Service) UpdatePortalLocale(ctx context.Context, accountID int64, local
 	}
 	normalized := s.Locales.Normalize(locale)
 	if err := s.writePortalLocale(ctx, accountID, normalized); err != nil {
-		// Same invariant as GetProfile: an authenticated parent always has a
-		// linked guardian_profiles row, so zero rows updated is data corruption,
+		// Without account-locale persistence, a parent still requires a
+		// linked guardian profile; zero rows updated is a state conflict,
 		// not an expected empty state. Log it and keep the sentinel wrapped so
 		// the handler can map it to 409 (a permanent state conflict) instead of
 		// a generic 500. Never swallow it into a fake success — a "saved"
@@ -285,7 +288,10 @@ func (s *Service) UpdatePortalLocale(ctx context.Context, accountID int64, local
 	profile := &Profile{Locale: normalized, Explicit: true}
 	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		row, err := s.GuardianProfileRepo.FindByAccountID(adminCtx, accountID)
-		if err != nil {
+		if err != nil && !errors.Is(err, ErrGuardianProfileNotFound) {
+			return err
+		}
+		if errors.Is(err, ErrGuardianProfileNotFound) && s.ParentAccounts == nil {
 			return err
 		}
 		if row != nil {
@@ -303,22 +309,26 @@ func (s *Service) UpdatePortalLocale(ctx context.Context, accountID int64, local
 // writePortalLocale stores the account's portal language on its guardian
 // profile in every school it has one, one tenant unit of work per school:
 // People Directory writes only inside the school in context. Finding the
-// schools is a cross-tenant read; no write runs in the administrative unit of
-// work.
+// schools is a cross-tenant read. Parents without a profile persist through
+// Identity & Access in that existing administrative unit instead.
 func (s *Service) writePortalLocale(ctx context.Context, accountID int64, locale string) error {
 	if s.Guardians == nil {
 		return errors.New("parent: guardian records are not configured")
 	}
 	var tenantIDs []int64
+	var updated int64
 	err := s.Runtime.WithinAdmin(ctx, func(adminCtx context.Context) error {
 		var readErr error
 		tenantIDs, readErr = s.Guardians.ListGuardianProfileTenants(adminCtx, accountID)
+		if readErr == nil && len(tenantIDs) == 0 && s.ParentAccounts != nil {
+			updated = 1
+			return s.ParentAccounts.SetAccountPortalLocale(adminCtx, accountID, locale)
+		}
 		return readErr
 	})
 	if err != nil {
 		return err
 	}
-	var updated int64
 	for _, tenantID := range tenantIDs {
 		err := s.Runtime.WithinTenant(ctx, tenantID, func(txCtx context.Context) error {
 			rows, writeErr := s.Guardians.SetGuardianPortalLocale(txCtx, accountID, locale)

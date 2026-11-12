@@ -33,7 +33,7 @@ RUN --mount=type=cache,mode=0755,target=/go/pkg/mod \
     CGO_ENABLED=0 go build -ldflags="-s -w" -o devtools ./cmd/devtools
 
 # Multi-Stage runtime base shared by the production and demo targets
-FROM alpine:3.21 AS runtime
+FROM alpine:3.24 AS runtime
 RUN apk --no-cache add ca-certificates bash tzdata
 ENV TZ=Europe/Berlin
 
@@ -48,6 +48,10 @@ COPY --from=builder /src/main .
 COPY templates templates
 # Copy frontend
 COPY public public
+
+# Store of the encrypted return packages released for retrieval (ADR 0203);
+# a named volume mounted here inherits the owner and the private mode.
+RUN mkdir -p /app/data-return && chmod 700 /app/data-return
 
 # Set ownership and switch to non-root user
 RUN chown -R appuser:appgroup /app

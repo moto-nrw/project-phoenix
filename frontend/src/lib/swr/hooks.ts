@@ -728,39 +728,6 @@ export function useTenantMutateMatching(substrings: readonly string[]) {
 }
 
 /**
- * SWR hook for data that depends on a parameter.
- *
- * Automatically generates a cache key that includes the parameter,
- * ensuring proper cache isolation per entity and per tenant.
- *
- * @example
- * ```tsx
- * const { data: student } = useSWRWithId(
- *   'student',
- *   studentId,
- *   (id) => fetchStudent(id)
- * );
- * ```
- *
- * @param baseKey - Base cache key prefix
- * @param id - Entity ID (use null/undefined to disable fetching)
- * @param fetcher - Async function that takes the ID and returns data
- * @param options - Optional SWR configuration overrides
- */
-export function useSWRWithId<T, E = Error>(
-  baseKey: string,
-  id: string | null | undefined,
-  fetcher: (id: string) => Promise<T>,
-  options?: ReaderOptions<T, E>,
-): SWRResponse<T, E> {
-  return useScopedSWR<T, E>(
-    id == null ? null : `${baseKey}-${id}`,
-    () => fetcher(id!),
-    options,
-  );
-}
-
-/**
  * Returns a function that drops every cache entry of one child or other
  * entity after the server refused it (401, 403, 404 with one of `codes`), so
  * no view keeps showing it: e.g. a guardian whose access to a child ended.
@@ -787,11 +754,19 @@ export function useDiscardRefusedEntity() {
       entity: {
         codes: readonly ErrorCode[];
         matches: (key: string) => boolean;
+        /** The refused request's key, when its error did not pass through SWR. */
+        refusedKey?: string;
       },
     ): boolean => {
       if (!isEntityRefusal(error, entity.codes)) return false;
       if (prefix !== null) {
-        discardScopedEntries(cache, prefix, entity.matches, error);
+        discardScopedEntries(
+          cache,
+          prefix,
+          entity.matches,
+          error,
+          entity.refusedKey,
+        );
       }
       return true;
     },

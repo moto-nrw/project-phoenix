@@ -296,6 +296,10 @@ var parentMailTemplates = map[string]bool{
 	"enrollment_change_request_approved": true,
 	"enrollment_change_request_rejected": true,
 	"holiday_registration_received":      true,
+	"holiday_place_granted":              true,
+	"holiday_closure_notice":             true,
+	"holiday_registration_accepted":      true,
+	"holiday_parent_account_offer":       true,
 	"appointment_published":              true,
 	"appointment_updated":                true,
 	"appointment_cancelled":              true,
@@ -306,3 +310,9 @@ var parentMailTemplates = map[string]bool{
 
 // IsParentMail reports whether a mail template goes to parents.
 func IsParentMail(template string) bool { return parentMailTemplates[template] }
+
+// HolidayClosureMailRecovery exposes only the key and whether a retry needs outcome clarification.
+type HolidayClosureMailRecovery struct {
+	IdempotencyKey string
+	Unknown        bool
+}

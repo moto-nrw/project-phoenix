@@ -27,11 +27,7 @@ func newPageChrome(landscape bool, title, subtitle string, generatedAt time.Time
 		return nil, fmt.Errorf("embed fallback font: %w", err)
 	}
 
-	primaryCov, err := newFontCoverage(interRegular)
-	if err != nil {
-		return nil, err
-	}
-	fallbackCov, err := newFontCoverage(unifontRegular)
+	primaryCov, fallbackCov, err := documentCoverages()
 	if err != nil {
 		return nil, err
 	}

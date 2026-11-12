@@ -15,6 +15,7 @@
   "invitation_account_login_required": "Bu e-posta adresi için zaten bir hesap var. Lütfen önce bu hesapla giriş yapın, sonra daveti yeniden açın.",
   "invitation_account_mismatch": "Başka bir hesapla giriş yaptınız. Lütfen davet edilen e-posta adresiyle giriş yapın.",
   "invitation_expired": "Bu davetin süresi dolmuş veya davet zaten kullanılmış. Lütfen sizi davet eden kişiden yeni bir davet isteyin.",
+  "holiday_parent_setup_invalid": "Veli hesabı için bu bağlantı artık geçerli değil. Zaten bir hesabınız var mı? O zaman giriş yapın. Yoksa kurumdan yeni bir bağlantı isteyin.",
   "invitation_not_found": "Bu davet mevcut değil. Lütfen e-postadaki bağlantıyı kontrol edin.",
   "mfa_blocked": "Çok fazla deneme yapıldı. Lütfen birkaç dakika bekleyin ve sonra yeniden deneyin.",
   "mfa_code_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",

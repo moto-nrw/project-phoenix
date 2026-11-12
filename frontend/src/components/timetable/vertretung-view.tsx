@@ -43,6 +43,7 @@ import { PlanExportModal } from "~/components/planning/plan-export-modal";
 import { PlanningDisabledState } from "~/components/planning/planning-disabled-state";
 import { Button } from "~/components/ui/button";
 import { CoverageIndicator } from "~/components/ui/planning/coverage-indicator";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import {
   OverflowMenu,
@@ -594,6 +595,12 @@ function VertretungContent() {
     weekSwrKey,
     tenantMutate,
   ]);
+  // Nachladen nach der Sammel-Vertretung: ein Fehler dabei ist ein
+  // Ladefehler über dem Plan, kein Fehler des Speicherns (#6652).
+  const bulkAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Vertretungen",
+    revalidate,
+  );
 
   // Ein atomares Save für das gesamte Editor-Formular. Der Cache-Refresh läuft
   // NACH der Mutation und kann ihren Erfolg nicht zurücknehmen. Ein Fehler
@@ -614,7 +621,8 @@ function VertretungContent() {
           toast.success(
             cancelledToast("Der Block ist abgesagt.", result.guardianNotice),
           );
-          updateUrlParams({ block: null, verlauf: null });
+          // Das Panel schließt sich selbst (closeEditor), nur solange es
+          // denselben Block zeigt (#6593).
         } else {
           toast.success(deviationSuccessMessage(input, result, staffNames));
           if (result.warnings.length > 0) {
@@ -634,7 +642,7 @@ function VertretungContent() {
         await revalidate();
       }
     },
-    [selectedInstance, revalidate, staffNames, toast, updateUrlParams],
+    [selectedInstance, revalidate, staffNames, toast],
   );
 
   // Solange die Session lädt, ist noch nicht entscheidbar, welche Aktionen
@@ -709,7 +717,7 @@ function VertretungContent() {
         staffOptions={staffOptions}
         staffLoadError={staffFailed}
         staffLoadErrorMessage={staffLoadError}
-        onSaved={revalidate}
+        onSaved={bulkAfterWrite.refresh}
       />
 
       <SubstitutionSlideOver
@@ -855,6 +863,7 @@ function VertretungContent() {
       error={weekFailed ? weekLoadError : null}
     >
       <LoadErrorAlert error={staffLoadError} />
+      <LoadErrorAlert error={bulkAfterWrite.error} />
       <LoadErrorAlert error={gapsLoadError} />
 
       {/* Planungshinweis, keine Störung: steht bewusst außerhalb der Liste und

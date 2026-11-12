@@ -2,6 +2,7 @@ package main
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"slices"
 	"time"
@@ -17,12 +18,15 @@ type demoExpiryRuntime interface {
 	ExpireDemoAccesses(ctx context.Context) (deleted int, orphanedSlugs []string, err error)
 	RetireDemoSchools(ctx context.Context, slugs []string) (hidden, erased int, err error)
 	EraseRetiredDemoSchoolFiles(ctx context.Context) (schools int, files int64, err error)
+	EraseRetiredDemoSchoolDatabases(ctx context.Context) (erased, busy int, err error)
 }
 
 // demoExpiry deletes demo accesses 14 days after their last use and hides
 // the demo schools left without any access (#3470). Then it erases the
 // visitors of the schools out of use, those it just hid included (#4048),
-// and last the uploads of the schools hidden for at least an hour (#5544).
+// then the uploads of the schools hidden for at least an hour (#5544), and
+// last, from the database, the schools retired at least 90 days ago whose
+// uploads are gone (#5559).
 // It runs once per interval on the injected clock; the first run is due at
 // once. The standing school is shared by every visitor and is never hidden.
 type demoExpiry struct {
@@ -71,14 +75,24 @@ func (e *demoExpiry) run(ctx context.Context) error {
 	}
 	// A school that failed keeps no marker; the run stays due, so the next
 	// poll tries again, and the poll failure turns the sidecar unhealthy.
-	schools, files, err := e.runtime.EraseRetiredDemoSchoolFiles(ctx)
+	schools, files, filesErr := e.runtime.EraseRetiredDemoSchoolFiles(ctx)
 	if schools > 0 {
 		slog.Info("demo school files erased",
 			"schools", schools,
 			"files", files,
 		)
 	}
-	if err != nil {
+	// The same rule for the database rows. Only a school whose uploads are
+	// erased is selected, so a failed file erasure of another school does not
+	// hold them up. A busy school waits for the next run and fails nothing.
+	erasedSchools, busySchools, databasesErr := e.runtime.EraseRetiredDemoSchoolDatabases(ctx)
+	if erasedSchools > 0 || busySchools > 0 {
+		slog.Info("demo schools erased from the database",
+			"schools", erasedSchools,
+			"busy", busySchools,
+		)
+	}
+	if err := errors.Join(filesErr, databasesErr); err != nil {
 		return err
 	}
 	e.next = at.Add(e.interval)

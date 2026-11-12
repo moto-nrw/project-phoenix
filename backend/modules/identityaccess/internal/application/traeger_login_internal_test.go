@@ -64,3 +64,13 @@ func TestTraegerMintGuard_RefusesAnAccountSwitchedOffAfterTheCredentialCheck(t *
 	require.ErrorIs(t, err, identityaccess.ErrAccountInactive)
 	assert.Nil(t, claims)
 }
+
+func (s traegerMembershipsStub) HasRetainedTraegerMembership(context.Context, int64) (bool, error) {
+	return len(s.organizations) > 0, nil
+}
+
+// The stub's Träger hold no parents-portal access (ADR 0216); a parent
+// session at a Träger is covered against the real store.
+func (s traegerMembershipsStub) LiveTraegers(context.Context, []int64, bool) ([]identityaccess.TraegerOrganization, error) {
+	return nil, nil
+}

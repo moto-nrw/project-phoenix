@@ -128,6 +128,8 @@ func rollBackHolidayGuests(t *testing.T, db *bun.DB) {
 	t.Helper()
 	// The wage types (1.15.733, #4807) extend the erasure functions of
 	// 1.15.727; they go first.
+	// 1.15.942 (ADR 0196) extends the erasure functions of 1.15.811; it goes first.
+	require.NoError(t, holidayClosureEventsDown(t.Context(), db))
 	require.NoError(t, emailDeliveryEventsDown(t.Context(), db))
 	require.NoError(t, payrollWageTypesDown(t.Context(), db))
 	// The realtime notifications (1.15.727, #5504) extend the erasure

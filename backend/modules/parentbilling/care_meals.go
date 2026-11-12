@@ -98,6 +98,8 @@ type CareMealPosition struct {
 	ReleaseVersion int `json:"release_version"`
 	// Key names the position for a change of the review (#6197).
 	Key string `json:"key,omitempty"`
+	// Accounts is where the position books, copied by the release (#4821).
+	Accounts PositionAccounts `json:"-"`
 }
 
 // CareBilledMealPosition is a child's Mensa month an issued invoice bills:

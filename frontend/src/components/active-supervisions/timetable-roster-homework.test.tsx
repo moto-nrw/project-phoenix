@@ -6,6 +6,7 @@ import {
   within,
 } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
+import { ApiError } from "~/lib/api-error";
 import { TEST_CLOCK_TODAY } from "~/test/clock";
 
 import { TimetableRosterContent } from "./timetable-roster";
@@ -130,6 +131,35 @@ describe("Hausaufgaben in der Lernzeit (#4796)", () => {
       expect(save).toHaveBeenCalledWith(row, {
         status: "difficult",
         note: "Aufgabe 3",
+      }),
+    );
+  });
+
+  it("retries homework feedback using the edited answer and note", async () => {
+    const save = vi
+      .fn()
+      .mockRejectedValueOnce(new ApiError("failed", 503))
+      .mockResolvedValue(undefined);
+    renderRoster(roster, save);
+    fireEvent.click(screen.getByRole("button", { name: "Hausaufgaben" }));
+    const dialog = await screen.findByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: "War schwer" }));
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Rückmeldung speichern" }),
+    );
+    const retry = await within(dialog).findByRole("button", {
+      name: "Wiederholen",
+    });
+    fireEvent.click(within(dialog).getByRole("button", { name: "Fertig" }));
+    fireEvent.change(
+      within(dialog).getByLabelText("Kurze Notiz (freiwillig)"),
+      { target: { value: "edited" } },
+    );
+    fireEvent.click(retry);
+    await waitFor(() =>
+      expect(save).toHaveBeenLastCalledWith(row, {
+        status: "done",
+        note: "edited",
       }),
     );
   });

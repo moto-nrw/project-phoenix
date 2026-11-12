@@ -58,6 +58,10 @@ const (
 	KeyParentBillingDatevRevenueAccount   = "parent_billing.datev_revenue_account"
 	KeyParentBillingDatevFiscalYearStart  = "parent_billing.datev_fiscal_year_start"
 	KeyParentBillingDatevLocked           = "parent_billing.datev_locked"
+	// KeyParentBillingDatevCostCenterRequired says every booking needs a
+	// KOST1 (#4821). Whether the tax office of the SJR books by cost
+	// center is open ("wartet auf Ute"), so it is off by default.
+	KeyParentBillingDatevCostCenterRequired = "parent_billing.datev_cost_center_required"
 )
 
 // KeyParentBillingOnlineMandate lets the parents give the SEPA mandate of
@@ -65,3 +69,14 @@ const (
 // online holds is agreed between the Träger and its bank, so it is off
 // until the Träger turns it on. Only the Träger sets it (LevelTraeger).
 const KeyParentBillingOnlineMandate = "parent_billing.online_mandate"
+
+// The format of a debtor number in the finance system of a Träger (#6675):
+// with DigitsOnly on, every debtor number the office enters has only digits
+// and between MinDigits and MaxDigits of them (in either order; the two
+// values save one after the other). Off by default; numbers already stored
+// stay as they are. Only the Träger sets them (LevelTraeger).
+const (
+	KeyParentBillingDebtorNumberDigitsOnly = "parent_billing.debtor_number_digits_only"
+	KeyParentBillingDebtorNumberMinDigits  = "parent_billing.debtor_number_min_digits"
+	KeyParentBillingDebtorNumberMaxDigits  = "parent_billing.debtor_number_max_digits"
+)

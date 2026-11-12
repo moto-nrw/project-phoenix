@@ -6,6 +6,7 @@ import { Pencil } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError } from "~/contexts/ToastContext";
@@ -38,7 +39,8 @@ export function AdminChildDataCorrection({
     child.target_school_class ?? "",
   );
   const [reason, setReason] = useState("");
-  const [saving, setSaving] = useState(false);
+  const submission = useFormModalPending(open);
+  const saving = submission.pending;
   const errors = useApiFormError();
   // „Wiederholen“ sendet den aktuellen Stand, nicht den vom Fehler.
   const latestSubmitRef = useRef<() => Promise<void>>(async () => undefined);
@@ -72,47 +74,47 @@ export function AdminChildDataCorrection({
       });
       return;
     }
-    setSaving(true);
-    errors.clear();
-    try {
-      const correction = {
-        first_name: firstName.trim(),
-        last_name: lastName.trim(),
-        date_of_birth: dateOfBirth,
-        target_grade_level: parsedGrade,
-        target_school_class: schoolClass.trim() || undefined,
-        reason: reason.trim(),
-      };
-      const result = await correctAdminChildData(
-        requestId,
-        child.id,
-        correction,
-      );
-      const correctedChild = result.request.children.find(
-        (candidate) => candidate.id === child.id,
-      ) ?? {
-        ...child,
-        first_name: correction.first_name,
-        last_name: correction.last_name,
-        date_of_birth: correction.date_of_birth,
-        target_grade_level: correction.target_grade_level,
-        target_school_class: correction.target_school_class,
-      };
-      setOpen(false);
-      onSaved(correctedChild);
-    } catch (err) {
-      logger.error("admin_child_data_correction_failed", {
-        error: err instanceof Error ? err.message : "unknown",
-        request_id: requestId,
-        child_id: child.id,
-      });
-      await errors.show(err, {
-        object: "die Korrektur",
-        retry: () => void latestSubmitRef.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
+    await submission.run(async (op) => {
+      errors.clear();
+      try {
+        const correction = {
+          first_name: firstName.trim(),
+          last_name: lastName.trim(),
+          date_of_birth: dateOfBirth,
+          target_grade_level: parsedGrade,
+          target_school_class: schoolClass.trim() || undefined,
+          reason: reason.trim(),
+        };
+        const result = await correctAdminChildData(
+          requestId,
+          child.id,
+          correction,
+        );
+        const correctedChild = result.request.children.find(
+          (candidate) => candidate.id === child.id,
+        ) ?? {
+          ...child,
+          first_name: correction.first_name,
+          last_name: correction.last_name,
+          date_of_birth: correction.date_of_birth,
+          target_grade_level: correction.target_grade_level,
+          target_school_class: correction.target_school_class,
+        };
+        onSaved(correctedChild);
+        if (op.isCurrent()) setOpen(false);
+      } catch (err) {
+        logger.error("admin_child_data_correction_failed", {
+          error: err instanceof Error ? err.message : "unknown",
+          request_id: requestId,
+          child_id: child.id,
+        });
+        if (!op.isCurrent()) return;
+        await errors.show(err, {
+          object: "die Korrektur",
+          retry: () => void latestSubmitRef.current(),
+        });
+      }
+    });
   };
   useLayoutEffect(() => {
     latestSubmitRef.current = save;
@@ -137,6 +139,7 @@ export function AdminChildDataCorrection({
       <FormModal
         isOpen={open}
         onClose={close}
+        pending={submission}
         title="Anmeldedaten korrigieren"
         size="sm"
         mobilePosition="center"

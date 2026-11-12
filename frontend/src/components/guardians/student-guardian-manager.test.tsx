@@ -12,6 +12,7 @@ import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { ApiError } from "~/lib/api-error";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 
 // Mock all guardian API functions with proper typing
 const mockFetchStudentGuardians = vi.fn();
@@ -1446,6 +1447,65 @@ describe("StudentGuardianManager", () => {
           "Die Anfrage für Hans Müller wartet auf Freigabe.",
         ),
       );
+    });
+  });
+
+  // #6652: a write holds once it is through; a failed reload of the list is
+  // a load error that says the change is saved, and its retry only reloads.
+  describe("reload after a write (#6652)", () => {
+    const reloadText = `${catalogText("general.unavailable", "die Anzeige der Erziehungsberechtigten")} ${SAVED_BUT_STALE_SUFFIX}`;
+
+    beforeEach(() => {
+      mockFetchStudentGuardians
+        .mockReset()
+        .mockResolvedValueOnce(mockGuardians)
+        .mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+        .mockResolvedValue(mockGuardians);
+    });
+
+    async function expectReloadOnly(write: ReturnType<typeof vi.fn>) {
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      // Anker: die bestätigte Liste bleibt stehen.
+      expect(screen.getByTestId("guardian-list")).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() =>
+        expect(mockFetchStudentGuardians).toHaveBeenCalledTimes(3),
+      );
+      expect(write).toHaveBeenCalledTimes(1);
+    }
+
+    it("keeps a linked guardian linked when the reload fails", async () => {
+      mockLinkGuardianToStudent.mockResolvedValue(undefined);
+      render(<StudentGuardianManager studentId="student-123" />);
+      fireEvent.click(
+        await screen.findByTitle("Vorhandene/n Erziehungsberechtigte/n suchen"),
+      );
+      fireEvent.click(screen.getByTestId("picker-select"));
+
+      await expectReloadOnly(mockLinkGuardianToStudent);
+    });
+
+    it("keeps an unlinked guardian unlinked when the reload fails", async () => {
+      mockRemoveGuardianFromStudent.mockResolvedValue(undefined);
+      render(<StudentGuardianManager studentId="student-123" />);
+      fireEvent.click(await screen.findByTestId("edit-guardian-1"));
+      fireEvent.click(screen.getByTestId("modal-delete-button"));
+      fireEvent.click(screen.getByTestId("confirm-delete"));
+
+      await expectReloadOnly(mockRemoveGuardianFromStudent);
+    });
+
+    it("keeps an invitation sent when the reload fails", async () => {
+      mockInviteGuardianToStudent.mockResolvedValue({
+        outcome: "already_linked",
+        guardian_profile_id: "guardian-2",
+      });
+      render(<StudentGuardianManager studentId="student-123" />);
+      fireEvent.click(await screen.findByTestId("invite-guardian-2"));
+
+      await expectReloadOnly(mockInviteGuardianToStudent);
     });
   });
 });

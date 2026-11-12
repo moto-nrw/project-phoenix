@@ -15,12 +15,14 @@ only base-update behavior; the review/fix loop stays as configured.
 
 Before merging, fetch the PR's base and check mergeability. Fetching updates
 remote references; it does not merge or rebase the base into the PR. Update the
-branch to resolve actual conflicts (`DIRTY`), not merely because it is `BEHIND`
-or the base has advanced. For stacks, follow the
+branch only for actual conflicts (`DIRTY`) or when the PR adds or changes
+migrations, not merely because it is `BEHIND` or the base has advanced.
+`BASE_UPDATE=conflicts` does not cover the migration case: merge the base
+yourself, then check migration numbers and order against it and against open
+PRs. For stacks, follow the
 [stacked-PR workflow](../../.agents/skills/stacked-pr/SKILL.md#keep-the-stack-current).
-Check new migration numbers against the fetched base and open PRs without
-merging the base just to inspect them. Check relevant interactions with recent
-base changes; investigate concrete integration risks without routine sync commits.
+Check relevant interactions with recent base changes; investigate concrete
+integration risks without routine sync commits.
 
 The final check still applies: the PR is ready, its current head has passed
 required local checks and CI, review blockers are resolved, and it is
@@ -81,6 +83,8 @@ time and failures. Separate server I/O, SQL waits and pool waits before adding
 throttling. Follow the [test-server lifecycle](operations.md#test-database)
 and preserve other sessions and persistent data during cleanup.
 
-Do not increase test deadlines, add retries, remove parallel tests or weaken
-assertions to make an overloaded gate pass. Follow the
-[test-contract rule](../../.claude/rules/no-test-modifications.md).
+Make an overloaded gate pass by making tests cheaper: reshape, merge or thin
+them while their assertions hold
+([test-contract rule](../../.claude/rules/no-test-modifications.md)). Test
+deadlines, retries, dropped `t.Parallel()` and weaker assertions hide the load
+instead of removing it.

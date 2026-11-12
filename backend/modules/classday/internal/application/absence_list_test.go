@@ -396,3 +396,26 @@ func absenceTestChildren(context.Context, string) ([]classday.AbsenceListChild, 
 		{StudentID: 1, FirstName: "Anna", LastName: "Arndt"},
 	}, nil
 }
+
+func TestAbsenceListUsesGermanNameOrder(t *testing.T) {
+	t.Parallel()
+	a := absenceList{
+		today: func() calendar.Date { return "2026-09-16" },
+		deps: AbsenceListDependencies{
+			Marks: &fakeAbsenceMarks{}, StatusDays: fakeAbsenceStatusDays{}, Calendar: fakeAbsenceCalendar{},
+			AvailableFrom: func(context.Context, calendar.Date) (calendar.Date, error) { return "2025-09-16", nil },
+			Participation: fakeAbsenceParticipation{},
+			Children: func(context.Context, string) ([]classday.AbsenceListChild, error) {
+				return []classday.AbsenceListChild{
+					{StudentID: 3, FirstName: "Anna", LastName: "Zimmermann"},
+					{StudentID: 2, FirstName: "Zoe", LastName: "Özdemir"},
+					{StudentID: 1, FirstName: "Änne", LastName: "Özdemir"},
+				}, nil
+			},
+		},
+	}
+	report, err := a.AbsenceListReport(context.Background(), absenceQuery("2026-09-07", "2026-09-09"))
+	require.NoError(t, err)
+	require.Len(t, report.Children, 3)
+	assert.Equal(t, []int64{1, 2, 3}, []int64{report.Children[0].StudentID, report.Children[1].StudentID, report.Children[2].StudentID})
+}

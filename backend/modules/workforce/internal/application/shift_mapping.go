@@ -11,7 +11,7 @@ func shiftToDomain(value workforce.StaffShift) domain.StaffShift {
 	return domain.StaffShift{
 		ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID, Date: value.Date,
 		StartTime: value.StartTime, EndTime: value.EndTime, BreakMinutes: value.BreakMinutes,
-		ShiftTypeID: value.ShiftTypeID, Notes: value.Notes, SeriesID: value.SeriesID, Detached: value.Detached,
+		ShiftTypeID: value.ShiftTypeID, Notes: value.Notes, SeriesID: value.SeriesID, Detached: value.Detached, SeriesOverride: value.SeriesOverride,
 		SeriesOccurrenceDate: value.SeriesOccurrenceDate, Cancelled: value.Cancelled, ChangeReason: value.ChangeReason,
 		OriginShiftID: value.OriginShiftID, SickAbsenceID: value.SickAbsenceID, CreatedBy: value.CreatedBy,
 		UpdatedBy: value.UpdatedBy, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,
@@ -22,7 +22,7 @@ func shiftToPublic(value domain.StaffShift) workforce.StaffShift {
 	return workforce.StaffShift{
 		ID: value.ID, TenantID: value.TenantID, StaffID: value.StaffID, Date: value.Date,
 		StartTime: value.StartTime, EndTime: value.EndTime, BreakMinutes: value.BreakMinutes,
-		ShiftTypeID: value.ShiftTypeID, Notes: value.Notes, SeriesID: value.SeriesID, Detached: value.Detached,
+		ShiftTypeID: value.ShiftTypeID, Notes: value.Notes, SeriesID: value.SeriesID, Detached: value.Detached, SeriesOverride: value.SeriesOverride,
 		SeriesOccurrenceDate: value.SeriesOccurrenceDate, Cancelled: value.Cancelled, ChangeReason: value.ChangeReason,
 		OriginShiftID: value.OriginShiftID, SickAbsenceID: value.SickAbsenceID, CreatedBy: value.CreatedBy,
 		UpdatedBy: value.UpdatedBy, CreatedAt: value.CreatedAt, UpdatedAt: value.UpdatedAt,

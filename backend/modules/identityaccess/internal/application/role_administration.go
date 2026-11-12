@@ -175,20 +175,12 @@ func (r *RoleAdministration) DeleteRole(ctx context.Context, id int64) (err erro
 	defer func() { err = roleError(err) }()
 	ctx = bindRuntime(r.attach, ctx)
 	return r.runtime.RunInTx(ctx, func(txCtx context.Context) error {
-		// ReplaceRolePermissions locks the role before its mappings. Take the
-		// same lock first so deleting a role cannot wait for a mapping while a
-		// concurrent replacement waits for the role.
-		role, found, err := r.store.FindRoleForUpdate(txCtx, id)
-		if err != nil {
-			return failed("delete role", err)
+		if err := r.lockMutableRole(txCtx, id, "delete role"); err != nil {
+			return err
 		}
-		if !found {
-			return failed("delete role", domain.ErrRoleNotFound)
+		if err := r.revokeRoleHolderSessions(txCtx, id); err != nil {
+			return err
 		}
-		if role.IsSystem {
-			return failed("delete role", identityaccess.ErrSystemRoleImmutable)
-		}
-
 		if err := r.store.DeleteRoleAssignments(txCtx, id); err != nil {
 			return failed("delete account role mappings", err)
 		}

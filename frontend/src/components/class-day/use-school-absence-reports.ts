@@ -13,6 +13,7 @@
 
 import { useState } from "react";
 import { useApiFormError } from "~/contexts/ToastContext";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import type {
   AbsenceReportStatus,
@@ -40,7 +41,10 @@ interface Options {
     studentId: string,
   ) => Promise<void>;
   /** Lädt die Tagesübersicht nach einer Änderung neu. */
-  readonly onChanged: () => Promise<unknown>;
+  /** Reloads the school day; never rejects (#6652). */
+  readonly onChanged: RefreshAfterWrite;
+  /** Recovery reload after a rejected write, without saved-change feedback. */
+  readonly onRejected: () => void;
 }
 
 function childKey(target: AbsenceReportTarget): string {
@@ -52,6 +56,7 @@ export function useSchoolAbsenceReports({
   report,
   withdraw,
   onChanged,
+  onRejected,
 }: Options) {
   const errors = useApiFormError();
   const [pending, setPending] = useState<string | null>(null);
@@ -65,6 +70,7 @@ export function useSchoolAbsenceReports({
     action: (studentId: string) => Promise<void>,
     event: string,
     retry: () => void,
+    onSaved?: () => void,
   ): Promise<boolean> => {
     const studentId = target.child.student_id;
     if (!studentId) return false;
@@ -72,8 +78,6 @@ export function useSchoolAbsenceReports({
     setPending(childKey(target));
     try {
       await action(studentId);
-      await onChanged();
-      return true;
     } catch (cause) {
       logger.error(event, {
         error: cause instanceof Error ? cause.message : String(cause),
@@ -82,11 +86,15 @@ export function useSchoolAbsenceReports({
       // Die Liste kann veraltet sein, etwa wenn die Lehrkraft das Kind
       // inzwischen als da eingetragen hat: neu laden, damit es verschwindet.
       // Scheitert auch das, bleibt die Meldung oben der sichtbare Fehler.
-      void onChanged().catch(() => undefined);
-      return false;
-    } finally {
+      onRejected();
       setPending(null);
+      return false;
     }
+    onSaved?.();
+    setPending(null);
+    // Gespeichert; ein gescheitertes Nachladen ist ein Ladefehler (#6652).
+    await onChanged();
+    return true;
   };
 
   const enter = async (
@@ -105,13 +113,15 @@ export function useSchoolAbsenceReports({
   const confirmWithdraw = async () => {
     const target = withdrawTarget;
     if (!withdraw || !target) return;
-    const done = await run(
+    await run(
       target,
       (studentId) => withdraw(target.schoolClass, dateISO, studentId),
       "absence_report_withdraw_failed",
       () => void confirmWithdraw(),
+      // Nur die eigene Rückfrage schließen, bevor das Nachladen beginnt.
+      () =>
+        setWithdrawTarget((current) => (current === target ? null : current)),
     );
-    if (done) setWithdrawTarget(null);
   };
 
   return {

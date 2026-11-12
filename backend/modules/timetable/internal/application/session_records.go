@@ -92,6 +92,13 @@ func (r SessionRecords) CreateMirroredSessionInstance(ctx context.Context, input
 	return row.ID, nil
 }
 
+// LockSessionInstanceStaff takes the staff rows of the mirrored session's
+// people in one ascending batch (#6702); the assignments that follow re-read
+// held rows only, so two mirrors naming the same people never hold one each.
+func (r SessionRecords) LockSessionInstanceStaff(ctx context.Context, staffIDs []int64) error {
+	return lockStaffRows(ctx, r.Staff, staffIDs)
+}
+
 func (r SessionRecords) AddSessionInstanceStaff(ctx context.Context, instanceID, staffID int64) error {
 	row := &schedule.InstanceStaff{InstanceID: instanceID, StaffID: staffID}
 	if err := row.Validate(); err != nil {

@@ -209,3 +209,24 @@ func TestStrip_WebPDropsExifAndXMP(t *testing.T) {
 	_, err = webp.Decode(bytes.NewReader(stripped))
 	require.NoError(t, err)
 }
+
+// A phone stores a portrait photo as landscape pixels plus an orientation;
+// whoever lays the picture out needs to know that it shows turned.
+func TestShownRotated_ReadsTheOrientationStripKeeps(t *testing.T) {
+	t.Parallel()
+	for orientation, rotated := range map[uint16]bool{1: false, 3: false, 6: true, 8: true} {
+		stripped, err := Strip(jpegWithMetadata(t, orientation), "image/jpeg")
+		if err != nil {
+			t.Fatalf("strip orientation %d: %v", orientation, err)
+		}
+		if got := ShownRotated(stripped, "image/jpeg"); got != rotated {
+			t.Errorf("orientation %d: ShownRotated = %v, want %v", orientation, got, rotated)
+		}
+	}
+	if ShownRotated(testJPEG(t), "image/jpeg") {
+		t.Error("a JPEG without Exif shows as stored")
+	}
+	if ShownRotated(jpegWithMetadata(t, 6), "image/png") {
+		t.Error("only a JPEG carries the orientation")
+	}
+}

@@ -1,6 +1,7 @@
 import { fireEvent, render, screen, waitFor } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { apiErrorFromBody } from "~/lib/api-error";
 import type { HolidayRegistrationDetail } from "~/lib/traeger-holiday-registrations-api";
 import {
   HOLIDAY_PERIOD,
@@ -137,6 +138,37 @@ describe("HolidayRegistrationChildCard", () => {
     expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
   });
 
+  it.each(["Feiertag", "Betriebsausflug"])(
+    "shows the calendar reason %s and the next step after a refused rebooking",
+    async (name) => {
+      mockRebook.mockRejectedValue(
+        apiErrorFromBody("calendar refusal", 409, {
+          status: 409,
+          code: "enrollment.holiday_week_no_care_day",
+          detail: "Internal calendar diagnostics",
+          details: { date: "04.01.2027", name },
+        }),
+      );
+      const onChanged = renderCard(HOLIDAY_REGISTRATION, 1);
+      fireEvent.click(screen.getByRole("button", { name: "Umbuchen" }));
+      fireEvent.click(
+        screen.getByRole("combobox", {
+          name: "Zeitmodell 04.01. bis 08.01.2027, OGS Nord",
+        }),
+      );
+      fireEvent.click(
+        await screen.findByRole("option", { name: "bis 16 Uhr" }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        `Am 04.01.2027 gibt es keine Betreuung (${name}). Diese Woche kann man nicht buchen. Wählen Sie eine andere Woche.`,
+      );
+      expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
+      expect(onChanged).not.toHaveBeenCalled();
+    },
+  );
+
   it("moves a child to the parallel week of another school (#5689)", async () => {
     mockRebook.mockResolvedValue(HOLIDAY_REGISTRATION);
     const [first, second] = HOLIDAY_PERIOD.weeks;
@@ -199,5 +231,90 @@ describe("HolidayRegistrationChildCard", () => {
     ).toBeInTheDocument();
     expect(screen.getByText("Lia Muster")).toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "Umbuchen" })).toBeNull();
+  });
+  it("can reselect a saved day that has since closed", () => {
+    const child = HOLIDAY_REGISTRATION.children[0]!;
+    const registration = {
+      ...HOLIDAY_REGISTRATION,
+      children: [
+        {
+          ...child,
+          bookings: [
+            { ...child.bookings[0]!, days: ["2027-01-04", "2027-01-05"] },
+          ],
+        },
+      ],
+    };
+    const period = {
+      ...HOLIDAY_PERIOD,
+      weeks: [
+        {
+          ...HOLIDAY_PERIOD.weeks[0]!,
+          bookingUnit: "day" as const,
+          noCareDays: [
+            {
+              date: "2027-01-04",
+              kind: "closing_day" as const,
+              name: "Teamtag",
+            },
+          ],
+        },
+      ],
+    };
+    renderCard(registration, 0, vi.fn(), false, period);
+    fireEvent.click(screen.getByRole("button", { name: "Umbuchen" }));
+    const monday = screen.getByRole("button", { name: "Mo 04.01." });
+    expect(monday).toHaveAttribute("aria-pressed", "true");
+    fireEvent.click(monday);
+    expect(screen.getByRole("button", { name: "Mo 04.01." })).toHaveAttribute(
+      "aria-pressed",
+      "false",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Mo 04.01." }));
+    expect(screen.getByRole("button", { name: "Mo 04.01." })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+  });
+
+  it("can restore a saved booking on a closed week after changing the draft", async () => {
+    const period = {
+      ...HOLIDAY_PERIOD,
+      weeks: HOLIDAY_PERIOD.weeks.map((week) => ({
+        ...week,
+        noCareDays: [
+          {
+            date: week.startsOn,
+            kind: "closing_day" as const,
+            name: "Brückentag",
+          },
+        ],
+      })),
+    };
+    renderCard(HOLIDAY_REGISTRATION, 1, vi.fn(), false, period);
+    fireEvent.click(screen.getByRole("button", { name: "Umbuchen" }));
+    const select = screen.getByRole("combobox", {
+      name: "Zeitmodell 11.01. bis 15.01.2027, OGS Süd",
+    });
+    fireEvent.click(select);
+    fireEvent.click(
+      await screen.findByRole("option", { name: "Nicht angemeldet" }),
+    );
+    fireEvent.click(select);
+    fireEvent.click(await screen.findByRole("option", { name: "bis 13 Uhr" }));
+    expect(select).toHaveTextContent("bis 13 Uhr");
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    fireEvent.click(
+      screen.getByRole("combobox", {
+        name: "Zeitmodell 04.01. bis 08.01.2027, OGS Nord",
+      }),
+    );
+    expect(
+      await screen.findByRole("option", { name: "Nicht angemeldet" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("option", { name: "bis 16 Uhr" }),
+    ).not.toBeInTheDocument();
   });
 });

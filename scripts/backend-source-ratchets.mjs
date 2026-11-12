@@ -20,11 +20,18 @@ const entry = (file, names, ...inputs) => ({ file: `${file}_test.go`, tests: nam
 // the affected/full suites; only the catalog's source-only check belongs here.
 export const sourceRatchets = [
   entry('hermetic_verification', 'TestHermeticTestPatterns', go),
+  // The subprocess compiles a copy read from disk, outside Go's import graph.
+  entry('database_slots', 'TestIsolatedDatabaseSlotsBoundWaitAndRelease TestIsolatedDatabaseSlotDeadlineLeavesOpenAndDropBudgets TestIsolatedDatabaseSlotsBreakParallelSubtestSaturation',
+    /^backend\/test\/database_(slots|scope)\.go$/),
   entry('calendar_date_verification', 'TestDateColumnTypes', go),
   entry('calendar_fixture_ratchet', 'TestCalendarFixtureClockRatchet', go),
   entry('wall_clock_verification', 'TestActivityInstanceWallClockRatchet', go),
   entry('test_skip_ratchet', 'TestTestSkipRatchet', go),
   entry('account_credential_writer', 'TestAccountCredentialHasOneWriter', production),
+  entry('ordered_lock_acquirers', 'TestOrderedLocksHaveOneAcquirer', production),
+  entry('row_lock_admission', 'TestRowLocksAreAdmittedThroughTheLockOrder', production),
+  entry('phase_bounds_reader_guard', 'TestPhaseBoundsWritersUseTheLockedReader TestPhaseBoundsGuardDetectsBypasses', production),
+  entry('operator_credential_writer', 'TestOperatorCredentialHasOneWriter TestOperatorCredentialStatementRecognizesWriters', production),
   entry('gdpr_log_pii_ratchet', 'TestGDPRLogPIIRatchet', production),
   entry('realtime_scope_ratchet', 'TestRealtimeProducersRequireSchool', production),
   entry('tenant_filters', 'TestTenantFiltersRequireExplicitScope', production),
@@ -61,7 +68,7 @@ export const sourceRatchets = [
   entry('permission_catalog', 'TestPermissionCatalogNamesAreUnique', /^backend\/auth\/authorize\/permissions\/catalog\.json$/),
   entry('error_code_generation_ratchet', 'TestErrorCodeGenerationRatchetsAllowAdditionalCode', /^error-registry\/.*\.json$/, /^scripts\/(generate-error-codes|error-registry)\.mjs$/),
   entry('toolchain_pins_ratchet', 'TestToolchainPinsRatchet',
-    /^(devbox\.(json|lock)|package\.json|frontend\/package\.json|lefthook\.yml)$/,
+    /^(devbox\.(json|lock)|package\.json|frontend\/(package\.json|Dockerfile(\.prod)?)|lefthook\.yml)$/,
     /^backend\/(go\.mod|tools\/go\.mod|Dockerfile(\.dev)?)$/,
     /^scripts\/(backend-architecture\/go\.mod|run-go-toolchain\.sh|pre-push\.sh)$/,
     /^\.github\/workflows\/.*\.yml$/, /^\.claude\/hooks\/format-go\.sh$/),

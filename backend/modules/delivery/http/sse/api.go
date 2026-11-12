@@ -53,7 +53,7 @@ func (rs *Resource[E, C]) StaffEvents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// Step 5: Register every authenticated client (even zero-topic ones
-	// need BroadcastToAll events for dashboard count refreshes).
+	// need school-scoped events for dashboard count refreshes).
 	rs.createAndRegisterClient(conn)
 	rs.runEventLoop(ctx, conn)
 }

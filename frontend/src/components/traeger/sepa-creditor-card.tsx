@@ -13,6 +13,7 @@ import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FieldLabel } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
@@ -57,7 +58,8 @@ function SepaCreditorModal({
   const [missing, setMissing] = useState<MissingMandate>(
     creditor.missingMandate,
   );
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(open);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -89,30 +91,30 @@ function SepaCreditorModal({
       formErrors.invalid("Bitte prüfen Sie Ihre Angaben.", fields);
       return;
     }
-    setSaving(true);
-    try {
-      const saved = await saveSepaCreditor({
-        creditorId: compact,
-        prenotificationDays: parsed,
-        missingMandate: missing,
-      });
-      success("Die Angaben zur Lastschrift sind gespeichert.");
-      onSaved(saved);
-    } catch (err) {
-      logger.error("sepa_creditor_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "die Angaben zur Lastschrift" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        const saved = await saveSepaCreditor({
+          creditorId: compact,
+          prenotificationDays: parsed,
+          missingMandate: missing,
+        });
+        success("Die Angaben zur Lastschrift sind gespeichert.");
+        if (op.isCurrent()) onSaved(saved);
+      } catch (err) {
+        logger.error("sepa_creditor_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "die Angaben zur Lastschrift" });
+      }
+    });
   };
 
   return (
     <FormModal
       isOpen={open}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title="Lastschrift"
       size="md"

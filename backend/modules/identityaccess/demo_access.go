@@ -55,6 +55,8 @@ type DemoAccessRequest struct {
 	SchoolName   string
 	Source       string
 	ContactOptIn bool
+	// Phone is how the team may call back; it counts only with ContactOptIn.
+	Phone string
 	// Role preselects a demo role in the mailed link (#3467); empty chooses none.
 	Role string
 	// ClientIP is the address the request came from; the requests of one IP
@@ -93,6 +95,8 @@ type DemoAccessMessage struct {
 	SchoolName   string
 	Source       string
 	ContactOptIn bool
+	// Phone reaches the lead mail only; no table keeps it.
+	Phone string
 }
 
 // DemoAccessMail sends the demo mails without blocking the request.

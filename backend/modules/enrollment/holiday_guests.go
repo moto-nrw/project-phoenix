@@ -26,11 +26,6 @@ import (
 // school, or one whose access has ended.
 var ErrHolidayGuestNotFound = errors.New("holiday guest not found")
 
-// ErrHolidayGuestPlanAuthorMissing reports that the account the days of a
-// guest are planned for has no staff record, which Care Plan requires as the
-// author of a day plan.
-var ErrHolidayGuestPlanAuthorMissing = errors.New("holiday guest plan author has no staff record")
-
 // ErrHolidayGuestGroupInvalid reports a group that is not one of the
 // hosting school's.
 var ErrHolidayGuestGroupInvalid = errors.New("holiday guest group is not a group of the school")
@@ -100,6 +95,9 @@ type HolidayGuestTransfer struct {
 	WeekID  int64 `json:"week_id"`
 	GroupID int64 `json:"group_id"`
 	Guests  int   `json:"guests"`
+	// OwnChildren counts the school's own children of the week whose booked
+	// days are planned now (#6678).
+	OwnChildren int `json:"own_children"`
 }
 
 // HolidayGuestChild is the child People Directory keeps for a guest: its
@@ -133,18 +131,25 @@ type HolidayGuestPeople interface {
 // HolidayGuestCareDays plans the booked days of a guest in Care Plan, so the
 // group and the check-in show it as expected on those days and no other:
 // on each day of the week it arrives at the start and is collected at the
-// end of its time model (clock times "15:04"). actorAccountID is the account
-// the plan is written for. ClearHolidayGuestDays removes the plan of a
-// guest that ended. The root binds Care Plan's dated exceptions.
+// end of its time model (clock times "15:04"). The booking is the author of
+// the plan, not the account that picked the group (ADR 0120, addendum of
+// 2026-11-11). ClearHolidayGuestDays removes the plan of a guest that ended.
+// UnplannedHolidayGuests returns those of the given children that have no
+// planned day at all, so the reconciliation plans them. The root binds Care
+// Plan's dated exceptions.
 type HolidayGuestCareDays interface {
-	PlanHolidayGuestDays(ctx context.Context, studentID, actorAccountID int64, days []calendar.Date, arrival, pickup string) error
+	PlanHolidayGuestDays(ctx context.Context, studentID int64, days []calendar.Date, arrival, pickup string) error
 	ClearHolidayGuestDays(ctx context.Context, studentID int64) error
+	UnplannedHolidayGuests(ctx context.Context, studentIDs []int64) ([]int64, error)
 }
 
 // Kinds of a holiday guest access in the access log of the hosting school.
 const (
 	HolidayGuestAccessTransfer = "transfer"
 	HolidayGuestAccessSheet    = "sheet"
+	// HolidayGuestAccessOwnChild is a read of what the registrations say
+	// about a child of the hosting school itself (#6678).
+	HolidayGuestAccessOwnChild = "own_child"
 )
 
 // HolidayGuestAccess is one access to holiday guest data for the access log
@@ -161,6 +166,8 @@ type HolidayGuestAccess struct {
 	EndsOn         calendar.Date
 	Guests         int
 	Automatic      bool
+	// WeekIDs names the weeks an own-child read covered.
+	WeekIDs []int64
 }
 
 // HolidayGuestAccessLog writes an access to holiday guest data into the
@@ -187,12 +194,15 @@ type HolidayGuests interface {
 	// has ended.
 	HolidayGuestSheet(ctx context.Context, host HolidayHost, studentID int64) (HolidayGuestSheet, error)
 	HolidayGuestBadgeList
+	HolidayOwnChildren
 }
 
 // HolidayGuestBadgeList lists the hints „Gast aus …“ of a hosting school,
 // in the tenant transaction of the school. The school portal and the
-// tablet (PyrePortal#499) read it.
+// tablet (PyrePortal#499) read it. It also lists the Feriengruppen, which
+// the school's group lists explain or keep back before their week.
 type HolidayGuestBadgeList interface {
+	HolidayGuestGroupList
 	// HolidayGuestBadges lists the hint of every guest the school cares for
 	// today, from the first to the last day of its week, so group,
 	// check-in, child list, supervision and the tablet name its home school
@@ -286,9 +296,11 @@ type HolidayGuestSource struct {
 	TimeModelName   string
 	TimeModelStarts string
 	TimeModelEnds   string
-	Emergency       []HolidayGuestContact
-	Pickup          []HolidayGuestContact
-	Answers         []HolidayHostAnswer
+	// Days names the booked dates; empty books the whole week.
+	Days      []calendar.Date
+	Emergency []HolidayGuestContact
+	Pickup    []HolidayGuestContact
+	Answers   []HolidayHostAnswer
 	// Health is the opened health information of the child (#4722), nil
 	// without any; Sealed carries it from the store to the service.
 	Health *HolidayHostHealth
@@ -313,9 +325,11 @@ type HolidayGuest struct {
 	TimeModelName   string
 	TimeModelStarts string
 	TimeModelEnds   string
-	Emergency       []HolidayGuestContact
-	Pickup          []HolidayGuestContact
-	Answers         []HolidayHostAnswer
+	// Days names the booked dates; empty books the whole week.
+	Days      []calendar.Date
+	Emergency []HolidayGuestContact
+	Pickup    []HolidayGuestContact
+	Answers   []HolidayHostAnswer
 	// Health is the copied health information (#4722), nil without any. The
 	// store keeps it sealed for the school and the child; HealthSealed
 	// carries the stored value between the store and the service.

@@ -303,7 +303,7 @@ func TestOperatorMFAHasEnrollmentMissingRowIsNotEnrolled(t *testing.T) {
 	require.NoError(t, err)
 	assert.False(t, enrolled)
 
-	require.NoError(t, fixture.flows.Enroll(context.Background(), operator.ID))
+	require.NoError(t, fixture.flows.Enroll(context.Background(), identityaccess.OperatorMFAProof{OperatorID: operator.ID, CredentialGeneration: operator.CredentialGeneration}))
 	enrolled, err = fixture.flows.HasOperatorMFAEnrollment(context.Background(), operator.ID)
 	require.NoError(t, err)
 	assert.True(t, enrolled)
@@ -322,7 +322,7 @@ func TestOperatorMFAStartChallengeFailsClosedOnDeliveryFailure(t *testing.T) {
 	fixture := newOperatorMFAFixture(t, operator, nil)
 	fixture.mail.err = errors.New("smtp connection lost")
 
-	token, err := fixture.flows.StartOperatorMFAChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"))
+	token, err := fixture.flows.StartOperatorMFAChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"), nil)
 	require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable)
 	assert.Empty(t, token, "a refused delivery must not produce a challenge credential")
 	assert.Zero(t, fixture.store.activateCalls, "the undelivered code must stay unredeemable")
@@ -339,7 +339,7 @@ func TestOperatorMFAStartChallengeFailsClosedOnRateLimitLookupFailure(t *testing
 	operator := domain.Operator{ID: 19, Email: "ops@example.test", DisplayName: "Ops", Active: true}
 	fixture := newOperatorMFAFixture(t, operator, &fakeOperatorMFAStore{countErr: errOperatorMFAStore})
 
-	token, err := fixture.flows.StartOperatorMFAChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"))
+	token, err := fixture.flows.StartOperatorMFAChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"), nil)
 	require.ErrorIs(t, err, identityaccess.ErrMFAStatusUnavailable,
 		"an unreadable rate-limit count must refuse the code, not wave it through")
 	assert.Empty(t, token, "a refused challenge must not produce a challenge credential")
@@ -355,7 +355,7 @@ func TestOperatorMFAStartChallengeRateLimits(t *testing.T) {
 	operator := domain.Operator{ID: 8, Email: "ops@example.test", DisplayName: "Ops", Active: true}
 	fixture := newOperatorMFAFixture(t, operator, &fakeOperatorMFAStore{challengeCount: domain.OperatorMFARateLimitMaxSent})
 
-	_, err := fixture.flows.StartOperatorMFAChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"))
+	_, err := fixture.flows.StartOperatorMFAChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"), nil)
 	require.ErrorIs(t, err, identityaccess.ErrMFARateLimited)
 	assert.Empty(t, fixture.mail.codes, "a rate-limited request sends nothing")
 }
@@ -368,7 +368,7 @@ func TestOperatorMFAStartChallengeRefusesLockedOperator(t *testing.T) {
 	operator := domain.Operator{ID: 9, Email: "ops@example.test", DisplayName: "Ops", Active: true, MFALockedUntil: &lockedUntil}
 	fixture := newOperatorMFAFixture(t, operator, nil)
 
-	_, err := fixture.flows.StartOperatorMFAChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"))
+	_, err := fixture.flows.StartOperatorMFAChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"), nil)
 	require.ErrorIs(t, err, identityaccess.ErrMFALocked)
 }
 
@@ -380,7 +380,7 @@ func TestOperatorMFAStartChallengeMailsTheCode(t *testing.T) {
 	operator := domain.Operator{ID: 10, Email: "ops@example.test", DisplayName: "Ops", Active: true}
 	fixture := newOperatorMFAFixture(t, operator, nil)
 
-	token, err := fixture.flows.StartOperatorMFAChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"))
+	token, err := fixture.flows.StartOperatorMFAChallenge(context.Background(), operator.ID, net.ParseIP("203.0.113.9"), nil)
 	require.NoError(t, err)
 	assert.Equal(t, "challenge-token", token)
 	assert.Equal(t, domain.PortalPlatform.Name, fixture.codec.issued.Scope,
@@ -432,7 +432,7 @@ func TestOperatorMFAVerifyCodeRefusesTheConsumeRaceLoser(t *testing.T) {
 	}
 	fixture := newOperatorMFAFixture(t, operator, store)
 
-	err := fixture.flows.VerifyOperatorMFACode(context.Background(), operator.ID, "654321")
+	err := fixture.flows.VerifyOperatorMFACode(context.Background(), operator.ID, "654321", nil)
 	require.ErrorIs(t, err, identityaccess.ErrMFACodeInvalid)
 	assert.Equal(t, 1, store.consumeCalls)
 }
@@ -480,8 +480,8 @@ func TestOperatorMFADisableRollsBackOnPartialFailure(t *testing.T) {
 	fixture := newOperatorMFAFixture(t, operator, &fakeOperatorMFAStore{revokeAllErr: revokeErr})
 
 	ctx := context.Background()
-	require.NoError(t, fixture.flows.Enroll(ctx, operator.ID))
-	cookie, _, err := fixture.flows.IssueTrustedDevice(ctx, operator.ID, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.20"))
+	require.NoError(t, fixture.flows.Enroll(ctx, identityaccess.OperatorMFAProof{OperatorID: operator.ID, CredentialGeneration: operator.CredentialGeneration}))
+	cookie, _, err := fixture.flows.IssueTrustedDevice(ctx, identityaccess.OperatorMFAProof{OperatorID: operator.ID}, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.20"))
 	require.NoError(t, err)
 	require.NotEmpty(t, cookie)
 
@@ -513,8 +513,8 @@ func TestOperatorMFADisableClearsEverything(t *testing.T) {
 	fixture := newOperatorMFAFixture(t, operator, nil)
 
 	ctx := context.Background()
-	require.NoError(t, fixture.flows.Enroll(ctx, operator.ID))
-	cookie, _, err := fixture.flows.IssueTrustedDevice(ctx, operator.ID, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.21"))
+	require.NoError(t, fixture.flows.Enroll(ctx, identityaccess.OperatorMFAProof{OperatorID: operator.ID, CredentialGeneration: operator.CredentialGeneration}))
+	cookie, _, err := fixture.flows.IssueTrustedDevice(ctx, identityaccess.OperatorMFAProof{OperatorID: operator.ID}, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.21"))
 	require.NoError(t, err)
 
 	require.NoError(t, fixture.flows.Disable(ctx, operator.ID))
@@ -539,7 +539,7 @@ func TestOperatorMFARevokeTrustedDeviceChecksOwnership(t *testing.T) {
 	fixture := newOperatorMFAFixture(t, operator, nil)
 
 	ctx := context.Background()
-	_, _, err := fixture.flows.IssueTrustedDevice(ctx, operator.ID, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.22"))
+	_, _, err := fixture.flows.IssueTrustedDevice(ctx, identityaccess.OperatorMFAProof{OperatorID: operator.ID}, "Mozilla/5.0 (Test)", net.ParseIP("203.0.113.22"))
 	require.NoError(t, err)
 	devices, err := fixture.flows.records.ListActiveTrustedDevices(ctx, operator.ID)
 	require.NoError(t, err)
@@ -559,7 +559,7 @@ func TestOperatorMFAIssueTrustedDeviceNotifiesTheOperator(t *testing.T) {
 	fixture := newOperatorMFAFixture(t, operator, nil)
 
 	cookie, expiresAt, err := fixture.flows.IssueTrustedDevice(
-		context.Background(), operator.ID, "Mozilla/5.0 (Macintosh) Chrome/120.0", net.ParseIP("203.0.113.23"))
+		context.Background(), identityaccess.OperatorMFAProof{OperatorID: operator.ID}, "Mozilla/5.0 (Macintosh) Chrome/120.0", net.ParseIP("203.0.113.23"))
 	require.NoError(t, err)
 	assert.NotEmpty(t, cookie)
 	assert.True(t, expiresAt.After(time.Now()))

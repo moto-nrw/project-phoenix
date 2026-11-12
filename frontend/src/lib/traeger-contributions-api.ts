@@ -11,6 +11,7 @@ import {
   contributionFromBackend,
   type HolidayContribution,
 } from "./holiday-contribution";
+import { ApiError, wireErrorCode } from "./api-error";
 import { traegerRequest } from "./traeger-api";
 
 export type {
@@ -222,6 +223,7 @@ export async function confirmHolidayRegistration(
   benefitsExemption: boolean,
   debtorNumber = "",
   costBearerId?: string,
+  familyDebtorNumber?: FamilyDebtorNumberChoice,
 ): Promise<HolidayContribution> {
   const confirmation = await traegerRequest<{
     contribution: BackendContribution;
@@ -231,6 +233,9 @@ export async function confirmHolidayRegistration(
       benefits_exemption: benefitsExemption,
       debtor_number: debtorNumber,
       ...(costBearerId ? { cost_bearer_id: Number(costBearerId) } : {}),
+      ...(familyDebtorNumber
+        ? { family_debtor_number: familyDebtorNumber }
+        : {}),
     },
   });
   return contributionFromBackend(confirmation.contribution);
@@ -259,10 +264,99 @@ export async function changeHolidayDebtorNumber(
   periodId: string,
   registrationId: string,
   debtorNumber: string,
+  familyDebtorNumber?: FamilyDebtorNumberChoice,
 ): Promise<string> {
   const changed = await traegerRequest<{ debtor_number: string }>(
     `${registrationPath(periodId, registrationId)}/debtor-number`,
-    { method: "PUT", body: { debtor_number: debtorNumber } },
+    {
+      method: "PUT",
+      body: {
+        debtor_number: debtorNumber,
+        ...(familyDebtorNumber
+          ? { family_debtor_number: familyDebtorNumber }
+          : {}),
+      },
+    },
   );
   return changed.debtor_number;
+}
+
+/**
+ * Which number applies when the number entered at a registration differs
+ * from the one the family has (#6692): "replace" makes it the family's,
+ * "keep" gives it to this registration only.
+ */
+export type FamilyDebtorNumberChoice = "keep" | "replace";
+
+/**
+ * The debtor number the family of the registration already has at the
+ * Träger (#6692), which the confirmation proposes; "" without one.
+ */
+export async function fetchHolidayFamilyDebtorNumber(
+  periodId: string,
+  registrationId: string,
+): Promise<string> {
+  const family = await traegerRequest<{ debtor_number?: string }>(
+    `${registrationPath(periodId, registrationId)}/family-debtor-number`,
+  );
+  return family.debtor_number ?? "";
+}
+
+/** Both numbers of a refusal because the family has another number. */
+export interface FamilyDebtorNumberConflict {
+  readonly families: readonly { familyEmail: string; familyNumber: string }[];
+  readonly familyNumber: string;
+  readonly enteredNumber: string;
+  /**
+   * The family whose number differs: the registration's or, in a sibling
+   * group, a sibling's; "" when the backend names none.
+   */
+  readonly familyEmail: string;
+}
+
+/**
+ * Reads the refusal "the family has another number" (#6692); null for any
+ * other failure.
+ */
+export function familyDebtorNumberConflictOf(
+  error: unknown,
+): FamilyDebtorNumberConflict | null {
+  if (
+    !(error instanceof ApiError) ||
+    wireErrorCode(error.code) !== "parent_billing.family_debtor_number_conflict"
+  ) {
+    return null;
+  }
+  const familyNumber = error.details?.family_debtor_number;
+  const enteredNumber = error.details?.debtor_number;
+  if (typeof familyNumber !== "string" || typeof enteredNumber !== "string") {
+    return null;
+  }
+  const familyEmail = error.details?.family_email;
+  const families = Array.isArray(error.details?.families)
+    ? error.details.families.flatMap((family: unknown) => {
+        if (!family || typeof family !== "object") return [];
+        const row = family as Record<string, unknown>;
+        return typeof row.family_email === "string" &&
+          typeof row.family_debtor_number === "string"
+          ? [
+              {
+                familyEmail: row.family_email,
+                familyNumber: row.family_debtor_number,
+              },
+            ]
+          : [];
+      })
+    : [
+        {
+          familyEmail: typeof familyEmail === "string" ? familyEmail : "",
+          familyNumber,
+        },
+      ];
+  return {
+    families,
+    familyNumber,
+    enteredNumber,
+    familyEmail: typeof familyEmail === "string" ? familyEmail : "",
+  };
 }

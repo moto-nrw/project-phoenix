@@ -175,3 +175,23 @@ func (s *Store) DeleteSpentPasswordResetTokens(ctx context.Context, now time.Tim
 	})
 	return int(rows), stats, err
 }
+
+// MigratePasswordResetWindow preserves active windows from before hashed keys.
+// The delete and upsert share the caller's limiter transaction. A mixed rollout
+// merges live counts conservatively rather than granting another quota.
+func (s *Store) MigratePasswordResetWindow(ctx context.Context, address, key string) error {
+	db, err := s.database(ctx)
+	if err != nil {
+		return err
+	}
+	_, err = db.ExecContext(ctx, `WITH legacy AS (
+ DELETE FROM auth.password_reset_rate_limits WHERE email = ? AND window_start > NOW() - INTERVAL '1 hour'
+ RETURNING attempts, window_start
+ ) INSERT INTO auth.password_reset_rate_limits AS counter (email, attempts, window_start)
+ SELECT ?, attempts, window_start FROM legacy
+ ON CONFLICT (email) DO UPDATE SET
+ attempts = CASE WHEN counter.window_start > NOW() - INTERVAL '1 hour'
+ THEN LEAST(counter.attempts + EXCLUDED.attempts, ?) ELSE EXCLUDED.attempts END,
+ window_start = GREATEST(counter.window_start, EXCLUDED.window_start)`, address, key, domain.PasswordResetRateLimitThreshold)
+	return err
+}

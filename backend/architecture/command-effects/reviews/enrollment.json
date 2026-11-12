@@ -709,6 +709,18 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Approve",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.ChangeRequests.Approve",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/internal/application.ChangeRequests.Approve; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Approve",
       "classification": "platform",
@@ -826,6 +838,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Propose",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.ChangeRequests.Propose",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/internal/application.ChangeRequests.Propose; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0176",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Reject",
       "classification": "debt",
@@ -921,6 +945,18 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Reject",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.ChangeRequests.Reject",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/internal/application.ChangeRequests.Reject; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ChangeRequests.Reject",
       "classification": "platform",
@@ -1003,12 +1039,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0174",
+      "approval_adr": "0208",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.DecisionCommand.DecideAndInvite",
-      "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment.Decisions.DecideAndInvite. Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide (via modules/enrollment.Decisions.DecideAndInvite). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). Approved for this binding by ADR 0174 (#6093).",
+      "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment.Decisions.DecideAndInvite. Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide (via modules/enrollment.Decisions.DecideAndInvite). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). Approved for this binding by ADR 0174 (#6093). The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -1085,12 +1121,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0208",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Decisions.Decide",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.Decide",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098).",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -1167,12 +1203,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0176",
+      "approval_adr": "0208",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.Decide",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.Decide",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.Decide. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work.",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.Decide. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work. The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -1249,12 +1285,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0174",
+      "approval_adr": "0208",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Decisions.DecideAndInvite",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
-      "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment/internal/application.Decisions.DecideAndInvite. Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide (via modules/enrollment/internal/application.Decisions.DecideAndInvite). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). Approved for this binding by ADR 0174 (#6093).",
+      "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment/internal/application.Decisions.DecideAndInvite. Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide (via modules/enrollment/internal/application.Decisions.DecideAndInvite). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). Approved for this binding by ADR 0174 (#6093). The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -1331,12 +1367,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0174",
+      "approval_adr": "0208",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.DecideAndInvite",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Decisions.DecideAndInvite",
-      "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.DecideAndInvite. Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide (via modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.DecideAndInvite). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). Approved for this binding by ADR 0174 (#6093).",
+      "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.DecideAndInvite. Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide (via modules/enrollment/enrollmenttest.enrollmentDecisionFixtureRoot.DecideAndInvite). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). Approved for this binding by ADR 0174 (#6093). The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -1769,12 +1805,84 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayAcceptanceAccounts.HasParentAccount",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayAcceptanceAccounts.HasParentAccount",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/identityaccess.HolidayParentSetups.HasTraegerParentAccess. ADR 0216 point 11: the acceptance mail decides at sending whether its address has a parent account; an account with access at an active Träger counts like a guardian, read in the worker's administrative scope.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.HolidayParentSetups.HasTraegerParentAccess",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayAcceptanceAccounts.HasParentAccount",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayAcceptanceAccounts.HasParentAccount",
+      "reason": "Read-only account lookup by recipient email for the holiday acceptance renderer (#6672). Runs in the delivery worker's administrative scope after confirmation; no writes, row locks or audit records. The root maps Identity's account-not-found error to no eligible account. ADR 0216 point 11: the same lookup also decides the setup link for an address without a parent account.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.FindAccountByEmail",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayAcceptanceAccounts.HasParentAccount",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayAcceptanceAccounts.HasParentAccount",
+      "reason": "Read-only guardian-role and active-school lookup for the holiday acceptance renderer (#6672), using the parents login predicate. Runs in the delivery worker's administrative scope after confirmation; no writes, row locks or audit records. Lookup errors propagate so delivery retries. ADR 0216 point 11: an account that is no guardian is then checked for access at an active Träger.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.Owner.FindGuardianTenant",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayAcceptanceAccounts.HolidayParentSetupURL",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayAcceptanceAccounts.HolidayParentSetupURL",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/identityaccess.HolidayParentSetups.IssueHolidayParentSetupToken. ADR 0216 point 11: the acceptance mail offers an address without a parent account the setup link; the signature reads and writes nothing and the link is stored nowhere.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.HolidayParentSetups.IssueHolidayParentSetupToken",
+      "target_owner": "identity-access"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0196",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayClosureCalendar.HolidayClosureNoCareDays",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosureCalendar.HolidayClosureNoCareDays",
+      "reason": "ADR 0196 section 3.4: School Calendar locks current school memberships and calendars in one statement and reads the authorized calendars in one statement. Its application capability validates revisions, resolves each federal state from stored settings or the bound registry default and computes no-care dates. It joins the caller's Träger transaction; the workflow retains its lock order and preparation boundary. The root only maps types and errors. No nested school unit or cross-owner write.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.HolidayClosureCareCalendar.HolidayClosureNoCareDays",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.HolidayClosures.NotifyHolidayClosure",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosures.NotifyHolidayClosure",
+      "reason": "Read-only target: draws the Träger's family key candidate for the keyed fingerprint of a closing day mail (ADR 0196). No persistent, lock or scope effect (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.HolidayClosures.NotifyHolidayClosureOperation",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayClosures.NotifyHolidayClosureOperation",
+      "reason": "Read-only target: draws the Träger's family key candidate for the keyed fingerprint of a closing day mail (ADR 0196). No persistent, lock or scope effect (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
+      "target_owner": "security-runtime"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess",
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
-      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/compose.Command.Append (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/compose.Command.Append (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). ADR 0120 addendum (#6678): a read of what the registrations say about a child of the hosting school itself appends the same kind of entry, naming the child and the weeks.",
       "source_owner": "enrollment",
       "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/compose.Command.Append",
       "target_owner": "audit-platform"
@@ -1785,7 +1893,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
-      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.AppendStore.Append (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.AppendStore.Append (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). ADR 0120 addendum (#6678): a read of what the registrations say about a child of the hosting school itself appends the same kind of entry, naming the child and the weeks.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.AppendStore.Append",
       "target_owner": "audit-platform"
@@ -1796,7 +1904,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
-      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.Command.Append (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.Command.Append (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). ADR 0120 addendum (#6678): a read of what the registrations say about a child of the hosting school itself appends the same kind of entry, naming the child and the weeks.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.Command.Append",
       "target_owner": "audit-platform"
@@ -1807,7 +1915,7 @@
       "classification": "platform",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestAccessLog.RecordHolidayGuestAccess",
-      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.DataAccessLogRepository.Create (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "reason": "Platform protocol participation (mutation): enrollment reaches modules/auditlog/records.DataAccessLogRepository.Create (audit-platform) through roots/owners.holidayGuestAccessLog.RecordHolidayGuestAccess. ADR 0120 (#4666): every transfer of holiday guests into the hosting school and every read of a guest's sheet appends one data access log entry in the hosting school's tenant transaction; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). ADR 0120 addendum (#6678): a read of what the registrations say about a child of the hosting school itself appends the same kind of entry, naming the child and the weeks.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataAccessLogRepository.Create",
       "target_owner": "audit-platform"
@@ -1840,7 +1948,7 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestCareDays.PlanHolidayGuestDays",
-      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.Owner.CreateArrivalException (care-plan) through roots/owners.holidayGuestCareDays.PlanHolidayGuestDays. ADR 0120 (#4666): each day of the booked week of a holiday guest gets a dated arrival and pickup exception with the times of its time model, written through Care Plan's own commands in the hosting school's tenant transaction and removed when the guest ends; no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3).",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.Owner.CreateArrivalException (care-plan) through roots/owners.holidayGuestCareDays.PlanHolidayGuestDays. ADR 0120 (#4666): each day of the booked week of a holiday guest gets a dated arrival and pickup exception with the times of its time model, written through Care Plan's own commands in the hosting school's tenant transaction and removed when the guest ends; no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3). ADR 0120 addendum 2026-11-11: the booking is the author (source holiday_booking, no staff author), so the binding no longer resolves the staff member of the account that picked the group.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CreateArrivalException",
       "target_owner": "care-plan"
@@ -1851,20 +1959,30 @@
       "classification": "leaf",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestCareDays.PlanHolidayGuestDays",
-      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.Owner.CreatePickupException (care-plan) through roots/owners.holidayGuestCareDays.PlanHolidayGuestDays. ADR 0120 (#4666): each day of the booked week of a holiday guest gets a dated arrival and pickup exception with the times of its time model, written through Care Plan's own commands in the hosting school's tenant transaction and removed when the guest ends; no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3).",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.Owner.CreatePickupException (care-plan) through roots/owners.holidayGuestCareDays.PlanHolidayGuestDays. ADR 0120 (#4666): each day of the booked week of a holiday guest gets a dated arrival and pickup exception with the times of its time model, written through Care Plan's own commands in the hosting school's tenant transaction and removed when the guest ends; no cross-owner lock order (ADR 0067 addendum, conditions 1 to 3). ADR 0120 addendum 2026-11-11: the booking is the author (source holiday_booking, no staff author), so the binding no longer resolves the staff member of the account that picked the group.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CreatePickupException",
       "target_owner": "care-plan"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestCareDays.PlanHolidayGuestDays",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestCareDays.UnplannedHolidayGuests",
       "classification": "query",
       "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestCareDays.PlanHolidayGuestDays",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/peopledirectory/ports.PersonDirectory.ResolveStaffIDByAccountID. ADR 0120 (#4666): the booked days of a holiday guest name the staff member of the account that picked the group as their author, as Care Plan requires.",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestCareDays.UnplannedHolidayGuests",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.Owner.ListArrivalExceptions. ADR 0120 addendum 2026-11-11: the hourly reconciliation reads in one statement per table which holiday guests have no planned day, and plans those through CreateArrivalException and CreatePickupException.",
       "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.PersonDirectory.ResolveStaffIDByAccountID",
-      "target_owner": "people-directory"
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListArrivalExceptions",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayGuestCareDays.UnplannedHolidayGuests",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayGuestCareDays.UnplannedHolidayGuests",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.Owner.ListPickupExceptions. ADR 0120 addendum 2026-11-11: the hourly reconciliation reads in one statement per table which holiday guests have no planned day, and plans those through CreateArrivalException and CreatePickupException.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListPickupExceptions",
+      "target_owner": "care-plan"
     },
     {
       "adr": "0067",
@@ -2143,6 +2261,58 @@
       "target_owner": "organization-tenancy"
     },
     {
+      "adr": "0214",
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayKnownChildren.KnownHolidayChildren",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayKnownChildren.KnownHolidayChildren",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/traegerview.Overview.KnownHolidayChildren. ADR 0214 (#6683): the hint on a known child compares the registered children of the period with the actively managed children of the Träger's schools in the projection's own administrative unit before the route opens the Träger transaction, which records the comparison in the registrations' trail.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/traegerview.Overview.KnownHolidayChildren",
+      "target_owner": "traeger-view"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildPlans.ApplyHolidayOwnChildPlans",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildPlans.ApplyHolidayOwnChildPlans",
+      "reason": "Guarded leaf bulk command in the hosting school's tenant transaction (ADR 0067, ADR 0120 addendum #6678). Enrollment selects its obsolete exceptions and missing booked days; the root only translates values. Care Plan validates the complete batch before deleting or creating exceptions, retaining tenant scoping and single-write validation. Each exception table uses at most one DELETE and one INSERT, without independent commit or a cross-owner lock protocol.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.ExceptionBatchCommands.ApplyExceptionBatch",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildPlans.HolidayOwnChildArrivals",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildPlans.HolidayOwnChildArrivals",
+      "reason": "Reviewed set-based read or in-memory value mapping for Enrollment's own-child reconciliation (ADR 0120 addendum #6678). Existing dated exceptions and live staff/person membership are read in the caller's school scope; no owned-row mutation or locking read. Target github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListArrivalExceptions.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListArrivalExceptions",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOwnChildPlans.HolidayOwnChildPickups",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayOwnChildPlans.HolidayOwnChildPickups",
+      "reason": "Reviewed set-based read or in-memory value mapping for Enrollment's own-child reconciliation (ADR 0120 addendum #6678). Existing dated exceptions and live staff/person membership are read in the caller's school scope; no owned-row mutation or locking read. Target github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListPickupExceptions.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListPickupExceptions",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayParentAccountLinks.HolidayParentAccountLink",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayParentAccountLinks.HolidayParentAccountLink",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/identityaccess.HolidayParentSetups.IssueHolidayParentSetupToken. ADR 0216: the offer of a parent account signs the setup link of the registration's address and Träger; the signature reads and writes nothing, so it runs in the registration's Träger transaction, and the link is stored nowhere.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.HolidayParentSetups.IssueHolidayParentSetupToken",
+      "target_owner": "identity-access"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayParticipantAccessLog.RecordHolidayParticipantAccess",
       "classification": "platform",
@@ -2231,6 +2401,17 @@
       "target_owner": "audit-platform"
     },
     {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayRegistrationMailErasure.EraseHolidayRegistrationMails",
+      "classification": "platform",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRegistrationMailErasure.EraseHolidayRegistrationMails",
+      "reason": "Platform erasure command in the existing administrative retention transaction (ADR 0098; ADR 0067 addendum, conditions 1 to 3; ADR 0196 section 8): Enrollment returns exactly the registrations deleted in its statement; Delivery erases their mail copies with explicit organization/registration pairs and its own admin guard. No scope switch, independent commit, foreign read or coordinated lock order. Failure rolls back registrations, send evidence and outbox together; TestHolidayMailErasureFailureRollsBackRegistrationRetention verifies it.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.HolidayRegistrationMailErasure.EraseHolidayRegistrationMails",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.HolidayRegistrations.UploadHolidayProof",
       "classification": "query",
       "effect": "query",
@@ -2239,6 +2420,107 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/securityruntime.FillRandom",
       "target_owner": "security-runtime"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayRetentionSettings.HolidayRegistrationRetentionDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayRetentionSettings.HolidayRegistrationRetentionDays",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerInts: reads the days the Träger keeps its holiday registrations (#6691).",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerInts",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "reason": "Reads the federal state from the resolved settings snapshot in memory (#4702).",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsSnapshot.String",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "reason": "ADR 0194: read-only current school membership and closing-day projection. The caller owns the existing transaction; no write, lock or scope change.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "reason": "ADR 0194: read-only current school membership and closing-day projection. The caller owns the existing transaction; no write, lock or scope change.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "reason": "Reads the host school's closing days, those its Träger planned for it included, in a school transaction of its own detached from the caller's Träger transaction (ADR 0105, #4702); no write. Since #6457 it also names each closing day's ID and source, so a changed Träger closing day leaves its stored version out; still read only.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListClosingDays",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "reason": "Computes the statutory holidays of a federal state locally, without database or network access (#4702).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ListHolidays",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "reason": "Checks a federal-state code against School Calendar's supported regions, a pure value check (#4702).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolcalendar.Days.ValidHolidayRegion",
+      "target_owner": "school-calendar"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "reason": "Reads each school's federal state (#4702) in an administrative unit detached from the caller's Träger transaction (ADR 0175, ADR 0105); no write or scope change of the caller.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveManyForTenants",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "reason": "Read-only platform helper: validates the host school ID before its school transaction is opened (#4702). Unchanged since #6457, which only adds the closing day sources to the result.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.NewTenantID",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidaySchoolCalendar.HolidayNoCareDays",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidaySchoolCalendar.HolidayNoCareDays",
+      "reason": "Platform protocol participation (scope): opens a read-only school transaction of each host school, detached from the caller's Träger transaction, to read its closing days (ADR 0105, #4702). Unchanged since #6457, which only adds the closing day sources to the result.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithinTenant",
+      "target_owner": "tenant-runtime"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidaySchoolNames.HolidaySchoolNames",
@@ -2361,6 +2643,76 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
       "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOfficeTraeger.HolidayTraeger",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "reason": "Lists the Träger's schools in the caller's Träger transaction to check the current membership (ADR 0196 section 3.1); read only.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Capability.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOfficeTraeger.HolidayTraeger",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "reason": "Lists the Träger's schools in the caller's Träger transaction to check the current membership (ADR 0196 section 3.1); read only.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.Query.ListSchoolsByOrganization",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOfficeTraeger.HolidayTraeger",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.School.IsDeleted. #6434, #6437: the closure notice and the mail that a booking moved up after a change in the Träger-Büro name the undeleted host schools of the Träger, read in the caller's Träger transaction like the host-school check of the holiday calendar. Moved to roots/owners for the Worker's notices (ADR 0196).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.School.IsDeleted",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOfficeTraeger.HolidayTraeger",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerMasterData.TraegerName. #6437: the mail that a booking moved up after a change in the Träger-Büro, and the closure notice, name the Träger; Organisation \u0026 Tenancy reads its own name in the caller's Träger transaction through platform.current_traeger_name (1.15.902), without a log. Moved to roots/owners for the Worker's notices (ADR 0196).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerMasterData.TraegerName",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOfficeTraeger.HolidayTraeger",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy.TraegerNames.TraegerName. #6437: the mail that a booking moved up after a change in the Träger-Büro, and the closure notice, name the Träger; Organisation \u0026 Tenancy reads its own name in the caller's Träger transaction through platform.current_traeger_name (1.15.902), without a log. Moved to roots/owners for the Worker's notices (ADR 0196).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy.TraegerNames.TraegerName",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.holidayOfficeTraeger.HolidayTraeger",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayTraegerDirectory.HolidayTraeger",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/organizationtenancy/internal/ports.TraegerMasterDataStore.TraegerName. #6437: the mail that a booking moved up after a change in the Träger-Büro, and the closure notice, name the Träger; Organisation \u0026 Tenancy reads its own name in the caller's Träger transaction through platform.current_traeger_name (1.15.902), without a log. Moved to roots/owners for the Worker's notices (ADR 0196).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports.TraegerMasterDataStore.TraegerName",
+      "target_owner": "organization-tenancy"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/api.holidayWishModes.HolidayWishMode",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.HolidayWishModes.HolidayWishMode",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/settings/compose.TraegerSettings.TraegerTexts: reads the Träger's holiday wish mode, precedence or wish only (#4703).",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/settings/compose.TraegerSettings.TraegerTexts",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentSignatures.LatestEnrollmentSignatures",
@@ -2511,12 +2863,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0176",
+      "approval_adr": "0208",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Intake.CreateManualApprovedEnrollment",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.IntakeSubmissions.CreateManualApprovedEnrollment",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/internal/application.Intake.CreateManualApprovedEnrollment. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work.",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/internal/application.Intake.CreateManualApprovedEnrollment. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work. The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -2607,6 +2959,18 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Intake.ReplaceEditable",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.IntakeSubmissions.ReplaceEditable",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/internal/application.Intake.ReplaceEditable; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Intake.Submit",
       "classification": "query",
       "effect": "query",
@@ -2665,6 +3029,18 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/http.TenantSettings.ResolveBool",
       "target_owner": "student-presence"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Intake.Submit",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.IntakeSubmissions.Submit",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/internal/application.Intake.Submit; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -2851,12 +3227,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0208",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Phases.UpdatePhase",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseAdministration.UpdatePhase",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/compose.Phases.UpdatePhase. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098).",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/compose.Phases.UpdatePhase. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -2871,6 +3247,77 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/tenant.MarkRollback",
       "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseBookings.FollowPhaseBookingBounds",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseBookings.FollowPhaseBookingBounds",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/careplan.PhaseBookingBounds.FollowPhaseBookingBounds (care-plan) through roots/owners.enrollmentPhaseBookings.FollowPhaseBookingBounds. ADR 0205 (#6597): a phase edit carries the bounds the phase set on its offerings' bookings in the edit's tenant transaction; Care Plan locks the bookings of each application in ascending order, reads them again under those locks, decides which bound is still the phase's and refuses an empty booking, and takes no gate, so no cross-owner lock order or re-read by Enrollment is needed (ADR 0067 addendum, conditions 1 to 3).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.PhaseBookingBounds.FollowPhaseBookingBounds",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.phaseCareStudents.PhaseCareStudents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseCareStudents.PhaseCareStudents",
+      "reason": "Read on the supplied People Directory contract: modules/peopledirectory.Capability.ListStudentNamesByID. No mutation or locking read at this terminal; the phase edit (#6598, ADR 0211) reads status, care end and names of its confirmed children to report them and changes none of them.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.phaseCareStudents.PhaseCareStudents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseCareStudents.PhaseCareStudents",
+      "reason": "Read on the supplied People Directory contract: modules/peopledirectory.Capability.ListStudentsByID. No mutation or locking read at this terminal; the phase edit (#6598, ADR 0211) reads status, care end and names of its confirmed children to report them and changes none of them.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.phaseCareStudents.PhaseCareStudents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseCareStudents.PhaseCareStudents",
+      "reason": "Read on the supplied People Directory contract: modules/peopledirectory.Owner.ListStudentNamesByID. No mutation or locking read at this terminal; the phase edit (#6598, ADR 0211) reads status, care end and names of its confirmed children to report them and changes none of them.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.phaseCareStudents.PhaseCareStudents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseCareStudents.PhaseCareStudents",
+      "reason": "Read on the supplied People Directory contract: modules/peopledirectory.Owner.ListStudentsByID. No mutation or locking read at this terminal; the phase edit (#6598, ADR 0211) reads status, care end and names of its confirmed children to report them and changes none of them.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.ListStudentsByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.phaseCareStudents.PhaseCareStudents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseCareStudents.PhaseCareStudents",
+      "reason": "Read on the supplied People Directory contract: modules/peopledirectory.StudentQuery.ListStudentNamesByID. No mutation or locking read at this terminal; the phase edit (#6598, ADR 0211) reads status, care end and names of its confirmed children to report them and changes none of them.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentNamesByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.phaseCareStudents.PhaseCareStudents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseCareStudents.PhaseCareStudents",
+      "reason": "Read on the supplied People Directory contract: modules/peopledirectory.StudentQuery.ListStudentsByID. No mutation or locking read at this terminal; the phase edit (#6598, ADR 0211) reads status, care end and names of its confirmed children to report them and changes none of them.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentQuery.ListStudentsByID",
+      "target_owner": "people-directory"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.phaseExpiryCarePlanDirectory.ListCareOfferings",
@@ -3011,6 +3458,17 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRosterQuery.ListStudentRoster",
       "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseStudents.MovePendingWindow",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.PhaseStudents.MovePendingWindow",
+      "reason": "Guarded leaf command (mutation) participating in the caller unit: enrollment reaches modules/schoolmembership.PendingWindows.MovePendingWindow (school-membership) through roots/owners.enrollmentPhaseStudents.MovePendingWindow. ADR 0202 (#6505): a phase edit moves the window of a child its approval left pending in the edit's tenant transaction; School Membership locks only the child's row, decides under it whether the child is still pending and which bound still equals the phase's old one, and takes no class gate, so no cross-owner lock order or re-read is needed (ADR 0067 addendum, conditions 1 to 3).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/schoolmembership.PendingWindows.MovePendingWindow",
+      "target_owner": "school-membership"
     },
     {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RejectedCleanup.CleanupRejectedEnrollments",
@@ -3206,12 +3664,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0176",
+      "approval_adr": "0208",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.Rollovers.RunDeadlineWorker",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.Rollovers.RunDeadlineWorker",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/internal/application.Rollovers.RunDeadlineWorker. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work.",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/internal/application.Rollovers.RunDeadlineWorker. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work. The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -3452,6 +3910,38 @@
     },
     {
       "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.HolidayClosureMail.EnqueueTraegerMail",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerMailDelivery.EnqueueTraegerMail",
+      "reason": "Platform protocol participation (durable): enrollment reaches modules/delivery/runtime.Capability.EnqueueEmail (delivery-platform) through api.HolidayClosureMail.EnqueueTraegerMail. The closing day notice is a mail of the Träger, enqueued in the caller's Träger transaction with the told days and the send record (ADR 0196); transaction and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.HolidayClosureMail.RetryFailedTraegerEmails",
+      "classification": "platform",
+      "effect": "durable",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerMailDelivery.RetryFailedTraegerEmails",
+      "reason": "Platform protocol participation (durable): enrollment makes the dead letters with a known failure of a confirmed closing day operation due again through Delivery's Träger mail capability, in the caller's Träger transaction (ADR 0196 section 5); same idempotency key, no new mail, unknown outcomes stay (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.TraegerMails.RetryFailedTraegerEmails",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.HolidayClosureMail.TraegerMailStates",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerMailDelivery.TraegerMailStates",
+      "reason": "Reads the outbox state of the operation's Träger mails by idempotency key in the caller's Träger transaction, without recipient or payload (ADR 0196 section 5); read only.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.TraegerMails.TraegerEmailStatusesByKey",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayTraegerMail.EnqueueTraegerMail",
       "classification": "platform",
       "effect": "durable",
@@ -3460,6 +3950,124 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
       "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.ApplyTraegerPhase",
+      "reason": "Read-only target: enrollment reaches modules/careplan.CareOfferingCapability.ValidatePhaseChange (care-plan) through modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase. The Träger phase copy runs the school's own phase update, which checks the linked care offerings (ADR 0195 section 5); no persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ValidatePhaseChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.ApplyTraegerPhase",
+      "reason": "Read-only target: enrollment reaches modules/careplan.CareOfferingCatalogCapability.ValidatePhaseChange (care-plan) through modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase. The Träger phase copy runs the school's own phase update, which checks the linked care offerings (ADR 0195 section 5); no persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCatalogCapability.ValidatePhaseChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.ApplyTraegerPhase",
+      "reason": "Read-only target: enrollment reaches modules/careplan.CareOfferingGuards.ValidatePhaseChange (care-plan) through modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase. The Träger phase copy runs the school's own phase update, which checks the linked care offerings (ADR 0195 section 5); no persistent, lock or scope effect.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingGuards.ValidatePhaseChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0195",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.ApplyTraegerPhase",
+      "reason": "Cross-owner lock of the school's own phase commands: enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase. The Träger phase copy creates, updates and deletes the copy through the phase administration, which takes the recurrence gate exactly as a school edit does (ADR 0195 sections 5 and 7); no new protocol. Approved for this binding by ADR 0195.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.ApplyTraegerPhase",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.MarkRollback (tenant-runtime) through modules/enrollment/internal/application.TraegerPhaseCopies.ApplyTraegerPhase. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.MarkRollback",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0215",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.TraegerPhaseCopyState",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.TraegerPhaseCopyState",
+      "reason": "Cross-owner lock of the school's own phase and catalog commands, reached through the Träger copy commands (ADR 0195 sections 5 and 7): the copy takes the recurrence gate first, then its rows, exactly as a school edit does; no new protocol. Approved for this binding by ADR 0215.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/careplan.CareOfferingCapability.ValidatePhaseChange (care-plan) through modules/enrollment/compose.Phases.UpdatePhase. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCapability.ValidatePhaseChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/careplan.CareOfferingCatalogCapability.ValidatePhaseChange (care-plan) through modules/enrollment/compose.Phases.UpdatePhase. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingCatalogCapability.ValidatePhaseChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "reason": "Read-only newly exposed target: enrollment reaches modules/careplan.CareOfferingGuards.ValidatePhaseChange (care-plan) through modules/enrollment/compose.Phases.UpdatePhase. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingGuards.ValidatePhaseChange",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0195",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "reason": "Cross-owner lock of the school's own phase commands: enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase. The Träger phase copy creates, updates and deletes the copy through the phase administration, which takes the recurrence gate exactly as a school edit does (ADR 0195 sections 5 and 7); no new protocol. Approved for this binding by ADR 0195.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment.TraegerPhaseCopies.WithdrawTraegerPhase",
+      "reason": "Platform protocol participation (scope): enrollment reaches tenant.MarkRollback (tenant-runtime) through modules/enrollment/compose.Phases.UpdatePhase. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.MarkRollback",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0098",
@@ -3620,6 +4228,18 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.changeRequestService.Approve",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.ChangeRequestService.Approve",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.changeRequestService.Approve; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.changeRequestService.Approve",
       "classification": "platform",
@@ -3737,6 +4357,18 @@
     },
     {
       "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.changeRequestService.Create",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.ChangeRequestService.Create",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.changeRequestService.Create; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
+      "adr": "0083",
       "approval_adr": "0176",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.changeRequestService.Reject",
       "classification": "debt",
@@ -3832,6 +4464,18 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.changeRequestService.Reject",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.ChangeRequestService.Reject",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.changeRequestService.Reject; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.changeRequestService.Reject",
       "classification": "platform",
@@ -3914,12 +4558,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0176",
+      "approval_adr": "0208",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.decisionService.Decide",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.DecisionService.Decide",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.decisionService.Decide. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work.",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.decisionService.Decide. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work. The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -3996,12 +4640,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0174",
+      "approval_adr": "0208",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.decisionService.DecideAndInvite",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.DecisionService.DecideAndInvite",
-      "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment/http.decisionService.DecideAndInvite. Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide (via modules/enrollment/http.decisionService.DecideAndInvite). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). Approved for this binding by ADR 0174 (#6093).",
+      "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment/http.decisionService.DecideAndInvite. Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide (via modules/enrollment/http.decisionService.DecideAndInvite). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). Approved for this binding by ADR 0174 (#6093). The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -4115,6 +4759,18 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/http.TenantSettings.ResolveBool",
       "target_owner": "student-presence"
+    },
+    {
+      "adr": "0067",
+      "approval_adr": "0206",
+      "binding": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.DecideHolidayAllocation",
+      "classification": "workflow",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.HolidayAllocationDecision.DecideHolidayAllocation",
+      "reason": "HTTP transport entry (#4700, ADR 0206): the port is the Enrollment http package's own narrow write port and the root binds the holiday-allocation workflow; no domain application calls it. In the request's Träger unit the workflow takes Parent Billing's period billing lock (B), Enrollment's period row (P), then Enrollment's decision (criteria catalog, chosen weeks ascending, proposal check, decisions, places, audit, outbox), then Parent Billing refreezes every directly placed and moved-up registration's confirmed sibling group. Any failure rolls the whole unit back. Replaces the removed HTTP decorator and Parent Billing's decide callback. Evidence: TestHolidayAllocationWorkflowOrdersLocksAndStopsAtTheFirstFailure, TestHolidayAllocationWorkflowRollsBackOnARefusedContribution, TestHolidayAllocationWorkflowLockOrderUnderConcurrency.",
+      "source_owner": "enrollment",
+      "target": "*github.com/moto-nrw/project-phoenix/workflows/holidayallocation.Workflow.DecideHolidayAllocation",
+      "target_owner": "holiday-allocation"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/api.holidayProofUnits.UploadHolidayProof",
@@ -4255,12 +4911,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0176",
+      "approval_adr": "0208",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Intake.CreateManualApprovedEnrollment",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/compose.Intake.CreateManualApprovedEnrollment. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work.",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/compose.Intake.CreateManualApprovedEnrollment. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work. The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -4351,6 +5007,18 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Intake.ReplaceEditable",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.IntakeOwner.ReplaceEditable",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/compose.Intake.ReplaceEditable; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Intake.Submit",
       "classification": "query",
       "effect": "query",
@@ -4409,6 +5077,18 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/http.TenantSettings.ResolveBool",
       "target_owner": "student-presence"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Intake.Submit",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.IntakeOwner.Submit",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/compose.Intake.Submit; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -4539,12 +5219,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0176",
+      "approval_adr": "0208",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.intakeService.CreateManualApprovedEnrollment",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.RequestService.CreateManualApprovedEnrollment",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.intakeService.CreateManualApprovedEnrollment. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work.",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.intakeService.CreateManualApprovedEnrollment. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work. The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -4635,6 +5315,18 @@
       "target_owner": "student-presence"
     },
     {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.intakeService.ReplaceEditable",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.RequestService.ReplaceEditable",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.intakeService.ReplaceEditable; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.intakeService.Submit",
       "classification": "query",
       "effect": "query",
@@ -4693,6 +5385,18 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/studentpresence/http.TenantSettings.ResolveBool",
       "target_owner": "student-presence"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.intakeService.Submit",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.RequestService.Submit",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.intakeService.Submit; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "adr": "0098",
@@ -4775,12 +5479,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0176",
+      "approval_adr": "0208",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.rolloverService.RunDeadlineWorker",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.RolloverService.RunDeadlineWorker",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.rolloverService.RunDeadlineWorker. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work.",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.rolloverService.RunDeadlineWorker. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work. The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -5115,12 +5819,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0176",
+      "approval_adr": "0208",
       "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/http.manualApprovedEnrollments.CreateManualApprovedEnrollment",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work.",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/http.IntakeOwner.CreateManualApprovedEnrollment. Previously hidden behind an owner-internal interface, newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176); protocol review is follow-up work. The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -5370,16 +6074,6 @@
       "target_owner": "settings-platform"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.CollectGradeLevel",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CollectionSettings.CollectGradeLevel",
-      "reason": "Read-only newly exposed target: enrollment reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through roots/owners.enrollmentRolloverSettings.CollectGradeLevel. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
-      "target_owner": "settings-platform"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentCollectionSettings.CollectSchoolClass",
       "classification": "query",
       "effect": "query",
@@ -5400,16 +6094,6 @@
       "target_owner": "settings-platform"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.CollectSchoolClass",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CollectionSettings.CollectSchoolClass",
-      "reason": "Read-only newly exposed target: enrollment reaches modules/settings/records.BatchSettingsService.ResolveBool (settings-platform) through roots/owners.enrollmentRolloverSettings.CollectSchoolClass. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveBool",
-      "target_owner": "settings-platform"
-    },
-    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentCollectionSettings.GradeLevelMax",
       "classification": "query",
       "effect": "query",
@@ -5427,16 +6111,6 @@
       "reason": "Read-only newly exposed target: enrollment reaches modules/settings/records.SettingsService.ResolveInt (settings-platform) through roots/owners.EnrollmentCollectionSettings.GradeLevelMax. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.SettingsService.ResolveInt",
-      "target_owner": "settings-platform"
-    },
-    {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentRolloverSettings.GradeLevelMax",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.CollectionSettings.GradeLevelMax",
-      "reason": "Read-only newly exposed target: enrollment reaches modules/settings/records.BatchSettingsService.ResolveInt (settings-platform) through roots/owners.enrollmentRolloverSettings.GradeLevelMax. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
-      "source_owner": "enrollment",
-      "target": "github.com/moto-nrw/project-phoenix/modules/settings/records.BatchSettingsService.ResolveInt",
       "target_owner": "settings-platform"
     },
     {
@@ -6150,6 +6824,284 @@
       "target_owner": "people-directory"
     },
     {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
+      "reason": "Locks the change-request approval's companion graph with the held candidates in the guard's children slot, in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CompanionLocks.LockCompanionGraph",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
+      "reason": "Locks the change-request approval's companion graph with the held candidates in the guard's children slot, in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentCompanions.LockCompanionGraph",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
+      "reason": "Owner-provided locking read/gate, never labelled query: Identity \u0026 Access's membership lock: the live account FOR KEY SHARE, then its active school mapping FOR SHARE. The parent guard's protocol (guardianhold.HoldMany, #6638) takes it in the submission's school transaction in the order Konto, Schule, Kind, Profil, Beziehung, the order of the Parent Portal's child write guard (#6529); it writes nothing. Target modules/identityaccess/compose.NewSchoolMembershipLock. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.NewSchoolMembershipLock",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
+      "reason": "Read on the supplied interface: the account's guardian profile at the school in context, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory.GuardianProfileReads.GuardianProfileByAccount. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianProfileReads.GuardianProfileByAccount",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
+      "reason": "Read on the supplied interface: the account and address the locked profile is bound to, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory.GuardianProfileReads.GuardianProfileByID. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianProfileReads.GuardianProfileByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
+      "reason": "Owner-provided locking read/gate, never labelled query: People Directory's guardian profile row lock (SELECT FOR UPDATE). The parent guard's protocol (guardianhold.HoldMany, #6638) takes it in the submission's school transaction in the order Konto, Schule, Kind, Profil, Beziehung, the order of the Parent Portal's child write guard (#6529); it writes nothing. Target modules/peopledirectory.GuardianProfileReads.LockGuardianProfile. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianProfileReads.LockGuardianProfile",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
+      "reason": "Locks the candidate set in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638). Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianRelationshipReads.GuardianRelationshipsForUpdate",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
+      "reason": "People Directory's guardian hold (#6638): the one lock and check protocol of the parent guard, run in the submission's school transaction over the membership, child, profile and relationship locks reviewed for this binding; it locks in the order Konto, Schule, Kind, Profil, Beziehung and writes nothing. Target modules/peopledirectory/guardianhold.HoldMany; modules/peopledirectory/guardianhold/hold.go. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/guardianhold.HoldMany",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
+      "reason": "Read on the supplied interface: the account's guardian profile at the school in context, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByAccount. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByAccount",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
+      "reason": "Read on the supplied interface: the account and address the locked profile is bound to, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByID. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
+      "reason": "Owner-provided locking read/gate, never labelled query: People Directory's guardian profile row lock (SELECT FOR UPDATE). The parent guard's protocol (guardianhold.HoldMany, #6638) takes it in the submission's school transaction in the order Konto, Schule, Kind, Profil, Beziehung, the order of the Parent Portal's child write guard (#6529); it writes nothing. Target modules/peopledirectory/ports.GuardianProfileRepository.LockGuardianProfile. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.LockGuardianProfile",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
+      "reason": "Locks the candidate set in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638). Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentGuardianRepository.GuardianRelationshipsForUpdate",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldAccountStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldAccountStudentsPermission",
+      "reason": "Locks the candidate set in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638). Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByIDsForUpdate",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
+      "reason": "Locks the change-request approval's companion graph with the held candidates in the guard's children slot, in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CompanionLocks.LockCompanionGraph",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
+      "reason": "Locks the change-request approval's companion graph with the held candidates in the guard's children slot, in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentCompanions.LockCompanionGraph",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
+      "reason": "Owner-provided locking read/gate, never labelled query: Identity \u0026 Access's membership lock: the live account FOR KEY SHARE, then its active school mapping FOR SHARE. The parent guard's protocol (guardianhold.HoldMany, #6638) takes it in the submission's school transaction in the order Konto, Schule, Kind, Profil, Beziehung, the order of the Parent Portal's child write guard (#6529); it writes nothing. Target modules/identityaccess/compose.NewSchoolMembershipLock. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.NewSchoolMembershipLock",
+      "target_owner": "identity-access"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
+      "reason": "Read on the supplied interface: the guardian profile the late invite's address names, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory.GuardianProfileReads.GuardianProfileByEmail. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianProfileReads.GuardianProfileByEmail",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
+      "reason": "Read on the supplied interface: the account and address the locked profile is bound to, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory.GuardianProfileReads.GuardianProfileByID. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianProfileReads.GuardianProfileByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
+      "reason": "Owner-provided locking read/gate, never labelled query: People Directory's guardian profile row lock (SELECT FOR UPDATE). The parent guard's protocol (guardianhold.HoldMany, #6638) takes it in the submission's school transaction in the order Konto, Schule, Kind, Profil, Beziehung, the order of the Parent Portal's child write guard (#6529); it writes nothing. Target modules/peopledirectory.GuardianProfileReads.LockGuardianProfile. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianProfileReads.LockGuardianProfile",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
+      "reason": "Locks the candidate set in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638). Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianRelationshipReads.GuardianRelationshipsForUpdate",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
+      "reason": "People Directory's guardian hold (#6638): the one lock and check protocol of the parent guard, run in the submission's school transaction over the membership, child, profile and relationship locks reviewed for this binding; it locks in the order Konto, Schule, Kind, Profil, Beziehung and writes nothing. Target modules/peopledirectory/guardianhold.HoldMany; modules/peopledirectory/guardianhold/hold.go. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/guardianhold.HoldMany",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
+      "reason": "Read on the supplied interface: the guardian profile the late invite's address names, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByEmail. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByEmail",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
+      "reason": "Read on the supplied interface: the account and address the locked profile is bound to, resolved inside the submission's transaction before the guardian hold locks it (#6638). No mutation or locking read at this terminal. Target modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByID. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.GuardianProfileByID",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
+      "reason": "Owner-provided locking read/gate, never labelled query: People Directory's guardian profile row lock (SELECT FOR UPDATE). The parent guard's protocol (guardianhold.HoldMany, #6638) takes it in the submission's school transaction in the order Konto, Schule, Kind, Profil, Beziehung, the order of the Parent Portal's child write guard (#6529); it writes nothing. Target modules/peopledirectory/ports.GuardianProfileRepository.LockGuardianProfile. Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianProfileRepository.LockGuardianProfile",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
+      "reason": "Locks the candidate set in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638). Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentGuardianRepository.GuardianRelationshipsForUpdate",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.EnrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.GuardianStudentHold.HoldGuardianEmailStudentsPermission",
+      "reason": "Locks the candidate set in the caller's tenant transaction before phase locks; no writes or independent transaction (ADR 0067, #6638). Reviewed again for the staff paths (#6638): the binding now also takes the graph students the change-request approval writes; the effect is unchanged.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByIDsForUpdate",
+      "target_owner": "people-directory"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentIntakeSettings.AdminNotificationEmails",
       "classification": "query",
       "effect": "query",
@@ -6338,12 +7290,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0174",
+      "approval_adr": "0208",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.DecideAndInvite",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.DecideAndInvite",
-      "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment/compose.Decisions.DecideAndInvite. Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide (via modules/enrollment/compose.Decisions.DecideAndInvite). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). Approved for this binding by ADR 0174 (#6093).",
+      "reason": "Same effect as Decide, which DecideAndInvite runs inside its unit (#6093); reached here through modules/enrollment/compose.Decisions.DecideAndInvite. Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/internal/application.Decisions.Decide (via modules/enrollment/compose.Decisions.DecideAndInvite). Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). Approved for this binding by ADR 0174 (#6093). The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -6371,6 +7323,18 @@
       "source_owner": "enrollment",
       "target": "unresolved:interface{Field(byte) string; error}.Field",
       "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0208",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.LockApprovalGates",
+      "classification": "debt",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.ManualEnrollmentDecider.LockApprovalGates",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through *modules/enrollment/compose.Decisions.LockApprovalGates; the phase bounds reader (enrollment.PhaseBoundsReader) takes the recurrence gate the phase edit holds before it reads the phase whose bounds the write copies, ahead of the request, child and booking locks (#6657). The same gate the phase edit and the approval already take; protocol review is follow-up work (ADR 0098); approved for the phase bounds reader by ADR 0208.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
+      "target_owner": "timetable-activities"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentNotificationSettings.CareFacilityTerm",
@@ -6614,6 +7578,36 @@
       "target_owner": "people-directory"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.CareOfferingBookingsForPhase",
+      "reason": "Read or pure value helper on the supplied interface: modules/careplan.Capability.CareOfferingBookingsForPhase. No mutation or locking read at this terminal; the phase delete reads the phase's bookings under its recurrence gate before any write (#6505, ADR 0202).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.CareOfferingBookingsForPhase",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.CareOfferingBookingsForPhase",
+      "reason": "Read or pure value helper on the supplied interface: modules/careplan.CareOfferingBooking.EffectiveSelectedDays. No mutation or locking read at this terminal; the phase delete reads the phase's bookings under its recurrence gate before any write (#6505, ADR 0202).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.CareOfferingBooking.EffectiveSelectedDays",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.CareOfferingBookingsForPhase",
+      "reason": "Read or pure value helper on the supplied interface: modules/careplan.Owner.CareOfferingBookingsForPhase. No mutation or locking read at this terminal; the phase delete reads the phase's bookings under its recurrence gate before any write (#6505, ADR 0202).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CareOfferingBookingsForPhase",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.CountOfferingsForPhase",
       "classification": "query",
       "effect": "query",
@@ -6631,6 +7625,26 @@
       "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan.Owner.CountCareOfferingsByPhase; modules/careplan.Owner (supplied contract method). May-bind method surface, not a production-call/liveness claim.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.CountCareOfferingsByPhase",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.HasTraegerCopiesForPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.HasTraegerCopiesForPhase",
+      "reason": "Enrollment phase deletion reads the tenant-scoped Care Plan offering list once, under the recurrence lock, and refuses any copied offering before cascade deletion. This terminal only reads origins; it neither mutates nor acquires locks.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.ListCareOfferings",
+      "target_owner": "care-plan"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentPhaseOfferings.HasTraegerCopiesForPhase",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.PhaseOfferings.HasTraegerCopiesForPhase",
+      "reason": "Enrollment phase deletion reads the tenant-scoped Care Plan offering list once, under the recurrence lock, and refuses any copied offering before cascade deletion. This terminal only reads origins; it neither mutates nor acquires locks.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.ListCareOfferings",
       "target_owner": "care-plan"
     },
     {
@@ -6979,12 +7993,12 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0208",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/enrollment/compose.Decisions.Decide",
       "classification": "debt",
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverDecider.Decide",
-      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/compose.Decisions.Decide. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098).",
+      "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): enrollment reaches modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites (timetable-activities) through modules/enrollment/compose.Decisions.Decide. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). The phase bounds reader (#6657) takes the same gate again before it reads the phase; approved for this binding by ADR 0208.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
@@ -7024,6 +8038,46 @@
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/timetable.RecurrenceWriteLock.LockRecurrenceWrites",
       "target_owner": "timetable-activities"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.CollectGradeLevel",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.CollectGradeLevel",
+      "reason": "Read-only grade-collection switch through the intake's settings binding, which the rollover now shares (#6456): EnrollmentIntakeValues resolves enrollment.collect_grade_level in the current school transaction. No mutation, lock or scope change (ADR 0067).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.CollectGradeLevel",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.GradeLevelMax",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.GradeLevelMax",
+      "reason": "Read-only grade maximum through the intake's settings binding, which the rollover now shares (#6456): EnrollmentIntakeValues resolves enrollment.grade_level_max in the current school transaction. No mutation, lock or scope change (ADR 0067).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.GradeLevelMax",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.LegalSettings",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.LegalSettings",
+      "reason": "Read-only tenant legal texts and toggles the renewal mail resolves to tell whether the new phase's form asks for required blocks (#6456); EnrollmentIntakeValues.Legal reads them in the current school transaction. No mutation, lock or scope change (ADR 0067).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.Legal",
+      "target_owner": "settings-platform"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.IntakeSettings.StatusTokenTTLDays",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.RolloverSettings.StatusTokenTTLDays",
+      "reason": "Read-only TTL lookup through the intake's settings binding, which the rollover now shares (#6456): EnrollmentIntakeValues resolves enrollment.status_token_ttl_days in the current school transaction. No mutation, lock or scope change (ADR 0067).",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/settings.EnrollmentIntakeValues.StatusTokenTTLDays",
+      "target_owner": "settings-platform"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.CompanionRepository.ListLinksForStudents",
@@ -7256,23 +8310,44 @@
       "target_owner": "people-directory"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.ExistsEnrolledByNameAndBirthday",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentMatches.ExistsEnrolledByNameAndBirthday",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentMatches.ExistsEnrolledByNameAndBirthday",
-      "reason": "Read or pure value helper on the supplied interface: modules/peopledirectory/ports.StudentRepository.ExistsEnrolledByNameAndBirthday. No mutation or locking read at this terminal; type-level binding coverage, not proof that Enrollment calls every exposed method.",
+      "reason": "Read-only enrolled-child identity lookup through People Directory; the batch keeps all matches and input positions. No persistent, lock or scope effect at this port.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.ExistsEnrolledByNameAndBirthday",
       "target_owner": "people-directory"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDByNameAndBirthday",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentMatches.FindEnrolledStudentIDByNameAndBirthday",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentMatches.FindEnrolledStudentIDByNameAndBirthday",
-      "reason": "Read or pure value helper on the supplied interface: modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDByNameAndBirthday. No mutation or locking read at this terminal; type-level binding coverage, not proof that Enrollment calls every exposed method.",
+      "reason": "Read-only enrolled-child identity lookup through People Directory; the batch keeps all matches and input positions. No persistent, lock or scope effect at this port.",
       "source_owner": "enrollment",
       "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDByNameAndBirthday",
+      "target_owner": "people-directory"
+    },
+    {
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentMatches.FindEnrolledStudentIDsByIdentities",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentMatches.FindEnrolledStudentIDsByIdentities",
+      "reason": "Read-only enrolled-child identity lookup through People Directory; the batch keeps all matches and input positions. No persistent, lock or scope effect at this port.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDsByIdentities",
+      "target_owner": "people-directory"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.enrollmentStudentMatches.LockStudents",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application.StudentMatches.LockStudents",
+      "reason": "People Directory locks the candidate students in ascending id order in the caller school transaction, before enrollment phase locks. Staff authorization bypass remains unchanged; no mutation or nested coordination.",
+      "source_owner": "enrollment",
+      "target": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindByIDsForUpdate",
       "target_owner": "people-directory"
     },
     {

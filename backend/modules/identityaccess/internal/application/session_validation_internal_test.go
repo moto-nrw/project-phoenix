@@ -34,11 +34,19 @@ type validationMemberships struct {
 	absent bool
 }
 
+func (s validationMemberships) HasRetainedTraegerMembership(context.Context, int64) (bool, error) {
+	return !s.absent, s.err
+}
+
 func (s validationMemberships) ListAccountTraegerOrganizations(context.Context, int64) ([]identityaccess.TraegerOrganization, error) {
 	if s.absent {
 		return nil, nil
 	}
 	return []identityaccess.TraegerOrganization{{ID: 7}}, s.err
+}
+
+func (s validationMemberships) LiveTraegers(context.Context, []int64, bool) ([]identityaccess.TraegerOrganization, error) {
+	return nil, s.err
 }
 
 func TestValidateSessionTokensPreservesLookupErrors(t *testing.T) {

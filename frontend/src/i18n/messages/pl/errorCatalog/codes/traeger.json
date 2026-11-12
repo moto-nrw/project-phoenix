@@ -1,8 +1,13 @@
 {
   "access_log_export_too_large": "Eksport ma ponad {limit} wpisów. Wybierz krótszy okres lub więcej filtrów.",
+  "account_inactive": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "already_member": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "bank_account_label_taken": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "bank_account_not_found": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "closing_day_bookings_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "closing_day_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "closing_day_not_found": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "closing_day_school_outside": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "document_already_released": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "document_audience_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "document_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",

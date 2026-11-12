@@ -143,31 +143,26 @@ describe("GET /api/rooms/[id]/history", () => {
     );
   });
 
-  it("translates legacy start_date/end_date params into backend-canonical start/end", async () => {
-    // Issue #1425 fix: backend expects `start`/`end`, the old route forwarded
-    // `start_date`/`end_date` verbatim — silently broken. The proxy now
-    // rewrites the legacy names so existing callers keep working.
+  it("ignores the retired start_date/end_date query names", async () => {
     mockApiGet.mockResolvedValueOnce({ status: "success", data: [] });
-
-    const request = createMockRequest(
-      "/api/rooms/123/history?start_date=2024-01-01T00:00:00Z&end_date=2024-01-31T23:59:59Z",
+    await GET(
+      createMockRequest(
+        "/api/rooms/123/history?start_date=2024-01-01&end_date=2024-01-31",
+      ),
     );
-    await GET(request);
-
     expect(mockApiGet).toHaveBeenCalledWith(
-      "/api/rooms/123/history?start=2024-01-01T00%3A00%3A00Z&end=2024-01-31T23%3A59%3A59Z",
+      "/api/rooms/123/history",
       "test-token",
     );
   });
 
-  it("normalizes legacy date-only range params to RFC3339 bounds", async () => {
+  it("normalizes canonical date-only range params to RFC3339 bounds", async () => {
     mockApiGet.mockResolvedValueOnce({ status: "success", data: [] });
-
-    const request = createMockRequest(
-      "/api/rooms/123/history?start_date=2024-01-01&end_date=2024-01-31",
+    await GET(
+      createMockRequest(
+        "/api/rooms/123/history?start=2024-01-01&end=2024-01-31",
+      ),
     );
-    await GET(request);
-
     expect(mockApiGet).toHaveBeenCalledWith(
       "/api/rooms/123/history?start=2024-01-01T00%3A00%3A00Z&end=2024-01-31T23%3A59%3A59Z",
       "test-token",

@@ -9,6 +9,8 @@ import (
 	"os"
 	"strings"
 	"testing"
+	"testing/synctest"
+	"time"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -50,7 +52,7 @@ func TestDeliveryCheckpointReportsOnlyItsWorkerQueries(t *testing.T) {
 	worker, err := owners.BuildDeliveryWorker(database, env, mailer, from, vapid, mailIdentity,
 		owners.DeliveryRuntime{Runtime: module.Runtime, Outbox: module.EmailOutbox}, nil,
 		owners.IdentityDeliveryRenderers(identity, from, mailIdentity, module.Runtime.EmailStatus, env),
-		nil, settings.Settings, nil)
+		nil, settings.Settings, nil, nil)
 	require.NoError(t, err)
 
 	counter := testpkg.CaptureQueriesForContext(t, runtimeDB)
@@ -64,7 +66,14 @@ func TestDeliveryCheckpointReportsOnlyItsWorkerQueries(t *testing.T) {
 		return fmt.Sprintf("delivery_scope_metric %d\n", metric)
 	}
 
-	results := testpkg.MeasureDeliveryCheckpoint(t, runtimeDB, fixtureDB, observed, unit, counter, metrics)
+	require.NoError(t, runtimeDB.PingContext(t.Context()))
+	var results []testpkg.RuntimeCheckpointWorkerResult
+	synctest.Test(t, func(t *testing.T) {
+		var databaseNow time.Time
+		require.NoError(t, fixtureDB.NewRaw("SELECT clock_timestamp()").Scan(context.Background(), &databaseNow))
+		require.True(t, databaseNow.After(time.Now()), "exercise PostgreSQL ahead of the worker clock")
+		results = testpkg.MeasureDeliveryCheckpoint(t, runtimeDB, fixtureDB, observed, unit, counter, metrics, false)
+	})
 	counter.Stop()
 	reference.Stop()
 	require.Len(t, results, 3)

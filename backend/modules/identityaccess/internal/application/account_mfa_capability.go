@@ -90,8 +90,8 @@ func (c ComposedAccountMFA) ResendMFAChallengeForScope(ctx context.Context, chal
 	return token, MFAError(err)
 }
 
-func (c ComposedAccountMFA) EnrollMFA(ctx context.Context, accountID int64) error {
-	return MFAError(c.Flows.Enroll(c.ctx(ctx), accountID))
+func (c ComposedAccountMFA) EnrollMFA(ctx context.Context, proof identityaccess.VerifiedMFAChallenge) error {
+	return MFAError(c.Flows.Enroll(c.ctx(ctx), domain.VerifiedMFAChallenge(proof)))
 }
 
 func (c ComposedAccountMFA) DisableMFA(ctx context.Context, accountID int64) error {

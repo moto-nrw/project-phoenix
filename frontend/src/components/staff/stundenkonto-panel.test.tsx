@@ -54,6 +54,7 @@ vi.mock("~/lib/staff-api", () => ({
 import { ApiError } from "~/lib/api-error";
 import { staffBalanceAdjustmentService } from "~/lib/staff-api";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { StundenkontoPanel } from "./stundenkonto-panel";
 
 describe("StundenkontoPanel", () => {
@@ -364,5 +365,114 @@ describe("StundenkontoPanel", () => {
       screen.getByRole("button", { name: "Eröffnungssaldo" }),
     ).toBeDisabled();
     expect(screen.getAllByText("Eröffnungssaldo")).toHaveLength(2);
+  });
+
+  // #6652: a booking holds once the write is through. A failed reload stands
+  // above the list, says the booking is saved, and only reloads.
+  describe("reload after a booking (#6652)", () => {
+    const reloadText = `${catalogText("general.unavailable", "die Anzeige des Stundenkontos")} ${SAVED_BUT_STALE_SUFFIX}`;
+    const failingReload = () =>
+      vi
+        .fn()
+        .mockRejectedValueOnce(
+          new ApiError("down", 503, { code: "general.unavailable" }),
+        )
+        .mockResolvedValue(undefined);
+
+    function renderPanel(onChanged: () => Promise<unknown>) {
+      render(
+        <StundenkontoPanel
+          staffId="4"
+          balanceMinutes={600}
+          accountStartKey="2026-01-01"
+          todayKey="2026-07-24"
+          adjustments={[]}
+          onChanged={onChanged}
+        />,
+      );
+    }
+
+    async function expectReloadOnly(
+      onChanged: ReturnType<typeof vi.fn>,
+      write: ReturnType<typeof vi.fn>,
+    ) {
+      expect(await screen.findByText(reloadText)).toBeInTheDocument();
+      expect(screen.queryByRole("dialog")).toBeNull();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() => expect(onChanged).toHaveBeenCalledTimes(2));
+      expect(write).toHaveBeenCalledTimes(1);
+    }
+
+    it("keeps a payout booked when the reload fails", async () => {
+      const create = vi.mocked(staffBalanceAdjustmentService.create);
+      create
+        .mockReset()
+        .mockResolvedValue(
+          {} as Awaited<
+            ReturnType<typeof staffBalanceAdjustmentService.create>
+          >,
+        );
+      const onChanged = failingReload();
+      renderPanel(onChanged);
+
+      fireEvent.click(screen.getByRole("button", { name: "Auszahlung" }));
+      fireEvent.change(screen.getByLabelText("Auszahlung (Stunden)"), {
+        target: { value: "2" },
+      });
+      fireEvent.change(screen.getByLabelText("Begründung (Pflicht)"), {
+        target: { value: "Juli" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Auszahlen" }));
+
+      await expectReloadOnly(onChanged, create);
+    });
+
+    it("keeps a reset booked when the reload fails", async () => {
+      const reset = vi.mocked(staffBalanceAdjustmentService.reset);
+      reset
+        .mockReset()
+        .mockResolvedValue(
+          {} as Awaited<ReturnType<typeof staffBalanceAdjustmentService.reset>>,
+        );
+      const onChanged = failingReload();
+      renderPanel(onChanged);
+
+      fireEvent.click(screen.getByRole("button", { name: "Zurücksetzen" }));
+      fireEvent.change(screen.getByLabelText("Begründung (Pflicht)"), {
+        target: { value: "Jahresabschluss" },
+      });
+      const [, submit] = screen.getAllByRole("button", {
+        name: "Zurücksetzen",
+      });
+      fireEvent.click(submit!);
+
+      await expectReloadOnly(onChanged, reset);
+    });
+
+    it("keeps an opening balance booked when the reload fails", async () => {
+      const createOpening = vi.mocked(
+        staffBalanceAdjustmentService.createOpening,
+      );
+      createOpening
+        .mockReset()
+        .mockResolvedValue(
+          {} as Awaited<
+            ReturnType<typeof staffBalanceAdjustmentService.createOpening>
+          >,
+        );
+      const onChanged = failingReload();
+      renderPanel(onChanged);
+
+      fireEvent.click(screen.getByRole("button", { name: "Eröffnungssaldo" }));
+      fireEvent.change(screen.getByLabelText("Übernommener Saldo (Stunden)"), {
+        target: { value: "3" },
+      });
+      fireEvent.change(screen.getByLabelText("Begründung (Pflicht)"), {
+        target: { value: "Übernahme Altsystem" },
+      });
+      fireEvent.click(screen.getByRole("button", { name: "Buchen" }));
+
+      await expectReloadOnly(onChanged, createOpening);
+    });
   });
 });

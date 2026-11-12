@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.finance_export_datev_runs",
+  "max": 4,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/finance-exports/datev-runs (#6433):\nthe Träger binding of the Träger transaction, the DATEV settings of the Träger once, and the documents of every\nasked run with their DATEV state in one statement. Flat in the number of runs.",
+  "route": "GET /traeger/finance-exports/datev-runs"
+}

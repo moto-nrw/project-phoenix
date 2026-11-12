@@ -54,7 +54,31 @@ type SourcedTemplate struct {
 
 // BookingRosters reads and writes the Timetable rosters booking
 // materialization derives, in the caller's tenant transaction.
+// RosterChanges is a diff computed under the recurrence lock.
+type RosterChanges struct {
+	Create []RosterEnrollment
+	Delete []int64
+	Ends   map[int64]calendar.Date
+}
+
+type RosterReconcile struct {
+	TemplateID int64
+	StudentIDs []int64
+	From       calendar.Date
+	Prior      []RosterEnrollment
+}
+
+type TemplateSourceChange struct {
+	TemplateID    int64
+	OfferingIDs   []int64
+	GradeLevels   []int
+	SchoolClasses []string
+}
+
 type BookingRosters interface {
+	GroupsEnrollments(context.Context, []int64) ([]RosterEnrollment, error)
+	SaveRosterChanges(context.Context, RosterChanges) error
+	ReconcileTemplateRosterBatch(context.Context, []RosterReconcile) error
 	// GroupEnrollments lists a template's rows in validity order, with each
 	// student's alumnus flag.
 	GroupEnrollments(ctx context.Context, groupID int64) ([]RosterEnrollment, error)
@@ -79,6 +103,7 @@ type BookingRosters interface {
 // BookingTemplates reads the offering-sourced Timetable templates and
 // rewrites a template's source rule.
 type BookingTemplates interface {
+	UpdateTemplateOfferingSources(context.Context, []TemplateSourceChange) error
 	TemplatesWithOfferingSource(ctx context.Context) ([]SourcedTemplate, error)
 	// TemplatesSourcedFrom lists the live templates sourcing any of the
 	// offerings, in id order.

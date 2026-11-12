@@ -14,9 +14,13 @@ func WithCommitGuard(ctx context.Context, guard func(context.Context) error) con
 }
 
 // runInTransaction installs the adapter transaction for fn and, when fn
-// opened it, asks the commit guard before the adapter commits.
+// opened it, its lock ledger (OrderLock) and asks the commit guard before the
+// adapter commits.
 func runInTransaction(txCtx context.Context, tx any, fn func(context.Context) error) error {
 	_, nested := TransactionFromContext(txCtx)
+	if !nested {
+		txCtx = withLockLedger(txCtx)
+	}
 	txCtx = withTransaction(txCtx, tx)
 	if err := fn(txCtx); err != nil || nested {
 		return err

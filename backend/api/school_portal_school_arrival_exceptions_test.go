@@ -23,7 +23,7 @@ import (
 
 // TestSchoolArrivalExceptionsScopeRatchet pins the scope split of the one
 // write surface moto schule has (#2970), the counterpart of
-// TestSchoolScopeRejectedOnAllAPIRoutes: a tenant token gets 401 on every
+// the school scope matrix in TestFullProductionRouterGolden: a tenant token gets 401 on every
 // /school/class-day/arrival-exceptions route (permission or not), and a
 // school token with the permission gets 403 school_write_disabled while the
 // school keeps operations.school_portal_write_scope at its default empty list.

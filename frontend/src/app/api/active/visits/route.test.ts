@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
 import { NextRequest } from "next/server";
-import { GET, POST } from "./route";
+import { GET } from "./route";
 import {
   type ExtendedSession,
   createMockContext,
@@ -171,71 +171,5 @@ describe("GET /api/active/visits", () => {
     const json =
       await parseJsonResponse<ApiResponse<typeof mockVisits>>(response);
     expect(json.data).toEqual(mockVisits);
-  });
-});
-
-describe("POST /api/active/visits", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("creates a new visit", async () => {
-    const createRequest = {
-      student_id: "10",
-      active_group_id: "1",
-      start_time: "2024-01-15T09:00:00Z",
-    };
-    const mockCreatedVisit = {
-      id: 99,
-      student_id: 10,
-      active_group_id: 1,
-      start_time: "2024-01-15T09:00:00Z",
-    };
-    mockApiPost.mockResolvedValueOnce(mockCreatedVisit);
-
-    const request = createMockRequest("/api/active/visits", {
-      method: "POST",
-      body: createRequest,
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(mockApiPost).toHaveBeenCalledWith(
-      "/api/active/visits",
-      "test-token",
-      createRequest,
-    );
-    expect(response.status).toBe(200);
-
-    const json =
-      await parseJsonResponse<ApiResponse<typeof mockCreatedVisit>>(response);
-    expect(json.data).toEqual(mockCreatedVisit);
-  });
-
-  it("creates visit with minimal fields", async () => {
-    const createRequest = {
-      student_id: "10",
-      active_group_id: "1",
-    };
-    const mockCreatedVisit = {
-      id: 88,
-      student_id: 10,
-      active_group_id: 1,
-      start_time: "2024-01-15T09:00:00Z",
-    };
-    mockApiPost.mockResolvedValueOnce(mockCreatedVisit);
-
-    const request = createMockRequest("/api/active/visits", {
-      method: "POST",
-      body: createRequest,
-    });
-    const response = await POST(request, createMockContext());
-
-    expect(mockApiPost).toHaveBeenCalledWith(
-      "/api/active/visits",
-      "test-token",
-      createRequest,
-    );
-    expect(response.status).toBe(200);
   });
 });

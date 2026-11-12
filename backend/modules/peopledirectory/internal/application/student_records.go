@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	"github.com/moto-nrw/project-phoenix/tenant"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
@@ -152,4 +153,41 @@ func (s *StudentService) ListRosterOverlapping(ctx context.Context, from, to, to
 	return s.readRoster(ctx, "list_student_roster_overlapping", func(txCtx context.Context) ([]domain.StudentRosterEntry, domain.OperationStats, error) {
 		return s.store.ListRosterOverlapping(txCtx, from, to, today)
 	})
+}
+
+// ListEnrolledIDsByIdentities batches exact matches inside the caller's
+// school transaction. The store requires that transaction; this read never
+// opens a new unit of work.
+func (s *StudentService) ListEnrolledIDsByIdentities(ctx context.Context, tenantID int64, identities []peopledirectory.StudentIdentity) (ids [][]int64, err error) {
+	id, err := tenant.NewTenantID(tenantID)
+	if err != nil {
+		return nil, err
+	}
+	if current, currentErr := tenant.TenantFromContext(ctx); currentErr == nil && current != id {
+		return nil, fmt.Errorf("people directory: enrollment lookup tenant does not match caller")
+	}
+	ctx = tenant.WithTenant(ctx, id)
+	inCallerTransaction := func(readCtx context.Context, read func(context.Context) error) error {
+		return read(readCtx)
+	}
+	err = s.run(ctx, "list_enrolled_students_by_identities", inCallerTransaction, func(txCtx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		ids, queryStats, err = s.store.ListEnrolledIDsByIdentities(txCtx, tenantID, identities)
+		stats.Add(queryStats)
+		return err
+	})
+	return ids, err
+}
+
+func (s *StudentService) LockRows(ctx context.Context, ids []int64) (count int, err error) {
+	if err = s.tx.RequireTransaction(ctx); err != nil {
+		return 0, err
+	}
+	err = s.run(ctx, "lock_student_rows", func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }, func(ctx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		count, queryStats, err = s.store.LockRows(ctx, ids)
+		stats.Add(queryStats)
+		return err
+	})
+	return count, err
 }

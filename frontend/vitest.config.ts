@@ -69,6 +69,9 @@ const schoolDateTestFiles = [
   "src/components/staff/staff-session-table.timezone.test.tsx",
   "src/components/time-tracking/edit-history-accordion.timezone.test.tsx",
   "src/components/staff/staff-audit-log.timezone.test.tsx",
+  // Shared date/time helpers show school time in every browser zone (#6471).
+  "src/lib/date-helpers.school-time.test.ts",
+  "src/components/rooms/room-detail-content.timezone.test.tsx",
 ];
 
 // Shared desktop viewport and resource isolation for every DOM project.

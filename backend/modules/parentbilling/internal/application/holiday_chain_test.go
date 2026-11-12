@@ -213,3 +213,16 @@ func chainLineKinds(lines []parentbilling.HolidayContributionLine) []string {
 	}
 	return kinds
 }
+
+func TestFrozenDailyBookingKeepsItsSelectedDatesForRuleEligibility(t *testing.T) {
+	t.Parallel()
+	monday := calendar.NewDate(2027, 1, 4)
+	friday := monday.AddDays(4)
+	child := parentbilling.HolidayChild{ID: 1, Bookings: []parentbilling.HolidayBooking{{WeekID: 2,
+		WeekStartsOn: monday, WeekEndsOn: friday, Days: []calendar.Date{friday, monday.AddDays(3)}}}}
+	member := siblingMember{registration: parentbilling.HolidayRegistration{Children: []parentbilling.HolidayChild{child}},
+		frozen: &parentbilling.HolidayContribution{Children: []parentbilling.HolidayChildContribution{{ChildID: 1,
+			Lines: []parentbilling.HolidayContributionLine{{Kind: parentbilling.LineBase, WeekID: 2, WeekStartsOn: &monday,
+				WeekEndsOn: &friday, BookedDays: new(2), AmountCents: 3000}}}}}}
+	assert.Equal(t, monday.AddDays(3), firstHolidayDay(member.chainMember().children))
+}

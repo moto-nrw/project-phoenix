@@ -127,7 +127,7 @@ func draftDocument(run parentbilling.BillingRun, registration parentbilling.Holi
 			billed.Corrections = []parentbilling.BillingCorrection{}
 		}
 		for _, line := range lines.Lines {
-			billed.Positions = append(billed.Positions, parentbilling.BillingPosition(line))
+			billed.Positions = append(billed.Positions, billingPosition(line))
 			from, until = widen(from, until, line.WeekStartsOn, line.WeekEndsOn)
 		}
 		billed = withCarriedCorrections(billed, carriedByChild[child.ID])
@@ -156,4 +156,15 @@ func widen(from, until calendar.Date, starts, ends *calendar.Date) (calendar.Dat
 		until = *ends
 	}
 	return from, until
+}
+
+// billingPosition is a line of the frozen contribution as a position of the
+// invoice; the week it prices names its host school at the release (#6624).
+func billingPosition(line parentbilling.HolidayContributionLine) parentbilling.BillingPosition {
+	return parentbilling.BillingPosition{
+		Kind: line.Kind, AmountCents: line.AmountCents, WeekStartsOn: line.WeekStartsOn, WeekEndsOn: line.WeekEndsOn,
+		TimeModelName: line.TimeModelName, ChildRank: line.ChildRank, DiscountBasisPoints: line.DiscountBasisPoints,
+		DiscountCents: line.DiscountCents, Note: line.Note, CostBearerID: line.CostBearerID, CostBearerName: line.CostBearerName,
+		WeekID: line.WeekID,
+	}
 }

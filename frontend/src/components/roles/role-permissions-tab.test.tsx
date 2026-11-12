@@ -7,9 +7,11 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { deferred } from "~/test/helpers/form-modal-pending";
 import { ApiError } from "~/lib/api-error";
 import type { Permission, Role } from "~/lib/auth-helpers";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 import { RolePermissionsTab } from "./role-permissions-tab";
 
 const {
@@ -209,6 +211,80 @@ describe("RolePermissionsTab", () => {
     );
   });
 
+  it("locks editing until the saved permissions and parent finish reloading", async () => {
+    const reload = deferred<Permission[]>();
+    const parentReload = deferred();
+    mockGetRolePermissions
+      .mockResolvedValueOnce([allPermissions[0]!])
+      .mockReturnValueOnce(reload.promise);
+    const saved = vi.fn(() => parentReload.promise);
+    render(
+      <RolePermissionsTab
+        role={role}
+        editing
+        onSaved={saved}
+        onCancelEdit={onCancelEdit}
+      />,
+    );
+    const checkbox = await screen.findByLabelText("rooms:read");
+    fireEvent.click(checkbox);
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(mockGetRolePermissions).toHaveBeenCalledTimes(2),
+    );
+    expect(checkbox).toBeDisabled();
+    await act(async () =>
+      reload.resolve([allPermissions[0]!, allPermissions[2]!]),
+    );
+    expect(saved).toHaveBeenCalledOnce();
+    expect(checkbox).toBeDisabled();
+    await act(async () => parentReload.resolve());
+    expect(checkbox).toBeEnabled();
+    expect(checkbox).toBeChecked();
+  });
+
+  // #6652: the permissions hold once the write is through; a failed reload is
+  // a load error that says the change is saved, and its retry only reloads.
+  it("keeps saved permissions saved when the reload fails", async () => {
+    const retry = deferred<Permission[]>();
+    mockGetRolePermissions
+      .mockReset()
+      .mockResolvedValueOnce([allPermissions[0]!])
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockReturnValueOnce(retry.promise);
+    render(
+      <RolePermissionsTab
+        role={role}
+        editing
+        onSaved={onSaved}
+        onCancelEdit={onCancelEdit}
+      />,
+    );
+    await screen.findByText("1 von 3 Berechtigungen ausgewählt.");
+    fireEvent.click(screen.getByLabelText("students:read"));
+    fireEvent.click(screen.getByLabelText("rooms:read"));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige der Berechtigungen")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeInTheDocument();
+    await waitFor(() => expect(onSaved).toHaveBeenCalledOnce());
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() =>
+      expect(mockGetRolePermissions).toHaveBeenCalledTimes(3),
+    );
+    expect(screen.getByLabelText("rooms:read")).toBeDisabled();
+    await act(async () => retry.resolve([allPermissions[2]!]));
+    expect(screen.getByLabelText("rooms:read")).toBeEnabled();
+    expect(mockReplaceRolePermissions).toHaveBeenCalledTimes(1);
+    expect(onSaved).toHaveBeenCalledOnce();
+  });
+
   it("toggles a whole resource group and filters by search", async () => {
     render(
       <RolePermissionsTab
@@ -360,6 +436,57 @@ describe("RolePermissionsTab", () => {
       screen.getByText("2 von 3 Berechtigungen ausgewählt."),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("students:update")).toBeChecked();
+  });
+
+  it("keeps unsaved permission changes when retrying a failed post-save reload", async () => {
+    render(
+      <RolePermissionsTab
+        role={role}
+        editing
+        onSaved={onSaved}
+        onCancelEdit={onCancelEdit}
+      />,
+    );
+    await screen.findByText("1 von 3 Berechtigungen ausgewählt.");
+    fireEvent.click(screen.getByLabelText("rooms:read"));
+    mockGetRolePermissions.mockRejectedValueOnce(new ApiError("down", 503));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    const reloadText = `${catalogText("general.unavailable", "die Anzeige der Berechtigungen")} ${SAVED_BUT_STALE_SUFFIX}`;
+    expect(await screen.findByText(reloadText)).toBeVisible();
+    await waitFor(() =>
+      expect(screen.getByLabelText("students:update")).toBeEnabled(),
+    );
+    fireEvent.click(screen.getByLabelText("students:update"));
+    mockGetRolePermissions.mockResolvedValueOnce([
+      allPermissions[0]!,
+      allPermissions[2]!,
+    ]);
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() =>
+      expect(screen.queryByText(reloadText)).not.toBeInTheDocument(),
+    );
+    expect(screen.getByLabelText("students:update")).toBeChecked();
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
+    expect(mockReplaceRolePermissions).toHaveBeenCalledTimes(1);
+  });
+
+  it("clears obsolete post-save feedback after a successful edit-mode read", async () => {
+    const props = { role, onSaved, onCancelEdit };
+    const { rerender } = render(<RolePermissionsTab {...props} editing />);
+    await screen.findByText("1 von 3 Berechtigungen ausgewählt.");
+    fireEvent.click(screen.getByLabelText("rooms:read"));
+    mockGetRolePermissions.mockRejectedValueOnce(new ApiError("down", 503));
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    const reloadText = `${catalogText("general.unavailable", "die Anzeige der Berechtigungen")} ${SAVED_BUT_STALE_SUFFIX}`;
+    expect(await screen.findByText(reloadText)).toBeVisible();
+    rerender(<RolePermissionsTab {...props} editing={false} />);
+    expect(await screen.findByText("1 Berechtigung zugewiesen.")).toBeVisible();
+    expect(screen.queryByText(reloadText)).not.toBeInTheDocument();
+    rerender(<RolePermissionsTab {...props} editing />);
+    expect(await screen.findByLabelText("students:update")).toBeEnabled();
+    expect(
+      screen.queryByRole("button", { name: "Wiederholen" }),
+    ).not.toBeInTheDocument();
   });
 
   it("shows the save error in the alert and keeps the draft", async () => {

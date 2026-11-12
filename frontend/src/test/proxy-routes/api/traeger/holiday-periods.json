@@ -7,11 +7,17 @@
     "GET traeger /traeger/holiday-periods/id%2F1",
     "PUT traeger /traeger/holiday-periods/id%2F1"
   ],
+  "api/traeger/holiday-periods/[id]/places": [
+    "GET traeger /traeger/holiday-periods/id%2F1/places"
+  ],
   "api/traeger/holiday-periods/[id]/publish": [
     "POST traeger /traeger/holiday-periods/id%2F1/publish"
   ],
   "api/traeger/holiday-periods/[id]/registrations": [
     "GET traeger /traeger/holiday-periods/id%2F1/registrations"
+  ],
+  "api/traeger/holiday-periods/[id]/registrations/known-children": [
+    "GET traeger /traeger/holiday-periods/id%2F1/registrations/known-children"
   ],
   "api/traeger/holiday-periods/[id]/registrations/[registrationId]": [
     "GET traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1"
@@ -20,7 +26,10 @@
     "POST traeger /traeger/holiday-contributions/id%2F1/registrations/registrationId%2F1/cancel"
   ],
   "api/traeger/holiday-periods/[id]/registrations/[registrationId]/children/[childId]/bookings": [
-    "PUT traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/children/childId%2F1/bookings"
+    "PUT traeger /traeger/holiday-contributions/id%2F1/registrations/registrationId%2F1/children/childId%2F1/bookings"
+  ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]/children/[childId]/holiday-wish": [
+    "PUT traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/children/childId%2F1/holiday-wish"
   ],
   "api/traeger/holiday-periods/[id]/registrations/[registrationId]/details": [
     "PUT traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/details"
@@ -33,6 +42,9 @@
   ],
   "api/traeger/holiday-periods/[id]/registrations/[registrationId]/debtor-number": [
     "PUT traeger /traeger/holiday-contributions/id%2F1/registrations/registrationId%2F1/debtor-number"
+  ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]/family-debtor-number": [
+    "GET traeger /traeger/holiday-contributions/id%2F1/registrations/registrationId%2F1/family-debtor-number"
   ],
   "api/traeger/holiday-periods/[id]/registrations/[registrationId]/freeze": [
     "POST traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/freeze"
@@ -53,5 +65,21 @@
   "api/traeger/holiday-periods/[id]/sibling-groups": [
     "GET traeger /traeger/holiday-contributions/id%2F1/sibling-groups",
     "POST traeger /traeger/holiday-contributions/id%2F1/sibling-groups"
+  ],
+  "api/traeger/holiday-periods/[id]/weeks/[weekId]/capacity": [
+    "PUT traeger /traeger/holiday-contributions/id%2F1/weeks/weekId%2F1/capacity"
+  ],
+  "api/traeger/holiday-periods/criteria": [
+    "GET traeger /traeger/holiday-periods/criteria",
+    "PUT traeger /traeger/holiday-periods/criteria"
+  ],
+  "api/traeger/holiday-periods/[id]/allocation": [
+    "GET traeger /traeger/holiday-periods/id%2F1/allocation"
+  ],
+  "api/traeger/holiday-periods/[id]/allocation/decisions": [
+    "POST traeger /traeger/holiday-periods/id%2F1/allocation/decisions"
+  ],
+  "api/traeger/holiday-periods/[id]/registrations/[registrationId]/criteria": [
+    "PUT traeger /traeger/holiday-periods/id%2F1/registrations/registrationId%2F1/criteria"
   ]
 }

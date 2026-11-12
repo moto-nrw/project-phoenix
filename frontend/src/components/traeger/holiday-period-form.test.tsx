@@ -5,6 +5,7 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import type { HolidayPeriod, TraegerSchool } from "~/lib/traeger-api";
@@ -12,6 +13,10 @@ import type { HolidayPeriod, TraegerSchool } from "~/lib/traeger-api";
 const { mockCreate, mockUpdate } = vi.hoisted(() => ({
   mockCreate: vi.fn(),
   mockUpdate: vi.fn(),
+}));
+
+vi.mock("~/lib/traeger-url", () => ({
+  traegerPath: (path: string) => path,
 }));
 
 vi.mock("~/lib/traeger-api", () => ({
@@ -44,6 +49,7 @@ const stored: HolidayPeriod = {
   registrationOpensOn: "2027-01-11",
   registrationClosesOn: "2027-02-26",
   binding: true,
+  holidayWishRule: false,
   notes: "",
   status: "draft",
   publishedAt: null,
@@ -205,6 +211,101 @@ describe("HolidayPeriodForm", () => {
           }),
         ],
       }),
+    );
+  });
+
+  it("writes the text of the acceptance mail and shows it in the preview (#6672)", async () => {
+    const onSaved = vi.fn();
+    mockUpdate.mockResolvedValue(stored);
+    render(
+      <ToastProvider>
+        <HolidayPeriodForm
+          period={stored}
+          schools={schools}
+          onSaved={onSaved}
+          onCancel={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+
+    const preview = screen.getByRole("region", {
+      name: "Vorschau der Annahme-Mail",
+    });
+    expect(
+      within(preview).getByText("In der Eltern-App ansehen"),
+    ).toBeInTheDocument();
+    expect(
+      within(preview).getByText("Ferienanmeldung bestätigt: Osterferien"),
+    ).toBeInTheDocument();
+    expect(
+      within(preview).getByText(
+        "22.03.2027 bis 26.03.2027: OGS Am Bach, bis 13 Uhr (08:00 bis 13:00 Uhr)",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      within(preview).getByText(
+        /Ohne Text bekommen Eltern die E-Mail ohne Hinweise/,
+      ),
+    ).toBeInTheDocument();
+
+    fireEvent.change(screen.getByLabelText("Text der Annahme-Mail"), {
+      target: {
+        value:
+          "  Bitte Mittagessen mitgeben.\nWechselkleidung <b>nicht</b> vergessen.  ",
+      },
+    });
+    expect(
+      within(preview).getByText(/Wechselkleidung <b>nicht<\/b> vergessen\./),
+    ).toBeInTheDocument();
+    expect(
+      within(preview).getByText("Hinweise vom Träger"),
+    ).toBeInTheDocument();
+    expect(screen.getByText("71 von 2000 Zeichen")).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(stored));
+    expect(mockUpdate).toHaveBeenCalledWith(
+      "5",
+      expect.objectContaining({
+        acceptanceMailText:
+          "Bitte Mittagessen mitgeben.\nWechselkleidung <b>nicht</b> vergessen.",
+      }),
+    );
+  });
+
+  it("limits typed and pasted acceptance mail text by Unicode code points", async () => {
+    const user = userEvent.setup();
+    const onSaved = vi.fn();
+    mockUpdate.mockResolvedValue(stored);
+    const initialText = `${"A".repeat(1998)}😀`;
+    render(
+      <ToastProvider>
+        <HolidayPeriodForm
+          period={{ ...stored, acceptanceMailText: initialText }}
+          schools={schools}
+          onSaved={onSaved}
+          onCancel={vi.fn()}
+        />
+      </ToastProvider>,
+    );
+
+    const input = screen.getByLabelText("Text der Annahme-Mail");
+    expect(screen.getByText("1999 von 2000 Zeichen")).toBeInTheDocument();
+    await user.type(input, "BC");
+    expect(input).toHaveValue(`${initialText}B`);
+    expect(screen.getByText("2000 von 2000 Zeichen")).toBeInTheDocument();
+
+    const atLimit = `${"A".repeat(1999)}😀`;
+    await user.clear(input);
+    await user.paste(`${atLimit}B`);
+    expect(input).toHaveValue(atLimit);
+    expect(screen.getByText("2000 von 2000 Zeichen")).toBeInTheDocument();
+
+    await user.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() => expect(onSaved).toHaveBeenCalledWith(stored));
+    expect(mockUpdate).toHaveBeenCalledWith(
+      "5",
+      expect.objectContaining({ acceptanceMailText: atLimit }),
     );
   });
 

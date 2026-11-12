@@ -149,7 +149,8 @@ func (s *Service) UpdateMasterDataField(ctx context.Context, accountID, studentI
 
 	edit := trackAEdit{accountID: accountID, studentID: studentID, target: target, fieldKey: fieldKey, value: newStr}
 	var out *ChildMasterData
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	access := ChildWriteAccess{Permissions: []string{GuardianPermissionMasterDataEdit}, OwnProfile: isTrackAGuardianTarget(target)}
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, access, func(txCtx context.Context) error {
 		data, applyErr := s.applyTrackAInTx(txCtx, child, edit)
 		out = data
 		return applyErr

@@ -88,6 +88,15 @@ func exportFixtureColumns(table organizationtenancy.LifecycleTable) map[string]s
 	if table.Name == "platform.email_delivery_events" {
 		columns["outbox_id"] = "bigint"
 	}
+	// A sealed binding reads the mandate reference of the consent (#6412).
+	for _, binding := range table.SealedBindings {
+		for local := range binding.Match {
+			columns[local] = "bigint"
+		}
+	}
+	if table.Name == "parent_billing.sepa_mandates" {
+		columns["reference"] = "text"
+	}
 	if slices.Contains([]string{"documents.files", "documents.announcement_attachments", "users.student_documents", "users.staff_documents"}, table.Name) {
 		columns["filename_stored"], columns["file_deleted_at"] = "text", "timestamptz"
 	}
@@ -126,6 +135,14 @@ func insertExportFixtureRow(t *testing.T, db *bun.DB, table organizationtenancy.
 	if table.Name == "platform.email_delivery_events" {
 		row["outbox_id"] = school
 	}
+	for _, binding := range table.SealedBindings {
+		for local := range binding.Match {
+			row[local] = school
+		}
+	}
+	if table.Name == "parent_billing.sepa_mandates" {
+		row["reference"] = fmt.Sprintf("fixture-reference-%d", school)
+	}
 	for name := range table.ExcludeSecretColumns {
 		row[name] = "excluded-" + table.Name + "-" + name
 	}
@@ -163,9 +180,9 @@ func TestTenantExportEveryCatalogTableAndKindIsIsolated(t *testing.T) {
 	_, err := db.NewRaw("UPDATE auth.accounts SET username = ? WHERE id = ?", "/uploads/avatars/global/"+strconv.FormatInt(b, 10)+".bin", a).Exec(t.Context())
 	require.NoError(t, err)
 	out := filepath.Join(t.TempDir(), "export")
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{}, &exportAuditFake{})
 	require.NoError(t, err)
-	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, Output: out, Uploads: uploads}))
+	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, OperatorID: 42, Output: out, Uploads: uploads}))
 	manifest := readExportManifest(t, out)
 	require.Len(t, manifest.Tables, len(catalog.Tables))
 	assertExportTables(t, out, catalog, manifest, a, b)
@@ -173,10 +190,10 @@ func TestTenantExportEveryCatalogTableAndKindIsIsolated(t *testing.T) {
 	assertExportObjects(t, out, catalog, a, b)
 	// Repeating into a fresh directory yields the same table/file bytes.
 	second := filepath.Join(t.TempDir(), "export")
-	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, Output: second, Uploads: uploads}))
+	require.NoError(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, OperatorID: 42, Output: second, Uploads: uploads}))
 	require.Equal(t, manifest.Artifacts, readExportManifest(t, second).Artifacts)
 	// Existing completed attempts are never overwritten or mixed with a retry.
-	require.Error(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, Output: out, Uploads: uploads}))
+	require.Error(t, exporter.Export(t.Context(), organizationtenancy.TenantExportOptions{SchoolID: a, OperatorID: 42, Output: out, Uploads: uploads}))
 	assertExportArtifacts(t, out, manifest)
 }
 
@@ -285,11 +302,11 @@ func TestTenantExportMigratedSchema(t *testing.T) {
 	b, _ := testpkg.CreateTestTenant(t, db)
 	testpkg.CreateTestStudentForTenant(t, db, a, "Synthetic A", "Fixture", "A")
 	testpkg.CreateTestStudentForTenant(t, db, b, "Synthetic B", "Fixture", "B")
-	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{})
+	exporter, err := compose.NewTenantExporter(db, organizationtenancy.ExportFingerprints{Bytes: testpkg.ContentFingerprint, Reader: testpkg.ReaderContentFingerprint}, openedSealedFields{}, projectedFields{}, &exportAuditFake{})
 	require.NoError(t, err)
 	out := filepath.Join(t.TempDir(), "export")
 	counter := testpkg.CaptureQueriesForContext(t, db)
-	exportErr := exporter.Export(counter.Context(context.Background()), organizationtenancy.TenantExportOptions{SchoolID: a, Output: out, Uploads: t.TempDir()})
+	exportErr := exporter.Export(counter.Context(context.Background()), organizationtenancy.TenantExportOptions{SchoolID: a, OperatorID: 42, Output: out, Uploads: t.TempDir()})
 	counter.Stop()
 	t.Logf("tenant export error=%v SQL=%q", exportErr, counter.Queries())
 	require.NoError(t, exportErr)
@@ -313,4 +330,13 @@ func TestTenantExportMigratedSchema(t *testing.T) {
 	require.Len(t, metadata, 2, "columns and relationships each have one catalogue-wide metadata read")
 	person := model[slices.IndexFunc(model, func(table organizationtenancy.ExportModelTable) bool { return table.Name == "users.persons" })]
 	require.Contains(t, person.Relationships, organizationtenancy.ExportRelationship{Column: "account_id", TargetTable: "auth.accounts", TargetColumn: "id"})
+	// The register (ADR 0201) describes every table of a school package
+	// exactly as its model.json does.
+	register := registerModels(t)
+	require.Len(t, model, len(register))
+	for _, table := range model {
+		require.Contains(t, register, table.Name)
+		require.Equal(t, table, register[table.Name].ExportModelTable, "register and model.json differ for %s", table.Name)
+	}
+	require.Equal(t, organizationtenancy.ExportFormatVersion, manifest.FormatVersion)
 }

@@ -60,11 +60,15 @@ type holidayPeriodRow struct {
 	RegistrationClosesOn calendar.Date `bun:"registration_closes_on"`
 	Binding              bool          `bun:"binding"`
 	Notes                string        `bun:"notes"`
+	AcceptanceMailText   string        `bun:"acceptance_mail_text"`
+	HolidayWishRule      bool          `bun:"holiday_wish_rule"`
 	Status               string        `bun:"status"`
 	PublishedAt          *time.Time    `bun:"published_at"`
 	UpdatedAt            time.Time     `bun:"updated_at"`
 	PublicToken          string        `bun:"public_token"`
 	RegistrationCount    int           `bun:"registration_count"`
+	MaxDaysPerChild      *int          `bun:"max_days_per_child"`
+	AllocationMode       string        `bun:"allocation_mode"`
 }
 
 type holidayWeekRow struct {
@@ -75,6 +79,8 @@ type holidayWeekRow struct {
 	StartsOn        calendar.Date `bun:"starts_on"`
 	EndsOn          calendar.Date `bun:"ends_on"`
 	HostSchoolID    int64         `bun:"host_school_id"`
+	Capacity        *int          `bun:"capacity"`
+	BookingUnit     string        `bun:"booking_unit"`
 }
 
 type holidayTimeModelRow struct {
@@ -89,8 +95,8 @@ type holidayTimeModelRow struct {
 }
 
 const (
-	holidayPeriodColumns = `id, name, registration_opens_on, registration_closes_on, binding, notes,
-		status, published_at, updated_at, public_token,
+	holidayPeriodColumns = `id, name, registration_opens_on, registration_closes_on, binding, notes, acceptance_mail_text, holiday_wish_rule,
+		status, published_at, updated_at, public_token, max_days_per_child, allocation_mode,
 		(SELECT count(*) FROM enrollment.holiday_registrations AS registration
 			WHERE registration.organization_id = holiday_periods.organization_id
 				AND registration.holiday_period_id = holiday_periods.id) AS registration_count`
@@ -99,8 +105,15 @@ const (
 		ORDER BY registration_opens_on DESC, id DESC`
 	findHolidayPeriodQuery = `SELECT ` + holidayPeriodColumns + ` FROM enrollment.holiday_periods
 		WHERE organization_id = ? AND id = ?`
-	lockHolidayPeriodQuery = findHolidayPeriodQuery + ` FOR UPDATE`
-	listHolidayWeeksQuery  = `SELECT id, holiday_period_id, starts_on, ends_on, host_school_id
+	// Booking submissions and rebookings hold this gate before calendar
+	// validation, so notification preparation, which takes it exclusively,
+	// cannot overtake their commit. They take it shared: writers of different
+	// periods of the Träger do not wait for each other here (ADR 0209).
+	lockHolidayPeriodQuery = `WITH notice_gate AS MATERIALIZED (
+  SELECT pg_advisory_xact_lock_shared(hashtextextended('enrollment:holiday-closure:' || ?0::text, 0))
+ ) SELECT ` + holidayPeriodColumns + ` FROM enrollment.holiday_periods CROSS JOIN notice_gate
+ WHERE organization_id = ?0 AND id = ?1 FOR UPDATE OF holiday_periods`
+	listHolidayWeeksQuery = `SELECT id, holiday_period_id, starts_on, ends_on, host_school_id, capacity, booking_unit
 		FROM enrollment.holiday_period_weeks
 		WHERE organization_id = ? AND holiday_period_id = ANY(?)
 		ORDER BY starts_on, id`
@@ -119,6 +132,38 @@ const (
 		WHERE model.organization_id = ? AND week.holiday_period_id = ANY(?)
 		ORDER BY model.starts_at, model.ends_at, model.id`
 )
+
+// holidayWeekHostsQuery reads the weeks of one period of the Träger with
+// their host school (#6624).
+const holidayWeekHostsQuery = `SELECT id, starts_on, ends_on, host_school_id
+	FROM enrollment.holiday_period_weeks
+	WHERE organization_id = ? AND holiday_period_id = ?
+	ORDER BY starts_on, id`
+
+type holidayWeekHostRow struct {
+	ID           int64         `bun:"id"`
+	StartsOn     calendar.Date `bun:"starts_on,type:date"`
+	EndsOn       calendar.Date `bun:"ends_on,type:date"`
+	HostSchoolID int64         `bun:"host_school_id"`
+}
+
+// HolidayWeekHosts reads the host school of each week of a period of the
+// Träger in one statement; a period of another Träger has none.
+func (s *HolidayPeriodStore) HolidayWeekHosts(ctx context.Context, organizationID, periodID int64) ([]enrollment.HolidayWeekHost, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []holidayWeekHostRow
+	if err := db.NewRaw(holidayWeekHostsQuery, organizationID, periodID).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: read the host schools of the holiday weeks: %w", err)
+	}
+	hosts := make([]enrollment.HolidayWeekHost, len(rows))
+	for i, row := range rows {
+		hosts[i] = enrollment.HolidayWeekHost{WeekID: row.ID, StartsOn: row.StartsOn, EndsOn: row.EndsOn, HostSchoolID: row.HostSchoolID}
+	}
+	return hosts, nil
+}
 
 // ListHolidayPeriods reads every period of the Träger in three statements.
 func (s *HolidayPeriodStore) ListHolidayPeriods(ctx context.Context, organizationID int64) ([]enrollment.HolidayPeriod, error) {
@@ -192,6 +237,7 @@ func (s *HolidayPeriodStore) withWeeks(ctx context.Context, db bun.IDB, organiza
 		}
 		weeks[row.HolidayPeriodID] = append(weeks[row.HolidayPeriodID], enrollment.HolidayWeek{
 			ID: row.ID, StartsOn: row.StartsOn, EndsOn: row.EndsOn, HostSchoolID: row.HostSchoolID, TimeModels: timeModels,
+			Capacity: row.Capacity, BookingUnit: row.BookingUnit,
 		})
 	}
 	for _, row := range rows {
@@ -201,17 +247,19 @@ func (s *HolidayPeriodStore) withWeeks(ctx context.Context, db bun.IDB, organiza
 		}
 		periods = append(periods, enrollment.HolidayPeriod{
 			ID: row.ID, Name: row.Name, RegistrationOpensOn: row.RegistrationOpensOn,
-			RegistrationClosesOn: row.RegistrationClosesOn, Binding: row.Binding, Notes: row.Notes,
+			RegistrationClosesOn: row.RegistrationClosesOn, Binding: row.Binding, Notes: row.Notes, AcceptanceMailText: row.AcceptanceMailText, HolidayWishRule: row.HolidayWishRule,
 			Status: row.Status, PublishedAt: row.PublishedAt, UpdatedAt: row.UpdatedAt,
 			PublicToken: row.PublicToken, RegistrationCount: row.RegistrationCount, Weeks: periodWeeks,
+			MaxDaysPerChild: row.MaxDaysPerChild,
+			AllocationMode:  row.AllocationMode, AllocationModeLocked: row.RegistrationCount > 0,
 		})
 	}
 	return periods, nil
 }
 
 const insertHolidayPeriodQuery = `INSERT INTO enrollment.holiday_periods
-		(organization_id, name, registration_opens_on, registration_closes_on, binding, notes)
-	VALUES (?, ?, ?, ?, ?, ?)
+		(organization_id, name, registration_opens_on, registration_closes_on, binding, notes, acceptance_mail_text, holiday_wish_rule, max_days_per_child, allocation_mode)
+	VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	RETURNING id`
 
 // InsertHolidayPeriod adds a draft period with its weeks and time models.
@@ -222,7 +270,7 @@ func (s *HolidayPeriodStore) InsertHolidayPeriod(ctx context.Context, organizati
 	}
 	var periodID int64
 	if err := db.NewRaw(insertHolidayPeriodQuery, organizationID, input.Name, input.RegistrationOpensOn,
-		input.RegistrationClosesOn, input.Binding, input.Notes).Scan(ctx, &periodID); err != nil {
+		input.RegistrationClosesOn, input.Binding, input.Notes, input.AcceptanceMailText, input.HolidayWishRule, input.MaxDaysPerChild, input.AllocationMode).Scan(ctx, &periodID); err != nil {
 		return 0, fmt.Errorf("enrollment postgres: insert holiday period: %w", err)
 	}
 	if err := writeHolidayWeeks(ctx, db, organizationID, periodID, input.Weeks, calendar.TodayDate()); err != nil {
@@ -238,7 +286,7 @@ const checkHolidayBookingsNowQuery = `SET CONSTRAINTS enrollment.fk_holiday_regi
 	enrollment.fk_holiday_registration_bookings_time_model IMMEDIATE`
 
 const updateHolidayPeriodQuery = `UPDATE enrollment.holiday_periods
-	SET name = ?, registration_opens_on = ?, registration_closes_on = ?, binding = ?, notes = ?
+	SET name = ?, registration_opens_on = ?, registration_closes_on = ?, binding = ?, notes = ?, acceptance_mail_text = ?, holiday_wish_rule = ?, max_days_per_child = ?, allocation_mode = ?
 	WHERE organization_id = ? AND id = ?`
 
 // UpdateHolidayPeriod writes the period and its weeks and time models.
@@ -248,7 +296,7 @@ func (s *HolidayPeriodStore) UpdateHolidayPeriod(ctx context.Context, organizati
 		return err
 	}
 	if _, err := db.NewRaw(updateHolidayPeriodQuery, input.Name, input.RegistrationOpensOn, input.RegistrationClosesOn,
-		input.Binding, input.Notes, organizationID, periodID).Exec(ctx); err != nil {
+		input.Binding, input.Notes, input.AcceptanceMailText, input.HolidayWishRule, input.MaxDaysPerChild, input.AllocationMode, organizationID, periodID).Exec(ctx); err != nil {
 		return fmt.Errorf("enrollment postgres: update holiday period: %w", err)
 	}
 	if _, err := db.NewRaw(checkHolidayBookingsNowQuery).Exec(ctx); err != nil {
@@ -302,15 +350,68 @@ func (s *HolidayPeriodStore) HolidayWeeksBookedTogether(ctx context.Context, org
 	return pairs, nil
 }
 
+// holidayChildBookingsQuery reads the bookings of the period's registrations
+// that are not cancelled, ordered by the child they belong to: the same
+// enrollment.HolidayChildKey over all registrations (#6446).
+const holidayChildBookingsQuery = `SELECT lower(btrim(registration.guardian_email)) AS guardian_email,
+		lower(child.first_name) AS first_name, lower(child.last_name) AS last_name, child.birth_date,
+		booking.holiday_period_week_id AS week_id, booking.holiday_week_time_model_id AS time_model_id, booking.days::text AS days
+	FROM enrollment.holiday_registration_bookings AS booking
+	JOIN enrollment.holiday_registration_children AS child
+		ON child.organization_id = booking.organization_id AND child.id = booking.holiday_registration_child_id
+	JOIN enrollment.holiday_registrations AS registration
+		ON registration.organization_id = child.organization_id AND registration.id = child.holiday_registration_id
+	WHERE booking.organization_id = ? AND booking.holiday_period_id = ? AND registration.status <> 'cancelled'
+	ORDER BY 1, 2, 3, 4, booking.holiday_period_week_id, booking.id`
+
+// HolidayChildBookings lists the bookings of each child of the period whose
+// registration is not cancelled, one list per child (#6506). A child is an
+// enrollment.HolidayChildKey, so the bookings of its registrations are one
+// list (#6446).
+func (s *HolidayPeriodStore) HolidayChildBookings(ctx context.Context, organizationID, periodID int64) ([][]enrollment.HolidayBookingInput, error) {
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return nil, err
+	}
+	var rows []struct {
+		GuardianEmail string        `bun:"guardian_email"`
+		FirstName     string        `bun:"first_name"`
+		LastName      string        `bun:"last_name"`
+		BirthDate     calendar.Date `bun:"birth_date"`
+		WeekID        int64         `bun:"week_id"`
+		TimeModelID   int64         `bun:"time_model_id"`
+		Days          *string       `bun:"days"`
+	}
+	if err := db.NewRaw(holidayChildBookingsQuery, organizationID, periodID).Scan(ctx, &rows); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: read holiday child bookings: %w", err)
+	}
+	var children [][]enrollment.HolidayBookingInput
+	var last enrollment.HolidayChildKey
+	for i, row := range rows {
+		days, err := holidayDaysOf(row.Days)
+		if err != nil {
+			return nil, err
+		}
+		key := enrollment.NewHolidayChildKey(row.GuardianEmail, row.FirstName, row.LastName, row.BirthDate)
+		if i == 0 || key != last {
+			children = append(children, nil)
+			last = key
+		}
+		at := len(children) - 1
+		children[at] = append(children[at], enrollment.HolidayBookingInput{WeekID: row.WeekID, TimeModelID: row.TimeModelID, Days: days})
+	}
+	return children, nil
+}
+
 const (
 	deleteHolidayWeeksQuery = `DELETE FROM enrollment.holiday_period_weeks
 		WHERE organization_id = ? AND holiday_period_id = ? AND NOT (id = ANY(?))`
 	insertHolidayWeekQuery = `INSERT INTO enrollment.holiday_period_weeks
-			(organization_id, holiday_period_id, starts_on, ends_on, host_school_id)
-		VALUES (?, ?, ?, ?, ?)
+			(organization_id, holiday_period_id, starts_on, ends_on, host_school_id, booking_unit)
+		VALUES (?, ?, ?, ?, ?, ?)
 		RETURNING id`
 	updateHolidayWeekQuery = `UPDATE enrollment.holiday_period_weeks
-		SET starts_on = ?, ends_on = ?, host_school_id = ?
+		SET starts_on = ?, ends_on = ?, host_school_id = ?, booking_unit = ?
 		WHERE organization_id = ? AND holiday_period_id = ? AND id = ?`
 	deleteHolidayTimeModelsQuery = `DELETE FROM enrollment.holiday_week_time_models
 		WHERE organization_id = ? AND holiday_period_week_id = ? AND NOT (id = ANY(?)) AND archived_at IS NULL`
@@ -355,13 +456,13 @@ func writeHolidayWeeks(ctx context.Context, db bun.IDB, organizationID, periodID
 func writeHolidayWeek(ctx context.Context, db bun.IDB, organizationID, periodID int64, week enrollment.HolidayWeekInput) (int64, error) {
 	if week.ID == 0 {
 		var weekID int64
-		err := db.NewRaw(insertHolidayWeekQuery, organizationID, periodID, week.StartsOn, week.EndsOn, week.HostSchoolID).Scan(ctx, &weekID)
+		err := db.NewRaw(insertHolidayWeekQuery, organizationID, periodID, week.StartsOn, week.EndsOn, week.HostSchoolID, holidayBookingUnit(week.BookingUnit)).Scan(ctx, &weekID)
 		if err != nil {
 			return 0, fmt.Errorf("enrollment postgres: insert holiday week: %w", err)
 		}
 		return weekID, nil
 	}
-	if _, err := db.NewRaw(updateHolidayWeekQuery, week.StartsOn, week.EndsOn, week.HostSchoolID,
+	if _, err := db.NewRaw(updateHolidayWeekQuery, week.StartsOn, week.EndsOn, week.HostSchoolID, holidayBookingUnit(week.BookingUnit),
 		organizationID, periodID, week.ID).Exec(ctx); err != nil {
 		return 0, fmt.Errorf("enrollment postgres: update holiday week: %w", err)
 	}
@@ -418,4 +519,13 @@ func bookedHolidayWeekError(err error) error {
 		return fmt.Errorf("%w: %w", enrollment.ErrHolidayWeekBooked, err)
 	}
 	return err
+}
+
+// holidayBookingUnit is the stored booking unit of a written week; the
+// application checked it, an empty one is a whole week (#4701).
+func holidayBookingUnit(unit string) string {
+	if unit == "" {
+		return enrollment.HolidayBookingUnitWeek
+	}
+	return unit
 }

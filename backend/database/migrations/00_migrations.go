@@ -147,65 +147,48 @@ func RegisteredMigrations() []*Migration {
 // ValidateMigrations validates migration dependencies and ordering.
 // This is a pure in-memory check against the registered migration graph — no database needed.
 func ValidateMigrations() error {
-	migrations := RegisteredMigrations()
+	return validateMigrations(MigrationRegistry, Migrations.Sorted(), migrationsByBunName)
+}
 
-	// Build a set of all migration versions
-	versions := make(map[string]bool)
-	for _, m := range migrations {
-		versions[m.Version] = true
+func validateMigrations(registry SafeMigrationMap, executionOrder migrate.MigrationSlice, metadata map[string]*Migration) error {
+	positions, err := migrationExecutionPositions(registry, executionOrder, metadata)
+	if err != nil {
+		return err
 	}
-
-	// Check that all dependencies exist
-	for _, m := range migrations {
-		for _, dep := range m.DependsOn {
-			if _, exists := versions[dep]; !exists {
-				return fmt.Errorf("migration %s depends on %s, but it doesn't exist", m.Version, dep)
+	for _, migration := range registry {
+		position := positions[migration.Version]
+		for _, dependency := range migration.DependsOn {
+			if _, exists := registry[dependency]; !exists {
+				return fmt.Errorf("migration %s depends on %s, but it doesn't exist", migration.Version, dependency)
+			}
+			dependencyPosition := positions[dependency]
+			// Strictly increasing positions also reject self-dependencies and
+			// cycles of any length; a separate cycle scan is redundant.
+			if dependencyPosition >= position {
+				return fmt.Errorf("migration ordering issue: %s depends on %s; Bun position %d (%s) must follow position %d (%s)",
+					migration.Version, dependency, position+1, executionOrder[position].Name,
+					dependencyPosition+1, executionOrder[dependencyPosition].Name)
 			}
 		}
 	}
-
-	// Check for circular dependencies (simple check)
-	// For a more thorough check, we would need to implement a graph-based algorithm
-	for _, m := range migrations {
-		for _, dep := range m.DependsOn {
-			for _, otherM := range migrations {
-				if otherM.Version == dep {
-					for _, otherDep := range otherM.DependsOn {
-						if otherDep == m.Version {
-							return fmt.Errorf("circular dependency detected: %s and %s depend on each other",
-								m.Version, otherM.Version)
-						}
-					}
-				}
-			}
-		}
-	}
-
-	// Ensure migrations are in the correct order
-	for i := 0; i < len(migrations)-1; i++ {
-		current := migrations[i]
-		next := migrations[i+1]
-
-		// Check if the next migration depends on the current one
-		for _, dep := range next.DependsOn {
-			if dep == current.Version {
-				// This is fine - the next migration depends on the current one
-				continue
-			}
-		}
-
-		// Check if current migration depends on a later one (which would be a problem)
-		for _, dep := range current.DependsOn {
-			for j := i + 1; j < len(migrations); j++ {
-				if migrations[j].Version == dep {
-					return fmt.Errorf("migration ordering issue: %s depends on %s, but %s comes later",
-						current.Version, dep, dep)
-				}
-			}
-		}
-	}
-
 	return nil
+}
+
+// Check completeness before following any edge: an absent position must not
+// accidentally compare like the first migration's zero index.
+func migrationExecutionPositions(registry SafeMigrationMap, executionOrder migrate.MigrationSlice, metadata map[string]*Migration) (map[string]int, error) {
+	positions := make(map[string]int, len(registry))
+	for i, execution := range executionOrder {
+		if migration := metadata[execution.Name]; migration != nil {
+			positions[migration.Version] = i
+		}
+	}
+	for _, migration := range registry {
+		if _, exists := positions[migration.Version]; !exists {
+			return nil, fmt.Errorf("migration %s has no Bun execution entry", migration.Version)
+		}
+	}
+	return positions, nil
 }
 
 // PrintMigrationPlanTo writes the full migration plan to output.

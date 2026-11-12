@@ -74,22 +74,14 @@ func firstAudience(audiences []string) string {
 	return audiences[0]
 }
 
-// childConversationView resolves the guardian's child and builds the view of
-// the audience's conversation: who reads it and, filled in the tenant
+// childConversationView builds the view of the audience's conversation about
+// the resolved child: who reads it and, filled in the school's part of the
 // transaction, the leadership option.
-func (s *Service) childConversationView(ctx context.Context, accountID, studentID int64, audience string) (*Child, *MessageThreadView, error) {
-	audience, err := normalizeAudience(audience)
-	if err != nil {
-		return nil, nil, err
-	}
-	child, err := s.resolveOwnedChild(ctx, accountID, studentID)
-	if err != nil {
-		return nil, nil, err
-	}
-	return child, &MessageThreadView{
+func childConversationView(child *Child, studentID int64, audience string) *MessageThreadView {
+	return &MessageThreadView{
 		StudentID: studentID, StudentName: child.StudentName, SchoolName: child.SchoolName,
 		Audience: audience,
-	}, nil
+	}
 }
 
 // findChildConversation stamps the leadership option on the view and loads
@@ -112,7 +104,7 @@ func (s *Service) findChildConversation(txCtx context.Context, view *MessageThre
 
 // normalizeMessageInput validates a guardian message: its audience, the team
 // audience of a group-thread answer, and the body.
-func normalizeMessageInput(body, audience string, groupThreadID int64) (string, string, error) {
+func normalizeMessageInput(body, audience string, groupThreadID int64, hasAttachments bool) (string, string, error) {
 	audience, err := normalizeAudience(audience)
 	if err != nil {
 		return "", "", err
@@ -120,7 +112,7 @@ func normalizeMessageInput(body, audience string, groupThreadID int64) (string, 
 	if groupThreadID > 0 && audience != AudienceTeam {
 		return "", "", ErrInvalidAudience
 	}
-	body, err = normalizeParentMessageBody(body)
+	body, err = normalizeParentMessageBody(body, hasAttachments)
 	if err != nil {
 		return "", "", err
 	}

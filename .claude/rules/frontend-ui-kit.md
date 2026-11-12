@@ -96,6 +96,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | You need… | Use | Import from |
 |---|---|---|
 | Button / CTA | `Button` (actions), `ButtonLink` (navigation), `buttonClassName` (anything else that must look like a button) — rules in [Buttons](#buttons) below. Pass `type="button"` outside forms. | `~/components/ui/button` |
+| What a click does (hover, key focus, never tap) | `tooltip` on `Button`/`ButtonLink`, else `ActionHint`; no `title`. `Tooltip`: text only. Blocked: `disabled` + `disabledReason` (also on tap). [Writing rule](#what-a-click-does) | `~/components/ui/button` |
 | Text input | `Input` (`controlSize` `compact` 40 px, `touch` 44 px below `lg`), multiline `Textarea` (`autoGrow`): `required`/`aria-required` shows the star; `error` sets hint and `aria-invalid`; `type="password" revealable`: eye button | `~/components/ui/input`, `ui/textarea` |
 | Field label, hint | `label`/`hint` of `Input`, `Textarea`, `CustomSelect`, `ISODatePicker`; `DatePicker`: `hint`; else `FieldLabel`. Never in Versalien. Field + button: `FormRow` | `~/components/ui/field-label`, `ui/form-row` |
 | Required field | `required` on the kit control. A control without its own label gets `FieldLabel required`, a required group `FormFieldset required`. Never a star in a label string or translation (#5217) | `~/components/ui/field-label` |
@@ -111,11 +112,11 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Row leading elsewhere: icon, title, subtitle, badge, arrow | `ListRowLink`: `selected`, `accent`, `overline`/`meta`/`unread`; alone `framed` | `~/components/ui/list-row-link` |
 | Rows with their own actions in a desktop column | `ResponsiveActionList` | `~/components/ui/responsive-action-list` |
 | Transient feedback | `Toast` — presentational surface only; queue, lifetime, and placement stay in `ToastProvider` | `~/components/ui/toast` |
-| Modal dialog | `Modal`, `ConfirmationModal` (header `icon`, `description`) | `~/components/ui/modal` |
-| Form inside a modal | `FormModal` (built on `Modal`) | `~/components/ui/form-modal` |
+| Modal dialog | `Modal`, `ConfirmationModal` (header `icon`, `description`; loading locks closing, opt-out `dismissibleWhileLoading="<Grund>"`) | `~/components/ui/modal` |
+| Form in a modal | `FormModal`; save: `useFormModalPending` | `~/components/ui/form-modal` |
 | Delete confirmation (every deletion; `bauart/one-delete-confirm` fails a `ConfirmationModal`, hand-built `Modal` or `window.confirm` for Löschen) | `ConfirmDeleteModal` — gate `twoStep`, or `textConfirm` for irreversible data loss; a series/child scope choice goes in its `scope` slot, not in a `ChoiceModal` in front | `~/components/ui/confirm-delete-modal` |
 | Multi-step wizard | `WizardStepper` | `~/components/ui/wizard-stepper` |
-| Footer of an edit state (Abbrechen + Speichern, saving label, disabled while the draft is invalid) | `EditActions` — the only save affordance outside settings; auto-save on blur/change is ratcheted to zero by `bauart/no-autosave`. An object is edited in its tab, never in an overlay titled „… bearbeiten“ / „… verwalten“ (`bauart/no-edit-overlay`, #3116) | `~/components/ui/edit-actions` |
+| Footer of an edit state (Abbrechen + Speichern, saving label, disabled while the draft is invalid) | `EditActions` — the only save affordance outside settings; auto-save on blur/change is shrink-only via `bauart/no-autosave`. An object is edited in its tab, never in an overlay titled „… bearbeiten“ / „… verwalten“ (`bauart/no-edit-overlay`, #3116) | `~/components/ui/edit-actions` |
 | Tabs (switching CONTENT panels) | `Tabs`, `TabsList`, `TabsTrigger`, `TabsContent` — `variant="default"` (pill), `"line"` (underline), `"icon"` | `~/components/ui/tabs` |
 | Segmented choice that is a VALUE, not a panel (mode picker, Monat/Woche, modal section switcher) | `SegmentedControl` — `variant="joined"` (bordered inline) or `"pills"` (tinted, per-item `tone`), `fullWidth` for modal tab bars | `~/components/ui/segmented-control` |
 | Data / list table; `expandable`, `renderSubRows`, `summaryRow`; column key `actions` stays pinned | `DataTable`, `DataTableStatusBadge` | `~/components/ui/data-table` |
@@ -153,7 +154,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Link in the app shell (sidebar, bottom nav, breadcrumbs, header menus) | `NavLink` — `next/link` without viewport prefetch; prefetches on hover, focus, or touch start instead (#2976). | `~/components/ui/nav-link` |
 | Interner Link im Seiteninhalt | `NavigationLink` — meldet den Wechsel an die Portalhülle und verwirft die Meldung bei abgebrochenem Klick. `ButtonLink` nutzt dieselbe Meldung bei String-Zielen. Plain `next/link` bleibt richtig für externe Ziele, Downloads, neue Tabs und Bereiche ohne `PortalShell`. | `~/components/ui/navigation-link` |
 | Rückmeldung, dass ein Seitenwechsel läuft | `NavigationProgressBar` / `NavigationProgressProvider` — steckt bereits in `PortalShell`; `NavLink`, `NavigationLink` und `ButtonLink` melden den ausstehenden Wechsel selbst (#2828). Nicht nachbauen, keine eigene Ladehülle über mehrere Seiten. | `~/components/ui/navigation-progress` |
-| Overlay / side panel | `Drawer`, slide-over (`SlideOverContent size="md\|lg\|xl"`, `SlideOverHeader close`); levels: `Z_LAYER` (`overlay-styles`) | `~/components/ui/drawer`, `~/components/ui/slide-over` |
+| Overlay / side panel | `Drawer`, slide-over (`SlideOverContent size="md\|lg\|xl"`, `SlideOverHeader close`; save: `pending` from `useFormModalPending(open)`, `ui-kit/slide-over-pending`); levels: `Z_LAYER` (`overlay-styles`) | `~/components/ui/drawer`, `~/components/ui/slide-over` |
 | Sticky save bar | `StickyActionBar summary?` | `~/components/ui/sticky-action-bar` |
 | Selection bar | `SelectionBar count label? actions onClear placement` | `~/components/ui/selection-bar` |
 | Failed API call shown to the user | `useApiErrorDisplay` (toast), `useApiFormError` + `FormErrorAlert`, `useApiLoadError` + `LoadErrorAlert`; rules in `.claude/rules/error-path.md` | `~/contexts/ToastContext`, `~/components/ui/form-error-alert` |
@@ -200,6 +201,18 @@ Decided in #5529, enforced since #5531. Not up for renegotiation: if code cannot
 **Deliberate exceptions (do not align):** the stamp buttons and the break stepper −/+ of time tracking; `global-error` (inline styles, loads no CSS; only colour, radius and weight follow kit `primary`); event rows and month chips in the parents calendar. **Not buttons in this sense:** list and selection rows, tiles (`TileCard`), tabs, `SegmentedControl`, checkboxes, switches, menu entries, navigation rows, steppers inside fields.
 
 **Ratchet (hard-zero, #6182).** `ui-kit/no-hand-rolled-button`: native `button`/`a`/`Link`/`NavLink`/`NavigationLink`/`role="button"` (or `label`/`span` + `cursor-pointer`) with fill or frame colour (also `moto-content-surface`, `style`; #5608) + radius + padding/height. `ui-kit/no-button-override`: such classes on `Button`/`ButtonLink`/`buttonClassName({ className })`. `ui-kit/no-grey-button-fill`: resting `bg-gray-100`–`-300`; exempt: switches, tabs, menus, `aria-pressed`, nav rows. Exceptions: `ui-kit-button-baseline.mjs`.
+
+## What a click does
+
+`ui-kit/button-needs-tooltip` (#6643): `tooltip` or `noTooltip="<Grund>"` on `Button`/`ButtonLink`, `ActionHint` around other `buttonClassName` elements, in the grow-only `TOOLTIP_SCOPE` paths of `oxlint-plugin-ui-kit.mjs`.
+
+- One sentence, ≤ ~12 words, verb in 3rd person, full stop; the consequence, not the button word. No technical words, no „Klicken Sie hier“.
+- „sofort“ when deleted or sent without a question, „moto fragt vorher nach“ before a confirmation; name who gets notified.
+- Same action, same sentence; repeated text lives in the kit piece. Translated portals: every language's catalog.
+- `disabledReason`: what is missing or comes first („Wählen Sie zuerst mindestens ein Kind aus.“), never just „Nicht möglich.“
+- `noTooltip` only if the word says it all with no side effect („Abbrechen“, „Zurück“, a pure „Speichern“); never deleting, sending, releasing, icon buttons.
+
+Examples: „Löscht die PDF sofort aus dem Anmeldeformular.“ · „Übernimmt Ihre Auswahl für die Startseite aller Mitarbeitenden.“ · „Öffnet den Rechtstext für Eltern zum Bearbeiten.“
 
 ## Several notices of the same kind
 

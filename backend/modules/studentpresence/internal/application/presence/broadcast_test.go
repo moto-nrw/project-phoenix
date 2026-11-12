@@ -118,7 +118,6 @@ func TestBroadcast_CreateVisitSendsOnePreciseRefresh(t *testing.T) {
 	eduGroupIDStr := strconv.FormatInt(eduGroup.ID, 10)
 	refreshes := tenantCallsOfType(broadcaster, active.EventDashboardCountsChanged)
 	require.Len(t, refreshes, 1, "CreateVisit must emit one aggregate refresh, not a paired dashboard event")
-	assert.Empty(t, broadcaster.CallsByMethod("all"), "dashboard refresh must not use cross-tenant BroadcastToAll")
 	assert.NotZero(t, refreshes[0].TenantID, "tenant id from the request context must reach the broadcast")
 	assert.Equal(t, strconv.FormatInt(activeGroup.ID, 10), refreshes[0].Event.ActiveGroupID)
 	require.NotNil(t, refreshes[0].Event.Data.GroupIDs, "combined refresh must carry the educational group id")
@@ -179,7 +178,6 @@ func TestBroadcast_EndVisitSendsOnePreciseRefresh(t *testing.T) {
 	eduGroupIDStr := strconv.FormatInt(eduGroup.ID, 10)
 	refreshes := tenantCallsOfType(broadcaster, active.EventDashboardCountsChanged)
 	require.Len(t, refreshes, 1, "EndVisit must emit one aggregate refresh, not a paired dashboard event")
-	assert.Empty(t, broadcaster.CallsByMethod("all"), "dashboard refresh must not use cross-tenant BroadcastToAll")
 	assert.Equal(t, strconv.FormatInt(activeGroup.ID, 10), refreshes[0].Event.ActiveGroupID)
 	require.NotNil(t, refreshes[0].Event.Data.GroupIDs, "combined refresh must carry the educational group id")
 	assert.Equal(t, []string{eduGroupIDStr}, *refreshes[0].Event.Data.GroupIDs)
@@ -327,7 +325,6 @@ func TestBroadcast_EndActivitySessionSendsBoundedRefreshes(t *testing.T) {
 	// absence as "scope unknown → refresh broadly".
 	refreshes := tenantCallsOfType(broadcaster, active.EventDashboardCountsChanged)
 	require.Len(t, refreshes, 2, "batch checkout and activity end each emit one bounded refresh")
-	assert.Empty(t, broadcaster.CallsByMethod("all"), "dashboard refresh must not use cross-tenant BroadcastToAll")
 	for _, c := range refreshes {
 		assert.Nil(t, c.Event.Data.GroupIDs, "no educational group -> group_ids must be omitted entirely")
 		assert.Equal(t, strconv.FormatInt(session.ID, 10), c.Event.ActiveGroupID)
@@ -538,7 +535,6 @@ func TestBroadcast_EndActivitySessionBatchesPerEducationGroup(t *testing.T) {
 	assert.Equal(t, "activity_ended", *refreshes[1].Event.Data.Reason)
 	assert.Nil(t, refreshes[1].Event.Data.GroupIDs, "activity-end refresh is deliberately unscoped")
 	assert.Empty(t, tenantCallsOfType(broadcaster, active.EventActiveSupervisionChanged))
-	assert.Empty(t, broadcaster.CallsByMethod("all"), "dashboard refresh must not use cross-tenant BroadcastToAll")
 }
 
 // assignStudentToEducationGroup sets a student's OGS group_id in the DB so the
@@ -586,7 +582,6 @@ func TestBroadcast_RoomlessCheckoutSendsDashboardCounts(t *testing.T) {
 
 	counts := tenantCallsOfType(broadcaster, active.EventDashboardCountsChanged)
 	require.Len(t, counts, 1, "expected dashboard_counts_changed after the checkout")
-	assert.Empty(t, broadcaster.CallsByMethod("all"), "dashboard refresh must not use cross-tenant BroadcastToAll")
 	assert.Nil(t, counts[0].Event.Data.GroupIDs, "no educational group -> group_ids must be omitted entirely")
 }
 

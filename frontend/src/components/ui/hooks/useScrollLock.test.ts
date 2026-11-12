@@ -157,6 +157,36 @@ describe("useScrollLock", () => {
       });
     });
 
+    it.each([
+      "<button><span>Save</span></button>",
+      '<a href="/test"><span>Link</span></a>',
+      "<input />",
+      "<textarea></textarea>",
+      "<select></select>",
+      '<div contenteditable="true"><span>Edit</span></div>',
+      '<div role="button"><span>Action</span></div>',
+    ])("preserves scroll keys on interactive targets: %s", (markup) => {
+      renderHook(() => useScrollLock(true));
+      const container = document.createElement("div");
+      container.innerHTML = markup;
+      document.body.appendChild(container);
+      try {
+        const target =
+          container.querySelector("span") ?? container.firstElementChild!;
+        for (const key of scrollKeys) {
+          const event = new KeyboardEvent("keydown", {
+            key,
+            bubbles: true,
+            cancelable: true,
+          });
+          target.dispatchEvent(event);
+          expect(event.defaultPrevented).toBe(false);
+        }
+      } finally {
+        container.remove();
+      }
+    });
+
     it("should not prevent non-scroll keys", () => {
       renderHook(() => useScrollLock(true));
 
@@ -272,6 +302,33 @@ describe("useScrollLock", () => {
       unmount();
 
       expect(document.documentElement.style.overflow).toBe("");
+    });
+
+    it("should restore html overflow when the lower of two stacked locks releases first", () => {
+      document.documentElement.style.overflow = "";
+
+      // A form modal and the confirmation opened over it: both unmount in one
+      // commit, the form (opened first) before the confirmation.
+      const lower = renderHook(() => useScrollLock(true));
+      const upper = renderHook(() => useScrollLock(true));
+
+      lower.unmount();
+      expect(document.documentElement.style.overflow).toBe("hidden");
+
+      upper.unmount();
+      expect(document.documentElement.style.overflow).toBe("");
+    });
+
+    it("should keep a page's own overflow value across stacked locks", () => {
+      document.documentElement.style.overflow = "clip";
+
+      const lower = renderHook(() => useScrollLock(true));
+      const upper = renderHook(() => useScrollLock(true));
+      upper.unmount();
+      lower.unmount();
+
+      expect(document.documentElement.style.overflow).toBe("clip");
+      document.documentElement.style.overflow = "";
     });
   });
 });

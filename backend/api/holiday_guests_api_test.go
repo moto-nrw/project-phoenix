@@ -24,6 +24,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-nrw/project-phoenix/modules/enrollment"
 	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
@@ -91,11 +92,10 @@ func newHolidayGuestFixture(t *testing.T, name string) holidayGuestFixture {
 	clock := func() calendar.Date { return f.today.Load().(calendar.Date) }
 	carePlan, err := owners.NewUnobservedCarePlan(testpkg.NewDatabase(t, f.db), owners.MustNewUnobservedTimetable(testpkg.NewDatabase(t, f.db)), persons)
 	require.NoError(t, err)
-	staff, err := NewRFIDTestPeople(testpkg.NewDatabase(t, f.db))
-	require.NoError(t, err)
 	organizations, err := owners.NewOrganizationTenancy(testpkg.NewDatabase(t, f.db))
 	require.NoError(t, err)
-	guests := owners.NewHolidayGuests(persons, organizations, carePlan, staff, accessLog, testHealthCipher(), clock)
+	students := owners.MustNewMembershipTestRepositories(testpkg.NewDatabase(t, f.db)).Student
+	guests := owners.NewHolidayGuests(persons, students, organizations, carePlan, accessLog, testHealthCipher(), clock)
 	unit := testpkg.TenantRuntime(t, f.db)
 	router := chi.NewRouter()
 	router.Use(func(next http.Handler) http.Handler {
@@ -337,7 +337,7 @@ func TestHolidayGuestsJoinTheGroupOfTheHostingSchoolOnlyFromAConfirmedBooking(t 
 		for _, index := range weeks {
 			bookings = append(bookings, map[string]any{"week_id": f.offer.Weeks[index].ID, "time_model_id": f.offer.Weeks[index].TimeModels[0].ID})
 		}
-		path := fmt.Sprintf("%s/registrations/%d/children/%d/bookings", holidayPeriodPath(f.periodID(t)), f.siblings, benChild)
+		path := holidayRebookPath(f.periodID(t), f.siblings, benChild)
 		rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, path, map[string]any{"bookings": bookings})
 		require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	}
@@ -429,7 +429,7 @@ func TestHolidayGuestsLeaveGroupAndCheckInAfterTheWeek(t *testing.T) {
 	assert.Zero(t, contacts, "the contacts are deleted after the read-only days")
 }
 
-func TestHolidayGuestReconciliationSurvivesAMissingAuthorAndReplansOnTheNextGroupChoice(t *testing.T) {
+func TestHolidayGuestReconciliationPlansWithoutAStaffAuthorAndReplansOnTheNextGroupChoice(t *testing.T) {
 	t.Parallel()
 	f := newHolidayGuestFixture(t, "Träger Feriengäste Abgleich")
 	f.today.Store(calendar.NewDate(2099, 7, 6)) // the first day of the week
@@ -439,7 +439,8 @@ func TestHolidayGuestReconciliationSurvivesAMissingAuthorAndReplansOnTheNextGrou
 	require.Equal(t, http.StatusOK, f.assign(t, lead, week, f.group).Code)
 
 	// The account that picked the group loses its staff record: the hourly
-	// run still copies the confirmed guest, only its days stay unplanned.
+	// run copies the confirmed guest and plans its days all the same, since
+	// the booking is their author (ADR 0120, addendum of 2026-11-11).
 	stranger := testpkg.CreateTestAccount(t, f.db, "feriengast-ohne-personal")
 	_, err := f.db.ExecContext(t.Context(), `UPDATE enrollment.holiday_host_groups SET assigned_by_account_id = ? WHERE tenant_id = ?`,
 		stranger.ID, f.nord)
@@ -447,8 +448,10 @@ func TestHolidayGuestReconciliationSurvivesAMissingAuthorAndReplansOnTheNextGrou
 	f.confirm(t, f.siblings, "confirm")
 	f.reconcile(t)
 	ben := f.roster(t, weekDay)["Ben Muster"]
-	require.NotZero(t, ben, "the guest joins the group although its days cannot be planned")
-	assert.Empty(t, f.careDays(t, ben))
+	require.NotZero(t, ben, "the guest joins the group")
+	assert.Equal(t, []string{
+		"2099-07-06 08:00-13:00", "2099-07-07 08:00-13:00", "2099-07-08 08:00-13:00", "2099-07-09 08:00-13:00", "2099-07-10 08:00-13:00",
+	}, f.careDays(t, ben), "the days are planned although the account has no staff record")
 
 	// The group is deleted and Ben rebooked to "bis 16 Uhr" meanwhile: the
 	// next group choice plans every day with the new times.
@@ -457,17 +460,100 @@ func TestHolidayGuestReconciliationSurvivesAMissingAuthorAndReplansOnTheNextGrou
 	var benChild int64
 	require.NoError(t, f.db.NewRaw(`SELECT id FROM enrollment.holiday_registration_children WHERE holiday_registration_id = ? AND first_name = 'Ben'`,
 		f.siblings).Scan(t.Context(), &benChild))
-	path := fmt.Sprintf("%s/registrations/%d/children/%d/bookings", holidayPeriodPath(f.periodID(t)), f.siblings, benChild)
+	path := holidayRebookPath(f.periodID(t), f.siblings, benChild)
 	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, path, map[string]any{"bookings": []map[string]any{
 		{"week_id": week, "time_model_id": f.offer.Weeks[0].TimeModels[1].ID},
 	}})
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	f.reconcile(t)
-	assert.Empty(t, f.careDays(t, ben), "without a group nobody is there to plan the days")
+	assert.Equal(t, []string{
+		"2099-07-06 08:00-13:00", "2099-07-07 08:00-13:00", "2099-07-08 08:00-13:00", "2099-07-09 08:00-13:00", "2099-07-10 08:00-13:00",
+	}, f.careDays(t, ben), "without a group the week keeps its plan until the next group choice")
 
 	again := testpkg.CreateTestEducationGroupForTenant(t, f.db, f.nord, "Feriengruppe neu").ID
 	require.Equal(t, http.StatusOK, f.assign(t, lead, week, again).Code)
 	assert.Equal(t, []string{
 		"2099-07-06 08:00-16:00", "2099-07-07 08:00-16:00", "2099-07-08 08:00-16:00", "2099-07-09 08:00-16:00", "2099-07-10 08:00-16:00",
 	}, f.careDays(t, ben), "the group choice plans the days with the times booked meanwhile")
+}
+
+// holidayGuestDayRows counts the planned arrival and pickup rows of a child
+// and how many of them carry the holiday booking as source without a staff
+// author.
+func (f holidayGuestFixture) holidayGuestDayRows(t *testing.T, student int64) (arrivals, pickups, fromBooking int) {
+	t.Helper()
+	require.NoError(t, f.db.NewRaw(`SELECT
+			(SELECT COUNT(*) FROM schedule.student_arrival_exceptions WHERE student_id = ?),
+			(SELECT COUNT(*) FROM schedule.student_pickup_exceptions WHERE student_id = ?),
+			(SELECT COUNT(*) FROM schedule.student_arrival_exceptions WHERE student_id = ? AND source = 'holiday_booking' AND created_by IS NULL AND reason = 'Ferienbetreuung')
+			+ (SELECT COUNT(*) FROM schedule.student_pickup_exceptions WHERE student_id = ? AND source = 'holiday_booking' AND created_by IS NULL AND reason = 'Ferienbetreuung')`,
+		student, student, student, student).Scan(t.Context(), &arrivals, &pickups, &fromBooking))
+	return arrivals, pickups, fromBooking
+}
+
+// A Träger office sets the week up for the hosting school with an account
+// that has a staff record in another school of the Träger only. The booked
+// days of the guests are planned all the same (ADR 0120, addendum of
+// 2026-11-11): before, they stayed unplanned while the group choice reported
+// success.
+func TestHolidayGuestDaysArePlannedWhenAnAccountWithoutStaffRecordPicksTheGroup(t *testing.T) {
+	t.Parallel()
+	f := newHolidayGuestFixture(t, "Träger Feriengäste Büro")
+	f.today.Store(calendar.NewDate(2099, 7, 6)) // the first day of the week
+	week := f.offer.Weeks[0].ID
+	_, account := testpkg.CreateTestStaffWithAccountForTenant(t, f.db, f.office.schools[1], "Tara", "Traegerbuero")
+	office := testpkg.MintTestJWT(t, sessiontoken.AppClaims{
+		ID: int(account.ID), Sub: account.Email, Username: "traegerbuero", FirstName: "Tara", LastName: "Traegerbuero",
+		Roles: []string{"admin"}, TenantID: f.nord, Permissions: []string{permissions.ConfigRead, permissions.UsersCreate, permissions.UsersRead},
+	})
+	var staffInNord int
+	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM users.staff_school_memberships AS m JOIN users.persons AS p ON p.id = m.person_id
+		WHERE m.tenant_id = ? AND p.account_id = ?`, f.nord, account.ID).Scan(t.Context(), &staffInNord))
+	require.Zero(t, staffInNord, "the account has no staff record in the hosting school")
+	f.confirm(t, f.siblings, "confirm")
+
+	rec := f.assign(t, office, week, f.group)
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	ben := f.roster(t, calendar.NewDate(2099, 7, 8))["Ben Muster"]
+	require.NotZero(t, ben)
+	assert.Equal(t, []string{
+		"2099-07-06 08:00-13:00", "2099-07-07 08:00-13:00", "2099-07-08 08:00-13:00", "2099-07-09 08:00-13:00", "2099-07-10 08:00-13:00",
+	}, f.careDays(t, ben), "each booked day expects the guest with the times of its time model")
+	arrivals, pickups, fromBooking := f.holidayGuestDayRows(t, ben)
+	assert.Equal(t, 5, arrivals)
+	assert.Equal(t, 5, pickups)
+	assert.Equal(t, 10, fromBooking, "the booking is the author: source holiday_booking, no staff member")
+}
+
+// A guest copied before the addendum of 2026-11-11 kept no planned day when
+// the account that picked the group had no staff record. The hourly
+// reconciliation plans its days without anyone picking the group again,
+// once: a second run writes no day twice.
+func TestHolidayGuestReconciliationPlansTheDaysOfACopiedGuestWithoutDays(t *testing.T) {
+	t.Parallel()
+	f := newHolidayGuestFixture(t, "Träger Feriengäste Nachplanung")
+	f.today.Store(calendar.NewDate(2099, 7, 6)) // the first day of the week
+	week := f.offer.Weeks[0].ID
+	lead := f.staffOf(t, f.nord, permissions.ConfigRead, permissions.UsersCreate, permissions.UsersRead)
+	f.confirm(t, f.siblings, "confirm")
+	require.Equal(t, http.StatusOK, f.assign(t, lead, week, f.group).Code)
+	ben := f.roster(t, calendar.NewDate(2099, 7, 8))["Ben Muster"]
+	require.NotZero(t, ben)
+
+	// The state the copy was left in: the guest is in the group, no day planned.
+	for _, table := range []string{"schedule.student_arrival_exceptions", "schedule.student_pickup_exceptions"} {
+		_, err := f.db.ExecContext(t.Context(), `DELETE FROM `+table+` WHERE student_id = ?`, ben)
+		require.NoError(t, err)
+	}
+	require.Empty(t, f.careDays(t, ben))
+
+	f.reconcile(t)
+	assert.Equal(t, []string{
+		"2099-07-06 08:00-13:00", "2099-07-07 08:00-13:00", "2099-07-08 08:00-13:00", "2099-07-09 08:00-13:00", "2099-07-10 08:00-13:00",
+	}, f.careDays(t, ben), "the hourly reconciliation plans the missing days")
+	f.reconcile(t)
+	arrivals, pickups, fromBooking := f.holidayGuestDayRows(t, ben)
+	assert.Equal(t, 5, arrivals, "a second run plans no day twice")
+	assert.Equal(t, 5, pickups, "a second run plans no day twice")
+	assert.Equal(t, 10, fromBooking)
 }

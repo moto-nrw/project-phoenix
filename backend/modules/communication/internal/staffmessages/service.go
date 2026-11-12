@@ -118,6 +118,10 @@ type Config struct {
 	// consent.
 	Notifier    deliveryPorts.NotificationSender
 	Preferences deliveryPorts.NotificationOptIns
+
+	// Attachments stores the photos and files of messages (#6685). Without
+	// it uploads are refused; messages without files are unaffected.
+	Attachments deliveryPorts.MessageAttachmentStore
 }
 
 // NewService wires an internal messaging service.
@@ -464,7 +468,7 @@ func (s *Service) postMessage(ctx context.Context, threadID int64, body string) 
 	if err != nil {
 		return nil, nil, err
 	}
-	trimmed, err := validateBody(body)
+	trimmed, err := validateBody(ctx, body)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -535,9 +539,9 @@ func (s *Service) PostMessageWithReceipt(ctx context.Context, threadID int64, bo
 }
 
 // validateBody trims and range-checks a message body.
-func validateBody(body string) (string, error) {
+func validateBody(ctx context.Context, body string) (string, error) {
 	trimmed := strings.TrimSpace(body)
-	if trimmed == "" {
+	if trimmed == "" && !deliveryPorts.HasMessageAttachments(ctx) {
 		return "", ErrEmptyMessage
 	}
 	if len([]rune(trimmed)) > maxMessageLen {
@@ -609,7 +613,7 @@ func (s *Service) appendLockedMessage(ctx context.Context, threadID, accountID i
 	if message.SendReplayed {
 		return message, nil
 	}
-	if err := s.ThreadRepo.TouchLastMessage(ctx, threadID, message.CreatedAt, message.ID, accountID, trimmed); err != nil {
+	if err := s.ThreadRepo.TouchLastMessage(ctx, threadID, message.CreatedAt, message.ID, accountID, deliveryPorts.MessagePreview(trimmed, message.Attachments)); err != nil {
 		return nil, err
 	}
 

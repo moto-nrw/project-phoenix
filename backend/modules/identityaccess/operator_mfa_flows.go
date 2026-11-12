@@ -30,6 +30,17 @@ const (
 	OperatorMFATrustedDeviceDuration = 90 * 24 * time.Hour
 )
 
+// OperatorMFAProof is what a redeemed operator code hands the exchange: the
+// operator and the credential generation of the password check the code
+// stems from (#6308). The enrollment, the session mint and the remembered
+// device hold it to the operator's current generation under the operator lock
+// a password write takes, so a proof from before a password change earns none
+// of them (#6459).
+type OperatorMFAProof struct {
+	OperatorID           int64
+	CredentialGeneration int64
+}
+
 // OperatorMFAFlows is the capability the operator login and the operator MFA
 // routes consume.
 type OperatorMFAFlows interface {
@@ -40,21 +51,30 @@ type OperatorMFAFlows interface {
 	OperatorTrustedDeviceDays() int
 
 	// StartOperatorMFAChallenge mails a code and returns the challenge JWT.
-	StartOperatorMFAChallenge(ctx context.Context, operatorID int64, ip net.IP) (string, error)
-	VerifyOperatorMFAChallenge(ctx context.Context, challengeToken, code string) (int64, error)
+	// credentialGeneration names the generation the password check behind
+	// the code read (the enrollment token's); nothing is issued once the
+	// operator holds another. An in-session start passes none.
+	StartOperatorMFAChallenge(ctx context.Context, operatorID int64, ip net.IP, credentialGeneration *int64) (string, error)
+	VerifyOperatorMFAChallenge(ctx context.Context, challengeToken, code string) (OperatorMFAProof, error)
 	// ResendOperatorMFAChallenge returns the renewed JWT so the frontend can
 	// replace its in-flight token.
 	ResendOperatorMFAChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error)
 	// VerifyOperatorMFACode is the JWT-less sibling used once the operator
-	// is already authenticated out of band.
-	VerifyOperatorMFACode(ctx context.Context, operatorID int64, code string) error
+	// is already authenticated out of band; credentialGeneration as for
+	// StartOperatorMFAChallenge.
+	VerifyOperatorMFACode(ctx context.Context, operatorID int64, code string, credentialGeneration *int64) error
 
-	EnrollOperatorMFA(ctx context.Context, operatorID int64) error
+	// EnrollOperatorMFA records the e-mail enrollment the proof's redeemed
+	// code confirms, only while the operator still holds the proof's
+	// credential generation; otherwise ErrOperatorInvalidCredentials.
+	EnrollOperatorMFA(ctx context.Context, proof OperatorMFAProof) error
 	// DisableOperatorMFA removes the enrollment, revokes every trusted
 	// device and resets the lockout counter in one transaction.
 	DisableOperatorMFA(ctx context.Context, operatorID int64) error
 
-	IssueOperatorTrustedDevice(ctx context.Context, operatorID int64, userAgent string, ip net.IP) (cookieValue string, expiresAt time.Time, err error)
+	// IssueOperatorTrustedDevice remembers the device only while the
+	// operator still holds the proof's credential generation.
+	IssueOperatorTrustedDevice(ctx context.Context, proof OperatorMFAProof, userAgent string, ip net.IP) (cookieValue string, expiresAt time.Time, err error)
 	VerifyOperatorTrustedDevice(ctx context.Context, operatorID int64, signedCookie string) (bool, error)
 	ListOperatorTrustedDevices(ctx context.Context, operatorID int64) ([]OperatorTrustedDevice, error)
 	// RevokeOperatorTrustedDeviceOwned proves the device belongs to the

@@ -158,7 +158,7 @@ func TestLoginWithMFAGate_MFARequiredAndEnrolled_ReturnsChallenge(t *testing.T) 
 
 	sc := newLoginGateScenario(t)
 	sc.setOverride(identityaccess.MFAAdminOverrideForceOn)
-	require.NoError(t, sc.mfa.EnrollMFA(context.Background(), sc.accountID),
+	require.NoError(t, enrollMFA(context.Background(), t, sc.db, sc.mfa, sc.accountID),
 		"enrolment row must exist for the MFA-required-and-enrolled branch")
 
 	result, err := sc.svc.LoginWithMFAGate(

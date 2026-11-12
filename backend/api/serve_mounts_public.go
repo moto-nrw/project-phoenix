@@ -8,20 +8,38 @@ import (
 	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
 
 	emailWebhooksHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/webhooks"
+	dataReturnHTTP "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/datareturn"
 
 	"github.com/go-chi/chi/v5"
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
 	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
+	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-nrw/project-phoenix/roots/owners"
 )
 
 // mountPublicRoutes registers unauthenticated root-level routes: the
 // landing/health probes, the public image/legal-document servers, and the
 // bearer-protected metrics endpoint.
 // mountPublic mounts everything that needs no session.
-func mountPublic(root chi.Router, metricsToken string, db transactionruntime.Database, emailWebhooks emailWebhooksHTTP.Ingest) error {
+func mountPublic(root chi.Router, metricsToken string, db transactionruntime.Database, emailWebhooks emailWebhooksHTTP.Ingest, rateLimitEnabled bool) {
 	mountPublicRoutes(root, metricsToken, db.Pool().PingContext)
-	mountEmailWebhooks(root, emailWebhooks)
-	return nil
+	mountEmailWebhooks(root, emailWebhooks, rateLimitEnabled)
+	// The register and the retrieval of the return package (Data Act,
+	// ADR 0201, ADR 0203): register and OpenAPI without a session, the
+	// released package only to the bearer of its token, behind its own rate limit.
+	// Its wiring is complete by construction; a failure is a programming error.
+	packages, err := organizationCompose.NewDataReturn(db.Pool(), owners.NewDataReturnCrypto(), organizationtenancy.DataReturnStoreDir, slog.Default().With("handler", "data-return"))
+	if err != nil {
+		panic(err)
+	}
+	mountDataReturn(root, packages, dataReturnRateLimit(rateLimitEnabled))
+}
+
+// mountDataReturn mounts the register, the OpenAPI description and the
+// retrieval of released packages.
+func mountDataReturn(root chi.Router, packages organizationtenancy.DataReturn, limit func(http.Handler) http.Handler) {
+	root.Mount("/public/data-return", dataReturnHTTP.NewResource(packages, limit).Router())
 }
 
 func mountPublicRoutes(root chi.Router, metricsToken string, ping func(context.Context) error) {

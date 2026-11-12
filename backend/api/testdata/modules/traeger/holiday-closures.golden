@@ -1,0 +1,4 @@
+GET /traeger/holiday-closures/pending/ -> basis
+POST /traeger/holiday-closures/pending/notify -> basis
+POST /traeger/holiday-closures/pending/{id}/notify -> basis
+POST /traeger/holiday-closures/preview -> basis

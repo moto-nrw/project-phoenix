@@ -7,8 +7,14 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/auditlog"
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/guardianhold"
 	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
 )
+
+// GuardianHold runs People Directory's guardian hold for the child write guard (#6638).
+func GuardianHold(ctx context.Context, locks care.HoldLocks, req care.HoldRequest) error {
+	return guardianhold.Hold(ctx, guardianhold.Locks(locks), guardianhold.Request(req))
+}
 
 // PeopleDirectory is the People Directory surface the portal writes and reads
 // guardian and student rows through.

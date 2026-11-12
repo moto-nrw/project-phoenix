@@ -80,6 +80,10 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
+import {
+  useRefreshAfterWrite,
+  type RefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   formatDate,
@@ -302,8 +306,10 @@ export function AbwesenheitenTab({
   // silent skips the loading flag: the loading boundary unmounts the
   // whole tab subtree including any open modal, which would wipe the
   // SickReportModal's success state right after a report (#1843).
+  const reloadRequest = useRef(0);
   const reload = useCallback(
-    async (opts?: { silent?: boolean }) => {
+    async (opts?: { silent?: boolean; rethrow?: boolean }) => {
+      const requestId = ++reloadRequest.current;
       if (!opts?.silent) {
         setLoading(true);
       }
@@ -323,6 +329,7 @@ export function AbwesenheitenTab({
             absenceTypeService.getAllowance(type.id, staffId, year),
           ),
         );
+        if (requestId !== reloadRequest.current) return;
         setQuota(q);
         setAbsences(abs);
         setLoadedYear(year);
@@ -339,17 +346,21 @@ export function AbwesenheitenTab({
         // Sidebar pending counter (#1419) listens for this event.
         dispatchAbsencesRefresh();
       } catch (err) {
+        if (requestId !== reloadRequest.current) return;
         logger.error("load_failed", {
           staff_id: staffId,
           error: err instanceof Error ? err.message : String(err),
         });
         setLoadFailed(true);
+        // After a write the caller shows the failure as a reload of a saved
+        // change (useRefreshAfterWrite, #6652).
+        if (opts?.rethrow) throw err;
         void showLoadError(err, {
           object: "die Übersicht der Abwesenheiten",
           retry: () => void latestReloadRef.current(),
         });
       } finally {
-        setLoading(false);
+        if (requestId === reloadRequest.current) setLoading(false);
       }
     },
     [staff, staffId, year, refreshPendingBadges, showLoadError, clearLoadError],
@@ -357,11 +368,28 @@ export function AbwesenheitenTab({
   useLayoutEffect(() => {
     latestReloadRef.current = () => reload();
   });
+  // A write's reload runs after the write; its failure stands above the tab
+  // as a load error, never as an error of the write or its closed dialog
+  // (#6652).
+  const afterWrite = useRefreshAfterWrite(
+    "die Anzeige der Abwesenheiten",
+    async (options: { silent?: boolean; planCaches?: boolean } = {}) => {
+      await Promise.all([
+        reload({ silent: options.silent, rethrow: true }),
+        options.planCaches ? refreshPlanCaches() : undefined,
+      ]);
+    },
+  );
+
+  const cancelReload = useCallback(() => {
+    ++reloadRequest.current;
+  }, []);
 
   useEffect(() => {
     // Ein Jahreswechsel lädt still nach: der Reiter bleibt stehen.
     void reload({ silent: true });
-  }, [reload]);
+    return cancelReload;
+  }, [reload, cancelReload]);
 
   const pending = useMemo(() => pendingAbsences(absences), [absences]);
   const upcoming = useMemo(
@@ -395,8 +423,6 @@ export function AbwesenheitenTab({
     setPendingActionId(row.id);
     try {
       await staffAbsenceService.approve(row.id);
-      toast.success("Der Antrag ist genehmigt.");
-      await reload();
     } catch (err) {
       logger.error("absence_approve_failed", {
         absence_id: row.id,
@@ -406,9 +432,12 @@ export function AbwesenheitenTab({
         object: "die Anfrage",
         retry: () => void handleApprove(row),
       });
-    } finally {
       setPendingActionId(null);
+      return;
     }
+    setPendingActionId(null);
+    toast.success("Der Antrag ist genehmigt.");
+    await afterWrite.refresh();
   };
 
   const handleDelete = async () => {
@@ -417,9 +446,6 @@ export function AbwesenheitenTab({
     deleteErrors.clear();
     try {
       await staffAbsenceService.deleteAbsence(staffId, deleteTarget.id);
-      toast.success(`${absenceRowActionNoun(deleteTarget)} ist gelöscht.`);
-      setDeleteTarget(null);
-      await Promise.all([refreshPlanCaches(), reload()]);
     } catch (err) {
       logger.error("absence_delete_failed", {
         absence_id: deleteTarget.id,
@@ -429,14 +455,17 @@ export function AbwesenheitenTab({
         object: "die Abwesenheit",
         retry: () => void handleDelete(),
       });
-    } finally {
       setDeleteLoading(false);
+      return;
     }
+    setDeleteLoading(false);
+    toast.success(`${absenceRowActionNoun(deleteTarget)} ist gelöscht.`);
+    setDeleteTarget(null);
+    await afterWrite.refresh({ planCaches: true });
   };
 
-  const afterBooking = async () => {
-    await Promise.all([refreshPlanCaches(), reload({ silent: true })]);
-  };
+  const afterBooking = () =>
+    afterWrite.refresh({ silent: true, planCaches: true });
 
   const content = (
     <div className="space-y-5">
@@ -533,9 +562,9 @@ export function AbwesenheitenTab({
                   quota={quota}
                   year={year}
                   onCancel={() => setEditing(null)}
-                  onSaved={async () => {
+                  onSaved={() => {
                     setEditing(null);
-                    await reload({ silent: true });
+                    return afterWrite.refresh({ silent: true });
                   }}
                 />
               ) : null
@@ -568,9 +597,9 @@ export function AbwesenheitenTab({
                     type={entry.type}
                     summary={entry.summary}
                     onCancel={() => setEditing(null)}
-                    onSaved={async () => {
+                    onSaved={() => {
                       setEditing(null);
-                      await reload({ silent: true });
+                      return afterWrite.refresh({ silent: true });
                     }}
                   />
                 ) : null
@@ -761,9 +790,9 @@ export function AbwesenheitenTab({
         <DenyAbsenceModal
           absence={denyModal}
           onClose={() => setDenyModal(null)}
-          onDenied={async () => {
+          onDenied={() => {
             setDenyModal(null);
-            await reload();
+            return afterWrite.refresh();
           }}
         />
       )}
@@ -771,9 +800,9 @@ export function AbwesenheitenTab({
         <QuestionAbsenceModal
           absence={questionModal}
           onClose={() => setQuestionModal(null)}
-          onQuestioned={async () => {
+          onQuestioned={() => {
             setQuestionModal(null);
-            await reload();
+            return afterWrite.refresh();
           }}
         />
       )}
@@ -782,9 +811,9 @@ export function AbwesenheitenTab({
           staffId={staffId}
           opening={openingDeleteTarget}
           onClose={() => setOpeningDeleteTarget(null)}
-          onDeleted={async () => {
+          onDeleted={() => {
             setOpeningDeleteTarget(null);
-            await reload();
+            return afterWrite.refresh();
           }}
         />
       )}
@@ -798,9 +827,9 @@ export function AbwesenheitenTab({
             setOpeningModal(false);
             setOpeningDeleteTarget(opening);
           }}
-          onSaved={async () => {
+          onSaved={() => {
             setOpeningModal(false);
-            await reload();
+            return afterWrite.refresh();
           }}
         />
       )}
@@ -810,10 +839,10 @@ export function AbwesenheitenTab({
           types={absenceTypes}
           absences={selectedForRebook}
           onClose={() => setRebookOpen(false)}
-          onSaved={async () => {
+          onSaved={() => {
             setRebookOpen(false);
             setRebookSelection(null);
-            await afterBooking();
+            return afterBooking();
           }}
         />
       ) : null}
@@ -822,16 +851,21 @@ export function AbwesenheitenTab({
           staff={staff}
           types={absenceTypes}
           onClose={() => setBookingOpen(false)}
-          onSaved={async () => {
+          onSaved={() => {
             setBookingOpen(false);
-            await afterBooking();
+            return afterBooking();
           }}
         />
       ) : null}
     </div>
   );
 
-  const loadAlert = <LoadErrorAlert error={load.error} />;
+  const loadAlert = (
+    <>
+      <LoadErrorAlert error={load.error} />
+      <LoadErrorAlert error={afterWrite.error} />
+    </>
+  );
   // Gehören die angezeigten Zahlen zu einem anderen Jahr (oder gab es noch
   // keine), steht nur der Fehler da, nie ein falscher oder leerer Stand.
   const body =
@@ -875,7 +909,8 @@ function VacationOpeningDeleteModal({
   readonly staffId: string;
   readonly opening: StaffVacationOpening;
   readonly onClose: () => void;
-  readonly onDeleted: () => Promise<void>;
+  /** Closes the dialog and reloads; never rejects (#6652). */
+  readonly onDeleted: RefreshAfterWrite;
 }) {
   const toast = useToast();
   const [loading, setLoading] = useState(false);
@@ -887,7 +922,6 @@ function VacationOpeningDeleteModal({
     try {
       await staffAbsenceService.deleteVacationOpening(staffId, opening.year);
       toast.success("Die Urlaubs-Übernahme ist gelöscht.");
-      await onDeleted();
     } catch (err) {
       logger.error("vacation_opening_delete_failed", {
         staff_id: staffId,
@@ -897,9 +931,11 @@ function VacationOpeningDeleteModal({
         object: "die Urlaubs-Übernahme",
         retry: () => void handleConfirm(),
       });
-    } finally {
       setLoading(false);
+      return;
     }
+    setLoading(false);
+    await onDeleted();
   };
 
   return (
@@ -1118,7 +1154,8 @@ function VacationOpeningModal({
   readonly quota: StaffVacationQuotaSummary;
   readonly onClose: () => void;
   readonly onDelete: (opening: StaffVacationOpening) => void;
-  readonly onSaved: () => void | Promise<void>;
+  /** Closes the form and reloads; never rejects (#6652). */
+  readonly onSaved: RefreshAfterWrite;
 }) {
   const existing = quota.opening ?? null;
   const [effectiveDate, setEffectiveDate] = useState("");
@@ -1166,7 +1203,6 @@ function VacationOpeningModal({
         note: note.trim(),
       });
       toast.success("Die Urlaubs-Übernahme ist gespeichert.");
-      await onSaved();
     } catch (err) {
       logger.error("vacation_opening_save_failed", {
         staff_id: staffId,
@@ -1176,9 +1212,11 @@ function VacationOpeningModal({
         object: "die Urlaubs-Übernahme",
         retry: () => void latestSubmitRef.current(),
       });
-    } finally {
       setSubmitting(false);
+      return;
     }
+    setSubmitting(false);
+    await onSaved();
   };
 
   useLayoutEffect(() => {
@@ -1376,7 +1414,8 @@ function QuotaEditForm({
   readonly quota: StaffVacationQuotaSummary;
   readonly year: number;
   readonly onCancel: () => void;
-  readonly onSaved: () => void | Promise<void>;
+  /** Closes the form and reloads; never rejects (#6652). */
+  readonly onSaved: RefreshAfterWrite;
 }) {
   const [entitled, setEntitled] = useState(String(quota.entitled_days));
   const [carryover, setCarryover] = useState(String(quota.carryover_days));
@@ -1410,7 +1449,6 @@ function QuotaEditForm({
         reason: reason.trim(),
       });
       toast.success("Der Urlaubsanspruch ist gespeichert.");
-      await onSaved();
     } catch (err) {
       logger.error("quota_save_failed", {
         staff_id: staffId,
@@ -1420,9 +1458,11 @@ function QuotaEditForm({
         object: "die Änderung am Urlaubsanspruch",
         retry: () => void latestSaveRef.current(),
       });
-    } finally {
       setSaving(false);
+      return;
     }
+    setSaving(false);
+    await onSaved();
   };
 
   useLayoutEffect(() => {

@@ -8,6 +8,7 @@ import (
 	"time"
 
 	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
 	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
 	emailWebhooksHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/webhooks"
 
@@ -73,8 +74,8 @@ func mountRequestFeed(root, tenant chi.Router, db transactionruntime.Database, l
 // is the credential and the school comes from the matched mail.
 const emailWebhookPath = "/webhooks"
 
-func mountEmailWebhooks(root chi.Router, ingest emailWebhooksHTTP.Ingest) {
-	root.Mount(emailWebhookPath, emailWebhooksHTTP.NewResource(ingest, renderEmailWebhookFailure, emailWebhookRateLimit()).Router())
+func mountEmailWebhooks(root chi.Router, ingest emailWebhooksHTTP.Ingest, rateLimitEnabled bool) {
+	root.Mount(emailWebhookPath, emailWebhooksHTTP.NewResource(ingest, renderEmailWebhookFailure, emailWebhookRateLimit(rateLimitEnabled)).Router())
 }
 
 // emailWebhookFailureRules answer by what the provider should do next: it
@@ -149,14 +150,16 @@ func mountPeopleRoutes(
 // mountCommunicationRoutes serves parent messages, announcements and surveys,
 // staff reminders, the PWA usage report and the platform announcements under /api.
 func mountCommunicationRoutes(
-	tenant chi.Router, chat owners.CommunicationMessaging, announcements communicationModule.ParentAnnouncementCapability,
+	tenant chi.Router, logger *slog.Logger, chat owners.CommunicationMessaging, announcements communicationModule.ParentAnnouncementCapability,
 	reminders reminder.Capability, devices owners.DeliveryDevices, communication communicationModule.Capability,
 ) error {
 	surveys, err := communicationModule.SurveysOf(announcements)
 	if err != nil {
 		return err
 	}
-	tenant.Mount("/messages", messagingAPI.NewResource(chat.Messaging, chat.GroupThreads).Router(ProtectedTenantRoutes))
+	// Fotos und Dateien in den Nachrichten an Eltern (#6685), hinter demselben Recht wie die Nachrichten.
+	attachments := newMessageAttachmentRoutes(chat.ParentAttachments, logger.With("handler", "message-attachments"), apiCommon.RequiresPermission(permissions.UsersRead))
+	tenant.Mount("/messages", messagingAPI.NewResource(chat.Messaging, chat.GroupThreads).Router(ProtectedTenantRoutesWith(attachments.Register)))
 	tenant.Mount("/parent-announcements", announcementAPI.NewResource(announcements, newDeclarationReports()).Router(ProtectedTenantRoutes))
 	// Umfragen an Eltern oder Mitarbeitende (#4781).
 	tenant.Mount("/surveys", announcementAPI.NewSurveyResource(surveys, newDeclarationReports()).Router(ProtectedTenantRoutes))

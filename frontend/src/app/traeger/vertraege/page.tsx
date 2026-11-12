@@ -32,6 +32,7 @@ import { careContractTabs } from "~/components/traeger/care-contract-tabs";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
+import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
 import NavigationLink from "~/components/ui/navigation-link";
 import type {
@@ -39,6 +40,7 @@ import type {
   FilterConfig,
 } from "~/components/ui/page-header/types";
 import { SectionCard } from "~/components/ui/section-card";
+import { ApiError } from "~/lib/api-error";
 import { hasPermission } from "~/lib/auth-utils";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage, TenantPageStats } from "~/components/ui/tenant-page";
@@ -49,6 +51,7 @@ import {
 } from "~/contexts/ToastContext";
 import { careContractsConcept } from "~/lib/concepts/careContracts";
 import { formatBerlinDate, formatDate } from "~/lib/date-helpers";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   type CareContractList,
@@ -208,64 +211,89 @@ export default function TraegerVertraegePage() {
   const actionError = useApiErrorDisplay();
   const { success, warning } = useToast();
 
+  // Reads one page of the list for request `currentRequest` and sets it;
+  // rejects on a failure. An answer for an older request is dropped.
+  const readContracts = useCallback(
+    async (offset: number, currentRequest: number) => {
+      const [list, metadata] = await Promise.all([
+        fetchCareContracts({
+          status: status === "all" ? undefined : status,
+          schoolId,
+          search: debouncedSearch,
+          offset,
+        }),
+        context.current ??
+          Promise.all([
+            fetchContractCandidates(),
+            fetchTraegerSchools(),
+            fetchConclusionModes(),
+          ]).then(([candidates, schools, modes]) => ({
+            candidates: candidates.map((candidate) =>
+              modes.some(
+                (school) =>
+                  school.schoolId === candidate.schoolId &&
+                  school.mode === "bei_annahme",
+              )
+                ? {
+                    ...candidate,
+                    templateIssue:
+                      candidate.templateIssue ??
+                      (!candidate.guardianEmail.trim()
+                        ? ("recipient_missing" as const)
+                        : null) ??
+                      (candidate.acceptanceIssue === "acceptance_missing" &&
+                      candidate.renewal
+                        ? ("acceptance_missing_renewal" as const)
+                        : candidate.acceptanceIssue) ??
+                      (candidate.mailBlock === "stopped"
+                        ? ("mail_stopped" as const)
+                        : null) ??
+                      (candidate.mailBlock === "address"
+                        ? ("mail_blocked" as const)
+                        : null) ??
+                      ("conclusion_automatic" as const),
+                  }
+                : candidate,
+            ),
+            schools,
+            modes,
+          })),
+      ]).catch((error: unknown) => {
+        if (
+          currentRequest === request.current &&
+          error instanceof ApiError &&
+          (error.status === 401 || error.status === 403)
+        ) {
+          setData(null);
+          context.current = null;
+          setSelected(new Set());
+          setCreating(false);
+        }
+        throw error;
+      });
+      if (currentRequest !== request.current) return;
+      context.current = metadata;
+      setData((previous) => ({
+        ...metadata,
+        list: {
+          ...list,
+          contracts:
+            offset > 0 && previous
+              ? [...previous.list.contracts, ...list.contracts]
+              : list.contracts,
+        },
+      }));
+    },
+    [status, schoolId, debouncedSearch],
+  );
+
   const load = useCallback(
     async (offset = 0) => {
       const currentRequest = ++request.current;
       if (offset > 0) setLoadingMore(true);
       try {
-        const [list, metadata] = await Promise.all([
-          fetchCareContracts({
-            status: status === "all" ? undefined : status,
-            schoolId,
-            search: debouncedSearch,
-            offset,
-          }),
-          context.current ??
-            Promise.all([
-              fetchContractCandidates(),
-              fetchTraegerSchools(),
-              fetchConclusionModes(),
-            ]).then(([candidates, schools, modes]) => ({
-              candidates: candidates.map((candidate) =>
-                modes.some(
-                  (school) =>
-                    school.schoolId === candidate.schoolId &&
-                    school.mode === "bei_annahme",
-                )
-                  ? {
-                      ...candidate,
-                      templateIssue:
-                        candidate.templateIssue ??
-                        (!candidate.guardianEmail.trim()
-                          ? ("recipient_missing" as const)
-                          : null) ??
-                        candidate.acceptanceIssue ??
-                        (candidate.mailBlock === "stopped"
-                          ? ("mail_stopped" as const)
-                          : null) ??
-                        (candidate.mailBlock === "address"
-                          ? ("mail_blocked" as const)
-                          : null) ??
-                        ("conclusion_automatic" as const),
-                    }
-                  : candidate,
-              ),
-              schools,
-              modes,
-            })),
-        ]);
+        await readContracts(offset, currentRequest);
         if (currentRequest !== request.current) return;
-        context.current = metadata;
-        setData((previous) => ({
-          ...metadata,
-          list: {
-            ...list,
-            contracts:
-              offset > 0 && previous
-                ? [...previous.list.contracts, ...list.contracts]
-                : list.contracts,
-          },
-        }));
         clearLoadError();
       } catch (err) {
         if (currentRequest !== request.current) return;
@@ -280,7 +308,7 @@ export default function TraegerVertraegePage() {
         if (currentRequest === request.current) setLoadingMore(false);
       }
     },
-    [status, schoolId, debouncedSearch, clearLoadError, showLoadError],
+    [readContracts, clearLoadError, showLoadError],
   );
 
   const invalidateRequest = useCallback(() => {
@@ -293,6 +321,24 @@ export default function TraegerVertraegePage() {
     void load();
     return invalidateRequest;
   }, [load, invalidateRequest]);
+
+  // Reload after a send: a failure there is a load error above the
+  // confirmed rows, not a failed send (#6652). A reload that a newer filter
+  // overtook fails silently; the newer load answers for it. The reload
+  // replaces a page that was still loading more.
+  const afterWrite = useRefreshAfterWrite(
+    "die Anzeige der Verträge",
+    async () => {
+      const currentRequest = ++request.current;
+      try {
+        await readContracts(0, currentRequest);
+      } catch (err) {
+        if (currentRequest === request.current) throw err;
+      } finally {
+        if (currentRequest === request.current) setLoadingMore(false);
+      }
+    },
+  );
 
   const contracts = useMemo(() => [...(data?.list.contracts ?? [])], [data]);
   const schools = (data?.schools ?? []).map((school) => ({
@@ -314,23 +360,9 @@ export default function TraegerVertraegePage() {
   const sendSelected = async () => {
     if (selectedDrafts.length === 0) return;
     setSending(true);
+    let result: Awaited<ReturnType<typeof sendCareContracts>>;
     try {
-      const result = await sendCareContracts(selectedDrafts.map((c) => c.id));
-      if (result.sent.length > 0) {
-        success(
-          result.sent.length === 1
-            ? "1 Vertrag ist unterwegs: per Mail und in die Eltern-App."
-            : `${result.sent.length} Verträge sind unterwegs: per Mail und in die Eltern-App.`,
-        );
-      }
-      for (const skip of result.skipped) {
-        const contract = contracts.find((c) => c.id === skip.id);
-        warning(
-          `${contract ? childName(contract) : "Ein Vertrag"}: nicht gesendet, ${SEND_SKIP_LABELS[skip.reason]}.`,
-        );
-      }
-      setSelected(new Set());
-      await load();
+      result = await sendCareContracts(selectedDrafts.map((c) => c.id));
     } catch (err) {
       logger.error("traeger_care_contracts_send_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -338,9 +370,25 @@ export default function TraegerVertraegePage() {
       void actionError.show(err, { object: "die Verträge" });
       setSelected(new Set());
       await load();
-    } finally {
       setSending(false);
+      return;
     }
+    if (result.sent.length > 0) {
+      success(
+        result.sent.length === 1
+          ? "1 Vertrag ist unterwegs: per Mail und in die Eltern-App."
+          : `${result.sent.length} Verträge sind unterwegs: per Mail und in die Eltern-App.`,
+      );
+    }
+    for (const skip of result.skipped) {
+      const contract = contracts.find((c) => c.id === skip.id);
+      warning(
+        `${contract ? childName(contract) : "Ein Vertrag"}: nicht gesendet, ${SEND_SKIP_LABELS[skip.reason]}.`,
+      );
+    }
+    setSelected(new Set());
+    await afterWrite.refresh();
+    setSending(false);
   };
 
   const onCreated = async (result: CreateResult) => {
@@ -360,7 +408,9 @@ export default function TraegerVertraegePage() {
       );
     }
     context.current = null;
-    if (status === "entwurf") await load();
+    // Die Entwürfe sind angelegt; ein Fehler beim Nachladen lässt die
+    // bestätigte Liste stehen (#6652). Ein anderer Filter lädt neu.
+    if (status === "entwurf") await afterWrite.refresh();
     else setStatus("entwurf");
   };
 
@@ -483,8 +533,8 @@ export default function TraegerVertraegePage() {
           </Button>
         </>
       }
-      error={pageLoad.error}
-      loading={!pageLoad.error && !data}
+      error={pageLoad.error ?? (!data ? afterWrite.error : null)}
+      loading={!pageLoad.error && !afterWrite.error && !data}
       overlays={
         data ? (
           <CareContractCreateModal
@@ -499,6 +549,7 @@ export default function TraegerVertraegePage() {
         ) : null
       }
     >
+      <LoadErrorAlert error={afterWrite.error} className="mb-4" />
       {data && data.modes.length > 0 ? (
         <SectionCard
           title="Wann gilt der Vertrag?"

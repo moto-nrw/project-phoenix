@@ -24,8 +24,8 @@ func TestOperatorPasskeyCeremoniesReportTheOperatorOutcomes(t *testing.T) {
 	require.NotNil(t, module.OperatorPasskeys)
 
 	operator := testpkg.CreateTestOperator(t, db)
-	require.NoError(t, module.OperatorMFA.EnrollOperatorMFA(ctx, operator.ID))
-	_, err := module.OperatorMFA.StartOperatorMFAChallenge(ctx, operator.ID, net.ParseIP("203.0.113.40"))
+	require.NoError(t, module.OperatorMFA.EnrollOperatorMFA(ctx, identityaccess.OperatorMFAProof{OperatorID: operator.ID, CredentialGeneration: operator.CredentialGeneration}))
+	_, err := module.OperatorMFA.StartOperatorMFAChallenge(ctx, operator.ID, net.ParseIP("203.0.113.40"), nil)
 	require.NoError(t, err)
 	active := activeOperatorChallenge(t, db, operator.ID)
 	require.NotNil(t, active)
@@ -65,7 +65,7 @@ func TestOperatorMFAStartChallengeUnknownOperatorStaysUnclassified(t *testing.T)
 
 	svc, _, _ := newTestOperatorMFAService(t)
 
-	_, err := svc.StartOperatorMFAChallenge(context.Background(), 9_876_543_210, net.ParseIP("203.0.113.42"))
+	_, err := svc.StartOperatorMFAChallenge(context.Background(), 9_876_543_210, net.ParseIP("203.0.113.42"), nil)
 	require.Error(t, err)
 	for _, classified := range []error{
 		identityaccess.ErrMFAChallengeTokenInvalid,

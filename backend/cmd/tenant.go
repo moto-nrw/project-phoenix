@@ -13,11 +13,14 @@ import (
 	organizationCompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
 	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/erasureledger"
 	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
+	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
 	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
 	securityRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/securityruntime/compose"
 	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
 	studentDirectoryViewCompose "github.com/moto-nrw/project-phoenix/modules/studentdirectoryview/compose"
 	transactionCompose "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -80,7 +83,7 @@ func newTenantCommand() *cobra.Command {
 			return json.NewEncoder(cmd.OutOrStdout()).Encode(results[0])
 		}}
 	receipt.Flags().Int64Var(&receiptID, "id", 0, "Erasure evidence ID")
-	parent.AddCommand(erase, receipt, newErasureLedgerInitCommand())
+	parent.AddCommand(erase, receipt, newErasureLedgerInitCommand(), newTenantReturnCommand())
 	return parent
 }
 
@@ -108,6 +111,7 @@ func tenantCommand(run func(*cobra.Command, organizationtenancy.TenantExportOpti
 	}
 	export.Flags().Int64Var(&options.SchoolID, "school", 0, "Authorized school ID")
 	export.Flags().Int64Var(&options.OrganizationID, "organization", 0, "Authorized Träger ID: the Träger package, without the data its schools hold")
+	export.Flags().Int64Var(&options.OperatorID, "operator", 0, "Active operator ID for the operator audit; required")
 	export.Flags().StringVar(&options.Output, "out", "", "New private output directory")
 	export.Flags().StringVar(&options.Uploads, "uploads", "", "Complete stable uploads root")
 	export.Flags().StringVar(&options.Person, "person", "", "Internal review only: kind:<profile ID>, guardian:<profile ID>, staff:<school membership ID>")
@@ -121,6 +125,9 @@ func runTenantExport(cmd *cobra.Command, options organizationtenancy.TenantExpor
 	if (options.SchoolID <= 0 && options.OrganizationID <= 0) || options.Output == "" || options.Uploads == "" {
 		return errors.New("tenant export: --school or --organization, --out and --uploads are required")
 	}
+	if options.OperatorID <= 0 {
+		return errors.New("tenant export: --operator is required for the operator audit")
+	}
 	db, err := transactionCompose.OpenDatabase()
 	if err != nil {
 		return errors.New("tenant export: database unavailable")
@@ -130,16 +137,17 @@ func runTenantExport(cmd *cobra.Command, options organizationtenancy.TenantExpor
 	if err != nil {
 		return err
 	}
-	exporter, err := organizationCompose.NewTenantExporter(db.Pool(), organizationtenancy.ExportFingerprints{
-		Bytes: securityruntime.Fingerprint, Reader: securityruntime.ReaderFingerprint,
-	}, sealed, tenantExportProjectedFields())
+	exporter, err := newTenantExporter(db, sealed, tenantExportProjectedFields(), options.OrganizationID > 0)
 	if err != nil {
 		return err
 	}
-	if err := exporter.Export(cmd.Context(), options); err != nil {
+	if err := exporter.Export(tenant.WithUnitOfWork(cmd.Context(), db.UnitOfWork()), options); err != nil {
 		return err
 	}
-	message := "Tenant export complete; verify COMPLETE and manifest before handover."
+	message := "Tenant export complete and in the operator audit; verify COMPLETE and manifest before handover."
+	if options.OrganizationID > 0 {
+		message = "Träger package complete and in the operator audit; it holds FULL BANK DATA. Verify COMPLETE and manifest; hand over encrypted only."
+	}
 	if options.Person != "" {
 		message = "Person review workspace created; completeness, third-party review and school approval REQUIRED before handover."
 	}
@@ -148,8 +156,9 @@ func runTenantExport(cmd *cobra.Command, options organizationtenancy.TenantExpor
 }
 
 // tenantExportSealedFields binds each field-sealed table to the owner that
-// sealed it (#3838): the return carries IBAN, account holder and health
-// information as entered, not their ciphertext. Without either key ring of
+// sealed it (#3838, #6412): the return carries IBAN, account holder, tax and
+// social security numbers, mandate text and health information as entered,
+// not their ciphertext. Without either key ring of
 // the source installation the export refuses (ADR 0192, ADR 0193).
 func tenantExportSealedFields() (organizationtenancy.TenantExportSealedFieldsByTable, error) {
 	bankData, err := securityRuntimeCompose.NewBankDataCipher(viper.GetString("bank_data_keys"), viper.GetString("bank_data_legacy_keys"))
@@ -169,6 +178,9 @@ func tenantExportSealedFields() (organizationtenancy.TenantExportSealedFieldsByT
 	return organizationtenancy.TenantExportSealedFieldsByTable{
 		"parent_billing.sepa_mandates":             sepa,
 		"parent_billing.sepa_debits":               sepa,
+		"parent_billing.sepa_mandate_consents":     sepa,
+		"users.guardian_financial_data":            peopleCompose.NewGuardianBankExportFields(bankData),
+		"users.staff_financial_data":               workforceCompose.NewStaffBankExportFields(bankData),
 		"users.student_care_profiles":              studentDirectoryViewCompose.NewReader(healthData),
 		"enrollment.holiday_registrations":         holiday,
 		"enrollment.holiday_registration_children": holiday,

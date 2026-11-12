@@ -62,6 +62,11 @@ func NewStaffAdmin(dependencies StaffAdminDependencies) (*workforce.StaffAdmin, 
 
 // --- documents --------------------------------------------------------------
 
+// NewStaffBankExportFields opens the sealed staff bank and tax values for the return export of a school (#6412); only the administrative export CLI binds it, never HTTP.
+func NewStaffBankExportFields(cipher workforce.BankDataCipher) workforce.StaffBankExportFields {
+	return application.NewStaffBankExportFields(cipher)
+}
+
 // NewStaffBankDataRekey is the maintenance-only bank backfill/rekey (#6332), never HTTP.
 func NewStaffBankDataRekey(cipher workforce.BankDataRekeyCipher) workforce.StaffBankDataRekey {
 	return application.NewStaffBankDataRekey(postgres.NewStaffBankRekeyStore(), cipher)

@@ -42,11 +42,31 @@ type HostedHolidayWeek struct {
 	StartsOn     calendar.Date `json:"starts_on"`
 	EndsOn       calendar.Date `json:"ends_on"`
 	Participants int           `json:"participants"`
+	// BookingUnit is how the week is booked (#4701).
+	BookingUnit string `json:"booking_unit"`
+	// CareStartsAt and CareEndsAt are the care window of the week, "HH:MM":
+	// the earliest start and the latest end of its time models. The
+	// planning views of the school show it, so the team can staff the week
+	// without opening the participant list.
+	CareStartsAt string `json:"care_starts_at"`
+	CareEndsAt   string `json:"care_ends_at"`
+	// DayParticipants counts the confirmed children per booked day of a week
+	// booked by days (#4701), in calendar order; days without a booked child
+	// are missing. Empty for a week booked as a whole: there every day has
+	// Participants children.
+	DayParticipants []HolidayDayCount `json:"day_participants"`
 	// GuestGroupID is the group the school picked for the week's holiday
 	// guests (#4666), nil before it picked one; Guests counts the guests in
 	// it whose access has not ended.
 	GuestGroupID *int64 `json:"guest_group_id"`
 	Guests       int    `json:"guests"`
+}
+
+// HolidayDayCount is the number of confirmed children booked on one day of
+// a week booked by days.
+type HolidayDayCount struct {
+	Date         calendar.Date `json:"date"`
+	Participants int           `json:"participants"`
 }
 
 // HolidayParticipant is one confirmed child of a hosted week with the
@@ -57,15 +77,18 @@ type HostedHolidayWeek struct {
 // phone, nil without one, and the answers to the shared questions of the
 // form version of the child's registration, empty without such questions.
 type HolidayParticipant struct {
-	ChildID         int64                `json:"child_id"`
-	FirstName       string               `json:"first_name"`
-	LastName        string               `json:"last_name"`
-	BirthDate       calendar.Date        `json:"birth_date"`
-	HomeSchoolID    *int64               `json:"home_school_id"`
-	GuestSchoolName string               `json:"guest_school_name"`
-	TimeModelID     int64                `json:"time_model_id"`
-	SecondGuardian  *HolidayHostGuardian `json:"second_guardian"`
-	Answers         []HolidayHostAnswer  `json:"answers"`
+	ChildID         int64         `json:"child_id"`
+	FirstName       string        `json:"first_name"`
+	LastName        string        `json:"last_name"`
+	BirthDate       calendar.Date `json:"birth_date"`
+	HomeSchoolID    *int64        `json:"home_school_id"`
+	GuestSchoolName string        `json:"guest_school_name"`
+	TimeModelID     int64         `json:"time_model_id"`
+	// Days are the booked days in a week by days, empty for the whole week
+	// (#4701).
+	Days           []calendar.Date      `json:"days,omitempty"`
+	SecondGuardian *HolidayHostGuardian `json:"second_guardian"`
+	Answers        []HolidayHostAnswer  `json:"answers"`
 	// Health is the health information the hosting school sees (#4722):
 	// nil without any, or when the parents did not agree under consent
 	// texts of HolidayConsentVersionHostHealth.

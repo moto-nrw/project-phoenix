@@ -15,16 +15,18 @@ func strPtr(v string) *string { return &v }
 func TestGuardianFinancialDataNeverSerializes(t *testing.T) {
 	t.Parallel()
 
+	// Since #6332 the row holds sealed values and the mask only.
 	data := &GuardianFinancialData{
-		GuardianProfileID: 7,
-		IBAN:              strPtr("DE89370400440532013000"),
-		AccountHolder:     strPtr("Sabine Schneider"),
+		GuardianProfileID:   7,
+		IBANSealed:          []byte("sealed-iban"),
+		IBANMasked:          strPtr("•••• 3000"),
+		AccountHolderSealed: []byte("sealed-holder"),
 	}
 
 	body, err := json.Marshal(data)
 	require.NoError(t, err)
 
-	assert.NotContains(t, string(body), "DE89370400440532013000")
+	assert.NotContains(t, string(body), "3000")
 	assert.NotContains(t, string(body), "iban")
 	assert.NotContains(t, string(body), "account_holder")
 }

@@ -70,6 +70,10 @@ type CreateTemplateInput struct {
 	// GradeLevelMax is the caller's validated snapshot of
 	// enrollment.grade_level_max, used to cap Jahrgang targets.
 	GradeLevelMax int
+	// MaterializeFrom and MaterializeTo name the window the caller
+	// materializes after the create in the same unit (#6702).
+	MaterializeFrom *calendar.Date
+	MaterializeTo   *calendar.Date
 }
 
 // CreateTemplate persists a recurring template (activities.groups with
@@ -287,6 +291,9 @@ func (s *TemplateService) createTemplateLocked(
 	}
 	targets, err := s.validateTemplateCreateReferences(ctx, &in)
 	if err != nil {
+		return err
+	}
+	if err := s.lockCreatedTemplateStaff(ctx, in); err != nil {
 		return err
 	}
 	timeframeID, err := s.FindOrCreateTimeframe(ctx, in.StartTime, in.EndTime, in.Name)
@@ -558,6 +565,15 @@ func (s *TemplateService) createTemplateRoster(
 
 	if err := closeOpenLegacyPlannedSupervisors(ctx, s.deps.ActivitySupervisorRepo, groupID, in.CalendarPeriodID, activityContract.Date(in.RosterValidFrom)); err != nil {
 		return &ports.ScheduleError{Op: "create template: close supervisors", Err: err}
+	}
+	// Lock the complete roster, including weekday-only staff, in the same
+	// ascending order as deviation saves before the first supervisor insert.
+	staffIDs := make([]int64, 0, len(roster.Staff))
+	for _, row := range roster.Staff {
+		staffIDs = append(staffIDs, row.PersonID)
+	}
+	if err := lockStaffRows(ctx, s.deps.InstanceStaffRepo, staffIDs); err != nil {
+		return &ports.ScheduleError{Op: "create template: lock staff", Err: err}
 	}
 	for _, row := range roster.Staff {
 		supervisor := &activityContract.SupervisorPlanned{

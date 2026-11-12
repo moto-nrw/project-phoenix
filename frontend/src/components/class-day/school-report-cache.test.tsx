@@ -105,6 +105,137 @@ beforeEach(() => {
 });
 
 describe("school report cache", () => {
+  it.each([
+    ["class", 403, false],
+    ["class", 503, false],
+    ["class", 403, true],
+    ["school", 403, false],
+    ["school", 503, false],
+    ["school", 403, true],
+  ] as const)(
+    "handles %s post-write reload returning %s (retry: %s)",
+    async (reader, status, retry) => {
+      const options = setup();
+      const write = vi.fn().mockResolvedValue(undefined);
+      const totals = {
+        ...report.totals,
+        missing: 1,
+        unreported: 0,
+        sick: 1,
+        excused: 0,
+        class_trip: 0,
+        changes: 0,
+      };
+      const schoolDay: SchoolDayReport = {
+        date: report.date,
+        weekday: "wed",
+        school_day: true,
+        enrollment_known: true,
+        totals,
+        can_report_absences: true,
+        classes: [
+          {
+            school_class: "4a",
+            totals,
+            children: [
+              {
+                student_id: "1",
+                first_name: "Klara",
+                last_name: "Klassentag",
+                after_school: "stays",
+                status: "sick",
+                status_by_school: true,
+              },
+            ],
+          },
+        ],
+      };
+      const fetchSchoolDay = vi.fn().mockResolvedValue(schoolDay);
+      options.fetchClasses.mockResolvedValue({
+        classes: ["4a"],
+        can_view_school_day: true,
+      });
+      options.fetchClassDay.mockResolvedValue({
+        ...report,
+        can_hand_over: true,
+        handover: { handed_over_at: "2026-09-09T09:45:00Z", absent_count: 0 },
+      });
+      identity.search = "tag=2026-09-09&liste=kinder";
+      const ui =
+        reader === "class" ? (
+          <ClassDayClass
+            schoolClass="4a"
+            {...options}
+            handOverClass={write}
+            withdrawClassHandover={write}
+          />
+        ) : (
+          <ClassDayOverview
+            {...options}
+            fetchSchoolDay={fetchSchoolDay}
+            reportAbsence={write}
+            withdrawAbsenceReport={write}
+          />
+        );
+      const view = render(ui, options);
+      // Anker: der später entzogene Bericht zeigt zunächst das Kind.
+      expect(await screen.findByText("Klassentag, Klara")).toBeVisible();
+      const fetch = reader === "class" ? options.fetchClassDay : fetchSchoolDay;
+      const failure = new ApiError("denied or unavailable", status);
+      if (retry) fetch.mockRejectedValueOnce(new ApiError("down", 503));
+      fetch.mockRejectedValueOnce(failure);
+      if (reader === "class") {
+        fireEvent.click(
+          screen.getByRole("button", { name: "Übergabe zurücknehmen" }),
+        );
+        fireEvent.click(screen.getByRole("button", { name: "Zurücknehmen" }));
+      } else {
+        fireEvent.click(
+          screen.getByRole("button", {
+            name: "Meldung für Klara Klassentag zurücknehmen",
+          }),
+        );
+        fireEvent.click(
+          screen.getByRole("menuitem", { name: "Meldung zurücknehmen" }),
+        );
+        const dialog = await screen.findByRole("dialog", {
+          name: "Meldung zurücknehmen?",
+        });
+        fireEvent.click(
+          within(dialog).getByRole("button", { name: "Zurücknehmen" }),
+        );
+      }
+      if (retry) {
+        fireEvent.click(
+          await screen.findByRole("button", { name: "Wiederholen" }),
+        );
+      }
+      await waitFor(() => expect(fetch).toHaveBeenCalledTimes(retry ? 3 : 2));
+      expect(await screen.findByRole("alert")).toBeVisible();
+      const key =
+        reader === "class"
+          ? schoolPortalKeys.classDayReport("4a", report.date)
+          : schoolPortalKeys.schoolDay(report.date);
+      const cached = () =>
+        [...options.cache.entries()].find(([entry]) =>
+          entry.endsWith(`:${key}`),
+        )?.[1];
+      if (status === 403) {
+        await waitFor(() => expect(cached()?.data).toBeUndefined());
+        expect(cached()?.error).toBe(failure);
+        expect(screen.queryByText("Klassentag, Klara")).not.toBeInTheDocument();
+        fetch.mockImplementation(() => new Promise(() => undefined));
+        view.rerender(<div key="reopened">{ui}</div>);
+        expect(await screen.findByRole("alert")).toBeVisible();
+        expect(screen.queryByText("Klassentag, Klara")).not.toBeInTheDocument();
+      } else {
+        expect(cached()?.data).toBeDefined();
+        expect(screen.getByText("Klassentag, Klara")).toBeVisible();
+      }
+      expect(write).toHaveBeenCalledTimes(1);
+    },
+  );
+
   it("opens the report loaded by the overview immediately, with the same load key", async () => {
     const options = setup();
     const view = render(<ClassDayOverview {...options} />, options);

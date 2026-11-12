@@ -1,6 +1,7 @@
 "use client";
 
 import { useMemo } from "react";
+import { STAFF_MESSAGE_ATTACHMENTS } from "~/lib/message-attachments";
 import type { TeamChatPortal } from "~/lib/team-chat-portal";
 import { tenantStaffMessagesApi } from "~/lib/staff-messages-api";
 import { useTenant, useTenantSlugSafe } from "~/lib/tenant-context";
@@ -24,6 +25,7 @@ export function useTenantTeamChatPortal(): TeamChatPortal {
     () => ({
       kind: "tenant",
       api: tenantStaffMessagesApi,
+      attachments: STAFF_MESSAGE_ATTACHMENTS,
       cacheScope: tenantSlug ?? "",
       inboxHref: "/team-chat",
       threadHref: (threadId) => `/team-chat/${threadId}`,

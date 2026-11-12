@@ -1,15 +1,15 @@
 {
   "format": "moto-bundle-ceilings/v1",
-  "_doc": "Absolute Obergrenzen (komprimiertes Client-JS in Bytes) nur für viel genutzte Routen: /_not-found steht für Framework und Root-Layout, das jede Seite lädt; dazu Login und Startseiten der Portale und die täglichen Tenant-Seiten. Gesetzt auf development 018788e14b plus max(10 %, 50 KiB), auf 10 KiB aufgerundet; /_not-found mit derselben Regel neu auf development 505ef89831 (564324 Bytes in CI, posthog-js 1.444.0 aus #6286 und gewachsener Fehlerkatalog). Sie greifen nur bei echten Ausreißern. Wachstum einzelner PRs prüft der Delta-Check gegen die Merge-Basis (docs/agents/frontend-performance.md).",
+  "_doc": "Absolute Obergrenzen (komprimiertes Client-JS in Bytes) nur für viel genutzte Routen: /_not-found steht für Framework und Root-Layout, das jede Seite lädt; dazu Login und Startseiten der Portale und die täglichen Tenant-Seiten. Gesetzt auf development 018788e14b plus max(10 %, 50 KiB), auf 10 KiB aufgerundet; /_not-found mit derselben Regel neu auf development 505ef89831 (564324 Bytes in CI, posthog-js 1.444.0 aus #6286 und gewachsener Fehlerkatalog). /parents und /parents/login mit derselben Regel neu auf PR #6485 (896182 bzw. 873333 Bytes in CI, next 16.4.4 und posthog-js 1.444.4). /[tenant]/home um 10 KiB angehoben in PR #6803 (1198892 Bytes in CI, 812 Bytes über der alten Grenze durch geteilten Kit-Code des PRs in TenantPage und DataTable, klickbare Statuszahl). Sie greifen nur bei echten Ausreißern. Wachstum einzelner PRs prüft der Delta-Check gegen die Merge-Basis (docs/agents/frontend-performance.md).",
   "routes": {
     "/_not-found": 624640,
     "/[tenant]": 716800,
-    "/[tenant]/home": 1198080,
+    "/[tenant]/home": 1208320,
     "/[tenant]/dashboard": 993280,
     "/[tenant]/active-supervisions": 1167360,
     "/[tenant]/students/search": 1228800,
-    "/parents": 890880,
-    "/parents/login": 860160,
+    "/parents": 952320,
+    "/parents/login": 931840,
     "/school/login": 808960
   }
 }

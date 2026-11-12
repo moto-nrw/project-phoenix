@@ -111,6 +111,16 @@ type gatedAuthService struct {
 	TokenAuth *sessiontoken.TokenAuth
 }
 
+// enrollMFA records the e-mail factor of a fixture account the way the
+// enrollment confirm does: with the proof of a redeemed code at the
+// account's current credential generation (#6518).
+func enrollMFA(ctx context.Context, t *testing.T, db bun.IDB, mfa identityaccess.AccountMFAEnrollment, accountID int64) error {
+	t.Helper()
+	var generation int64
+	require.NoError(t, db.NewRaw(`SELECT mfa_reset_generation FROM auth.accounts WHERE id = ?`, accountID).Scan(ctx, &generation))
+	return mfa.EnrollMFA(ctx, identityaccess.VerifiedMFAChallenge{AccountID: accountID, MFAResetGeneration: generation})
+}
+
 // mfaRows arranges and inspects the account MFA rows of a behaviour test
 // through SQL, so the composed flows stay the only production code a test
 // drives. Each statement matches the module's own persistence.

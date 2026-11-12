@@ -1,6 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
+import { ApiError } from "~/lib/api-error";
 import { Plus } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
@@ -8,6 +9,7 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
@@ -21,6 +23,7 @@ import {
 } from "~/contexts/ToastContext";
 import { formatBerlinDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import {
   endMealCatererSupply,
   getMealCaterer,
@@ -47,9 +50,12 @@ interface MealCatererProps {
 export function MealCaterer({ canManageSupply }: MealCatererProps) {
   const [state, setState] = useState<MealCatererState | null>(null);
   const [loading, setLoading] = useState(true);
+  const [accessRefused, setAccessRefused] = useState(false);
+  const latestRequest = useRef(0);
   const [form, setForm] = useState(EMPTY_FORM);
   const [inviteOpen, setInviteOpen] = useState(false);
-  const [sending, setSending] = useState(false);
+  const save = useFormModalPending(inviteOpen);
+  const sending = save.pending;
   const [revokeTarget, setRevokeTarget] =
     useState<MealCatererInvitation | null>(null);
   const [endOpen, setEndOpen] = useState(false);
@@ -63,12 +69,43 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
   const toast = useToast();
   const reloadRef = useRef<() => void>(() => undefined);
 
+  // Rejects on failure: after a write the caller shows it as a reload of a
+  // saved change and keeps the shown caterer (#6652).
+  const readCaterer = useCallback(async () => {
+    const request = ++latestRequest.current;
+    try {
+      const next = await getMealCaterer();
+      if (request !== latestRequest.current) return;
+      setState(next);
+      setAccessRefused(false);
+      clearLoadError();
+    } catch (error) {
+      if (request !== latestRequest.current) return;
+      if (
+        error instanceof ApiError &&
+        (error.status === 401 || error.status === 403)
+      ) {
+        setAccessRefused(true);
+        setState(null);
+        setForm(EMPTY_FORM);
+        setInviteOpen(false);
+        setRevokeTarget(null);
+        setEndOpen(false);
+      }
+      throw error;
+    } finally {
+      if (request === latestRequest.current) setLoading(false);
+    }
+  }, [clearLoadError]);
+  // Never rejects: a failed load shows its error in place of the caterer.
   const load = useCallback(async () => {
+    const request = latestRequest.current + 1;
     setLoading(true);
     clearLoadError();
     try {
-      setState(await getMealCaterer());
+      await readCaterer();
     } catch (cause) {
+      if (request !== latestRequest.current) return;
       logger.error("meal_caterer_load_failed", {
         error: cause instanceof Error ? cause.message : String(cause),
       });
@@ -77,15 +114,23 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
         retry: () => reloadRef.current(),
       });
     } finally {
-      setLoading(false);
+      if (request === latestRequest.current) setLoading(false);
     }
-  }, [clearLoadError, showLoadError]);
+  }, [clearLoadError, readCaterer, showLoadError]);
+  const afterWrite = useRefreshAfterWrite(
+    "die Anzeige des Caterers",
+    readCaterer,
+  );
   useEffect(() => {
     reloadRef.current = () => void load();
   });
+  const invalidateRequest = useCallback(() => {
+    latestRequest.current++;
+  }, []);
   useEffect(() => {
     void load();
-  }, [load]);
+    return invalidateRequest;
+  }, [load, invalidateRequest]);
 
   function openInvite() {
     setForm(EMPTY_FORM);
@@ -96,19 +141,22 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (sending || !form.email.trim() || !form.catererName.trim()) return;
-    setSending(true);
-    formErrors.clear();
-    try {
-      await inviteMealCaterer(form);
+    await save.run(async (op) => {
+      formErrors.clear();
+      try {
+        await inviteMealCaterer(form);
+      } catch (cause) {
+        if (!op.isCurrent()) return;
+        void formErrors.show(cause, { object: "die Einladung" });
+        return;
+      }
       toast.success(`Die Einladung ist unterwegs an ${form.email.trim()}.`);
-      setInviteOpen(false);
-      setForm(EMPTY_FORM);
-      await load();
-    } catch (cause) {
-      void formErrors.show(cause, { object: "die Einladung" });
-    } finally {
-      setSending(false);
-    }
+      if (op.isCurrent()) {
+        setInviteOpen(false);
+        setForm(EMPTY_FORM);
+      }
+      await afterWrite.refresh();
+    });
   }
 
   async function confirmRevoke() {
@@ -116,28 +164,41 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
     setWorking(true);
     try {
       await revokeMealCatererInvitation(revokeTarget.id);
-      setRevokeTarget(null);
-      toast.success("Die Einladung ist widerrufen.");
-      await load();
     } catch (cause) {
       void showActionError(cause, { object: "die Einladung" });
-    } finally {
       setWorking(false);
+      return;
     }
+    setWorking(false);
+    setRevokeTarget(null);
+    toast.success("Die Einladung ist widerrufen.");
+    await afterWrite.refresh();
   }
 
   async function confirmEnd() {
     setWorking(true);
     try {
       await endMealCatererSupply();
-      setEndOpen(false);
-      toast.success("Die Belieferung ist beendet.");
-      await load();
     } catch (cause) {
       void showActionError(cause, { object: "das Ende der Belieferung" });
-    } finally {
       setWorking(false);
+      return;
     }
+    setWorking(false);
+    setEndOpen(false);
+    toast.success("Die Belieferung ist beendet.");
+    await afterWrite.refresh();
+  }
+
+  if (accessRefused) {
+    return (
+      <SectionCard
+        title="Caterer"
+        loading={!loadErrors.error && !afterWrite.error}
+      >
+        <LoadErrorAlert error={loadErrors.error ?? afterWrite.error} />
+      </SectionCard>
+    );
   }
 
   const openInvitations =
@@ -218,6 +279,7 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
       description="Ihr Caterer sieht die Bestellungen der Schule in seinem eigenen Zugang bei moto. Namen der Kinder sieht er nur, wenn Sie das in den Einstellungen einschalten."
       actions={headerActions}
     >
+      <LoadErrorAlert error={afterWrite.error} className="mb-4" />
       {loading ? (
         <Skeleton className="h-24 w-full" />
       ) : loadErrors.error ? (
@@ -264,7 +326,7 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
         onClose={() => setInviteOpen(false)}
         title="Caterer einladen"
         size="md"
-        closeDisabled={sending}
+        pending={save}
         isBackdropDismissDisabled
         error={formErrors.error}
         footer={
@@ -355,6 +417,7 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
         cancelText="Abbrechen"
         confirmVariant="danger"
         isConfirmLoading={working}
+        loadingText="Wird widerrufen …"
       >
         <p className="text-sm text-gray-600">
           Der Link in der E-Mail an {revokeTarget?.email} gilt dann nicht mehr.
@@ -370,6 +433,7 @@ export function MealCaterer({ canManageSupply }: MealCatererProps) {
         cancelText="Abbrechen"
         confirmVariant="danger"
         isConfirmLoading={working}
+        loadingText="Wird beendet …"
       >
         <p className="text-sm text-gray-600">
           {supply?.catererName || "Der Caterer"} sieht die Bestellungen der

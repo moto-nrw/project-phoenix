@@ -51,8 +51,10 @@ import (
 //
 //   - Sick reports apply to new rows (#6292). A supervisor planned on a full
 //     day of an open sick report is inserted absent with the report's stamp,
-//     like the rows the sick cascade marked when the report came in. The run
-//     takes no lock beyond the recurrence gate it always held.
+//     like the rows the sick cascade marked when the report came in. A
+//     sick-report write takes the recurrence gate before it writes (#6232),
+//     so the run reads every report committed before it or the report's
+//     cascade sees the rows the run committed; past days included.
 
 const materializeForTenantOp = "materialize for tenant"
 
@@ -239,6 +241,9 @@ func (s *materializationService) materializeForTenantLocked(
 	}
 	people, err := s.loadTemplatesPeople(ctx, scheduledTemplateIDs(templates, schedules), "materialize template")
 	if err != nil {
+		return result, err
+	}
+	if err := s.lockMaterializationStaff(ctx, templates, schedules, people, world); err != nil {
 		return result, err
 	}
 

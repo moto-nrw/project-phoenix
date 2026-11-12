@@ -28,7 +28,7 @@ WITH mine AS (
 		array_agg(DISTINCT student_id ORDER BY student_id) AS student_ids
 	FROM mine GROUP BY tenant_id, thread_id
 )
-SELECT gt.*, gm.body AS last_message_body, gm.created_at AS last_visible_at, pt.student_ids,
+SELECT gt.*, COALESCE(NULLIF(btrim(gm.body), ''), '📎 ' || (gm.attachments -> 0 ->> 'filename'), '') AS last_message_body, gm.created_at AS last_visible_at, pt.student_ids,
 	(SELECT COUNT(DISTINCT m.message_id) FROM mine AS m
 		WHERE m.thread_id = pt.thread_id AND m.message_id > COALESCE(rd.last_read_message_id, 0)) AS unread_count
 FROM per_thread AS pt

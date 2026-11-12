@@ -7,6 +7,8 @@ import {
   Fragment,
   useEffect,
   useId,
+  useLayoutEffect,
+  useRef,
   useState,
   type ComponentType,
   type ReactNode,
@@ -21,6 +23,7 @@ import { ChoiceModal } from "~/components/ui/choice-modal";
 import { EditActions } from "~/components/ui/edit-actions";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
@@ -41,7 +44,6 @@ import {
   SectionCollapseHead,
   SectionCollapseToggle,
 } from "~/components/ui/section-card";
-import { Tooltip } from "~/components/ui/tooltip";
 import { GroupIcon, SchoolClassIcon } from "~/components/students/student-card";
 import { overbookedHintFor, type Occupancy } from "~/lib/activity-occupancy";
 import { useNFCEnabled } from "~/lib/tenant-context";
@@ -414,27 +416,20 @@ function RosterRowActions({
           wächst; auf dem Handy rechts außen. Der Name im Label unterscheidet
           die Links der Liste. */}
       {profileHref ? (
-        <Tooltip
-          content="Profil ansehen"
-          asChild
-          iconOnly
-          className="ml-auto sm:ml-0"
-          bubbleClassName="right-0 left-auto"
+        <ButtonLink
+          href={profileHref}
+          variant="outline"
+          size="icon"
+          aria-label={`Profil ansehen: ${row.studentName || `Kind ${row.studentId}`}`}
+          tooltip="Profil ansehen"
+          className="ml-auto shrink-0 sm:ml-0"
         >
-          <ButtonLink
-            href={profileHref}
-            variant="outline"
-            size="icon"
-            aria-label={`Profil ansehen: ${row.studentName || `Kind ${row.studentId}`}`}
-            className="shrink-0"
-          >
-            <ArrowUpRightIcon
-              className="size-4"
-              weight="bold"
-              aria-hidden="true"
-            />
-          </ButtonLink>
-        </Tooltip>
+          <ArrowUpRightIcon
+            className="size-4"
+            weight="bold"
+            aria-hidden="true"
+          />
+        </ButtonLink>
       ) : null}
     </div>
   );
@@ -1227,7 +1222,11 @@ export function TimetableRosterContent({
   const [homeworkStatus, setHomeworkStatus] =
     useState<TimetableHomeworkFeedbackStatus | null>(null);
   const [homeworkNote, setHomeworkNote] = useState("");
-  const [savingHomework, setSavingHomework] = useState(false);
+  const homeworkSave = useFormModalPending(
+    homeworkRow !== null,
+    homeworkRow?.studentId,
+  );
+  const savingHomework = homeworkSave.pending;
   const homeworkErrors = useApiFormError();
   const openHomework = (row: TimetableRosterRow) => {
     homeworkErrors.clear();
@@ -1239,6 +1238,7 @@ export function TimetableRosterContent({
     homeworkErrors.clear();
     setHomeworkRow(null);
   };
+  const retrySaveRef = useRef<() => Promise<void>>(async () => undefined);
   const saveHomework = async () => {
     if (!homeworkRow || !onSaveHomeworkFeedback) return;
     if (!homeworkStatus) {
@@ -1246,22 +1246,27 @@ export function TimetableRosterContent({
       return;
     }
     homeworkErrors.clear();
-    setSavingHomework(true);
-    try {
-      await onSaveHomeworkFeedback(homeworkRow, {
-        status: homeworkStatus,
-        note: homeworkNote.trim() === "" ? null : homeworkNote.trim(),
-      });
-      setHomeworkRow(null);
-    } catch (cause) {
-      void homeworkErrors.show(cause, {
-        object: "die Rückmeldung",
-        retry: () => void saveHomework(),
-      });
-    } finally {
-      setSavingHomework(false);
-    }
+    await homeworkSave.run(async (op) => {
+      try {
+        await onSaveHomeworkFeedback(homeworkRow, {
+          status: homeworkStatus,
+          note: homeworkNote.trim() === "" ? null : homeworkNote.trim(),
+        });
+        // Eine späte Antwort schließt nicht die Rückmeldung eines anderen
+        // Kindes (#6533).
+        if (op.isCurrent()) setHomeworkRow(null);
+      } catch (cause) {
+        if (!op.isCurrent()) return;
+        void homeworkErrors.show(cause, {
+          object: "die Rückmeldung",
+          retry: () => void retrySaveRef.current(),
+        });
+      }
+    });
   };
+  useLayoutEffect(() => {
+    retrySaveRef.current = saveHomework;
+  });
   const closeAddStudent = () => {
     setAddStudentOpen(false);
     // Der nächste Dialog startet ohne Suche und ohne Fehlermeldung; beides
@@ -1388,7 +1393,7 @@ export function TimetableRosterContent({
           title={`Hausaufgaben von ${homeworkRow?.studentName ?? ""}`}
           size="md"
           mobilePosition="bottom"
-          closeDisabled={savingHomework}
+          pending={homeworkSave}
           error={homeworkErrors.error}
           footer={
             <EditActions

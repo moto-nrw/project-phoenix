@@ -3,6 +3,7 @@
 // Zusammenfassung vor dem Absenden der Ferienanmeldung (#4661), mit dem
 // Beitrag aus den Regeln des Trägers (#4664).
 
+import { holidayDayList } from "~/lib/holiday-days";
 import { useLocale, useTranslations } from "next-intl";
 import { type ReactNode, useCallback } from "react";
 import {
@@ -23,6 +24,7 @@ import {
   asksForAddress,
   bookedWeeks,
   type ContactDraft,
+  criterionQuestions,
   hasAddress,
   hasSecondGuardian,
   isAnswered,
@@ -87,6 +89,7 @@ export function HolidayRegistrationSummary({
   submitting,
   canSubmit,
   securityCheck,
+  accountQuestion,
   onBack,
   onSubmit,
   onBenefitsDeclaredChange,
@@ -99,6 +102,8 @@ export function HolidayRegistrationSummary({
   /** The security check is solved; until then the send button waits. */
   canSubmit: boolean;
   securityCheck: ReactNode;
+  /** The question for a parent account (#6673), above the send row. */
+  accountQuestion?: ReactNode;
   onBack: () => void;
   onSubmit: () => void;
   onBenefitsDeclaredChange: (declared: boolean) => void;
@@ -157,6 +162,13 @@ export function HolidayRegistrationSummary({
                   label={labels.range(week)}
                 >
                   {`${labels.timeModel(model)} · ${week.hostSchoolName}`}
+                  {booking.days.length > 0 ? (
+                    <span className="block text-sm text-gray-600">
+                      {t("summaryDays", {
+                        days: holidayDayList(booking.days, locale),
+                      })}
+                    </span>
+                  ) : null}
                 </DataField>
               );
             })}
@@ -172,6 +184,10 @@ export function HolidayRegistrationSummary({
             <AnswerFields
               questions={visibleChildQuestions(draft, child, offer.form)}
               answers={child.answers}
+            />
+            <AnswerFields
+              questions={criterionQuestions(offer, "child")}
+              answers={child.criteria ?? {}}
             />
           </DataGrid>
         </SectionCard>
@@ -213,6 +229,10 @@ export function HolidayRegistrationSummary({
           <AnswerFields
             questions={visibleFamilyQuestions(draft, offer.form)}
             answers={draft.answers}
+          />
+          <AnswerFields
+            questions={criterionQuestions(offer, "family")}
+            answers={draft.criteria ?? {}}
           />
         </DataGrid>
       </SectionCard>
@@ -273,6 +293,8 @@ export function HolidayRegistrationSummary({
           {uploadText("upload.pendingSubmit")}
         </p>
       ) : null}
+
+      {accountQuestion}
 
       {/* The security check sits in the row of the send button: one step,
           no gap below the contribution. */}

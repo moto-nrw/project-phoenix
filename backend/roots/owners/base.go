@@ -42,9 +42,8 @@ func NewCleanupTimetable(db transactionruntime.Database) (timetableModule.Capabi
 
 func newTimetable(db transactionruntime.Database, students peopleModule.StudentQuery, rooms facilitiesModule.Query, membership schoolMembershipModule.Capability, observe func(timetableCompose.Observation)) (timetableModule.Owner, error) {
 	return timetableCompose.New(timetableCompose.Dependencies{
-		LockStaffAssignment: func(ctx context.Context, staffID int64) error {
-			_, err := membership.FindStaffForMutation(ctx, staffID)
-			return err
+		LockStaffAssignments: func(ctx context.Context, staffIDs []int64) error {
+			return schoolMembershipModule.LockStaffAssignments(ctx, membership, staffIDs)
 		},
 		DB: db.Pool(), Students: timetableStudents(students), Rooms: timetableRooms(rooms), Sessions: NewPresenceFacts(db),
 		Observe: observe, Provenance: enrollmentProvenanceView.NewReader(),
@@ -60,6 +59,16 @@ func ComposeSchoolMembership(db transactionruntime.Database) (schoolMembershipMo
 		return nil, err
 	}
 	return schoolMembershipCompose.New(dependencies)
+}
+
+// ComposePendingWindows composes School Membership's pending-window command
+// a phase edit moves still pending children with (#6505, ADR 0202).
+func ComposePendingWindows(db transactionruntime.Database) (schoolMembershipModule.PendingWindows, error) {
+	dependencies, err := SchoolMembershipDependencies(db)
+	if err != nil {
+		return nil, err
+	}
+	return schoolMembershipCompose.NewPendingWindows(dependencies)
 }
 
 // ComposeStaffReinstatement composes School Membership's observed staff

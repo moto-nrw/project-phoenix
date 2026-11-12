@@ -9,6 +9,12 @@
       "legacy": "traeger.access_log_export_too_large"
     },
     {
+      "code": "traeger.account_inactive",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "traeger.account_inactive"
+    },
+    {
       "code": "traeger.already_member",
       "class": "business_rejection",
       "parameters": [],
@@ -25,6 +31,30 @@
       "class": "input",
       "parameters": [],
       "legacy": "traeger.bank_account_not_found"
+    },
+    {
+      "code": "traeger.closing_day_bookings_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "traeger.closing_day_bookings_changed"
+    },
+    {
+      "code": "traeger.closing_day_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "traeger.closing_day_invalid"
+    },
+    {
+      "code": "traeger.closing_day_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "traeger.closing_day_not_found"
+    },
+    {
+      "code": "traeger.closing_day_school_outside",
+      "class": "input",
+      "parameters": [],
+      "legacy": "traeger.closing_day_school_outside"
     },
     {
       "code": "traeger.document_already_released",

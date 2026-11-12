@@ -58,9 +58,8 @@ type UnitOfWorkEvent struct {
 	Retries  int
 }
 
-// Compatibility names for callers migrating from the tenant-propagation
-// runtime introduced by #2642. They are aliases, not a second implementation.
-type RuntimeOutcome = UnitOfWorkEventKind
+// Compatibility name for callers migrating from the tenant-propagation
+// runtime introduced by #2642. It is an alias, not a second implementation.
 type RuntimeEvent = UnitOfWorkEvent
 
 const (
@@ -72,9 +71,10 @@ const (
 // Its functions are supplied by the composition root; this package does not
 // know which database or transaction adapter backs them.
 type UnitOfWork struct {
-	withinTenant  func(context.Context, int64, func(context.Context, any) error) error
-	withinAdmin   func(context.Context, func(context.Context, any) error) error
-	withinTraeger func(context.Context, int64, func(context.Context, any) error) error
+	withinExclusive func(context.Context, string, func(context.Context) error) error
+	withinTenant    func(context.Context, int64, func(context.Context, any) error) error
+	withinAdmin     func(context.Context, func(context.Context, any) error) error
+	withinTraeger   func(context.Context, int64, func(context.Context, any) error) error
 	// withinAdminThenTenant is the one-way handoff of ADR 0161 point 2.
 	withinAdminThenTenant func(context.Context, func(context.Context, any) (int64, error), func(context.Context, any) error) error
 	savepoint             func(context.Context, SavepointAction) error
@@ -84,6 +84,29 @@ type UnitOfWork struct {
 	withoutTx             func(context.Context) context.Context
 	withTenant            func(context.Context, int64) context.Context
 	withTransaction       func(context.Context, any) context.Context
+}
+
+// WithExclusiveRunner binds a connection-scoped mutex for workflows whose
+// independently committed units must not interleave. It holds no transaction.
+func (uow UnitOfWork) WithExclusiveRunner(run func(context.Context, string, func(context.Context) error) error) UnitOfWork {
+	uow.withinExclusive = run
+	return uow
+}
+
+// WithinExclusive serializes fn across processes without opening a transaction.
+// The callback may open successive tenant and Träger units as usual.
+func WithinExclusive(ctx context.Context, key string, fn func(context.Context) error) error {
+	uow, err := unitOfWorkFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	if _, present := TransactionFromContext(ctx); present || key == "" || fn == nil {
+		return errors.New("tenant: an exclusive workflow requires a key, callback and no ambient transaction")
+	}
+	if uow.withinExclusive == nil {
+		return fmt.Errorf("%w: exclusive runner is required", ErrRuntimeRequired)
+	}
+	return uow.withinExclusive(ctx, key, fn)
 }
 
 // IsZero reports whether the unit of work carries no transaction functions,
@@ -253,6 +276,7 @@ func TransactionFromContext(ctx context.Context) (any, bool) {
 func ContextWithoutTransaction(ctx context.Context) context.Context {
 	ctx = context.WithValue(withTransaction(ctx, nil), transactionMaskedKey{}, true)
 	ctx = context.WithValue(ctx, traegerTxKey{}, int64(0))
+	ctx = context.WithValue(ctx, lockLedgerKey{}, (*lockLedger)(nil))
 	if uow, ok := ctx.Value(runtimeKey{}).(UnitOfWork); ok && uow.withoutTx != nil {
 		return uow.withoutTx(ctx)
 	}
@@ -306,7 +330,7 @@ func (uow UnitOfWork) execute(ctx context.Context, retry bool, run func(context.
 	defer func() {
 		if panicValue := recover(); panicValue != nil {
 			if !committed {
-				runAfterRollbackHooks(attemptHooks)
+				discardAfterCommitHooks(attemptHooks)
 				observeTransaction(ctx, UnitOfWorkPanicked, nil, started, retries)
 			}
 			panic(panicValue)
@@ -323,7 +347,7 @@ func (uow UnitOfWork) execute(ctx context.Context, retry bool, run func(context.
 			runAfterCommitHooks(commitHooks)
 			return nil
 		}
-		runAfterRollbackHooks(commitHooks)
+		discardAfterCommitHooks(commitHooks)
 		attemptHooks = nil
 		if !retry || attempt == maxTransactionRetries || !uow.replayable(err) {
 			observeTransaction(ctx, transactionResult(err), err, started, retries)

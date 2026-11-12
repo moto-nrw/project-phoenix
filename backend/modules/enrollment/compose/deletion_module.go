@@ -9,8 +9,7 @@ import (
 	applicationBindings "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application"
 )
 
-// DeletionOwner is the Enrollment owner slice the admin deletion and the
-// retention cleanup read, lock and delete through.
+// DeletionOwner is the owner slice the admin deletion and the retention cleanup read, lock and delete through.
 type DeletionOwner interface {
 	DeletionQueries
 	DeletionRequests
@@ -19,14 +18,11 @@ type DeletionOwner interface {
 	UsedLateInviteCleaner
 }
 
-// DeletionModuleDependencies are the owner and the ports the admin deletion
-// and the retention cleanup share. A nil Audit leaves both unaudited; a nil
-// Retention fails the cleanup's retention lookup.
+// DeletionModuleDependencies are the owner and ports of deletion and cleanup; a nil Audit leaves both unaudited, a nil Retention fails the retention lookup.
 type DeletionModuleDependencies struct {
 	Owner     DeletionOwner
 	Guardians GuardianDirectory
-	// CountAuditAdjustments counts the audited offering adjustments of a
-	// request or one of its children.
+	// CountAuditAdjustments counts the audited offering adjustments of a request or one of its children.
 	CountAuditAdjustments func(context.Context, int64, *int64) (int, error)
 	// CountBookings counts the bookings of the request children.
 	CountBookings func(context.Context, []int64) (int, error)
@@ -38,8 +34,7 @@ type DeletionModuleDependencies struct {
 	Logger            *slog.Logger
 }
 
-// DeletionModule is the admin deletion and the retention cleanup over one
-// shared impact preview.
+// DeletionModule is the admin deletion and the retention cleanup over one shared impact preview.
 type DeletionModule struct {
 	Preview   *DeletionPreview
 	Deletions enrollment.EnrollmentDeletions
@@ -57,8 +52,7 @@ func NewDeletionModule(deps DeletionModuleDependencies) DeletionModule {
 		Requests: deps.Owner, Children: deps.Owner, Preview: preview, Audit: deps.Audit,
 		Delivery: deps.Delivery, Logger: applicationBindings.WithService(deps.Logger, "enrollment-deletion"),
 	})
-	// The cleanup audits through the shared preview only with an audit trail
-	// bound; without one (focused suites) it runs its unaudited path.
+	// The cleanup audits through the shared preview only with an audit trail bound (not in focused suites).
 	var cleanupPreview *DeletionPreview
 	if deps.Audit != nil {
 		cleanupPreview = preview

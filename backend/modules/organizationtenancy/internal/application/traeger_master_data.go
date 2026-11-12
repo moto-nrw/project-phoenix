@@ -30,6 +30,9 @@ var errTraegerRequired = errors.New("organization tenancy: the Träger is requir
 
 // TraegerMasterData implements organizationtenancy.TraegerMasterData.
 type TraegerMasterData struct {
+	// TraegerNames is the store's read of the Träger's own name (#6437):
+	// no person reads it, so it writes no log.
+	organizationtenancy.TraegerNames
 	store ports.TraegerMasterDataStore
 }
 
@@ -38,7 +41,7 @@ func NewTraegerMasterData(store ports.TraegerMasterDataStore) *TraegerMasterData
 	if store == nil {
 		panic("organization tenancy: the master data store is required")
 	}
-	return &TraegerMasterData{store: store}
+	return &TraegerMasterData{TraegerNames: store, store: store}
 }
 
 var _ organizationtenancy.TraegerMasterData = (*TraegerMasterData)(nil)

@@ -777,6 +777,16 @@
       "target_owner": ""
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.BankDataCipher.BankDataRing",
+      "reason": "ADR 0188 (#6332, #6412): the tenant-export CLI binds Security Runtime's independent bank ring directly to People Directory's export opener. Pure in-memory authenticated sealing or opening bound to the row context; no database writes, locking reads or audit changes.",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.BankDataRing",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.BankDataRing",
       "classification": "query",
       "effect": "query",
@@ -787,6 +797,16 @@
       "target_owner": "security-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.BankDataCipher.Open",
+      "reason": "ADR 0188 (#6332, #6412): the tenant-export CLI binds Security Runtime's independent bank ring directly to People Directory's export opener. Pure in-memory authenticated sealing or opening bound to the row context; no database writes, locking reads or audit changes.",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.BankDataCipher.Open",
       "classification": "query",
       "effect": "query",
@@ -794,6 +814,16 @@
       "reason": "ADR 0188 (#6332): Security Runtime authenticates, seals or rewraps an in-memory field value on the independent bank ring. No database writes, locking reads or audit changes; the people-directory owner keeps its writes, access log and the separately guarded maintenance batch.",
       "source_owner": "people-directory",
       "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Open",
+      "target_owner": "security-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.BankDataCipher.Seal",
+      "reason": "ADR 0188 (#6332, #6412): the tenant-export CLI binds Security Runtime's independent bank ring directly to People Directory's export opener. Pure in-memory authenticated sealing or opening bound to the row context; no database writes, locking reads or audit changes.",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/domain/fieldcipher.BankCipher.Seal",
       "target_owner": "security-runtime"
     },
     {
@@ -6845,6 +6875,17 @@
       "target_owner": ""
     },
     {
+      "adr": "0067",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.UpdateGuardian",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.UpdateGuardian",
+      "reason": "Guarded Identity invitation invalidation joins the contact edit's existing school transaction, refuses a missing transaction/school, and updates only Identity-owned live unaccepted links. No separate commit, scope switch, foreign-state check or new coordinated lock protocol; errors abort the outer contact edit (ADR 0067 command participation).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.NewGuardianInvitationInvalidation",
+      "target_owner": "identity-access"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0098",
       "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.Directory.UpdateGuardian",
@@ -6855,6 +6896,17 @@
       "source_owner": "people-directory",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
       "target_owner": ""
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.UpdateGuardian",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.UpdateGuardian",
+      "reason": "Guarded Identity invitation invalidation joins the contact edit's existing school transaction, refuses a missing transaction/school, and updates only Identity-owned live unaccepted links. No separate commit, scope switch, foreign-state check or new coordinated lock protocol; errors abort the outer contact edit (ADR 0067 command participation).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.NewGuardianInvitationInvalidation",
+      "target_owner": "identity-access"
     },
     {
       "adr": "0083",
@@ -7303,6 +7355,39 @@
     },
     {
       "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.CreateEnrollmentProfiles",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.EnrollmentBatches.CreateEnrollmentProfiles",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through modules/peopledirectory/internal/application.Service.CreateEnrollmentProfiles. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Batch form for the data import (#5552, ADR 0067 addendum of 2026-11-08, step 7, exception E3 in its batch form); joins the caller's unit and opens no savepoint.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.EnrollCreatedStudent",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.EnrollmentBatches.EnrollCreatedStudent",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through modules/peopledirectory/internal/application.Service.EnrollCreatedStudent. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Batch form for the data import (#5552, ADR 0067 addendum of 2026-11-08, step 7, exception E3 in its batch form); joins the caller's unit and opens no savepoint.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.SaveEnrollmentCares",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.EnrollmentBatches.SaveEnrollmentCares",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through modules/peopledirectory/internal/application.Service.SaveEnrollmentCares. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Batch form for the data import (#5552, ADR 0067 addendum of 2026-11-08, step 7, exception E3 in its batch form); joins the caller's unit and opens no savepoint.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Capability.CurrentFamilyProtection",
       "classification": "platform",
       "effect": "scope",
@@ -7488,6 +7573,17 @@
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.GuardianDirectory.UpdateGuardian",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.GuardianProvider.UpdateGuardian",
+      "reason": "Guarded Identity invitation invalidation joins the contact edit's existing school transaction, refuses a missing transaction/school, and updates only Identity-owned live unaccepted links. No separate commit, scope switch, foreign-state check or new coordinated lock protocol; errors abort the outer contact edit (ADR 0067 command participation).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.NewGuardianInvitationInvalidation",
+      "target_owner": "identity-access"
     },
     {
       "adr": "0098",
@@ -7914,6 +8010,17 @@
       "source_owner": "people-directory",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
       "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.CreateNewStudentGuardians",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.NewGuardianBatches.CreateNewStudentGuardians",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through *modules/peopledirectory/internal/application.Service.CreateNewStudentGuardians. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). The batch form of CreateGuardian, AddGuardianPhone and LinkGuardianToStudent for the data import (#5552, ADR 0067 addendum of 2026-11-08, step 5c) joins the caller's unit and opens none.",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0083",
@@ -10971,6 +11078,17 @@
       "source_owner": "people-directory",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
       "target_owner": ""
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.UpdateGuardian",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.Owner.UpdateGuardian",
+      "reason": "Guarded Identity invitation invalidation joins the contact edit's existing school transaction, refuses a missing transaction/school, and updates only Identity-owned live unaccepted links. No separate commit, scope switch, foreign-state check or new coordinated lock protocol; errors abort the outer contact edit (ADR 0067 command participation).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.NewGuardianInvitationInvalidation",
+      "target_owner": "identity-access"
     },
     {
       "adr": "0083",
@@ -14281,6 +14399,51 @@
     },
     {
       "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RegisterAfterCommit (tenant-runtime) through *modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare. The nightly cleanup's tenant transaction is the unit; one savepoint for the batch, the SKIP LOCKED row lock and the after-commit file unlink are pinned by the photo care end tests (#6650, ADR 0213); transaction, savepoint and after-commit correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RegisterAfterCommit",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.RequireTransaction (tenant-runtime) through *modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare. The nightly cleanup's tenant transaction is the unit; one savepoint for the batch, the SKIP LOCKED row lock and the after-commit file unlink are pinned by the photo care end tests (#6650, ADR 0213); transaction, savepoint and after-commit correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
+      "reason": "Platform protocol participation (scope): people-directory reaches tenant.WithSavepoint (tenant-runtime) through *modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare. The nightly cleanup's tenant transaction is the unit; one savepoint for the batch, the SKIP LOCKED row lock and the after-commit file unlink are pinned by the photo care end tests (#6650, ADR 0213); transaction, savepoint and after-commit correctness stay with the platform behavior tests (ADR 0098).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.WithSavepoint",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0213",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.EndStudentPhotosAfterCare",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentPhotoCareEndRetention.EndStudentPhotosAfterCare",
+      "reason": "Existing StudentPhotoService observation callable, supplied freely only by test hooks; static binding remains unresolved as in ADR 0098. ADR 0213 approves exactly this binding of the nightly photo care end (#6650) to this observer, without classifying it as a query or guarded leaf.",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoCapability.PurgeStudentPhotos",
       "classification": "platform",
       "effect": "scope",
@@ -14740,6 +14903,29 @@
     },
     {
       "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.LockStudentRows",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRowLocks.LockStudentRows",
+      "reason": "Platform transaction protocol for the batch roster command. Attendance reuses the caller school unit through runWrite; the ID-only student lock requires that existing tenant transaction. The participant/date batch and sorted row/day locks do not widen the transaction scope (ADR 0215).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.RequireTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0215",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.Service.LockStudentRows",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory.StudentRowLocks.LockStudentRows",
+      "reason": "The batch roster/student-row command reuses its owner observation callback. Typed binding resolution cannot follow the injected observer; this boundary remains explicitly unresolved, not a query or approved mutation. The caller transaction and complete batch lock order are covered by the populated roster contract test (ADR 0215).",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.StudentSnapshotByID",
       "classification": "platform",
       "effect": "scope",
@@ -14927,14 +15113,25 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0213",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoRuntime.QueueUnlinkStoredPhoto",
       "classification": "debt",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.StudentPhotoRuntime.QueueUnlinkStoredPhoto",
-      "reason": "Unreviewed cross-owner mutation, explicit coordination finding (not a leaf or E1-E5 grant): people-directory reaches modules/filestorage.UploadCleanup.Queue (file-storage) through roots/owners.StudentPhotoRuntime.QueueUnlinkStoredPhoto. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098).",
+      "reason": "Unreviewed cross-owner mutation, explicit coordination finding (not a leaf or E1-E5 grant): people-directory reaches modules/filestorage.UploadCleanup.Queue (file-storage) through roots/owners.StudentPhotoRuntime.QueueUnlinkStoredPhoto. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). ADR 0213 reviews the constructor extension binding QueueAll alongside Queue: the single-file command, its URL validation, tenant scope and error propagation remain unchanged; the extra binding introduces no new single-file protocol.",
       "source_owner": "people-directory",
       "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage.UploadCleanup.Queue",
+      "target_owner": "file-storage"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.StudentPhotoRuntime.QueueUnlinkStoredPhotos",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.StudentPhotoRuntime.QueueUnlinkStoredPhotos",
+      "reason": "Guarded File Storage command participation (ADR 0067): QueueAll validates and deduplicates managed upload URLs and records durable cleanup intents in the same tenant transaction in one statement. The root binds the consumer-owned photo runtime port; File Storage retains validation and mutation, with no foreign-state reads, coordinated locks or after-commit work in the command (#6650, ADR 0213).",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage.UploadCleanup.QueueAll",
       "target_owner": "file-storage"
     },
     {
@@ -16408,6 +16605,17 @@
       "target_owner": "audit-platform"
     },
     {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.studentOwners.SaveCareBatch",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentOwnerWrites.SaveCareBatch",
+      "reason": "Guarded leaf command (mutation) already reviewed as leaf for this target: people-directory reaches modules/careplan.StudentCareProfileBatches.SaveStudentCareProfiles (care-plan) through the module's own student-owner adapter, which passes the care batch through as the public type (ADR 0067 addendum of 2026-11-08, point 3); every row names the caller's school. Preserve ambient scope, target validation and existing failure propagation. ",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentCareProfileBatches.SaveStudentCareProfiles",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.StudentPhotoRuntime.ActingAccountID",
       "classification": "query",
       "effect": "query",
@@ -16450,14 +16658,25 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0213",
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.StudentPhotoRuntime.QueueUnlinkStoredPhoto",
       "classification": "debt",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoRuntime.QueueUnlinkStoredPhoto",
-      "reason": "Unreviewed cross-owner mutation, explicit coordination finding (not a leaf or E1-E5 grant): people-directory reaches modules/filestorage.UploadCleanup.Queue (file-storage) through modules/peopledirectory/compose.StudentPhotoRuntime.QueueUnlinkStoredPhoto. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098).",
+      "reason": "Unreviewed cross-owner mutation, explicit coordination finding (not a leaf or E1-E5 grant): people-directory reaches modules/filestorage.UploadCleanup.Queue (file-storage) through modules/peopledirectory/compose.StudentPhotoRuntime.QueueUnlinkStoredPhoto. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). ADR 0213 reviews the constructor extension binding QueueAll alongside Queue: the single-file command, its URL validation, tenant scope and error propagation remain unchanged; the extra binding introduces no new single-file protocol.",
       "source_owner": "people-directory",
       "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage.UploadCleanup.Queue",
+      "target_owner": "file-storage"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose.StudentPhotoRuntime.QueueUnlinkStoredPhotos",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoRuntime.QueueUnlinkStoredPhotos",
+      "reason": "Guarded File Storage command participation (ADR 0067): QueueAll validates and deduplicates managed upload URLs and records durable cleanup intents in the same tenant transaction in one statement. The root binds the consumer-owned photo runtime port; File Storage retains validation and mutation, with no foreign-state reads, coordinated locks or after-commit work in the command (#6650, ADR 0213).",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage.UploadCleanup.QueueAll",
       "target_owner": "file-storage"
     },
     {
@@ -16784,6 +17003,17 @@
       "source_owner": "people-directory",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
       "target_owner": ""
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentOwners.SaveCareBatch",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.careBatches.SaveCareBatch",
+      "reason": "Guarded leaf command (mutation) already reviewed as leaf for this target: people-directory reaches modules/careplan.StudentCareProfileBatches.SaveStudentCareProfiles (care-plan) through the module's own student-owner adapter, which passes the care batch through as the public type (ADR 0067 addendum of 2026-11-08, point 3); every row names the caller's school. Preserve ambient scope, target validation and existing failure propagation. ",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentCareProfileBatches.SaveStudentCareProfiles",
+      "target_owner": "care-plan"
     },
     {
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentCompanions.CompanionDaysCoveredExcluding",
@@ -17143,6 +17373,17 @@
     },
     {
       "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianLinkOwners.CreateGuardianPickupPermissions",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports.GuardianLinkOwners.CreateGuardianPickupPermissions",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Batch form of CreateGuardianPickupPermission for new links of the data import (#5552, ADR 0067 addendum of 2026-11-08, point 3: LinkGuardiansToStudents with Care Plan CreateGuardianPickupPermissions); every row names the caller's school. Target modules/careplan.GuardianPickupPermissionBatches.CreateGuardianPickupPermissions; modules/careplan/guardian_pickup.go. ",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.GuardianPickupPermissionBatches.CreateGuardianPickupPermissions",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianLinkOwners.GrantGuardianStudentAccess",
       "classification": "leaf",
       "effect": "mutation",
@@ -17150,6 +17391,17 @@
       "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Target-local locks/savepoints alone do not establish a new source coordinator. Target modules/identityaccess.GuardianStudentAccess.GrantGuardianStudentAccess; modules/identityaccess/guardian_student_access.go:38. ",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianStudentAccess.GrantGuardianStudentAccess",
+      "target_owner": "identity-access"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.guardianLinkOwners.GrantGuardianStudentAccesses",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports.GuardianLinkOwners.GrantGuardianStudentAccesses",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Batch form of GrantGuardianStudentAccess for new links of the data import (#5552, ADR 0067 addendum of 2026-11-08, point 3: LinkGuardiansToStudents with Identity \u0026 Access GrantGuardianStudentAccesses); every row names the caller's school. Target modules/identityaccess.GuardianStudentAccessBatches.GrantGuardianStudentAccesses; modules/identityaccess/guardian_student_access.go. ",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess.GuardianStudentAccessBatches.GrantGuardianStudentAccesses",
       "target_owner": "identity-access"
     },
     {
@@ -17226,6 +17478,17 @@
       "target_owner": "audit-platform"
     },
     {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentOwnerWrites.SaveCareBatch",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports.StudentOwners.SaveCareBatch",
+      "reason": "Guarded leaf command (mutation) already reviewed as leaf for this target: people-directory reaches modules/careplan.StudentCareProfileBatches.SaveStudentCareProfiles (care-plan) through the module's own student-owner adapter, which passes the care batch through as the public type (ADR 0067 addendum of 2026-11-08, point 3); every row names the caller's school. Preserve ambient scope, target validation and existing failure propagation. ",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentCareProfileBatches.SaveStudentCareProfiles",
+      "target_owner": "care-plan"
+    },
+    {
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoRuntime.ActingAccountID",
       "classification": "query",
       "effect": "query",
@@ -17268,14 +17531,25 @@
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
+      "approval_adr": "0213",
       "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoRuntime.QueueUnlinkStoredPhoto",
       "classification": "debt",
       "effect": "mutation",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports.StudentPhotoRuntime.QueueUnlinkStoredPhoto",
-      "reason": "Unreviewed cross-owner mutation, explicit coordination finding (not a leaf or E1-E5 grant): people-directory reaches modules/filestorage.UploadCleanup.Queue (file-storage) through modules/peopledirectory/internal/application.StudentPhotoRuntime.QueueUnlinkStoredPhoto. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098).",
+      "reason": "Unreviewed cross-owner mutation, explicit coordination finding (not a leaf or E1-E5 grant): people-directory reaches modules/filestorage.UploadCleanup.Queue (file-storage) through modules/peopledirectory/internal/application.StudentPhotoRuntime.QueueUnlinkStoredPhoto. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). ADR 0213 reviews the constructor extension binding QueueAll alongside Queue: the single-file command, its URL validation, tenant scope and error propagation remain unchanged; the extra binding introduces no new single-file protocol.",
       "source_owner": "people-directory",
       "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage.UploadCleanup.Queue",
+      "target_owner": "file-storage"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentPhotoRuntime.QueueUnlinkStoredPhotos",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/ports.StudentPhotoRuntime.QueueUnlinkStoredPhotos",
+      "reason": "Guarded File Storage command participation (ADR 0067): QueueAll validates and deduplicates managed upload URLs and records durable cleanup intents in the same tenant transaction in one statement. The root binds the consumer-owned photo runtime port; File Storage retains validation and mutation, with no foreign-state reads, coordinated locks or after-commit work in the command (#6650, ADR 0213).",
+      "source_owner": "people-directory",
+      "target": "*github.com/moto-nrw/project-phoenix/modules/filestorage.UploadCleanup.QueueAll",
       "target_owner": "file-storage"
     },
     {
@@ -18139,6 +18413,17 @@
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0067",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.RetainedGuardianService.UpdateGuardian",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.GuardianService.UpdateGuardian",
+      "reason": "Guarded Identity invitation invalidation joins the contact edit's existing school transaction, refuses a missing transaction/school, and updates only Identity-owned live unaccepted links. No separate commit, scope switch, foreign-state check or new coordinated lock protocol; errors abort the outer contact edit (ADR 0067 command participation).",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose.NewGuardianInvitationInvalidation",
+      "target_owner": "identity-access"
     },
     {
       "adr": "0098",
@@ -19955,6 +20240,17 @@
       "reason": "E3 named People student/companion or staff-identity edit protocol. Preserve class gate, foreign row/cohort locks, in-lock checks and composite savepoint/best-effort caregiver behavior; hand rows 14-19, People student_write.go, student_enrollment.go, staff_directory.go. Target modules/careplan.StudentProfileCommands.SaveStudentCareProfile; modules/careplan/student_profiles.go:38. ",
       "source_owner": "people-directory",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentProfileCommands.SaveStudentCareProfile",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.studentOwners.SaveCareBatch",
+      "classification": "leaf",
+      "effect": "mutation",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentOwners.SaveCareBatch",
+      "reason": "Guarded target record/byte command; preserve ambient scope, target validation and existing failure propagation. Batch form of SaveCare for the care profiles of new memberships of the data import (ADR 0067 addendum of 2026-11-08, point 3: Care Plan SaveStudentCareProfiles is a leaf the E3 enrollment batch calls); every row names the caller's school. Target modules/careplan.StudentCareProfileBatches.SaveStudentCareProfiles; modules/careplan/student_profiles.go. ",
+      "source_owner": "people-directory",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.StudentCareProfileBatches.SaveStudentCareProfiles",
       "target_owner": "care-plan"
     },
     {
@@ -21979,6 +22275,42 @@
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDByNameAndBirthday",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Callable variable or parameter with a value the scan cannot follow (no caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:callable:modules/peopledirectory/internal/application.observe. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0210",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.StudentRecords.FindEnrolledStudentIDsByIdentities",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDsByIdentities",
+      "reason": "Existing StudentService observation callable, supplied freely only by test hooks; static binding remains unresolved as in ADR 0098. ADR 0210 approves exactly the three new batch-lookup bindings to this observer, without classifying them as queries or guarded leaves.",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0210",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.OverlappingRosterGroupNames.FindEnrolledStudentIDsByIdentities",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDsByIdentities",
+      "reason": "Existing StudentService observation callable, supplied freely only by test hooks; static binding remains unresolved as in ADR 0098. ADR 0210 approves exactly the three new batch-lookup bindings to this observer, without classifying them as queries or guarded leaves.",
+      "source_owner": "people-directory",
+      "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0210",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.groupStudentRepository.FindEnrolledStudentIDsByIdentities",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports.StudentRepository.FindEnrolledStudentIDsByIdentities",
+      "reason": "Existing StudentService observation callable, supplied freely only by test hooks; static binding remains unresolved as in ADR 0098. ADR 0210 approves exactly the three new batch-lookup bindings to this observer, without classifying them as queries or guarded leaves.",
       "source_owner": "people-directory",
       "target": "unresolved:callable:github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/application.observe",
       "target_owner": ""

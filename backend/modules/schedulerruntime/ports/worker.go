@@ -43,11 +43,14 @@ type WorkerDependencies struct {
 	TraegerDocumentReadRetention TraegerDocumentReadRetention
 	// BelegRetention evaluates the Belege of every Träger daily and deletes
 	// those whose instructed period ended (#4720).
-	BelegRetention     BelegRetention
-	WorkSessionCleanup WorkSessionCleaner
-	BreakAutoEnder     BreakAutoEnder
-	AutoCheckouter     AutoCheckouter
-	FeedbackCleaner    FeedbackCleaner
+	BelegRetention BelegRetention
+	// SEPADebitDownloadRetention expires the unsubmitted PAIN.008 downloads
+	// of every Träger (ADR 0187).
+	SEPADebitDownloadRetention SEPADebitDownloadRetention
+	WorkSessionCleanup         WorkSessionCleaner
+	BreakAutoEnder             BreakAutoEnder
+	AutoCheckouter             AutoCheckouter
+	FeedbackCleaner            FeedbackCleaner
 	// RetentionSteps are the owners' deletions of a school's nightly cleanup
 	// (#3950), RetentionLog records each deletion; NewWorker builds the run
 	// over them. CleanupRuns keeps each school's last successful nightly run.
@@ -75,9 +78,12 @@ type WorkerDependencies struct {
 	// CareContractReminders reminds parents of unsigned care contracts
 	// (#4679); nil leaves the job out.
 	CareContractReminders CareContractReminders
-	WeekProtocols         WeekProtocolEvenings
-	PayrollDispatch       PayrollDispatch
-	MealOrders            MealOrderSettlement
+	// HolidayClosureNotifications processes the confirmed notices of
+	// changed school closing days (ADR 0196); nil leaves the job out.
+	HolidayClosureNotifications HolidayClosureNotifications
+	WeekProtocols               WeekProtocolEvenings
+	PayrollDispatch             PayrollDispatch
+	MealOrders                  MealOrderSettlement
 	// SchoolVacations renews the school vacations of every federal state
 	// (#5345); nil leaves the job out.
 	SchoolVacations           SchoolVacationSync

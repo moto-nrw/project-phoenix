@@ -113,6 +113,11 @@ type recordingSourcedTemplateResyncer struct {
 	err                 error
 }
 
+func (r *recordingSourcedTemplateResyncer) ResyncTemplatesSourcedFromOfferings(_ context.Context, offeringIDs []int64, _ calendar.Date) error {
+	r.offeringIDs = append(r.offeringIDs, offeringIDs...)
+	return r.err
+}
+
 func (r *recordingSourcedTemplateResyncer) ResyncTemplatesSourcedFromOffering(_ context.Context, offeringID int64, _ calendar.Date) error {
 	r.offeringIDs = append(r.offeringIDs, offeringID)
 	return r.err
@@ -143,6 +148,21 @@ func (o phaseOfferings) CountOfferingsForPhase(ctx context.Context, phaseID int6
 	return o.carePlan.CountCareOfferingsByPhase(ctx, phaseID)
 }
 
+func (o phaseOfferings) CareOfferingBookingsForPhase(ctx context.Context, phaseID int64) ([]enrollmentTest.PhaseBooking, error) {
+	rows, err := o.carePlan.CareOfferingBookingsForPhase(ctx, phaseID)
+	if err != nil {
+		return nil, err
+	}
+	bookings := make([]enrollmentTest.PhaseBooking, 0, len(rows))
+	for _, row := range rows {
+		bookings = append(bookings, enrollmentTest.PhaseBooking{
+			ID: row.ID, RequestChildID: row.RequestChildID, CareOfferingID: row.CareOfferingID,
+			ValidFrom: (*enrollmentTest.PhaseBookingDate)(row.ValidFrom), ValidUntil: (*enrollmentTest.PhaseBookingDate)(row.ValidUntil),
+		})
+	}
+	return bookings, nil
+}
+
 // These are fixture roots, not owner persistence fallbacks. Tests that inspect
 // the ambient-only contract call the native owner directly.
 func fixtureEnrollmentCommand(ctx context.Context, call func(context.Context) error) error {
@@ -154,4 +174,17 @@ func fixtureEnrollmentQuery[T any](ctx context.Context, call func(context.Contex
 		return err
 	})
 	return value, err
+}
+
+func (o phaseOfferings) HasTraegerCopiesForPhase(ctx context.Context, id int64) (bool, error) {
+	rows, err := o.carePlan.ListCareOfferings(ctx, careplan.CareOfferingFilter{PhaseIDs: []int64{id}})
+	if err != nil {
+		return false, err
+	}
+	for _, row := range rows {
+		if row.Traeger != nil {
+			return true, nil
+		}
+	}
+	return false, nil
 }

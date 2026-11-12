@@ -5,6 +5,8 @@ import { makePortalHandlers } from "../portal-handlers.server";
 export const school = makePortalHandlers(schoolPortal);
 
 export const {
+  proxyFile,
+  proxyUpload,
   proxyGet,
   proxyPost,
   proxyPut,

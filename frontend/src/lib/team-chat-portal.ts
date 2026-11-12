@@ -1,3 +1,4 @@
+import type { MessageAttachmentRoutes } from "./message-attachments";
 import type { StaffMessagesApi } from "./staff-messages-api";
 
 /**
@@ -11,6 +12,8 @@ import type { StaffMessagesApi } from "./staff-messages-api";
 export interface TeamChatPortal {
   readonly kind: "tenant" | "school";
   readonly api: StaffMessagesApi;
+  /** Wo dieses Portal Fotos und Dateien hochlädt und abruft (#6685). */
+  readonly attachments: MessageAttachmentRoutes;
   /** Cache scope prefix for SWR keys — a tenant switch must never surface the previous school's list. */
   readonly cacheScope: string;
   readonly inboxHref: string;

@@ -64,7 +64,8 @@ export function traegerSepaDebitFileTopic(): HelpTopic {
     result:
       "Die Karte zeigt `Bei der Bank eingereicht`. Bei einem neuen Mandat ist die nächste Abbuchung eine Folgelastschrift. Auf der Seite des Mandats steht jede Abbuchung unter `Abbuchungen`.",
     notes: [
-      "Sie können die Datei mehrmals herunterladen. Ohne Änderungen am selben Tag bleibt sie gleich. Reichen Sie dieselbe Datei aber nur einmal ein.",
+      "Sie können die Datei mehrmals herunterladen. Ohne Änderungen am selben Tag bleibt ihr Inhalt gleich. Reichen Sie dieselbe Datei aber nur einmal ein.",
+      "Jeder Download bekommt eine neue Dateinummer im Namen und steht unter `Abrechnung` → `Exporte` im `Exportprotokoll`.",
       "Eine Lastschrift, die schon fällig war, bucht die Datei am nächsten Tag ab.",
       "Ein Einmalmandat darf nur eine Rechnung einziehen. Bei mehreren Rechnungen klären Sie mit der Familie, wie sie zahlt.",
       "Ein Mandat gilt 36 Monate nach der letzten Abbuchung. Danach braucht die Familie ein neues Mandat.",

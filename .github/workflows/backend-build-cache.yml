@@ -1,0 +1,91 @@
+name: Backend build cache
+
+# Saves the Go build cache that "Backend tests" in pull requests restore.
+# A cache saved by a pull request is visible to that pull request only, and
+# development has no other push run, so without this job every pull request
+# compiled the whole backend inside its test step (#6784: 574 s cold against
+# 314 s warm on blacksmith-8vcpu). Pull requests only restore; this job is
+# the one writer, so the repository's 10 GB cache holds development's layer.
+#
+# The key must match "Restore backend build cache" in test.yml for shard 0
+# without the race detector, and the environment must match the test job's
+# (GOFLAGS, GOTOOLCHAIN, runner image), or the compile actions miss.
+
+on:
+  push:
+    branches:
+      - development
+    paths:
+      - 'backend/**'
+      - 'scripts/backend-architecture/**'
+      - 'scripts/backend-test-matrix.sh'
+      - '.github/workflows/backend-build-cache.yml'
+
+permissions: {}
+
+concurrency:
+  # Only the newest development commit is worth a cache.
+  group: backend-build-cache
+  cancel-in-progress: true
+
+defaults:
+  run:
+    shell: bash
+
+env:
+  GOTOOLCHAIN: local
+  GOFLAGS: -tags=testhooks -trimpath
+
+jobs:
+  warm:
+    name: Warm backend build cache
+    # Same image as the test job; compile output does not depend on the size.
+    runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 1
+          persist-credentials: false
+
+      - name: Setup Go
+        id: go
+        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
+        with:
+          go-version-file: backend/go.mod
+          cache: true
+          cache-dependency-path: backend/go.sum
+
+      - name: Compute backend build cache key
+        id: build-cache-key
+        env:
+          BACKEND_CACHE_PREFIX: backend-build-${{ runner.os }}-${{ runner.arch }}-${{ steps.go.outputs.go-version }}-0-${{ hashFiles('backend/go.sum', 'scripts/backend-architecture/go.sum') }}-
+          BACKEND_SOURCE_HASH: ${{ hashFiles('backend/**/*.go', 'scripts/backend-architecture/**/*.go', 'scripts/backend-test-matrix.sh') }}
+        run: |
+          echo "prefix=$BACKEND_CACHE_PREFIX" >> "$GITHUB_OUTPUT"
+          echo "key=$BACKEND_CACHE_PREFIX$BACKEND_SOURCE_HASH" >> "$GITHUB_OUTPUT"
+
+      - name: Restore backend build cache
+        id: build-cache
+        uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: ${{ steps.build-cache-key.outputs.key }}
+          restore-keys: ${{ steps.build-cache-key.outputs.prefix }}
+
+      # Compiles and vets every test package as "Run Go tests" does and links
+      # each test binary, but runs none: -exec hands the binary to true.
+      - name: Build every test package
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        working-directory: backend
+        run: go test -count=1 -exec true ./... > /dev/null
+
+      - name: Save backend build cache
+        if: steps.build-cache.outputs.cache-hit != 'true'
+        uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/go-build
+          key: ${{ steps.build-cache-key.outputs.key }}

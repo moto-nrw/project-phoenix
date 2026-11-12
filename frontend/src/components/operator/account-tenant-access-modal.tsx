@@ -8,6 +8,7 @@ import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { EmptyState } from "~/components/ui/empty-state";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import {
   FormErrorAlert,
   LoadErrorAlert,
@@ -22,6 +23,7 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { isAssignableStaffRole } from "~/lib/auth-helpers";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { isLehrkraftRole, systemRoleLabel } from "~/lib/role-labels";
 import {
@@ -68,7 +70,8 @@ interface AccountTenantAccessModalProps {
   readonly accountId: string;
   readonly accountLabel: string;
   readonly accountEmail: string;
-  readonly onUpdated?: () => void | Promise<void>;
+  /** Reloads the account list; never rejects (#6652). */
+  readonly onUpdated?: RefreshAfterWrite;
 }
 
 /**
@@ -94,7 +97,8 @@ export function AccountTenantAccessModal({
     >
   >({});
   const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen, accountId);
+  const saving = save.pending;
   // #2519: load errors stay where the data is missing, the grant error in
   // its section, the revoke error in its confirmation, a role change as toast.
   const accessLoad = useApiLoadError();
@@ -310,22 +314,28 @@ export function AccountTenantAccessModal({
     logEvent: string,
     report: (error: unknown) => void,
   ) {
-    try {
-      setSaving(true);
-      setAccess(await action());
+    const ok = await save.run(async (op) => {
+      let next: AccountTenantAccess[];
+      try {
+        next = await action();
+      } catch (error) {
+        logger.error(logEvent, {
+          error: error instanceof Error ? error.message : String(error),
+          accountId,
+        });
+        if (op.isCurrent()) report(error);
+        return false;
+      }
+      // Eine späte Antwort ändert keinen inzwischen neu geöffneten Dialog
+      // (#6533); Erfolgsmeldung und Nachladen beim Aufrufer laufen weiter.
+      // Ein gescheitertes Nachladen zeigt die Seite als Ladefehler (#6652).
+      if (op.isCurrent()) setAccess(next);
       toastSuccess(successMessage);
-      await onUpdated?.();
-      return true;
-    } catch (error) {
-      logger.error(logEvent, {
-        error: error instanceof Error ? error.message : String(error),
-        accountId,
-      });
-      report(error);
-      return false;
-    } finally {
-      setSaving(false);
-    }
+      // Never rejects; the dialog does not wait for the page's reload.
+      void onUpdated?.();
+      return op.isCurrent();
+    });
+    return ok === true;
   }
 
   async function handleGrant() {
@@ -412,6 +422,7 @@ export function AccountTenantAccessModal({
         // eigenständige Dialoge übereinander (#2774).
         isOpen={isOpen && revokeTarget === null}
         onClose={onClose}
+        pending={save}
         title={`Schulzugänge: ${accountLabel}`}
         size="xl"
         footer={
@@ -665,6 +676,7 @@ export function AccountTenantAccessModal({
         title="Schulzugang entziehen"
         confirmText="Zugang entziehen"
         isConfirmLoading={saving}
+        loadingText="Zugang wird entzogen …"
         confirmVariant="danger"
       >
         <p className="text-sm text-gray-600">

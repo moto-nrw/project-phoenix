@@ -9,6 +9,7 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { berlinTodayISO } from "~/lib/date-helpers";
@@ -68,7 +69,8 @@ export function CareEvidenceModal({
     validFrom: today,
     validUntil: "",
   });
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(target !== null);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -116,10 +118,9 @@ export function CareEvidenceModal({
       );
       return;
     }
-    setSaving(true);
-    try {
-      onSaved(
-        await saveCareEvidence(target.evidence?.id ?? null, {
+    await save.run(async (op) => {
+      try {
+        const result = await saveCareEvidence(target.evidence?.id ?? null, {
           contractId: target.contract.contractId,
           kind: target.kind,
           ruleId: income ? draft.ruleId : null,
@@ -127,24 +128,24 @@ export function CareEvidenceModal({
           checkedOn: draft.checkedOn,
           validFrom: draft.validFrom,
           validUntil: draft.validUntil || null,
-        }),
-      );
-      success(`Der Nachweis für ${child} ist gespeichert.`);
-    } catch (err) {
-      logger.error("care_evidence_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "den Nachweis" });
-    } finally {
-      setSaving(false);
-    }
+        });
+        if (op.isCurrent()) onSaved(result);
+        success(`Der Nachweis für ${child} ist gespeichert.`);
+      } catch (err) {
+        logger.error("care_evidence_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "den Nachweis" });
+      }
+    });
   };
 
   return (
     <FormModal
       isOpen={target !== null}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title={
         target ? `${EVIDENCE_KIND_LABELS[target.kind]}: ${child}` : "Nachweis"

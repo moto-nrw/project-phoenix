@@ -172,7 +172,7 @@ func (s *service) assignStudentsInTransit(ctx context.Context, targetGroup *port
 		}
 		// All or nothing: a bulk assignment that does not fit is refused as
 		// a whole instead of assigning the first children that fit.
-		if err := s.ensureActivityParticipantLimit(ctx, targetGroup, incoming); err != nil {
+		if err := s.ensureActivityParticipantLimit(ctx, targetGroup, incoming, nil); err != nil {
 			return err
 		}
 	}

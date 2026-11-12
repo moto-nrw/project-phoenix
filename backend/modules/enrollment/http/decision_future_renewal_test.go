@@ -234,7 +234,7 @@ func TestPhaseService_Update_ReschedulesPendingWeeklyPlans(t *testing.T) {
 
 			failure := errors.New("after phase update")
 			err = testpkg.WithTenantTx(t, ctx, r.env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
-				if err := phases.UpdatePhase(txCtx, phase); err != nil {
+				if err := phaseEdit(phases)(txCtx, phase); err != nil {
 					return err
 				}
 				return failure
@@ -247,7 +247,7 @@ func TestPhaseService_Update_ReschedulesPendingWeeklyPlans(t *testing.T) {
 			require.NoError(t, err)
 			require.Equal(t, enrollmentNative.Date(r.start), storedPhase.ServiceStartDate)
 
-			require.NoError(t, testpkg.TenantCommand1(t, ctx, r.env.db, phases.UpdatePhase, phase))
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, r.env.db, phaseEdit(phases), phase))
 			rescheduled, err := testpkg.TenantQuery1(t, ctx, r.env.db, module.ChildWeeklyPlan, r.childID)
 			require.NoError(t, err)
 			plan.On = phase.ServiceStartDate
@@ -264,7 +264,7 @@ func TestPhaseService_Update_ReschedulesPendingWeeklyPlans(t *testing.T) {
 				r.student(t).AllowedDepartureModes.DepartureDays().ModeFor(peopleValues.PickupDayMonday))
 
 			phase.ServiceStartDate = enrollmentNative.Date(newStart.AddDays(1))
-			require.NoError(t, testpkg.TenantCommand1(t, ctx, r.env.db, phases.UpdatePhase, phase))
+			require.NoError(t, testpkg.TenantCommand1(t, ctx, r.env.db, phaseEdit(phases), phase))
 			applied, err := testpkg.TenantQuery1(t, ctx, r.env.db, module.ChildWeeklyPlan, r.childID)
 			require.NoError(t, err)
 			assert.Nil(t, applied, "a phase change never recreates an applied plan")

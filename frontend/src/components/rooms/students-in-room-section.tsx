@@ -59,6 +59,7 @@ import type { Room } from "~/lib/room-helpers";
 import type { Staff } from "~/lib/usercontext-helpers";
 import { CompactStudentCard } from "~/components/students/compact-student-card";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
@@ -104,6 +105,12 @@ export function StudentsInRoomSection({
     "search-students-",
     "database-students-list",
   ]);
+  // Nach dem Bewegen lädt die Liste nach; ein Fehler dabei steht als
+  // Ladefehler über der Liste und bewegt nichts erneut (#6652).
+  const moveAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Kinder im Raum",
+    refreshRoomConsumers,
+  );
   const [selectedStudentIds, setSelectedStudentIds] = useState<Set<string>>(
     () => new Set(),
   );
@@ -425,7 +432,7 @@ export function StudentsInRoomSection({
         moveErrors.invalid(
           `${skipped} von ${studentIds.length} Kindern konnten nicht bewegt werden.`,
         );
-        await refreshRoomConsumers();
+        await moveAfterWrite.refresh();
         return;
       }
 
@@ -438,7 +445,7 @@ export function StudentsInRoomSection({
           ? `1 Kind ist jetzt in ${target.roomName}.`
           : `${successCount} Kinder sind jetzt in ${target.roomName}.`,
       );
-      await refreshRoomConsumers();
+      await moveAfterWrite.refresh();
     } catch (err) {
       logger.warn("room_bulk_move_partial_failure", {
         selected_count: studentIds.length,
@@ -520,6 +527,7 @@ export function StudentsInRoomSection({
           the first student card. Without it the button bottom edge sits
           flush with the first card border. Review feedback (#1323). */}
         <div className="mt-4">
+          <LoadErrorAlert error={moveAfterWrite.error} className="mb-4" />
           {canBulkMove && students.length > 0 ? (
             <BulkMoveToolbar
               selectedCount={selectedVisibleCount}

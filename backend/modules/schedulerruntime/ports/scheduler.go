@@ -119,8 +119,9 @@ type AccountRetention interface {
 }
 
 // HolidayRegistrationRetention deletes the public holiday registrations of
-// every Träger three months after their period ended (#4661) in the hourly
-// cleanup.
+// every Träger once the days each registration keeps after its period have
+// passed, and their health information after 92 days (#4661, #6691), in the
+// hourly cleanup.
 type HolidayRegistrationRetention interface {
 	DeleteExpiredHolidayRegistrations(ctx context.Context) (int, error)
 }
@@ -137,6 +138,12 @@ type TraegerDocumentReadRetention interface {
 // (#4720, ADR 0184). Without an instruction it deletes nothing.
 type BelegRetention interface {
 	ApplyBelegRetention(ctx context.Context) (int, error)
+}
+
+// SEPADebitDownloadRetention deletes the unsubmitted PAIN.008 downloads of
+// every Träger 30 days after the download in the hourly cleanup (ADR 0187).
+type SEPADebitDownloadRetention interface {
+	DeleteExpiredSEPADebitDownloads(ctx context.Context) (int, error)
 }
 
 // SignInDataCleaner exposes the fixed retention of the short-lived sign-in

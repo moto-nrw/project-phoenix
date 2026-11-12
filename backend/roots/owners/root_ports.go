@@ -136,6 +136,11 @@ type (
 	DataDeletionAppender interface {
 		Create(ctx context.Context, deletion *auditModels.DataDeletion) error
 	}
+	// DataDeletionBatchAppender appends the deletions of many subjects at
+	// once, all or nothing.
+	DataDeletionBatchAppender interface {
+		CreateAll(ctx context.Context, deletions []*auditModels.DataDeletion) error
+	}
 	StudentConsentAppender interface {
 		Create(ctx context.Context, entry *auditModels.StudentConsentChange) error
 	}

@@ -41,7 +41,7 @@ func TestMFAService_ResendChallengeForScope_ForeignScope_RefusedBeforeSending(t 
 	svc, _, accID := newExtraMFAService(t)
 	db := testpkg.SetupTestDB(t)
 	ctx := context.Background()
-	require.NoError(t, svc.EnrollMFA(ctx, accID))
+	require.NoError(t, enrollMFA(ctx, t, db, svc, accID))
 
 	// A challenge started at the TENANT login…
 	token, err := svc.StartMFAChallenge(ctx, accID, 0, identityaccess.MFAChallengeScopeTenant, net.ParseIP("127.0.0.1"), 0)
@@ -66,9 +66,10 @@ func TestMFAService_ResendChallengeForScope_ForeignScope_RefusedBeforeSending(t 
 func TestMFAService_ResendChallengeForScope_SchoolScope_HappyPath(t *testing.T) {
 	t.Parallel()
 
-	svc, _, accID := newExtraMFAService(t)
+	scenario := newMFATestScenario(t)
+	svc, accID := scenario.MFA, scenario.AccountID
 	ctx := context.Background()
-	require.NoError(t, svc.EnrollMFA(ctx, accID))
+	require.NoError(t, enrollMFA(ctx, t, scenario.DB, svc, accID))
 
 	token, err := svc.StartMFAChallenge(ctx, accID, 0, identityaccess.MFAChallengeScopeSchool, net.ParseIP("127.0.0.1"), 0)
 	require.NoError(t, err)

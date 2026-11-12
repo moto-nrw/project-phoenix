@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
@@ -176,6 +177,9 @@ func (s *Store) FindPickupExtensionTask(ctx context.Context, id int64) (domain.P
 func (s *Store) FindPickupExtensionTaskForUpdate(ctx context.Context, id int64) (domain.PickupExtensionTask, bool, domain.OperationStats, error) {
 	db, tenantID, err := s.database(ctx)
 	if err != nil {
+		return domain.PickupExtensionTask{}, false, domain.OperationStats{}, err
+	}
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "schedule.pickup_extension_tasks"); err != nil {
 		return domain.PickupExtensionTask{}, false, domain.OperationStats{}, err
 	}
 	row := pickupExtensionTaskRow{}
@@ -353,7 +357,7 @@ func (s *Store) ListPickupExtensionTemplateInstances(ctx context.Context, templa
 		}
 	}
 	query := db.NewSelect().TableExpr(`schedule.activity_instances AS "instance"`).
-		ColumnExpr(`"instance".id AS id, "instance".date::text AS date, "own".id AS own_participant_id`).
+		ColumnExpr(`"instance".id AS id, "instance".date::text AS date, "own".id AS own_participant_id, "instance".start_time::text AS start_time, "instance".end_time::text AS end_time`).
 		Join(`LEFT JOIN schedule.instance_students AS "own" ON "own".tenant_id = "instance".tenant_id AND "own".instance_id = "instance".id AND "own".student_id = ?`, studentID).
 		Where(`"instance".tenant_id = ?`, tenantID).
 		Where(`"instance".activity_group_id = ?`, templateID).

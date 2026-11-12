@@ -231,11 +231,10 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 	})
 
 	repoFactory := mustTimetableTestRepositories(s.db)
-	timetableData := testTimetableDataWithOfferingCallbacks(
-		s.db,
-		nil,
-		func(context.Context, []int64, []int64, *int64) error { return nil },
-		func(ctx context.Context, in timetableModule.OfferingRosterResyncInput) error {
+	timetableData := testTimetableWith(s.db, testTimetableOptions{
+		instances:              s.instances,
+		validateOfferingSource: func(context.Context, []int64, []int64, *int64) error { return nil },
+		resyncOfferingRoster: func(ctx context.Context, in timetableModule.OfferingRosterResyncInput) error {
 			for _, enrollment := range []timetableModule.StudentEnrollmentInput{
 				{
 					StudentID:        s.studentA,
@@ -258,7 +257,7 @@ func TestConvertInstanceToSeries_UsesOfferingRosterForExistingSeed(t *testing.T)
 			}
 			return nil
 		},
-	)
+	})
 	s.res.Templates = timetableData
 	converter, err := timetableCompose.NewInstanceSeriesConversion(
 		timetablePorts.InstanceSeriesConversionDependencies{
@@ -314,7 +313,7 @@ func TestConvertInstanceToSeries_RollsBackTemplateWhenLinkFails(t *testing.T) {
 			Transactions:   timetableCompose.NewTenantTransactions(s.db),
 			InstanceRepo:   repoFactory.ActivityInstance,
 			Lifecycle:      failingInstanceService,
-			Templates:      s.res.Templates,
+			Templates:      s.seriesTemplates,
 			RecurrenceLock: must(RootCompositions.RecurrenceLock(s.db)),
 		},
 	)

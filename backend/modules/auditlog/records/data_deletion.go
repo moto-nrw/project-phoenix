@@ -47,6 +47,11 @@ const (
 	// It names the staff member like the offboarding and is written by the
 	// system.
 	DeletionTypeStaffRetention = "staff_retention"
+	// DeletionTypeStudentPhotoRetention records the end of one child's photo
+	// data after the care is over (#6650): the photo, the photo consent and
+	// who recorded it. It names the child and is written by the system; it
+	// is no withdrawal by the parents.
+	DeletionTypeStudentPhotoRetention = "student_photo_retention"
 )
 
 // Retention types that log one data kind of a nightly run without a subject
@@ -59,6 +64,9 @@ const (
 	DeletionTypeDataAccessLogRetention       = "data_access_log_retention"
 	DeletionTypeDeletionLogRetention         = "deletion_log_retention"
 	DeletionTypeDeliveryRetention            = "delivery_retention"
+	DeletionTypeFeedbackRetention            = "feedback_retention"
+	DeletionTypePWAUsageRetention            = "pwa_usage_retention"
+	DeletionTypeStaffMessageRetention        = "staff_message_retention"
 	// The technical remains of #4046: finished cleanup and offboarding jobs,
 	// finished care-withdrawal completions and enrollment rate-limit buckets.
 	DeletionTypeFileCleanupRetention            = "file_cleanup_retention"
@@ -163,6 +171,9 @@ func IsDataKindRetention(deletionType string) bool {
 		DeletionTypeDataAccessLogRetention,
 		DeletionTypeDeletionLogRetention,
 		DeletionTypeDeliveryRetention,
+		DeletionTypeFeedbackRetention,
+		DeletionTypePWAUsageRetention,
+		DeletionTypeStaffMessageRetention,
 		DeletionTypeFileCleanupRetention,
 		DeletionTypeStaffCleanupRetention,
 		DeletionTypeStudentDocumentCleanupRetention,
@@ -211,7 +222,8 @@ func (dd *DataDeletion) Validate() error {
 		dd.DeletionType == DeletionTypeTimeTrackingRetention,
 		dd.DeletionType == DeletionTypeStudentChangeLogRetention,
 		dd.DeletionType == DeletionTypeStudentRetention,
-		dd.DeletionType == DeletionTypeStaffRetention:
+		dd.DeletionType == DeletionTypeStaffRetention,
+		dd.DeletionType == DeletionTypeStudentPhotoRetention:
 		if hasStudent == hasStaff {
 			// Both set or both unset — the DB would reject this too.
 			return errors.New("exactly one of student_id / staff_id must be set")

@@ -71,7 +71,7 @@ func (s *Service) submitCareException(ctx context.Context, accountID, studentID 
 	}
 	change := careExceptionChange{accountID: accountID, studentID: studentID, date: date, today: today, pickupTime: pickupTime, reason: reason}
 	var result *CareException
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, childWriteNeeds(GuardianPermissionPickupManage), func(txCtx context.Context) error {
 		merged, err := s.writeCareException(txCtx, child.TenantID, change)
 		result = merged
 		return err
@@ -231,7 +231,7 @@ func (s *Service) pickupHasStaffException(ctx context.Context, studentID int64, 
 	if err != nil {
 		return false, err
 	}
-	return pickup != nil && (pickup.Source == exceptionSourceStaff || pickup.HasManualPartialAbsence()), nil
+	return pickup != nil && (schoolOwned(pickup.Source) || pickup.HasManualPartialAbsence()), nil
 }
 
 // DeleteCareException removes only the guardian-authored pickup exception for
@@ -255,7 +255,7 @@ func (s *Service) DeleteCareException(ctx context.Context, accountID, studentID 
 		return ErrPastCareDate
 	}
 	change := careExceptionChange{accountID: accountID, studentID: studentID, date: date, today: today}
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, childWriteNeeds(GuardianPermissionPickupManage), func(txCtx context.Context) error {
 		return s.withdrawCareException(txCtx, child.TenantID, change)
 	})
 	if txErr != nil {

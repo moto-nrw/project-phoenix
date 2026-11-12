@@ -8,7 +8,10 @@ version: 2
 updates:
   # Go modules (Backend)
   - package-ecosystem: "gomod"
-    directory: "/backend"
+    directories:
+      - "/backend"
+      - "/backend/tools"
+      - "/scripts/backend-architecture"
     schedule:
       interval: "weekly"
       day: "monday"
@@ -80,3 +83,20 @@ updates:
       timezone: "Europe/Berlin"
     commit-message:
       prefix: "ci(deps)"
+
+  # All checked-in application images, including development Dockerfiles.
+  - package-ecosystem: "docker"
+    directories:
+      - "/backend"
+      - "/frontend"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+      time: "09:00"
+      timezone: "Europe/Berlin"
+    # A Node major PR is a reminder, not mergeable as opened: it moves only
+    # the frontend images and fails TestToolchainPinsRatchet. Complete it in
+    # the same PR with devbox.json, devbox.lock and every node-version in
+    # .github/workflows. Close it for a non-LTS major.
+    commit-message:
+      prefix: "chore(deps)"

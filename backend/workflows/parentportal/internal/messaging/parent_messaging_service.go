@@ -231,11 +231,18 @@ func (s *Service) UnreadMessageCount(ctx context.Context, accountID int64) (int,
 // the view also says who reads it and whether the leadership option is
 // offered.
 func (s *Service) GetChildConversation(ctx context.Context, accountID, studentID int64, audience ...string) (*MessageThreadView, error) {
-	child, view, err := s.childConversationView(ctx, accountID, studentID, firstAudience(audience))
+	normalized, err := normalizeAudience(firstAudience(audience))
 	if err != nil {
 		return nil, err
 	}
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	// Marking read writes: the child check and the school's part share one
+	// write unit (ADR 0161, #5862). The only write is the reader's own read
+	// cursor, so it takes no child write guard (#6529).
+	var view *MessageThreadView
+	txErr := s.Children.WithPermittedChildForWrite(ctx, accountID, studentID, care.GuardianPermissionPortalAccess, func(child *Child) error {
+		view = childConversationView(child, studentID, normalized)
+		return nil
+	}, func(txCtx context.Context, _ *Child) error {
 		thread, err := s.findChildConversation(txCtx, view, accountID)
 		if err != nil {
 			return err
@@ -274,11 +281,21 @@ func (s *Service) GetChildConversation(ctx context.Context, accountID, studentID
 			})
 		}
 		return nil
-	})
+	}, care.ReadReceiptOnly)
 	if txErr != nil {
-		return nil, fmt.Errorf("parent: get child conversation: %w", txErr)
+		return nil, childConversationError(view, txErr)
 	}
 	return view, nil
+}
+
+// childConversationError returns the child check's own failure, before the
+// view exists, as it is, and gives a later one the conversation's context,
+// as the two units before the handoff did.
+func childConversationError(view *MessageThreadView, err error) error {
+	if view == nil {
+		return err
+	}
+	return fmt.Errorf("parent: get child conversation: %w", err)
 }
 
 // PostChildMessage appends a guardian message to the child's conversation,
@@ -293,7 +310,7 @@ func (s *Service) GetChildConversation(ctx context.Context, accountID, studentID
 func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int64, body string, targets ...MessageTarget) (*MessageThreadView, error) {
 	target := firstTarget(targets)
 	groupThreadID := target.GroupThreadID
-	body, audience, err := normalizeMessageInput(body, target.Audience, groupThreadID)
+	body, audience, err := normalizeMessageInput(body, target.Audience, groupThreadID, len(MessageAttachmentIDs(ctx)) > 0)
 	if err != nil {
 		return nil, err
 	}
@@ -323,7 +340,7 @@ func (s *Service) PostChildMessage(ctx context.Context, accountID, studentID int
 		Audience:     audience,
 		GuardianName: senderName,
 	}
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.Children.WithChildWrite(ctx, accountID, studentID, child, care.ChildWriteAccess{Permissions: []string{care.GuardianPermissionNotesWrite}}, func(txCtx context.Context) error {
 		replayed, err := s.postGuardianReply(txCtx, child, accountID, studentID, senderName, body, groupRef, view)
 		if err != nil {
 			return err
@@ -522,9 +539,9 @@ func (s *Service) postGuardianReply(txCtx context.Context, child *Child, account
 	return message.SendReplayed, s.finishGuardianReply(txCtx, child, thread, accountID, studentID, message.ID, messages, view, message.SendReplayed)
 }
 
-func normalizeParentMessageBody(body string) (string, error) {
+func normalizeParentMessageBody(body string, hasAttachments bool) (string, error) {
 	body = strings.TrimSpace(body)
-	if body == "" {
+	if body == "" && !hasAttachments {
 		return "", care.ErrEmptyNote
 	}
 	if utf8.RuneCountInString(body) > care.MaxParentNoteLen {

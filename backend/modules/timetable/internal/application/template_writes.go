@@ -209,11 +209,17 @@ type TemplateServiceDependencies struct {
 	ResyncOfferingRoster func(context.Context, timetable.OfferingRosterResyncInput) error
 	RecurrenceLock       timetable.RecurrenceWriteLock
 	SickReports          ports.SickReportReader // nil: a series roster change marks nobody sick (#6292)
-	SchoolClasses        ports.SchoolClassRules
-	Staffing             ports.StaffingAnnouncer
-	Logger               *slog.Logger
-	Transactions         ports.TenantTransactions
-	Today                func() calendar.Date
+	// Deviations take the day locks a series roster change holds before it
+	// reads the sick reports (#6232); required with SickReports.
+	Deviations    ports.SeriesDeviations
+	SchoolClasses ports.SchoolClassRules
+	Staffing      ports.StaffingAnnouncer
+	Logger        *slog.Logger
+	Transactions  ports.TenantTransactions
+	Today         func() calendar.Date
+	// Materialization names the people a create's materialization window
+	// plans; nil plans nobody (#6702).
+	Materialization timetable.MaterializationCapability
 }
 
 // TemplateService holds the template writes (create, update, archive, the
@@ -234,12 +240,16 @@ func (s *TemplateService) getLogger() *slog.Logger {
 	return OrDefaultLogger(s.deps.Logger)
 }
 
-// lockRecurrence takes the tenant recurrence gate for a template write.
+// lockRecurrence takes the tenant recurrence gate and then the
+// grade-transition gate for a template write. The write's supervisor rows
+// take staff rows, and the materialization or roster pass after them needs
+// the grade-transition gate; no gate may follow a staff row (#6583,
+// tenant.LockStaffRows), so both gates come first.
 func (s *TemplateService) lockRecurrence(ctx context.Context, op string) error {
 	if s.deps.RecurrenceLock == nil {
 		return &ports.ScheduleError{Op: op + ": lock recurrence", Err: errors.New("template recurrence lock is not configured")}
 	}
-	if err := s.deps.RecurrenceLock.LockRecurrenceWrites(ctx); err != nil {
+	if err := s.deps.RecurrenceLock.LockRecurrenceWritesThenGradeTransitions(ctx); err != nil {
 		return &ports.ScheduleError{Op: op + ": lock recurrence", Err: err}
 	}
 	return nil

@@ -1,9 +1,16 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  act,
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+} from "@testing-library/react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { ApiError } from "~/lib/api-error";
 import type { StaffVacationQuotaSummary } from "~/lib/staff-api";
 import { catalogText } from "~/test/error-catalog-text";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
 
 // Both hooks return stable identities on purpose: the tab's reload callback
 // depends on the toast object, so a fresh object per render would re-run the
@@ -87,6 +94,48 @@ describe("AbwesenheitenTab Urlaubsanspruch bearbeiten", () => {
     mocks.getAbsences.mockResolvedValue([]);
   });
 
+  it("ignores an older year's late response before editing the current quota", async () => {
+    let resolveOld!: (value: StaffVacationQuotaSummary) => void;
+    render(
+      <AbwesenheitenTab
+        staffId="4"
+        canEdit
+        canEditQuota
+        canManageSickReports
+      />,
+    );
+    await screen.findByRole("button", EDIT_BUTTON);
+    mocks.getVacationQuota.mockImplementation(
+      (_id: string, requestedYear: number) =>
+        requestedYear === year - 1
+          ? new Promise<StaffVacationQuotaSummary>((resolve) => {
+              resolveOld = resolve;
+            })
+          : Promise.resolve(quota({ year: requestedYear, entitled_days: 40 })),
+    );
+    fireEvent.click(screen.getByRole("button", { name: String(year - 1) }));
+    await waitFor(() =>
+      expect(mocks.getVacationQuota).toHaveBeenCalledWith("4", year - 1),
+    );
+    fireEvent.click(screen.getByRole("button", { name: String(year + 1) }));
+    await screen.findByRole("button", EDIT_BUTTON);
+    await act(async () => {
+      resolveOld(quota({ entitled_days: 12 }));
+    });
+    const fields = await openQuotaEditor();
+    expect(fields.entitled).toHaveValue(40);
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Annual update" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+    await waitFor(() =>
+      expect(mocks.setVacationQuota).toHaveBeenCalledWith(
+        "4",
+        expect.objectContaining({ year: year + 1, entitled_days: 40 }),
+      ),
+    );
+  });
+
   it("switches the section into the edit state and saves both fields", async () => {
     mocks.setVacationQuota.mockResolvedValue(undefined);
     render(
@@ -131,6 +180,45 @@ describe("AbwesenheitenTab Urlaubsanspruch bearbeiten", () => {
     // Zurück in der Anzeige mit neu geladenen Zahlen.
     expect(await screen.findByRole("button", EDIT_BUTTON)).toBeInTheDocument();
     expect(mocks.getVacationQuota).toHaveBeenCalledTimes(2);
+  });
+
+  // #6652: the claim holds once the write is through; a failed reload is a
+  // load error that says the change is saved, and its retry only reloads.
+  it("keeps a saved claim saved when the reload fails", async () => {
+    mocks.setVacationQuota.mockResolvedValue(undefined);
+    mocks.getVacationQuota
+      .mockReset()
+      .mockResolvedValueOnce(quota())
+      .mockRejectedValueOnce(
+        new ApiError("down", 503, { code: "general.unavailable" }),
+      )
+      .mockResolvedValue(quota({ entitled_days: 31 }));
+    render(
+      <AbwesenheitenTab
+        staffId="4"
+        canEdit
+        canEditQuota
+        canManageSickReports
+      />,
+    );
+
+    const fields = await openQuotaEditor();
+    fireEvent.change(fields.entitled, { target: { value: "31" } });
+    fireEvent.change(screen.getByLabelText("Begründung"), {
+      target: { value: "Stellenumfang erhöht" },
+    });
+    fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
+
+    expect(
+      await screen.findByText(
+        `${catalogText("general.unavailable", "die Anzeige der Abwesenheiten")} ${SAVED_BUT_STALE_SUFFIX}`,
+      ),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() =>
+      expect(mocks.getVacationQuota).toHaveBeenCalledTimes(3),
+    );
+    expect(mocks.setVacationQuota).toHaveBeenCalledTimes(1);
   });
 
   it("reports out-of-range values in the alert and at the field without saving", async () => {

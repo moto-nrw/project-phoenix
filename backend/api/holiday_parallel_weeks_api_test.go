@@ -93,7 +93,7 @@ func TestChildBooksOnlyOneOfTheParallelWeeks(t *testing.T) {
 	rec = traegerJSON(t, f.traeger, office.token, http.MethodGet, base, nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	detail := decodeSchoolPortalData[reviewRegistration](t, rec.Body.Bytes())
-	bookings := fmt.Sprintf("%s/children/%d/bookings", base, detail.Children[0].ID)
+	bookings := holidayRebookPath(period.ID, receipt.Data.ID, detail.Children[0].ID)
 
 	rec = traegerJSON(t, f.traeger, office.token, http.MethodPut, bookings, map[string]any{"bookings": []map[string]any{first, second}})
 	require.Equal(t, http.StatusBadRequest, rec.Code, rec.Body.String())

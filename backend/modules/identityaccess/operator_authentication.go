@@ -102,7 +102,10 @@ type OperatorAuthentication interface {
 	LoginOperatorWithMFAGate(ctx context.Context, email, password, ipAddress, userAgent, trustedDeviceCookie string) (*OperatorLoginResult, error)
 	// IssueTokensForAuthenticatedOperator mints a token pair for an
 	// operator whose identity was proven via a non-password channel.
-	IssueTokensForAuthenticatedOperator(ctx context.Context, operatorID int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
+	// credentialGeneration is the generation of the password check behind
+	// the proof (a second factor's OperatorMFAProof); the mint refuses it
+	// once the operator holds another. A passkey sign-in passes none.
+	IssueTokensForAuthenticatedOperator(ctx context.Context, operatorID int64, credentialGeneration *int64, ipAddress, userAgent string) (accessToken, refreshToken string, err error)
 	// RefreshOperatorToken rotates the persisted refresh session and issues
 	// a new token pair; replays outside the recovery grace revoke the
 	// family. The recovery proof is the X-Refresh-Recovery-Proof header.

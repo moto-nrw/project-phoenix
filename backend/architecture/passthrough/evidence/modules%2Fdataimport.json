@@ -37,6 +37,27 @@
     },
     {
       "build": "production",
+      "evidence": "func (o observedEnrollmentBatches) CreateEnrollmentProfiles(ctx context.Context, inputs []EnrollmentStudent) (result []CreatedEnrollmentStudent, err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"create_enrollment_profiles\", time.Now(), \u0026err)\n\treturn o.EnrollmentBatches.CreateEnrollmentProfiles(ctx, inputs)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedEnrollmentBatches.CreateEnrollmentProfiles",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedEnrollmentBatches) EnrollCreatedStudent(ctx context.Context, created CreatedEnrollmentStudent, input EnrollmentStudent) (membershipID int64, err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"enroll_created_student\", time.Now(), \u0026err)\n\treturn o.EnrollmentBatches.EnrollCreatedStudent(ctx, created, input)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedEnrollmentBatches.EnrollCreatedStudent",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedEnrollmentBatches) SaveEnrollmentCares(ctx context.Context, cares []EnrollmentCare) (err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"save_enrollment_cares\", time.Now(), \u0026err)\n\treturn o.EnrollmentBatches.SaveEnrollmentCares(ctx, cares)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedEnrollmentBatches.SaveEnrollmentCares",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
       "evidence": "func (o observedGuardianDirectory) AddGuardianPhone(ctx context.Context, id int64, input GuardianPhoneInput) (result GuardianPhone, err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"add_guardian_phone\", time.Now(), \u0026err)\n\treturn o.GuardianDirectory.AddGuardianPhone(ctx, id, input)\n}",
       "form": "unclassified-evidence",
       "id": "modules/dataimport/ports/observedGuardianDirectory.AddGuardianPhone",
@@ -68,6 +89,13 @@
       "evidence": "func (o observedGuardianDirectory) UpdateGuardianLink(ctx context.Context, id int64, input GuardianLinkUpdate) (err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"update_guardian_link\", time.Now(), \u0026err)\n\treturn o.GuardianDirectory.UpdateGuardianLink(ctx, id, input)\n}",
       "form": "unclassified-evidence",
       "id": "modules/dataimport/ports/observedGuardianDirectory.UpdateGuardianLink",
+      "owner": "modules/dataimport"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o observedNewGuardianBatches) CreateNewStudentGuardians(ctx context.Context, links []NewStudentGuardianLink) (err error) {\n\tdefer observeCommand(ctx, \"people-directory\", \"create_new_student_guardians\", time.Now(), \u0026err)\n\treturn o.NewGuardianBatches.CreateNewStudentGuardians(ctx, links)\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/dataimport/ports/observedNewGuardianBatches.CreateNewStudentGuardians",
       "owner": "modules/dataimport"
     },
     {

@@ -82,7 +82,9 @@ conventions, and CI ratchets. They constrain code inside an owner; the policy
 defines the module boundary. Pass-throughs (Rule 8): the shapes that may stay
 and the floor per owner are in `docs/adr/0075-pass-throughs-keep-a-per-owner-floor.md`.
 
-**Query budgets (#2940)**: every list endpoint has a scenario in `test/query-budgets/` and a test that counts its statements with `testpkg.CaptureQueries` and calls `querybudgets.AssertQueryBudget` (package `test/query-budgets`, kept apart from `testpkg` so a budget edit retests only the packages that assert budgets). The register is shrink-only; `TestQueryBudgetRatchet` rejects unreferenced entries and hand-rolled `BeforeQuery` hooks in tests. Rule 15 in `.claude/rules/backend-conventions.md` has the pattern.
+**Database roundtrips (MANDATORY)**: new code loads set-based, statement count independent of row count: batch-load by ID set (`= ANY(?)`), join or use `Relation`, write in bulk. A query per loop row is an N+1 and blocks the change; fix N+1s in touched code too.
+
+**Query budgets (#2940)**: every list endpoint has a `test/query-budgets/` scenario asserted via `testpkg.CaptureQueries` and `querybudgets.AssertQueryBudget`. The register is shrink-only; `TestQueryBudgetRatchet` rejects unused entries and own `BeforeQuery` hooks. Pattern: Rule 15 in `.claude/rules/backend-conventions.md`.
 
 ## Calendar Dates: calendar.Date (MANDATORY)
 
@@ -106,7 +108,7 @@ Registry, permissions, and workflows: `.claude/rules/settings-system.md`.
 
 ## Request-Scoped Identity Memoization (#2099)
 
-The identity chain (Account → Person → Staff → Teacher → `MyGroupIDs`/`SubstitutedGroupIDs`/`MySchoolClasses`) of the Identity & Access caller context (`identityaccess.CallerContext`, #3501) is memoized per request, mirroring the #2065 settings cache: `RequestIdentityCacheMiddleware` (mounted router-wide in `api/base.go` and group-wide in `ProtectedTenantRoutes`) attaches an empty `securityruntime.RequestIdentityCache` (`modules/securityruntime`), which the root binds as the caller context's memo slot; the caller context consults it keyed by `(tenant_id, account_id)`. Only successes and clean not-found outcomes are memoized — never lookup errors or partial group sets. Self-writes (`UpdateProfile`, `UpdateAvatar`) drop the caller's entry before their trailing re-read; writes to *other* accounts' chains (group transfer, admin substitutions, offboarding) are deliberately exempt. Without the cache in context (scheduler, CLI, device auth, plain tests) behavior is unchanged. Full contract: doc comment on `callerEntry` in `modules/identityaccess/internal/application/caller_memo.go`.
+The identity chain (Account → Person → Staff → Teacher → `MyGroupIDs`/`SubstitutedGroupIDs`/`MySchoolClasses`) of the Identity & Access caller context (`identityaccess.CallerContext`, #3501) is memoized per request, mirroring the #2065 settings cache: `RequestIdentityCacheMiddleware` (mounted router-wide in `api/serve_middleware.go` and group-wide in `ProtectedTenantRoutes`) attaches an empty `securityruntime.RequestIdentityCache` (`modules/securityruntime`), which the root binds as the caller context's memo slot; the caller context consults it keyed by `(tenant_id, account_id)`. Only successes and clean not-found outcomes are memoized — never lookup errors or partial group sets. Self-writes (`UpdateProfile`, `UpdateAvatar`) drop the caller's entry before their trailing re-read; writes to *other* accounts' chains (group transfer, admin substitutions, offboarding) are deliberately exempt. Without the cache in context (scheduler, CLI, device auth, plain tests) behavior is unchanged. Full contract: doc comment on `callerEntry` in `modules/identityaccess/internal/application/caller_memo.go`.
 
 ## Domain Knowledge
 
@@ -151,6 +153,9 @@ Before adding, changing, or diagnosing tests, read
 [backend test fixtures and lifecycle](../docs/agents/backend-testing.md).
 Use real fixture IDs, per-test tenants, `t.Parallel()`, and package-owned pools.
 Preserve assertion strength and report failed checks accurately.
+Keep each Go package at about 60 s in the CI backend job; compare package
+durations on base and branch and make a slow test faster or leaner; timeouts,
+slot reserve and slot limit stay fixed: [ci-test-performance](../.claude/rules/ci-test-performance.md).
 
 ## Seed Coverage (MANDATORY)
 

@@ -169,8 +169,22 @@ func TestSEPADebitFileOfAReleasedRun(t *testing.T) {
 	// The creation time names the second the file was written; the rest is
 	// the same file.
 	withoutTime := regexp.MustCompile(`<CreDtTm>[^<]*</CreDtTm>`)
-	assert.Equal(t, withoutTime.ReplaceAllString(file, ""), withoutTime.ReplaceAllString(debitFile(t, f, run), ""),
+	again := debitFile(t, f, run)
+	assert.Equal(t, withoutTime.ReplaceAllString(file, ""), withoutTime.ReplaceAllString(again, ""),
 		"a second download gives the same file")
+	// The last download is kept for the Rückgabe (ADR 0187): sealed, with
+	// its checksum, not yet submitted.
+	var kept struct {
+		Sealed    []byte  `bun:"file_sealed"`
+		SHA256    string  `bun:"file_sha256"`
+		Submitted *string `bun:"submitted_at"`
+	}
+	const keptFile = `SELECT file_sealed, file_sha256, submitted_at::text FROM parent_billing.sepa_debit_files WHERE organization_id = ? AND message_id = ?`
+	require.NoError(t, f.db.NewRaw(keptFile, f.office.organization, overview.MessageID).Scan(context.Background(), &kept))
+	digest := testpkg.ContentFingerprint([]byte(again))
+	assert.Equal(t, digest, kept.SHA256, "the checksum of the last download")
+	assert.NotContains(t, string(kept.Sealed), sepaIBAN, "the stored file is sealed")
+	assert.Nil(t, kept.Submitted)
 	var state string
 	const mandateState = `SELECT sequence || '|' || COALESCE(last_collected_on::text, '-') FROM parent_billing.sepa_mandates WHERE id = ?`
 	require.NoError(t, f.db.NewRaw(mandateState, liaMandate.ID).Scan(context.Background(), &state))
@@ -190,6 +204,9 @@ func TestSEPADebitFileOfAReleasedRun(t *testing.T) {
 	require.NoError(t, f.db.NewRaw(mandateState, liaMandate.ID).Scan(context.Background(), &state))
 	assert.Equal(t, "recurring|2029-06-04", state, "the first collection turns FRST into RCUR and is the last collection")
 	assert.Contains(t, mandateEvents(t, f, liaMandate.ID), "collect:office")
+	require.NoError(t, f.db.NewRaw(keptFile, f.office.organization, overview.MessageID).Scan(context.Background(), &kept))
+	assert.NotNil(t, kept.Submitted, "the confirmation marks the kept file submitted")
+	assert.Equal(t, digest, kept.SHA256, "and keeps it")
 
 	// The next run was released before: its pending FRST is now RCUR.
 	for _, debit := range debitRun(t, f, next).Debits {
@@ -509,4 +526,84 @@ func TestSEPADebitFilesCollectTheInstallmentAndTheInvoiceOfAMonthOnce(t *testing
 	rec = traegerJSON(t, f.traeger, f.office.token, http.MethodGet, fmt.Sprintf("%s/%d/collections", sepaMandatesPath, miaMandate.ID), nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), `"notice_month":"2029-10-01"`, "the installment is in the mandate's history")
+}
+
+// A stored download holds the families' accounts until its debits go,
+// whatever message the debits end up with (ADR 0187): a changed download
+// keeps a file of its own, the confirmation drops the downloads it
+// superseded, and deleting the debits leaves no stored file. The pending
+// installment of a downloaded file of installments counts as a member too.
+func TestSEPADebitFilesGoWithTheirDebitsWhateverTheMessage(t *testing.T) {
+	t.Parallel()
+	f := sepaDebitFixture(t, "Träger Lastschriftdatei veraltet")
+	school := f.office.schools[0]
+	lia := careContract(t, f.db, f.office.organization, school, "Lia", sepaDebitMonth, sjrServices()...)
+	createMandate(t, f, mandateBody(lia, "SJR-OLD-LIA"))
+	run := releaseDebitRun(t, f, sepaDebitMonth)
+	ctx := context.Background()
+	kept := func() []string {
+		var messages []string
+		require.NoError(t, f.db.NewRaw(`SELECT message_id FROM parent_billing.sepa_debit_files WHERE organization_id = ? ORDER BY message_id`,
+			f.office.organization).Scan(ctx, &messages))
+		return messages
+	}
+
+	a := debitRun(t, f, run).MessageID
+	debitFile(t, f, run)
+	// A change of the creditor account is a different file.
+	_, err := f.db.ExecContext(ctx, `UPDATE platform.traeger_bank_accounts SET iban = ? WHERE organization_id = ?`,
+		sepaChangedIBAN, f.office.organization)
+	require.NoError(t, err)
+	b := debitRun(t, f, run).MessageID
+	require.NotEqual(t, a, b)
+	debitFile(t, f, run)
+	assert.ElementsMatch(t, []string{a, b}, kept(), "both downloads are kept until the confirmation")
+
+	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPost, sepaDebitRunPath(run, "/submission"),
+		map[string]any{"message_id": b})
+	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
+	assert.Equal(t, []string{b}, kept(), "the confirmation drops the download it superseded")
+
+	// A newer download of a run that is downloaded again before its old
+	// file is confirmed: deleting the debits drops every file they are in.
+	next := releaseDebitRun(t, f, sepaDebitNextMonth)
+	c := debitRun(t, f, next).MessageID
+	debitFile(t, f, next)
+	_, err = f.db.ExecContext(ctx, `UPDATE platform.traeger_bank_accounts SET iban = ? WHERE organization_id = ?`,
+		sepaTraegerIBAN, f.office.organization)
+	require.NoError(t, err)
+	require.NotEqual(t, c, debitRun(t, f, next).MessageID)
+	debitFile(t, f, next)
+	_, err = f.db.ExecContext(ctx, `DELETE FROM parent_billing.sepa_debits WHERE organization_id = ?`, f.office.organization)
+	require.NoError(t, err)
+	assert.Empty(t, kept(), "no stored file outlives its debits")
+}
+
+// The pending installment of a downloaded file of installments has no
+// debit row yet: its file goes with the notice (ADR 0187).
+func TestSEPADebitFileOfInstallmentsGoesWithItsNotice(t *testing.T) {
+	t.Parallel()
+	f := sepaDebitFixture(t, "Träger Lastschriftdatei Bescheid")
+	school := f.office.schools[0]
+	mia := careContract(t, f.db, f.office.organization, school, "Mia", sepaDebitMonth, sjrServices()...)
+	createMandate(t, f, mandateBody(mia, "SJR-OLD-MIA"))
+	writeLegalRemedy(t, f.db, f.office.organization)
+	notices := f.startNoticeRun(t, "2029-10-01", "2029-09-24")
+	f.releaseNoticeRun(t, f.noticeRun(t, notices.ID))
+	req := httptest.NewRequest(http.MethodGet, sepaDebitsPath+"/notice-months/202910/file", nil)
+	req.Header.Set("Authorization", "Bearer "+f.office.token)
+	out := httptest.NewRecorder()
+	f.traeger.ServeHTTP(out, req)
+	require.Equal(t, http.StatusOK, out.Code, out.Body.String())
+	ctx := context.Background()
+	count := func() int {
+		var n int
+		require.NoError(t, f.db.NewRaw(`SELECT count(*) FROM parent_billing.sepa_debit_files WHERE organization_id = ?`,
+			f.office.organization).Scan(ctx, &n))
+		return n
+	}
+	require.Equal(t, 1, count())
+	_, err := f.db.ExecContext(ctx, `DELETE FROM parent_billing.care_notices WHERE organization_id = ?`, f.office.organization)
+	require.NoError(t, err)
+	assert.Zero(t, count(), "the file of a pending installment goes with its notice")
 }

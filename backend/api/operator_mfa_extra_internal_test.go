@@ -31,7 +31,7 @@ type stubOperatorMFAServiceExtra struct {
 	resendChallengeFn func(ctx context.Context, challengeToken string, ip net.IP) (string, error)
 	startChallengeFn  func(ctx context.Context, operatorID int64, ip net.IP) (string, error)
 	verifyCodeFn      func(ctx context.Context, operatorID int64, code string) error
-	enrollFn          func(ctx context.Context, operatorID int64) error
+	enrollFn          func(ctx context.Context, proof identityaccess.OperatorMFAProof) error
 	listDevicesFn     func(ctx context.Context, operatorID int64) ([]identityaccess.OperatorTrustedDevice, error)
 }
 
@@ -39,18 +39,19 @@ func (s *stubOperatorMFAServiceExtra) HasOperatorMFAEnrollment(context.Context, 
 	return false, nil
 }
 
-func (s *stubOperatorMFAServiceExtra) StartOperatorMFAChallenge(ctx context.Context, operatorID int64, ip net.IP) (string, error) {
+func (s *stubOperatorMFAServiceExtra) StartOperatorMFAChallenge(ctx context.Context, operatorID int64, ip net.IP, _ *int64) (string, error) {
 	if s.startChallengeFn != nil {
 		return s.startChallengeFn(ctx, operatorID, ip)
 	}
 	return "challenge", nil
 }
 
-func (s *stubOperatorMFAServiceExtra) VerifyOperatorMFAChallenge(ctx context.Context, challengeToken, code string) (int64, error) {
+func (s *stubOperatorMFAServiceExtra) VerifyOperatorMFAChallenge(ctx context.Context, challengeToken, code string) (identityaccess.OperatorMFAProof, error) {
 	if s.verifyChallengeFn != nil {
-		return s.verifyChallengeFn(ctx, challengeToken, code)
+		operatorID, err := s.verifyChallengeFn(ctx, challengeToken, code)
+		return identityaccess.OperatorMFAProof{OperatorID: operatorID}, err
 	}
-	return 0, errors.New("not implemented")
+	return identityaccess.OperatorMFAProof{}, errors.New("not implemented")
 }
 
 func (s *stubOperatorMFAServiceExtra) ResendOperatorMFAChallenge(ctx context.Context, challengeToken string, ip net.IP) (string, error) {
@@ -60,23 +61,23 @@ func (s *stubOperatorMFAServiceExtra) ResendOperatorMFAChallenge(ctx context.Con
 	return "renewed-token", nil
 }
 
-func (s *stubOperatorMFAServiceExtra) VerifyOperatorMFACode(ctx context.Context, operatorID int64, code string) error {
+func (s *stubOperatorMFAServiceExtra) VerifyOperatorMFACode(ctx context.Context, operatorID int64, code string, _ *int64) error {
 	if s.verifyCodeFn != nil {
 		return s.verifyCodeFn(ctx, operatorID, code)
 	}
 	return nil
 }
 
-func (s *stubOperatorMFAServiceExtra) EnrollOperatorMFA(ctx context.Context, operatorID int64) error {
+func (s *stubOperatorMFAServiceExtra) EnrollOperatorMFA(ctx context.Context, proof identityaccess.OperatorMFAProof) error {
 	if s.enrollFn != nil {
-		return s.enrollFn(ctx, operatorID)
+		return s.enrollFn(ctx, proof)
 	}
 	return nil
 }
 
 func (s *stubOperatorMFAServiceExtra) DisableOperatorMFA(context.Context, int64) error { return nil }
 
-func (s *stubOperatorMFAServiceExtra) IssueOperatorTrustedDevice(context.Context, int64, string, net.IP) (string, time.Time, error) {
+func (s *stubOperatorMFAServiceExtra) IssueOperatorTrustedDevice(context.Context, identityaccess.OperatorMFAProof, string, net.IP) (string, time.Time, error) {
 	return "", time.Time{}, nil
 }
 
@@ -281,7 +282,9 @@ func TestOperatorMFAEnrollConfirm_AlreadyEnrolledMintsSession(t *testing.T) {
 		&completeOperatorMFAAuthStub{access: "op-access", refresh: "op-refresh"},
 		&stubOperatorMFAServiceExtra{
 			verifyCodeFn: func(context.Context, int64, string) error { return nil },
-			enrollFn:     func(context.Context, int64) error { return identityaccess.ErrMFAAlreadyEnrolled },
+			enrollFn: func(context.Context, identityaccess.OperatorMFAProof) error {
+				return identityaccess.ErrMFAAlreadyEnrolled
+			},
 		},
 	)
 
@@ -298,6 +301,45 @@ func TestOperatorMFAEnrollConfirm_AlreadyEnrolledMintsSession(t *testing.T) {
 	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
 	assert.Equal(t, "op-access", body.Data.AccessToken)
 	assert.Equal(t, "op-refresh", body.Data.RefreshToken)
+}
+
+// TestOperatorMFAEnrollConfirm_StaleCredentialRecordsAndMintsNothing: the
+// confirm hands the enrollment the generation its enrollment token names
+// (#6459). When a password change committed since, the enrollment refuses,
+// the confirm answers 401 identity.invalid_credentials and mints nothing.
+func TestOperatorMFAEnrollConfirm_StaleCredentialRecordsAndMintsNothing(t *testing.T) {
+	t.Parallel()
+
+	var enrolled identityaccess.OperatorMFAProof
+	auth := &completeOperatorMFAAuthStub{access: "op-access", refresh: "op-refresh"}
+	rs := identityoperator.NewMFAResource(auth, &stubOperatorMFAServiceExtra{
+		verifyCodeFn: func(context.Context, int64, string) error { return nil },
+		enrollFn: func(_ context.Context, proof identityaccess.OperatorMFAProof) error {
+			enrolled = proof
+			return identityaccess.ErrOperatorInvalidCredentials
+		},
+	})
+
+	ctx := routetest.WithEnrollmentClaims(context.Background(), routetest.MFAEnrollmentClaims{
+		AccountID:            42,
+		Scope:                tokenprimitives.PortalPlatform,
+		CredentialGeneration: 7,
+		MFAEnrollmentPending: true,
+	})
+	r := opJSONReq(t, http.MethodPost, "/operator/mfa/enroll/confirm",
+		identityoperator.MFAEnrollConfirmRequest{Code: "123456"}).WithContext(ctx)
+	rr := httptest.NewRecorder()
+	rs.EnrollConfirm(rr, r)
+
+	assert.Equal(t, identityaccess.OperatorMFAProof{OperatorID: 42, CredentialGeneration: 7}, enrolled,
+		"the enrollment is held to the generation of the enrollment token")
+	routetest.AssertErrorResponse(t, rr, http.StatusUnauthorized)
+	var problem struct {
+		Code string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &problem))
+	assert.Equal(t, "identity.invalid_credentials", problem.Code)
+	assert.Zero(t, auth.gotOperatorID, "no session is minted")
 }
 
 func TestOperatorMFAListTrustedDevices_EmptyOK(t *testing.T) {

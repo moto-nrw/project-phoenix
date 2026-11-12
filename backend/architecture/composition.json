@@ -33,6 +33,12 @@
     "phoenix tenant export",
     "phoenix tenant ledger-init",
     "phoenix tenant receipt",
+    "phoenix tenant return",
+    "phoenix tenant return grant",
+    "phoenix tenant return list",
+    "phoenix tenant return purge",
+    "phoenix tenant return release",
+    "phoenix tenant return revoke",
     "phoenix worker"
   ],
   "constructor_calls": [
@@ -73,7 +79,7 @@
       "declaration": "TestNewWorkerRejectsMissingJobs",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        93
+        101
       ],
       "tables": []
     },
@@ -83,7 +89,7 @@
       "declaration": "TestNewWorkerRejectsMissingRuntimeDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        85
+        93
       ],
       "tables": []
     },
@@ -93,8 +99,8 @@
       "declaration": "TestNewWorkerRejectsMissingSettings",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        247,
-        251
+        280,
+        284
       ],
       "tables": []
     },
@@ -104,7 +110,7 @@
       "declaration": "TestNewWorkerRejectsMissingTokenCleanupDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        120
+        130
       ],
       "tables": []
     },
@@ -114,8 +120,8 @@
       "declaration": "TestNewWorkerRejectsTypedNilDependencies",
       "target": "services/scheduler.NewWorker",
       "lines": [
-        136,
-        147
+        146,
+        157
       ],
       "tables": []
     }
@@ -16397,6 +16403,8 @@
       "email-delivery-reconciliation",
       "email-outbox",
       "file-store-cleanup",
+      "holiday-closure-notifications",
+      "holiday-closure-watchdog",
       "holiday-guest-reconciliation",
       "instance-overdue",
       "meal-orders",
@@ -16503,6 +16511,8 @@
     "email-delivery-reconciliation",
     "email-outbox",
     "file-store-cleanup",
+    "holiday-closure-notifications",
+    "holiday-closure-watchdog",
     "holiday-guest-reconciliation",
     "instance-overdue",
     "meal-orders",

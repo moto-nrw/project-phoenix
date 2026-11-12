@@ -15,19 +15,25 @@ import (
 )
 
 func (r *exportRun) tableModel(ctx context.Context, table organizationtenancy.LifecycleTable) (organizationtenancy.ExportModelTable, error) {
-	model := organizationtenancy.ExportModelTable{Name: table.Name}
-	parts := strings.Split(table.Name, ".")
-	if len(parts) != 2 {
-		return model, exportTableError(table.Name)
-	}
 	if r.schema == nil {
 		schema, err := loadExportSchema(ctx, r.tx, r.catalog)
 		if err != nil {
-			return model, exportTableError(table.Name)
+			return organizationtenancy.ExportModelTable{Name: table.Name}, exportTableError(table.Name)
 		}
 		r.schema = schema
 	}
-	columns := r.schema.columns[table.Name]
+	return exportTableModel(table, r.schema)
+}
+
+// exportTableModel describes one included table as model.json and the
+// register (ADR 0201) describe it: its columns without the excluded ones,
+// the columns its owners write in their place, and its relations.
+func exportTableModel(table organizationtenancy.LifecycleTable, schema *exportSchema) (organizationtenancy.ExportModelTable, error) {
+	model := organizationtenancy.ExportModelTable{Name: table.Name}
+	if len(strings.Split(table.Name, ".")) != 2 {
+		return model, exportTableError(table.Name)
+	}
+	columns := schema.columns[table.Name]
 	if len(columns) == 0 {
 		return model, exportTableError(table.Name)
 	}
@@ -41,8 +47,7 @@ func (r *exportRun) tableModel(ctx context.Context, table organizationtenancy.Li
 		return model, err
 	}
 	model.Columns = append(model.Columns, owned...)
-	relations := r.schema.relations[table.Name]
-	for _, rel := range relations {
+	for _, rel := range schema.relations[table.Name] {
 		if _, excluded := table.ExcludeSecretColumns[rel.Column]; !excluded {
 			model.Relationships = append(model.Relationships, organizationtenancy.ExportRelationship{Column: rel.Column, TargetTable: rel.TargetTable, TargetColumn: rel.TargetColumn})
 		}
@@ -55,25 +60,9 @@ func (r *exportRun) exportTable(ctx context.Context, table organizationtenancy.L
 	if err != nil {
 		return 0, err
 	}
-	opened := make(map[string]bool, len(table.OpenSealedColumns)+len(table.ProjectedColumns))
-	for _, plain := range table.OpenSealedColumns {
-		opened[plain] = true
-	}
-	for _, projection := range table.ProjectedColumns {
-		opened[projection] = true
-	}
-	columns := make([]string, 0, len(model.Columns))
-	for _, col := range model.Columns {
-		if !opened[col.Name] {
-			columns = append(columns, "t."+quoteExportIdentifier(col.Name))
-		}
-	}
-	for _, sealed := range sealedColumnsOf(table) {
-		// Hex, independent of the session's bytea_output.
-		columns = append(columns, "encode(t."+quoteExportIdentifier(sealed)+"::bytea, 'hex') AS "+quoteExportIdentifier(sealed))
-	}
-	for _, container := range projectedColumnsOf(table) {
-		columns = append(columns, "t."+quoteExportIdentifier(container))
+	columns, err := r.exportSelectColumns(table, model)
+	if err != nil {
+		return 0, err
 	}
 	if len(columns) == 0 {
 		return 0, exportTableError(table.Name)
@@ -94,13 +83,44 @@ func (r *exportRun) exportTable(ctx context.Context, table organizationtenancy.L
 	if err != nil {
 		return 0, err
 	}
-	if f.Sync() != nil || f.Close() != nil {
+	if syncFile(f) != nil || f.Close() != nil {
 		return 0, errors.New("tenant export: cannot persist table artifact")
 	}
 	if err := r.recordArtifact(name); err != nil {
 		return 0, err
 	}
 	return count, nil
+}
+
+// exportSelectColumns selects the model's stored columns and, in place of
+// what owners write, the raw sealed and container values and the bindings
+// they open with.
+func (r *exportRun) exportSelectColumns(table organizationtenancy.LifecycleTable, model organizationtenancy.ExportModelTable) ([]string, error) {
+	opened := make(map[string]bool, len(table.OpenSealedColumns)+len(table.ProjectedColumns))
+	for _, plain := range table.OpenSealedColumns {
+		opened[plain] = true
+	}
+	for _, projection := range table.ProjectedColumns {
+		opened[projection] = true
+	}
+	columns := make([]string, 0, len(model.Columns))
+	for _, col := range model.Columns {
+		if !opened[col.Name] {
+			columns = append(columns, "t."+quoteExportIdentifier(col.Name))
+		}
+	}
+	for _, sealed := range sealedColumnsOf(table) {
+		// Hex, independent of the session's bytea_output.
+		columns = append(columns, "encode(t."+quoteExportIdentifier(sealed)+"::bytea, 'hex') AS "+quoteExportIdentifier(sealed))
+	}
+	for _, container := range projectedColumnsOf(table) {
+		columns = append(columns, "t."+quoteExportIdentifier(container))
+	}
+	bindings, err := r.sealedBindingColumns(table)
+	if err != nil {
+		return nil, err
+	}
+	return append(columns, bindings...), nil
 }
 
 func (r *exportRun) streamExportRows(rows *sql.Rows, w io.Writer, entry organizationtenancy.LifecycleTable) (int64, error) {

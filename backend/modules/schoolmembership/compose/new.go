@@ -58,6 +58,15 @@ func New(dependencies Dependencies) (schoolmembership.Owner, error) {
 	return service, nil
 }
 
+func NewStaffPersonMerge() schoolmembership.StaffPersonMerge {
+	return application.StaffPersonMerge{StaffPersonMerge: postgres.New(postgres.NewContextDatabase(tenant.TenantFromContext, tenant.TransactionFromContext, tenant.IsAdminTx))}
+}
+
+// NewPendingWindows composes the pending-window command of a phase edit.
+func NewPendingWindows(dependencies Dependencies) (schoolmembership.PendingWindows, error) {
+	return newApplication(dependencies)
+}
+
 func newApplication(dependencies Dependencies) (*application.Service, error) {
 	if dependencies.DB == nil || dependencies.Observe == nil {
 		return nil, errors.New("school membership compose: all dependencies are required")

@@ -318,18 +318,6 @@ function toBackendMappings(mappings: MappingInput[]) {
   }));
 }
 
-// ---------------------------------------------------------------------------
-// Fetch plumbing (proxy routes wrap payloads in { data })
-// ---------------------------------------------------------------------------
-
-/**
- * Stable backend error code returned (409) when an apply is refused because
- * graduating children are still checked in. Mirrors the code the Go handler
- * sets via ErrorConflictWithCode (#405).
- */
-export const GRADUATES_CHECKED_IN_CODE: ErrorCode =
-  "grade_transition.graduates_checked_in";
-
 /**
  * Stable backend error code returned (409) when a revert is refused because the
  * targeted transition is no longer the latest applied one — another

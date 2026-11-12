@@ -8,6 +8,8 @@
   "creditLetter": "Nota uznaniowa: {period}",
   "careInvoiceLetter": "Faktura: {period}",
   "careCancellationLetter": "Anulowanie: {period}",
+  "careFeeNotice": "Decyzja o opłacie: {period}",
+  "careChangeNotice": "Zmiana decyzji o opłacie: {period}",
   "sender": "Od: {traeger}",
   "children": "Dla",
   "amount": "Kwota",

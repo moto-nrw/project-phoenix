@@ -42,6 +42,7 @@ const (
 // them.
 type TimetableRows interface {
 	AcquireSubstituteDayLock(ctx context.Context, date calendar.Date) error
+	LockRecurrenceWrites(ctx context.Context) error
 	FindByStaffAndDate(ctx context.Context, staffID int64, date calendar.Date) ([]*timetable.InstanceStaff, error)
 	GetActivityInstancesByID(ctx context.Context, ids []int64) (map[int64]*timetable.ScheduledInstance, error)
 	FindByInstanceID(ctx context.Context, instanceID int64) ([]*timetable.InstanceStaff, error)
@@ -67,7 +68,10 @@ type SickDeviations interface {
 // Dienstplan through the Workforce-backed port, the Betreuungsplan through the
 // Timetable owner's deviation writes.
 type SickCascadeDependencies struct {
-	Shifts        ports.Shifts
+	Shifts ports.Shifts
+	// Absences are Workforce's absence gate and rows the write lock of a
+	// sick report reads its days from (#6232).
+	Absences      SickReportAbsences
 	Deviations    SickDeviations
 	TimetableData TimetableRows
 	InstanceStaff SickStamps
@@ -76,16 +80,21 @@ type SickCascadeDependencies struct {
 	// Today is the calendar day the past-day guards compare against; nil
 	// means timezone.TodayDate.
 	Today func() calendar.Date
+	// LockStaff takes the staff rows in one ordered query in the caller's
+	// unit of work; offboarded members are omitted.
+	LockStaff func(ctx context.Context, staffIDs []int64) error
 }
 
 type sickCascade struct {
 	shifts        ports.Shifts
+	absences      SickReportAbsences
 	deviations    SickDeviations
 	timetableData TimetableRows
 	sickStamps    SickStamps
 	broadcaster   realtime.Broadcaster
 	logger        *slog.Logger
 	today         func() calendar.Date
+	lockStaff     func(context.Context, []int64) error
 }
 
 // SickCascade is the cascade's method set; shiftplansync.SickCascade documents
@@ -95,6 +104,7 @@ type SickCascade interface {
 	ClearSickForRange(ctx context.Context, in workforce.SickCascadeInput) error
 	ReconcileSickRange(ctx context.Context, before, after workforce.SickCascadeInput) error
 	ReassignSickStamps(ctx context.Context, fromAbsenceID, toAbsenceID int64) error
+	LockSickReportWrite(ctx context.Context, staffID, absenceID int64, dateStart, dateEnd string) error
 }
 
 // NewSickCascade wires the #1843 cascade. Compose checks the dependencies and
@@ -102,12 +112,14 @@ type SickCascade interface {
 func NewSickCascade(deps SickCascadeDependencies) SickCascade {
 	return &sickCascade{
 		shifts:        deps.Shifts,
+		absences:      deps.Absences,
 		deviations:    deps.Deviations,
 		timetableData: deps.TimetableData,
 		sickStamps:    deps.InstanceStaff,
 		broadcaster:   deps.Broadcaster,
 		logger:        deps.Logger,
 		today:         deps.Today,
+		lockStaff:     deps.LockStaff,
 	}
 }
 
@@ -196,10 +208,11 @@ func (s *sickCascade) cancelShiftsForSickDays(ctx context.Context, report sickRe
 			continue
 		}
 		result, err := s.shifts.ApplyCancellation(ctx, workforce.CancelStaffShift{
-			ShiftID:      shift.ID,
-			Cancelled:    true,
-			ChangeReason: &reason,
-			ActorStaffID: report.actorStaffID,
+			PreserveSeriesOverride: true,
+			ShiftID:                shift.ID,
+			Cancelled:              true,
+			ChangeReason:           &reason,
+			ActorStaffID:           report.actorStaffID,
 		})
 		if err != nil {
 			return fmt.Errorf("sick cascade: cancel shift %d: %w", shift.ID, err)
@@ -360,39 +373,11 @@ func (s *sickCascade) broadcastStaffingChanged(ctx context.Context, source strin
 // first and discovering a lower-ID replacement later creates the inverse lock
 // order and can deadlock against a concurrent replacement edit.
 func (s *sickCascade) lockSickReversalStaffWrites(ctx context.Context, report sickReport) error {
-	shifts, err := s.stampedShifts(ctx, report.absenceID)
+	staffIDs, err := s.reversalStaffIDs(ctx, report.absenceID)
 	if err != nil {
-		return fmt.Errorf("sick clear: discover stamped shifts: %w", err)
+		return err
 	}
-	staffIDs := []int64{report.subjectStaffID}
-	originShiftIDs := staffShiftIDs(shifts)
-	var covers []workforce.StaffShift
-	if len(originShiftIDs) > 0 {
-		// A non-nil empty OriginShiftIDs matches nothing, so the unfiltered
-		// listing is never reached through this path.
-		covers, err = s.shifts.ListStaffShifts(ctx, workforce.StaffShiftFilter{
-			OriginShiftIDs: originShiftIDs,
-			Order:          []workforce.StaffShiftOrder{{Field: workforce.StaffShiftOrderID}},
-		})
-	}
-	if err != nil {
-		return fmt.Errorf("sick clear: discover stamped shift covers: %w", err)
-	}
-	for _, cover := range covers {
-		staffIDs = append(staffIDs, cover.StaffID)
-	}
-	sort.Slice(staffIDs, func(i, j int) bool { return staffIDs[i] < staffIDs[j] })
-	var previous int64
-	for _, staffID := range staffIDs {
-		if staffID <= 0 || staffID == previous {
-			continue
-		}
-		if err := s.lockStaffWrites(ctx, staffID); err != nil {
-			return err
-		}
-		previous = staffID
-	}
-	return nil
+	return s.lockStaffSet(ctx, append(staffIDs, report.subjectStaffID))
 }
 
 // stampedShifts lists the shifts this sick report owns, oldest row first.
@@ -470,27 +455,6 @@ func (s *sickCascade) reactivateStampedShifts(ctx context.Context, report sickRe
 		if err := s.reactivateStampedShift(ctx, report, shift); err != nil {
 			return err
 		}
-	}
-	return nil
-}
-
-func (s *sickCascade) reactivateStampedShift(ctx context.Context, report sickReport, shift workforce.StaffShift) error {
-	covers, err := s.shifts.ListStaffShifts(ctx, workforce.StaffShiftFilter{
-		OriginShiftID: shift.ID,
-		Order:         []workforce.StaffShiftOrder{{Field: workforce.StaffShiftOrderStartTime}},
-	})
-	if err != nil {
-		return fmt.Errorf("sick clear: load covers of shift %d: %w", shift.ID, err)
-	}
-	if !shift.Cancelled || len(covers) > 0 {
-		return s.releaseStampedShift(ctx, shift, len(covers))
-	}
-	// Reactivation clears sick_absence_id and change_reason via the ordinary
-	// update path and re-checks overlap against the freed window.
-	if _, err := s.shifts.ApplyCancellation(ctx, workforce.CancelStaffShift{
-		ShiftID: shift.ID, Cancelled: false, ActorStaffID: report.actorStaffID,
-	}); err != nil {
-		return fmt.Errorf("sick clear: reactivate shift %d: %w", shift.ID, err)
 	}
 	return nil
 }

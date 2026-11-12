@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from "vitest";
-import { GET, POST, PUT } from "./route";
+import { GET, PUT } from "./route";
 import { ApiResponseError } from "~/lib/api-helpers.server";
 import {
   type ExtendedSession,
@@ -437,88 +437,6 @@ describe("GET /api/activities/[id]/students", () => {
     const json = await parseJsonResponse<{ detail: string }>(response);
     expect(json.detail).toBe("Internal Server Error");
     expect(JSON.stringify(json)).not.toContain("Backend error");
-  });
-});
-
-describe("POST /api/activities/[id]/students", () => {
-  beforeEach(() => {
-    vi.clearAllMocks();
-    mockAuth.mockResolvedValue(defaultSession);
-  });
-
-  it("enrolls single student successfully", async () => {
-    const mockUpdatedEnrollments = [
-      { id: 10, first_name: "Eve", last_name: "Brown", school_class: "3D" },
-    ];
-    mockApiPost.mockResolvedValueOnce(undefined);
-    mockApiGet.mockResolvedValueOnce({ data: mockUpdatedEnrollments });
-
-    const request = createMockRequest("/api/activities/5/students", {
-      method: "POST",
-      body: { student_id: "10" },
-    });
-    const response = await POST(request, createMockContext({ id: "5" }));
-
-    expect(mockApiPost).toHaveBeenCalledWith(
-      "/api/activities/5/enroll/10",
-      "test-token",
-      {},
-    );
-    expect(response.status).toBe(200);
-
-    const json = await parseJsonResponse<{
-      success: boolean;
-      data: Array<{ id: string; student_id: string; name: string }>;
-    }>(response);
-    expect(json.data).toHaveLength(1);
-    expect(json.data[0]!.id).toBe("10");
-    expect(json.data[0]!.student_id).toBe("10");
-    expect(json.data[0]!.name).toBe("Eve Brown");
-  });
-
-  it("batch updates multiple students", async () => {
-    const mockUpdatedEnrollments = [
-      { id: 10, first_name: "Eve", last_name: "Brown", school_class: "3D" },
-      { id: 11, first_name: "Frank", last_name: "Green", school_class: "3E" },
-    ];
-    mockApiPut.mockResolvedValueOnce(undefined);
-    mockApiGet.mockResolvedValueOnce({ data: mockUpdatedEnrollments });
-
-    const request = createMockRequest("/api/activities/5/students", {
-      method: "POST",
-      body: { student_ids: ["10", "11"] },
-    });
-    const response = await POST(request, createMockContext({ id: "5" }));
-
-    expect(mockApiPut).toHaveBeenCalledWith(
-      "/api/activities/5/students",
-      "test-token",
-      { student_ids: [10, 11] },
-    );
-    expect(response.status).toBe(200);
-
-    const json = await parseJsonResponse<{
-      success: boolean;
-      data: Array<{ id: string }>;
-    }>(response);
-    expect(json.data).toHaveLength(2);
-    expect(json.data[0]!.id).toBe("10");
-    expect(json.data[1]!.id).toBe("11");
-  });
-
-  it("throws error when neither student_id nor student_ids provided", async () => {
-    const request = createMockRequest("/api/activities/5/students", {
-      method: "POST",
-      body: {},
-    });
-    const response = await POST(request, createMockContext({ id: "5" }));
-
-    expect(response.status).toBe(500);
-    const json = await parseJsonResponse<{ detail: string }>(response);
-    expect(json.detail).toBe("Internal Server Error");
-    expect(JSON.stringify(json)).not.toContain(
-      "must provide student_id or student_ids",
-    );
   });
 });
 

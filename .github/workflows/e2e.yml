@@ -165,7 +165,6 @@ jobs:
       NEXT_PUBLIC_APP_ENV: development
       NEXTAUTH_URL: http://localhost:3000
       NEXTAUTH_SECRET: ci-e2e-throwaway-secret
-      AUTH_TRUST_HOST: "true"
       NEXT_TELEMETRY_DISABLED: "1"
 
     steps:
@@ -224,9 +223,9 @@ jobs:
         run: corepack enable
 
       - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
           cache: "pnpm"
           cache-dependency-path: frontend/pnpm-lock.yaml
 

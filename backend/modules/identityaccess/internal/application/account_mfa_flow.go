@@ -22,11 +22,12 @@ import (
 // unreadable override, mode or enrollment refuses this one login with
 // ErrMFAStatusUnavailable instead of silently dropping the second factor.
 type AccountMFAFlows struct {
-	records  ports.AccountMFARecords
-	settings ports.MFASettings
-	codec    ports.MFAChallengeCodec
-	codes    ports.ShortCodeHasher
-	mail     ports.MFAMail
+	permissionGranted func(string, []string) bool
+	records           ports.AccountMFARecords
+	settings          ports.MFASettings
+	codec             ports.MFAChallengeCodec
+	codes             ports.ShortCodeHasher
+	mail              ports.MFAMail
 	// resetNotice mails the caterer the operator's reset (#4497).
 	resetNotice ports.CatererMFAResetNotice
 	audit       ports.MFAAuditTrail
@@ -38,11 +39,12 @@ type AccountMFAFlows struct {
 
 // AccountMFAFlowDependencies are the ports the account MFA flows consume.
 type AccountMFAFlowDependencies struct {
-	Records  ports.AccountMFARecords
-	Settings ports.MFASettings
-	Codec    ports.MFAChallengeCodec
-	Codes    ports.ShortCodeHasher
-	Mail     ports.MFAMail
+	PermissionGranted func(string, []string) bool
+	Records           ports.AccountMFARecords
+	Settings          ports.MFASettings
+	Codec             ports.MFAChallengeCodec
+	Codes             ports.ShortCodeHasher
+	Mail              ports.MFAMail
 	// ResetNotice mails the caterer the operator's reset (#4497); nil
 	// leaves that reset unavailable.
 	ResetNotice ports.CatererMFAResetNotice
@@ -57,7 +59,7 @@ type AccountMFAFlowDependencies struct {
 func NewAccountMFAFlows(deps AccountMFAFlowDependencies) (*AccountMFAFlows, error) {
 	switch {
 	case deps.Records == nil, deps.Settings == nil, deps.Codec == nil, deps.Codes == nil,
-		deps.Mail == nil, deps.Audit == nil, deps.Runtime == nil, len(deps.Secret) == 0:
+		deps.Mail == nil, deps.Audit == nil, deps.Runtime == nil, deps.PermissionGranted == nil, len(deps.Secret) == 0:
 		return nil, errors.New("identity access account mfa: all dependencies are required")
 	}
 	logger := deps.Logger
@@ -65,7 +67,7 @@ func NewAccountMFAFlows(deps AccountMFAFlowDependencies) (*AccountMFAFlows, erro
 		logger = slog.Default()
 	}
 	return &AccountMFAFlows{
-		records: deps.Records, settings: deps.Settings, codec: deps.Codec, codes: deps.Codes,
+		permissionGranted: deps.PermissionGranted, records: deps.Records, settings: deps.Settings, codec: deps.Codec, codes: deps.Codes,
 		mail: deps.Mail, resetNotice: deps.ResetNotice, audit: deps.Audit, runtime: deps.Runtime, secret: deps.Secret,
 		logger: logger.With("component", "account-mfa"), now: time.Now,
 	}, nil
@@ -204,18 +206,35 @@ func (f *AccountMFAFlows) securitySettingsFailure(setting string, err error) err
 
 // ===== Enrollment =====
 
-// Enroll records the account's e-mail enrollment once.
-func (f *AccountMFAFlows) Enroll(ctx context.Context, accountID int64) error {
-	existing, found, _ := f.records.FindCredential(ctx, accountID)
-	if found && existing.ID > 0 {
-		return identityaccess.ErrMFAAlreadyEnrolled
-	}
-	if err := f.records.CreateCredential(ctx, domain.AccountMFACredential{
-		AccountID: accountID, Method: domain.MFAMethodEmail, EnrolledAt: f.now(),
-	}); err != nil {
-		return fmt.Errorf("persist mfa credential: %w", err)
-	}
-	return nil
+// Enroll records the account's e-mail enrollment once, from the code the
+// enrollment confirm redeemed (#6518). The account row is locked first, the
+// lock every password write and MFA reset takes; under it the proof's
+// credential generation must still be the account's, so a password change
+// or reset committed since the code was redeemed leaves no enrollment
+// behind (ErrInvalidCredentials, as a refused enrollment start). Check and
+// write share one transaction. No school or profile row is locked here.
+func (f *AccountMFAFlows) Enroll(ctx context.Context, proof domain.VerifiedMFAChallenge) error {
+	return f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+		if err := f.records.LockAccountForOverrideWrite(txCtx, proof.AccountID); err != nil {
+			return err
+		}
+		if err := f.requireCredentialGeneration(txCtx, proof.AccountID, &proof.MFAResetGeneration); err != nil {
+			return err
+		}
+		existing, found, err := f.records.FindCredential(txCtx, proof.AccountID)
+		if err != nil {
+			return fmt.Errorf("load mfa credential: %w", err)
+		}
+		if found && existing.ID > 0 {
+			return identityaccess.ErrMFAAlreadyEnrolled
+		}
+		if err := f.records.CreateCredential(txCtx, domain.AccountMFACredential{
+			AccountID: proof.AccountID, Method: domain.MFAMethodEmail, EnrolledAt: f.now(),
+		}); err != nil {
+			return fmt.Errorf("persist mfa credential: %w", err)
+		}
+		return nil
+	})
 }
 
 // Disable cascades: the credential goes, every trusted device is revoked and

@@ -75,6 +75,11 @@ type HolidayRegistrationLink struct {
 	OrganizationID int64
 	PeriodID       int64
 	Traeger        HolidayTraeger
+	// HolidayWishRule says that the period takes the holiday care wish into
+	// account (#4703); FirstDay is the first day of its first week, the day
+	// whose school year the wish counts for. Zero without weeks.
+	HolidayWishRule bool
+	FirstDay        calendar.Date
 }
 
 // HolidayRegistrationOffer is the published period behind a link. Open
@@ -86,12 +91,27 @@ type HolidayRegistrationOffer struct {
 	Binding              bool
 	Notes                string
 	Weeks                []HolidayWeek
-	Open                 bool
+	// MaxDaysPerChild bounds the care days per child, nil for no bound
+	// (#4701).
+	MaxDaysPerChild *int
+	// AllocationMode is how the period gives its places (#4700); Criteria
+	// are the questions of its active criteria, empty by arrival.
+	AllocationMode string
+	Criteria       []HolidayCriterionQuestion
+	// FullDays are the days of each week by days without a free place, by
+	// week ID (#4701); a booking of such a day waits.
+	FullDays map[int64][]calendar.Date
+	Open     bool
 	// Form is the current version of the period's form (#5198).
 	Form HolidayPeriodForm
 	// ConsentTexts are the German texts of the fixed declarations the form
-	// shows, in HolidayConsentVersionCurrent (#5626).
+	// shows, in HolidayConsentVersionCurrent (#5626) with the retention of
+	// the Träger (#6691).
 	ConsentTexts HolidayConsentTexts
+	// HolidayWishMode is HolidayWishModeOff, or the Träger's
+	// holiday_registration.wish_mode when the period takes the holiday care
+	// wish into account (#4703).
+	HolidayWishMode string
 }
 
 // HolidayGuardianInput holds the registering or optional second guardian’s contact details.
@@ -111,10 +131,13 @@ type HolidayAddress struct {
 	City       string `json:"city"`
 }
 
-// HolidayBookingInput is the time model a child books in one week.
+// HolidayBookingInput is the time model a child books in one week. Days
+// name the booked days of a week by days and are empty for a whole week
+// (#4701).
 type HolidayBookingInput struct {
 	WeekID      int64
 	TimeModelID int64
+	Days        []calendar.Date
 }
 
 // HolidayChildInput is one child of a registration. A zero HomeSchoolID
@@ -132,6 +155,17 @@ type HolidayChildInput struct {
 	// CustomData are the answers to the questions of the form per child
 	// (#5198), by field key.
 	CustomData HolidayAnswers
+	// WishProof is the sealed statement of the child's holiday care wish
+	// the prefill gave a parent with an account (#4703); empty otherwise.
+	WishProof string
+	// HolidayWish and HolidayWishSource are what the registration knows of
+	// the wish. Only the registration sets them, from a WishProof it
+	// opened; whatever a caller puts in is dropped.
+	HolidayWish       string
+	HolidayWishSource string
+	// Criteria are the answers to the child criteria of a period by
+	// criteria, by criterion ID (#4700).
+	Criteria map[int64]bool
 }
 
 // HolidayContactInput is an emergency contact or a person allowed to
@@ -173,12 +207,31 @@ type HolidayRegistrationInput struct {
 	BenefitsProofTokens []string
 	FormVersion         int
 	CustomData          HolidayAnswers
-	LegalAcceptances    map[string]bool
+	// Criteria are the answers to the family criteria of a period by
+	// criteria, by criterion ID (#4700).
+	Criteria         map[int64]bool
+	LegalAcceptances map[string]bool
 	// ConsentVersion is the version of the consent texts the parent agreed
 	// to (#4722). A new registration names HolidayConsentVersionCurrent
 	// (#5626); from HolidayConsentVersionHostHealth on the hosting OGS sees
 	// the health information.
 	ConsentVersion int
+	// RetentionDays are the days the privacy text the parent agreed to
+	// names (#6691): the retention of the Träger at the submission. The
+	// registration keeps them, whatever the Träger sets later.
+	RetentionDays int
+	// RemoteIP is the client address the stored registration counts under
+	// (#6726); it is not stored with the registration.
+	RemoteIP string
+	// ParentAccountRequested is the parent's yes to a parent account at the
+	// end of the form (ADR 0216 point 4); ParentAccountProof the sealed
+	// proof of a signed-in account from the prefill (point 2).
+	ParentAccountRequested bool
+	ParentAccountProof     string
+	// ParentAccountID is the account the registration is linked to. Only
+	// the registration sets it, from a ParentAccountProof it opened;
+	// whatever a caller puts in is dropped.
+	ParentAccountID int64
 }
 
 // HolidayRegistrationReceipt confirms a stored registration. It repeats no
@@ -186,6 +239,14 @@ type HolidayRegistrationInput struct {
 type HolidayRegistrationReceipt struct {
 	ID          int64
 	SubmittedAt time.Time
+	// Placements say for every booking whether the child got a place or
+	// waits for one (#4699). They name the child by its position in the
+	// form, not by its name.
+	Placements []HolidayReceiptPlacement
+	// ParentAccountOffered says that the registration enqueued the offer of
+	// a parent account (ADR 0216 point 4). The offer carries no link; the
+	// mail issues it when it is sent. No answer of the public route tells.
+	ParentAccountOffered bool
 }
 
 // HolidayRegistrations serves the public holiday registration.
@@ -195,9 +256,10 @@ type HolidayRegistrations interface {
 	PublicHolidayFormDocument(context.Context, HolidayRegistrationLink, string) (HolidayFormDocument, error)
 	ResolveHolidayRegistrationLink(ctx context.Context, token string) (HolidayRegistrationLink, error)
 	HolidayRegistrationOffer(ctx context.Context, link HolidayRegistrationLink) (HolidayRegistrationOffer, error)
-	// CountHolidayRegistrationAttempt counts one attempt per IP address and
-	// per e-mail address and refuses with ErrRateLimited past the limit.
-	CountHolidayRegistrationAttempt(ctx context.Context, organizationID int64, remoteIP, email string) error
+	// SubmitHolidayRegistration stores the registration and counts it per IP
+	// address and per e-mail address in the same transaction. Past a limit
+	// it refuses with ErrRateLimited or ErrEmailRateLimited and stores
+	// nothing (#6726).
 	SubmitHolidayRegistration(ctx context.Context, link HolidayRegistrationLink, input HolidayRegistrationInput) (HolidayRegistrationReceipt, error)
 	// CountHolidayProofUpload counts one upload per IP address and refuses
 	// with ErrUploadRateLimited past the limit (#5238).
@@ -240,6 +302,11 @@ type HolidayRegistrationMailChild struct {
 	Name  string   `json:"name"`
 	Guest bool     `json:"guest"`
 	Weeks []string `json:"weeks"`
+	// WaitlistWeeks are the weeks the child waits for a place in (#4699);
+	// Weeks then are the weeks with a place. A mail enqueued before has none.
+	WaitlistWeeks []string `json:"waitlist_weeks,omitempty"`
+	// PendingWeeks are the weeks the Büro still decides on (#4700).
+	PendingWeeks []string `json:"pending_weeks,omitempty"`
 }
 
 // HolidayRegistrationMail is the payload of the receipt mail. It carries no
@@ -255,21 +322,53 @@ type HolidayRegistrationMail struct {
 	Declaration  *HolidayRegistrationMailDeclaration `json:"declaration,omitempty"`
 }
 
-// HolidayRegistrationRetentionDays is how long the registrations of a period
-// stay after its last week: three months (spec #4611 user story 121). A
-// setting of the Träger follows with #4720.
-const HolidayRegistrationRetentionDays = 92
-
 // HolidayRegistrationDeletionLogRetentionYears is how long the deletion log
 // of the holiday registrations keeps an entry, like the deletion log of a
 // school (ADR 0118).
 const HolidayRegistrationDeletionLogRetentionYears = 3
 
+// HolidayRegistrationReference names a registration in its Träger.
+type HolidayRegistrationReference struct {
+	OrganizationID int64
+	RegistrationID int64
+}
+
+// HolidayRegistrationMailErasure removes copies of deleted registrations in
+// the caller's administrative transaction. The root binds Delivery's command.
+type HolidayRegistrationMailErasure interface {
+	EraseHolidayRegistrationMails(context.Context, []HolidayRegistrationReference) (int, error)
+}
+
 // HolidayRegistrationRetention deletes the registrations of every Träger
-// whose period ended more than HolidayRegistrationRetentionDays ago, logs
-// each deleted period in the deletion log of its Träger, and deletes the
-// expired abuse counters and log entries. It runs in the administrative
+// whose period ended more days ago than the registration keeps (#6691), and
+// the health information of the registrations whose period ended more than
+// HolidayHealthRetentionDays ago. It logs each period in the deletion log of
+// its Träger, and deletes the expired abuse counters and log entries. It runs in the administrative
 // transaction of the hourly cleanup.
 type HolidayRegistrationRetention interface {
 	DeleteExpiredHolidayRegistrations(ctx context.Context) (int, error)
+}
+
+// HolidayRegistrationAnnouncement is a published holiday period a parent
+// can still register for or will soon be able to (#6671): what the parents
+// app shows before the form is opened. FirstDay and LastDay span the weeks
+// of the period and are zero without weeks.
+type HolidayRegistrationAnnouncement struct {
+	OrganizationID       int64
+	PeriodID             int64
+	Token                string
+	Name                 string
+	RegistrationOpensOn  calendar.Date
+	RegistrationClosesOn calendar.Date
+	FirstDay             calendar.Date
+	LastDay              calendar.Date
+}
+
+// HolidayRegistrationAnnouncements lists the published periods of the
+// given Träger whose registration has not closed before on, by the end of
+// the registration. Like the link lookup it reads across Träger and
+// therefore runs only in the administrative transaction; it returns nothing
+// of a draft and no registration.
+type HolidayRegistrationAnnouncements interface {
+	AnnouncedHolidayRegistrations(ctx context.Context, organizationIDs []int64, on calendar.Date) ([]HolidayRegistrationAnnouncement, error)
 }

@@ -1091,9 +1091,10 @@ func newHarness(t *testing.T) *provisioningHarness {
 		logs:       &bytes.Buffer{},
 	}
 	svc, err := NewProvisioning(ProvisioningDependencies{
-		PWAUsageWindowDays: 30,
-		Organizations:      newFakeOwner(engine),
-		Transaction:        h.tx, Dashboard: h.dashboard, Identity: h.identity, Devices: h.devices,
+		PWAUsageWindowDays:  30,
+		Organizations:       newFakeOwner(engine),
+		ErasureOrderRecords: newFakeOwner(engine),
+		Transaction:         h.tx, Dashboard: h.dashboard, Identity: h.identity, Devices: h.devices,
 		People: h.people, Presence: h.presence, Categories: h.categories, Settings: h.settings,
 		Audit: h.audit, Secrets: h.secrets,
 		Logger: slog.New(slog.NewTextHandler(h.logs, &slog.HandlerOptions{Level: slog.LevelDebug})),

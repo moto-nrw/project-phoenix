@@ -12,9 +12,11 @@ import { Dropzone } from "~/components/ui/dropzone";
 import { FieldErrorHint } from "~/components/ui/field-error-hint";
 import { FieldLabel, RequiredMark } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   type CareContractDetail,
@@ -30,7 +32,8 @@ export function PaperSignatureModal({
 }: Readonly<{
   contract: CareContractDetail;
   onClose: () => void;
-  onSaved: () => Promise<void>;
+  /** Closes the dialog and reloads the contract; never rejects (#6652). */
+  onSaved: RefreshAfterWrite;
 }>) {
   const party = contract.parties[0];
   const [signerName, setSignerName] = useState(
@@ -40,7 +43,8 @@ export function PaperSignatureModal({
     parseISODate(berlinTodayISO()),
   );
   const [file, setFile] = useState<File | null>(null);
-  const [saving, setSaving] = useState(false);
+  const submission = useFormModalPending();
+  const saving = submission.pending;
   const formError = useApiFormError();
   const signedOnError = formError.fieldError("signed_on");
   const { success } = useToast();
@@ -48,30 +52,31 @@ export function PaperSignatureModal({
   const save = async () => {
     formError.clear();
     if (!file || !signedOn || !signerName.trim()) return;
-    setSaving(true);
-    try {
-      await recordPaperSignature(contract.id, {
-        file,
-        signerName,
-        signedOn: toISODate(signedOn),
-      });
+    await submission.run(async (op) => {
+      try {
+        await recordPaperSignature(contract.id, {
+          file,
+          signerName,
+          signedOn: toISODate(signedOn),
+        });
+      } catch (err) {
+        logger.error("traeger_care_contract_paper_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formError.show(err, { object: "der Papiervertrag" });
+        return;
+      }
       success("Der Papiervertrag ist erfasst. Der Vertrag ist jetzt aktiv.");
-      await onSaved();
-    } catch (err) {
-      logger.error("traeger_care_contract_paper_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formError.show(err, { object: "der Papiervertrag" });
-    } finally {
-      setSaving(false);
-    }
+      if (op.isCurrent()) await onSaved();
+    });
   };
 
   return (
     <FormModal
       isOpen
       onClose={onClose}
-      closeDisabled={saving}
+      pending={submission}
       title="Papiervertrag erfassen"
       error={formError.error}
       footer={

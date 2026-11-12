@@ -5,6 +5,7 @@ import { Button } from "~/components/ui/button";
 import { CheckboxCard } from "~/components/ui/checkbox-card";
 import { ISODatePicker } from "~/components/ui/date-picker";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Textarea } from "~/components/ui/textarea";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
 import {
@@ -20,6 +21,8 @@ import {
   belegTypeLabel,
   type BelegClarification,
 } from "~/lib/operator/beleg-retention-api";
+
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 
 const logger = createLogger({ component: "BelegClarificationReviewModal" });
 
@@ -60,13 +63,18 @@ export function ClarificationReviewModal({
   readonly entry: BelegClarification | null;
   readonly organizationId: string;
   readonly onClose: () => void;
-  readonly onSaved: () => Promise<unknown>;
+  /** Reloads the section; never rejects (#6652). */
+  readonly onSaved: RefreshAfterWrite;
 }) {
   const [note, setNote] = useState("");
   const [escalated, setEscalated] = useState(false);
   const [escalationReason, setEscalationReason] = useState("");
   const [nextReviewOn, setNextReviewOn] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(
+    entry !== null,
+    entry ? `${entry.belegType}/${entry.reason}` : undefined,
+  );
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { success } = useToast();
@@ -91,35 +99,37 @@ export function ClarificationReviewModal({
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!entry || !complete) return;
-    setSaving(true);
-    formErrors.clear();
-    try {
-      await belegRetentionService.recordClarificationReview(organizationId, {
-        beleg_type: entry.belegType,
-        reason: entry.reason,
-        note: note.trim(),
-        escalated: escalating,
-        escalation_reason: escalating ? escalationReason.trim() : "",
-        next_review_on: nextReviewOn,
-      });
+    await save.run(async (op) => {
+      formErrors.clear();
+      try {
+        await belegRetentionService.recordClarificationReview(organizationId, {
+          beleg_type: entry.belegType,
+          reason: entry.reason,
+          note: note.trim(),
+          escalated: escalating,
+          escalation_reason: escalating ? escalationReason.trim() : "",
+          next_review_on: nextReviewOn,
+        });
+      } catch (saveError) {
+        logger.warn("beleg_clarification_review_failed", {
+          error:
+            saveError instanceof Error ? saveError.message : String(saveError),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(saveError, { object: "die Prüfung" });
+        return;
+      }
       success("Die Prüfung ist erfasst.");
-      close();
+      if (op.isCurrent()) close();
       await onSaved();
-    } catch (saveError) {
-      logger.warn("beleg_clarification_review_failed", {
-        error:
-          saveError instanceof Error ? saveError.message : String(saveError),
-      });
-      void formErrors.show(saveError, { object: "die Prüfung" });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   return (
     <FormModal
       isOpen={entry !== null}
       onClose={close}
+      pending={save}
       title="Prüfung erfassen"
       error={formErrors.error}
       isBackdropDismissDisabled

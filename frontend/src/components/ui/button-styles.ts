@@ -13,6 +13,8 @@ export type ButtonVariant =
   | "link"
   | "link_tone"
   | "fab"
+  | "send"
+  | "ghost_round"
   | "dashed"
   | "filter"
   | "segment"
@@ -57,10 +59,11 @@ export function buttonStyles({
     base: "rounded-lg px-5 py-3",
     lg: "rounded-lg px-5 py-3",
     xl: "rounded-lg px-5 py-3",
-    compact: "h-8 gap-1.5 rounded-md px-2.5 disabled:cursor-not-allowed",
+    compact:
+      "h-8 gap-1.5 rounded-md px-2.5 disabled:cursor-not-allowed aria-disabled:cursor-not-allowed",
     // `aspect-square` statt `w-8`: erzwingt die Kopfkarte ihre Bedienhöhe
     // (40/44 px), folgt die Breite — sonst wird der quadratische Knopf oval.
-    icon: "aspect-square h-8 rounded-md pointer-coarse:min-w-11 disabled:cursor-not-allowed",
+    icon: "aspect-square h-8 rounded-md pointer-coarse:min-w-11 disabled:cursor-not-allowed aria-disabled:cursor-not-allowed",
     card: "w-full rounded-2xl p-4",
   };
   const variantStyles: Record<ButtonVariant, string> = {
@@ -102,6 +105,13 @@ export function buttonStyles({
     // Schwebender Anlegen-Knopf: rund, 56 px, grün wie `success`. Bringt sein
     // Maß selbst mit; die Größe des Aufrufs spielt keine Rolle.
     fab: "size-14 rounded-full p-0 bg-moto-green-fill text-white shadow-lg hover:bg-moto-green-fill-hover hover:shadow-xl active:bg-moto-green-fill-active",
+    // Senden neben dem Chatfeld (`MessageComposer`): rund, dunkel, ohne
+    // Schatten, so hoch wie das einzeilige Feld daneben (40 px, per Finger
+    // 48 px). Bringt sein Maß selbst mit.
+    send: "size-10 rounded-full p-0 bg-gray-900 text-white hover:bg-gray-700 active:bg-gray-800 pointer-coarse:size-12",
+    // `ghost` als Kreis: Symbolknopf in einem runden Feld (Büroklammer im
+    // Chatfeld), damit die Hover-Fläche dem Rund des Feldes folgt.
+    ghost_round: `${GHOST} rounded-full`,
     // Gestrichelte Hinzufügen-Fläche („Weitere Nummer hinzufügen“). Ruht
     // ohne Füllung: ein grau gefüllter Knopf passt in keine Rangstufe (#5574).
     dashed:
@@ -142,7 +152,7 @@ export function buttonStyles({
   // bleibt es bei den Kit-Maßen. Kein Knopf braucht dafür ein eigenes
   // `min-h-11`. Kein `transform` im Übergang: das Kit skaliert nicht.
   const baseStyles =
-    "inline-flex items-center justify-center font-medium transition-[background-color,box-shadow,color,opacity] duration-200 pointer-coarse:min-h-11 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50";
+    "inline-flex items-center justify-center font-medium transition-[background-color,box-shadow,color,opacity] duration-200 pointer-coarse:min-h-11 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none disabled:opacity-50 aria-disabled:opacity-50";
 
   // Die Variante steht hinter der Größe: Varianten mit eigenem Maß (`fab`,
   // `filter`, `day_chip` …) setzen sich so auch bei der Schriftgröße durch.

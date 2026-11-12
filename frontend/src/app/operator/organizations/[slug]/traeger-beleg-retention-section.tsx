@@ -8,6 +8,7 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { ConsentCheckbox } from "~/components/ui/consent-checkbox";
 import { ConfirmationModal } from "~/components/ui/modal";
@@ -21,6 +22,11 @@ import {
   useToast,
 } from "~/contexts/ToastContext";
 import { berlinTodayISO, formatDate } from "~/lib/date-helpers";
+import {
+  STALE_DATA_SUFFIX,
+  useRefreshAfterWrite,
+  type RefreshAfterWrite,
+} from "~/lib/hooks/use-refresh-after-write";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import { createLogger } from "~/lib/logger";
 import {
@@ -71,10 +77,13 @@ export function TraegerBelegRetentionSection({
     () => belegRetentionService.getOverview(organizationId),
     { keepPreviousData: false },
   );
+  // A failed reload keeps the confirmed tables and stands above them; only
+  // without data does the error replace the section (#6636).
   const loadError = useSwrLoadError(
     error,
     "die Belegaufbewahrung",
     () => void mutate(),
+    data === undefined ? undefined : STALE_DATA_SUFFIX,
   );
   const [instructionOpen, setInstructionOpen] = useState(false);
   const [suspensionOpen, setSuspensionOpen] = useState(false);
@@ -83,13 +92,22 @@ export function TraegerBelegRetentionSection({
   const [formSession, setFormSession] = useState(0);
   const [reviewing, setReviewing] = useState<BelegClarification | null>(null);
   const reload = useCallback(() => mutate(), [mutate]);
+  // A dialog's reload runs after its write and stands above the tables,
+  // also after the dialog closed (#6652).
+  const savedRefresh = useRefreshAfterWrite(
+    "die Anzeige der Belegaufbewahrung",
+    reload,
+  );
 
-  if (loadError) return <LoadErrorAlert error={loadError} />;
+  if (loadError && data === undefined)
+    return <LoadErrorAlert error={loadError} />;
   const loading = isLoading || data === undefined;
   const today = berlinTodayISO();
 
   return (
     <>
+      <LoadErrorAlert error={loadError} />
+      <LoadErrorAlert error={savedRefresh.error} />
       <SectionCard
         title="Klärungsliste"
         description="Belege ohne Weisung oder ohne berechenbares Datum. moto löscht sie nicht. Klären Sie sie bis zum Prüfdatum mit dem Träger und erfassen Sie jede Prüfung."
@@ -196,20 +214,20 @@ export function TraegerBelegRetentionSection({
         isOpen={instructionOpen}
         organizationId={organizationId}
         onClose={() => setInstructionOpen(false)}
-        onSaved={reload}
+        onSaved={savedRefresh.refresh}
       />
       <SuspensionModal
         key={`suspension-${formSession}`}
         isOpen={suspensionOpen}
         organizationId={organizationId}
         onClose={() => setSuspensionOpen(false)}
-        onSaved={reload}
+        onSaved={savedRefresh.refresh}
       />
       <ClarificationReviewModal
         entry={reviewing}
         organizationId={organizationId}
         onClose={() => setReviewing(null)}
-        onSaved={reload}
+        onSaved={savedRefresh.refresh}
       />
     </>
   );
@@ -398,24 +416,32 @@ function SuspensionsCard({
   const [busy, setBusy] = useState(false);
   const { show: showError } = useApiErrorDisplay();
   const { success } = useToast();
+  // Only a failed lift is an error of the lift; a failed reload afterwards
+  // is a load error with a retry that only reloads (#6636).
+  const liftRefresh = useRefreshAfterWrite(
+    "die Anzeige der Aussetzungen",
+    onChanged,
+  );
+  const { refresh: refreshAfterLift } = liftRefresh;
 
   const lift = useCallback(async () => {
     if (!lifting) return;
     setBusy(true);
     try {
       await belegRetentionService.liftSuspension(organizationId, lifting.id);
-      setLifting(null);
-      success("Die Aussetzung ist aufgehoben.");
-      await onChanged();
     } catch (liftError) {
       logger.warn("beleg_suspension_lift_failed", {
         error: errorMessage(liftError),
       });
       void showError(liftError, { object: "die Aufhebung der Aussetzung" });
-    } finally {
       setBusy(false);
+      return;
     }
-  }, [lifting, onChanged, organizationId, showError, success]);
+    setLifting(null);
+    setBusy(false);
+    success("Die Aussetzung ist aufgehoben.");
+    await refreshAfterLift();
+  }, [lifting, organizationId, refreshAfterLift, showError, success]);
 
   const columns: DataTableColumn<RetentionSuspension>[] = [
     {
@@ -469,6 +495,7 @@ function SuspensionsCard({
           </Button>
         }
       >
+        <LoadErrorAlert error={liftRefresh.error} className="mb-4" />
         <DataTable
           columns={columns}
           rows={[...suspensions]}
@@ -505,7 +532,8 @@ function InstructionModal({
   readonly isOpen: boolean;
   readonly organizationId: string;
   readonly onClose: () => void;
-  readonly onSaved: () => Promise<unknown>;
+  /** Reloads the section; never rejects (#6652). */
+  readonly onSaved: RefreshAfterWrite;
 }) {
   const [type, setType] = useState<BelegType>("holiday_document");
   const [trigger, setTrigger] = useState("issued");
@@ -517,7 +545,8 @@ function InstructionModal({
   const [instructedBy, setInstructedBy] = useState("");
   const [instructedOn, setInstructedOn] = useState("");
   const [reference, setReference] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { success } = useToast();
@@ -552,38 +581,40 @@ function InstructionModal({
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!complete) return;
-    setSaving(true);
-    formErrors.clear();
-    try {
-      await belegRetentionService.recordInstruction(organizationId, {
-        beleg_type: type,
-        trigger_event: trigger,
-        period: Number(period),
-        basis,
-        legal_basis: legalBasis.trim(),
-        basis_justification: withoutStatutes ? justification.trim() : "",
-        instructed_by: instructedBy.trim(),
-        instructed_on: instructedOn,
-        instruction_reference: reference.trim(),
-        statutes_not_applicable_confirmed: withoutStatutes && confirmed,
-      });
+    await save.run(async (op) => {
+      formErrors.clear();
+      try {
+        await belegRetentionService.recordInstruction(organizationId, {
+          beleg_type: type,
+          trigger_event: trigger,
+          period: Number(period),
+          basis,
+          legal_basis: legalBasis.trim(),
+          basis_justification: withoutStatutes ? justification.trim() : "",
+          instructed_by: instructedBy.trim(),
+          instructed_on: instructedOn,
+          instruction_reference: reference.trim(),
+          statutes_not_applicable_confirmed: withoutStatutes && confirmed,
+        });
+      } catch (saveError) {
+        logger.warn("beleg_instruction_record_failed", {
+          error: errorMessage(saveError),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(saveError, { object: "die Weisung" });
+        return;
+      }
       success("Die Weisung ist erfasst.");
-      onClose();
+      if (op.isCurrent()) onClose();
       await onSaved();
-    } catch (saveError) {
-      logger.warn("beleg_instruction_record_failed", {
-        error: errorMessage(saveError),
-      });
-      void formErrors.show(saveError, { object: "die Weisung" });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   return (
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
+      pending={save}
       title="Weisung erfassen"
       error={formErrors.error}
       isBackdropDismissDisabled
@@ -734,14 +765,16 @@ function SuspensionModal({
   readonly isOpen: boolean;
   readonly organizationId: string;
   readonly onClose: () => void;
-  readonly onSaved: () => Promise<unknown>;
+  /** Reloads the section; never rejects (#6652). */
+  readonly onSaved: RefreshAfterWrite;
 }) {
   const [type, setType] = useState<string>("holiday_document");
   const [reason, setReason] = useState("");
   const [scope, setScope] = useState("");
   const [responsible, setResponsible] = useState("");
   const [reviewOn, setReviewOn] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { success } = useToast();
@@ -754,33 +787,35 @@ function SuspensionModal({
   const submit = async (event: React.FormEvent) => {
     event.preventDefault();
     if (!complete) return;
-    setSaving(true);
-    formErrors.clear();
-    try {
-      await belegRetentionService.recordSuspension(organizationId, {
-        beleg_type: type,
-        reason: reason.trim(),
-        scope: scope.trim(),
-        responsible: responsible.trim(),
-        review_on: reviewOn,
-      });
+    await save.run(async (op) => {
+      formErrors.clear();
+      try {
+        await belegRetentionService.recordSuspension(organizationId, {
+          beleg_type: type,
+          reason: reason.trim(),
+          scope: scope.trim(),
+          responsible: responsible.trim(),
+          review_on: reviewOn,
+        });
+      } catch (saveError) {
+        logger.warn("beleg_suspension_record_failed", {
+          error: errorMessage(saveError),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(saveError, { object: "die Aussetzung" });
+        return;
+      }
       success("Die Löschung ist ausgesetzt.");
-      onClose();
+      if (op.isCurrent()) onClose();
       await onSaved();
-    } catch (saveError) {
-      logger.warn("beleg_suspension_record_failed", {
-        error: errorMessage(saveError),
-      });
-      void formErrors.show(saveError, { object: "die Aussetzung" });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
 
   return (
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
+      pending={save}
       title="Löschung aussetzen"
       error={formErrors.error}
       isBackdropDismissDisabled

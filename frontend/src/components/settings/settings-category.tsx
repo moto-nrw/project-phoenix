@@ -1,6 +1,7 @@
 "use client";
 
-import type { SchemaCategory } from "~/lib/settings-api";
+import type { ReactNode } from "react";
+import type { ResolvedSetting, SchemaCategory } from "~/lib/settings-api";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { SettingsField } from "./settings-field";
@@ -51,6 +52,12 @@ interface SettingsCategoryProps {
    * no mini-heading above a title, see ui-kit/no-tenant-kicker.)
    */
   readonly tabLabel?: string;
+  /**
+   * Content right below one setting, in its row: settings that only make
+   * sense together, such as the length of the debtor number under its
+   * switch (#6675). Return null for every other setting.
+   */
+  readonly renderAddon?: (setting: ResolvedSetting) => ReactNode;
 }
 
 export function SettingsCategory({
@@ -67,6 +74,7 @@ export function SettingsCategory({
   onToggle,
   filterQuery = "",
   tabLabel,
+  renderAddon,
 }: SettingsCategoryProps) {
   const visibleItems = filterCategoryItems(category, filterQuery);
 
@@ -101,18 +109,20 @@ export function SettingsCategory({
     >
       <div className="divide-y divide-gray-100">
         {visibleItems.map((setting) => (
-          <SettingsField
-            key={setting.key}
-            setting={setting}
-            categoryItems={category.items}
-            highlighted={setting.key === highlightKey}
-            onSave={onSave}
-            onReset={onReset}
-            onSchemaRefresh={onSchemaRefresh}
-            onBookingAuthorityEnable={onBookingAuthorityEnable}
-            audience={audience}
-            revealFn={revealFn}
-          />
+          <div key={setting.key}>
+            <SettingsField
+              setting={setting}
+              categoryItems={category.items}
+              highlighted={setting.key === highlightKey}
+              onSave={onSave}
+              onReset={onReset}
+              onSchemaRefresh={onSchemaRefresh}
+              onBookingAuthorityEnable={onBookingAuthorityEnable}
+              audience={audience}
+              revealFn={revealFn}
+            />
+            {renderAddon?.(setting)}
+          </div>
         ))}
       </div>
     </SectionCard>

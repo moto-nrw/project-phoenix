@@ -16,7 +16,7 @@ func TestNewProvisioningRequiresEveryDependency(t *testing.T) {
 	h := newHarness(t)
 	complete := ProvisioningDependencies{
 		PWAUsageWindowDays: 30,
-		Organizations:      newFakeOwner(h.engine), Transaction: h.tx, Dashboard: h.dashboard,
+		Organizations:      newFakeOwner(h.engine), ErasureOrderRecords: newFakeOwner(h.engine), Transaction: h.tx, Dashboard: h.dashboard,
 		Identity: h.identity, Devices: h.devices, People: h.people, Presence: h.presence,
 		Categories: h.categories, Settings: h.settings, Audit: h.audit, Secrets: h.secrets,
 	}
@@ -27,16 +27,19 @@ func TestNewProvisioningRequiresEveryDependency(t *testing.T) {
 	for name, drop := range map[string]func(*ProvisioningDependencies){
 		"pwa usage window": func(d *ProvisioningDependencies) { d.PWAUsageWindowDays = 0 },
 		"organizations":    func(d *ProvisioningDependencies) { d.Organizations = nil },
-		"transaction":      func(d *ProvisioningDependencies) { d.Transaction = nil },
-		"dashboard":        func(d *ProvisioningDependencies) { d.Dashboard = nil },
-		"identity":         func(d *ProvisioningDependencies) { d.Identity = nil },
-		"devices":          func(d *ProvisioningDependencies) { d.Devices = nil },
-		"people":           func(d *ProvisioningDependencies) { d.People = nil },
-		"presence":         func(d *ProvisioningDependencies) { d.Presence = nil },
-		"categories":       func(d *ProvisioningDependencies) { d.Categories = nil },
-		"settings":         func(d *ProvisioningDependencies) { d.Settings = nil },
-		"audit":            func(d *ProvisioningDependencies) { d.Audit = nil },
-		"secrets":          func(d *ProvisioningDependencies) { d.Secrets = nil },
+		// The records capability is injected, never discovered on the
+		// owner at request time (ADR 0068 point 5, ADR 0178).
+		"erasure order records": func(d *ProvisioningDependencies) { d.ErasureOrderRecords = nil },
+		"transaction":           func(d *ProvisioningDependencies) { d.Transaction = nil },
+		"dashboard":             func(d *ProvisioningDependencies) { d.Dashboard = nil },
+		"identity":              func(d *ProvisioningDependencies) { d.Identity = nil },
+		"devices":               func(d *ProvisioningDependencies) { d.Devices = nil },
+		"people":                func(d *ProvisioningDependencies) { d.People = nil },
+		"presence":              func(d *ProvisioningDependencies) { d.Presence = nil },
+		"categories":            func(d *ProvisioningDependencies) { d.Categories = nil },
+		"settings":              func(d *ProvisioningDependencies) { d.Settings = nil },
+		"audit":                 func(d *ProvisioningDependencies) { d.Audit = nil },
+		"secrets":               func(d *ProvisioningDependencies) { d.Secrets = nil },
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()

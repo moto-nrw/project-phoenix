@@ -13,6 +13,7 @@ import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import type { FormError } from "~/components/ui/form-error";
 import {
@@ -20,6 +21,7 @@ import {
   useApiLoadError,
   useToast,
 } from "~/contexts/ToastContext";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { operatorProvisioningService } from "~/lib/operator/provisioning-api";
 import type {
@@ -34,7 +36,8 @@ interface TransferDeviceModalProps {
   readonly device: OperatorDevice | null;
   readonly schools: readonly School[];
   readonly onClose: () => void;
-  readonly onTransferred: (device: OperatorDevice) => Promise<void> | void;
+  /** Reloads the device lists; never rejects (#6652). */
+  readonly onTransferred: RefreshAfterWrite;
 }
 
 interface TransferDeviceContentProps {
@@ -262,7 +265,8 @@ export function TransferDeviceModal({
   onTransferred,
 }: TransferDeviceModalProps) {
   const [targetSchoolId, setTargetSchoolId] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(device != null, device?.id);
+  const saving = save.pending;
   const schoolLabelId = useId();
   const { success: toastSuccess } = useToast();
   const resetTargetSchool = useCallback(() => setTargetSchoolId(""), []);
@@ -282,39 +286,42 @@ export function TransferDeviceModal({
 
   const handleTransfer = useCallback(async () => {
     if (!device || !targetSchoolId || !status?.canTransfer) return;
-    setSaving(true);
-    clearTransferError();
-    try {
-      const transferred = await operatorProvisioningService.transferDevice(
-        device.id,
-        targetSchoolId,
-      );
-      await onTransferred(transferred);
+    await save.run(async (op) => {
+      clearTransferError();
+      let transferred: OperatorDevice;
+      try {
+        transferred = await operatorProvisioningService.transferDevice(
+          device.id,
+          targetSchoolId,
+        );
+      } catch (transferError) {
+        logger.error("device_transfer_failed", {
+          device_id: device.id,
+          error:
+            transferError instanceof Error
+              ? transferError.message
+              : String(transferError),
+        });
+        if (!op.isCurrent()) return;
+        void showTransferError(transferError, {
+          object: "die Übertragung des Geräts",
+        });
+        // The device may have come online or opened a session meanwhile.
+        await refreshStatus();
+        return;
+      }
       toastSuccess(
         `${device.name || device.deviceId} wurde nach ${transferred.schoolName} verschoben.`,
       );
-      onClose();
-    } catch (transferError) {
-      logger.error("device_transfer_failed", {
-        device_id: device.id,
-        error:
-          transferError instanceof Error
-            ? transferError.message
-            : String(transferError),
-      });
-      void showTransferError(transferError, {
-        object: "die Übertragung des Geräts",
-      });
-      // The device may have come online or opened a session meanwhile.
-      await refreshStatus();
-    } finally {
-      setSaving(false);
-    }
+      if (op.isCurrent()) onClose();
+      await onTransferred();
+    });
   }, [
     device,
     onClose,
     onTransferred,
     refreshStatus,
+    save,
     showTransferError,
     clearTransferError,
     status?.canTransfer,
@@ -326,6 +333,7 @@ export function TransferDeviceModal({
     <FormModal
       isOpen={device != null}
       onClose={onClose}
+      pending={save}
       title="Gerät verschieben"
       size="md"
       error={transferErrors.error}

@@ -2,6 +2,7 @@ package compose
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -61,6 +62,7 @@ const (
 type ProvisioningDependencies struct {
 	PWAUsageWindowDays int
 	Organizations      organizationtenancy.Capability
+	Observe            func(Observation) // of the owner's records command (#4720)
 	Identity           ProvisioningIdentity
 	Devices            ProvisioningDevices
 	People             ProvisioningPeople
@@ -75,14 +77,22 @@ type ProvisioningDependencies struct {
 
 // NewProvisioning composes the operator provisioning capability over the
 // Organisation & Tenancy facade and the operator dashboard projection.
-func NewProvisioning(dependencies ProvisioningDependencies, dashboard organizationtenancy.OperatorDashboard) (organizationtenancy.Provisioning, error) {
-	return application.NewProvisioning(application.ProvisioningDependencies{
-		PWAUsageWindowDays: dependencies.PWAUsageWindowDays,
-		Organizations:      dependencies.Organizations, Transaction: postgresNative.Transaction{}, Dashboard: dashboard,
+func NewProvisioning(dependencies ProvisioningDependencies, dashboard organizationtenancy.OperatorDashboard) (organizationtenancy.OperatorProvisioning, error) {
+	if dependencies.Observe == nil {
+		return organizationtenancy.OperatorProvisioning{}, errors.New("organization tenancy provisioning: the observer is required")
+	}
+	provisioning, err := application.NewProvisioning(application.ProvisioningDependencies{
+		PWAUsageWindowDays: dependencies.PWAUsageWindowDays, Organizations: dependencies.Organizations,
+		ErasureOrderRecords: application.New(postgresNative.New(postgresNative.NewDatabase()), postgresNative.Transaction{}, dependencies.Observe),
+		Transaction:         postgresNative.Transaction{}, Dashboard: dashboard,
 		Identity: dependencies.Identity, Devices: dependencies.Devices, People: dependencies.People,
 		Presence: dependencies.Presence, Categories: dependencies.Categories, Settings: dependencies.Settings,
 		Audit: dependencies.Audit, Secrets: dependencies.Secrets, Logger: dependencies.Logger,
 	})
+	if err != nil {
+		return organizationtenancy.OperatorProvisioning{}, err
+	}
+	return organizationtenancy.OperatorProvisioning{Provisioning: provisioning, ErasureOrderRecords: provisioning}, nil
 }
 
 // BelegRetentionAudit answers the operator audit of the Beleg retention

@@ -35,13 +35,16 @@ func buildCareServiceWithAutoExcusal(t *testing.T) (careTestService, *bun.DB) {
 	repos := api.NewRepositoryTestFactory(testpkg.NewDatabase(t, db))
 	reposPeople := api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db))
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
-		GuardianChanges: owners.ParentGuardianChanges(),
-		DeparturePolicy: owners.ParentDeparturePolicy(),
-		GuardianPolicy:  owners.NewParentGuardianPolicy(),
-		Fingerprints:    owners.SecurityFingerprints{},
-		Declarations:    owners.ParentDeclarationPolicy(),
-		Locales:         owners.ParentPortalLocales(),
-		Runtime:         owners.ParentPortalRuntime{},
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		GuardianProfileRepo: guardProfiles(t, db),
+		GuardianChanges:     owners.ParentGuardianChanges(),
+		DeparturePolicy:     owners.ParentDeparturePolicy(),
+		GuardianPolicy:      owners.NewParentGuardianPolicy(),
+		Fingerprints:        owners.SecurityFingerprints{},
+		Declarations:        owners.ParentDeclarationPolicy(),
+		Locales:             owners.ParentPortalLocales(),
+		Runtime:             owners.ParentPortalRuntime{},
 		CarePlan: owners.NewParentCarePlanCommands(repos.CarePlan(), newPickupExcusal(t, db, repos.CarePlan(),
 			newPickupBaselineService(repos.CarePlan(), approvedOfferingProjection(t)),
 			timetableOwner, false,

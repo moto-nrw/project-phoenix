@@ -89,7 +89,12 @@ const (
 
 	CodeHolidayRegistrationFormChanged = "enrollment.holiday_registration_form_changed"
 
-	CodeConsentRequired       = "enrollment.consent_required"
+	CodeConsentRequired = "enrollment.consent_required"
+	// CodeRenewalTermsRequired refuses a renewal confirmation without the
+	// tick of a required block; CodeRenewalTermsChanged one for a form
+	// version that is no longer in force (#6456).
+	CodeRenewalTermsRequired  = "enrollment.renewal_terms_required"
+	CodeRenewalTermsChanged   = "enrollment.renewal_terms_changed"
 	CodeChildRequired         = "enrollment.child_required"
 	CodeChildNameRequired     = "enrollment.child_name_required"
 	CodeChildBirthDateInvalid = "enrollment.child_birth_date_invalid"
@@ -97,12 +102,15 @@ const (
 	CodeGuardianNameRequired  = "enrollment.guardian_name_required"
 	CodeGuardianEmailRequired = "enrollment.guardian_email_required"
 	CodeGuardianPhoneRequired = "enrollment.guardian_phone_required"
-	CodeInvalidEmail          = "enrollment.invalid_email"
-	CodeInvalidPhone          = "enrollment.invalid_phone"
-	CodeFieldRequired         = "enrollment.field_required"
-	CodeCompanionNoteRequired = "enrollment.companion_note_required"
-	CodePickupTimeNotAllowed  = "enrollment.pickup_time_not_allowed"
-	CodeDepartureModeLimit    = "enrollment.departure_mode_limit"
+	// CodeHolidayCareWishRequired refuses a child without an answer to the
+	// holiday care question of a form that asks it (#4703).
+	CodeHolidayCareWishRequired = "enrollment.holiday_care_wish_required"
+	CodeInvalidEmail            = "enrollment.invalid_email"
+	CodeInvalidPhone            = "enrollment.invalid_phone"
+	CodeFieldRequired           = "enrollment.field_required"
+	CodeCompanionNoteRequired   = "enrollment.companion_note_required"
+	CodePickupTimeNotAllowed    = "enrollment.pickup_time_not_allowed"
+	CodeDepartureModeLimit      = "enrollment.departure_mode_limit"
 
 	CodeMessageRequired               = "enrollment.message_required"
 	CodeChangeRequestNoteRequired     = "enrollment.change_request_note_required"

@@ -22,7 +22,6 @@
   "childProfile": "Профиль ребенка",
   "loading": "Загрузка...",
   "sectionLoading": "Содержимое загружается",
-  "feedback": "Обратная связь",
   "help": "Помощь",
   "settings": "Настройки",
   "enroll": "Новая заявка",
@@ -34,5 +33,6 @@
   "noticeCount": "Уведомлений: {count}",
   "documents": "Документы",
   "privacy": "Конфиденциальность",
-  "backToApp": "Назад в приложение"
+  "backToApp": "Назад в приложение",
+  "holidayRegistrations": "Заявки на каникулы"
 }

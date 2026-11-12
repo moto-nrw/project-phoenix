@@ -2,7 +2,6 @@
 import { hasSessionAccess } from "./session-access";
 import { getCachedSession, sessionFetch } from "./session-cache";
 import api from "./api";
-import { resolveApiUrl } from "./api-url";
 import { createLogger } from "~/lib/logger";
 import {
   apiErrorFromBody,
@@ -16,9 +15,6 @@ import {
   mapVisitResponse,
   mapSupervisorResponse,
   mapSchulhofStatusResponse,
-  prepareActiveGroupForBackend,
-  prepareVisitForBackend,
-  prepareSupervisorForBackend,
   type ActiveGroup,
   type Visit,
   type Supervisor,
@@ -27,9 +23,6 @@ import {
   type BackendVisit,
   type BackendSupervisor,
   type BackendSchulhofStatus,
-  type CreateActiveGroupInput,
-  type CreateVisitInput,
-  type CreateSupervisorInput,
   type TrackingIndicatorsResponse,
 } from "./active-helpers";
 
@@ -84,13 +77,6 @@ export function summarizeStudentMoveResult(
   };
 }
 
-interface BackendResponseEnvelope<T> {
-  data: T;
-  message?: string;
-  status?: string;
-  success?: boolean;
-}
-
 // Helper to extract array from potentially paginated response
 function extractArrayFromResponse<T>(response: unknown): T[] {
   if (!response || typeof response !== "object") {
@@ -113,35 +99,6 @@ function extractArrayFromResponse<T>(response: unknown): T[] {
   }
 
   return [];
-}
-
-function unwrapBackendEnvelope<T>(payload: T | BackendResponseEnvelope<T>): T {
-  if (!payload || typeof payload !== "object") {
-    return payload as T;
-  }
-
-  const obj = payload as Record<string, unknown>;
-  if (
-    "data" in obj &&
-    ("status" in obj || "message" in obj || "success" in obj)
-  ) {
-    return obj.data as T;
-  }
-
-  return payload as T;
-}
-
-function mapVisitPayload(
-  payload: BackendVisit | BackendResponseEnvelope<BackendVisit>,
-): Visit {
-  return mapVisitResponse(unwrapBackendEnvelope(payload));
-}
-
-function mapNullableVisitPayload(
-  payload: BackendVisit | BackendResponseEnvelope<BackendVisit | null>,
-): Visit | null {
-  const visit = unwrapBackendEnvelope(payload);
-  return visit ? mapVisitResponse(visit) : null;
 }
 
 // ============================================================================
@@ -250,7 +207,7 @@ async function coreFetch<T>(
     } else {
       const responseData = await executeBackendFetch<ApiResponse<T>>(
         method,
-        await resolveApiUrl(proxyPath, backendPath),
+        proxyPath,
         body,
       );
       return responseData.data;
@@ -278,11 +235,7 @@ async function coreFetchVoid(
     if (useProxyApi) {
       await executeProxyFetch(method, proxyPath, operationName, body);
     } else {
-      await executeBackendFetch<unknown>(
-        method,
-        await resolveApiUrl(proxyPath, backendPath),
-        body,
-      );
+      await executeBackendFetch<unknown>(method, proxyPath, body);
     }
   } catch (error) {
     logger.error("core fetch void failed", {
@@ -307,22 +260,6 @@ async function proxyGet<TBackend, TFrontend>(
     operationName,
   );
   return mapper(data);
-}
-
-/** GET request returning a nullable mapped item */
-async function proxyGetNullable<TBackend, TFrontend>(
-  proxyPath: string,
-  backendPath: string,
-  mapper: (data: TBackend) => TFrontend,
-  operationName: string,
-): Promise<TFrontend | null> {
-  const data = await coreFetch<TBackend | null>(
-    "GET",
-    proxyPath,
-    backendPath,
-    operationName,
-  );
-  return data ? mapper(data) : null;
 }
 
 /** GET request returning an array of mapped items */
@@ -357,10 +294,7 @@ async function proxyGetPaginated<TBackend, TFrontend>(
       const items = extractArrayFromResponse<TBackend>(responseData);
       return items.map(mapper);
     } else {
-      const response = await executeBackendFetch<unknown>(
-        "GET",
-        await resolveApiUrl(proxyPath, backendPath),
-      );
+      const response = await executeBackendFetch<unknown>("GET", proxyPath);
       const items = extractArrayFromResponse<TBackend>(response);
       return items.map(mapper);
     }
@@ -371,24 +305,6 @@ async function proxyGetPaginated<TBackend, TFrontend>(
     });
     throw error;
   }
-}
-
-/** POST request with body, returning a single mapped item */
-async function proxyPost<TBackend, TFrontend>(
-  proxyPath: string,
-  backendPath: string,
-  body: unknown,
-  mapper: (data: TBackend) => TFrontend,
-  operationName: string,
-): Promise<TFrontend> {
-  const data = await coreFetch<TBackend>(
-    "POST",
-    proxyPath,
-    backendPath,
-    operationName,
-    body,
-  );
-  return mapper(data);
 }
 
 /** POST request without body, returning a single mapped item */
@@ -405,33 +321,6 @@ async function proxyPostNoBody<TBackend, TFrontend>(
     operationName,
   );
   return mapper(data);
-}
-
-/** PUT request with body, returning a single mapped item */
-async function proxyPut<TBackend, TFrontend>(
-  proxyPath: string,
-  backendPath: string,
-  body: unknown,
-  mapper: (data: TBackend) => TFrontend,
-  operationName: string,
-): Promise<TFrontend> {
-  const data = await coreFetch<TBackend>(
-    "PUT",
-    proxyPath,
-    backendPath,
-    operationName,
-    body,
-  );
-  return mapper(data);
-}
-
-/** DELETE request returning void */
-async function proxyDelete(
-  proxyPath: string,
-  backendPath: string,
-  operationName: string,
-): Promise<void> {
-  await coreFetchVoid("DELETE", proxyPath, backendPath, operationName);
 }
 
 /** POST request with body, returning void */
@@ -474,124 +363,12 @@ export const activeService = {
     );
   },
 
-  getActiveGroup: async (id: string): Promise<ActiveGroup> => {
-    return proxyGet<BackendActiveGroup, ActiveGroup>(
-      `/api/active/groups/${id}`,
-      `/active/groups/${id}`,
-      mapActiveGroupResponse,
-      "Get active group",
-    );
-  },
-
-  getActiveGroupsByRoom: async (roomId: string): Promise<ActiveGroup[]> => {
-    return proxyGetArray<BackendActiveGroup, ActiveGroup>(
-      `/api/active/groups/room/${roomId}`,
-      `/active/groups/room/${roomId}`,
-      mapActiveGroupResponse,
-      "Get active groups by room",
-    );
-  },
-
-  getActiveGroupsByGroup: async (groupId: string): Promise<ActiveGroup[]> => {
-    return proxyGetArray<BackendActiveGroup, ActiveGroup>(
-      `/api/active/groups/group/${groupId}`,
-      `/active/groups/group/${groupId}`,
-      mapActiveGroupResponse,
-      "Get active groups by group",
-    );
-  },
-
-  getActiveGroupVisits: async (id: string): Promise<Visit[]> => {
-    return proxyGetArray<BackendVisit, Visit>(
-      `/api/active/groups/${id}/visits`,
-      `/active/groups/${id}/visits`,
-      mapVisitResponse,
-      "Get active group visits",
-    );
-  },
-
-  // Bulk fetch visits with student display data (optimized for SSE - single query)
-  getActiveGroupVisitsWithDisplay: async (id: string): Promise<Visit[]> => {
-    const response = await transportFetch(
-      `/api/active/groups/${id}/visits/display`,
-      {
-        headers: {
-          "Content-Type": "application/json",
-        },
-      },
-    );
-
-    if (response.status === 404) {
-      return [];
-    }
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      logger.error("get visits with display failed", {
-        status: response.status,
-        error: errorText,
-      });
-      throw proxyError(
-        `Get visits with display failed: ${response.status}`,
-        response.status,
-        errorText,
-      );
-    }
-
-    const responseData = (await response.json()) as ApiResponse<BackendVisit[]>;
-    return responseData.data.map(mapVisitResponse);
-  },
-
   getActiveGroupSupervisors: async (id: string): Promise<Supervisor[]> => {
     return proxyGetPaginated<BackendSupervisor, Supervisor>(
       `/api/active/groups/${id}/supervisors`,
       `/active/groups/${id}/supervisors`,
       mapSupervisorResponse,
       "Get active group supervisors",
-    );
-  },
-
-  createActiveGroup: async (
-    activeGroup: CreateActiveGroupInput,
-  ): Promise<ActiveGroup> => {
-    const backendData = prepareActiveGroupForBackend(activeGroup);
-    return proxyPost<BackendActiveGroup, ActiveGroup>(
-      "/api/active/groups",
-      "/active/groups",
-      backendData,
-      mapActiveGroupResponse,
-      "Create active group",
-    );
-  },
-
-  updateActiveGroup: async (
-    id: string,
-    activeGroup: Partial<ActiveGroup>,
-  ): Promise<ActiveGroup> => {
-    const backendData = prepareActiveGroupForBackend(activeGroup);
-    return proxyPut<BackendActiveGroup, ActiveGroup>(
-      `/api/active/groups/${id}`,
-      `/active/groups/${id}`,
-      backendData,
-      mapActiveGroupResponse,
-      "Update active group",
-    );
-  },
-
-  deleteActiveGroup: async (id: string): Promise<void> => {
-    return proxyDelete(
-      `/api/active/groups/${id}`,
-      `/active/groups/${id}`,
-      "Delete active group",
-    );
-  },
-
-  endActiveGroup: async (id: string): Promise<ActiveGroup> => {
-    return proxyPostNoBody<BackendActiveGroup, ActiveGroup>(
-      `/api/active/groups/${id}/end`,
-      `/active/groups/${id}/end`,
-      mapActiveGroupResponse,
-      "End active group",
     );
   },
 
@@ -609,127 +386,6 @@ export const activeService = {
     );
   },
 
-  getVisit: async (id: string): Promise<Visit> => {
-    return proxyGet<
-      BackendVisit | BackendResponseEnvelope<BackendVisit>,
-      Visit
-    >(
-      `/api/active/visits/${id}`,
-      `/active/visits/${id}`,
-      mapVisitPayload,
-      "Get visit",
-    );
-  },
-
-  getStudentVisits: async (studentId: string): Promise<Visit[]> => {
-    return proxyGetArray<BackendVisit, Visit>(
-      `/api/active/visits/student/${studentId}`,
-      `/active/visits/student/${studentId}`,
-      mapVisitResponse,
-      "Get student visits",
-    );
-  },
-
-  getStudentCurrentVisit: async (studentId: string): Promise<Visit | null> => {
-    return proxyGetNullable<
-      BackendVisit | BackendResponseEnvelope<BackendVisit | null>,
-      Visit | null
-    >(
-      `/api/active/visits/student/${studentId}/current`,
-      `/active/visits/student/${studentId}/current`,
-      mapNullableVisitPayload,
-      "Get student current visit",
-    );
-  },
-
-  getVisitsByGroup: async (groupId: string): Promise<Visit[]> => {
-    return proxyGetArray<BackendVisit, Visit>(
-      `/api/active/visits/group/${groupId}`,
-      `/active/visits/group/${groupId}`,
-      mapVisitResponse,
-      "Get visits by group",
-    );
-  },
-
-  createVisit: async (visit: CreateVisitInput): Promise<Visit> => {
-    const backendData = prepareVisitForBackend(visit);
-    return proxyPost<
-      BackendVisit | BackendResponseEnvelope<BackendVisit>,
-      Visit
-    >(
-      "/api/active/visits",
-      "/active/visits",
-      backendData,
-      mapVisitPayload,
-      "Create visit",
-    );
-  },
-
-  updateVisit: async (id: string, visit: Partial<Visit>): Promise<Visit> => {
-    const backendData = prepareVisitForBackend(visit);
-    return proxyPut<
-      BackendVisit | BackendResponseEnvelope<BackendVisit>,
-      Visit
-    >(
-      `/api/active/visits/${id}`,
-      `/active/visits/${id}`,
-      backendData,
-      mapVisitPayload,
-      "Update visit",
-    );
-  },
-
-  deleteVisit: async (id: string): Promise<void> => {
-    return proxyDelete(
-      `/api/active/visits/${id}`,
-      `/active/visits/${id}`,
-      "Delete visit",
-    );
-  },
-
-  endVisit: async (id: string): Promise<Visit> => {
-    return proxyPostNoBody<
-      BackendVisit | BackendResponseEnvelope<BackendVisit>,
-      Visit
-    >(
-      `/api/active/visits/${id}/end`,
-      `/active/visits/${id}/end`,
-      mapVisitPayload,
-      "End visit",
-    );
-  },
-
-  // Supervisors
-  getSupervisors: async (filters?: {
-    active?: boolean;
-  }): Promise<Supervisor[]> => {
-    const suffix = buildActiveFilterSuffix(filters);
-    return proxyGetArray<BackendSupervisor, Supervisor>(
-      `/api/active/supervisors${suffix}`,
-      `/active/supervisors${suffix}`,
-      mapSupervisorResponse,
-      "Get supervisors",
-    );
-  },
-
-  getSupervisor: async (id: string): Promise<Supervisor> => {
-    return proxyGet<BackendSupervisor, Supervisor>(
-      `/api/active/supervisors/${id}`,
-      `/active/supervisors/${id}`,
-      mapSupervisorResponse,
-      "Get supervisor",
-    );
-  },
-
-  getStaffSupervisions: async (staffId: string): Promise<Supervisor[]> => {
-    return proxyGetArray<BackendSupervisor, Supervisor>(
-      `/api/active/supervisors/staff/${staffId}`,
-      `/active/supervisors/staff/${staffId}`,
-      mapSupervisorResponse,
-      "Get staff supervisions",
-    );
-  },
-
   getStaffActiveSupervisions: async (
     staffId: string,
   ): Promise<Supervisor[]> => {
@@ -738,50 +394,6 @@ export const activeService = {
       `/active/supervisors/staff/${staffId}/active`,
       mapSupervisorResponse,
       "Get staff active supervisions",
-    );
-  },
-
-  getSupervisorsByGroup: async (groupId: string): Promise<Supervisor[]> => {
-    return proxyGetArray<BackendSupervisor, Supervisor>(
-      `/api/active/supervisors/group/${groupId}`,
-      `/active/supervisors/group/${groupId}`,
-      mapSupervisorResponse,
-      "Get supervisors by group",
-    );
-  },
-
-  createSupervisor: async (
-    supervisor: CreateSupervisorInput,
-  ): Promise<Supervisor> => {
-    const backendData = prepareSupervisorForBackend(supervisor);
-    return proxyPost<BackendSupervisor, Supervisor>(
-      "/api/active/supervisors",
-      "/active/supervisors",
-      backendData,
-      mapSupervisorResponse,
-      "Create supervisor",
-    );
-  },
-
-  updateSupervisor: async (
-    id: string,
-    supervisor: Partial<Supervisor>,
-  ): Promise<Supervisor> => {
-    const backendData = prepareSupervisorForBackend(supervisor);
-    return proxyPut<BackendSupervisor, Supervisor>(
-      `/api/active/supervisors/${id}`,
-      `/active/supervisors/${id}`,
-      backendData,
-      mapSupervisorResponse,
-      "Update supervisor",
-    );
-  },
-
-  deleteSupervisor: async (id: string): Promise<void> => {
-    return proxyDelete(
-      `/api/active/supervisors/${id}`,
-      `/active/supervisors/${id}`,
-      "Delete supervisor",
     );
   },
 
@@ -794,167 +406,12 @@ export const activeService = {
     );
   },
 
-  // Unclaimed Groups (Deviceless Claiming)
-  getUnclaimedGroups: async (): Promise<ActiveGroup[]> => {
-    const useProxyApi = globalThis.window !== undefined;
-    const proxyPath = "/api/active/groups/unclaimed";
-    const backendPath = "/active/groups/unclaimed";
-    const url = await resolveApiUrl(proxyPath, backendPath);
-
-    const metadataKeys = new Set([
-      "status",
-      "message",
-      "success",
-      "code",
-      "meta",
-      "pagination",
-    ]);
-
-    const extractGroupArray = (
-      payload: unknown,
-    ): BackendActiveGroup[] | undefined => {
-      if (Array.isArray(payload)) {
-        return payload as BackendActiveGroup[];
-      }
-
-      if (payload && typeof payload === "object") {
-        const obj = payload as Record<string, unknown>;
-
-        if ("data" in obj) {
-          const fromData = extractGroupArray(obj.data);
-          if (fromData !== undefined) {
-            return fromData;
-          }
-        }
-
-        if ("items" in obj) {
-          const fromItems = extractGroupArray(obj.items);
-          if (fromItems !== undefined) {
-            return fromItems;
-          }
-        }
-      }
-
-      return undefined;
-    };
-
-    const payloadIsEffectivelyEmpty = (payload: unknown): boolean => {
-      if (payload === null || payload === undefined) {
-        return true;
-      }
-
-      if (Array.isArray(payload)) {
-        return payload.length === 0;
-      }
-
-      if (typeof payload === "object") {
-        const obj = payload as Record<string, unknown>;
-
-        if ("data" in obj) {
-          if (!payloadIsEffectivelyEmpty(obj.data)) {
-            return false;
-          }
-        }
-
-        if ("items" in obj) {
-          if (!payloadIsEffectivelyEmpty(obj.items)) {
-            return false;
-          }
-        }
-
-        const remainingKeys = Object.keys(obj).filter(
-          (key) => key !== "data" && key !== "items",
-        );
-        const nonMetaKeys = remainingKeys.filter(
-          (key) => !metadataKeys.has(key),
-        );
-
-        if (nonMetaKeys.length > 0) {
-          return false;
-        }
-
-        return true;
-      }
-
-      return false;
-    };
-
-    const parseUnclaimedGroupsPayload = (
-      payload: unknown,
-    ): BackendActiveGroup[] => {
-      const extracted = extractGroupArray(payload);
-
-      if (extracted !== undefined) {
-        return extracted;
-      }
-
-      if (!payloadIsEffectivelyEmpty(payload)) {
-        logger.warn("unexpected_unclaimed_groups_response_shape", {
-          payload_type: Array.isArray(payload) ? "array" : typeof payload,
-          payload_key_count:
-            typeof payload === "object" && payload !== null
-              ? Object.keys(payload).length
-              : 0,
-        });
-      }
-
-      return [];
-    };
-
-    try {
-      if (useProxyApi) {
-        const response = await transportFetch(url, {
-          headers: {
-            "Content-Type": "application/json",
-          },
-        });
-
-        if (!response.ok) {
-          const errorText = await response.text();
-          logger.error("get unclaimed groups failed", {
-            status: response.status,
-            error: errorText,
-          });
-          throw proxyError(
-            `Get unclaimed groups failed: ${response.status}`,
-            response.status,
-            errorText,
-          );
-        }
-
-        const responseData = (await response.json()) as unknown;
-        const rawGroups = parseUnclaimedGroupsPayload(responseData);
-        return rawGroups.map(mapActiveGroupResponse);
-      } else {
-        const response = await api.get<unknown>(url);
-        const rawGroups = parseUnclaimedGroupsPayload(response.data);
-        return rawGroups.map(mapActiveGroupResponse);
-      }
-    } catch (error) {
-      logger.error("get unclaimed groups error", { error: String(error) });
-      throw error;
-    }
-  },
-
   claimActiveGroup: async (groupId: string): Promise<void> => {
     return proxyPostVoid(
       `/api/active/groups/${groupId}/claim`,
       `/active/groups/${groupId}/claim`,
       { role: "supervisor" },
       "Claim group",
-    );
-  },
-
-  /**
-   * Checkout a student for the day (daily checkout).
-   * This ends their current visit AND toggles their attendance to checked_out.
-   */
-  checkoutStudent: async (studentId: string): Promise<void> => {
-    return proxyPostVoid(
-      `/api/active/visits/student/${studentId}/checkout`,
-      `/active/visits/student/${studentId}/checkout`,
-      {},
-      "Checkout student",
     );
   },
 

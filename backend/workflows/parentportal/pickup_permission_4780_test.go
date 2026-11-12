@@ -82,6 +82,7 @@ func buildPickupPermissionService(t *testing.T) pickupPermissionFixture {
 		owners.WithPickupPermissionApprovals(pickupPermissionApprovals),
 	)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Memberships:         parentMemberships(t, db),
 		GuardianChanges:     owners.ParentGuardianChanges(),
 		Signatures:          owners.ParentDeclarationSignatures{Ledger: owners.SignatureLedger()},
 		DeparturePolicy:     owners.ParentDeparturePolicy(),
@@ -102,6 +103,7 @@ func buildPickupPermissionService(t *testing.T) pickupPermissionFixture {
 		GuardianPhoneRepo:   owners.NewParentGuardianPhoneReads(reposPeople.GuardianPhoneNumber),
 		GuardianInvites:     &stubInvites{},
 		GuardianInvitations: guardianInvitationReads{db: db},
+		InvalidateInvites:   owners.NewGuardianInvitationInvalidation(testpkg.NewDatabase(t, db)),
 		CareExceptions:      owners.NewParentCareExceptions(repos.CarePlan()),
 		Attendance:          parentAttendance(t, db),
 		CareRequests:        requests,

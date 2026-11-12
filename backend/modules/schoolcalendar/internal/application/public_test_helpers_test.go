@@ -103,6 +103,12 @@ func (s *seamStore) UpdateClosingDay(ctx context.Context, id int64, f schoolcale
 func (s *seamStore) DeleteClosingDay(ctx context.Context, id int64) (domain.OperationStats, error) {
 	return domain.OperationStats{}, s.e.DeleteClosingDay(ctx, id)
 }
+func (s *seamStore) LockHolidayClosureRevision(context.Context) (int64, domain.OperationStats, error) {
+	return 1, domain.OperationStats{}, nil
+}
+func (s *seamStore) RecordHolidayClosureChange(context.Context, domain.HolidayClosureChange) (domain.OperationStats, error) {
+	return domain.OperationStats{}, nil
+}
 func (s *seamStore) FindDateframe(ctx context.Context, id int64) (schoolcalendar.Dateframe, bool, domain.OperationStats, error) {
 	v, err := s.e.FindDateframe(ctx, id)
 	return v, err == nil, domain.OperationStats{}, err

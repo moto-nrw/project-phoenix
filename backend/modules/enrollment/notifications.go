@@ -27,6 +27,10 @@ const (
 	EnrollmentPayloadPhaseName         = "phase_name"
 	EnrollmentPayloadStatusReason      = "status_reason"
 	EnrollmentPayloadRolloverDeadline  = "rollover_deadline"
+	// EnrollmentPayloadRenewalTermsRequired tells the renewal mail that the
+	// form of the new phase has required blocks the parents must accept on
+	// the status page (#6456).
+	EnrollmentPayloadRenewalTermsRequired = "renewal_terms_required"
 	// EnrollmentPayloadCareFacilityTerm is the school's term for its care
 	// (enrollment.care_facility_term, #6042) for the mail header. A payload
 	// enqueued before it existed has none; the header then says "OGS".
@@ -179,6 +183,18 @@ type MailRenderers struct {
 	// HolidayRegistrationReceived renders the receipt of a public holiday
 	// registration (#4661), a mail of the Träger.
 	HolidayRegistrationReceived MailRenderer
+	// HolidayPlaceGranted renders the mail that a child moved up from the
+	// waiting list of a holiday week (#4699), a mail of the Träger.
+	HolidayPlaceGranted MailRenderer
+	// HolidayClosureNotice renders the mail that a booked holiday week has a
+	// day without care (#6434), a mail of the Träger.
+	HolidayClosureNotice MailRenderer
+	// HolidayRegistrationAccepted renders the acceptance mail of a confirmed
+	// holiday registration (#6672), a mail of the Träger.
+	HolidayRegistrationAccepted MailRenderer
+	// HolidayParentAccountOffer renders the offer of a parent account a
+	// holiday registration mails (ADR 0216), a mail of the Träger.
+	HolidayParentAccountOffer MailRenderer
 }
 
 // CaptchaVerifier verifies a parent-submitted captcha token against the

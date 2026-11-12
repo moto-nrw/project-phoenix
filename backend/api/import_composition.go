@@ -65,6 +65,7 @@ func newStudentImport(
 	runtime importPorts.ImportRuntime, identity importIdentity, groups schoolstructure.GroupListing, rooms facilities.Query,
 	persons peopledirectory.Capability, personBatches importPorts.PersonBatches, guardians importPorts.GuardianDirectory,
 	carePlan careplan.Capability, presence studentpresence.Capability, consentHistory consents.ConsentTransitions,
+	today func() timezone.Date,
 ) importModels.RowImporter[importModels.StudentImportRow] {
 	references := owners.NewReferences(groups, rooms)
 	resolver := dataImportRetained.NewRelationshipResolver(references.Groups, references.Rooms)
@@ -80,6 +81,13 @@ func newStudentImport(
 			FindRFIDCard:    identity.FindRFIDCard,
 			Resolver:        resolver,
 			ConsentHistory:  consentHistory,
+			// The leaf batch slices stay outside the owners' capabilities
+			// (#5552); without them every chunk takes the row path.
+			PrivacyConsentBatches: privacyConsentBatches(presence),
+			GuardianBatches:       guardianBatches(persons),
+			EnrollmentBatches:     enrollmentBatches(persons),
+			Today:                 today,
+			ConsentHistoryBatches: consentHistoryBatches(consentHistory),
 			// The owner's Kontingentzahl rule, so the preview counts what
 			// the membership write will count (#3571).
 			CountsTowardChildQuota: ImportChildQuotaRule(),
@@ -107,6 +115,7 @@ func newStaffImport(
 			Transactions:                 runtime.Transactions,
 			Invitations:                  NewStaffInviter(invitations),
 			FindInvitedPeople:            identity.FindInvitedPersonIDs,
+			FindSchoolEmailIdentities:    NewImportSchoolEmailLookup(identity),
 			FindSchoolAccount:            NewImportSchoolAccountLookup(identity),
 			Roles:                        identity,
 			RolePolicy:                   dataImportCompose.NewSchoolRolePolicy(),
@@ -114,6 +123,7 @@ func newStaffImport(
 			SchoolName:                   NewImportSchoolName(organizations),
 			Persons:                      persons,
 			Membership:                   membership,
+			LockStaffPersonMerge:         owners.LockStaffPersonMergeShared,
 			Records:                      workforce,
 		},
 	), runtime)
@@ -163,6 +173,49 @@ func personBatches(persons peopledirectory.Capability) importPorts.PersonBatches
 	return nil
 }
 
+// guardianBatches binds People Directory's new-guardian batch slice, which
+// stays outside its capability (#5552, step 5c), like personBatches.
+func guardianBatches(persons peopledirectory.Capability) importPorts.NewGuardianBatches {
+	composed, ok := persons.(*peopleCompose.Directory)
+	if !ok {
+		return nil
+	}
+	if bound, ok := composed.Owner.(peopledirectory.NewGuardianBatches); ok {
+		return bound
+	}
+	return nil
+}
+
+// enrollmentBatches binds People Directory's enrollment batch slice, which
+// stays outside its capability (#5552, step 7), like personBatches.
+func enrollmentBatches(persons peopledirectory.Capability) importPorts.EnrollmentBatches {
+	composed, ok := persons.(*peopleCompose.Directory)
+	if !ok {
+		return nil
+	}
+	if bound, ok := composed.Owner.(peopledirectory.EnrollmentBatches); ok {
+		return bound
+	}
+	return nil
+}
+
+// privacyConsentBatches binds Student Presence's consent batch slice, which
+// its application implements outside Capability and Owner (#5552).
+func privacyConsentBatches(presence studentpresence.Capability) importPorts.PrivacyConsentBatches {
+	if bound, ok := presence.(studentpresence.PrivacyConsentBatches); ok {
+		return bound
+	}
+	return nil
+}
+
+// consentHistoryBatches binds the Audit consent recorder's batch slice.
+func consentHistoryBatches(recorder consents.ConsentTransitions) importPorts.ConsentTransitionBatches {
+	if bound, ok := recorder.(consents.ConsentTransitionBatches); ok {
+		return bound
+	}
+	return nil
+}
+
 // newOpeningBalanceImport composes the opening-balance import over
 // Workforce's preview and booking capabilities in deps. Its config is
 // request-scoped (Stichtag, Begründung and acting staff member come from the
@@ -192,7 +245,7 @@ func newServeImports(
 	return imports{
 		Student: newStudentImport(
 			runtime, identity, groups, rooms, persons, personBatches(persons), persons, carePlan, presence.Presence,
-			auditCompose.NewConsentRecorder(audit.Command),
+			auditCompose.NewConsentRecorder(audit.Command), nil,
 		),
 		Staff:     newStaffImport(runtime, identity, identity, organizations, persons, membership, workTime),
 		ClassList: newClassListImport(runtime, membership, persons, classListBatches(membership)),

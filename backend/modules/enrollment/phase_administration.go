@@ -3,6 +3,7 @@ package enrollment
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"time"
 
@@ -16,6 +17,16 @@ var (
 	ErrInvalidPhase              = errors.New("invalid phase")
 	ErrPhaseDuplicateName        = errors.New("phase name already exists")
 	ErrPhaseCareOfferingConflict = errors.New("phase change is incompatible with a linked care offering")
+	// ErrPhaseHasEffectiveBookings rejects deleting a phase whose care
+	// offering bookings still apply today or later (#6505): the delete would
+	// remove a child's care without the care-end or booking process.
+	ErrPhaseHasEffectiveBookings = errors.New("phase still has effective care offering bookings")
+	// ErrPhasePendingChildWindowConflict rejects a service-window edit that
+	// would end a pending child's window before it starts (#6505).
+	ErrPhasePendingChildWindowConflict = errors.New("phase change would end a pending child's window before it starts")
+	// ErrPhaseBookingBoundsConflict rejects a service-window edit that would
+	// leave a care offering booking empty (#6597).
+	ErrPhaseBookingBoundsConflict = errors.New("phase change would leave a care offering booking empty")
 )
 
 // Storage refusals of a phase write. The owner marks the database error with
@@ -59,7 +70,9 @@ type PhaseAdministration interface {
 	ResponseOverview(ctx context.Context, id int64) (*PhaseResponseOverview, error)
 
 	CreatePhase(ctx context.Context, phase *Phase) (*Phase, error)
-	UpdatePhase(ctx context.Context, phase *Phase) error
+	// UpdatePhase saves the phase and reports the children whose care runs
+	// past a shortened end (#6598, ADR 0211).
+	UpdatePhase(ctx context.Context, phase *Phase) (PhaseUpdateReport, error)
 
 	// DeleteImpact reports how many enrollment requests + care offerings a
 	// delete would remove, and how many created students would be kept.
@@ -114,3 +127,60 @@ func (p *Phase) EnrollmentWindowOpen(now time.Time) bool {
 	}
 	return true
 }
+
+// PhaseStudents is the School Membership command a phase edit moves the
+// enrollment window of a still pending child with (#6505, ADR 0202). The
+// command locks the child's row, decides under that lock and reports whether
+// the child was still pending; it takes no class gate.
+type PhaseStudents interface {
+	MovePendingWindow(ctx context.Context, move PendingWindowMove) (bool, error)
+}
+
+// PendingWindowMove is the window a phase edit proposes for a pending child.
+// A bound moves while it still equals its Before value; a bound from one of
+// the child's approvals in another phase (OtherStarts, OtherEnds) moves only
+// when the After value widens the window.
+type PendingWindowMove struct {
+	StudentID   int64
+	FromBefore  Date
+	FromAfter   Date
+	UntilBefore Date
+	UntilAfter  Date
+	OtherStarts []Date
+	OtherEnds   []Date
+}
+
+// PhaseBookings is the Care Plan command a phase edit carries the bounds the
+// phase set on its offerings' bookings with (#6597, ADR 0205). The command
+// locks the bookings, decides under those locks which bound is still the
+// phase's and refuses a booking the move would leave empty.
+type PhaseBookings interface {
+	FollowPhaseBookingBounds(ctx context.Context, move PhaseBookingMove) error
+}
+
+// PhaseBookingMove is the phase's service window before and after an edit,
+// with the day of the edit.
+type PhaseBookingMove struct {
+	PhaseID     int64
+	StartBefore calendar.Date
+	StartAfter  calendar.Date
+	EndBefore   calendar.Date
+	EndAfter    calendar.Date
+	Today       calendar.Date
+}
+
+// PhaseBookingBoundsConflictError names the application whose booking a
+// phase edit would leave empty (#6597). Care Plan reports the request child;
+// the phase administration adds its name, so the refusal can say whose
+// offerings to adjust first.
+type PhaseBookingBoundsConflictError struct {
+	RequestChildID int64
+	ChildName      string
+}
+
+func (e *PhaseBookingBoundsConflictError) Error() string {
+	return fmt.Sprintf("%s: request child %d", ErrPhaseBookingBoundsConflict, e.RequestChildID)
+}
+
+// Unwrap lets callers match the refusal with errors.Is.
+func (e *PhaseBookingBoundsConflictError) Unwrap() error { return ErrPhaseBookingBoundsConflict }

@@ -42,6 +42,7 @@ type runRow struct {
 	IssuedOn        *calendar.Date `bun:"issued_on,type:date"`
 	DocumentCount   *int           `bun:"document_count"`
 	TotalCents      *int64         `bun:"total_cents"`
+	DiscardedAt     *time.Time     `bun:"discarded_at"`
 }
 
 func (r runRow) run() parentbilling.BillingRun {
@@ -49,6 +50,7 @@ func (r runRow) run() parentbilling.BillingRun {
 		ID: r.ID, Service: r.Service, HolidayPeriodID: r.HolidayPeriodID, PeriodName: r.PeriodName,
 		ServiceFrom: r.ServiceFrom, ServiceUntil: r.ServiceUntil, Status: r.Status, CreatedAt: r.CreatedAt,
 		ReleasedAt: r.ReleasedAt, IssuedOn: r.IssuedOn, DocumentCount: r.DocumentCount, TotalCents: r.TotalCents,
+		DiscardedAt: r.DiscardedAt,
 	}
 }
 
@@ -166,6 +168,10 @@ type documentPositionRow struct {
 	Note                       string         `bun:"note"`
 	CostBearerID               *int64         `bun:"cost_bearer_id"`
 	CostBearerName             string         `bun:"cost_bearer_name"`
+	positionAccountsColumns
+	// CostCenterFallback is why the position books on the KOST1 of the
+	// holiday care (#6624), nil for its host school's.
+	CostCenterFallback *string `bun:"cost_center_fallback"`
 }
 
 // ListBillingRuns lists the runs of the Träger, newest first.
@@ -500,6 +506,7 @@ func (s *Store) insertDocuments(ctx context.Context, organizationID int64, run p
 					ChildRank: position.ChildRank, DiscountBasisPoints: position.DiscountBasisPoints,
 					DiscountCents: position.DiscountCents, Note: position.Note,
 					CostBearerID: position.CostBearerID, CostBearerName: position.CostBearerName,
+					positionAccountsColumns: positionAccountsOf(position.Accounts), CostCenterFallback: textRef(position.CostCenterFallback),
 				})
 			}
 		}
@@ -677,6 +684,7 @@ func issuedChildren(positions []documentPositionRow) []parentbilling.BillingChil
 			TimeModelName: position.TimeModelName, ChildRank: position.ChildRank, DiscountBasisPoints: position.DiscountBasisPoints,
 			DiscountCents: position.DiscountCents, Note: position.Note,
 			CostBearerID: position.CostBearerID, CostBearerName: position.CostBearerName,
+			Accounts: position.accounts(), CostCenterFallback: textOf(position.CostCenterFallback),
 		})
 		children[at].TotalCents += position.AmountCents
 	}

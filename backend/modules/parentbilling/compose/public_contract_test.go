@@ -47,6 +47,14 @@ func (c confirmedRegistration) CancelHolidayRegistration(context.Context, parent
 	return parentbilling.HolidayRegistration{}, parentbilling.ErrHolidayRegistrationStateConflict
 }
 
+func (c confirmedRegistration) RebookHolidayChild(context.Context, parentbilling.HolidayReviewer, int64, int64, int64, []parentbilling.HolidayBookingChoice) (parentbilling.HolidayRegistration, error) {
+	return parentbilling.HolidayRegistration{}, parentbilling.ErrHolidayRegistrationStateConflict
+}
+
+func (c confirmedRegistration) SetHolidayWeekCapacity(context.Context, parentbilling.HolidayReviewer, int64, int64, *int) ([]int64, error) {
+	return nil, parentbilling.ErrHolidayRegistrationStateConflict
+}
+
 func (c confirmedRegistration) HoldHolidayPeriod(context.Context, parentbilling.HolidayReviewer, int64) error {
 	return nil
 }
@@ -64,6 +72,17 @@ func (s settingsDouble) AsksDebtorNumber(context.Context, int64) (bool, error) {
 
 func (s settingsDouble) PaymentText(context.Context, int64) (string, error) {
 	return "", nil
+}
+
+// DatevSettings has no standard revenue account; the contract does not
+// release a run.
+func (s settingsDouble) DatevSettings(context.Context, int64) (parentbilling.DatevSettings, error) {
+	return parentbilling.DatevSettings{}, nil
+}
+
+// DebtorNumberFormat is a Träger without a format (#6675).
+func (s settingsDouble) DebtorNumberFormat(context.Context, int64) (parentbilling.DebtorNumberFormat, error) {
+	return parentbilling.DebtorNumberFormat{}, nil
 }
 
 func (s settingsDouble) HolidayChain(context.Context, int64) (parentbilling.HolidayChainSettings, error) {
@@ -101,7 +120,7 @@ func TestPublicParentBillingContractFreezesTheHolidayContribution(t *testing.T) 
 		}}},
 	}}
 	rules := compose.NewContributionRules()
-	contributions := compose.NewHolidayContributions(enrollment, settingsDouble{})
+	contributions, _ := compose.NewHolidayContributions(enrollment, settingsDouble{})
 	reviewer := parentbilling.HolidayReviewer{OrganizationID: organization, AccountID: account.ID}
 
 	var exemption parentbilling.ContributionRule
@@ -115,7 +134,7 @@ func TestPublicParentBillingContractFreezesTheHolidayContribution(t *testing.T) 
 		if err != nil {
 			return err
 		}
-		if confirmation, err = contributions.ConfirmHolidayRegistration(txCtx, reviewer, period, registration, true, 0, ""); err != nil {
+		if confirmation, err = contributions.ConfirmHolidayRegistration(txCtx, reviewer, period, registration, true, 0, "", ""); err != nil {
 			return err
 		}
 		if err = rules.DeleteContributionRule(txCtx, organization, exemption.ID); err != nil {
@@ -131,7 +150,7 @@ func TestPublicParentBillingContractFreezesTheHolidayContribution(t *testing.T) 
 	require.True(t, confirmation.Contribution.Frozen)
 	require.Equal(t, int64(0), confirmation.Contribution.TotalCents)
 	require.Equal(t, []parentbilling.HolidayContributionLine{
-		{Kind: parentbilling.LineBase, AmountCents: 6750, WeekStartsOn: &week, WeekEndsOn: new(week.AddDays(4)), TimeModelName: "bis 16 Uhr"},
+		{Kind: parentbilling.LineBase, AmountCents: 6750, WeekStartsOn: &week, WeekEndsOn: new(week.AddDays(4)), TimeModelName: "bis 16 Uhr", WeekID: 1},
 		{Kind: parentbilling.LineBenefitsExemption, AmountCents: -6750, Note: "Beitragsfrei wegen Leistungsbezug"},
 	}, later.Children[0].Lines, "the frozen contribution keeps its exemption after the rule is gone")
 	require.Equal(t, child, later.Children[0].ChildID)

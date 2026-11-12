@@ -107,7 +107,8 @@ type SessionClaims struct {
 }
 
 // RefreshClaims is the parsed content of a refresh JWT. A Träger session
-// (scope org) names its Träger in OrgID and no school.
+// (scope org) and a parent session at a Träger name their Träger in OrgID
+// and no school.
 type RefreshClaims struct {
 	AccountID int64
 	Token     string
@@ -356,13 +357,19 @@ func (c RefreshClaims) SessionKind() (SessionKind, bool) {
 	return SessionKindOf(portal, c.OrgID > 0), true
 }
 
-// SessionKind is the rules the access token's session follows.
+// SessionKind is the rules the access token's session follows. A staff
+// token names the Träger of its school, so only via_traeger marks the Träger
+// school; a parent token names a Träger only at a Träger.
 func (c SessionClaims) SessionKind() (SessionKind, bool) {
 	portal, ok := PortalOfClaim(c.Scope)
 	if !ok || !portal.Persisted {
 		return "", false
 	}
-	return SessionKindOf(portal, c.ViaTraeger), true
+	namesTraeger := c.ViaTraeger
+	if portal.Name == PortalParent.Name {
+		namesTraeger = c.OrgID > 0
+	}
+	return SessionKindOf(portal, namesTraeger), true
 }
 
 // CredentialWrite is one write of an account's credential (#6289). Every
@@ -377,4 +384,13 @@ type CredentialWrite struct {
 	PasswordHash         string
 	ExpectedPasswordHash string
 	ExpectedGeneration   *int64
+}
+
+// CredentialStillHolds reports whether an artifact bound to the credential
+// generation checked still belongs to the credential state current: a
+// password write since the check moved current on (#6289, #6308). An artifact
+// no password check led to (checked nil) is bound to nothing. Accounts and
+// operators compare their generation with it under their row lock.
+func CredentialStillHolds(checked *int64, current int64) bool {
+	return checked == nil || *checked == current
 }

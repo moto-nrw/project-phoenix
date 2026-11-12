@@ -1,6 +1,6 @@
 {
   "schema_version": 5,
-  "policy_epoch": 99,
+  "policy_epoch": 102,
   "module_path": "github.com/moto-nrw/project-phoenix",
   "shared_kernel_types": [
     "CorrelationID",
@@ -194,11 +194,19 @@
       "kind": "workflow"
     },
     {
+      "id": "holiday-closure-notification",
+      "kind": "workflow"
+    },
+    {
       "id": "session-end",
       "kind": "workflow"
     },
     {
       "id": "open-room-move",
+      "kind": "workflow"
+    },
+    {
+      "id": "holiday-allocation",
       "kind": "workflow"
     },
     {
@@ -306,7 +314,15 @@
       "kind": "workflow"
     },
     {
+      "id": "traeger-catalog-rollout",
+      "kind": "workflow"
+    },
+    {
       "id": "traeger-view",
+      "kind": "projection"
+    },
+    {
+      "id": "school-closing-days-view",
       "kind": "projection"
     }
   ],

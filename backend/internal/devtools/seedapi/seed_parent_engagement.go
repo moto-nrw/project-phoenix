@@ -307,6 +307,34 @@ var seedParentConversationTurns = []struct{ parent, staff string }{
 	{"Prima. Felix freut sich übrigens schon sehr auf den Zoo.", "Das hören wir gern. Die Kinder sprechen schon die ganze Woche davon."},
 }
 
+// seedParentConversationFiles adds the turn with files (#6685): the parent
+// sends the signed slip, the OGS answers with two photos of the afternoon.
+func seedParentConversationFiles(rt *Runtime, auth AuthRef, path string, threadID int64) error {
+	slip, err := uploadMessageFiles(rt, auth, path+"/attachments", seedPickupSlip())
+	if err != nil {
+		return err
+	}
+	raw, err := rt.Client.PostWithAuth(auth, path, map[string]any{"body": "Hier ist die unterschriebene Abholerlaubnis für den Zoo.", "attachment_ids": slip})
+	if err != nil {
+		return fmt.Errorf("seed parent message with file: %w", err)
+	}
+	_, messageID, err := parseThreadMessageIDs(raw)
+	if err != nil {
+		return fmt.Errorf("parse parent conversation: %w", err)
+	}
+	photos, err := uploadMessageFiles(rt, rt.TenantAuth, "/api/messages/attachments", seedLanternPhoto(), seedMeadowPhoto("Drachen steigen.png"))
+	if err != nil {
+		return err
+	}
+	if _, err := rt.Client.PostWithAuth(rt.TenantAuth, fmt.Sprintf("/api/messages/threads/%d", threadID), map[string]any{
+		"body": "Danke, ist angekommen. Hier noch zwei Fotos von heute Nachmittag.", "attachment_ids": photos,
+		"handled_up_to_message_id": strconv.FormatInt(messageID, 10),
+	}); err != nil {
+		return fmt.Errorf("seed staff reply with photos: %w", err)
+	}
+	return nil
+}
+
 func seedParentConversation(rt *Runtime, auth AuthRef, studentID int64) error {
 	path := fmt.Sprintf("/parent/me/messages/children/%d", studentID)
 	var threadID int64
@@ -325,6 +353,9 @@ func seedParentConversation(rt *Runtime, auth AuthRef, studentID int64) error {
 		}); err != nil {
 			return fmt.Errorf("seed staff reply: %w", err)
 		}
+	}
+	if err := seedParentConversationFiles(rt, auth, path, threadID); err != nil {
+		return err
 	}
 	// The team keeps the answered conversation open for a colleague (#3654),
 	// so the inbox shows a thread marked unread for everyone.

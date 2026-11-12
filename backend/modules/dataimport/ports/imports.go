@@ -4,6 +4,8 @@ import (
 	"context"
 	"time"
 
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+
 	"github.com/moto-nrw/project-phoenix/modules/auditlog/consents"
 	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
 )
@@ -59,6 +61,7 @@ type StaffImportDeps struct {
 	Transactions                 importModels.Transactions
 	Invitations                  importModels.StaffInviter
 	FindInvitedPeople            func(context.Context, string) ([]int64, error)
+	FindSchoolEmailIdentities    func(context.Context, []string) (map[string]int64, map[string][]int64, error)
 	FindSchoolAccount            func(context.Context, string) (int64, bool, error)
 	Roles                        importModels.SchoolRoleQuery
 	RolePolicy                   importModels.SchoolRolePolicy
@@ -70,7 +73,11 @@ type StaffImportDeps struct {
 	// data and qualifications.
 	Persons    PersonDirectory
 	Membership StaffMembership
-	Records    StaffRecords
+	// LockStaffPersonMerge shares the school's staff person merge gate before
+	// a row's first person or staff lock (#6702): a staff person merge holds
+	// it exclusively while it locks the school's staff rows. Nil takes none.
+	LockStaffPersonMerge func(context.Context) error
+	Records              StaffRecords
 }
 
 // OpeningBalanceImportDeps contains the request-independent dependencies for
@@ -157,6 +164,15 @@ type ChunkWriter[T any] interface {
 	CreateChunk(ctx context.Context, rows []T, bounded BatchStatement) error
 }
 
+// ConsentTransition is one consent-history transition of a batch.
+type ConsentTransition = consents.ConsentTransition
+
+// ConsentTransitionBatches is the Audit consent-history batch slice of the
+// student chunk executor (#5552).
+type ConsentTransitionBatches interface {
+	RecordTransitionsAll(context.Context, []ConsentTransition) error
+}
+
 // StudentImportDeps are the consumer-owned ports of the student import.
 // Persons, Students and Guardians are the People Directory; Schedules is
 // Care Plan; PrivacyConsents is Student Presence; ConsentHistory is the
@@ -171,6 +187,20 @@ type StudentImportDeps struct {
 	Guardians       GuardianDirectory
 	Schedules       StudentSchedules
 	PrivacyConsents PrivacyConsents
+	// PrivacyConsentBatches is Student Presence's consent batch slice and
+	// ConsentHistoryBatches the Audit recorder's; without both every chunk
+	// takes the row path.
+	PrivacyConsentBatches PrivacyConsentBatches
+	ConsentHistoryBatches ConsentTransitionBatches
+	// GuardianBatches is the People Directory's new-guardian batch slice;
+	// without it every chunk takes the row path.
+	GuardianBatches NewGuardianBatches
+	// EnrollmentBatches is the People Directory's enrollment batch slice
+	// (#5552 step 7); without it each child is created in place.
+	EnrollmentBatches EnrollmentBatches
+	// Today is the calendar day a new child's status is taken against;
+	// nil is calendar.TodayDate. Tests set a clock that crosses midnight.
+	Today func() calendar.Date
 	// FindRFIDCard resolves the optional RFID column to a card of this school
 	// (#2600). nil disables RFID import (the column is then rejected).
 	FindRFIDCard   func(context.Context, string) (string, bool, error)

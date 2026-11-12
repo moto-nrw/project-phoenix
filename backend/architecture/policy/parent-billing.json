@@ -117,6 +117,14 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.care_notice_letter_mailings",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.care_notice_letters",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.care_notice_months",
       "write_owner": "parent-billing"
     },
@@ -169,6 +177,14 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.cost_centers",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.datev_booked_documents",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.document_letters",
       "write_owner": "parent-billing"
     },
@@ -178,6 +194,18 @@
     },
     {
       "name": "parent_billing.documents",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.export_file_invoices",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.export_files",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.export_mappings",
       "write_owner": "parent-billing"
     },
     {
@@ -245,7 +273,15 @@
       "write_owner": "parent-billing"
     },
     {
+      "name": "parent_billing.revenue_accounts",
+      "write_owner": "parent-billing"
+    },
+    {
       "name": "parent_billing.sepa_creditors",
+      "write_owner": "parent-billing"
+    },
+    {
+      "name": "parent_billing.sepa_debit_files",
       "write_owner": "parent-billing"
     },
     {

@@ -1,0 +1,6 @@
+{
+  "development_source": "03d2eae2e94849e47ca5860cf2fa539c3c47ba37",
+  "states": {
+    "D cancel a day": "schedule.meal_participation_schedules=[{\"friday\": true, \"monday\": true, \"tuesday\": true, \"thursday\": true, \"wednesday\": true, \"effective_from\": \"2026-08-01\"}]\nschedule.meal_participation_overrides=[{\"date\": \"2026-09-02\", \"participating\": false}]\nschedule.meal_registration_changes=[{\"date\": \"2026-09-02\", \"kind\": \"day\", \"weekdays\": null, \"by_school\": false, \"participating\": false}]\nschedule.meal_orders=[]\nschedule.meal_order_days=[]\nschedule.meal_order_lines=[]\nschedule.meal_order_change_counters=[]\nschedule.meal_order_changes=[]\nusers.parent_message_reads=[]"
+  }
+}

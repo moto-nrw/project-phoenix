@@ -12,6 +12,7 @@ import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FieldLabel } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
@@ -75,7 +76,8 @@ function ServiceTermsModal({
   const [method, setMethod] = useState<PaymentMethod>("transfer");
   const [days, setDays] = useState("14");
   const [bundleWith, setBundleWith] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(row !== null);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -102,30 +104,30 @@ function ServiceTermsModal({
       });
       return;
     }
-    setSaving(true);
-    try {
-      const saved = await saveServiceTerms(service, {
-        paymentMethod: method,
-        dueDays,
-        bundleWith: row.options.length > 0 ? bundleWith : "",
-      });
-      success(`Die Zahlung für „${label}“ ist gespeichert.`);
-      onSaved(saved);
-    } catch (err) {
-      logger.error("billing_terms_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "die Zahlung" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      try {
+        const saved = await saveServiceTerms(service, {
+          paymentMethod: method,
+          dueDays,
+          bundleWith: row.options.length > 0 ? bundleWith : "",
+        });
+        success(`Die Zahlung für „${label}“ ist gespeichert.`);
+        if (op.isCurrent()) onSaved(saved);
+      } catch (err) {
+        logger.error("billing_terms_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "die Zahlung" });
+      }
+    });
   };
 
   return (
     <FormModal
       isOpen={row !== null}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title={`Zahlung: ${label}`}
       size="md"

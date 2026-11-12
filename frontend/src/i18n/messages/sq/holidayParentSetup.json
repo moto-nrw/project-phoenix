@@ -1,0 +1,17 @@
+{
+  "newTitle": "Krijoni llogarinë e prindit",
+  "newSubtitle": "Vendosni fjalëkalimin. Atëherë shihni regjistrimet tuaja për pushimet te {traeger}.",
+  "accountFor": "Llogari për",
+  "submit": "Krijo llogarinë",
+  "submitting": "Po krijohet …",
+  "doneTitle": "Llogaria juaj e prindit është gati",
+  "doneText": "Tani hyni me {email} dhe fjalëkalimin e ri.",
+  "login": "Hyni",
+  "opening": "Një moment …",
+  "existsTitle": "Ju keni tashmë një llogari prindi",
+  "existsSubtitle": "Hyni. Atëherë shihni edhe regjistrimet tuaja për pushimet te {traeger}.",
+  "invalidTitle": "Kjo lidhje nuk vlen më",
+  "invalidText": "Lidhja ka skaduar ose është e paplotë.",
+  "invalidNext": "Keni tashmë një llogari prindi? Atëherë hyni. Përndryshe kërkoni nga organizatori një lidhje të re.",
+  "errorObject": "llogaria juaj e prindit"
+}

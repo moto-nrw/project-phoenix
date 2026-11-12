@@ -16,9 +16,11 @@ import { billingConcept } from "~/lib/concepts/billing";
 import { careContractsConcept } from "~/lib/concepts/careContracts";
 import { careTimesConcept } from "~/lib/concepts/careTimes";
 import { changeHistoryConcept } from "~/lib/concepts/changeHistory";
+import { closingDaysConcept } from "~/lib/concepts/closingDays";
 import { contributionsConcept } from "~/lib/concepts/contributions";
 import { dashboardConcept } from "~/lib/concepts/dashboard";
 import { documentsConcept } from "~/lib/concepts/documents";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { helpConcept } from "~/lib/concepts/help";
 import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
 import { peopleConcept } from "~/lib/concepts/people";
@@ -29,7 +31,7 @@ import { utilizationConcept } from "~/lib/concepts/utilization";
 
 /** Das Recht, das „Mitglieder und Rollen" öffnet (ADR 0084, #4650). */
 const ACCOUNTS_RIGHT = "traeger_accounts:manage";
-/** Das Recht, das die Ferienzeiträume öffnet (#4659). */
+/** Das Recht, das die Ferienzeiträume (#4659) und die Anmeldephasen (#4704) öffnet. */
 const ENROLLMENT_RIGHT = "traeger_enrollment:manage";
 /** Das Recht, das die Betreuungsverträge öffnet (#4678). */
 const CONTRACTS_RIGHT = "traeger_contracts:manage";
@@ -113,6 +115,22 @@ const TRAEGER_NAV_GROUPS: readonly TraegerNavGroup[] = [
         label: "Ferienbetreuung",
         concept: holidayWeeksConcept,
         right: ENROLLMENT_RIGHT,
+      },
+      {
+        // Anmeldephasen und Betreuungsangebote für mehrere Schulen (#4704).
+        key: "anmeldephasen",
+        href: "/traeger/anmeldephasen",
+        label: "Anmeldephasen",
+        concept: enrollmentsConcept,
+        right: ENROLLMENT_RIGHT,
+      },
+      {
+        // Schließtage des Trägers und Feiertage je Bundesland (#4702).
+        key: "schliesstage",
+        href: "/traeger/schliesstage",
+        label: "Schließtage",
+        concept: closingDaysConcept,
+        right: OVERVIEW_RIGHT,
       },
       {
         // Betreuungsverträge aus angenommenen Anmeldungen (#4678).

@@ -37,7 +37,7 @@ func stubSchoolMFA(runtime schoolportal.MFARuntime) schoolportal.MFARuntime {
 		}
 	}
 	if runtime.Enroll == nil {
-		runtime.Enroll = func(context.Context, int64) error { return nil }
+		runtime.Enroll = func(context.Context, schoolportal.VerifiedChallenge) error { return nil }
 	}
 	if runtime.PrepareTrustedDevice == nil {
 		runtime.PrepareTrustedDevice = func(context.Context, int64, int64, string, net.IP) (identityaccess.TrustedDeviceIssue, error) {

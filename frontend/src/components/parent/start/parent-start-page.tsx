@@ -13,6 +13,9 @@ import {
 import { isOpenDeclaration } from "~/components/parent/news/declaration-section";
 import { isOpenSurvey } from "~/components/parent/news/survey-section";
 import { TodoList, type TodoItem } from "~/components/parent/start/todo-list";
+import { HolidayOffers } from "~/components/parent/start/holiday-offers";
+import { HolidayRegistrationEntriesCard } from "~/components/parent/start/holiday-registration-entries";
+import { useHolidayRegistrationEntries } from "~/components/parent/holiday-registration-entry-parts";
 import { ParentPage, ParentPageHeader } from "~/components/parent/parent-page";
 import { berlinTodayISO, parseISODate } from "~/lib/date-helpers";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
@@ -174,6 +177,11 @@ export function ParentStartPage() {
     ...PARENT_RESOURCE_OPTIONS,
     revalidateIfStale: false,
   });
+  // Ein Konto am Träger hat kein Kind an einer Schule (ADR 0216). Seine
+  // Ferienanmeldungen führen die Startseite an; der Hinweis auf ein fehlendes
+  // Kind entfällt dann, er läse sich wie ein Fehler.
+  const holidayEntries = useHolidayRegistrationEntries();
+  const hasHolidayEntries = (holidayEntries.data?.length ?? 0) > 0;
   const invalidate = useInvalidateMatching();
   const load = useCallback(
     () => invalidate(parentKeys.isResource),
@@ -218,6 +226,9 @@ export function ParentStartPage() {
           gleicher Breite; innerhalb eines Abschnitts liegen die Kinderkarten
           weiter in einem auto-fit-Raster. */}
       <div className="space-y-5">
+        <HolidayOffers />
+        <HolidayRegistrationEntriesCard />
+
         <div data-parent-tour="start-todo">
           <StartTodoSection />
         </div>
@@ -228,9 +239,11 @@ export function ParentStartPage() {
           {loading ? (
             <StartChildCardSkeleton />
           ) : data.children.length === 0 && !loadError ? (
-            <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600">
-              {t("noChildren")}
-            </p>
+            hasHolidayEntries ? null : (
+              <p className="moto-content-surface rounded-2xl border p-5 text-sm leading-6 text-gray-600">
+                {t("noChildren")}
+              </p>
+            )
           ) : (
             /* auto-fit statt fester Spaltenzahl: ein Kind fuellt die Breite,
                zwei stehen nebeneinander, drei brechen um. Vorher blieb bei

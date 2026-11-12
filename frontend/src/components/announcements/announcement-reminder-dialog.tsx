@@ -5,6 +5,7 @@ import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { FieldLabel } from "~/components/ui/field-label";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { TimeField } from "~/components/ui/time-field";
 import { Textarea } from "~/components/ui/textarea";
@@ -15,6 +16,7 @@ import {
   berlinDayFromISO,
   berlinWallClockProblem,
 } from "~/lib/date-helpers";
+import type { RefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { updateAnnouncementReminder } from "~/lib/parent-announcements-api";
 import type { Announcement } from "~/lib/parent-announcements-api";
@@ -68,7 +70,8 @@ interface AnnouncementReminderDialogProps {
   readonly announcement: Announcement;
   readonly onClose: () => void;
   /** Läuft nach dem erfolgreichen Speichern, vor dem Schließen (neu laden). */
-  readonly onSaved: () => Promise<void> | void;
+  /** Reloads the announcement; never rejects (#6652). */
+  readonly onSaved: RefreshAfterWrite;
 }
 
 /**
@@ -94,7 +97,9 @@ export function AnnouncementReminderDialog({
       : DEFAULT_REMINDER_TIME,
   );
   const [text, setText] = useState(announcement.reminder_text ?? "");
+  // Welche Aktion läuft, für die Beschriftung; die Sperre hält `save` (#6533).
   const [pending, setPending] = useState<"save" | "remove" | null>(null);
+  const save = useFormModalPending();
   // Removing is a state change the parents never see coming, so it asks once
   // (BAUARTEN-SPEC Bauart 2 Regel 6): the click opens the question, the
   // request runs from its confirmation.
@@ -123,30 +128,36 @@ export function AnnouncementReminderDialog({
         return;
       }
     }
-    setPending(remove ? "remove" : "save");
     formErrors.clear();
     removeErrors.clear();
-    try {
-      await updateAnnouncementReminder(announcement.id, {
-        reminder_at: remove || !day ? null : berlinDateTimeISO(day, time),
-        reminder_text: remove || !text.trim() ? null : text.trim(),
-      });
+    await save.run(async (op) => {
+      setPending(remove ? "remove" : "save");
+      try {
+        await updateAnnouncementReminder(announcement.id, {
+          reminder_at: remove || !day ? null : berlinDateTimeISO(day, time),
+          reminder_text: remove || !text.trim() ? null : text.trim(),
+        });
+      } catch (err) {
+        logger.error("announcement_reminder_update_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        await (remove ? removeErrors : formErrors).show(err, {
+          object: remove
+            ? "das Entfernen der Erinnerung"
+            : "das Speichern der Erinnerung",
+          retry: () => latestSubmitRef.current(remove),
+        });
+        setPending(null);
+        return;
+      }
+      setPending(null);
       await onSaved();
+      // Eine späte Antwort schließt keinen inzwischen neuen Dialog (#6533).
+      if (!op.isCurrent()) return;
       setConfirmRemove(false);
       onClose();
-    } catch (err) {
-      logger.error("announcement_reminder_update_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await (remove ? removeErrors : formErrors).show(err, {
-        object: remove
-          ? "das Entfernen der Erinnerung"
-          : "das Speichern der Erinnerung",
-        retry: () => latestSubmitRef.current(remove),
-      });
-    } finally {
-      setPending(null);
-    }
+    });
   };
   // „Wiederholen“ sendet den Stand, der dann im Formular steht.
   useLayoutEffect(() => {
@@ -161,7 +172,7 @@ export function AnnouncementReminderDialog({
         onClose={onClose}
         title={hasReminder ? "Erinnerung ändern" : "Erinnerung planen"}
         size="md"
-        closeDisabled={pending !== null}
+        pending={save}
         suspended={confirmRemove}
         error={formErrors.error}
         footer={

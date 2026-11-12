@@ -17,10 +17,10 @@ import (
 func newCareExitBaselineModule(t *testing.T, db *bun.DB, sessions timetable.SessionFacts) timetable.Owner {
 	t.Helper()
 	module, err := New(Dependencies{
-		Provenance:          testpkg.EnrollmentProvenance{},
-		LockStaffAssignment: func(context.Context, int64) error { return nil },
-		DB:                  db,
-		Students:            directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) { return nil, nil }),
+		Provenance:           testpkg.EnrollmentProvenance{},
+		LockStaffAssignments: func(context.Context, []int64) error { return nil },
+		DB:                   db,
+		Students:             directoryPorts.StudentDirectoryFunc(func(context.Context) ([]directoryPorts.TargetStudent, error) { return nil, nil }),
 		Rooms: timetable.RoomDirectoryFunc(func(context.Context, []int64) ([]timetable.RoomRef, error) {
 			return nil, nil
 		}),

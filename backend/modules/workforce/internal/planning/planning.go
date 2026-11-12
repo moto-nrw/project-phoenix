@@ -138,7 +138,8 @@ func (p staffShiftPlanning) MoveShift(ctx context.Context, input workforce.MoveS
 
 func (p staffShiftPlanning) ApplyCancellation(ctx context.Context, input workforce.CancelStaffShift) (workforce.StaffShiftCancellation, error) {
 	request := CancelShiftInput{
-		ShiftID: input.ShiftID, Cancelled: input.Cancelled, ChangeReason: input.ChangeReason,
+		PreserveSeriesOverride: input.PreserveSeriesOverride,
+		ShiftID:                input.ShiftID, Cancelled: input.Cancelled, ChangeReason: input.ChangeReason,
 		ActorStaffID: input.ActorStaffID, ApplyOriginEdits: input.ApplyOriginEdits,
 		BreakMinutes: input.BreakMinutes, ShiftTypeID: input.ShiftTypeID,
 	}
@@ -349,7 +350,7 @@ func plannedShiftToCapability(shift *workforce.ShiftRecord) workforce.PlannedShi
 	value := workforce.PlannedShift{StaffShift: workforce.StaffShift{
 		ID: shift.ID, TenantID: shift.TenantID, StaffID: shift.StaffID, Date: shift.Date.String(),
 		StartTime: clockString(shift.StartTime), EndTime: clockString(shift.EndTime), BreakMinutes: shift.BreakMinutes,
-		ShiftTypeID: shift.ShiftTypeID, Notes: shift.Notes, SeriesID: shift.SeriesID, Detached: shift.Detached,
+		ShiftTypeID: shift.ShiftTypeID, Notes: shift.Notes, SeriesID: shift.SeriesID, Detached: shift.Detached, SeriesOverride: shift.SeriesOverride,
 		Cancelled: shift.Cancelled, ChangeReason: shift.ChangeReason, OriginShiftID: shift.OriginShiftID,
 		SickAbsenceID: shift.SickAbsenceID, CreatedBy: shift.CreatedBy, UpdatedBy: shift.UpdatedBy,
 		CreatedAt: shift.CreatedAt, UpdatedAt: shift.UpdatedAt,

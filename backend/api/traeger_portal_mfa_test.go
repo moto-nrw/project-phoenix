@@ -89,7 +89,7 @@ func TestTraegerSecondFactorRefusesForeignChallengesAndCodes(t *testing.T) {
 	organization := traegerOrganization(t, db, "Träger Fremdcode", true)
 	account := traegerAccount(t, db, password)
 	testpkg.CreateTestTraegerMember(t, db, organization, account.ID, identityaccess.TraegerRoleAdministration)
-	require.NoError(t, identity.EnrollMFA(t.Context(), account.ID))
+	require.NoError(t, enrollMFA(t.Context(), t, db, identity, account.ID))
 	school := testpkg.CreateTestSchoolInOrganization(t, db, organization, "OGS Fremdcode")
 
 	schoolChallenge, err := identity.StartMFAChallenge(t.Context(), account.ID, school, identityaccess.MFAChallengeScopeSchool, nil, 0)

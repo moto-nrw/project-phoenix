@@ -2,9 +2,12 @@ package application
 
 import (
 	"context"
+	"errors"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 func (s *Service) FindInstanceStaff(ctx context.Context, id int64) (result timetable.InstanceStaff, err error) {
@@ -101,6 +104,40 @@ func (s *Service) UpdateInstanceStaff(ctx context.Context, id int64, fields time
 	return result, err
 }
 
+var _ timetable.InstanceStaffLocks = (*Service)(nil)
+
+// lockStaffRows takes the staff rows of a day writer's roster through the
+// instance staff capability before the writer's first block row (#6583). A
+// capability without the locks fails the write instead of letting it take
+// the rows later, against the lock order.
+func lockStaffRows(ctx context.Context, staff timetable.InstanceStaffCommand, staffIDs []int64) error {
+	if len(staffIDs) == 0 {
+		return nil
+	}
+	locks, ok := staff.(timetable.InstanceStaffLocks)
+	if !ok {
+		return errors.New("timetable: the instance staff capability takes no staff row locks")
+	}
+	return locks.LockStaffAssignments(ctx, staffIDs)
+}
+
+// LockStaffAssignments takes the staff row lock of every staff member,
+// ascending and once each, in the caller's unit of work. A day writer calls it
+// after its day locks and before its first block row, so it never holds a
+// block while it waits for a staff row that offboarding holds (#6583).
+func (s *Service) LockStaffAssignments(ctx context.Context, staffIDs []int64) error {
+	if hasInvalidID(staffIDs) {
+		return s.reject("lock_staff_assignments", timetable.ErrInvalidInstanceStaff)
+	}
+	if len(staffIDs) == 0 {
+		return nil
+	}
+	ids := slices.Sorted(slices.Values(staffIDs))
+	return s.runWrite(ctx, "lock_staff_assignments", true, func(txCtx context.Context, _ *domain.OperationStats) error {
+		return s.lockStaffAssignments(txCtx, slices.Compact(ids))
+	})
+}
+
 func (s *Service) lockInstanceForStaffAssignment(ctx context.Context, instanceID int64, stats *domain.OperationStats) error {
 	_, found, queryStats, err := s.store.LockActivityInstance(ctx, instanceID, false)
 	stats.Add(queryStats)
@@ -192,4 +229,27 @@ func (s *Service) DeleteUpcomingInstanceStaff(ctx context.Context, staffID int64
 		return deleteErr
 	})
 	return result, err
+}
+
+func (s *Service) lockStaffAssignment(ctx context.Context, staffID int64) error {
+	return s.lockStaffAssignments(ctx, []int64{staffID})
+}
+
+// skipHeldStaffRows leaves out staff row locks the unit of work already holds
+// (#6583): a day writer takes the staff rows of its roster up front, so every
+// later assignment write of the same person would only repeat the locked,
+// already validated read.
+func skipHeldStaffRows(lock func(context.Context, []int64) error) func(context.Context, []int64) error {
+	return func(ctx context.Context, staffIDs []int64) error {
+		pending := make([]int64, 0, len(staffIDs))
+		for _, staffID := range staffIDs {
+			if !tenant.HoldsLock(ctx, tenant.LockStaffRows, tenant.LockIDKey(staffID)) {
+				pending = append(pending, staffID)
+			}
+		}
+		if len(pending) == 0 {
+			return nil
+		}
+		return lock(ctx, pending)
+	}
 }

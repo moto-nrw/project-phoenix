@@ -4,7 +4,7 @@ import { Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { useParams, usePathname, useSearchParams } from "next/navigation";
 import { useSession } from "next-auth/react";
 import { HolidayGuestSection } from "~/components/students/holiday-guest-section";
-import { HolidayStudentHealthSection } from "~/components/students/holiday-student-health-section";
+import { HolidayStudentRegistrationSection } from "~/components/students/holiday-student-registration-section";
 import { HOLIDAY_GUEST_SCHOOL_CLASS } from "~/lib/holiday-host-api";
 import { hasPermission } from "~/lib/auth-utils";
 import { useSetBreadcrumb } from "~/lib/breadcrumb-context";
@@ -86,6 +86,7 @@ import {
   StudentExcusedReportSection,
   StudentStatusActionsMenu,
 } from "~/components/students/student-checkout-section";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { canReviewCareWithdrawals } from "~/lib/change-request-access";
 import StudentGuardianManager from "~/components/guardians/student-guardian-manager";
@@ -577,6 +578,12 @@ function StudentDetailPageContent() {
       });
     });
   }, [tenantMutate, refreshData, studentId]);
+  // The record actions reload after their write; a failure stands above the
+  // record, also after the dialog closed (#6652).
+  const recordAfterWrite = useRefreshAfterWrite(
+    "die Anzeige des Kindes",
+    refreshDataAndHistory,
+  );
   const canViewEnrollments =
     sessionStatus === "authenticated" &&
     hasPermission(session, "config:manage");
@@ -689,17 +696,14 @@ function StudentDetailPageContent() {
   // Sick toggle state
   const [showConfirmSick, setShowConfirmSick] = useState(false);
   const [sickLoading, setSickLoading] = useState(false);
-  const sickConfirmText = sickLoading ? "Wird gespeichert…" : "Gesundmelden";
 
   // Excused toggle state
   const [showConfirmExcused, setShowConfirmExcused] = useState(false);
   const [excusedLoading, setExcusedLoading] = useState(false);
   const isQuickExcused = (student?.excused ?? false) && !student?.class_trip;
-  const excusedConfirmText = excusedLoading
-    ? "Wird gespeichert…"
-    : isQuickExcused
-      ? "Entschuldigung aufheben"
-      : "Entschuldigen";
+  const excusedConfirmText = isQuickExcused
+    ? "Entschuldigung aufheben"
+    : "Entschuldigen";
 
   // Switch dialog: shown when the user clicks one flag but the other is set.
   // "sick" = we want to switch TO sick (excused is currently true).
@@ -1332,7 +1336,6 @@ function StudentDetailPageContent() {
             ? "Klassenfahrt"
             : "Entschuldigung";
       toast.success(`${statusLabel} für ${student.name} ist gespeichert.`);
-      setPlannedStatusModal(null);
     } catch (err) {
       logger.error("planned_status_create_failed", {
         student_id: studentId,
@@ -1396,7 +1399,6 @@ function StudentDetailPageContent() {
           ? `Die Entschuldigung für ${student.name} ist geändert.`
           : `Die Entschuldigung für ${student.name} ist gespeichert.`,
       );
-      setPlannedStatusModal(null);
     } catch (err) {
       logger.error("partial_absence_save_failed", {
         student_id: studentId,
@@ -1467,7 +1469,7 @@ function StudentDetailPageContent() {
           <StudentRecordActions
             student={student}
             displayName={studentHeaderTitle(student)}
-            onChanged={refreshDataAndHistory}
+            onChanged={recordAfterWrite.refresh}
             onDeleted={() => tenantRouter.push(referrer)}
           />
         ) : undefined
@@ -1609,9 +1611,10 @@ function StudentDetailPageContent() {
             }}
             onConfirm={handleConfirmCheckin}
             title="Kind anmelden"
-            confirmText={checkingIn ? "Wird angemeldet…" : "Anmelden"}
+            confirmText="Anmelden"
             cancelText="Abbrechen"
             isConfirmLoading={checkingIn}
+            loadingText="Wird angemeldet…"
           >
             <FormErrorAlert message={dialogErrors.error} className="mb-3" />
             <p>
@@ -1628,9 +1631,10 @@ function StudentDetailPageContent() {
             }}
             onConfirm={handleConfirmSickToggle}
             title="Krankmeldung aufheben"
-            confirmText={sickConfirmText}
+            confirmText="Gesundmelden"
             cancelText="Abbrechen"
             isConfirmLoading={sickLoading}
+            loadingText="Wird gespeichert…"
           >
             <FormErrorAlert message={dialogErrors.error} className="mb-3" />
             <p>
@@ -1646,6 +1650,9 @@ function StudentDetailPageContent() {
               variant="outline"
               size="md"
               className="mt-4"
+              // Wechselt den Dialog; während des Aufhebens hätte dessen
+              // Antwort sonst keine Fläche (#6594).
+              disabled={sickLoading}
               onClick={() => openPlannedStatusFromLift("sick")}
             >
               Alle Kranktage ansehen
@@ -1666,6 +1673,7 @@ function StudentDetailPageContent() {
             confirmText={excusedConfirmText}
             cancelText="Abbrechen"
             isConfirmLoading={excusedLoading}
+            loadingText="Wird gespeichert…"
           >
             <FormErrorAlert message={dialogErrors.error} className="mb-3" />
             <p>
@@ -1691,6 +1699,7 @@ function StudentDetailPageContent() {
                 variant="outline"
                 size="md"
                 className="mt-4"
+                disabled={excusedLoading}
                 onClick={() => openPlannedStatusFromLift("excused")}
               >
                 Alle entschuldigten Tage ansehen
@@ -1711,9 +1720,10 @@ function StudentDetailPageContent() {
                 ? "Als krank melden?"
                 : "Als entschuldigt markieren?"
             }
-            confirmText={switchLoading ? "Wird gewechselt…" : "Status wechseln"}
+            confirmText="Status wechseln"
             cancelText="Abbrechen"
             isConfirmLoading={switchLoading}
+            loadingText="Wird gewechselt…"
           >
             <FormErrorAlert message={dialogErrors.error} className="mb-3" />
             <p>
@@ -1762,6 +1772,7 @@ function StudentDetailPageContent() {
         </>
       }
     >
+      <LoadErrorAlert error={recordAfterWrite.error} />
       {careWithdrawalLoad.error ? (
         <div>
           <LoadErrorAlert error={careWithdrawalLoad.error} />
@@ -1804,7 +1815,7 @@ function StudentDetailPageContent() {
         />
       )}
       {!isHolidayGuest && hasFullAccess && (
-        <HolidayStudentHealthSection
+        <HolidayStudentRegistrationSection
           studentId={studentId}
           schoolHealthInfo={student?.health_info ?? null}
         />

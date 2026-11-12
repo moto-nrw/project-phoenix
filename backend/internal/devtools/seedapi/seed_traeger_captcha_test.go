@@ -44,6 +44,8 @@ func assertSeedHolidayRefusalSkipsTheRegistrations(t *testing.T, status int, bod
 			_, _ = w.Write([]byte(`{"status":"authenticated","access_token":"traeger-token","refresh_token":"r"}`))
 		case "/traeger/schools/":
 			_, _ = w.Write([]byte(`{"status":"success","data":[{"id":31},{"id":32}]}`))
+		case "/traeger/catalog/phases/9/preview":
+			_, _ = w.Write([]byte(`{"status":"success","data":{"traeger_phase_id":9,"fingerprint":"preview-key","schools":[]}}`))
 		case "/traeger/holiday-periods/":
 			w.WriteHeader(http.StatusCreated)
 			_, _ = w.Write([]byte(`{"status":"success","data":{"id":5}}`))
@@ -68,6 +70,10 @@ func assertSeedHolidayRefusalSkipsTheRegistrations(t *testing.T, status int, bod
 		"POST /traeger/auth/login",
 		"GET /traeger/schools/",
 		"POST /traeger/holiday-periods/",
+		"POST /traeger/catalog/phases",
+		"POST /traeger/catalog/phases/9/offerings",
+		"POST /traeger/catalog/phases/9/preview",
+		"POST /traeger/catalog/phases/9/rollout",
 		"POST /traeger/holiday-periods/",
 		"POST /traeger/holiday-periods/5/publish",
 		"POST /traeger/contribution-rules/",

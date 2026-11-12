@@ -12,10 +12,14 @@ import { ISODatePicker } from "~/components/ui/date-picker";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FormFieldset } from "~/components/ui/form-fieldset";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import type { CareSchool } from "~/lib/traeger-care-billing-api";
-import type { CareNoticeRunStartInput } from "~/lib/traeger-care-notices-api";
+import type {
+  CareNoticeRun,
+  CareNoticeRunStartInput,
+} from "~/lib/traeger-care-notices-api";
 import { formatMonth, monthRange } from "./care-billing-format";
 
 const logger = createLogger({ component: "CareNoticeRunStartModal" });
@@ -35,18 +39,23 @@ export function CareNoticeRunStartModal({
   suggestedYear,
   onClose,
   onStart,
+  onStarted,
 }: Readonly<{
   isOpen: boolean;
   schools: readonly CareSchool[];
   initialMonth: string;
   suggestedYear: number;
   onClose: () => void;
-  onStart: (input: CareNoticeRunStartInput) => Promise<void>;
+  /** Starts the run; may refresh data, but must not close or navigate. */
+  onStart: (input: CareNoticeRunStartInput) => Promise<CareNoticeRun>;
+  /** Closes and opens the run; called only while this dialog is current. */
+  onStarted: (run: CareNoticeRun) => void;
 }>) {
   const [fromMonth, setFromMonth] = useState(initialMonth);
   const [selected, setSelected] = useState<string[]>([]);
   const [noticeDate, setNoticeDate] = useState("");
-  const [saving, setSaving] = useState(false);
+  const save = useFormModalPending(isOpen);
+  const saving = save.pending;
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const { clear: clearErrors } = formErrors;
@@ -83,29 +92,34 @@ export function CareNoticeRunStartModal({
       formErrors.invalid("Bitte prüfen Sie Ihre Angaben.", invalid);
       return;
     }
-    setSaving(true);
-    try {
-      await onStart({
-        year,
-        fromMonth,
-        schoolIds: selected,
-        noticeDate: noticeDate || null,
-      });
-    } catch (err) {
-      logger.error("care_notice_run_start_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      void formErrors.show(err, { object: "der Jahreslauf" });
-    } finally {
-      setSaving(false);
-    }
+    await save.run(async (op) => {
+      let run: CareNoticeRun;
+      try {
+        run = await onStart({
+          year,
+          fromMonth,
+          schoolIds: selected,
+          noticeDate: noticeDate || null,
+        });
+      } catch (err) {
+        logger.error("care_notice_run_start_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        void formErrors.show(err, { object: "der Jahreslauf" });
+        return;
+      }
+      // A late answer must not close or navigate away from a newer dialog.
+      if (op.isCurrent()) onStarted(run);
+    });
   };
 
   return (
     <FormModal
       isOpen={isOpen}
       onClose={onClose}
-      closeDisabled={saving}
+      pending={save}
       isBackdropDismissDisabled
       title="Jahreslauf starten"
       size="md"

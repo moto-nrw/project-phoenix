@@ -38,20 +38,20 @@ func setupExistingChildTest(t *testing.T, audience string) *existingChildEnv {
 	t.Helper()
 	env := setupDecisionTest(t)
 	matching := newTestRequestService(owners.EnrollmentIntakeSources{
-		Bookings:           requestTestBookingCommands(),
-		Requests:           env.repos.Enrollment(),
-		Children:           env.repos.Enrollment(),
-		CareOfferingRepo:   enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
-		Catalog:            env.repos.Enrollment(),
-		SchoolRepo:         factorySchools{repos: env.reposSchools},
-		RateLimitRepo:      env.repos.Enrollment(),
-		LateInviteRepo:     env.repos.Enrollment(),
-		StudentRepo:        env.repos.Student,
-		GuardianAuthorizer: env.repos.StudentGuardian,
-		OutboxEnqueuer:     env.outbox,
-		Settings:           env.settings,
-		FrontendURL:        "http://localhost:3000",
-		Logger:             slog.Default(),
+		Bookings:         requestTestBookingCommands(),
+		Requests:         env.repos.Enrollment(),
+		Children:         env.repos.Enrollment(),
+		CareOfferingRepo: enrollmentCompose.NewCareOfferingRecords(env.reposCare.CarePlan),
+		Catalog:          env.repos.Enrollment(),
+		SchoolRepo:       factorySchools{repos: env.reposSchools},
+		RateLimitRepo:    env.repos.Enrollment(),
+		LateInviteRepo:   env.repos.Enrollment(),
+		StudentRepo:      env.repos.Student,
+		GuardianHold:     testGuardianHold(env.db, env.repos),
+		OutboxEnqueuer:   env.outbox,
+		Settings:         env.settings,
+		FrontendURL:      "http://localhost:3000",
+		Logger:           slog.Default(),
 	})
 	_, err := env.db.NewUpdate().TableExpr(`enrollment.phases`).
 		Set("audience = ?", audience).

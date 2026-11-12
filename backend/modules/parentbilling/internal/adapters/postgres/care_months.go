@@ -66,6 +66,7 @@ type careRunRow struct {
 	TotalCents         *int64         `bun:"total_cents"`
 	MonthRule          *string        `bun:"month_rule"`
 	InvoiceDate        *calendar.Date `bun:"invoice_date,type:date"`
+	DiscardedAt        *time.Time     `bun:"discarded_at"`
 	// SchoolIDs come from parent_billing.care_run_schools (#5916).
 	SchoolIDs []int64 `bun:"school_ids,array,scanonly"`
 	// The immutable release event stores the free-month count.
@@ -76,7 +77,7 @@ func (r careRunRow) run() parentbilling.CareRun {
 	run := parentbilling.CareRun{
 		ID: r.ID, BillingMonth: r.BillingMonth, Status: r.Status, CreatedAt: r.CreatedAt, ReleasedAt: r.ReleasedAt,
 		IssuedOn: r.IssuedOn, DocumentCount: r.DocumentCount, TotalCents: r.TotalCents,
-		FreeOfCharge: r.FreeOfCharge,
+		FreeOfCharge: r.FreeOfCharge, DiscardedAt: r.DiscardedAt,
 		CareRunScope: parentbilling.CareRunScope{SchoolIDs: r.SchoolIDs, InvoiceDate: r.InvoiceDate},
 	}
 	if run.SchoolIDs == nil {
@@ -142,6 +143,7 @@ type careInvoiceRow struct {
 	DebtorIBANMasked    *string        `bun:"debtor_iban_masked"`
 	SequenceType        *string        `bun:"sequence_type"`
 	DebitGap            *string        `bun:"debit_gap"`
+	DebtorNumber        *string        `bun:"debtor_number"`
 	// CostShares are the issued cost bearer shares (#4687), read in the same
 	// statement as the invoice.
 	CostShares []parentbilling.CareInvoiceCostShare `bun:"cost_shares,type:jsonb,scanonly"`
@@ -160,7 +162,7 @@ func (row careInvoiceRow) invoice(positions []parentbilling.CarePosition, reduct
 		Recipient: parentbilling.CareRecipient{FirstName: row.RecipientFirstName, LastName: row.RecipientLastName, Email: row.RecipientEmail,
 			Kind: textOf(row.RecipientKind), SecondName: textOf(row.RecipientSecondName)},
 		Positions: positions, Reductions: reductions, TotalCents: row.TotalCents, DocumentKind: row.DocumentKind,
-		FamilyEmail: textOf(row.FamilyEmail), Payment: row.snapshot().payment(),
+		FamilyEmail: textOf(row.FamilyEmail), Payment: row.snapshot().payment(), DebtorNumber: textOf(row.DebtorNumber),
 	}
 	if row.RecipientStreet != nil && row.RecipientPostalCode != nil && row.RecipientCity != nil {
 		invoice.Recipient.Address = &parentbilling.PostalAddress{Street: *row.RecipientStreet,
@@ -196,6 +198,7 @@ type careInvoicePositionRow struct {
 	AmountCents           int64           `bun:"amount_cents"`
 	NetCents              int64           `bun:"net_cents"`
 	PayableCents          int64           `bun:"payable_cents"`
+	positionAccountsColumns
 }
 
 // CareTariffs reads every price of the Träger.
@@ -516,7 +519,7 @@ func (s *Store) IssueCareInvoices(ctx context.Context, organizationID int64, run
 			MonthRule: rule, TotalCents: invoice.TotalCents, ReplacesInvoiceID: replaced[replacedKey{invoice.ContractID, invoiceService(invoice)}],
 			StudentID: invoice.StudentID, FamilyEmail: textRef(invoice.FamilyEmail), RecipientKind: textRef(invoice.Recipient.Kind),
 			RecipientSecondName: textRef(invoice.Recipient.SecondName),
-			DocumentKind:        careDocumentKind(invoice.DocumentKind),
+			DocumentKind:        careDocumentKind(invoice.DocumentKind), DebtorNumber: textRef(invoice.DebtorNumber),
 		}
 		if address := invoice.Recipient.Address; address != nil {
 			rows[i].RecipientStreet, rows[i].RecipientPostalCode, rows[i].RecipientCity = &address.Street, &address.PostalCode, &address.City
@@ -577,6 +580,7 @@ func carePositionRows(organizationID int64, rows []careInvoiceRow, invoices []pa
 				ModuleName: position.ModuleName, ContractVersionNumber: position.VersionNumber, ServiceFrom: position.ServiceFrom,
 				ServiceUntil: position.ServiceUntil, Weekdays: weekdays, AmountCents: position.AmountCents, NetCents: position.AmountCents, PayableCents: position.PayableCents,
 				DaysPerWeek: position.DaysPerWeek, TierMonthlyCents: position.TierMonthlyCents, MealExtra: position.MealExtra,
+				positionAccountsColumns: positionAccountsOf(position.Accounts),
 			})
 		}
 	}

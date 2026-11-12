@@ -5,8 +5,10 @@ import {
   waitFor,
   within,
 } from "@testing-library/react";
+import type { ReactNode } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { ClosingDayDraft } from "./closing-day-modal";
 import { ApiError } from "~/lib/api-error";
 import type { ClosingDay } from "~/lib/closing-day-helpers";
 import { catalogText } from "~/test/error-catalog-text";
@@ -20,6 +22,7 @@ const {
   mockUseSession,
   mockBulkCancel,
   mockRefreshPlan,
+  mockHostedWeeks,
 } = vi.hoisted(() => ({
   mockList: vi.fn(),
   mockDelete: vi.fn(),
@@ -29,10 +32,15 @@ const {
   mockUseSession: vi.fn(),
   mockBulkCancel: vi.fn(),
   mockRefreshPlan: vi.fn(),
+  mockHostedWeeks: vi.fn(),
 }));
 
 vi.mock("next-auth/react", () => ({
   useSession: mockUseSession,
+}));
+
+vi.mock("~/lib/holiday-host-api", () => ({
+  fetchHostedHolidayWeeks: mockHostedWeeks,
 }));
 
 vi.mock("~/lib/timetable-api", () => ({
@@ -63,14 +71,26 @@ vi.mock("~/lib/hooks/use-closing-days", () => ({
   useInvalidateClosingDays: () => mockInvalidate,
 }));
 
+// Die Elternhinweise testet ihre eigene Datei; hier zählt, dass der Editor
+// sie nach jedem Speichern und Löschen neu laden lässt (ADR 0196).
+vi.mock("~/components/planning/holiday-closure-notices", () => ({
+  HolidayClosureNotices: ({ version }: { version: number }) => (
+    <div data-testid="holiday-closure-notices" data-version={version} />
+  ),
+}));
+
 vi.mock("~/components/planning/closing-day-modal", () => ({
   ClosingDayModal: ({
     isOpen,
     initial,
     onSaved,
     onOfferCancel,
+    consequences,
+    onDraftChange,
   }: {
     isOpen: boolean;
+    consequences?: ReactNode;
+    onDraftChange?: (draft: ClosingDayDraft) => void;
     initial?: ClosingDay | null;
     onSaved: () => void;
     onOfferCancel?: (range: { startDate: string; endDate: string }) => void;
@@ -80,6 +100,19 @@ vi.mock("~/components/planning/closing-day-modal", () => ({
         data-testid="closing-day-modal"
         data-initial-reason={initial?.reason ?? ""}
       >
+        {consequences}
+        <button
+          type="button"
+          onClick={() =>
+            onDraftChange?.({
+              startDate: "2026-08-05",
+              endDate: "2026-08-19",
+              schoolIds: [],
+            })
+          }
+        >
+          Mock Ferienzeit wählen
+        </button>
         <button type="button" onClick={onSaved}>
           Mock speichern
         </button>
@@ -112,12 +145,101 @@ function makeClosingDay(overrides: Partial<ClosingDay> = {}): ClosingDay {
 describe("ClosingDaysEditor", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    mockHostedWeeks.mockResolvedValue([]);
     mockInvalidate.mockResolvedValue(undefined);
     mockRefreshPlan.mockResolvedValue(undefined);
     mockUseSession.mockReturnValue({
       data: { user: { permissions: ["schedules:manage"] } },
       status: "authenticated",
     });
+  });
+
+  it("shows the booked weeks in the dialog and says where the parents are informed", async () => {
+    mockList.mockResolvedValue([]);
+    mockHostedWeeks.mockResolvedValue([
+      {
+        id: "1",
+        periodName: "Sommerferien",
+        startsOn: "2026-08-03",
+        endsOn: "2026-08-07",
+        participants: 12,
+        guests: 0,
+        guestGroupId: null,
+        bookingUnit: "week",
+        careStartsAt: "08:00",
+        careEndsAt: "16:00",
+        dayParticipants: new Map(),
+      },
+      {
+        id: "2",
+        periodName: "Sommerferien",
+        startsOn: "2026-08-17",
+        endsOn: "2026-08-21",
+        participants: 4,
+        guests: 0,
+        guestGroupId: null,
+        bookingUnit: "week",
+        careStartsAt: "08:00",
+        careEndsAt: "16:00",
+        dayParticipants: new Map(),
+      },
+    ]);
+    render(<ClosingDaysEditor />);
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Schließtag anlegen" }),
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Mock Ferienzeit wählen" }),
+    );
+    expect(
+      await screen.findByText(
+        "In dieser Zeit sind Ferienwochen bei Ihnen gebucht",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText(/12 Kinder/)).toBeInTheDocument();
+    expect(screen.getByText(/4 Kinder/)).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die Buchungen bleiben bestehen. Nach dem Speichern können Sie die Eltern auf dieser Seite informieren.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("allows appointment cancellation but no changes to Träger closures (#4702)", async () => {
+    mockBulkCancel.mockResolvedValue({ count: 0, days: [] });
+    mockList.mockResolvedValue([
+      makeClosingDay({ id: "3", reason: "Pädagogischer Tag" }),
+      makeClosingDay({ id: "3", reason: "Brückentag", traeger: true }),
+    ]);
+    render(<ClosingDaysEditor />);
+
+    const table = await screen.findByRole("table");
+    expect(within(table).getByText("Vom Träger")).toBeInTheDocument();
+    expect(
+      within(table).getByRole("button", {
+        name: "Aktionen für Pädagogischer Tag",
+      }),
+    ).toBeInTheDocument();
+    // Gleiche ID aus zwei Tabellen: nur eigene Schließtage sind änderbar.
+    expect(within(table).getByText("Brückentag")).toBeInTheDocument();
+    fireEvent.click(
+      within(table).getByRole("button", { name: "Aktionen für Brückentag" }),
+    );
+    expect(
+      await screen.findByRole("menuitem", { name: "Termine absagen" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Bearbeiten" }),
+    ).not.toBeInTheDocument();
+    expect(
+      screen.queryByRole("menuitem", { name: "Löschen" }),
+    ).not.toBeInTheDocument();
+    fireEvent.click(screen.getByRole("menuitem", { name: "Termine absagen" }));
+    expect(
+      await screen.findByRole("dialog", {
+        name: "Termine im Zeitraum absagen",
+      }),
+    ).toBeInTheDocument();
   });
 
   it("sagt die Termine eines Schließtags nach Bestätigung ab (#3594)", async () => {
@@ -389,6 +511,27 @@ describe("ClosingDaysEditor", () => {
 
     await waitFor(() => expect(mockInvalidate).toHaveBeenCalledOnce());
     await waitFor(() => expect(mockList).toHaveBeenCalledTimes(2));
+  });
+
+  it("lädt die Elternhinweise nach dem Speichern neu (ADR 0196)", async () => {
+    mockList.mockResolvedValue([]);
+
+    render(<ClosingDaysEditor />);
+    const notices = await screen.findByTestId("holiday-closure-notices");
+    expect(notices).toHaveAttribute("data-version", "0");
+    fireEvent.click(
+      (
+        await screen.findAllByRole("button", { name: /Schließtag anlegen/ })
+      )[0]!,
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Mock speichern" }));
+
+    await waitFor(() =>
+      expect(screen.getByTestId("holiday-closure-notices")).toHaveAttribute(
+        "data-version",
+        "1",
+      ),
+    );
   });
 
   it("löscht nach Bestätigung und lädt die Liste neu", async () => {

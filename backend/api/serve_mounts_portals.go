@@ -68,6 +68,9 @@ func newAccountResource(db transactionruntime.Database, identity identityaccess.
 	resource.RoleGrants = owners.RoleGrantPolicy{}
 	resource.MFAService = identity
 	resource.PasskeyService = identity
+	// The setup link of a parent account at a Träger is its own capability
+	// beside the Owner facade (ADR 0216).
+	resource.HolidayParentSetups, _ = identity.(identityaccess.HolidayParentSetups)
 	return resource
 }
 
@@ -110,7 +113,7 @@ func newOperatorRouter(
 	db transactionruntime.Database, logger *slog.Logger, sessionAuth *sessiontoken.TokenAuth, limiters authRateLimiters,
 	iot devicefleetCompose.IoTService, organizations organizationtenancy.Query, settings settingsCompose.SettingsService,
 	hub *realtime.Hub, active studentpresence.Presence, settingsWrites SettingsWrites, identity identityaccess.Owner,
-	provisioning organizationtenancy.Provisioning, caregivers peoplePorts.CaregiverCapabilityService,
+	provisioning organizationtenancy.OperatorProvisioning, caregivers peoplePorts.CaregiverCapabilityService,
 	lifecycle carePlanModule.CareLifecycle, communication communicationModule.Capability,
 	students importModels.RowImporter[importModels.StudentImportRow], traegerSettings settingsOperatorAPI.TraegerOperations,
 ) (chi.Router, error) {
@@ -178,7 +181,7 @@ func newParentResource(
 	logger *slog.Logger, identity identityaccess.Owner, parent *parentportal.Portal, calendarApp calendarCompose.Application, flows owners.EnrollmentFlows,
 	guardianProfiles *peopleCompose.GuardianProfileLoader, organizations organizationtenancy.Query,
 	devices owners.DeliveryDevices, notifications owners.DeliveryNotifications, delivery deliveryRuntime.Capability,
-	healthData enrollmentOwner.HolidayHealthCipher,
+	healthData enrollmentOwner.HolidayHealthCipher, traegerSettings TraegerBrandingSettings,
 ) *parentAPI.Resource {
 	return parentAPI.NewResource(parentAPI.ResourceConfig{
 		Auth:        parentPortalLogin(identity),
@@ -193,12 +196,14 @@ func newParentResource(
 		),
 		GuardianProfileLoader: newParentGuardianProfiles(guardianProfiles),
 		Schools:               parentSchoolDirectory{schools: organizations},
-		HolidayLinks:          newParentHolidayRegistrationLinks(organizations, delivery, healthData, logger),
+		HolidayLinks:          newParentHolidayRegistrationLinks(organizations, delivery, healthData, traegerSettings, logger),
 		Push:                  bindParentPushSubscriptions(devices.PushSubscriptions),
 		Preferences:           bindParentPreferences(notifications.Preferences),
 		PWAUsage:              devices.PWAUsage,
 		Reports:               newDeclarationReports(),
 		SupportedLocale:       bindParentLocale(notifications.Preferences),
+		// Fotos und Dateien in den Nachrichten der Eltern (#6685).
+		MessageAttachmentFiles: NewMessageAttachmentStorage(logger.With("handler", "parent-message-attachments")),
 	})
 }
 
@@ -237,9 +242,10 @@ func newSessionTokenAuth() (*sessiontoken.TokenAuth, error) {
 // newProvisioningConfig binds the operator provisioning routes to the
 // provisioning, the caregiver capability views and the audit of the Beleg
 // retention (#4720) of the same composition.
-func newProvisioningConfig(provisioning organizationtenancy.Provisioning, caregivers provisioningOperatorAPI.SchoolAccountCaregivers) (provisioningOperatorAPI.ProvisioningConfig, error) {
-	audit, err := organizationCompose.BelegRetentionAudit(provisioning)
+func newProvisioningConfig(provisioning organizationtenancy.OperatorProvisioning, caregivers provisioningOperatorAPI.SchoolAccountCaregivers) (provisioningOperatorAPI.ProvisioningConfig, error) {
+	audit, err := organizationCompose.BelegRetentionAudit(provisioning.Provisioning)
 	return provisioningOperatorAPI.ProvisioningConfig{
 		Service: provisioning, CaregiverCapability: caregivers, AppEnv: viper.GetString("app_env"), BelegRetentionAudit: audit,
+		ErasureOrderRecords: provisioning.ErasureOrderRecords,
 	}, err
 }

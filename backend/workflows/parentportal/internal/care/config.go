@@ -70,6 +70,18 @@ type Config struct {
 	// ChildDataAccess records the reads of the holiday registration prefill
 	// (#4662) in the school's data access log.
 	ChildDataAccess ChildDataAccessLog
+	// HolidayWishes states the holiday care wish of a prefilled child
+	// (#4703) in the school's tenant transaction.
+	HolidayWishes HolidayWishStatements
+	// HolidayAnnouncements lists the published holiday periods the start
+	// page announces (#6671), in the administrative transaction.
+	HolidayAnnouncements HolidayRegistrationAnnouncements
+	// HolidayRegistrations claims, lists and names the Träger of the
+	// holiday registrations of a parent account (ADR 0216), in the
+	// administrative transaction; HolidayAccountProofs seals the account
+	// for the prefill.
+	HolidayRegistrations HolidayParentRegistrations
+	HolidayAccountProofs HolidayAccountProofs
 
 	// Document inbox (#4671, ADR 0126): the documents of the Elternabrechnung
 	// in the Träger transaction, the Träger of a school, the address of an
@@ -108,10 +120,17 @@ type Config struct {
 	// and the way home alone (#4780, Audit Platform).
 	PickupSignatures PickupSignatureLedger
 
-	// Identity & Access: inviting and removing further guardians, and the
+	// Identity & Access: the guardian's school membership a child write holds
+	// until commit (#6529), inviting and removing further guardians, and the
 	// open invitations shown as pending.
+	Memberships        SchoolMembershipLock
+	InvitationAccounts InvitationAccountLock
+	// GuardianHold is People Directory's guardian hold, the protocol the
+	// guard runs over these locks (#6638).
+	GuardianHold        GuardianHold
 	GuardianInvites     GuardianAccess
 	GuardianInvitations GuardianInvitationReads
+	InvalidateInvites   func(context.Context, int64) error
 
 	// Meal Plan of the child's school, and the portal languages.
 	MealPlan MealPlan

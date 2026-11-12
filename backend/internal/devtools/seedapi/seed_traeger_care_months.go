@@ -62,10 +62,15 @@ func (seedTraegerCareMonthsStep) Run(_ context.Context, rt *Runtime) error {
 		return err
 	}
 	current = calendar.NewDate(current.Year(), current.Month(), 1)
+	// The public demo seeds many schools into one Träger: every month, run
+	// and notice of this step belongs to the seeded school, so a school
+	// ordered later bills its own contracts and leaves those of the other
+	// demo schools alone.
+	school := rt.Bootstrap.SchoolID
 	// The Worker concludes the contracts of Weg b on its own tick (#4680);
 	// a contract already active bills its first month, the others bill once
 	// it is concluded.
-	first, err := seedFirstActiveMonth(rt.Client, auth)
+	first, err := seedFirstActiveMonth(rt.Client, auth, school)
 	if err != nil {
 		return err
 	}
@@ -77,16 +82,20 @@ func (seedTraegerCareMonthsStep) Run(_ context.Context, rt *Runtime) error {
 	if err != nil {
 		return err
 	}
-	rules, evidences, err := seedCareReductions(rt.Client, auth, from)
+	rules, evidences, err := seedCareReductions(rt.Client, auth, school, from)
 	if err != nil {
 		return err
 	}
-	released, err := seedCareRuns(rt.Client, auth, first, current)
+	// The accounts come before the release, which copies them (#4821).
+	if _, err := seedBookingAccounts(rt.Client, auth, from); err != nil {
+		return err
+	}
+	released, err := seedCareRuns(rt.Client, auth, school, first, current)
 	if err != nil {
 		return err
 	}
 	// The months after the current one go into a Jahresbescheid (#6219).
-	notices, err := seedCareNotices(rt.Client, auth, current)
+	notices, err := seedCareNotices(rt.Client, auth, school, current)
 	if err != nil {
 		return err
 	}
@@ -97,24 +106,27 @@ func (seedTraegerCareMonthsStep) Run(_ context.Context, rt *Runtime) error {
 
 // seedCareRuns releases the run of the first active month and leaves the
 // run of the current month open for its review (#5916).
-func seedCareRuns(client *Client, auth AuthRef, first, current calendar.Date) (int, error) {
+func seedCareRuns(client *Client, auth AuthRef, school int64, first, current calendar.Date) (int, error) {
 	released := 0
 	var err error
 	if !first.IsZero() {
-		if released, err = seedCareRun(client, auth, first, true); err != nil {
+		if released, err = seedCareRun(client, auth, school, first, true); err != nil {
+			return 0, err
+		}
+		if err := seedDatevFile(client, auth, school, first); err != nil {
 			return 0, err
 		}
 	}
 	previous := calendar.NewDate(current.Year(), current.Month()-1, 1)
 	if !first.IsZero() && first.Before(previous) {
-		count, err := seedCareRun(client, auth, previous, true)
+		count, err := seedCareRun(client, auth, school, previous, true)
 		if err != nil {
 			return released, err
 		}
 		released += count
 	}
 	if first != current {
-		if _, err := seedCareRun(client, auth, current, false); err != nil {
+		if _, err := seedCareRun(client, auth, school, current, false); err != nil {
 			return 0, err
 		}
 	}
@@ -122,9 +134,9 @@ func seedCareRuns(client *Client, auth AuthRef, first, current calendar.Date) (i
 }
 
 // seedFirstActiveMonth is the month of the earliest effective date of an
-// active contract; zero without one.
-func seedFirstActiveMonth(client *Client, auth AuthRef) (calendar.Date, error) {
-	raw, err := client.GetWithAuth(auth, "/traeger/contracts/?status=aktiv")
+// active contract of the school; zero without one.
+func seedFirstActiveMonth(client *Client, auth AuthRef, school int64) (calendar.Date, error) {
+	raw, err := client.GetWithAuth(auth, fmt.Sprintf("/traeger/contracts/?status=aktiv&school_id=%d", school))
 	if err != nil {
 		return "", fmt.Errorf("read the active contracts: %w", err)
 	}
@@ -198,7 +210,9 @@ func seedCareScale(module seedCareModule) []map[string]any {
 
 // seedCarePriceLists sets the prices of every school from month on, for the
 // weekdays Monday to Friday of each care offering of the Träger. A school
-// that already has prices keeps them.
+// that already has prices from month on keeps them; a price that starts
+// later, like the tariff a Träger offering brings for the next school year
+// (#4704), does not count.
 func seedCarePriceLists(client *Client, auth AuthRef, month calendar.Date, freeMonth int) (int, error) {
 	modules, err := seedCareOfferings(client, auth)
 	if err != nil {
@@ -211,7 +225,8 @@ func seedCarePriceLists(client *Client, auth AuthRef, month calendar.Date, freeM
 	var envelope struct {
 		Data struct {
 			Tariffs []struct {
-				SchoolID int64 `json:"school_id"`
+				SchoolID  int64         `json:"school_id"`
+				ValidFrom calendar.Date `json:"valid_from"`
 			} `json:"tariffs"`
 		} `json:"data"`
 	}
@@ -220,7 +235,9 @@ func seedCarePriceLists(client *Client, auth AuthRef, month calendar.Date, freeM
 	}
 	priced := map[int64]bool{}
 	for _, tariff := range envelope.Data.Tariffs {
-		priced[tariff.SchoolID] = true
+		if !tariff.ValidFrom.After(month) {
+			priced[tariff.SchoolID] = true
+		}
 	}
 	schools, bySchool := seedCarePrices(modules, priced)
 	count := 0
@@ -302,43 +319,69 @@ func seedCareOfferings(client *Client, auth AuthRef) ([]seedCareModule, error) {
 	return modules, nil
 }
 
-// seedCareRun takes the open run of a month or starts one, and releases it
-// when asked and there is something to bill. It returns the number of
-// issued invoices.
-func seedCareRun(client *Client, auth AuthRef, month calendar.Date, release bool) (int, error) {
-	runID, err := seedStartCareRun(client, auth, month)
+// seedCareRun takes the open run of a month that bills the school or starts
+// one for the school alone, and releases it when asked and there is
+// something to bill. It returns the number of issued invoices.
+func seedCareRun(client *Client, auth AuthRef, school int64, month calendar.Date, release bool) (int, error) {
+	runID, err := seedStartCareRun(client, auth, school, month)
 	if err != nil {
 		return 0, err
 	}
 	if err := seedBillingTerms(client, auth, runID, month); err != nil {
 		return 0, err
 	}
+	if release {
+		return seedReleaseCareRun(client, auth, runID)
+	}
+	run, err := seedReadCareRun(client, auth, runID)
+	if err != nil {
+		return 0, err
+	}
+	return 0, seedCareReview(client, auth, month, run)
+}
+
+func seedReadCareRun(client *Client, auth AuthRef, runID int64) (seedCareRunDetail, error) {
 	raw, err := client.GetWithAuth(auth, fmt.Sprintf("/traeger/care-billing-runs/%d", runID))
 	if err != nil {
-		return 0, fmt.Errorf("check the monthly run: %w", err)
+		return seedCareRunDetail{}, fmt.Errorf("check the monthly run: %w", err)
 	}
 	var envelope struct {
 		Data seedCareRunDetail `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return 0, fmt.Errorf("check the monthly run: %w", err)
+		return seedCareRunDetail{}, fmt.Errorf("check the monthly run: %w", err)
 	}
-	run := envelope.Data
-	if !release {
-		return 0, seedCareReview(client, auth, month, run)
-	}
-	if run.PreviewCount == 0 {
-		return 0, nil
-	}
-	if _, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/care-billing-runs/%d/release", runID), map[string]any{
-		"document_count": run.PreviewCount, "total_cents": run.PreviewCents, "fingerprint": run.Fingerprint,
-	}); err != nil {
+	return envelope.Data, nil
+}
+
+// The contract-conclusion worker can change the preview even while this
+// process serializes the Träger's seed steps (#6438). Like the office after
+// a conflict, read the current preview before trying its release again.
+// Keep payment/mandate setup outside this loop and stop after three attempts
+// if the state keeps changing; every release still checks its fingerprint.
+func seedReleaseCareRun(client *Client, auth AuthRef, runID int64) (int, error) {
+	for attempt := 0; ; attempt++ {
+		run, err := seedReadCareRun(client, auth, runID)
+		if err != nil {
+			return 0, err
+		}
+		if run.PreviewCount == 0 {
+			return 0, nil
+		}
+		_, err = client.PostWithAuth(auth, fmt.Sprintf("/traeger/care-billing-runs/%d/release", runID), map[string]any{
+			"document_count": run.PreviewCount, "total_cents": run.PreviewCents, "fingerprint": run.Fingerprint,
+		})
+		if seedConflictCode(err, seedCareRunChanged) && attempt < 2 {
+			continue
+		}
 		if seedConflictCode(err, seedCareRunReleased) {
 			return 0, nil
 		}
-		return 0, fmt.Errorf("release the monthly run: %w", err)
+		if err != nil {
+			return 0, fmt.Errorf("release the monthly run: %w", err)
+		}
+		return run.PreviewCount, nil
 	}
-	return run.PreviewCount, nil
 }
 
 // The registered codes of a run another seed of the same Träger started or
@@ -347,18 +390,23 @@ func seedCareRun(client *Client, auth AuthRef, month calendar.Date, release bool
 const (
 	seedCareRunOpen     = "parent_billing.care_run_open"
 	seedCareRunReleased = "parent_billing.billing_run_released"
+	seedCareRunChanged  = "parent_billing.billing_run_changed"
 )
 
-// seedStartCareRun takes the open run of a month or starts one. When another
-// seed of the same Träger started it in between, it takes that run.
-func seedStartCareRun(client *Client, auth AuthRef, month calendar.Date) (int64, error) {
-	runID, open, err := seedOpenCareRun(client, auth, month)
+// seedStartCareRun takes the open run of a month that bills the school or
+// starts one for the school alone. An open run of the month for other
+// schools, such as one another demo school left behind, stays theirs. When a
+// run for the school was started in between, it takes that run.
+func seedStartCareRun(client *Client, auth AuthRef, school int64, month calendar.Date) (int64, error) {
+	runID, open, err := seedOpenCareRun(client, auth, school, month)
 	if err != nil || open {
 		return runID, err
 	}
-	raw, err := client.PostWithAuth(auth, "/traeger/care-billing-runs/", map[string]any{"billing_month": month.String()})
+	raw, err := client.PostWithAuth(auth, "/traeger/care-billing-runs/", map[string]any{
+		"billing_month": month.String(), "school_ids": []int64{school},
+	})
 	if seedConflictCode(err, seedCareRunOpen) {
-		runID, open, err = seedOpenCareRun(client, auth, month)
+		runID, open, err = seedOpenCareRun(client, auth, school, month)
 		if err == nil && !open {
 			err = fmt.Errorf("the monthly run of %s is neither open nor startable", month)
 		}
@@ -422,29 +470,40 @@ func seedCareAmendment(client *Client, auth AuthRef, runID int64) error {
 	return nil
 }
 
-// seedOpenCareRun finds the run of the month that is still a preview; a
-// month has at most one.
-func seedOpenCareRun(client *Client, auth AuthRef, month calendar.Date) (int64, bool, error) {
+// seedCareRunRef is a monthly run as the run list shows it.
+type seedCareRunRef struct {
+	ID           int64         `json:"id"`
+	BillingMonth calendar.Date `json:"billing_month"`
+	Status       string        `json:"status"`
+	SchoolIDs    []int64       `json:"school_ids"`
+}
+
+// seedCareRunOf is the first run of the list in the given status that
+// bills the school in month.
+func seedCareRunOf(client *Client, auth AuthRef, school int64, month calendar.Date, status string) (int64, error) {
 	raw, err := client.GetWithAuth(auth, "/traeger/care-billing-runs/")
 	if err != nil {
-		return 0, false, fmt.Errorf("read the monthly runs: %w", err)
+		return 0, fmt.Errorf("read the monthly runs: %w", err)
 	}
 	var envelope struct {
 		Data struct {
-			Runs []struct {
-				ID           int64         `json:"id"`
-				BillingMonth calendar.Date `json:"billing_month"`
-				Status       string        `json:"status"`
-			} `json:"runs"`
+			Runs []seedCareRunRef `json:"runs"`
 		} `json:"data"`
 	}
 	if err := json.Unmarshal(raw, &envelope); err != nil {
-		return 0, false, fmt.Errorf("read the monthly runs: %w", err)
+		return 0, fmt.Errorf("read the monthly runs: %w", err)
 	}
 	for _, run := range envelope.Data.Runs {
-		if run.BillingMonth == month && run.Status == "calculated" {
-			return run.ID, true, nil
+		if run.BillingMonth == month && run.Status == status && slices.Contains(run.SchoolIDs, school) {
+			return run.ID, nil
 		}
 	}
-	return 0, false, nil
+	return 0, nil
+}
+
+// seedOpenCareRun finds the run of the month that is still a preview and
+// bills the school; a school is in at most one per month.
+func seedOpenCareRun(client *Client, auth AuthRef, school int64, month calendar.Date) (int64, bool, error) {
+	runID, err := seedCareRunOf(client, auth, school, month, "calculated")
+	return runID, runID != 0, err
 }

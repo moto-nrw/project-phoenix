@@ -97,7 +97,7 @@ func (s *InstanceLifecycleService) acquireSubstituteDayLock(ctx context.Context,
 }
 
 func (s *InstanceLifecycleService) acquireTenantDayLock(ctx context.Context, tenantID int64, date calendar.Date) error {
-	return s.deps.Database.AcquireTransactionLock(ctx, timetable.SubstituteDayLockKey(tenantID, date))
+	return lockScheduleDays(ctx, s.deps.Database.AcquireTransactionLock, tenantID, date)
 }
 
 // LockDeviationDays takes the substitute day lock of every date in
@@ -164,6 +164,19 @@ func (s *InstanceLifecycleService) lockRecurrenceThenGradeTransitions(ctx contex
 		return nil
 	}
 	if err := s.deps.RecurrenceLock.LockRecurrenceWritesThenGradeTransitions(ctx); err != nil {
+		return &ports.ScheduleError{Op: op + ": lock recurrence", Err: err}
+	}
+	return nil
+}
+
+// lockRecurrence takes the tenant recurrence gate a materialization run
+// holds, before any day lock: writers of slot exceptions and template-backed
+// blocks must not interleave with a run (#6499).
+func (s *InstanceLifecycleService) lockRecurrence(ctx context.Context, op string) error {
+	if s.deps.Database == nil || s.deps.RecurrenceLock == nil {
+		return nil
+	}
+	if err := s.deps.RecurrenceLock.LockRecurrenceWrites(ctx); err != nil {
 		return &ports.ScheduleError{Op: op + ": lock recurrence", Err: err}
 	}
 	return nil

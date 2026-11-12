@@ -65,6 +65,26 @@
     }
   ],
   "data_objects": [
+    {
+      "name": "enrollment.traeger_phase_schools",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.traeger_phase_versions",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.traeger_phases",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_closure_sends",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_closure_family_keys",
+      "write_owner": "enrollment"
+    },
     { "name": "enrollment.holiday_form_documents", "write_owner": "enrollment" },
     {
       "name": "enrollment.change_request_messages",
@@ -83,6 +103,14 @@
       "write_owner": "enrollment"
     },
     {
+      "name": "enrollment.holiday_allocation_criteria",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_allocation_decisions",
+      "write_owner": "enrollment"
+    },
+    {
       "name": "enrollment.holiday_guests",
       "write_owner": "enrollment"
     },
@@ -95,11 +123,19 @@
       "write_owner": "enrollment"
     },
     {
+      "name": "enrollment.holiday_closure_notices",
+      "write_owner": "enrollment"
+    },
+    {
       "name": "enrollment.holiday_periods",
       "write_owner": "enrollment"
     },
     {
       "name": "enrollment.holiday_registration_audit",
+      "write_owner": "enrollment"
+    },
+    {
+      "name": "enrollment.holiday_registration_criteria",
       "write_owner": "enrollment"
     },
     {

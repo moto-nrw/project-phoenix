@@ -11,6 +11,7 @@ import { useCallback, useEffect, useState } from "react";
 import { findFamilyBilling } from "~/components/traeger/billing-payment-format";
 import { formatMonth } from "~/components/traeger/care-billing-format";
 import { FamilyBillingForm } from "~/components/traeger/family-billing-form";
+import { useDebtorNumberFormat } from "~/components/traeger/use-debtor-number-format";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
 import { useApiLoadError } from "~/contexts/ToastContext";
@@ -42,6 +43,7 @@ export default function TraegerFamilyBillingPage() {
   const contractId = params?.contractId ?? "";
   const [loaded, setLoaded] = useState<Loaded | null>(null);
   const pageLoad = useApiLoadError();
+  const debtorNumberFormat = useDebtorNumberFormat();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
   const runHref = traegerPath(`/traeger/abrechnung/monatsbeitraege/${runId}`);
 
@@ -118,6 +120,7 @@ export default function TraegerFamilyBillingPage() {
               childName,
               issued: loaded.invoice.number !== "",
             }}
+            format={debtorNumberFormat}
             existing={loaded.existing}
             onCancel={() => router.push(runHref)}
             onSaved={() => router.push(runHref)}

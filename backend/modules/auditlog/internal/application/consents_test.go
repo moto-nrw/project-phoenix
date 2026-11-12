@@ -58,3 +58,35 @@ func newConsentTestCommand(t *testing.T, store *consentAppender) *ConsentRecorde
 	require.NoError(t, err)
 	return NewConsentRecorder(command)
 }
+
+func TestConsentRecorderRecordsTransitionsOfManyStudentsInInputOrder(t *testing.T) {
+	t.Parallel()
+	granted := time.Date(2026, 9, 1, 0, 0, 0, 0, time.UTC)
+	appender := &consentAppender{}
+	recorder := newConsentTestCommand(t, appender)
+	require.NoError(t, recorder.RecordTransitionsAll(context.Background(), []consents.ConsentTransition{
+		{After: &consents.ConsentSnapshot{StudentID: 7, AGBAcceptedAt: &granted, PhotoConsentGivenAt: &granted}, Source: consents.ConsentSourceImport, ChangedAt: granted},
+		{After: &consents.ConsentSnapshot{StudentID: 8}, Source: consents.ConsentSourceImport, ChangedAt: granted},
+		{After: &consents.ConsentSnapshot{StudentID: 9, EmailContactAcceptedAt: &granted}, Source: consents.ConsentSourceImport, ChangedAt: granted},
+	}))
+	require.Len(t, appender.events, 3)
+	require.Equal(t, []int64{7, 7, 9}, []int64{appender.events[0].StudentID, appender.events[1].StudentID, appender.events[2].StudentID})
+	require.Equal(t, []string{"agb", "photo", "email_contact"}, []string{appender.events[0].ConsentKey, appender.events[1].ConsentKey, appender.events[2].ConsentKey})
+}
+
+func TestConsentRecorderBatchChecksEveryTransitionBeforeAppending(t *testing.T) {
+	t.Parallel()
+	now := time.Now()
+	appender := &consentAppender{}
+	recorder := newConsentTestCommand(t, appender)
+	err := recorder.RecordTransitionsAll(context.Background(), []consents.ConsentTransition{
+		{After: &consents.ConsentSnapshot{StudentID: 1, AGBAcceptedAt: &now}},
+		{After: &consents.ConsentSnapshot{}},
+	})
+	require.ErrorContains(t, err, "persisted student is required")
+	require.Empty(t, appender.events, "nothing is appended when a transition is invalid")
+	require.NoError(t, recorder.RecordTransitionsAll(context.Background(), nil))
+	failure := errors.New("append failed")
+	failing := newConsentTestCommand(t, &consentAppender{err: failure})
+	require.ErrorIs(t, failing.RecordTransitionsAll(context.Background(), []consents.ConsentTransition{{After: &consents.ConsentSnapshot{StudentID: 1, AGBAcceptedAt: &now}}}), failure)
+}

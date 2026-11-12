@@ -139,6 +139,12 @@ func TestHermeticTestPatterns(t *testing.T) {
 		}
 	})
 
+	t.Run("no_isolated_parent_parallel_children", func(t *testing.T) {
+		findings := checkIsolatedParallelSubtests(t, backendRoot)
+		t.Logf("isolated parent/parallel-child findings: %v", findings)
+		assert.Empty(t, findings, "slot-limited isolated parent clones cannot coexist with parallel descendants: %v", findings)
+	})
+
 	t.Run("tests_run_in_parallel", func(t *testing.T) {
 		violations := shrinkOnlyViolations(checkSerialTests(t, backendRoot), serialTestBaseline)
 		if len(violations) > 0 {
@@ -400,6 +406,7 @@ func checkMissingSetupTestDB(t *testing.T, root string) []string {
 		"newCareFixture",                 // modules/careplan/contracttest care-request tests — wraps SetupTestDB
 		"setupDashboardContext",          // api/active supervision-dashboard tests — wraps SetupActiveModule → SetupTestDB
 		"setupStudentsRoute",             // modules/peopledirectory/inbound/students route suites — wraps testutil.SetupStudentModule → SetupTestDB
+		"newDemoOrder",                   // modules/organizationtenancy/compose demo retirement tests (#6305) — wraps SetupIsolatedTestDB
 	}
 
 	// Patterns indicating mock-based testing (legitimate alternative)

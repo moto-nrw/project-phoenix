@@ -127,7 +127,7 @@ var moduleFacadeMethodSetAllowlist = map[string]int{
 	"modules/studentpresence/studentpresence.go:Query":                                                47,
 	"modules/studentpresence/visit.go:VisitQuery":                                                     13,
 	"modules/timetable/activity_instances.go:ActivityInstanceCapability":                              15,
-	"modules/timetable/activitycontract/capability.go:ActivityService":                                40,
+	"modules/timetable/activitycontract/capability.go:ActivityService":                                39,
 	"modules/timetable/fixturetest/activity_instance_records_test_helpers.go:ActivityInstanceRecords": 20,
 	"modules/timetable/fixturetest/instance_lifecycle_test_helpers.go:InstanceLifecycle":              21,
 	"modules/timetable/fixturetest/instance_student_records_test_helpers.go:InstanceStudentRecords":   39,

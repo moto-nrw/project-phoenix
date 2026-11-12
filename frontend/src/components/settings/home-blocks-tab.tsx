@@ -11,7 +11,11 @@ import {
 
 import { SwitchRow } from "~/components/ui/switch";
 import { Button } from "~/components/ui/button";
-import { FormErrorAlert } from "~/components/ui/form-error-alert";
+import {
+  FormErrorAlert,
+  LoadErrorAlert,
+} from "~/components/ui/form-error-alert";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -95,6 +99,12 @@ export function HomeBlocksTab() {
     isLoading: schemaLoading,
     mutate: revalidateSchema,
   } = useSettingsSchema();
+  // Nachladen nach dem Speichern der Geburtstags-Einstellungen: ein Fehler
+  // dabei ist ein Ladefehler, kein Fehler des Speicherns (#6652).
+  const schemaAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Einstellungen",
+    () => revalidateSchema(),
+  );
   const presenceMode = usePresenceMode();
   const openCareGroupMode = useOpenCareGroupMode();
   const bookedModules = useBookedModules();
@@ -194,7 +204,7 @@ export function HomeBlocksTab() {
       }
       if (changedBirthdayKeys.length > 0) {
         notifySettingsChanged();
-        await revalidateSchema();
+        await schemaAfterWrite.refresh();
       }
       // Discarded: the account or school changed meanwhile, nothing was
       // confirmed for this view. No success and no error (#5012).
@@ -252,6 +262,7 @@ export function HomeBlocksTab() {
           size="md"
           disabled={busy || !dirty}
           onClick={() => void save()}
+          tooltip="Übernimmt Ihre Auswahl für die Startseite aller Mitarbeitenden."
         >
           {busy ? "Wird gespeichert …" : "Speichern"}
         </Button>
@@ -264,6 +275,7 @@ export function HomeBlocksTab() {
           alle.
         </p>
 
+        <LoadErrorAlert error={schemaAfterWrite.error} />
         <FormErrorAlert message={formErrors.error} />
 
         <PolicyGroup

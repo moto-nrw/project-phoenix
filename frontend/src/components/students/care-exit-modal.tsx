@@ -25,6 +25,10 @@ import {
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import {
+  useFormModalPending,
+  type FormModalOperation,
+} from "~/components/ui/use-form-modal-pending";
 import { WizardStepper } from "~/components/ui/wizard-stepper";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { formatDate, berlinTodayISO } from "~/lib/date-helpers";
@@ -67,9 +71,17 @@ interface CareExitModalProps {
    * nur den Grund ändern will, verschiebt das Ende ungewollt nach vorne.
    */
   readonly plannedLastCareDay?: string;
+  /**
+   * Vorschlag für den letzten Betreuungstag, wenn noch kein Ende eingetragen
+   * ist, etwa das neue Ende einer gekürzten Anmeldephase (#6598). Ein Tag in
+   * der Vergangenheit ist nicht wählbar; dann steht der heutige Tag im Feld.
+   */
+  readonly suggestedLastCareDay?: string;
   /** Durable follow-up created by an authoritative complete withdrawal. */
   readonly completionId?: string;
   readonly firstBookinglessDay?: string;
+  /** Entfernt blockierte Kinder aus der Auswahl beim Aufrufer. */
+  readonly onExcludeBlocked?: (studentIds: readonly string[]) => void;
   readonly onClose: () => void;
   readonly onFinished: () => Promise<void> | void;
 }
@@ -85,8 +97,10 @@ export function CareExitModal({
   isOpen,
   studentIds,
   plannedLastCareDay,
+  suggestedLastCareDay,
   completionId,
   firstBookinglessDay,
+  onExcludeBlocked,
   onClose,
   onFinished,
 }: CareExitModalProps) {
@@ -96,10 +110,11 @@ export function CareExitModal({
     if (!completionId || !firstBookinglessDay) return null;
     return lastCareDayBefore(firstBookinglessDay);
   }, [completionId, firstBookinglessDay]);
+  const presetLastCareDay = plannedLastCareDay ?? suggestedLastCareDay;
   const initialLastCareDay =
     completionLastCareDay ??
-    (plannedLastCareDay && plannedLastCareDay >= berlinTodayISO()
-      ? plannedLastCareDay
+    (presetLastCareDay && presetLastCareDay >= berlinTodayISO()
+      ? presetLastCareDay
       : berlinTodayISO());
   const isCorrection = Boolean(plannedLastCareDay);
   const [step, setStep] = useState<1 | 2>(1);
@@ -109,8 +124,9 @@ export function CareExitModal({
   );
   const [note, setNote] = useState("");
   const [preview, setPreview] = useState<CareExitPreview | null>(null);
-  const [loading, setLoading] = useState(false);
-  const [saving, setSaving] = useState(false);
+  // Vorschau und Bestätigen laufen als Vorgang dieses Panels: währenddessen
+  // ist es gesperrt, und eine späte Antwort ändert keinen neueren Vorgang.
+  const save = useFormModalPending(isOpen);
   const errors = useApiFormError();
   const showError = errors.show;
   const clearErrors = errors.clear;
@@ -139,44 +155,49 @@ export function CareExitModal({
   // Lädt die Vorschau neu. Eine vorhandene Fehlermeldung wird NICHT gelöscht:
   // nach einer abgelehnten Bestätigung ist genau diese Meldung der Grund,
   // warum gerade neu geladen wird — sie muss stehen bleiben.
-  const loadPreview = useCallback(async () => {
-    if (!reason) return null;
-    setLoading(true);
-    try {
-      const input = {
-        studentIds: ids,
-        lastCareDay,
-        reason,
-        reasonNote: note,
-      };
-      const result = completionId
-        ? await previewWithdrawalCareEnd(completionId, input)
-        : await previewCareExit(input);
-      setPreview(result);
-      return result;
-    } catch (previewError) {
-      logger.error("care_exit_preview_failed", {
-        student_count: ids.length,
-        error:
-          previewError instanceof Error
-            ? previewError.message
-            : String(previewError),
-      });
-      setPreview(null);
-      await showError(previewError, {
-        object: "die Vorschau",
-        retry: () => void latestContinueRef.current(),
-      });
-      return null;
-    } finally {
-      setLoading(false);
-    }
-  }, [completionId, ids, lastCareDay, note, reason, showError]);
+  const loadPreview = useCallback(
+    async (op: FormModalOperation) => {
+      if (!reason) return null;
+      try {
+        const input = {
+          studentIds: ids,
+          lastCareDay,
+          reason,
+          reasonNote: note,
+        };
+        const result = completionId
+          ? await previewWithdrawalCareEnd(completionId, input)
+          : await previewCareExit(input);
+        // Nach dem Schließen gehört die Vorschau keinem Panel mehr.
+        if (!op.isCurrent()) return null;
+        setPreview(result);
+        return result;
+      } catch (previewError) {
+        logger.error("care_exit_preview_failed", {
+          student_count: ids.length,
+          error:
+            previewError instanceof Error
+              ? previewError.message
+              : String(previewError),
+        });
+        if (!op.isCurrent()) return null;
+        setPreview(null);
+        await showError(previewError, {
+          object: "die Vorschau",
+          retry: () => void latestContinueRef.current(),
+        });
+        return null;
+      }
+    },
+    [completionId, ids, lastCareDay, note, reason, showError],
+  );
 
   const handleContinue = async () => {
-    errors.clear();
-    const result = await loadPreview();
-    if (result) setStep(2);
+    await save.run(async (op) => {
+      errors.clear();
+      const result = await loadPreview(op);
+      if (result && op.isCurrent()) setStep(2);
+    });
   };
   useLayoutEffect(() => {
     latestContinueRef.current = handleContinue;
@@ -184,20 +205,44 @@ export function CareExitModal({
 
   const handleConfirm = async () => {
     if (!preview || !reason || preview.blocked) return;
-    setSaving(true);
-    errors.clear();
-    try {
-      const input = {
-        studentIds: ids,
-        lastCareDay,
-        reason,
-        reasonNote: note,
-      };
-      if (completionId) {
-        await confirmWithdrawalCareEnd(completionId, preview.token, input);
-      } else {
-        await confirmCareExit(preview.token, input);
+    await save.run(async (op) => {
+      errors.clear();
+      try {
+        const input = {
+          studentIds: ids,
+          lastCareDay,
+          reason,
+          reasonNote: note,
+        };
+        if (completionId) {
+          await confirmWithdrawalCareEnd(completionId, preview.token, input);
+        } else {
+          await confirmCareExit(preview.token, input);
+        }
+      } catch (confirmError) {
+        logger.error("care_exit_confirm_failed", {
+          student_count: ids.length,
+          error:
+            confirmError instanceof Error
+              ? confirmError.message
+              : String(confirmError),
+        });
+        // Eine späte Ablehnung gehört nicht in einen neueren Vorgang.
+        if (!op.isCurrent()) return;
+        // Der Vorschau-Stand ist verbraucht: neu laden, damit die Liste zeigt,
+        // was sich geändert hat. Scheitert auch das, steht dessen Meldung.
+        const reloaded = await loadPreview(op);
+        if (reloaded && op.isCurrent()) {
+          await errors.show(confirmError, {
+            object: "das Betreuungsende",
+            retry: () => void latestConfirmRef.current(),
+          });
+        }
+        return;
       }
+      // onFinished schließt das Panel beim Aufrufer; nach dem Schließen oder
+      // in einem neuen Vorgang darf eine späte Antwort das nicht mehr.
+      if (!op.isCurrent()) return;
       try {
         await onFinished();
       } catch (refreshError) {
@@ -210,28 +255,9 @@ export function CareExitModal({
               ? refreshError.message
               : String(refreshError),
         });
-        onClose();
+        if (op.isCurrent()) onClose();
       }
-    } catch (confirmError) {
-      logger.error("care_exit_confirm_failed", {
-        student_count: ids.length,
-        error:
-          confirmError instanceof Error
-            ? confirmError.message
-            : String(confirmError),
-      });
-      // Der Vorschau-Stand ist verbraucht: neu laden, damit die Liste zeigt,
-      // was sich geändert hat. Scheitert auch das, steht dessen Meldung.
-      const reloaded = await loadPreview();
-      if (reloaded) {
-        await errors.show(confirmError, {
-          object: "das Betreuungsende",
-          retry: () => void latestConfirmRef.current(),
-        });
-      }
-    } finally {
-      setSaving(false);
-    }
+    });
   };
   useLayoutEffect(() => {
     latestConfirmRef.current = handleConfirm;
@@ -240,22 +266,16 @@ export function CareExitModal({
   const footer =
     step === 1 ? (
       <>
-        <Button
-          type="button"
-          variant="outline"
-          size="md"
-          onClick={onClose}
-          disabled={loading}
-        >
+        <Button type="button" variant="outline" size="md" onClick={onClose}>
           Abbrechen
         </Button>
         <Button
           type="button"
           variant="primary"
           size="md"
-          isLoading={loading}
+          isLoading={save.pending}
           loadingText="Wird geprüft…"
-          disabled={!detailsComplete || loading}
+          disabled={!detailsComplete}
           onClick={() => void handleContinue()}
         >
           Weiter
@@ -268,7 +288,6 @@ export function CareExitModal({
           variant="outline"
           size="md"
           onClick={() => setStep(1)}
-          disabled={saving}
         >
           Zurück
         </Button>
@@ -276,9 +295,9 @@ export function CareExitModal({
           type="button"
           variant="primary"
           size="md"
-          isLoading={saving}
+          isLoading={save.pending}
           loadingText="Wird beendet…"
-          disabled={saving || !preview || preview.blocked}
+          disabled={!preview || preview.blocked}
           onClick={() => void handleConfirm()}
         >
           <LogOut className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -297,11 +316,12 @@ export function CareExitModal({
     <SlideOver
       open={isOpen}
       onOpenChange={(nextOpen) => {
-        if (!nextOpen && !saving) onClose();
+        if (!nextOpen) onClose();
       }}
+      pending={save}
     >
       <SlideOverContent size="md">
-        <SlideOverHeader close={<SlideOverCloseButton disabled={saving} />}>
+        <SlideOverHeader close={<SlideOverCloseButton />}>
           <SlideOverTitle>{title}</SlideOverTitle>
           <SlideOverDescription>
             {step === 1
@@ -366,7 +386,11 @@ export function CareExitModal({
           ) : null}
 
           {step === 2 && preview ? (
-            <CareExitPreviewList preview={preview} />
+            <CareExitPreviewList
+              preview={preview}
+              pending={save.pending}
+              onExcludeBlocked={onExcludeBlocked}
+            />
           ) : null}
         </div>
         <SlideOverFooter>{footer}</SlideOverFooter>
@@ -378,8 +402,12 @@ export function CareExitModal({
 /** Die Vorschau: jedes Kind namentlich, mit dem, was sich für es ändert. */
 function CareExitPreviewList({
   preview,
+  pending,
+  onExcludeBlocked,
 }: {
   readonly preview: CareExitPreview;
+  readonly pending: boolean;
+  readonly onExcludeBlocked?: (studentIds: readonly string[]) => void;
 }) {
   const blocked = preview.students.filter((student) => student.blocker);
   const ready = preview.students.filter((student) => !student.blocker);
@@ -405,6 +433,20 @@ function CareExitPreviewList({
               </li>
             ))}
           </ul>
+          {onExcludeBlocked ? (
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              className="mt-3"
+              disabled={pending}
+              onClick={() =>
+                onExcludeBlocked(blocked.map((student) => student.studentId))
+              }
+            >
+              Aus Auswahl nehmen
+            </Button>
+          ) : null}
         </InsetPanel>
       ) : null}
 

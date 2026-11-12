@@ -12,7 +12,7 @@ import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 // ein; die Rückmeldung der OGS steht am Kind (#4796).
 
 import { useSearchParams } from "next/navigation";
-import { useCallback, useMemo, useState } from "react";
+import { useCallback, useLayoutEffect, useMemo, useRef, useState } from "react";
 import type { CSSProperties } from "react";
 import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
@@ -21,6 +21,7 @@ import { CustomSelect } from "~/components/ui/custom-select";
 import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
 import { FormModal } from "~/components/ui/form-modal";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import {
@@ -48,6 +49,7 @@ import {
   HOMEWORK_SUBJECT_MAX_LENGTH,
 } from "~/lib/homework-feedback";
 import { useSwrResourceLoadError } from "~/lib/hooks/use-swr-load-error";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import {
   type ClassDayClasses,
@@ -217,7 +219,8 @@ export function ClassDayClass({
   const [hintOpen, setHintOpen] = useState(false);
   const [hintTarget, setHintTarget] = useState(CLASS_TARGET);
   const [hintBody, setHintBody] = useState("");
-  const [hintSaving, setHintSaving] = useState(false);
+  const hintSave = useFormModalPending(hintOpen);
+  const hintSaving = hintSave.pending;
   const [hintDeleteOpen, setHintDeleteOpen] = useState(false);
   const [hintDeleting, setHintDeleting] = useState(false);
   const hintErrors = useApiFormError();
@@ -298,7 +301,24 @@ export function ClassDayClass({
     },
   );
 
-  useSchoolReportRefusal(error, classReportKey);
+  const discardRefusedReport = useSchoolReportRefusal(error, classReportKey);
+
+  // Nachladen nach dem Schreiben holt den Bericht direkt: ein Fehler dabei
+  // weist ab und steht als Ladefehler über der Klasse, die bestätigten
+  // Zeilen bleiben stehen (#6652). Ein reines `mutate()` meldete ihn nicht.
+  const reportAfterWrite = useRefreshAfterWrite(
+    "die Anzeige der Klasse",
+    async () => {
+      try {
+        await refetchReport(fetchClassDay(schoolClass, dateISO), {
+          revalidate: false,
+        });
+      } catch (err) {
+        discardRefusedReport(err);
+        throw err;
+      }
+    },
+  );
 
   // Eine neue Krankmeldung oder ein anderer Status an dieser Schule lädt die
   // offene Klasse neu, ohne Neuladen der Seite (#4792).
@@ -396,6 +416,13 @@ export function ClassDayClass({
     setHintOpen(false);
     hintErrors.clear();
   };
+  const retrySaveRef = useRef<
+    Record<"hint" | "morning" | "handover", () => Promise<void>>
+  >({
+    hint: async () => undefined,
+    morning: async () => undefined,
+    handover: async () => undefined,
+  });
   const saveHint = async () => {
     if (trimmedHint === "") {
       hintErrors.invalid("Bitte schreiben Sie einen Hinweis.", {
@@ -407,23 +434,28 @@ export function ClassDayClass({
       hintErrors.invalid(DAY_HINT_TOO_LONG, { day_hint: DAY_HINT_TOO_LONG });
       return;
     }
-    setHintSaving(true);
-    hintErrors.clear();
-    try {
-      await saveDayHintSchool(schoolClass, dateISO, trimmedHint, hintStudentId);
-      setHintOpen(false);
-      await refetchReport();
-    } catch (err) {
-      logger.error("class_day_hint_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await hintErrors.show(err, {
-        object: "der Hinweis",
-        retry: () => void saveHint(),
-      });
-    } finally {
-      setHintSaving(false);
-    }
+    await hintSave.run(async (op) => {
+      hintErrors.clear();
+      try {
+        await saveDayHintSchool(
+          schoolClass,
+          dateISO,
+          trimmedHint,
+          hintStudentId,
+        );
+        if (op.isCurrent()) setHintOpen(false);
+        await reportAfterWrite.refresh();
+      } catch (err) {
+        logger.error("class_day_hint_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        if (!op.isCurrent()) return;
+        await hintErrors.show(err, {
+          object: "der Hinweis",
+          retry: () => void retrySaveRef.current.hint(),
+        });
+      }
+    });
   };
   const deleteHint = async () => {
     setHintDeleting(true);
@@ -432,7 +464,7 @@ export function ClassDayClass({
       await deleteDayHintSchool(schoolClass, dateISO, hintStudentId);
       setHintDeleteOpen(false);
       setHintOpen(false);
-      await refetchReport();
+      await reportAfterWrite.refresh();
     } catch (err) {
       logger.error("class_day_hint_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -518,7 +550,7 @@ export function ClassDayClass({
         dateISO,
         draftMarks(rows, draft),
       );
-      await refetchReport();
+      await reportAfterWrite.refresh();
       // Die neu geladene Liste zeigt den gespeicherten Stand, der Fuß
       // verschwindet: das ist die Rückmeldung.
       setDraftState({ key: reportKey, marks: {} });
@@ -528,7 +560,7 @@ export function ClassDayClass({
       });
       void morningErrors.show(cause, {
         object: "die Anwesenheit",
-        retry: () => void saveMorning(),
+        retry: () => void retrySaveRef.current.morning(),
       });
     } finally {
       setSavingMorning(false);
@@ -542,7 +574,7 @@ export function ClassDayClass({
     api: homework,
     schoolClass,
     dateISO,
-    onChanged: () => refetchReport(),
+    onChanged: reportAfterWrite.refresh,
   });
   // Übergabe an die OGS (#4794): bestätigt wird je Klasse, Ausnahmen je Kind.
   const canHandOver =
@@ -554,7 +586,8 @@ export function ClassDayClass({
   const [handoverAbsent, setHandoverAbsent] = useState<ReadonlySet<number>>(
     () => new Set(),
   );
-  const [savingHandover, setSavingHandover] = useState(false);
+  const handoverSave = useFormModalPending(handoverOpen);
+  const savingHandover = handoverSave.pending;
   const handoverErrors = useApiFormError();
   const [withdrawOpen, setWithdrawOpen] = useState(false);
   const [withdrawing, setWithdrawing] = useState(false);
@@ -575,37 +608,44 @@ export function ClassDayClass({
   const saveHandover = async () => {
     if (!handOverClass) return;
     handoverErrors.clear();
-    setSavingHandover(true);
-    try {
-      await handOverClass(schoolClass, dateISO, {
-        present: ogsRows
-          .filter((row) => !handoverAbsent.has(row.student_id))
-          .map((row) => row.student_id),
-        absent: ogsRows
-          .filter((row) => handoverAbsent.has(row.student_id))
-          .map((row) => row.student_id),
-      });
-      await refetchReport();
-      setHandoverOpen(false);
-    } catch (cause) {
-      logger.error("class_day_handover_save_failed", {
-        error: cause instanceof Error ? cause.message : String(cause),
-      });
-      void handoverErrors.show(cause, {
-        object: "die Übergabe",
-        retry: () => void saveHandover(),
-      });
-    } finally {
-      setSavingHandover(false);
-    }
+    await handoverSave.run(async (op) => {
+      try {
+        await handOverClass(schoolClass, dateISO, {
+          present: ogsRows
+            .filter((row) => !handoverAbsent.has(row.student_id))
+            .map((row) => row.student_id),
+          absent: ogsRows
+            .filter((row) => handoverAbsent.has(row.student_id))
+            .map((row) => row.student_id),
+        });
+        await reportAfterWrite.refresh();
+        if (op.isCurrent()) setHandoverOpen(false);
+      } catch (cause) {
+        logger.error("class_day_handover_save_failed", {
+          error: cause instanceof Error ? cause.message : String(cause),
+        });
+        if (!op.isCurrent()) return;
+        void handoverErrors.show(cause, {
+          object: "die Übergabe",
+          retry: () => void retrySaveRef.current.handover(),
+        });
+      }
+    });
   };
+  useLayoutEffect(() => {
+    retrySaveRef.current = {
+      hint: saveHint,
+      morning: saveMorning,
+      handover: saveHandover,
+    };
+  });
   const confirmWithdraw = async () => {
     if (!withdrawClassHandover) return;
     withdrawErrors.clear();
     setWithdrawing(true);
     try {
       await withdrawClassHandover(schoolClass, dateISO);
-      await refetchReport();
+      await reportAfterWrite.refresh();
       setWithdrawOpen(false);
     } catch (cause) {
       logger.error("class_day_handover_withdraw_failed", {
@@ -654,7 +694,7 @@ export function ClassDayClass({
               }
               size="md"
               mobilePosition="bottom"
-              closeDisabled={homeworkForm.saving}
+              pending={homeworkForm.pending}
               isBackdropDismissDisabled
               error={homeworkForm.formError}
               footer={
@@ -723,7 +763,7 @@ export function ClassDayClass({
             <FormModal
               isOpen={handoverOpen}
               onClose={() => setHandoverOpen(false)}
-              closeDisabled={savingHandover}
+              pending={handoverSave}
               title={`${schoolClassLabel(schoolClass)} an die OGS übergeben`}
               size="md"
               mobilePosition="bottom"
@@ -799,6 +839,7 @@ export function ClassDayClass({
               title="Übergabe zurücknehmen?"
               confirmText="Zurücknehmen"
               isConfirmLoading={withdrawing}
+              loadingText="Wird zurückgenommen …"
             >
               <div className="space-y-3">
                 <FormErrorAlert message={withdrawErrors.error} />
@@ -826,6 +867,7 @@ export function ClassDayClass({
               isOpen={hintOpen}
               suspended={hintDeleteOpen}
               onClose={closeHint}
+              pending={hintSave}
               title="Hinweis für die OGS"
               size="md"
               mobilePosition="bottom"
@@ -1172,9 +1214,10 @@ export function ClassDayClass({
             </div>
           )}
 
-          {!weekend && !isLoading && error ? (
+          {!weekend && !isLoading && error && !reportAfterWrite.error ? (
             <LoadErrorAlert error={loadError} className="mt-4" />
           ) : null}
+          <LoadErrorAlert error={reportAfterWrite.error} className="mt-4" />
 
           {!weekend && !isLoading && report && rows.length === 0 && (
             <EmptyState

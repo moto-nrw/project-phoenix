@@ -5,9 +5,18 @@ import {
   waitFor,
 } from "@testing-library/react";
 import { createElement, type ReactElement, type ReactNode } from "react";
-import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import {
+  afterEach,
+  beforeAll,
+  beforeEach,
+  describe,
+  expect,
+  it,
+  vi,
+} from "vitest";
 
 import HomePage from "./page";
+import { preloadHomeBoardEditor } from "~/components/home/home-board";
 import { ToastProvider } from "~/contexts/ToastContext";
 
 import type {
@@ -268,6 +277,11 @@ function mockSWR(data: unknown, error?: Error) {
   } as unknown as ReturnType<typeof useSWRAuth>;
 }
 
+// Das Anpassen lädt die Seite erst bei Bedarf nach (#6469). Vorab geladen
+// öffnet es im selben Durchgang wie ein Klick, so wie im Browser nach dem
+// Zeigen auf „Anpassen“.
+beforeAll(() => preloadHomeBoardEditor());
+
 describe("Startseite", () => {
   let originalLocation: Location;
 
@@ -346,11 +360,12 @@ describe("Startseite", () => {
 
     const button = await screen.findByRole("button", { name: "Anpassen" });
     expect(button).toHaveTextContent(/^$/);
-    const tooltipId = button.getAttribute("aria-describedby");
-    expect(tooltipId).toBeTruthy();
-    const tooltip = document.getElementById(tooltipId ?? "");
-    expect(tooltip).toHaveAttribute("role", "tooltip");
-    expect(tooltip).toHaveTextContent("Anpassen");
+    fireEvent.pointerEnter(button, { pointerType: "mouse" });
+    await waitFor(() =>
+      expect(
+        document.body.querySelector("[data-action-hint]"),
+      ).toHaveTextContent("Anpassen"),
+    );
   });
 
   // Das Issue verlangt für Mischrollen die Vereinigung: die Leitung, die

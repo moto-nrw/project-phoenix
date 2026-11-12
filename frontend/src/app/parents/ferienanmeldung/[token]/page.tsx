@@ -15,6 +15,9 @@ import {
   PublicEnrollmentContentSkeleton,
   PublicEnrollmentPageShell,
 } from "~/components/enrollment/public-enrollment-shell";
+import { Alert } from "~/components/ui/alert";
+import { BackLink } from "~/components/ui/back-link";
+import { ButtonLink } from "~/components/ui/button";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiLoadError } from "~/contexts/ToastContext";
@@ -27,6 +30,7 @@ import {
 } from "~/lib/holiday-registration-api";
 import { useAnalyticsSchoolPolicy } from "~/lib/hooks/use-analytics-school-policy";
 import { createLogger } from "~/lib/logger";
+import { holidayRegistrationLoginPath } from "~/lib/parent-holiday-registration";
 
 const logger = createLogger({ component: "HolidayRegistrationPage" });
 
@@ -56,7 +60,9 @@ export default function HolidayRegistrationPage({ params }: PageProps) {
         parentSession
           ? fetchHolidayRegistrationFamily(token).catch((err: unknown) => {
               // Deliberately silent: the prefill is a convenience. Without
-              // it the parent fills in the form like everyone else.
+              // it the parent fills in the form like everyone else; no
+              // account proof goes along, and the next sign-in claims the
+              // registration by its address (#6673).
               logger.warn("holiday_registration_family_load_failed", {
                 error: err instanceof Error ? err.message : String(err),
               });
@@ -104,6 +110,10 @@ export default function HolidayRegistrationPage({ params }: PageProps) {
   return (
     <PublicEnrollmentPageShell>
       <div className="mx-auto w-full max-w-3xl space-y-6">
+        {/* Wer aus der Eltern-App kommt, findet dorthin zurück (#6671). */}
+        {parentSession ? (
+          <BackLink href="/" label={t("backToParentApp")} />
+        ) : null}
         {loadError.error ? <LoadErrorAlert error={loadError.error} /> : null}
         {!offer && !loadError.error ? (
           <div role="status" aria-label={t("loading")}>
@@ -134,11 +144,35 @@ export default function HolidayRegistrationPage({ params }: PageProps) {
                 ) : null}
               </div>
             </SectionCard>
+            {/* Ohne Elternkonto am Anfang des Formulars (#6671): wer die
+                Eltern-App schon hat, meldet sich an und kommt mit seinen
+                Kindern und Angaben hierher zurück. */}
+            {offer.open && step === "form" && status === "unauthenticated" ? (
+              <Alert
+                type="info"
+                announce="off"
+                title={t("accountHintTitle")}
+                message={t("accountHintText")}
+                action={
+                  <ButtonLink
+                    href={holidayRegistrationLoginPath(token)}
+                    variant="link_tone"
+                    size="compact"
+                  >
+                    {t("accountHintLogin")}
+                  </ButtonLink>
+                }
+              />
+            ) : null}
             {offer.open ? (
               <HolidayRegistrationForm
                 token={token}
                 offer={offer}
                 family={family}
+                // Ohne Eltern-Sitzung fragt das Formular am Ende nach dem
+                // Elternkonto; mit Sitzung trägt die Anmeldung den Nachweis
+                // des Kontos aus der Vorbefüllung (#6673).
+                parentAccount={parentSession ? "signed-in" : "ask"}
                 onFormChanged={reloadOffer}
                 onStepChange={setStep}
               />

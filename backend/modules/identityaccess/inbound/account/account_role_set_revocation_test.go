@@ -14,6 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
+	"github.com/moto-nrw/project-phoenix/api"
 	"github.com/moto-nrw/project-phoenix/api/testutil"
 	testpkg "github.com/moto-nrw/project-phoenix/test"
 )
@@ -299,10 +300,15 @@ func TestReplaceAccountRoleWaitsForEachRoleRowSeparately(t *testing.T) {
 	t.Parallel()
 	const readTimeout, hold = time.Second, 700 * time.Millisecond
 	db := testpkg.SetupIsolatedTestDB(t)
-	pool := shortReadTimeoutPool(t, readTimeout)
-	f := newRBACBudgetFixtureOn(t, pool)
+	f := newRBACBudgetFixtureOn(t, db)
 	token, _ := f.accountToken(t, "role-set-wait-admin", "users:manage")
 	s := newRoleSetAccount(t, f, "role-set-wait", true)
+	// Only the request transaction needs the artificial read timeout.
+	// Fixture writes and final readback use the normal pool so shared-server
+	// I/O does not consume the lock test's deliberately narrow read budget.
+	pool := shortReadTimeoutPool(t, readTimeout)
+	f.router = testutil.NewTenantRouter(pool)
+	f.router.Mount("/auth", f.resource.Router(api.TenantSessionChain))
 	ctx := context.Background()
 
 	holdRow := func(roleID int64) bun.Tx {

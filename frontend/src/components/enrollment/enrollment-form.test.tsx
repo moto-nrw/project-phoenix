@@ -575,6 +575,32 @@ describe("EnrollmentForm", () => {
     },
   );
 
+  it("requires a new captcha after the server rejects a submission", async () => {
+    captchaConfigFixture.mockResolvedValue({
+      enabled: true,
+      site_key: "test-site-key",
+    });
+    phaseOfferingsFixture.mockResolvedValue({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+    mockSubmitEnrollment.mockRejectedValueOnce(new ApiError("rejected", 400));
+    await renderForm();
+    await waitForLoaded();
+    await fillRequiredFields();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    const submit = screen.getByRole("button", { name: "Anmeldung absenden" });
+    fireEvent.click(submit);
+    await screen.findByRole("alert");
+    expect(submit).toBeDisabled();
+    expect(document.querySelector('input[name="captcha_token"]')).toHaveValue(
+      "",
+    );
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    expect(submit).toBeEnabled();
+  });
+
   it("does not mount Turnstile or block submission when captcha is disabled with a site key", async () => {
     phaseOfferingsFixture.mockResolvedValue({
       offerings: [],
@@ -3482,6 +3508,29 @@ describe("EnrollmentForm", () => {
     ]);
   });
 
+  it("does not transfer a removed child's offering error to the next child", async () => {
+    const draft = editDraft([
+      { id: "c1", first_name: "Anton", last_name: "Muster" },
+      { id: "c2", first_name: "Berta", last_name: "Muster" },
+    ]);
+    draft.children[0]!.offering_ids = [];
+    phaseOfferingsFixture.mockResolvedValue({
+      offerings: offerings(),
+      careOfferingSelectionMode: "exactly_one",
+    });
+    await renderForm({ initialDraft: draft, skipCaptcha: true });
+    await waitForLoaded();
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    expect(
+      document.getElementById("children-0-offerings-error"),
+    ).toBeInTheDocument();
+    fireEvent.click(screen.getAllByRole("button", { name: "Entfernen" })[0]!);
+    expect(screen.getByDisplayValue("Berta")).toBeInTheDocument();
+    expect(
+      document.getElementById("children-0-offerings-error"),
+    ).not.toBeInTheDocument();
+  });
+
   it("keeps each child's card state bound to that child when a sibling is removed", async () => {
     // Regression for the array-index key bug: the per-child WeekdayMultiModeInput
     // holds local-only state (the "same ways home" toggle). With index keys,
@@ -5065,6 +5114,60 @@ describe("EnrollmentForm restrictToOfferings (#2251)", () => {
     // No consent/legal section.
     expect(screen.queryByText(/AGB/)).not.toBeInTheDocument();
   });
+
+  it.each([true, false])(
+    "lets parents answer the target form's holiday care question after rollover (%s)",
+    async (wish) => {
+      const user = userEvent.setup();
+      const submitter = vi
+        .fn()
+        .mockResolvedValue({ status_url: "/status/tok-1" });
+      phaseSchemaFixture.mockResolvedValue({
+        ...schema(),
+        core_requirements: { holiday_care_wish: true },
+      });
+      // Rollover carries the bookings into the new phase without copying
+      // last year's holiday care answer.
+      const initialDraft = editDraft([
+        { id: "c-1", first_name: "Anton", last_name: "Alster" },
+      ]);
+      await renderForm({
+        restrictToOfferings: true,
+        lockChildStructure: true,
+        skipCaptcha: true,
+        submitter,
+        initialDraft,
+      });
+      await waitForLoaded();
+
+      const question = screen.getByRole("group", {
+        name: /Braucht das Kind in den Ferien Betreuung/,
+      });
+      const send = screen.getByRole("button", { name: "Anmeldung absenden" });
+      await user.click(send);
+      expect(submitter).not.toHaveBeenCalled();
+      expect(within(question).getByText(/Ja oder Nein/)).toBeInTheDocument();
+      await user.click(
+        within(question).getByRole("radio", { name: wish ? "Ja" : "Nein" }),
+      );
+
+      const offering = screen.getByRole("checkbox", {
+        name: /Flexible Betreuung/,
+      });
+      await user.click(offering);
+      await user.click(await screen.findByRole("button", { name: "Mo" }));
+      await user.click(send);
+
+      await waitFor(() => expect(submitter).toHaveBeenCalledTimes(1));
+      const payload = submitter.mock.calls[0]?.[0] as SubmitEnrollmentPayload;
+      expect(payload.children[0]?.holiday_care_wish).toBe(wish);
+      expect(payload.children[0]?.offering_ids).toEqual(
+        expect.arrayContaining([11, 12]),
+      );
+      expect(payload.children[0]?.first_name).toBe("Anton");
+      expect(payload.guardian_email).toBe(initialDraft.guardian_email);
+    },
+  );
 
   it("submits the unchanged draft data with only the offering change applied", async () => {
     const user = userEvent.setup();

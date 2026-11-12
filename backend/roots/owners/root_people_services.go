@@ -55,10 +55,15 @@ func BuildGuardianService(db transactionruntime.Database, people PeopleRows, aud
 	if err != nil {
 		return nil, err
 	}
+	invalidate, err := identityaccessCompose.NewGuardianInvitationInvalidation(db.Pool())
+	if err != nil {
+		return nil, err
+	}
 	return peopleCompose.NewGuardianService(peoplePorts.GuardianServiceDependencies{
 		GuardianProfileRepo: people.GuardianProfiles, GuardianPhoneNumberRepo: peopleCompose.NewGuardianPhoneNumberRepository(db.Pool()),
 		StudentGuardianRepo: people.StudentGuardians, GuardianInvitations: NewGuardianInvitationReads(invitations),
-		StudentRepo: people.Students, PersonRepo: people.Persons,
+		InvalidateInvites: invalidate,
+		StudentRepo:       people.Students, PersonRepo: people.Persons,
 		GuardianFinancialRepo:  peopleCompose.NewGuardianFinancialDataRepository(db.Pool()),
 		GuardianFinancialAudit: NewGuardianFinancialAudit(audit.Persistence.GuardianFinancialChange),
 		DataAccessLog:          NewGuardianDataAccessLog(audit.Persistence.DataAccessLog),
@@ -142,8 +147,9 @@ func BuildWorkforceStaffAdmin(db transactionruntime.Database, env RootEnvironmen
 // Audit Platform consent trail. None of them needs the directory, so the
 // module receives the runtime at construction.
 func BuildStudentPhotoRuntime(db transactionruntime.Database, env RootEnvironment, settings settingsCompose.SettingsService, hub *realtime.Hub, audit AuditOwner, unlinker peoplePorts.PhotoUnlinker, actor func(context.Context) int64) StudentPhotoRuntime {
+	cleanup := fileStorageCompose.NewUploadCleanup(db.Pool(), "student-photos")
 	return StudentPhotoRuntime{
-		Cleanup:  fileStorageCompose.NewUploadCleanup(db.Pool(), "student-photos").Queue,
+		Cleanup: cleanup.Queue, CleanupBatch: cleanup.QueueAll,
 		Settings: settings, Broadcaster: hub, Unlinker: unlinker,
 		Consents: studentConsentTrail{trail: audit.Persistence.StudentConsentChange},
 		Logger:   env.Logger.With("service", "student-photo"), Actor: actor,

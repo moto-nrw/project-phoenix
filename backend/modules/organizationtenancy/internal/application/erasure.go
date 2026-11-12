@@ -28,6 +28,9 @@ func NewErasure(store ports.ErasureStore, files organizationtenancy.ErasureFiles
 
 var orderReferencePattern = regexp.MustCompile(`^[A-Z][A-Z0-9-]{2,39}$`)
 
+// exportChecksumPattern is the lowercase SHA-256 a COMPLETE file holds (#4720).
+var exportChecksumPattern = regexp.MustCompile(`^[0-9a-f]{64}$`)
+
 func validateErasureRequest(r organizationtenancy.ErasureRequest) error {
 	if r.ReceiptID != 0 {
 		if r.ReceiptID < 0 || r.SchoolID != 0 || r.OrganizationID != 0 || r.OperatorID != 0 || r.OrderReference != "" {
@@ -82,10 +85,34 @@ func (s *Erasure) checkLedger(ctx context.Context, r organizationtenancy.Erasure
 	if err := s.store.CheckSchoolLock(ctx); err != nil {
 		return err
 	}
+	// A preview refuses where the run refuses.
+	for _, id := range ids {
+		if err := s.checkDataReturn(ctx, r, "school", id); err != nil {
+			return err
+		}
+	}
 	if r.DryRun {
 		return nil
 	}
 	return s.ledger.Check(ids, r.OrderReference)
+}
+
+// checkDataReturn refuses an erasure, and its preview, while a released
+// return package of the school or Träger still lies in the store (ADR 0203):
+// the erasure does not reach that store, so the package would stay
+// retrievable. Revoke and purge it first (tenant return revoke, tenant
+// return purge). A trigger on the root row repeats the check in the
+// transaction of the delete. A package of the Träger does not block the
+// erasure of one of its schools.
+func (s *Erasure) checkDataReturn(ctx context.Context, r organizationtenancy.ErasureRequest, kind string, id int64) error {
+	raw, err := s.store.Call(ctx, r.LockTimeout, r.StatementTimeout, "data_return_open", kind, id)
+	if err != nil {
+		return err
+	}
+	if string(raw) != "0" {
+		return fmt.Errorf("erasure: %s %d has a released return package that is not purged; run tenant return revoke --archive and tenant return purge first; nothing erased", kind, id)
+	}
+	return nil
 }
 
 func (s *Erasure) runSchool(ctx context.Context, r organizationtenancy.ErasureRequest, id int64, kinds []organizationtenancy.LifecycleFileKind) (json.RawMessage, error) {
@@ -175,6 +202,11 @@ func (s *Erasure) runOrganization(ctx context.Context, r organizationtenancy.Era
 		proof, err := s.eraseOrganizationRoot(ctx, r)
 		return append(results, proof...), err
 	}
+	if !r.DryRun && status == "records_choice_missing" {
+		// An order recorded before the hint on the records (#4720, AVV Ziff.
+		// 8.4), started or not: never erase or resume without the choice.
+		return nil, errors.New("erasure: organization order is records_choice_missing; it was recorded without the hint on the records and the customer's choice. Record both on the open erasure order in the operator portal (Träger page, erasure order: record the choice), then run again; nothing erased")
+	}
 	if !r.DryRun && status != "due" {
 		return nil, fmt.Errorf("erasure: organization order is %s; it needs the written confirmation recorded in the operator portal, a deactivated organization and the end of the grace period; nothing erased", status)
 	}
@@ -200,6 +232,9 @@ func (s *Erasure) runOrganization(ctx context.Context, r organizationtenancy.Era
 // started. A refused preflight leaves the order withdrawable; from the mark
 // on, a run that fails halfway is resumed with the same order.
 func (s *Erasure) beginOrganization(ctx context.Context, r organizationtenancy.ErasureRequest, ids []int64) error {
+	if err := s.checkDataReturn(ctx, r, "organization", r.OrganizationID); err != nil {
+		return err
+	}
 	if r.DryRun {
 		return nil
 	}
@@ -207,6 +242,13 @@ func (s *Erasure) beginOrganization(ctx context.Context, r organizationtenancy.E
 		return err
 	}
 	_, err := s.store.Call(ctx, r.LockTimeout, r.StatementTimeout, "organization_begin", r.OrganizationID, r.OperatorID, r.OrderReference)
+	if err != nil {
+		// The begin refuses a package released since the check above (#6665);
+		// the store hides SQL errors, so name that cause when it applies.
+		if open := s.checkDataReturn(ctx, r, "organization", r.OrganizationID); open != nil {
+			return open
+		}
+	}
 	return err
 }
 
@@ -240,7 +282,7 @@ func (s *Erasure) eraseOrganizationRoot(ctx context.Context, r organizationtenan
 // destructive interpretation. Avatars retain global objects but erase legacy
 // school directories. This is an execution guard, not another data catalog.
 func validateErasureFiles(kinds []organizationtenancy.LifecycleFileKind) error {
-	supported := map[string]string{"files": "tenantDir", "announcement-attachments": "tenantDir", "student-documents": "tenantDir", "staff-documents": "tenantDir", "enrollment-uploads": "tenantDir", "student-photos": "tenantPrefix", "login-images": "tenantPrefix", "enrollment-legal-documents": "tenantPrefix", "enrollment-form-legal-documents": "tenantPrefix", "avatars": "account"}
+	supported := map[string]string{"files": "tenantDir", "announcement-attachments": "tenantDir", "student-documents": "tenantDir", "staff-documents": "tenantDir", "enrollment-uploads": "tenantDir", "message-attachments": "tenantDir", "student-photos": "tenantPrefix", "login-images": "tenantPrefix", "enrollment-legal-documents": "tenantPrefix", "enrollment-form-legal-documents": "tenantPrefix", "avatars": "account"}
 	if len(kinds) != len(supported) {
 		return errors.New("erasure: file catalog needs reviewed deletion paths")
 	}

@@ -206,6 +206,18 @@
   ],
   "data_objects": [
     {
+      "name": "enrollment.traeger_care_offering_schools",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "enrollment.traeger_care_offering_versions",
+      "write_owner": "care-plan"
+    },
+    {
+      "name": "enrollment.traeger_care_offerings",
+      "write_owner": "care-plan"
+    },
+    {
       "name": "active.excused_absence_requests",
       "write_owner": "care-plan"
     },

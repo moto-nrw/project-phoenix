@@ -891,6 +891,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (d groupLiveDirectory) SupervisedGroupIDs(ctx context.Context) (map[int64]bool, error) {\n\tids, err := d.userContext.MyGroupIDs(ctx)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tmarked := make(map[int64]bool, len(ids))\n\tfor _, id := range ids {\n\t\tmarked[id] = true\n\t}\n\treturn marked, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/groupLiveDirectory.SupervisedGroupIDs",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (d groupLiveDirectory) SupervisedGroups(ctx context.Context) ([]grouplive.GroupRecord, error) {\n\treturn d.userContext.MyGroupRecords(ctx)\n}",
       "form": "forward-debt",
       "id": "api/groupLiveDirectory.SupervisedGroups",
@@ -947,9 +954,23 @@
     },
     {
       "build": "production",
+      "evidence": "func (k holidayKnownChildren) KnownHolidayChildren(ctx context.Context, organizationID, periodID, registrationID int64) ([]enrollment.HolidayKnownChild, error) {\n\tknown, err := k.overview.KnownHolidayChildren(ctx, organizationID, periodID, registrationID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]enrollment.HolidayKnownChild, 0, len(known))\n\tfor _, child := range known {\n\t\tresult = append(result, enrollment.HolidayKnownChild(child))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/holidayKnownChildren.KnownHolidayChildren",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (u holidayProofUnits) UploadHolidayProof(ctx context.Context, link enrollmentOwner.HolidayRegistrationLink, upload enrollmentOwner.HolidayProofUpload) (enrollmentOwner.HolidayProofReceipt, error) {\n\tvar receipt enrollmentOwner.HolidayProofReceipt\n\terr := tenant.WithinTraeger(ctx, link.OrganizationID, func(txCtx context.Context) error {\n\t\tvar uploadErr error\n\t\treceipt, uploadErr = u.registrations.UploadHolidayProof(txCtx, link, upload)\n\t\treturn uploadErr\n\t})\n\treturn receipt, err\n}",
       "form": "unclassified-evidence",
       "id": "api/holidayProofUnits.UploadHolidayProof",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s holidayRetentionSettings) HolidayRegistrationRetentionDays(ctx context.Context, organizationID int64) (int, error) {\n\tif s.settings == nil {\n\t\treturn 0, errors.New(\"holiday registration: the Träger settings are not configured\")\n\t}\n\tdays, err := s.settings.TraegerInts(ctx, organizationID, []string{configModels.KeyHolidayRegistrationRetentionDays})\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\treturn days[configModels.KeyHolidayRegistrationRetentionDays], nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/holidayRetentionSettings.HolidayRegistrationRetentionDays",
       "owner": "roots"
     },
     {
@@ -968,9 +989,37 @@
     },
     {
       "build": "production",
+      "evidence": "func (m holidayWishModes) HolidayWishMode(ctx context.Context, organizationID int64) (string, error) {\n\tif m.settings == nil {\n\t\treturn \"\", errors.New(\"holiday registration: the Träger settings are not configured\")\n\t}\n\ttexts, err := m.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyHolidayRegistrationWishMode})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn texts[configModels.KeyHolidayRegistrationWishMode], nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/holidayWishModes.HolidayWishMode",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (w *iotStatusWriter) Write(body []byte) (int, error) {\n\tif !w.wroteHeader {\n\t\tw.WriteHeader(http.StatusOK)\n\t}\n\treturn w.ResponseWriter.Write(body)\n}",
       "form": "unclassified-evidence",
       "id": "api/iotStatusWriter.Write",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (u messageAttachmentUnits) DiscardMessageAttachment(ctx context.Context, attachmentID int64) error {\n\treturn tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {\n\t\treturn u.attachments.DiscardMessageAttachment(txCtx, attachmentID)\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "api/messageAttachmentUnits.DiscardMessageAttachment",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (u messageAttachmentUnits) OpenMessageAttachment(ctx context.Context, attachmentID int64) (*communicationModule.MessageAttachmentFile, error) {\n\tvar file *communicationModule.MessageAttachmentFile\n\terr := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {\n\t\tvar openErr error\n\t\tfile, openErr = u.attachments.OpenMessageAttachment(txCtx, attachmentID)\n\t\treturn openErr\n\t})\n\treturn file, err\n}",
+      "form": "unclassified-evidence",
+      "id": "api/messageAttachmentUnits.OpenMessageAttachment",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (u messageAttachmentUnits) PrepareMessageAttachment(ctx context.Context, upload communicationModule.MessageAttachmentUpload) (*communicationModule.PreparedMessageAttachment, error) {\n\tvar prepared *communicationModule.PreparedMessageAttachment\n\terr := tenant.WithinCurrentTenant(ctx, func(txCtx context.Context) error {\n\t\tvar prepareErr error\n\t\tprepared, prepareErr = u.attachments.PrepareMessageAttachment(txCtx, upload)\n\t\treturn prepareErr\n\t})\n\treturn prepared, err\n}",
+      "form": "unclassified-evidence",
+      "id": "api/messageAttachmentUnits.PrepareMessageAttachment",
       "owner": "roots"
     },
     {
@@ -1150,6 +1199,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (b parentBillingBillingRegistrations) HolidayWeekHosts(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID int64) ([]parentbilling.HolidayWeekHost, error) {\n\tweeks, err := b.hosts.HolidayWeekHosts(ctx, reviewer.OrganizationID, periodID)\n\tif err != nil {\n\t\treturn nil, parentBillingHolidayError(err)\n\t}\n\thosts := make([]parentbilling.HolidayWeekHost, len(weeks))\n\tfor i, week := range weeks {\n\t\thosts[i] = parentbilling.HolidayWeekHost{WeekID: week.WeekID, StartsOn: week.StartsOn, EndsOn: week.EndsOn, HostSchoolID: week.HostSchoolID}\n\t}\n\treturn hosts, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/parentBillingBillingRegistrations.HolidayWeekHosts",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (c parentBillingCareContracts) Recipients(ctx context.Context, organizationID int64, contractIDs []int64) (map[int64]parentbilling.CareRecipient, error) {\n\tparties, err := c.contracts.BillingRecipients(ctx, organizationID, contractIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trecipients := make(map[int64]parentbilling.CareRecipient, len(parties))\n\tfor contractID, party := range parties {\n\t\trecipients[contractID] = parentbilling.CareRecipient{FirstName: party.FirstName, LastName: party.LastName, Email: party.Email}\n\t}\n\treturn recipients, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingCareContracts.Recipients",
@@ -1206,13 +1262,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (b parentBillingHolidayRegistrations) SetHolidayDebtorNumber(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, debtorNumber string) (parentbilling.HolidayRegistration, error) {\n\tdetail, err := b.review.SetHolidayDebtorNumber(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, debtorNumber)\n\tif err != nil {\n\t\treturn parentbilling.HolidayRegistration{}, parentBillingHolidayError(err)\n\t}\n\treturn parentBillingRegistration(detail), nil\n}",
-      "form": "unclassified-evidence",
-      "id": "api/parentBillingHolidayRegistrations.SetHolidayDebtorNumber",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
       "evidence": "func (p parentBillingLetterPost) EnqueueDocumentNotice(ctx context.Context, notice parentbilling.BillingDocumentNotice) error {\n\tpayload, err := json.Marshal(notice)\n\tif err != nil {\n\t\treturn fmt.Errorf(\"document notice payload: %w\", err)\n\t}\n\t_, err = p.delivery.EnqueueDeferredPush(ctx, deliveryContract.DeferredPushIntent{OrganizationID: notice.OrganizationID, Template: parentbilling.PushKindBillingDocument, IdempotencyKey: fmt.Sprintf(\"parent-billing-document:%d\", notice.DocumentID), Payload: payload, Related: deliveryContract.RelatedEntity{Type: parentbilling.PushRelatedBillingDocument, ID: notice.DocumentID}})\n\treturn err\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingLetterPost.EnqueueDocumentNotice",
@@ -1230,6 +1279,20 @@
       "evidence": "func (p parentBillingLetterPost) SenderText(ctx context.Context, organizationID int64) (string, error) {\n\ttexts, err := p.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyBrandingLetterheadText})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn texts[configModels.KeyBrandingLetterheadText], nil\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingLetterPost.SenderText",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c parentBillingPlaceChanges) RebookHolidayChild(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID, childID int64, bookings []parentbilling.HolidayBookingChoice) (parentbilling.HolidayPlaceChange, error) {\n\tchoices := make([]enrollmentOwner.HolidayBookingInput, len(bookings))\n\tfor i, booking := range bookings {\n\t\tchoices[i] = enrollmentOwner.HolidayBookingInput{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Days: booking.Days}\n\t}\n\tdetail, err := c.workflow.RebookHolidayChild(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, registrationID, childID, choices)\n\tif err != nil {\n\t\treturn parentbilling.HolidayPlaceChange{}, parentBillingPlacesError(err)\n\t}\n\treturn parentbilling.HolidayPlaceChange{Registration: detail, RegistrationID: detail.ID, MovedUp: sortedMovedUp(detail.Promotions)}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/parentBillingPlaceChanges.RebookHolidayChild",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c parentBillingPlaceChanges) SetHolidayWeekCapacity(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, weekID int64, capacity *int) (parentbilling.HolidayPlaceChange, error) {\n\tchange, err := c.workflow.SetHolidayWeekCapacity(ctx, enrollmentOwner.HolidayReviewer(reviewer), periodID, weekID, capacity)\n\tif err != nil {\n\t\treturn parentbilling.HolidayPlaceChange{}, parentBillingPlacesError(err)\n\t}\n\treturn parentbilling.HolidayPlaceChange{WeekID: weekID, Capacity: capacity, MovedUp: sortedMovedUp(change.Promotions)}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/parentBillingPlaceChanges.SetHolidayWeekCapacity",
       "owner": "roots"
     },
     {
@@ -1258,13 +1321,6 @@
       "evidence": "func (s parentBillingSettings) PaymentText(ctx context.Context, organizationID int64) (string, error) {\n\ttexts, err := s.settings.TraegerTexts(ctx, organizationID, []string{configModels.KeyParentBillingPaymentText})\n\tif err != nil {\n\t\treturn \"\", err\n\t}\n\treturn texts[configModels.KeyParentBillingPaymentText], nil\n}",
       "form": "unclassified-evidence",
       "id": "api/parentBillingSettings.PaymentText",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
-      "evidence": "func (l parentHolidayRegistrationLinks) ResolveHolidayRegistrationSchools(ctx context.Context, token string) (int64, []int64, error) {\n\tlink, err := l.registrations.ResolveHolidayRegistrationLink(ctx, token)\n\tif errors.Is(err, enrollmentOwner.ErrHolidayRegistrationNotFound) {\n\t\treturn 0, nil, parentAPI.ErrHolidayRegistrationLinkNotFound\n\t}\n\tif err != nil {\n\t\treturn 0, nil, err\n\t}\n\tschoolIDs := make([]int64, 0, len(link.Traeger.Schools))\n\tfor _, school := range link.Traeger.Schools {\n\t\tschoolIDs = append(schoolIDs, school.ID)\n\t}\n\treturn link.OrganizationID, schoolIDs, nil\n}",
-      "form": "unclassified-evidence",
-      "id": "api/parentHolidayRegistrationLinks.ResolveHolidayRegistrationSchools",
       "owner": "roots"
     },
     {
@@ -1703,6 +1759,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (c traegerRegisteredChildren) RegisteredChildren(ctx context.Context, organizationID, periodID, registrationID int64) ([]traegerview.RegisteredChild, error) {\n\tchildren, err := c.children.HolidayRegisteredChildren(ctx, organizationID, periodID, registrationID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]traegerview.RegisteredChild, 0, len(children))\n\tfor _, child := range children {\n\t\tresult = append(result, traegerview.RegisteredChild(child))\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "api/traegerRegisteredChildren.RegisteredChildren",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (s traegerSchoolIDs) ListAccountTraeger(ctx context.Context, accountID int64) ([]traegerview.Traeger, error) {\n\torganizations, err := s.organizations.ListAccountTraegerOrganizations(ctx, accountID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]traegerview.Traeger, 0, len(organizations))\n\tfor _, organization := range organizations {\n\t\tresult = append(result, traegerview.Traeger(organization))\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "api/traegerSchoolIDs.ListAccountTraeger",
@@ -1902,6 +1965,20 @@
       "evidence": "func (r settingOverrideRoot) StoredOverride(ctx context.Context, schoolID int64, key string) (value json.RawMessage, found bool, err error) {\n\tid, err := tenant.NewTenantID(schoolID)\n\tif err != nil {\n\t\treturn nil, false, err\n\t}\n\terr = tenant.WithinTenant(ctx, id, func(txCtx context.Context) error {\n\t\tvalue, found, err = r.storedOverrides.StoredOverride(txCtx, schoolID, key)\n\t\treturn err\n\t})\n\treturn value, found, err\n}",
       "form": "unclassified-evidence",
       "id": "cmd/settingOverrideRoot.StoredOverride",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (c traegerCreditorAccounts) CreditorAccount(ctx context.Context, organizationID int64) (*parentbilling.LetterheadBankAccount, error) {\n\tprofile, err := c.masterData.Profile(ctx, organizationID, 0)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tfor _, account := range profile.BankAccounts {\n\t\tif account.IsDefault {\n\t\t\treturn \u0026parentbilling.LetterheadBankAccount{AccountHolder: account.AccountHolder, IBAN: account.IBAN, BIC: account.BIC, BankName: account.BankName}, nil\n\t\t}\n\t}\n\treturn nil, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "cmd/traegerCreditorAccounts.CreditorAccount",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (b traegerSEPADebitFiles) SEPADebitFiles(ctx context.Context, organizationID int64, write func(organizationtenancy.ExportSEPADebitFile) error) error {\n\treturn tenant.WithinTraeger(ctx, organizationID, func(ctx context.Context) error {\n\t\treturn b.billing.SEPAReturn(ctx, organizationID, func(file parentbilling.SEPAReturnFile) error {\n\t\t\treturn write(organizationtenancy.ExportSEPADebitFile{Name: file.Path, Data: file.Data, Origin: file.Origin, Reason: file.Reason})\n\t\t})\n\t})\n}",
+      "form": "unclassified-evidence",
+      "id": "cmd/traegerSEPADebitFiles.SEPADebitFiles",
       "owner": "roots"
     },
     {
@@ -2452,7 +2529,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (a EnrollmentBookingProjection) RestoreCareExitOfferingLinks(ctx context.Context, snapshots []enrollment.CareExitOfferingSnapshotRestore) (int64, error) {\n\treturn a.Bookings.RestoreCareExitOfferingLinks(ctx, snapshots)\n}",
+      "evidence": "func (a EnrollmentBookingProjection) RestoreCareExitOfferingLinks(ctx context.Context, snapshots []enrollment.CareExitOfferingSnapshotRestore, today enrollment.Date) (int64, error) {\n\treturn a.Bookings.RestoreCareExitOfferingLinks(ctx, snapshots, today)\n}",
       "form": "forward-debt",
       "id": "roots/owners/EnrollmentBookingProjection.RestoreCareExitOfferingLinks",
       "owner": "roots"
@@ -2679,6 +2756,13 @@
       "evidence": "func (r *GroupTeacherRepositoryBinding) Update(ctx context.Context, assignment *schoolmembership.GroupAssignment) error {\n\tif assignment == nil {\n\t\treturn nilEntity(\"GroupTeacher\")\n\t}\n\tif err := schoolmembership.ValidateGroupAssignment(assignment.GroupID, assignment.TeacherID); err != nil {\n\t\treturn err\n\t}\n\tupdated, err := r.Membership.UpdateGroupAssignment(ctx, schoolmembership.UpdateGroupAssignment{ID: assignment.ID, GroupID: assignment.GroupID, TeacherID: assignment.TeacherID})\n\tif err != nil {\n\t\treturn fmt.Errorf(\"update group assignment: %w\", err)\n\t}\n\tcopyGroupAssignment(assignment, updated)\n\treturn nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/GroupTeacherRepositoryBinding.Update",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m HolidayClosureMail) EnqueueTraegerMail(ctx context.Context, mail enrollment.TraegerMail) error {\n\t_, err := m.Delivery.EnqueueEmail(ctx, deliveryContract.EmailIntent{OrganizationID: mail.OrganizationID, Template: mail.Kind, Recipient: deliveryContract.EmailRecipient{Address: mail.Recipient}, Payload: mail.Payload, IdempotencyKey: mail.IdempotencyKey, Related: deliveryContract.RelatedEntity{Type: mail.RelatedType, ID: mail.RelatedID}})\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/HolidayClosureMail.EnqueueTraegerMail",
       "owner": "roots"
     },
     {
@@ -3019,7 +3103,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (p ProvisioningIdentity) AssignTraegerRole(ctx context.Context, organizationID, accountID int64, role string) error {\n\terr := p.Traeger.AssignTraegerRole(ctx, organizationID, accountID, role)\n\tswitch {\n\tcase errors.Is(err, identityaccess.ErrInvalidTraegerRole):\n\t\treturn organizationtenancy.ErrInvalidTraegerRole\n\tcase errors.Is(err, identityaccess.ErrAccountNotFound):\n\t\treturn organizationtenancy.ErrTraegerAccountNotFound\n\t}\n\treturn err\n}",
+      "evidence": "func (p ProvisioningIdentity) AssignTraegerRole(ctx context.Context, organizationID, accountID int64, role string) error {\n\terr := p.Traeger.AssignTraegerRole(ctx, organizationID, accountID, role)\n\tswitch {\n\tcase errors.Is(err, identityaccess.ErrInvalidTraegerRole):\n\t\treturn organizationtenancy.ErrInvalidTraegerRole\n\tcase errors.Is(err, identityaccess.ErrAccountNotFound):\n\t\treturn organizationtenancy.ErrTraegerAccountNotFound\n\tcase errors.Is(err, identityaccess.ErrAccountInactive):\n\t\treturn organizationtenancy.ErrTraegerAccountInactive\n\t}\n\treturn err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/ProvisioningIdentity.AssignTraegerRole",
       "owner": "roots"
@@ -4139,6 +4223,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (r bookingRosters) ReconcileTemplateRosterBatch(ctx context.Context, changes []careplanCompose.RosterReconcile) error {\n\tinputs := make([]timetable.SourcedTemplateRosterReconcile, 0, len(changes))\n\tfor _, change := range changes {\n\t\tvar rows []timetable.RosterEnrollment\n\t\tif change.Prior != nil {\n\t\t\trows = make([]timetable.RosterEnrollment, 0, len(change.Prior))\n\t\t}\n\t\tfor _, row := range change.Prior {\n\t\t\trows = append(rows, timetable.RosterEnrollment{StudentID: row.StudentID, ValidFrom: row.ValidFrom, ValidUntil: row.ValidUntil, CalendarPeriodID: row.CalendarPeriodID, Weekday: row.Weekday, SelectedWeekdays: row.SelectedWeekdays, StudentAlumnus: row.StudentAlumnus})\n\t\t}\n\t\tinputs = append(inputs, timetable.SourcedTemplateRosterReconcile{TemplateID: change.TemplateID, StudentIDs: change.StudentIDs, From: change.From, Prior: rows})\n\t}\n\treturn r.rosters.ReconcileSourcedTemplateRosterBatch(ctx, inputs)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/bookingRosters.ReconcileTemplateRosterBatch",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (r bookingRosters) SetEnrollmentValidUntil(ctx context.Context, id int64, validUntil calendar.Date) error {\n\treturn r.timetable.SetStudentEnrollmentValidUntil(ctx, id, validUntil.String())\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/bookingRosters.SetEnrollmentValidUntil",
@@ -4468,7 +4559,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (e careExitEnrollment) RestoreCareExitOfferingLinks(ctx context.Context, restores []carePlanCompose.CareExitOfferingRestore) (int64, error) {\n\tvalues := make([]enrollment.CareExitOfferingSnapshotRestore, 0, len(restores))\n\tfor _, restore := range restores {\n\t\tvalues = append(values, enrollment.CareExitOfferingSnapshotRestore{SourceRowID: restore.SourceRowID, WasDeleted: restore.WasDeleted, Snapshot: restore.Snapshot})\n\t}\n\treturn e.projection.RestoreCareExitOfferingLinks(ctx, values)\n}",
+      "evidence": "func (e careExitEnrollment) RestoreCareExitOfferingLinks(ctx context.Context, restores []carePlanCompose.CareExitOfferingRestore, today owner0.Date) (int64, error) {\n\tvalues := make([]enrollment.CareExitOfferingSnapshotRestore, 0, len(restores))\n\tfor _, restore := range restores {\n\t\tvalues = append(values, enrollment.CareExitOfferingSnapshotRestore{SourceRowID: restore.SourceRowID, WasDeleted: restore.WasDeleted, Snapshot: restore.Snapshot})\n\t}\n\treturn e.projection.RestoreCareExitOfferingLinks(ctx, values, enrollment.Date(today))\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/careExitEnrollment.RestoreCareExitOfferingLinks",
       "owner": "roots"
@@ -4986,13 +5077,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (r communicationAnnouncementAudience) HoldAnswerPermission(ctx context.Context, schoolID, announcementID, accountID, studentID int64) (bool, error) {\n\treturn r.source.HoldAnswerPermission(ctx, schoolID, announcementID, accountID, studentID)\n}",
-      "form": "forward-debt",
-      "id": "roots/owners/communicationAnnouncementAudience.HoldAnswerPermission",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
       "evidence": "func (r communicationAnnouncementAudience) HoldDeclarationSigner(ctx context.Context, schoolID, announcementID, accountID, studentID int64) (*communication.PortalDeclarationSignerContext, error) {\n\trows, err := r.source.HoldDeclarationSigner(ctx, schoolID, announcementID, accountID, studentID)\n\treturn (*communication.PortalDeclarationSignerContext)(rows), err\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/communicationAnnouncementAudience.HoldDeclarationSigner",
@@ -5171,6 +5255,13 @@
       "evidence": "func (r deferredForeignTenantMailIdentity) ResolveReplyTo(ctx context.Context, tenantID int64) (email.ReplyToIdentity, error) {\n\tif _, active := tenant.TransactionFromContext(ctx); active \u0026\u0026 !tenant.IsAdminTx(ctx) \u0026\u0026 tenant.FromContext(ctx) != tenantID {\n\t\treturn email.ReplyToIdentity{}, nil\n\t}\n\treturn r.resolver.ResolveReplyTo(ctx, tenantID)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/deferredForeignTenantMailIdentity.ResolveReplyTo",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a deletionAudit) CreateAll(ctx context.Context, events []*presenceservice.DeletionEvent) error {\n\tentries := make([]*audit.DataDeletion, len(events))\n\tfor i, event := range events {\n\t\tif event != nil {\n\t\t\tentries[i] = presenceDataDeletion(event)\n\t\t}\n\t}\n\treturn a.writer.CreateAll(ctx, entries)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/deletionAudit.CreateAll",
       "owner": "roots"
     },
     {
@@ -5371,6 +5462,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (a enrollmentGuardianHold) HoldAccountStudentsPermission(ctx context.Context, accountID int64, studentIDs, graph []int64, tenantID int64, permission string) (map[int64]bool, error) {\n\tif err := enrollmentHoldTenant(ctx, tenantID); err != nil {\n\t\treturn nil, err\n\t}\n\tprofile, err := a.profiles.GuardianProfileByAccount(ctx, accountID)\n\tif found, err := enrollmentHoldProfile(profile, err, tenantID); !found || err != nil {\n\t\treturn nil, err\n\t}\n\treturn a.hold(ctx, guardianhold.Request{AccountID: accountID, ProfileID: profile.ID, Permissions: []string{permission}}, studentIDs, graph)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentGuardianHold.HoldAccountStudentsPermission",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (a enrollmentGuardianHold) HoldGuardianEmailStudentsPermission(ctx context.Context, email string, studentIDs, graph []int64, tenantID int64, permission string) (map[int64]bool, error) {\n\tif err := enrollmentHoldTenant(ctx, tenantID); err != nil {\n\t\treturn nil, err\n\t}\n\tprofile, err := a.profiles.GuardianProfileByEmail(ctx, email)\n\tif found, err := enrollmentHoldProfile(profile, err, tenantID); !found || err != nil {\n\t\treturn nil, err\n\t}\n\treturn a.hold(ctx, guardianhold.Request{Email: email, ProfileID: profile.ID, Permissions: []string{permission}}, studentIDs, graph)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentGuardianHold.HoldGuardianEmailStudentsPermission",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (p enrollmentGuardianPhones) CreateGuardianPhone(ctx context.Context, phone *enrollmentCompose.GuardianPhone) error {\n\trow := \u0026peopledirectory.GuardianProfilePhoneSnapshot{GuardianProfileID: phone.GuardianProfileID, PhoneNumber: phone.PhoneNumber, PhoneType: string(phone.PhoneType), Label: phone.Label, IsPrimary: phone.IsPrimary, Priority: phone.Priority}\n\trow.ID, row.CreatedAt, row.UpdatedAt = phone.ID, phone.CreatedAt, phone.UpdatedAt\n\trow.TenantID = phone.TenantID\n\tif err := p.repo.Create(ctx, row); err != nil {\n\t\treturn err\n\t}\n\t*phone = *decisionGuardianPhoneRecord(row)\n\treturn nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentGuardianPhones.CreateGuardianPhone",
@@ -5504,6 +5609,20 @@
     },
     {
       "build": "production",
+      "evidence": "func (b enrollmentPhaseBookings) FollowPhaseBookingBounds(ctx context.Context, move enrollmentOwner.PhaseBookingMove) error {\n\terr := b.bookings.FollowPhaseBookingBounds(ctx, careplan.PhaseBoundsMove(move))\n\tvar conflict *careplan.PhaseBookingBoundsConflictError\n\tif errors.As(err, \u0026conflict) {\n\t\treturn \u0026enrollmentOwner.PhaseBookingBoundsConflictError{RequestChildID: conflict.RequestChildID}\n\t}\n\treturn err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentPhaseBookings.FollowPhaseBookingBounds",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (o enrollmentPhaseOfferings) CareOfferingBookingsForPhase(ctx context.Context, phaseID int64) ([]enrollmentOwner.OfferingBooking, error) {\n\trows, err := o.carePlan.CareOfferingBookingsForPhase(ctx, phaseID)\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"failed to list care offering bookings by phase: %w\", err)\n\t}\n\treturn enrollmentBookings(rows), nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentPhaseOfferings.CareOfferingBookingsForPhase",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (o enrollmentPhaseOfferings) CountOfferingsForPhase(ctx context.Context, phaseID int64) (int, error) {\n\tcount, err := o.carePlan.CountCareOfferingsByPhase(ctx, phaseID)\n\tif err != nil {\n\t\treturn 0, fmt.Errorf(\"failed to count care offerings by phase: %w\", err)\n\t}\n\treturn count, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentPhaseOfferings.CountOfferingsForPhase",
@@ -5511,9 +5630,23 @@
     },
     {
       "build": "production",
+      "evidence": "func (o enrollmentPhaseOfferings) HasTraegerCopiesForPhase(ctx context.Context, id int64) (bool, error) {\n\trows, err := o.carePlan.ListCareOfferings(ctx, careplan.CareOfferingFilter{PhaseIDs: []int64{id}})\n\tif err != nil {\n\t\treturn false, err\n\t}\n\tfor _, row := range rows {\n\t\tif row.Traeger != nil {\n\t\t\treturn true, nil\n\t\t}\n\t}\n\treturn false, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentPhaseOfferings.HasTraegerCopiesForPhase",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (o enrollmentPhaseOfferings) OfferingIDsForPhase(ctx context.Context, phaseID int64) ([]int64, error) {\n\tofferings, err := o.carePlan.ListCareOfferings(ctx, careplan.CareOfferingFilter{PhaseIDs: []int64{phaseID}, Order: careplan.OfferingOrderCatalog})\n\tif err != nil {\n\t\treturn nil, fmt.Errorf(\"failed to list care offerings by phase: %w\", err)\n\t}\n\tids := make([]int64, 0, len(offerings))\n\tfor _, offering := range offerings {\n\t\tids = append(ids, offering.ID)\n\t}\n\treturn ids, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentPhaseOfferings.OfferingIDsForPhase",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s enrollmentPhaseStudents) MovePendingWindow(ctx context.Context, move enrollmentOwner.PendingWindowMove) (bool, error) {\n\tmoved, err := s.membership.MovePendingWindow(ctx, schoolmembership.PendingWindowMove{StudentID: move.StudentID, FromBefore: calendar.Date(move.FromBefore), FromAfter: calendar.Date(move.FromAfter), UntilBefore: calendar.Date(move.UntilBefore), UntilAfter: calendar.Date(move.UntilAfter), OtherStarts: calendarDates(move.OtherStarts), OtherEnds: calendarDates(move.OtherEnds)})\n\tvar conflict *schoolmembership.PendingWindowConflictError\n\tif errors.As(err, \u0026conflict) {\n\t\treturn false, fmt.Errorf(\"%w: student %d\", enrollmentOwner.ErrPhasePendingChildWindowConflict, conflict.StudentID)\n\t}\n\treturn moved, err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentPhaseStudents.MovePendingWindow",
       "owner": "roots"
     },
     {
@@ -5581,27 +5714,6 @@
     },
     {
       "build": "production",
-      "evidence": "func (s enrollmentRolloverSettings) CollectGradeLevel(ctx context.Context) (bool, error) {\n\treturn s.settings.ResolveBool(ctx, configModels.KeyEnrollmentCollectGradeLevel)\n}",
-      "form": "unclassified-evidence",
-      "id": "roots/owners/enrollmentRolloverSettings.CollectGradeLevel",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
-      "evidence": "func (s enrollmentRolloverSettings) CollectSchoolClass(ctx context.Context) (bool, error) {\n\treturn s.settings.ResolveBool(ctx, configModels.KeyEnrollmentCollectSchoolClass)\n}",
-      "form": "unclassified-evidence",
-      "id": "roots/owners/enrollmentRolloverSettings.CollectSchoolClass",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
-      "evidence": "func (s enrollmentRolloverSettings) GradeLevelMax(ctx context.Context) (int, error) {\n\treturn s.settings.ResolveInt(ctx, configModels.KeyEnrollmentGradeLevelMax)\n}",
-      "form": "unclassified-evidence",
-      "id": "roots/owners/enrollmentRolloverSettings.GradeLevelMax",
-      "owner": "roots"
-    },
-    {
-      "build": "production",
       "evidence": "func (b enrollmentRosterPersons) PersonsByID(ctx context.Context, personIDs []int64) (map[int64]*enrollmentCompose.RosterPerson, error) {\n\tpersons, err := b.repo.FindByIDs(ctx, personIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tout := make(map[int64]*enrollmentCompose.RosterPerson, len(persons))\n\tfor id, person := range persons {\n\t\tif person != nil {\n\t\t\tout[id] = \u0026enrollmentCompose.RosterPerson{FirstName: person.FirstName, LastName: person.LastName}\n\t\t}\n\t}\n\treturn out, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentRosterPersons.PersonsByID",
@@ -5661,6 +5773,13 @@
       "evidence": "func (s enrollmentStudentGuardians) UpdateGuardianLinkRole(ctx context.Context, link *enrollmentCompose.StudentGuardian) (int64, error) {\n\trow, err := decisionStudentGuardianRow(link)\n\tif err != nil {\n\t\treturn 0, err\n\t}\n\treturn s.repo.UpdateColumns(ctx, row, peopledirectory.GuardianRoleColumns()...)\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/enrollmentStudentGuardians.UpdateGuardianLinkRole",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (s enrollmentStudentMatches) FindEnrolledStudentIDsByIdentities(ctx context.Context, tenantID int64, identities []enrollment.StudentIdentity) ([][]int64, error) {\n\tprobes := make([]peopledirectory.StudentIdentity, len(identities))\n\tfor i, identity := range identities {\n\t\tprobes[i] = peopledirectory.StudentIdentity{FirstName: identity.FirstName, LastName: identity.LastName, Birthday: identity.Birthday}\n\t}\n\treturn s.EnrollmentStudentMatches.FindEnrolledStudentIDsByIdentities(ctx, tenantID, probes)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/enrollmentStudentMatches.FindEnrolledStudentIDsByIdentities",
       "owner": "roots"
     },
     {
@@ -5987,6 +6106,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (a holidayAcceptanceAccounts) HolidayParentSetupURL(address string, organizationID int64) (string, error) {\n\tif a.links == nil {\n\t\treturn \"\", nil\n\t}\n\tlink, err := a.links.HolidayParentAccountLink(address, organizationID)\n\treturn link.SetupURL, err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/holidayAcceptanceAccounts.HolidayParentSetupURL",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (p holidayGuestPeople) SetHolidayGuestHealthInfo(ctx context.Context, studentID int64, healthInfo *string) error {\n\treturn p.directory.ApplyEnrollmentProfile(ctx, studentID, peopleEnrollment.ProfilePatch{HealthInfoSet: true, HealthInfo: healthInfo})\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/holidayGuestPeople.SetHolidayGuestHealthInfo",
@@ -5994,9 +6120,44 @@
     },
     {
       "build": "production",
+      "evidence": "func (p holidayOwnChildPlans) ApplyHolidayOwnChildPlans(ctx context.Context, changes enrollment.HolidayOwnChildPlanChanges) error {\n\tarrivals := make([]careplan.ArrivalException, 0, len(changes.Arrivals))\n\tfor _, plan := range changes.Arrivals {\n\t\tarrivals = append(arrivals, careplan.ArrivalException{StudentID: plan.StudentID, ExceptionDate: careplan.Date(plan.Day), ExpectedArrival: \u0026plan.Time, Reason: \u0026plan.Reason, Source: careplan.ExceptionSourceHolidayBooking})\n\t}\n\tpickups := make([]careplan.PickupException, 0, len(changes.Pickups))\n\tfor _, plan := range changes.Pickups {\n\t\tpickups = append(pickups, careplan.PickupException{StudentID: plan.StudentID, ExceptionDate: careplan.Date(plan.Day), PickupTime: \u0026plan.Time, Reason: \u0026plan.Reason, Source: careplan.ExceptionSourceHolidayBooking})\n\t}\n\treturn p.batch.ApplyExceptionBatch(ctx, careplan.ExceptionBatch{Arrivals: arrivals, Pickups: pickups, DeleteArrivals: changes.DeleteArrivals, DeletePickups: changes.DeletePickups})\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/holidayOwnChildPlans.ApplyHolidayOwnChildPlans",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p holidayOwnChildPlans) HolidayOwnChildArrivals(ctx context.Context, from calendar.Date) ([]enrollment.HolidayOwnChildException, error) {\n\trows, err := p.care.ListArrivalExceptions(ctx, careplan.StudentScheduleFilter{From: careplan.Date(from)})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]enrollment.HolidayOwnChildException, 0, len(rows))\n\tfor _, row := range rows {\n\t\tresult = append(result, enrollment.HolidayOwnChildException{ID: row.ID, StudentID: row.StudentID, Day: calendar.Date(row.ExceptionDate), Reason: row.Reason})\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/holidayOwnChildPlans.HolidayOwnChildArrivals",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p holidayOwnChildPlans) HolidayOwnChildPickups(ctx context.Context, from calendar.Date) ([]enrollment.HolidayOwnChildException, error) {\n\trows, err := p.care.ListPickupExceptions(ctx, careplan.StudentScheduleFilter{From: careplan.Date(from)})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]enrollment.HolidayOwnChildException, 0, len(rows))\n\tfor _, row := range rows {\n\t\tresult = append(result, enrollment.HolidayOwnChildException{ID: row.ID, StudentID: row.StudentID, Day: calendar.Date(row.ExceptionDate), Reason: row.Reason, Excused: row.ExcusedFrom != nil})\n\t}\n\treturn result, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/holidayOwnChildPlans.HolidayOwnChildPickups",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (l holidayParentAccountLinks) HolidayParentAccountLink(email string, organizationID int64) (enrollmentOwner.HolidayParentAccountLink, error) {\n\tif l.setups == nil || l.parentsURL == \"\" {\n\t\treturn enrollmentOwner.HolidayParentAccountLink{}, errors.New(\"holiday registration: the setup link of a parent account is not configured\")\n\t}\n\ttoken, err := l.setups.IssueHolidayParentSetupToken(email, organizationID)\n\tif err != nil {\n\t\treturn enrollmentOwner.HolidayParentAccountLink{}, err\n\t}\n\treturn enrollmentOwner.HolidayParentAccountLink{SetupURL: l.parentsURL + \"/ferienkonto/\" + url.PathEscape(token), LoginURL: l.parentsURL + \"/login\"}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/holidayParentAccountLinks.HolidayParentAccountLink",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (a holidayParticipantAccessLog) RecordHolidayStudentHealthAccess(ctx context.Context, access enrollmentOwner.HolidayStudentHealthAccess) error {\n\tstudentID := access.StudentID\n\treturn a.writer.Create(ctx, \u0026auditModels.DataAccessLog{ActorAccountID: access.ActorAccountID, ActorRole: access.ActorRole, ResourceType: auditModels.ResourceTypeHolidayStudentHealth, StudentID: \u0026studentID, RangeStart: access.StartsOn.BerlinMidnight(), RangeEnd: access.EndsOn.EndOfDay(), AccessedAt: time.Now(), Metadata: map[string]any{\"week_ids\": access.WeekIDs}})\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/holidayParticipantAccessLog.RecordHolidayStudentHealthAccess",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (m holidayRegistrationMailErasure) EraseHolidayRegistrationMails(ctx context.Context, registrations []enrollment.HolidayRegistrationReference) (int, error) {\n\torganizations, ids := make([]int64, len(registrations)), make([]int64, len(registrations))\n\tfor i, registration := range registrations {\n\t\torganizations[i], ids[i] = registration.OrganizationID, registration.RegistrationID\n\t}\n\treturn m.HolidayRegistrationMailErasure.EraseHolidayRegistrationMails(ctx, organizations, ids)\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/holidayRegistrationMailErasure.EraseHolidayRegistrationMails",
       "owner": "roots"
     },
     {
@@ -6344,7 +6505,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (a parentChildDataAccess) RecordHolidayRegistrationPrefill(ctx context.Context, access parentportal.ChildDataAccess) error {\n\tstudentID := access.StudentID\n\treturn a.writer.Create(ctx, \u0026auditModels.DataAccessLog{ActorAccountID: access.ActorAccountID, ActorRole: \"guardian\", ResourceType: auditModels.ResourceTypeHolidayPrefill, StudentID: \u0026studentID, RangeStart: access.AccessedAt, RangeEnd: access.AccessedAt, AccessedAt: access.AccessedAt, Metadata: map[string]any{\"organization_id\": access.OrganizationID}})\n}",
+      "evidence": "func (a parentChildDataAccess) RecordHolidayRegistrationPrefill(ctx context.Context, access parentportal.ChildDataAccess) error {\n\tstudentID := access.StudentID\n\tmetadata := map[string]any{\"organization_id\": access.OrganizationID}\n\tif access.HolidayWish {\n\t\tmetadata[\"holiday_wish\"] = true\n\t}\n\treturn a.writer.Create(ctx, \u0026auditModels.DataAccessLog{ActorAccountID: access.ActorAccountID, ActorRole: \"guardian\", ResourceType: auditModels.ResourceTypeHolidayPrefill, StudentID: \u0026studentID, RangeStart: access.AccessedAt, RangeEnd: access.AccessedAt, AccessedAt: access.AccessedAt, Metadata: metadata})\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentChildDataAccess.RecordHolidayRegistrationPrefill",
       "owner": "roots"
@@ -6463,7 +6624,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (p parentGroupThreads) ReadGroupThread(ctx context.Context, threadID, accountID int64, studentIDs []int64) (*parentportal.GroupThreadView, bool, error) {\n\tview, advanced, err := p.source.PortalReadGroupThread(ctx, threadID, accountID, studentIDs)\n\tif err != nil {\n\t\treturn nil, false, parentGroupThreadError(err)\n\t}\n\tmessages := make([]parentportal.GroupMessage, 0, len(view.Messages))\n\tfor _, message := range view.Messages {\n\t\tmessages = append(messages, parentportal.GroupMessage{ID: message.ID, Body: message.Body, CreatedAt: message.CreatedAt})\n\t}\n\treturn \u0026parentportal.GroupThreadView{Thread: parentGroupThread(view.Thread), Messages: messages, StudentIDs: view.StudentIDs}, advanced, nil\n}",
+      "evidence": "func (p parentGroupThreads) ReadGroupThread(ctx context.Context, threadID, accountID int64, studentIDs []int64) (*parentportal.GroupThreadView, bool, error) {\n\tview, advanced, err := p.source.PortalReadGroupThread(ctx, threadID, accountID, studentIDs)\n\tif err != nil {\n\t\treturn nil, false, parentGroupThreadError(err)\n\t}\n\tmessages := make([]parentportal.GroupMessage, 0, len(view.Messages))\n\tfor _, message := range view.Messages {\n\t\tmessages = append(messages, parentportal.GroupMessage{ID: message.ID, Body: message.Body, CreatedAt: message.CreatedAt, Attachments: message.Attachments})\n\t}\n\treturn \u0026parentportal.GroupThreadView{Thread: parentGroupThread(view.Thread), Messages: messages, StudentIDs: view.StudentIDs}, advanced, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentGroupThreads.ReadGroupThread",
       "owner": "roots"
@@ -6477,9 +6638,37 @@
     },
     {
       "build": "production",
+      "evidence": "func (w parentHolidayWishes) HolidayWishStatement(ctx context.Context, claim parentportal.HolidayWishClaim) (string, string, error) {\n\tstatement, err := w.proofs.HolidayWishProof(ctx, enrollmentOwner.HolidayWishClaim(claim))\n\treturn statement.Wish, statement.Proof, err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentHolidayWishes.HolidayWishStatement",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
       "evidence": "func (p parentMandateParties) Recipients(ctx context.Context, organizationID int64, contractIDs []int64) (map[int64]parentbilling.CareRecipient, error) {\n\tparties, err := p.billing.BillingRecipients(ctx, organizationID, contractIDs)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\trecipients := make(map[int64]parentbilling.CareRecipient, len(parties))\n\tfor contractID, party := range parties {\n\t\trecipients[contractID] = parentbilling.CareRecipient{FirstName: party.FirstName, LastName: party.LastName, Email: party.Email}\n\t}\n\treturn recipients, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentMandateParties.Recipients",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p parentMessageAttachments) DiscardGuardianAttachment(ctx context.Context, accountID, attachmentID int64) error {\n\treturn parentMessageAttachmentError(p.source.DiscardGuardianAttachment(ctx, accountID, attachmentID))\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentMessageAttachments.DiscardGuardianAttachment",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p parentMessageAttachments) OpenGuardianAttachment(ctx context.Context, accountID, studentID, attachmentID int64) (*parentportal.StoredMessageAttachment, error) {\n\tfile, err := p.source.OpenGuardianAttachment(ctx, accountID, studentID, attachmentID)\n\tif err != nil {\n\t\treturn nil, parentMessageAttachmentError(err)\n\t}\n\treturn \u0026parentportal.StoredMessageAttachment{Attachment: parentportal.MessageAttachment(file.Attachment), TenantID: file.TenantID, StoredName: file.StoredName}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentMessageAttachments.OpenGuardianAttachment",
+      "owner": "roots"
+    },
+    {
+      "build": "production",
+      "evidence": "func (p parentMessageAttachments) PrepareGuardianAttachment(ctx context.Context, accountID int64, upload parentportal.MessageAttachmentUpload) (*parentportal.StoredMessageAttachment, error) {\n\tprepared, err := p.source.PrepareGuardianAttachment(ctx, accountID, communication.MessageAttachmentUpload(upload))\n\tif err != nil {\n\t\treturn nil, parentMessageAttachmentError(err)\n\t}\n\treturn \u0026parentportal.StoredMessageAttachment{Attachment: parentportal.MessageAttachment(prepared.Attachment), TenantID: prepared.TenantID, StoredName: prepared.StoredName}, nil\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parentMessageAttachments.PrepareGuardianAttachment",
       "owner": "roots"
     },
     {
@@ -6592,6 +6781,13 @@
       "evidence": "func (p parentSurveys) SurveySummaries(ctx context.Context, accountID int64, announcementIDs []int64) (map[int64]parentportal.SurveySummary, error) {\n\trows, err := p.source.PortalSurveySummaries(ctx, accountID, announcementIDs)\n\tif err != nil {\n\t\treturn nil, parentSurveyError(err)\n\t}\n\tout := make(map[int64]parentportal.SurveySummary, len(rows))\n\tfor id, row := range rows {\n\t\tout[id] = parentportal.SurveySummary{SurveyID: row.SurveyID, Anonymous: row.Anonymous, ClosesAt: row.ClosesAt, Participated: row.Participated}\n\t}\n\treturn out, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/parentSurveys.SurveySummaries",
+      "owner": "roots"
+    },
+    {
+      "build": "testhooks",
+      "evidence": "func (r parkedParentChildReads) FindForAccount(ctx context.Context, accountID, studentID int64) (*parentportal.ChildSummary, error) {\n\tchild, err := r.ChildReads.FindForAccount(ctx, accountID, studentID)\n\tr.park()\n\treturn child, err\n}",
+      "form": "unclassified-evidence",
+      "id": "roots/owners/parkedParentChildReads.FindForAccount",
       "owner": "roots"
     },
     {
@@ -6736,7 +6932,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (d pickupExceptionDirectory) ListStudentStatusDays(ctx context.Context, filter timetablePorts.StudentStatusDayFilter) ([]timetablePorts.StudentStatusDayProjection, error) {\n\tvalues, err := d.query.ListStudentStatusDays(ctx, careplan.StudentStatusDayFilter{IDs: filter.IDs, StudentIDs: filter.StudentIDs, Date: careplan.Date(filter.Date), From: careplan.Date(filter.From), ActiveOnly: filter.ActiveOnly, LatestOnly: filter.LatestOnly})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]timetablePorts.StudentStatusDayProjection, 0, len(values))\n\tfor _, value := range values {\n\t\tresult = append(result, timetablePorts.StudentStatusDayProjection{ID: value.ID, StudentID: value.StudentID, Date: value.Date.String(), Status: value.Status})\n\t}\n\treturn result, nil\n}",
+      "evidence": "func (d pickupExceptionDirectory) ListStudentStatusDays(ctx context.Context, filter timetablePorts.StudentStatusDayFilter) ([]timetablePorts.StudentStatusDayProjection, error) {\n\tvalues, err := d.query.ListStudentStatusDays(ctx, careplan.StudentStatusDayFilter{IDs: filter.IDs, StudentIDs: filter.StudentIDs, Date: careplan.Date(filter.Date), From: careplan.Date(filter.From), To: careplan.Date(filter.To), ActiveOnly: filter.ActiveOnly, LatestOnly: filter.LatestOnly})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tresult := make([]timetablePorts.StudentStatusDayProjection, 0, len(values))\n\tfor _, value := range values {\n\t\tresult = append(result, timetablePorts.StudentStatusDayProjection{ID: value.ID, StudentID: value.StudentID, Date: value.Date.String(), Status: value.Status})\n\t}\n\treturn result, nil\n}",
       "form": "unclassified-evidence",
       "id": "roots/owners/pickupExceptionDirectory.ListStudentStatusDays",
       "owner": "roots"

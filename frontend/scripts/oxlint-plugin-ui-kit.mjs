@@ -107,6 +107,28 @@ import {
 //   ui-kit/no-radix-outside-kit     — @radix-ui is an implementation detail of
 //                                     components/ui; everyone else imports the
 //                                     kit component. Hard-zero (#5604).
+//   ui-kit/form-modal-pending       — every FormModal outside components/ui
+//                                     passes `pending` from
+//                                     useFormModalPending, which locks X,
+//                                     Escape, backdrop and footer while a save
+//                                     runs (#6533). A dialog without a save
+//                                     opts out with a disable comment and its
+//                                     reason.
+//   ui-kit/slide-over-pending       — the same for every SlideOver (#6593):
+//                                     X, Escape, backdrop, swipe and footer
+//                                     lock while its save runs.
+//   ui-kit/confirmation-dismiss-lock — a ConfirmationModal locks X,
+//                                     Escape, backdrop and Abbrechen while
+//                                     isConfirmLoading (#6594); the opt-out
+//                                     `dismissibleWhileLoading` carries its
+//                                     reason as a non-empty string literal.
+//   ui-kit/confirmation-loading-text — a ConfirmationModal that passes
+//                                     isConfirmLoading also passes its own
+//                                     `loadingText` („Wird gespeichert …“),
+//                                     never the generic default (#6652), and
+//                                     its confirmText does not switch on the
+//                                     flag: the button shows `loadingText`
+//                                     then, the switched text never (#6636).
 //   ui-kit/no-raw-input             — no hand-built <input> or <textarea>
 //                                     outside RAW_INPUT_KIT_PRIMITIVES; use Input,
 //                                     Textarea, Checkbox, Radio, TimeField,
@@ -2132,6 +2154,269 @@ const noRadixOutsideKit = {
   },
 };
 
+// --- ui-kit/form-modal-pending ------------------------------------------------
+//
+// A save that runs while the dialog can still be closed looks cancelled but
+// still commits, and its late answer can close a dialog opened in between
+// (#6503, #6533). The lock lives once in FormModal; every caller hands it the
+// pending contract from useFormModalPending. A dialog that saves nothing
+// (a picker that hands its choice to the parent and closes) says so:
+// `// oxlint-disable-next-line ui-kit/form-modal-pending -- <reason>`.
+
+const isEmptyExpression = (value) => {
+  if (value == null) return true;
+  if (value.type !== "JSXExpressionContainer") return false;
+  const expression = value.expression;
+  return (
+    expression?.type === "JSXEmptyExpression" ||
+    (expression?.type === "Literal" && expression.value == null) ||
+    (expression?.type === "Identifier" && expression.name === "undefined")
+  );
+};
+
+/**
+ * The rule for one dialog component whose pending lock lives once in the kit:
+ * every use outside components/ui passes a non-empty `pending` attribute.
+ */
+function pendingContractRule(component, description, message) {
+  return {
+    meta: {
+      type: "problem",
+      docs: { description },
+      messages: { missing: message },
+      schema: [],
+    },
+    create(context) {
+      const key = fileKey(context);
+      if (!key.startsWith("src/")) return {};
+      if (key.startsWith(UI_KIT_DIR) || EXEMPT_FILE_RE.test(key)) return {};
+      return {
+        JSXOpeningElement(node) {
+          if (node.name?.type !== "JSXIdentifier") return;
+          if (node.name.name !== component) return;
+          const pending = node.attributes.find(
+            (attribute) =>
+              attribute.type === "JSXAttribute" &&
+              attribute.name?.name === "pending",
+          );
+          if (pending == null || isEmptyExpression(pending.value)) {
+            context.report({ node, messageId: "missing" });
+          }
+        },
+      };
+    },
+  };
+}
+
+const formModalPending = pendingContractRule(
+  "FormModal",
+  "Every FormModal passes the pending contract from useFormModalPending.",
+  "FormModal braucht `pending` aus useFormModalPending (~/components/ui/use-form-modal-pending): Während gespeichert wird, sperrt es X, Escape, Hintergrund und Fußleiste (#6533). Ein Dialog ohne Speichern begründet das mit `oxlint-disable-next-line ui-kit/form-modal-pending -- <Grund>`.",
+);
+
+// --- ui-kit/slide-over-pending -------------------------------------------------
+//
+// The same contract for the kit SlideOver (#6593): the lock lives once in
+// SlideOver, every panel that saves hands it `pending` from
+// useFormModalPending(open), whose `op.isCurrent()` keeps a late answer away
+// from a panel opened in between. A panel that only shows or exports, or
+// hands its choice over synchronously, says so:
+// `// oxlint-disable-next-line ui-kit/slide-over-pending -- <reason>`.
+
+const slideOverPending = pendingContractRule(
+  "SlideOver",
+  "Every SlideOver passes the pending contract from useFormModalPending.",
+  "SlideOver braucht `pending` aus useFormModalPending(open) (~/components/ui/use-form-modal-pending), und jedes Speichern läuft über dessen `run`: Während gespeichert wird, sperrt es X, Escape, Hintergrund, Wischen und Fußleiste (#6593). Ein Panel ohne Speichern begründet das mit `oxlint-disable-next-line ui-kit/slide-over-pending -- <Grund>`.",
+);
+
+// --- ui-kit/confirmation-dismiss-lock -------------------------------------------
+//
+// ConfirmationModal locks every close path while `isConfirmLoading` (#6594):
+// closing would look like a cancel while the request still commits, and its
+// answer (an error in the dialog) would have no surface left. Leaving while
+// it loads is an explicit exception whose reason stands at the caller, as a
+// string literal a reviewer reads: `dismissibleWhileLoading="Lädt nur …"`.
+
+const literalText = (value) => {
+  if (value?.type === "Literal" && typeof value.value === "string") {
+    return value.value;
+  }
+  if (value?.type !== "JSXExpressionContainer") return null;
+  const expression = value.expression;
+  if (expression?.type === "Literal" && typeof expression.value === "string") {
+    return expression.value;
+  }
+  if (
+    expression?.type === "TemplateLiteral" &&
+    expression.expressions.length === 0
+  ) {
+    return expression.quasis.map((quasi) => quasi.value.cooked ?? "").join("");
+  }
+  return null;
+};
+
+const confirmationDismissLock = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "A ConfirmationModal opts out of its loading lock only with a written reason.",
+    },
+    messages: {
+      reason:
+        '`dismissibleWhileLoading` hebt die Schließsperre während `isConfirmLoading` auf (#6594) und braucht als Wert die Begründung als Text, z. B. `dismissibleWhileLoading="Lädt nur die Vorschau; nichts wird gespeichert."`. Eine späte Antwort muss dann an den Dialog gebunden sein (useFormModalPending, op.isCurrent()).',
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (key.startsWith(UI_KIT_DIR) || EXEMPT_FILE_RE.test(key)) return {};
+    return {
+      JSXOpeningElement(node) {
+        if (node.name?.type !== "JSXIdentifier") return;
+        if (node.name.name !== "ConfirmationModal") return;
+        const optOut = node.attributes.find(
+          (attribute) =>
+            attribute.type === "JSXAttribute" &&
+            attribute.name?.name === "dismissibleWhileLoading",
+        );
+        if (optOut == null) return;
+        const reason = literalText(optOut.value);
+        if (reason == null || reason.trim() === "") {
+          context.report({ node: optOut, messageId: "reason" });
+        }
+      },
+    };
+  },
+};
+
+// --- ui-kit/confirmation-loading-text -----------------------------------------
+//
+// While `isConfirmLoading` the confirm button shows `loadingText` (spinner
+// and text), not `confirmText`. A caller that switches `confirmText` on the
+// same flag („Wird angemeldet…“) writes a text nobody sees; the reader gets
+// the generic default instead (#6636). The rule follows the flag through a
+// local `const` (`const label = busy ? "Wird …" : "Senden"`).
+//
+// A caller that passes `isConfirmLoading` without `loadingText` shows the
+// kit default „Wird geladen...“ during a write; the reader cannot tell which
+// action runs (#6652). Every such caller names its action. A spread does not
+// count as `loadingText`: the rule cannot see into it. Import aliases of
+// ConfirmationModal count as ConfirmationModal.
+
+/** `busy`, `state.busy`, `!busy` as one comparable key; null otherwise. */
+function flagKey(node) {
+  if (!node) return null;
+  if (node.type === "Identifier") return node.name;
+  if (node.type === "UnaryExpression" && node.operator === "!") {
+    return flagKey(node.argument);
+  }
+  if (
+    node.type === "MemberExpression" &&
+    !node.computed &&
+    node.property?.type === "Identifier"
+  ) {
+    const object = flagKey(node.object);
+    return object == null ? null : `${object}.${node.property.name}`;
+  }
+  if (node.type === "ChainExpression") return flagKey(node.expression);
+  return null;
+}
+
+function attributeExpression(node, name) {
+  const attribute = node.attributes.find(
+    (item) => item.type === "JSXAttribute" && item.name?.name === name,
+  );
+  if (attribute?.value?.type !== "JSXExpressionContainer") return null;
+  return attribute.value.expression ?? null;
+}
+
+/** Whether `expression` (or the `const` it names) branches on `flag`. */
+function switchesOnFlag(expression, flag, sourceCode, depth = 0) {
+  if (!expression || depth > 3) return false;
+  if (expression.type === "ConditionalExpression") {
+    return (
+      flagKey(expression.test) === flag ||
+      switchesOnFlag(expression.consequent, flag, sourceCode, depth + 1) ||
+      switchesOnFlag(expression.alternate, flag, sourceCode, depth + 1)
+    );
+  }
+  if (expression.type === "Identifier" && sourceCode) {
+    const init = constantInitializer(expression, new Map(), sourceCode);
+    return switchesOnFlag(init, flag, sourceCode, depth + 1);
+  }
+  return false;
+}
+
+const confirmationLoadingText = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "A ConfirmationModal shows its loading text through `loadingText`, not a switched `confirmText`.",
+    },
+    messages: {
+      switched:
+        '`confirmText` wechselt mit `isConfirmLoading`, aber während der Aktion zeigt der Knopf `loadingText` (#6636). Setzen Sie den Ladetext als `loadingText="Wird …"` und `confirmText` auf die Aktion.',
+      missing:
+        '`isConfirmLoading` ohne `loadingText`: Während der Aktion zeigt der Knopf sonst „Wird geladen...“ (#6652). Nennen Sie die laufende Aktion, z. B. `loadingText="Wird gespeichert …"`.',
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (key.startsWith(UI_KIT_DIR) || EXEMPT_FILE_RE.test(key)) return {};
+    const names = new Set(["ConfirmationModal"]);
+    return {
+      ImportDeclaration(node) {
+        if (!/(?:^|\/)components\/ui\/modal$/.test(String(node.source.value))) {
+          return;
+        }
+        for (const specifier of node.specifiers) {
+          if (
+            specifier.type === "ImportSpecifier" &&
+            (specifier.imported?.name ?? specifier.imported?.value) ===
+              "ConfirmationModal"
+          ) {
+            names.add(specifier.local.name);
+          }
+        }
+      },
+      JSXOpeningElement(node) {
+        if (node.name?.type !== "JSXIdentifier") return;
+        if (!names.has(node.name.name)) return;
+        const loadingAttribute = node.attributes.find(
+          (item) =>
+            item.type === "JSXAttribute" &&
+            item.name?.name === "isConfirmLoading",
+        );
+        const hasLoadingText = node.attributes.some(
+          (item) =>
+            item.type === "JSXAttribute" && item.name?.name === "loadingText",
+        );
+        if (loadingAttribute && !hasLoadingText) {
+          const value = loadingAttribute.value;
+          const alwaysFalse =
+            value?.type === "JSXExpressionContainer" &&
+            value.expression?.type === "Literal" &&
+            value.expression.value === false;
+          if (!alwaysFalse) {
+            context.report({ node: loadingAttribute, messageId: "missing" });
+          }
+        }
+        const flag = flagKey(attributeExpression(node, "isConfirmLoading"));
+        if (flag == null) return;
+        const confirmText = attributeExpression(node, "confirmText");
+        if (switchesOnFlag(confirmText, flag, context.sourceCode)) {
+          context.report({ node: confirmText, messageId: "switched" });
+        }
+      },
+    };
+  },
+};
+
 // --- ui-kit/no-kit-domain-import ---------------------------------------------
 //
 // The kit works in every portal, so it knows no domain: a file under
@@ -3832,12 +4117,7 @@ function classAttributes(node) {
   );
 }
 
-function makeKitClassRule({
-  description,
-  messageId,
-  message,
-  detect,
-}) {
+function makeKitClassRule({ description, messageId, message, detect }) {
   return {
     meta: {
       type: "problem",
@@ -5612,9 +5892,320 @@ const noHandRolledCopyField = {
   },
 };
 
+// ui-kit/button-needs-tooltip (#6742, Epic #6643)
+//
+// Jeder Knopf sagt in einem Satz, was ein Klick tut. Gemeldet wird ein
+// `Button` oder `ButtonLink` ohne `tooltip` und ohne begründetes
+// `noTooltip="<Grund>"`, und ein `a` oder `label` mit `buttonClassName(…)` im
+// `className`, das nicht das eine Kind eines `ActionHint` ist (`ActionHint`
+// klont genau dieses Kind, ein Fragment oder eine Hülle dazwischen bekäme die
+// Blase also nicht). Ein leerer, nur aus Leerzeichen bestehender oder
+// `undefined` gesetzter Grund ist ein Fehler, ebenso ein leerer `tooltip`. Ein
+// `title` an diesen Knöpfen wird immer gemeldet: Er ersetzt den `tooltip` nicht.
+//
+// Gespreizte Props (`{...props}`) gelten als erfüllt: ob der Typ hinter
+// `props` einen `tooltip` durchreicht, ist ohne Typinformation nicht
+// entscheidbar, und eine Meldung wäre dann geraten. Nur ein gespreiztes
+// Objektliteral mit statischen Schlüsseln wird geprüft, weil seine Belegung im
+// Code steht; ein berechneter Schlüssel ist wie ein unbekannter Spread. Steht
+// ein unbekannter Spread hinter `tooltip`/`noTooltip`, wird gemeldet: Er kann
+// die Erklärung überschreiben, und der Spread davor kostet nichts.
+//
+// Die Regel gilt nur in TOOLTIP_SCOPE. Die Liste wächst nur: Jedes
+// Bereichs-Ticket des Epics trägt seine Ordner oder Dateien ein. Ordner enden
+// auf „/“, alles andere ist eine einzelne Datei. Das Abschluss-Ticket (#6757)
+// ersetzt die Liste durch „überall außer Ausnahmen“.
+// `ui-kit/menu-item-needs-description` (#6745) nutzt dieselbe Liste.
+
+const TOOLTIP_SCOPE = [
+  // Einstellungen der Schule und des Trägers, begonnen in #6669.
+  "src/app/[tenant]/(protected)/settings/",
+  "src/app/traeger/einstellungen/",
+  "src/components/settings/",
+];
+
+function inTooltipScope(key, scope = TOOLTIP_SCOPE) {
+  if (EXEMPT_FILE_RE.test(key) || key.includes("src/test/")) return false;
+  return scope.some((entry) =>
+    entry.endsWith("/") ? key.startsWith(entry) : key === entry,
+  );
+}
+
+function tooltipPropsFromAttributes(openingElement) {
+  const props = {
+    tooltip: null,
+    noTooltip: null,
+    title: null,
+  };
+  let unknownSpread = false;
+  // Ein unbekannter Spread hinter `tooltip`/`noTooltip` kann die Erklärung zur
+  // Laufzeit überschreiben, auch mit `undefined`.
+  let spreadAfterExplanation = false;
+  for (const attribute of openingElement.attributes) {
+    if (attribute.type === "JSXAttribute") {
+      const name = attribute.name?.name;
+      if (name === "tooltip" || name === "noTooltip")
+        spreadAfterExplanation = false;
+      if (name === "tooltip" || name === "noTooltip" || name === "title") {
+        props[name] = {
+          node: attribute,
+          value: attribute.value,
+          attribute: true,
+        };
+      }
+      continue;
+    }
+    const argument = attribute.argument;
+    if (argument?.type !== "ObjectExpression") {
+      unknownSpread = true;
+      if (props.tooltip || props.noTooltip) spreadAfterExplanation = true;
+      continue;
+    }
+    for (const property of argument.properties) {
+      if (property.type === "SpreadElement" || property.computed) {
+        unknownSpread = true;
+        if (props.tooltip || props.noTooltip) spreadAfterExplanation = true;
+        continue;
+      }
+      const name = propertyName(property);
+      if (name === "tooltip" || name === "noTooltip" || name === "title") {
+        props[name] = {
+          node: property,
+          value: property.value,
+          attribute: false,
+        };
+      }
+    }
+  }
+  return { props, unknownSpread, spreadAfterExplanation };
+}
+
+/** Static string of an expression, also from a template without expressions. */
+function staticExpressionText(expression) {
+  if (expression.type === "Literal") return String(expression.value);
+  if (
+    expression.type === "TemplateLiteral" &&
+    expression.expressions.length === 0
+  ) {
+    return expression.quasis.map((quasi) => quasi.value.cooked).join("");
+  }
+  return null;
+}
+
+function isBlankExpression(expression) {
+  if (expression?.type === "Identifier" && expression.name === "undefined") {
+    return true;
+  }
+  const text = expression ? staticExpressionText(expression) : null;
+  return text !== null && text.trim() === "";
+}
+
+function isBlankAttribute(attribute) {
+  if (!attribute.value) return true;
+  if (attribute.value.type === "Literal") {
+    return String(attribute.value.value).trim() === "";
+  }
+  if (attribute.value.type !== "JSXExpressionContainer") return false;
+  return isBlankExpression(attribute.value.expression);
+}
+
+function isBlankTooltipProp(prop) {
+  return prop.attribute
+    ? isBlankAttribute(prop.node)
+    : isBlankExpression(prop.value);
+}
+
+function usesButtonClassName(node, bindings, constants, depth = 0) {
+  if (!node || depth > 4) return false;
+  switch (node.type) {
+    case "JSXExpressionContainer":
+      return usesButtonClassName(node.expression, bindings, constants, depth);
+    case "CallExpression":
+      if (
+        node.callee.type === "Identifier" &&
+        bindings.buttonClassNames.has(node.callee.name)
+      ) {
+        return true;
+      }
+      return node.arguments.some((argument) =>
+        usesButtonClassName(argument, bindings, constants, depth + 1),
+      );
+    case "ConditionalExpression":
+      return [node.consequent, node.alternate].some((branch) =>
+        usesButtonClassName(branch, bindings, constants, depth + 1),
+      );
+    case "LogicalExpression":
+      return [node.left, node.right].some((side) =>
+        usesButtonClassName(side, bindings, constants, depth + 1),
+      );
+    case "TemplateLiteral":
+      return node.expressions.some((expression) =>
+        usesButtonClassName(expression, bindings, constants, depth + 1),
+      );
+    case "Identifier":
+      return usesButtonClassName(
+        constants.get(node.name),
+        bindings,
+        constants,
+        depth + 1,
+      );
+    default:
+      return false;
+  }
+}
+
+function isActionHintChild(openingElement, actionHints) {
+  const element = openingElement.parent;
+  let parent = element?.parent;
+  // `<ActionHint>{cond ? <a … /> : <label … />}</ActionHint>`
+  while (
+    parent &&
+    (parent.type === "JSXExpressionContainer" ||
+      parent.type === "ConditionalExpression" ||
+      parent.type === "LogicalExpression")
+  ) {
+    parent = parent.parent;
+  }
+  return (
+    parent?.type === "JSXElement" &&
+    actionHints.has(jsxName(parent.openingElement.name))
+  );
+}
+
+const buttonNeedsTooltip = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Every button says in one sentence what a click does: tooltip, or noTooltip with a reason.",
+    },
+    messages: {
+      missing:
+        'Knopf ohne Erklärung: `tooltip` mit einem Satz zur Folge des Klicks setzen oder `noTooltip="<Grund>"`, wenn das Wort schon alles sagt (#6643, Schreibregel in .claude/rules/frontend-ui-kit.md).',
+      title:
+        "`title` ersetzt keine Erklärung: den Satz als `tooltip` setzen (#6643).",
+      emptyReason:
+        "`noTooltip` braucht einen Grund, warum das Wort auf dem Knopf reicht (#6643).",
+      emptyTooltip:
+        'Leerer `tooltip`: einen Satz zur Folge des Klicks schreiben oder `noTooltip="<Grund>"` setzen (#6643).',
+      conflictingExplanation:
+        "`tooltip` und `noTooltip` dürfen nicht zusammen gesetzt sein (#6643).",
+      spreadAfterExplanation:
+        "Gespreizte Props hinter `tooltip`/`noTooltip` können die Erklärung überschreiben: den Spread vor die Erklärung stellen (#6643).",
+      missingHint:
+        'Element in Knopf-Optik ohne Erklärung: in `ActionHint text="…"` einschließen (#6643).',
+    },
+    schema: [],
+  },
+  create(context) {
+    if (!inTooltipScope(fileKey(context))) return {};
+    const constants = new Map();
+    const bindings = {
+      actionComponents: new Set(ACTION_COMPONENTS),
+      buttonClassNames: new Set(["buttonClassName"]),
+      kitButtons: new Set(KIT_BUTTONS),
+      navigationRows: new Set(NAVIGATION_ROWS),
+    };
+    const actionHints = new Set(["ActionHint"]);
+    // Elemente mit Knopf-Optik werden erst am Dateiende geprüft: Eine
+    // Klassen-Konstante darf unter der Komponente stehen.
+    const styledElements = [];
+    return {
+      Program(node) {
+        for (const statement of node.body) {
+          if (statement.type !== "ImportDeclaration") continue;
+          buttonRatchetImports(statement, bindings);
+          for (const specifier of statement.specifiers) {
+            if (
+              specifier.type === "ImportSpecifier" &&
+              specifier.imported.type === "Identifier" &&
+              specifier.imported.name === "ActionHint"
+            ) {
+              actionHints.add(specifier.local.name);
+            }
+          }
+        }
+      },
+      VariableDeclarator(node) {
+        if (node.id?.type === "Identifier" && node.init) {
+          constants.set(node.id.name, node.init);
+        }
+      },
+      JSXOpeningElement(node) {
+        const name = jsxName(node.name);
+        if (name === null || actionHints.has(name)) return;
+        if (bindings.kitButtons.has(name)) {
+          const {
+            props: tooltipProps,
+            unknownSpread,
+            spreadAfterExplanation,
+          } = tooltipPropsFromAttributes(node);
+          const { title, tooltip, noTooltip } = tooltipProps;
+          if (title) {
+            context.report({ node: title.node, messageId: "title" });
+            return;
+          }
+          if (tooltip && noTooltip) {
+            context.report({
+              node: noTooltip.node,
+              messageId: "conflictingExplanation",
+            });
+            return;
+          }
+          if ((tooltip || noTooltip) && spreadAfterExplanation) {
+            context.report({ node, messageId: "spreadAfterExplanation" });
+            return;
+          }
+          if (tooltip) {
+            if (isBlankTooltipProp(tooltip)) {
+              context.report({ node: tooltip.node, messageId: "emptyTooltip" });
+            }
+            return;
+          }
+          if (noTooltip) {
+            if (isBlankTooltipProp(noTooltip)) {
+              context.report({
+                node: noTooltip.node,
+                messageId: "emptyReason",
+              });
+            }
+            return;
+          }
+          if (unknownSpread) return;
+          context.report({ node, messageId: "missing" });
+          return;
+        }
+        if (name === "a" || name === "label") styledElements.push(node);
+      },
+      "Program:exit"() {
+        for (const node of styledElements) {
+          const className = jsxAttribute(node, "className");
+          if (
+            !className?.value ||
+            !usesButtonClassName(className.value, bindings, constants)
+          ) {
+            continue;
+          }
+          const title = jsxAttribute(node, "title");
+          if (title) {
+            context.report({ node: title, messageId: "title" });
+          } else if (!isActionHintChild(node, actionHints)) {
+            context.report({ node, messageId: "missingHint" });
+          }
+        }
+      },
+    };
+  },
+};
+
 export default {
   meta: { name: "ui-kit" },
   rules: {
+    "button-needs-tooltip": buttonNeedsTooltip,
+    "form-modal-pending": formModalPending,
+    "slide-over-pending": slideOverPending,
+    "confirmation-dismiss-lock": confirmationDismissLock,
+    "confirmation-loading-text": confirmationLoadingText,
     "green-fill-white-text": greenFillWhiteText,
     "no-button-override": noButtonOverride,
     "no-dead-surface-utility": noDeadSurfaceUtility,

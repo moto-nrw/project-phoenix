@@ -155,7 +155,7 @@ func NewDocumentCoordinator(kind string, backend apiDocuments.Objects, store api
 // NewUploadCleanup uses the existing file cleanup outbox, partitioned by kind.
 func NewUploadCleanup(db *bun.DB, kind filestorage.UploadCleanupKind) *filestorage.UploadCleanup {
 	cleanup := application.NewUploadCleanup(postgres.NewUploadCleanupStore(postgres.DatabaseRuntime(db), string(kind)), transaction{}, string(kind))
-	return filestorage.NewUploadCleanup(cleanup.Queue, cleanup.Sweep)
+	return filestorage.NewUploadCleanup(cleanup.Queue, cleanup.QueueAll, cleanup.Sweep)
 }
 
 type transaction struct{}

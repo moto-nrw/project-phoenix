@@ -8,6 +8,7 @@ import (
 	"strings"
 
 	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
 
 // HolidayStore persists the rules and the frozen contributions and knows
@@ -15,6 +16,7 @@ import (
 type HolidayStore interface {
 	Store
 	HolidaySiblingStore
+	FamilyMemoryStore
 	// IssuedRegistrations names the registrations of the period that an
 	// invoice of the service already bills.
 	IssuedRegistrations(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]bool, error)
@@ -35,16 +37,25 @@ type HolidayContributions struct {
 	store         HolidayStore
 	registrations parentbilling.HolidayRegistrations
 	settings      parentbilling.HolidayBillingSettings
+	// today is the Berlin day the family's number is needed from (#6692).
+	today func() calendar.Date
 }
 
 var _ parentbilling.HolidayContributions = (*HolidayContributions)(nil)
 
-// NewHolidayContributions builds the holiday contribution.
-func NewHolidayContributions(store HolidayStore, registrations parentbilling.HolidayRegistrations, settings parentbilling.HolidayBillingSettings) *HolidayContributions {
+// NewHolidayContributions builds the holiday contribution; a nil today uses
+// the Berlin day.
+func NewHolidayContributions(store HolidayStore, registrations parentbilling.HolidayRegistrations, settings parentbilling.HolidayBillingSettings,
+	today func() calendar.Date,
+) (parentbilling.HolidayContributions, parentbilling.HolidayAllocationBilling) {
 	if store == nil || registrations == nil || settings == nil {
 		panic("parent billing: the store, the holiday registrations and the settings are required")
 	}
-	return &HolidayContributions{store: store, registrations: registrations, settings: settings}
+	if today == nil {
+		today = calendar.TodayDate
+	}
+	contributions := &HolidayContributions{store: store, registrations: registrations, settings: settings, today: today}
+	return contributions, contributions
 }
 
 // ResolveHolidayLink resolves a public link; an empty key names no link.
@@ -176,9 +187,16 @@ func (h *HolidayContributions) memberContribution(ctx context.Context, organizat
 // switched-off cost bearer refuse the confirmation before anything is
 // written (#5627). The caller rolls the transaction back when this fails
 // after the confirmation.
-func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, benefitsExemption bool, costBearerID int64, debtorNumber string) (parentbilling.HolidayConfirmation, error) {
+func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, benefitsExemption bool, costBearerID int64, debtorNumber, familyChoice string) (parentbilling.HolidayConfirmation, error) {
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayConfirmation{}, errTraegerRequired
+	}
+	if err := validFamilyChoice(familyChoice); err != nil {
+		return parentbilling.HolidayConfirmation{}, err
+	}
+	debtorNumber, err := h.debtorNumberOf(ctx, reviewer.OrganizationID, debtorNumber)
+	if err != nil {
+		return parentbilling.HolidayConfirmation{}, err
 	}
 	bearer, err := h.chosenCostBearer(ctx, reviewer.OrganizationID, benefitsExemption, costBearerID, true)
 	if err != nil {
@@ -200,6 +218,13 @@ func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, r
 	}
 	choice := holidayMemberChoice{exemption: benefitsExemption, bearer: bearer}
 	if err := h.freezeConfirmed(ctx, reviewer, periodID, registration, others, issued, choice); err != nil {
+		return parentbilling.HolidayConfirmation{}, err
+	}
+	// The family keeps the number of the registration and of the group that
+	// took it (#6692); the caller rolls everything back on a conflict.
+	number := registration.DebtorNumber
+	if err := h.rememberFamilies(ctx, reviewer, slices.Concat([]parentbilling.HolidayRegistration{registration}, confirmedSharers(others, issued)),
+		&number, familyChoice, registration.ID); err != nil {
 		return parentbilling.HolidayConfirmation{}, err
 	}
 	frozen, found, err := h.store.HolidayContributions(ctx, reviewer.OrganizationID, registration.ID)
@@ -272,7 +297,8 @@ func (h *HolidayContributions) compute(ctx context.Context, organizationID int64
 	if err != nil {
 		return parentbilling.HolidayContribution{}, err
 	}
-	valid := validHolidayRules(rules, firstHolidayDay(children))
+	valid := validHolidayRules(rules, firstHolidayDay(placedHolidayChildren(children)))
+	valid.exemption = validHolidayRules(rules, firstHolidayDay(children)).exemption
 	valid.chain = chain
 	return computeHolidayContribution(children, valid, exemption, bearer), nil
 }
@@ -345,18 +371,47 @@ func quotedChildren(weeks []parentbilling.HolidayWeek, children []parentbilling.
 		priced[i] = parentbilling.HolidayChild{Position: i + 1, AgeRank: child.AgeRank, Bookings: make([]parentbilling.HolidayBooking, 0, len(child.Bookings))}
 		booked := map[int64]bool{}
 		for _, booking := range child.Bookings {
-			known, ok := models[booking.TimeModelID]
-			if !ok || known.week.ID != booking.WeekID || booked[booking.WeekID] {
+			known, found := models[booking.TimeModelID]
+			quoted, daysOffered := quotedBooking(known.week, known.model, booking.Days)
+			if !found || known.week.ID != booking.WeekID || booked[booking.WeekID] || !daysOffered {
 				return nil, fmt.Errorf("%w: child %d books a time model the period does not offer", parentbilling.ErrInvalidHolidayQuote, i+1)
 			}
 			booked[booking.WeekID] = true
-			priced[i].Bookings = append(priced[i].Bookings, parentbilling.HolidayBooking{
-				WeekID: known.week.ID, WeekStartsOn: known.week.StartsOn, WeekEndsOn: known.week.EndsOn,
-				TimeModelID: known.model.ID, TimeModelName: known.model.Name, PriceCents: known.model.PriceCents,
-			})
+			priced[i].Bookings = append(priced[i].Bookings, quoted)
 		}
 	}
 	return priced, nil
+}
+
+// quotedBooking prices a quoted booking: a time model of a week by days
+// prices one day (#4701).
+func quotedBooking(week parentbilling.HolidayWeek, model parentbilling.HolidayTimeModel, chosen []calendar.Date) (parentbilling.HolidayBooking, bool) {
+	days, ok := quotedDays(week, chosen)
+	price := model.PriceCents
+	if days > 0 {
+		price *= int64(days)
+	}
+	return parentbilling.HolidayBooking{
+		WeekID: week.ID, WeekStartsOn: week.StartsOn, WeekEndsOn: week.EndsOn,
+		TimeModelID: model.ID, TimeModelName: model.Name, PriceCents: price, BookedDays: days, Days: chosen,
+	}, ok
+}
+
+// quotedDays counts the distinct chosen days of a quoted booking (#4701):
+// a week by days needs at least one of its care days and only those, a week
+// booked as a whole none; zero is a whole week.
+func quotedDays(week parentbilling.HolidayWeek, days []calendar.Date) (int, bool) {
+	if len(week.CareDays) == 0 {
+		return 0, len(days) == 0
+	}
+	chosen := map[calendar.Date]bool{}
+	for _, day := range days {
+		if !slices.Contains(week.CareDays, day) {
+			return 0, false
+		}
+		chosen[day] = true
+	}
+	return len(chosen), len(chosen) > 0
 }
 
 // billedBy is what a contribution bills the family and the cost bearer. A

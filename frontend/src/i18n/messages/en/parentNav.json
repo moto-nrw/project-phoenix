@@ -22,7 +22,6 @@
   "childProfile": "Child profile",
   "loading": "Loading...",
   "sectionLoading": "Loading content",
-  "feedback": "Feedback",
   "help": "Help",
   "settings": "Settings",
   "enroll": "New enrollment",
@@ -34,5 +33,6 @@
   "noticeCount": "{count} notices",
   "documents": "Documents",
   "privacy": "Privacy",
-  "backToApp": "Back to the app"
+  "backToApp": "Back to the app",
+  "holidayRegistrations": "Holiday registrations"
 }

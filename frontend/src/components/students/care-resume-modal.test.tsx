@@ -67,6 +67,35 @@ describe("CareResumeModal", () => {
     expect(onClose).not.toHaveBeenCalled();
   });
 
+  // #6652: the resumption holds once the write is through; the caller's
+  // reload runs afterwards and never holds the dialog in its saving state.
+  it("finishes the resumption while the caller's reload still runs", async () => {
+    mockResume.mockResolvedValue(undefined);
+    const onResumed = vi.fn(() => new Promise<boolean>(() => undefined));
+    render(
+      <ModalProvider>
+        <CareResumeModal
+          isOpen
+          studentId="7"
+          displayName="Mia Muster"
+          onClose={vi.fn()}
+          onResumed={onResumed}
+        />
+      </ModalProvider>,
+    );
+
+    fireEvent.click(screen.getByLabelText(/Ich habe Gruppe, Angebote/));
+    fireEvent.click(
+      screen.getByRole("button", { name: "Betreuung wieder aufnehmen" }),
+    );
+
+    await waitFor(() => expect(onResumed).toHaveBeenCalledTimes(1));
+    expect(
+      await screen.findByRole("button", { name: "Betreuung wieder aufnehmen" }),
+    ).toBeEnabled();
+    expect(mockResume).toHaveBeenCalledTimes(1);
+  });
+
   it("shows a server error with request ID and resends on Wiederholen", async () => {
     mockResume
       .mockRejectedValueOnce(

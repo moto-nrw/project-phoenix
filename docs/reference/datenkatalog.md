@@ -49,6 +49,14 @@ gehören keiner Schule und werden nicht zurückgegeben.
 Ferienfenster bewusst Betreuung, mit dem bestätigenden Konto) ist `tenant`,
 wird zurückgegeben und mit der Schule gelöscht.
 
+Migration 1.15.917 ergänzt den Abruf des Rückgabepakets ([ADR 0203](../adr/0203-mandantenrueckgabe-wird-per-https-mit-kurzlebigem-token-abgerufen.md)):
+`platform.data_return_grants` (Token als HMAC, eingewickelter
+Paketschlüssel, Empfängerorganisation, Ablauf, Downloads) ist `platform` und
+`excludeSecret`; `platform.data_return_downloads` (je Abruf Zeitpunkt,
+Ergebnis, Bytes) ist `platform` und `excludeInternal`. Beide tragen keine
+Schul- oder Träger-Fremdschlüssel, sind Nachweis der Rückgabe und gehen mit
+`tenant return purge` drei Jahre nach dem Abrufzeitraum. Freigabe, Widerruf und Bereinigung laufen als Gruppe `phoenix_data_return` nur über Funktionen der Migration; `tenant erase` verweigert, solange ein Paket der Schule oder des Trägers nicht bereinigt ist.
+
 Migration 1.15.758 ergänzt `platform.email_delivery_events` und
 `platform.email_suppressions` (#5932): Zustellereignisse einer Mail und die
 Adressen einer Schule mit endgültigem Fehler oder Beschwerde. Beide sind
@@ -79,7 +87,7 @@ nächtliche Delivery-Aufbewahrung löscht sie vorher. Beim Löschen eines
 Demo-Besuchs entfernt `platform.erase_closed_demo_visitors` seit Migration
 1.15.732 alle Kopien der ausgemusterten Demo-Schule mit (#5540).
 
-**Im Code umgesetzt, Slice 3838-a:** `tenant export --school … --uploads … --out …`
+**Im Code umgesetzt, Slice 3838-a:** `tenant export --school … --operator … --uploads … --out …`
 liest den freigegebenen Katalogbestand in einer schreibgeschützten
 `REPEATABLE READ`-Transaktion über eine eigene administrative Leserolle.
 Direkte Tabellen werden per `tenant_id`, Kindtabellen per Katalog-FK-Pfad,
@@ -87,8 +95,9 @@ Schul-/Trägerwurzeln und gemeinsame Konten per ausdrücklicher Schulzuordnung
 ausgewählt. Originaldateien, JSONL-Tabellen, Modellmetadaten und SHA-256-
 Prüfsummen liegen in einem neuen privaten Verzeichnis. Ein Teilfehler
 verhindert den Fertig-Marker. Zwei-Mandanten-Tests prüfen jede Katalogtabelle,
-alle Datei-Kinds und alle ausgeschlossenen Spalten. Ausführung, Übergabe und
-Nachweis: [Runbook](../operations/auskunft-und-rueckgabe.md).
+alle Datei-Kinds und alle ausgeschlossenen Spalten. Seit #6326 verlangt jeder
+Lauf `--operator` und steht im Operator-Protokoll (ADR 0187, Addendum).
+Ausführung, Übergabe und Nachweis: [Runbook](../operations/auskunft-und-rueckgabe.md).
 
 **Im Code umgesetzt (Datenbankteil, 3837-b):** Migration 1.15.481 stellt
 `platform.erase_school` und die getrennte Nachweistabelle
@@ -159,10 +168,20 @@ freigegebene verdächtige Namen, etwa Postleitzahl oder Inhaltsprüfsumme.
 zu: Die Rückgabe enthält den geöffneten Wert statt des Chiffrats, das ohne den
 Schlüssel der Installation nutzlos ist. Der Besitzer der Tabelle öffnet ihn
 über `TenantExportSealedFields` (#3838): IBAN und Kontoinhaber der
-SEPA-Mandate und -Lastschriften (Bankring, ADR 0192) sowie die
+SEPA-Mandate und -Lastschriften (Bankring, ADR 0192), der bestätigte
+Mandatstext, IBAN und Kontoinhaber der Eltern, IBAN, Steuer-ID und
+Sozialversicherungsnummer des Personals (Bankring, ADR 0197, #6412) sowie die
 Gesundheitsangaben der Betreuungsprofile, Ferienanmeldungen, -kinder und
 -gäste (Gesundheitsring, ADR 0193, #6328). Die Ferienwerte stehen als der
-JSON-Text, den sie halten.
+JSON-Text, den sie halten. Bei Eltern und Personal heißen die geöffneten
+Spalten `*_opened`, weil die alten Klartextspalten (`iban`, `tax_id` …) bis
+zu ihrem Drop noch bestehen.
+`sealedBindings` reicht dem Besitzer einen Wert einer anderen Tabelle aus
+demselben Snapshot zum Öffnen (ADR 0197): Der Mandatstext ist an die
+Mandatsreferenz gebunden, die Einwilligungszeile nennt nur `mandate_id`. Der
+Eintrag nennt Zieltabelle, Zielspalte und die Spaltenpaare (`match`), über die
+genau eine Zeile gefunden wird. Der Wert ist keine Exportspalte und steht
+weder im Paket noch in `model.json`.
 `projectedColumns` ordnet einem ausgeschlossenen, untypisierten Container eine
 neue Spalte mit seiner geprüften Projektion zu (ADR 0193). Der Besitzer
 entscheidet über `TenantExportProjectedFields`, was Kundendaten ist: Settings
@@ -226,7 +245,14 @@ offene Datei-Löschaufträge gehören zusammen. Ein verwaistes Objekt darf nicht
    `TestEveryUploadKindHasDataLifecycleClassification` sowie
    `TestSchoolErasurePlanCoversCatalogAndDeleteTriggers` und die
    `TestSchoolErasure*`-Verhaltenstests.
-5. Bei Verfahrensänderungen den Katalogstand im späteren datensparsamen
+5. Ändert sich eine zurückgegebene Tabelle, Spalte, Beziehung oder ein
+   Ausschluss, das Register des Rückgabepakets (Art. 26 Data Act,
+   [ADR 0201](../adr/0201-mandantenrueckgabe-hat-ein-register-und-einen-abrufweg.md))
+   im selben PR neu erzeugen:
+   `../scripts/run-go-toolchain.sh go test -tags=testhooks ./modules/organizationtenancy/internal/adapters/tenantexport -run TestReturnRegisterMatchesMigratedSchema -update-return-register`.
+   Der Test schlägt sonst fehl. Die API liefert die eingebettete Datei unter
+   `/public/data-return/register`.
+6. Bei Verfahrensänderungen den Katalogstand im späteren datensparsamen
    Durchführungsnachweis festhalten. Schemaabdeckung allein beweist weder
    Mandantentrennung des Verfahrens noch erfolgreiche Löschung/Rückgabe.
 

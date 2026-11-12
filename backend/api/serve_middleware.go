@@ -207,16 +207,17 @@ func demoLoopbackExempt() bool {
 // It runs after the session Verifier, whose parse the per-account key reads,
 // and before the session family check, so a flood of signed tokens is limited
 // before it reaches the database.
-func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.SecurityLogger, exemptLoopback bool) {
-	if os.Getenv("RATE_LIMIT_ENABLED") != "true" {
+func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.SecurityLogger, enabled, exemptLoopback bool) {
+	if !enabled {
 		return
 	}
 
-	generalLimit := parsePositiveInt(os.Getenv("RATE_LIMIT_REQUESTS_PER_MINUTE"), 60)
-	generalBurst := parsePositiveInt(os.Getenv("RATE_LIMIT_BURST"), 10)
+	generalLimit, generalBurst := generalRateLimitFromEnv()
 
 	generalRateLimiter := customMiddleware.NewRateLimiter(generalLimit, generalBurst)
 	generalRateLimiter.ExemptPathPrefix(emailWebhookPath + "/")
+	generalRateLimiter.ExemptPathPrefix(holidayRegistrationPath + "/")
+	generalRateLimiter.ExemptPathPrefix(holidayQuoteMount + "/")
 	generalRateLimiter.SetBucketFunc(func(r *http.Request) string {
 		switch r.Method {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
@@ -234,6 +235,13 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 		generalRateLimiter.SetLogger(securityLogger)
 	}
 	router.Use(generalRateLimiter.Middleware())
+}
+
+// generalRateLimitFromEnv is the configured budget of one caller of the
+// general limiter per minute and its burst.
+func generalRateLimitFromEnv() (requestsPerMinute, burst int) {
+	return parsePositiveInt(os.Getenv("RATE_LIMIT_REQUESTS_PER_MINUTE"), 60),
+		parsePositiveInt(os.Getenv("RATE_LIMIT_BURST"), 10)
 }
 
 // parsePositiveInt parses a positive integer from environment variable with a default value
@@ -278,28 +286,32 @@ func buildAuthRateLimiters(securityLogger *customMiddleware.SecurityLogger, conf
 		emailConfirm: customMiddleware.NewRateLimiter(authLimit, burst),
 		invitation:   customMiddleware.NewRateLimiter(authLimit, burst),
 	}
-	if exemptLoopback {
-		limiters.auth.ExemptLoopback()
-		limiters.emailConfirm.ExemptLoopback()
-		limiters.invitation.ExemptLoopback()
-	}
-	if securityLogger != nil {
-		limiters.auth.SetLogger(securityLogger)
-		limiters.emailConfirm.SetLogger(securityLogger)
-		limiters.invitation.SetLogger(securityLogger)
+	for bucket, limiter := range map[string]*customMiddleware.RateLimiter{
+		"auth": limiters.auth, "email-confirm": limiters.emailConfirm, "invitation": limiters.invitation,
+	} {
+		limiter.SetBucketFunc(func(*http.Request) string { return bucket })
+		limiter.SetRejectObserver(observability.RecordRateLimitRejection)
+		if exemptLoopback {
+			limiter.ExemptLoopback()
+		}
+		if securityLogger != nil {
+			limiter.SetLogger(securityLogger)
+		}
 	}
 	return limiters
 }
 
-// authRateLimitersFromEnv builds the auth-endpoint limiters while
-// RATE_LIMIT_ENABLED is set. When it is not, the zero-value limiters carry
-// nil fields and the portals mount without them.
-func authRateLimitersFromEnv() authRateLimiters {
-	if os.Getenv("RATE_LIMIT_ENABLED") != "true" {
+// authRateLimitersFromEnv builds the auth-endpoint limiters from the root
+// configuration snapshot. Disabled limiters carry nil fields.
+func authRateLimitersFromEnv(enabled bool) authRateLimiters {
+	if !enabled {
 		return authRateLimiters{}
 	}
 	return buildAuthRateLimiters(securityLoggerFromEnv(), os.Getenv("RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE"), demoLoopbackExempt())
 }
+
+// enabled reports whether rate limiting is switched on.
+func (limiters authRateLimiters) enabled() bool { return limiters.auth != nil }
 
 // authMiddleware is the auth limiter's middleware, nil while rate limiting is
 // disabled. Tenant, operator, parent and school login share its budget.
@@ -317,9 +329,77 @@ const (
 	emailWebhookBurst             = 300
 )
 
+// The retrieval of a return package (ADR 0203) is a few requests per
+// recipient; a tight limit per address stops token guessing and repeated
+// large downloads alike.
+const (
+	dataReturnRequestsPerMinute = 30
+	dataReturnBurst             = 10
+)
+
+// The public holiday registration is opened by many families from one
+// address at once: the school network, a parents' evening, a mobile carrier
+// (#6726). One family needs an offer, a quote, its proofs and the
+// registration; the limit of one person would refuse the families behind it.
+// The link has its own limit for that, per address and split into reads and
+// writes like the general one. Turnstile and the stored-registration limits
+// of Enrollment stay in front of every write.
+//
+// These values are a floor. The link is exempt from the general limiter, so
+// its own limit must never be tighter than the general one an environment
+// configures: holidayRegistrationLimits takes the larger of both.
+const (
+	holidayRegistrationRequestsPerMinute = 1200
+	holidayRegistrationBurst             = 300
+)
+
+// holidayRegistrationLimits is the budget of the public holiday link beside
+// a general limiter of generalLimit and generalBurst.
+func holidayRegistrationLimits(generalLimit, generalBurst int) (requestsPerMinute, burst int) {
+	return max(holidayRegistrationRequestsPerMinute, generalLimit), max(holidayRegistrationBurst, generalBurst)
+}
+
+// holidayRegistrationRateLimit is nil when rate limiting is disabled.
+func holidayRegistrationRateLimit(enabled, exemptLoopback bool) func(http.Handler) http.Handler {
+	if !enabled {
+		return nil
+	}
+	limiter := customMiddleware.NewRateLimiter(holidayRegistrationLimits(generalRateLimitFromEnv()))
+	limiter.SetBucketFunc(func(r *http.Request) string {
+		switch r.Method {
+		case http.MethodGet, http.MethodHead, http.MethodOptions:
+			return "holiday-link-read"
+		default:
+			return "holiday-link-write"
+		}
+	})
+	limiter.SetRejectObserver(observability.RecordRateLimitRejection)
+	if exemptLoopback {
+		limiter.ExemptLoopback()
+	}
+	if securityLogger := securityLoggerFromEnv(); securityLogger != nil {
+		limiter.SetLogger(securityLogger)
+	}
+	return limiter.Middleware()
+}
+
+// dataReturnRateLimit is nil when rate limiting is disabled.
+func dataReturnRateLimit(enabled bool) func(http.Handler) http.Handler {
+	if !enabled {
+		return nil
+	}
+	limiter := customMiddleware.NewRateLimiter(dataReturnRequestsPerMinute, dataReturnBurst)
+	limiter.SetBucketFunc(func(*http.Request) string { return "data-return" })
+	limiter.SetRejectObserver(observability.RecordRateLimitRejection)
+	if securityLogger := securityLoggerFromEnv(); securityLogger != nil {
+		limiter.SetLogger(securityLogger)
+	}
+	return limiter.Middleware()
+}
+
 // emailWebhookRateLimit is nil when rate limiting is disabled.
-func emailWebhookRateLimit() func(http.Handler) http.Handler {
-	if os.Getenv("RATE_LIMIT_ENABLED") != "true" {
+func emailWebhookRateLimit(enabled bool) func(http.Handler) http.Handler {
+	if !enabled {
 		return nil
 	}
 	return newEmailWebhookRateLimit(securityLoggerFromEnv())
@@ -327,6 +407,7 @@ func emailWebhookRateLimit() func(http.Handler) http.Handler {
 
 func newEmailWebhookRateLimit(securityLogger *customMiddleware.SecurityLogger) func(http.Handler) http.Handler {
 	limiter := customMiddleware.NewRateLimiter(emailWebhookRequestsPerMinute, emailWebhookBurst)
+	limiter.SetBucketFunc(func(*http.Request) string { return "webhook" })
 	limiter.SetRejectObserver(observability.RecordRateLimitRejection)
 	if securityLogger != nil {
 		limiter.SetLogger(securityLogger)

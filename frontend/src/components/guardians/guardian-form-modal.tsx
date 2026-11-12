@@ -9,6 +9,7 @@ import {
   SlideOverTitle,
   SlideOverFooter,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { FieldLabel } from "~/components/ui/field-label";
@@ -246,7 +247,8 @@ export default function GuardianFormModal({
   initialData,
   mode,
 }: GuardianFormModalProps) {
-  const [isLoading, setIsLoading] = useState(false);
+  // Another guardian in the open panel starts a new session (#6593).
+  const save = useFormModalPending(isOpen, initialData?.id);
   const formRef = useRef<HTMLFormElement>(null);
   const formErrors = useApiFormError(formRef);
   const clearErrors = formErrors.clear;
@@ -515,32 +517,35 @@ export default function GuardianFormModal({
       return;
     }
 
-    setIsLoading(true);
-
-    try {
-      const submitData = buildSubmitData();
-      // Pass removeEntry callback for partial failure handling
-      await onSubmit(submitData, removeEntry);
-      onClose();
-    } catch (err) {
-      // Code und Status statt des Texts: der Diagnosetext einer doppelten
-      // E-Mail nennt die Adresse, und Browser-Logs gehen nach Loki (#2108).
-      logger.error("guardian_save_failed", {
-        code: err instanceof ApiError ? err.code : undefined,
-        status: err instanceof ApiError ? err.status : undefined,
-        mode,
-      });
-      await formErrors.show(err, {
-        object:
-          mode === "create"
-            ? "das Hinzufügen der Erziehungsberechtigten"
-            : "das Speichern der Erziehungsberechtigten",
-        // Erneut absenden mit den Eingaben von jetzt.
-        retry: () => formRef.current?.requestSubmit(),
-      });
-    } finally {
-      setIsLoading(false);
-    }
+    await save.run(async (op) => {
+      try {
+        const submitData = buildSubmitData();
+        // Pass removeEntry callback for partial failure handling; a late
+        // answer leaves the entries of a later session alone.
+        await onSubmit(submitData, (id) => {
+          if (op.isCurrent()) removeEntry(id);
+        });
+        if (op.isCurrent()) onClose();
+      } catch (err) {
+        // Code und Status statt des Texts: der Diagnosetext einer doppelten
+        // E-Mail nennt die Adresse, und Browser-Logs gehen nach Loki (#2108).
+        logger.error("guardian_save_failed", {
+          code: err instanceof ApiError ? err.code : undefined,
+          status: err instanceof ApiError ? err.status : undefined,
+          mode,
+        });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object:
+            mode === "create"
+              ? "das Hinzufügen der Erziehungsberechtigten"
+              : "das Speichern der Erziehungsberechtigten",
+          // Erneut absenden mit den Eingaben von jetzt.
+          retry: () => formRef.current?.requestSubmit(),
+        });
+      }
+    });
   };
 
   const modalTitle =
@@ -551,6 +556,7 @@ export default function GuardianFormModal({
   return (
     <SlideOver
       open={isOpen}
+      pending={save}
       onOpenChange={(open) => {
         if (!open) onClose();
       }}
@@ -592,7 +598,7 @@ export default function GuardianFormModal({
                       variant="ghost_danger"
                       size="compact"
                       onClick={() => removeEntry(entry.id)}
-                      disabled={isLoading}
+                      disabled={save.pending}
                       className="gap-1"
                     >
                       <X className="h-3 w-3" />
@@ -648,7 +654,7 @@ export default function GuardianFormModal({
                         }
                         placeholder="Max"
                         required
-                        disabled={isLoading}
+                        disabled={save.pending}
                         maxLength={255}
                       />
                     </div>
@@ -681,7 +687,7 @@ export default function GuardianFormModal({
                         }
                         placeholder="Mustermann"
                         required
-                        disabled={isLoading}
+                        disabled={save.pending}
                         maxLength={255}
                       />
                     </div>
@@ -692,14 +698,14 @@ export default function GuardianFormModal({
                       onChange={(value) =>
                         updateRelationshipType(entry.id, value)
                       }
-                      disabled={isLoading}
+                      disabled={save.pending}
                       parentVisibleHint={PARENT_VISIBLE_HINTS.guardianName}
                     />
                     <GuardianRoleSelect
                       id={`guardian-role-${entry.id}`}
                       value={entry.guardianRole}
                       onChange={(value) => updateGuardianRole(entry.id, value)}
-                      disabled={isLoading}
+                      disabled={save.pending}
                     />
                   </div>
                 </InsetPanel>
@@ -741,7 +747,7 @@ export default function GuardianFormModal({
                         hasFieldError(entry.id, "email") || undefined
                       }
                       placeholder="max.mustermann@example.com"
-                      disabled={isLoading}
+                      disabled={save.pending}
                       maxLength={255}
                     />
                   </div>
@@ -775,7 +781,7 @@ export default function GuardianFormModal({
                                 next as PhoneType,
                               )
                             }
-                            disabled={isLoading}
+                            disabled={save.pending}
                             ariaLabel={`Telefontyp ${phoneIndex + 1}`}
                           />
                         </div>
@@ -799,7 +805,7 @@ export default function GuardianFormModal({
                               hasPhoneError(entry.id, phone.id) || undefined
                             }
                             placeholder="+49 170 1234567"
-                            disabled={isLoading}
+                            disabled={save.pending}
                             aria-label={`Telefonnummer ${phoneIndex + 1}`}
                             maxLength={30}
                           />
@@ -821,7 +827,7 @@ export default function GuardianFormModal({
                               )
                             }
                             placeholder="Notiz"
-                            disabled={isLoading}
+                            disabled={save.pending}
                             aria-label={`Notiz für Nummer ${phoneIndex + 1}`}
                             maxLength={255}
                           />
@@ -835,7 +841,7 @@ export default function GuardianFormModal({
                             variant="ghost"
                             size="icon"
                             onClick={() => setPhonePrimary(entry.id, phone.id)}
-                            disabled={isLoading}
+                            disabled={save.pending}
                             aria-pressed={phone.isPrimary}
                             title={
                               phone.isPrimary
@@ -861,7 +867,7 @@ export default function GuardianFormModal({
                               variant="ghost"
                               size="icon"
                               onClick={() => removePhone(entry.id, phone.id)}
-                              disabled={isLoading}
+                              disabled={save.pending}
                               title="Entfernen"
                               aria-label={`Telefonnummer ${phoneIndex + 1} entfernen`}
                             >
@@ -878,7 +884,7 @@ export default function GuardianFormModal({
                       variant="dashed"
                       size="compact"
                       onClick={() => addPhone(entry.id)}
-                      disabled={isLoading}
+                      disabled={save.pending}
                       className="w-full gap-1.5"
                     >
                       <Plus className="h-3.5 w-3.5" />
@@ -926,7 +932,7 @@ export default function GuardianFormModal({
                           updateEntry(entry.id, "addressStreet", e.target.value)
                         }
                         placeholder="Musterstr. 1"
-                        disabled={isLoading}
+                        disabled={save.pending}
                         maxLength={255}
                       />
                     </div>
@@ -945,7 +951,7 @@ export default function GuardianFormModal({
                       }
                       placeholder="50667"
                       maxLength={5}
-                      disabled={isLoading}
+                      disabled={save.pending}
                     />
                     <Input
                       label="Ort"
@@ -957,7 +963,7 @@ export default function GuardianFormModal({
                         updateEntry(entry.id, "addressCity", e.target.value)
                       }
                       placeholder="Köln"
-                      disabled={isLoading}
+                      disabled={save.pending}
                       maxLength={255}
                     />
                   </div>
@@ -990,7 +996,7 @@ export default function GuardianFormModal({
                       onChange={(next) =>
                         updateEntry(entry.id, "languagePreference", next)
                       }
-                      disabled={isLoading}
+                      disabled={save.pending}
                     />
                     <div className="md:col-span-2">
                       <Textarea
@@ -1002,7 +1008,7 @@ export default function GuardianFormModal({
                         }
                         placeholder="Interne Notizen zum Erziehungsberechtigten"
                         rows={2}
-                        disabled={isLoading}
+                        disabled={save.pending}
                         maxLength={2000}
                       />
                     </div>
@@ -1017,7 +1023,7 @@ export default function GuardianFormModal({
                   onChange={(field, value) =>
                     updateEntry(entry.id, field, value)
                   }
-                  disabled={isLoading}
+                  disabled={save.pending}
                 />
 
                 {/* Divider between entries */}
@@ -1034,7 +1040,7 @@ export default function GuardianFormModal({
                 variant="dashed"
                 size="md"
                 onClick={addEntry}
-                disabled={isLoading}
+                disabled={save.pending}
                 className="w-full gap-2"
               >
                 <svg
@@ -1062,7 +1068,7 @@ export default function GuardianFormModal({
                 variant="outline_danger"
                 size="md"
                 onClick={onDelete}
-                disabled={isLoading}
+                disabled={save.pending}
               >
                 Entfernen
               </Button>
@@ -1075,7 +1081,7 @@ export default function GuardianFormModal({
                 variant="outline"
                 size="md"
                 onClick={onClose}
-                disabled={isLoading}
+                disabled={save.pending}
               >
                 Abbrechen
               </Button>
@@ -1084,7 +1090,7 @@ export default function GuardianFormModal({
                 variant="primary"
                 size="md"
                 data-setup-tour="guardian-submit"
-                isLoading={isLoading}
+                isLoading={save.pending}
                 loadingText="Wird gespeichert..."
                 className="flex-1"
               >

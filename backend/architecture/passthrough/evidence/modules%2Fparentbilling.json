@@ -79,6 +79,13 @@
     },
     {
       "build": "production",
+      "evidence": "func (h *HolidayContributions) HoldHolidayAllocationInvoices(ctx context.Context, organizationID, accountID, periodID int64) error {\n\tif organizationID \u003c= 0 || accountID \u003c= 0 {\n\t\treturn errTraegerRequired\n\t}\n\tif err := h.store.LockPeriodBilling(ctx, organizationID, parentbilling.ServiceHoliday, periodID); err != nil {\n\t\treturn fmt.Errorf(\"parent billing: hold the invoices of the period: %w\", err)\n\t}\n\treturn nil\n}",
+      "form": "unclassified-evidence",
+      "id": "modules/parentbilling/internal/application/HolidayContributions.HoldHolidayAllocationInvoices",
+      "owner": "modules/parentbilling"
+    },
+    {
+      "build": "production",
       "evidence": "func (h *HolidayContributions) ResolveHolidayLink(ctx context.Context, token string) (parentbilling.HolidayLink, error) {\n\ttoken = strings.TrimSpace(token)\n\tif token == \"\" {\n\t\treturn parentbilling.HolidayLink{}, parentbilling.ErrHolidayLinkNotFound\n\t}\n\tlink, err := h.registrations.ResolveHolidayLink(ctx, token)\n\tif err != nil {\n\t\treturn parentbilling.HolidayLink{}, err\n\t}\n\tif link.OrganizationID \u003c= 0 || link.PeriodID \u003c= 0 {\n\t\treturn parentbilling.HolidayLink{}, parentbilling.ErrHolidayLinkNotFound\n\t}\n\treturn link, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/parentbilling/internal/application/HolidayContributions.ResolveHolidayLink",

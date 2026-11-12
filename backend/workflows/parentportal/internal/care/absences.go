@@ -117,6 +117,10 @@ func (s *Service) absenceNote(ctx context.Context, tenantID int64, reason string
 	return trimmedNote, nil
 }
 
+// sickNoteWriteAccess is what an absence report and its request hold until
+// they commit.
+var sickNoteWriteAccess = childWriteNeeds(GuardianPermissionSickNoteSubmit)
+
 // absenceReport is one direct parent absence submission.
 type absenceReport struct {
 	accountID int64
@@ -142,7 +146,7 @@ func (s *Service) reportAbsence(ctx context.Context, child *Child, report absenc
 	}
 	result := &SickNoteResult{}
 	var freeDays int
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, report.accountID, report.studentID, child, sickNoteWriteAccess, func(txCtx context.Context) error {
 		split, err := s.splitSchoolDays(txCtx, report)
 		if err != nil {
 			return err
@@ -340,7 +344,7 @@ func isNewParentReportableAbsence(student *PortalStudent, status string) bool {
 // request inside the child's tenant transaction.
 func (s *Service) submitAbsenceRequest(ctx context.Context, child *Child, accountID, studentID int64, dates []calendar.Date, note, status string, recipientGuardianProfileIDs []int64) (*SickNoteResult, error) {
 	var req *ExcusedAbsenceRequest
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, sickNoteWriteAccess, func(txCtx context.Context) error {
 		// The initial authorization snapshot may predate a concurrent care exit.
 		// Lock and re-read the child before creating a pending request so both
 		// absence paths obey the same read-only boundary.

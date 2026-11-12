@@ -191,12 +191,12 @@ export function PushNotificationSection({
     void refresh();
   }, [refresh]);
 
+  // `refresh` liest nur den Zustand dieses Geräts neu und weist nie ab; es
+  // läuft nach dem Schreiben, nie in dessen catch (#6652).
   const enable = async () => {
     setBusy(true);
     try {
       await subscribePush(portal);
-      toast.success(t("enabledMessage"));
-      await refresh();
     } catch (err) {
       logger.error("push_subscribe_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -216,9 +216,12 @@ export function PushNotificationSection({
         });
       }
       await refresh();
-    } finally {
       setBusy(false);
+      return;
     }
+    setBusy(false);
+    toast.success(t("enabledMessage"));
+    await refresh();
   };
 
   const install = async () => {
@@ -243,8 +246,6 @@ export function PushNotificationSection({
     setBusy(true);
     try {
       await unsubscribePush(portal);
-      toast.success(t("disabledMessage"));
-      await refresh();
     } catch (err) {
       logger.error("push_unsubscribe_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -253,9 +254,12 @@ export function PushNotificationSection({
         object: t("errorObjectDisable"),
         retry: () => latestDisableRef.current(),
       });
-    } finally {
       setBusy(false);
+      return;
     }
+    setBusy(false);
+    toast.success(t("disabledMessage"));
+    await refresh();
   };
 
   const sendTest = async () => {
@@ -331,6 +335,7 @@ export function PushNotificationSection({
         type="button"
         size="md"
         aria-label={t("enable")}
+        tooltip={t("enableTooltip")}
         isLoading={busy}
         loadingText={t("enabling")}
         onClick={() => void enable()}
@@ -343,6 +348,7 @@ export function PushNotificationSection({
         variant="surface"
         size="md"
         aria-label={t("disable")}
+        tooltip={t("disableTooltip")}
         disabled={busy}
         onClick={() => void disable()}
       >
@@ -352,6 +358,7 @@ export function PushNotificationSection({
       <Button
         type="button"
         size="md"
+        tooltip={t("installTooltip")}
         isLoading={busy}
         loadingText={setupT("installing")}
         onClick={() => void install()}
@@ -494,6 +501,7 @@ export function PushNotificationSection({
                     type="button"
                     variant="surface"
                     size="md"
+                    tooltip={t("installTooltip")}
                     isLoading={busy}
                     loadingText={setupT("installing")}
                     onClick={() => void install()}
@@ -529,6 +537,7 @@ export function PushNotificationSection({
                     type="button"
                     variant="surface"
                     size="md"
+                    tooltip={t("checkAgainTooltip")}
                     disabled={busy}
                     onClick={() => void refresh()}
                   >

@@ -1,8 +1,6 @@
 {
-  "switcherLabel": "Çocuk seçin",
   "overviewKicker": "Çocuklara genel bakış",
   "overviewDescription": "Bakım, bilgiler ve kişileri görmek için bir çocuk seçin.",
-  "ogsLabel": "{careTerm}",
   "careEnded": {
     "title": "Bakım sona erdi",
     "body": "Çocuğunuz bu {careTerm}'de artık bakım almıyor. Önceki her şeyi görmeye devam edebilirsiniz. Yeni bildirimler artık mümkün değil."
@@ -10,10 +8,7 @@
   "notFound": "Bu adres için hesabınızda bir çocuk yok. Lütfen çocuğunuzu genel bakıştan seçin.",
   "noChildren": "Hesabınıza henüz bir çocuk bağlı değil. Okulunuzun {careTerm}'si bunu ayarlayabilir.",
   "sections": {
-    "today": "Bugün",
-    "care": "{careTerm}'de bakım",
-    "data": "Çocuk bilgileri",
-    "people": "Veliler ve teslim almaya yetkili kişiler"
+    "today": "Bugün"
   },
   "areas": {
     "label": "Çocukla ilgili alanlar",
@@ -51,8 +46,9 @@
   "consents": {
     "title": "Onaylar ve izinler",
     "description": "Çocuğunuz için nelerin kayıtlı olduğunu burada görebilirsiniz.",
-    "staffDescription": "Yalnızca bilgi amaçlıdır. Veliler fotoğraf iznini veli portalında değiştirir.",
+    "staffDescription": "Veliler fotoğraf iznini veli portalında değiştirir. Portalı olmayan veliler bunu size bildirir. Sonra „Bearbeiten“ altında fotoğraftaki işareti kaldırın.",
     "photoDescription": "Fotoğraf iznini burada değiştirebilirsiniz.",
+    "photoViaCareDescription": "Fotoğraf iznini geri çekmek için {careTerm} ile iletişime geçin.",
     "items": {
       "agb": "Genel şartlar ve koşullar",
       "data_processing": "Gizlilik bilgilendirmesi okundu",

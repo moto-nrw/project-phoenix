@@ -17,7 +17,8 @@ import (
 
 // Holiday periods of a Träger (#4659). The caller runs every operation in the
 // Träger transaction of organizationID; the store refuses any other unit. The
-// database decides whether a host school belongs to the Träger.
+// calendar binding authorizes host schools before reading their calendars;
+// the database also enforces membership on writes.
 
 // Limits of one period. They bound the request, not the business: a holiday
 // season has a handful of weeks with two or three time models each.
@@ -48,6 +49,10 @@ type HolidayPeriodStore interface {
 	// child has booked, those of a cancelled registration included: reopening
 	// it brings its bookings back.
 	HolidayWeeksBookedTogether(ctx context.Context, organizationID, periodID int64) ([][2]int64, error)
+	// HolidayChildBookings lists the bookings of each child of the period
+	// whose registration is not cancelled, one list per child (#6506). A
+	// cancellation is final, so its bookings take no care day.
+	HolidayChildBookings(ctx context.Context, organizationID, periodID int64) ([][]enrollment.HolidayBookingInput, error)
 }
 
 // HolidayPeriods serves enrollment.HolidayPeriods.
@@ -55,20 +60,24 @@ type HolidayPeriods struct {
 	store HolidayPeriodStore
 	forms HolidayFormStore
 	today func() calendar.Date
+	// calendar names the host schools' days without care (#4702). Without
+	// it the periods are read unmarked and no week is written.
+	calendar enrollment.HolidaySchoolCalendar
 }
 
 var _ enrollment.HolidayPeriods = (*HolidayPeriods)(nil)
 
 // NewHolidayPeriods builds the holiday period commands over store; forms
-// receives the first version of a new period's form (#5198).
-func NewHolidayPeriods(store HolidayPeriodStore, forms HolidayFormStore, today func() calendar.Date) *HolidayPeriods {
+// receives the first version of a new period's form (#5198), schoolCalendar
+// names the days without care of the host schools (#4702).
+func NewHolidayPeriods(store HolidayPeriodStore, forms HolidayFormStore, today func() calendar.Date, schoolCalendar enrollment.HolidaySchoolCalendar) *HolidayPeriods {
 	if store == nil || forms == nil {
 		panic("enrollment: the holiday period store and the form store are required")
 	}
 	if today == nil {
 		today = calendar.TodayDate
 	}
-	return &HolidayPeriods{store: store, forms: forms, today: today}
+	return &HolidayPeriods{store: store, forms: forms, today: today, calendar: schoolCalendar}
 }
 
 // ListHolidayPeriods returns every period of the Träger, newest first.
@@ -88,7 +97,16 @@ func (h *HolidayPeriods) HolidayPeriod(ctx context.Context, organizationID, peri
 	if err := holidayPeriodKey(organizationID, periodID); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
-	return foundHolidayPeriod(h.store.FindHolidayPeriod(ctx, organizationID, periodID, false))
+	return h.markedPeriod(ctx, organizationID, periodID)
+}
+
+// markedPeriod reads the stored period with its days without care.
+func (h *HolidayPeriods) markedPeriod(ctx context.Context, organizationID, periodID int64) (enrollment.HolidayPeriod, error) {
+	period, err := foundHolidayPeriod(h.store.FindHolidayPeriod(ctx, organizationID, periodID, false))
+	if err != nil {
+		return enrollment.HolidayPeriod{}, err
+	}
+	return withHolidayNoCareDays(ctx, h.calendar, period)
 }
 
 // CreateHolidayPeriod adds a draft period with version 1 of its form, the
@@ -101,6 +119,9 @@ func (h *HolidayPeriods) CreateHolidayPeriod(ctx context.Context, organizationID
 	if err := validateHolidayPeriod(input, enrollment.HolidayPeriod{}); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
+	if err := refuseHolidayWeeksWithoutCare(ctx, h.calendar, input.Weeks, enrollment.HolidayPeriod{}); err != nil {
+		return enrollment.HolidayPeriod{}, err
+	}
 	periodID, err := h.store.InsertHolidayPeriod(ctx, organizationID, input)
 	if err != nil {
 		return enrollment.HolidayPeriod{}, err
@@ -108,7 +129,7 @@ func (h *HolidayPeriods) CreateHolidayPeriod(ctx context.Context, organizationID
 	if _, err := h.forms.InsertHolidayPeriodForm(ctx, organizationID, periodID, 0, enrollment.HolidayFormTemplate(), nil, enrollment.HolidayAddressOff); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
-	return foundHolidayPeriod(h.store.FindHolidayPeriod(ctx, organizationID, periodID, false))
+	return h.markedPeriod(ctx, organizationID, periodID)
 }
 
 // UpdateHolidayPeriod replaces the period's fields, weeks and time models
@@ -123,19 +144,51 @@ func (h *HolidayPeriods) UpdateHolidayPeriod(ctx context.Context, organizationID
 		return enrollment.HolidayPeriod{}, err
 	}
 	input = keepArchivedHolidayTimeModels(normalizeHolidayPeriod(input), current)
+	input = keepHolidayBookingUnits(input, current)
 	if err := validateHolidayPeriod(input, current); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
 	if current.Status == enrollment.HolidayPeriodPublished && !holidayInputComplete(input) {
 		return enrollment.HolidayPeriod{}, enrollment.ErrHolidayPeriodIncomplete
 	}
+	if err := refuseBookedUnitChange(input.Weeks, current); err != nil {
+		return enrollment.HolidayPeriod{}, err
+	}
+	if err := h.refuseLockedAllocationMode(ctx, organizationID, input, current); err != nil {
+		return enrollment.HolidayPeriod{}, err
+	}
 	if err := h.refuseBookedTogether(ctx, organizationID, periodID, input.Weeks); err != nil {
+		return enrollment.HolidayPeriod{}, err
+	}
+	if err := refuseHolidayWeeksWithoutCare(ctx, h.calendar, input.Weeks, current); err != nil {
+		return enrollment.HolidayPeriod{}, err
+	}
+	if err := h.refuseRaisedDayLimit(ctx, organizationID, periodID, input, current); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
 	if err := h.store.UpdateHolidayPeriod(ctx, organizationID, periodID, input, h.today()); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
-	return foundHolidayPeriod(h.store.FindHolidayPeriod(ctx, organizationID, periodID, false))
+	return h.markedPeriod(ctx, organizationID, periodID)
+}
+
+// refuseLockedAllocationMode keeps the allocation mode of a period with a
+// registration (#4700): the registrations came in under its rules. The
+// caller holds the period, which every submission locks before it inserts;
+// the count is read once more after the lock, so a registration committed
+// while this change waited for it counts.
+func (h *HolidayPeriods) refuseLockedAllocationMode(ctx context.Context, organizationID int64, input enrollment.HolidayPeriodInput, current enrollment.HolidayPeriod) error {
+	if input.AllocationMode == current.AllocationMode {
+		return nil
+	}
+	fresh, err := foundHolidayPeriod(h.store.FindHolidayPeriod(ctx, organizationID, current.ID, false))
+	if err != nil {
+		return err
+	}
+	if fresh.RegistrationCount > 0 {
+		return enrollment.ErrHolidayAllocationModeLocked
+	}
+	return nil
 }
 
 // refuseBookedTogether keeps a child from ending up in two weeks that share a
@@ -188,7 +241,7 @@ func (h *HolidayPeriods) PublishHolidayPeriod(ctx context.Context, organizationI
 	if err := h.store.PublishHolidayPeriod(ctx, organizationID, periodID); err != nil {
 		return enrollment.HolidayPeriod{}, err
 	}
-	return foundHolidayPeriod(h.store.FindHolidayPeriod(ctx, organizationID, periodID, false))
+	return h.markedPeriod(ctx, organizationID, periodID)
 }
 
 // holidayPeriodKey checks the Träger and the period a caller names.
@@ -220,6 +273,9 @@ func holidayPeriodComplete(period enrollment.HolidayPeriod) bool {
 		return false
 	}
 	for _, week := range period.Weeks {
+		if week.BookingUnit == enrollment.HolidayBookingUnitDay && len(enrollment.HolidayWeekCareDays(week.StartsOn, week.EndsOn)) == 0 {
+			return false
+		}
 		if !slices.ContainsFunc(week.TimeModels, func(model enrollment.HolidayTimeModel) bool { return !model.Archived }) {
 			return false
 		}
@@ -264,6 +320,10 @@ func keepArchivedHolidayTimeModels(input enrollment.HolidayPeriodInput, current 
 func normalizeHolidayPeriod(input enrollment.HolidayPeriodInput) enrollment.HolidayPeriodInput {
 	input.Name = strings.TrimSpace(input.Name)
 	input.Notes = strings.TrimSpace(input.Notes)
+	input.AcceptanceMailText = strings.TrimSpace(strings.ReplaceAll(input.AcceptanceMailText, "\r\n", "\n"))
+	if input.AllocationMode == "" {
+		input.AllocationMode = enrollment.HolidayAllocationArrival
+	}
 	weeks := make([]enrollment.HolidayWeekInput, len(input.Weeks))
 	for i, week := range input.Weeks {
 		models := make([]enrollment.HolidayTimeModelInput, len(week.TimeModels))
@@ -304,7 +364,16 @@ func validateHolidayPeriod(input enrollment.HolidayPeriodInput, current enrollme
 	if utf8.RuneCountInString(input.Notes) > holidayNotesMaxLength {
 		errs["notes"] = fmt.Errorf("notes are longer than %d characters", holidayNotesMaxLength)
 	}
+	if utf8.RuneCountInString(input.AcceptanceMailText) > enrollment.HolidayAcceptanceMailTextMaxLength {
+		errs["acceptance_mail_text"] = fmt.Errorf("the text of the acceptance mail is longer than %d characters", enrollment.HolidayAcceptanceMailTextMaxLength)
+	}
 	validateRegistrationWindow(input, errs)
+	if limit := input.MaxDaysPerChild; limit != nil && (*limit < 1 || *limit > enrollment.HolidayMaxDaysPerChildMax) {
+		errs["max_days_per_child"] = fmt.Errorf("must be between 1 and %d", enrollment.HolidayMaxDaysPerChildMax)
+	}
+	if input.AllocationMode != enrollment.HolidayAllocationArrival && input.AllocationMode != enrollment.HolidayAllocationCriteria {
+		errs["allocation_mode"] = errors.New("must be arrival or criteria")
+	}
 	if len(input.Weeks) > holidayMaxWeeks {
 		errs["weeks"] = fmt.Errorf("a period has at most %d weeks", holidayMaxWeeks)
 	} else if weekErrs := validateHolidayWeeks(input.Weeks, current); len(weekErrs) > 0 {
@@ -377,10 +446,44 @@ func validateHolidayWeek(week enrollment.HolidayWeekInput) validation.Errors {
 	} else if week.StartsOn.DaysUntil(week.EndsOn) >= holidayMaxWeekDays {
 		errs["ends_on"] = fmt.Errorf("a week has at most %d days", holidayMaxWeekDays)
 	}
+	if week.BookingUnit == enrollment.HolidayBookingUnitDay && len(enrollment.HolidayWeekCareDays(week.StartsOn, week.EndsOn)) == 0 {
+		errs["ends_on"] = errors.New("a week booked by days needs at least one weekday")
+	}
 	if len(week.TimeModels) > holidayMaxTimeModelsPerWeek {
 		errs["time_models"] = fmt.Errorf("a week has at most %d time models", holidayMaxTimeModelsPerWeek)
 	}
+	switch week.BookingUnit {
+	case "", enrollment.HolidayBookingUnitWeek, enrollment.HolidayBookingUnitDay:
+	default:
+		errs["booking_unit"] = errors.New("the booking unit is week or day")
+	}
 	return errs
+}
+
+// refuseBookedUnitChange keeps the bookings of a week valid (#4701): a week
+// that bookings name keeps its booking unit, and a week by days keeps its
+// dates, which its bookings' days lie in. A week is booked when a booking
+// or a rebooking names one of its time models.
+func refuseBookedUnitChange(weeks []enrollment.HolidayWeekInput, current enrollment.HolidayPeriod) error {
+	stored := map[int64]enrollment.HolidayWeek{}
+	for _, week := range current.Weeks {
+		stored[week.ID] = week
+	}
+	for _, week := range weeks {
+		before, ok := stored[week.ID]
+		if week.ID == 0 || !ok || !slices.ContainsFunc(before.TimeModels, func(model enrollment.HolidayTimeModel) bool { return model.Protected }) {
+			continue
+		}
+		unit := week.BookingUnit
+		if unit == "" {
+			unit = enrollment.HolidayBookingUnitWeek
+		}
+		moved := before.StartsOn != week.StartsOn || before.EndsOn != week.EndsOn
+		if unit != before.BookingUnit || (unit == enrollment.HolidayBookingUnitDay && moved) {
+			return fmt.Errorf("%w: %w", enrollment.ErrHolidayWeekBooked, enrollment.ErrHolidayBookingUnitBooked)
+		}
+	}
+	return nil
 }
 
 // overlappingHolidayWeeks maps the index of each valid week that shares a day
@@ -466,4 +569,20 @@ func validateHolidayTimeModel(model enrollment.HolidayTimeModelInput) validation
 		errs["price_cents"] = fmt.Errorf("price must be between 0 and %d cent", holidayMaxPriceCents)
 	}
 	return errs
+}
+
+// keepHolidayBookingUnits keeps the booking unit of a stored week that the
+// written week does not name, so a client that does not know the unit
+// leaves it as it is (#4701).
+func keepHolidayBookingUnits(input enrollment.HolidayPeriodInput, current enrollment.HolidayPeriod) enrollment.HolidayPeriodInput {
+	stored := map[int64]string{}
+	for _, week := range current.Weeks {
+		stored[week.ID] = week.BookingUnit
+	}
+	for i, week := range input.Weeks {
+		if unit, ok := stored[week.ID]; ok && week.ID != 0 && week.BookingUnit == "" {
+			input.Weeks[i].BookingUnit = unit
+		}
+	}
+	return input
 }

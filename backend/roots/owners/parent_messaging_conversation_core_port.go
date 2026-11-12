@@ -16,14 +16,16 @@ func BindParentConversationCore(source communication.PortalConversationCore, lea
 	}
 	return parentportal.NewConversationCore(parentportal.ConversationCoreCallbacks{AppendMessage: func(ctx context.Context, msg *parentportal.ParentMessage) error {
 		ownerMsg := ParentMessagingPointer(msg, parentMessagingToOwnerParentMessage)
-		result0 := source.PortalAppendMessage(ctx, ownerMsg)
+		// The uploads the guardian named travel with the message into
+		// Communication, which claims only their own unsent ones (#6685).
+		result0 := source.PortalAppendMessage(communication.WithMessageAttachmentIDs(ctx, parentportal.MessageAttachmentIDs(ctx)), ownerMsg)
 		if msg != nil && ownerMsg != nil {
 			*msg = ParentMessagingFromOwnerParentMessage(*ownerMsg)
 		}
 		if errors.Is(result0, communication.ErrMessageSendConflict) {
 			return parentportal.ErrMessageSendConflict
 		}
-		return result0
+		return parentMessageAttachmentError(result0)
 	},
 		MarkReadToNewest: func(ctx context.Context, tenantID int64, threadID int64, accountID int64, staffReader bool, messages []*parentportal.ParentMessage) (bool, error) {
 			ownerMessages := ParentMessagingSlice(messages, func(row *parentportal.ParentMessage) *communication.PortalParentMessage {

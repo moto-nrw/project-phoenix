@@ -18,6 +18,8 @@ type TraegerMasterDataStore interface {
 	// FindDocumentContact reads the contact person and the withdrawal
 	// contact; a Träger without a profile row has neither.
 	FindDocumentContact(ctx context.Context, organizationID int64) (organizationtenancy.TraegerDocumentContact, error)
+	// TraegerName reads the name of the undeleted Träger; empty without one.
+	organizationtenancy.TraegerNames
 	// LockProfile locks the row of the Träger until the end of the
 	// transaction; create makes it first where it is missing. Every change
 	// of the master data takes this lock first, so changes of one Träger run

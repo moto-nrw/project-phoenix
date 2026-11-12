@@ -13,6 +13,10 @@ import {
 } from "@testing-library/react";
 import "@testing-library/jest-dom/vitest";
 import type { ClassDayReport } from "~/lib/class-day-api";
+import { deferred } from "~/test/helpers/form-modal-pending";
+import { ApiError } from "~/lib/api-error";
+import { SAVED_BUT_STALE_SUFFIX } from "~/lib/hooks/use-refresh-after-write";
+import { catalogText } from "~/test/error-catalog-text";
 import { todayISO } from "~/lib/date-helpers";
 
 // Die Klassenansicht zeigt die Klassen-Tagesausnahme als Zeile und bietet
@@ -126,6 +130,18 @@ function report(overrides: Partial<ClassDayReport> = {}): ClassDayReport {
     ],
     ...overrides,
   };
+}
+
+const RELOAD_TEXT_6652 = `${catalogText("general.unavailable", "die Anzeige der Klasse")} ${SAVED_BUT_STALE_SUFFIX}`;
+// #6652: the reload after a write (the second fetch) fails once.
+function failSecondFetch6652(first: ClassDayReport) {
+  return vi
+    .fn()
+    .mockResolvedValueOnce(first)
+    .mockRejectedValueOnce(
+      new ApiError("down", 503, { code: "general.unavailable" }),
+    )
+    .mockResolvedValue(first);
 }
 
 describe("classArrivalExceptionLine", () => {
@@ -506,6 +522,37 @@ describe("ClassDayClass", () => {
       );
     });
 
+    it("retries morning attendance with the current marks", async () => {
+      const record = vi
+        .fn()
+        .mockRejectedValueOnce(new ApiError("failed", 503))
+        .mockResolvedValue(undefined);
+      render(
+        <ClassDayClass
+          schoolClass="4a"
+          fetchClassDay={() => Promise.resolve(morningReport())}
+          recordMorningAttendance={record}
+        />,
+      );
+      const controls = within(
+        await screen.findByRole("group", {
+          name: "Anwesenheit von Klara Klassentag",
+        }),
+      );
+      fireEvent.click(controls.getByRole("button", { name: "Da" }));
+      fireEvent.click(
+        screen.getByRole("button", { name: "Anwesenheit speichern" }),
+      );
+      const retry = await screen.findByRole("button", { name: "Wiederholen" });
+      fireEvent.click(controls.getByRole("button", { name: "Fehlt" }));
+      fireEvent.click(retry);
+      await waitFor(() =>
+        expect(record).toHaveBeenLastCalledWith("4a", todayISO(), [
+          { student_id: 1, status: "absent" },
+        ]),
+      );
+    });
+
     it("keeps the draft and shows the error when saving fails", async () => {
       const record = vi
         .fn()
@@ -675,6 +722,38 @@ describe("ClassDayClass", () => {
       return screen.getByRole("group", { name: `Übergabe von ${name}` });
     }
 
+    it("retries a handover with the current marks", async () => {
+      const save = vi
+        .fn()
+        .mockRejectedValueOnce(new ApiError("failed", 503))
+        .mockResolvedValue(undefined);
+      render(
+        <ClassDayClass
+          schoolClass="4a"
+          fetchClassDay={() => Promise.resolve(handoverReport())}
+          handOverClass={save}
+          withdrawClassHandover={() => Promise.resolve()}
+        />,
+      );
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Klasse übergeben" }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Übergeben" }));
+      const retry = await screen.findByRole("button", { name: "Wiederholen" });
+      fireEvent.click(
+        within(choice("Klara Klassentag")).getByRole("button", {
+          name: "Nicht da",
+        }),
+      );
+      fireEvent.click(retry);
+      await waitFor(() =>
+        expect(save).toHaveBeenLastCalledWith("4a", todayISO(), {
+          present: [],
+          absent: [1, 2],
+        }),
+      );
+    });
+
     it("prefills the children going to the OGS from the morning and hands the class over", async () => {
       const handOver = vi.fn(() => Promise.resolve());
       let current = handoverReport();
@@ -812,6 +891,36 @@ describe("ClassDayClass", () => {
       await waitFor(() =>
         expect(withdraw).toHaveBeenCalledWith("4a", todayISO()),
       );
+    });
+
+    // #6652: the withdrawal holds; a failed reload is a load error.
+    it("keeps a withdrawn handover when the reload fails", async () => {
+      const withdraw = vi.fn(() => Promise.resolve());
+      const fetchClassDay = failSecondFetch6652(
+        handoverReport({
+          handover: {
+            handed_over_at: "2026-09-09T09:45:00Z",
+            absent_count: 0,
+          },
+        }),
+      );
+      render(
+        <ClassDayClass
+          schoolClass="4a"
+          fetchClassDay={fetchClassDay}
+          handOverClass={() => Promise.resolve()}
+          withdrawClassHandover={withdraw}
+        />,
+      );
+      fireEvent.click(
+        await screen.findByRole("button", { name: "Übergabe zurücknehmen" }),
+      );
+      fireEvent.click(screen.getByRole("button", { name: "Zurücknehmen" }));
+
+      expect(await screen.findByText(RELOAD_TEXT_6652)).toBeInTheDocument();
+      fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+      await waitFor(() => expect(fetchClassDay).toHaveBeenCalledTimes(3));
+      expect(withdraw).toHaveBeenCalledTimes(1);
     });
 
     it("shows the handover as a plain line without the write verdict", async () => {
@@ -958,6 +1067,59 @@ describe("ClassDayClass homework (#4796)", () => {
     await waitFor(() =>
       expect(homework.remove).toHaveBeenCalledWith("4a", "12"),
     );
+  });
+
+  it("closes a deleted homework entry's confirmation while reloading", async () => {
+    const homework = api();
+    const reload = deferred<ClassDayReport>();
+    const fetchClassDay = vi
+      .fn()
+      .mockResolvedValueOnce(homeworkReport())
+      .mockReturnValueOnce(reload.promise);
+    render(
+      <ClassDayClass
+        schoolClass="4a"
+        fetchClassDay={fetchClassDay}
+        homework={homework}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Aktionen zur Hausaufgabe" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ja, löschen" }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(screen.getByRole("button", { name: "Endgültig löschen" }));
+    await waitFor(() => expect(fetchClassDay).toHaveBeenCalledTimes(2));
+    expect(dialog).not.toBeInTheDocument();
+    await act(async () => reload.resolve(homeworkReport({ homework: [] })));
+    expect(homework.remove).toHaveBeenCalledOnce();
+  });
+
+  // #6652: the deletion holds; a failed reload is a load error.
+  it("keeps a deleted homework entry deleted when the reload fails", async () => {
+    const homework = api();
+    const fetchClassDay = failSecondFetch6652(homeworkReport());
+    render(
+      <ClassDayClass
+        schoolClass="4a"
+        fetchClassDay={fetchClassDay}
+        homework={homework}
+      />,
+    );
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Aktionen zur Hausaufgabe" }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
+    fireEvent.click(await screen.findByRole("button", { name: "Ja, löschen" }));
+    fireEvent.click(
+      await screen.findByRole("button", { name: "Endgültig löschen" }),
+    );
+
+    expect(await screen.findByText(RELOAD_TEXT_6652)).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    await waitFor(() => expect(fetchClassDay).toHaveBeenCalledTimes(3));
+    expect(homework.remove).toHaveBeenCalledTimes(1);
   });
 
   it("stays read-only without the write permission", async () => {

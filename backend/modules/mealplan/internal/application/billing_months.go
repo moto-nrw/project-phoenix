@@ -15,6 +15,7 @@ import (
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
 	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
 )
 
 // billingMonthsBack is how many months back the Mensa-Monatsfreigabe goes:
@@ -291,6 +292,7 @@ func releasedView(stored domain.StoredBillingMonth) mealplan.BillingMonth {
 			SchoolClass: child.SchoolClass, RegisteredDays: child.RegisteredDays, MealDays: child.MealDays, AbsentDates: []mealplan.Date{}}
 		view.AbsenceCount += child.RegisteredDays - child.MealDays
 	}
+	slices.SortFunc(children, compareChildren)
 	return view
 }
 
@@ -330,12 +332,16 @@ func (b *BillingMonths) compute(ctx context.Context, month calendar.Date) (mealp
 // monthFingerprint names a computed month as the OGS-Leitung sees it: each
 // child with its class, its registered days, its meals and its absences.
 // The release compares it, so the totals alone cannot hide a meal that
-// moved from one child to another.
+// moved from one child to another. It lists the children in the
+// fingerprint order, not in the shown one, so a preview opened before the
+// German sort keeps its fingerprint (#6464).
 func monthFingerprint(month mealplan.BillingMonth) string {
+	children := slices.Clone(month.Children)
+	slices.SortFunc(children, compareChildrenForFingerprint)
 	state, err := json.Marshal(struct {
 		Month    mealplan.Date                `json:"month"`
 		Children []mealplan.BillingMonthChild `json:"children"`
-	}{month.Month, month.Children})
+	}{month.Month, children})
 	if err != nil {
 		// A month always marshals; no fingerprint matches no release.
 		return ""
@@ -402,14 +408,38 @@ func countDay(children map[int64]*mealplan.BillingMonthChild, participant mealpl
 	child.AbsentDates = append(child.AbsentDates, date)
 }
 
+// compareChildren is the order the OGS-Leitung sees: last name, first
+// name in German dictionary order (Özdemir before Zimmermann), then the
+// child's ID.
 func compareChildren(a, b mealplan.BillingMonthChild) int {
+	if c := collation.CompareGermanNames(a.LastName, a.FirstName, b.LastName, b.FirstName); c != 0 {
+		return c
+	}
+	return compareIDs(a.StudentID, b.StudentID)
+}
+
+// compareChildrenForFingerprint is the byte order of the lowercased names,
+// then the child's ID, in which the fingerprint has always listed the
+// children. Changing it changes every fingerprint and refuses the release
+// of a preview opened before; the shown order is compareChildren.
+func compareChildrenForFingerprint(a, b mealplan.BillingMonthChild) int {
 	if c := strings.Compare(strings.ToLower(a.LastName), strings.ToLower(b.LastName)); c != 0 {
 		return c
 	}
 	if c := strings.Compare(strings.ToLower(a.FirstName), strings.ToLower(b.FirstName)); c != 0 {
 		return c
 	}
-	return int(a.StudentID - b.StudentID)
+	return compareIDs(a.StudentID, b.StudentID)
+}
+
+func compareIDs(a, b int64) int {
+	switch {
+	case a < b:
+		return -1
+	case a > b:
+		return 1
+	}
+	return 0
 }
 
 func inHoliday(day calendar.Date, holidays []mealplan.HolidayPeriod) bool {

@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.closing_days",
+  "max": 4,
+  "exact": true,
+  "description": "modules/schoolcalendar — GET /traeger/closing-days (#4702): the Träger\nbinding of the Träger transaction, the closing days of the Träger in one\nstatement, the schools of the Träger, and their federal states in one\nstatement. The holidays are computed without the\ndatabase. Flat in the number of closing days.",
+  "route": "GET /traeger/closing-days/"
+}

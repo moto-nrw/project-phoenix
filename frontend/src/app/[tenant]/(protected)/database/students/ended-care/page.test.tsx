@@ -254,6 +254,65 @@ describe("Beendete Betreuungen", () => {
     expect(screen.queryByText(/0 Kinder/)).not.toBeInTheDocument();
   });
 
+  it.each([403, 503])(
+    "handles a %s reload with confirmed student data",
+    async (status) => {
+      const { rerender } = render(<Page />);
+      expect(await screen.findByText("Muster, Mia")).toBeVisible();
+      fireEvent.click(
+        screen.getByRole("button", { name: "Aktionen für Muster, Mia" }),
+      );
+      fireEvent.click(
+        screen.getByRole("menuitem", { name: "Wieder aufnehmen" }),
+      );
+      expect(await screen.findByRole("dialog")).toBeVisible();
+      const code =
+        status === 403 ? "general.permission" : "general.unavailable";
+      swrState.error = new ApiError("failed", status, { code });
+      rerender(<Page />);
+
+      // Anker: der konkrete Lesefehler ist sichtbar, die Seite ist geladen.
+      expect(
+        await screen.findByText(
+          catalogText(code, "die Liste der beendeten Betreuungen"),
+          { exact: false },
+        ),
+      ).toBeVisible();
+      if (status === 403) {
+        expect(screen.queryByText("Muster, Mia")).not.toBeInTheDocument();
+        expect(screen.queryByText(/2 Kinder/)).not.toBeInTheDocument();
+        expect(
+          screen.queryByRole("button", { name: "Aktionen für Muster, Mia" }),
+        ).not.toBeInTheDocument();
+        expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+      } else {
+        expect(screen.getByText("Muster, Mia")).toBeVisible();
+        expect(screen.getByRole("dialog")).toBeVisible();
+      }
+    },
+  );
+
+  it("keeps access refusal effective after a subsequent server failure", async () => {
+    const { rerender } = render(<Page />);
+    expect(await screen.findByText("Muster, Mia")).toBeVisible();
+    for (const status of [403, 500]) {
+      swrState.error = new ApiError("failed", status);
+      rerender(<Page />);
+      expect(
+        await screen.findByText(
+          catalogText(
+            status === 403 ? "general.permission" : "general.server",
+            "die Liste der beendeten Betreuungen",
+          ),
+        ),
+      ).toBeVisible();
+      expect(screen.queryByText("Muster, Mia")).not.toBeInTheDocument();
+    }
+    swrState.error = null;
+    rerender(<Page />);
+    expect(await screen.findByText("Muster, Mia")).toBeVisible();
+  });
+
   it("is closed to anybody without the delete permission", () => {
     mockHasPermission.mockReturnValue(false);
     render(<Page />);

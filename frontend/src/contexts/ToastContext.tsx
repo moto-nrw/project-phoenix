@@ -1,5 +1,6 @@
 "use client";
 
+import * as Sentry from "@sentry/nextjs";
 import React, {
   createContext,
   useCallback,
@@ -232,6 +233,22 @@ function useReducedMotion() {
   return reduced;
 }
 
+const DE_DUPE_WINDOW = 2000; // ms
+const MAX_VISIBLE = 3;
+
+/**
+ * Open errors never give way to the limit; the newest other toast always
+ * shows, beside them if errors fill every slot (#6454). Older non-error
+ * toasts go first. No queue: a success shown late would mislead.
+ */
+function withinVisibleLimit(items: ToastItemData[]): ToastItemData[] {
+  const errors = items.filter((item) => item.type === "error").length;
+  const allowed = Math.max(1, MAX_VISIBLE - errors);
+  let excess = items.length - errors - allowed;
+  if (excess <= 0) return items;
+  return items.filter((item) => item.type === "error" || excess-- <= 0);
+}
+
 interface InternalToastTimers {
   timeoutId?: ReturnType<typeof setTimeout>;
   remaining: number;
@@ -357,8 +374,9 @@ export function ToastProvider({
 
   // Track last shown timestamps for simple de-duplication
   const lastShownRef = useRef<Map<string, number>>(new Map());
-  const DE_DUPE_WINDOW = 2000; // ms
-  const MAX_VISIBLE = 3;
+  // Message → id of the toast whose action the person just pressed. The next
+  // toast with that message answers the new attempt and replaces it (#6454).
+  const actedOnRef = useRef<Map<string, string>>(new Map());
 
   const remove = useCallback((id: string) => {
     setItems((prev) => prev.filter((it) => it.id !== id));
@@ -371,9 +389,12 @@ export function ToastProvider({
       const last = lastShownRef.current.get(message) ?? 0;
       if (now - last < DE_DUPE_WINDOW) return; // de-dup
       lastShownRef.current.set(message, now);
+      const replaces = actedOnRef.current.get(message);
+      actedOnRef.current.delete(message);
 
       const id =
         options?.id ?? `${now}-${Math.random().toString(36).slice(2, 8)}`;
+      const action = options?.action;
 
       // Errors must not disappear on a timer; success feedback lasts four seconds.
       const duration =
@@ -383,26 +404,29 @@ export function ToastProvider({
             ? 4000
             : (options?.duration ?? 1500);
 
-      setItems((prev) => {
-        const next: ToastItemData[] = [
-          ...prev,
+      setItems((prev) =>
+        withinVisibleLimit([
+          ...prev.filter((item) => item.id !== replaces),
           {
             id,
             type,
             message,
             duration,
-            action: options?.action,
+            action: action && {
+              label: action.label,
+              onClick: () => {
+                // A deliberate new attempt is no accidental repeat: its
+                // result shows even when it fails within the de-dup window.
+                lastShownRef.current.delete(message);
+                actedOnRef.current.set(message, id);
+                action.onClick();
+              },
+            },
             requestId: options?.requestId,
             requestIdLabel: options?.requestIdLabel,
           },
-        ];
-        if (next.length > MAX_VISIBLE) {
-          // Never evict an error that the person has not dismissed.
-          const removable = next.findIndex((item) => item.type !== "error");
-          if (removable >= 0) next.splice(removable, 1);
-        }
-        return next;
-      });
+        ]),
+      );
     },
     [],
   );
@@ -507,17 +531,27 @@ function useApiErrorCore(
   // A failed load stays on screen while SWR retries it, and every retry
   // hands `show` a new error. Count it once until the caller clears it.
   const loadLogged = useRef(false);
+  // Counted apart: a retry may crash after the first failure was an API answer.
+  const loadCrashReported = useRef(false);
   const invalidatePendingShow = useCallback(() => {
     showVersion.current += 1;
     loadLogged.current = false;
+    loadCrashReported.current = false;
   }, []);
   const logShown = useCallback(
-    (fields: Parameters<typeof logDisplayedError>[1]) => {
-      if (surface === "load") {
-        if (loadLogged.current) return;
+    (error: unknown, fields: Parameters<typeof logDisplayedError>[1]) => {
+      const load = surface === "load";
+      if (!load || !loadLogged.current) {
         loadLogged.current = true;
+        logDisplayedError(surface, fields);
       }
-      logDisplayedError(surface, fields);
+      // An exception thrown in the browser is a defect of the client, and no
+      // one else reports it: logs stay breadcrumbs, and the backend and the
+      // BFF report only their own failures. API answers create no event.
+      if (fields.error_class !== "crash") return;
+      if (load && loadCrashReported.current) return;
+      loadCrashReported.current = true;
+      Sentry.captureException(error, { tags: { surface } });
     },
     [surface],
   );
@@ -581,7 +615,7 @@ function useApiErrorCore(
           return;
         }
         setFieldErrors({});
-        logShown(errorLogFields(error));
+        logShown(error, errorLogFields(error));
         const message = emergencyErrorByLocale[locale].replace(
           "{object}",
           options.object,
@@ -609,7 +643,7 @@ function useApiErrorCore(
         return presentation;
       }
       const logged = errorLogFields(error);
-      logShown({
+      logShown(error, {
         ...logged,
         // The class of the code; an exception keeps the class of its cause.
         error_class: presentation.errorClass ?? logged.error_class,

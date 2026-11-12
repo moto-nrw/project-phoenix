@@ -1,4 +1,10 @@
 import type { ParentConferenceOffer } from "~/lib/parent-conferences";
+import type { MessageAttachment } from "~/lib/message-attachments";
+import {
+  type BackendHolidayRegistrationEntries,
+  type HolidayRegistrationEntry,
+  holidayRegistrationEntriesFromBackend,
+} from "~/lib/parent-holiday-registration-entries";
 import type { CareContractStatus } from "./traeger-care-contracts-api";
 import {
   ApiError,
@@ -1327,6 +1333,49 @@ export async function listMessageThreads(): Promise<ThreadSummary[]> {
   return Array.isArray(threads) ? threads : [];
 }
 
+/** A holiday period a parent can register children for (#6671). */
+export interface HolidayOffer {
+  /** The key of the period's registration link. */
+  token: string;
+  name: string;
+  traeger_name: string;
+  /** "YYYY-MM-DD" */
+  registration_opens_on: string;
+  /** "YYYY-MM-DD", the last day of the registration. */
+  registration_closes_on: string;
+  /** First and last care day, absent while the period has no weeks. */
+  first_day?: string;
+  last_day?: string;
+  open: boolean;
+  /** The account's children the period is for. */
+  children: { student_id: string; first_name: string }[];
+}
+
+/**
+ * The published holiday periods of the Träger of the account's children
+ * whose registration has not closed. Empty without a child the account may
+ * register.
+ */
+export async function listHolidayOffers(): Promise<HolidayOffer[]> {
+  const offers = await getJson<HolidayOffer[]>(
+    "/api/parent/me/holiday-registrations",
+  );
+  return Array.isArray(offers) ? offers : [];
+}
+
+/**
+ * The holiday registrations linked to the account (#6673, ADR 0216), newest
+ * first. Empty for an account without one.
+ */
+export async function listHolidayRegistrationEntries(): Promise<
+  HolidayRegistrationEntry[]
+> {
+  const body = await getJson<BackendHolidayRegistrationEntries | null>(
+    "/api/parent/me/holiday-registration-entries",
+  );
+  return holidayRegistrationEntriesFromBackend(body);
+}
+
 /**
  * Counts the conversations with unread staff-side activity for the badge:
  * exactly the rows the inbox shows (#5200), team and leadership ones per
@@ -1645,6 +1694,7 @@ export async function postChildMessage(
   groupThreadId?: string,
   audience: MessageAudience = "team",
   clientMessageId?: string,
+  attachmentIds?: readonly string[],
 ): Promise<ThreadView> {
   // An answer to a group thread always goes to the team conversation.
   return postJson<ThreadView>(
@@ -1654,6 +1704,7 @@ export async function postChildMessage(
       body,
       client_message_id: clientMessageId,
       group_thread_id: groupThreadId,
+      attachment_ids: attachmentIds?.length ? attachmentIds : undefined,
       audience: groupThreadId || audience === "team" ? undefined : audience,
     },
   );
@@ -1691,6 +1742,8 @@ interface GroupThreadMessage {
   readonly id: string;
   readonly body: string;
   readonly created_at: string; // ISO timestamp
+  /** Fotos und Dateien der Nachricht (#6685). */
+  readonly attachments?: readonly MessageAttachment[];
 }
 
 /** An opened group thread. */
@@ -2502,7 +2555,9 @@ export interface ParentDocument {
   /**
    * The confirmation letter, the letter of its Storno or Gutschrift (#4690),
    * a care contract (#4678), or the letter of a monthly invoice and of its
-   * Storno (#4684), named „Monatsbeitrag Januar 2027“ in `period_name`.
+   * Storno (#4684), named „Monatsbeitrag Januar 2027“ in `period_name`, or
+   * a Jahresbescheid and its Änderungsbescheid (#6347), named
+   * „Betreuung 2027“.
    */
   readonly kind:
     | "confirmation_letter"
@@ -2510,6 +2565,8 @@ export interface ParentDocument {
     | "credit_letter"
     | "care_invoice_letter"
     | "care_cancellation_letter"
+    | "care_fee_notice"
+    | "care_change_notice"
     | "care_contract";
   readonly number: string;
   readonly period_name: string;

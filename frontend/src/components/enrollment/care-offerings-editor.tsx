@@ -15,6 +15,7 @@ import {
   useRef,
   useState,
 } from "react";
+import { ApiError } from "~/lib/api-error";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { Check, Copy, Pencil, Plus, Trash2 } from "lucide-react";
 import { Alert } from "~/components/ui/alert";
@@ -68,14 +69,15 @@ import { SectionCard } from "~/components/ui/section-card";
 import {
   SlideOver,
   SlideOverBody,
-  SlideOverCloseButton,
   SlideOverContent,
   SlideOverHeader,
   SlideOverTitle,
 } from "~/components/ui/slide-over";
+import { useFormModalPending } from "~/components/ui/use-form-modal-pending";
 import { type Phase, listPhases } from "~/lib/enrollment-phase-api";
 import { calendarPeriodService } from "~/lib/calendar-period-api";
 import type { CalendarPeriod } from "~/lib/calendar-period-helpers";
+import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { createLogger } from "~/lib/logger";
 import { timetableService } from "~/lib/timetable-api";
 import type { TimetableTemplate } from "~/lib/timetable-types";
@@ -443,9 +445,16 @@ export function CareOfferingsEditor({
   const showDeleteError = deleteErrors.show;
   const [editingId, setEditingId] = useState<string | null>(null);
   const [draft, setDraft] = useState<CareOfferingInput | null>(null);
-  const [saving, setSaving] = useState(false);
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [cloneSource, setCloneSource] = useState<CareOffering | null>(null);
+  const panelOpen = Boolean(draft ?? cloneSource);
+  // Saving and cloning lock the panel (#6593); a late answer must not close
+  // or fill the panel for another offering.
+  const panelSave = useFormModalPending(
+    panelOpen,
+    cloneSource ? `clone-${cloneSource.id}` : editingId,
+  );
+  const saving = panelSave.pending;
   const [deleteTarget, setDeleteTarget] = useState<CareOffering | null>(null);
   // Booking stats are display-only (#2186): the availability-rule editor uses
   // them to say how many existing bookings a rule would contradict, the list
@@ -562,10 +571,13 @@ export function CareOfferingsEditor({
   }, []);
 
   const loadAll = useCallback(
-    async (preferredPhaseId?: string) => {
+    async (preferredPhaseId?: string, options: { rethrow?: boolean } = {}) => {
       const requestSeq = ++catalogLoadSeq.current;
-      setLoading(true);
-      clearCatalogError();
+      // Nach einem Schreiben bleibt die bestätigte Liste stehen (#6652).
+      if (!options.rethrow) {
+        setLoading(true);
+        clearCatalogError();
+      }
       try {
         const phasesData = await listPhases();
         if (catalogLoadSeq.current !== requestSeq) return;
@@ -591,6 +603,24 @@ export function CareOfferingsEditor({
         logger.error("care_offerings_load_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        if (
+          err instanceof ApiError &&
+          (err.status === 401 || err.status === 403)
+        ) {
+          setOfferings([]);
+          setPhases([]);
+          setCatalogFailed(true);
+          selectedPhaseIdRef.current = "";
+          setSelectedPhaseId("");
+          setDraft(null);
+          setEditingId(null);
+          setCloneSource(null);
+          setDeleteTarget(null);
+          setBookingStats({});
+        }
+        // Vorübergehende Nachladefehler lassen bestätigte Daten stehen;
+        // der Aufrufer zeigt sie als Nachladefehler (#6652).
+        if (options.rethrow) throw err;
         setOfferings([]);
         setCatalogFailed(true);
         await showCatalogError(err, {
@@ -613,6 +643,12 @@ export function CareOfferingsEditor({
     void loadAll();
     return invalidateLoads;
   }, [invalidateLoads, loadAll]);
+  // Nachladen nach Speichern, Löschen oder Duplizieren: ein Fehler dabei ist
+  // ein Ladefehler über der Liste, kein Fehler der Aktion (#6652).
+  const afterWrite = useRefreshAfterWrite(
+    "die Anzeige der Betreuungsangebote",
+    () => loadAll(undefined, { rethrow: true }),
+  );
 
   useEffect(() => {
     if (!selectedPhaseId) {
@@ -722,32 +758,33 @@ export function CareOfferingsEditor({
       formErrors.invalid(weekdayError);
       return;
     }
-    setSaving(true);
-    try {
-      if (editingId === "new") {
-        const savedOffering = await createCareOffering(draft);
-        toast.success(
-          `Das Betreuungsangebot „${savedOffering.name}“ ist angelegt.`,
-        );
-      } else if (editingId) {
-        const savedOffering = await updateCareOffering(editingId, draft);
-        toast.success(
-          `Das Betreuungsangebot „${savedOffering.name}“ ist gespeichert.`,
-        );
+    await panelSave.run(async (op) => {
+      try {
+        if (editingId === "new") {
+          const savedOffering = await createCareOffering(draft);
+          toast.success(
+            `Das Betreuungsangebot „${savedOffering.name}“ ist angelegt.`,
+          );
+        } else if (editingId) {
+          const savedOffering = await updateCareOffering(editingId, draft);
+          toast.success(
+            `Das Betreuungsangebot „${savedOffering.name}“ ist gespeichert.`,
+          );
+        }
+        if (op.isCurrent()) cancelFocusMode();
+        await afterWrite.refresh();
+      } catch (err) {
+        logger.error("care_offering_save_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "das Betreuungsangebot",
+          retry: () => void latestSave.current(),
+        });
       }
-      cancelFocusMode();
-      await loadAll();
-    } catch (err) {
-      logger.error("care_offering_save_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: "das Betreuungsangebot",
-        retry: () => void latestSave.current(),
-      });
-    } finally {
-      setSaving(false);
-    }
+    });
   };
   // „Wiederholen“ sendet den aktuellen Entwurf.
   const latestSave = useRef(save);
@@ -768,7 +805,7 @@ export function CareOfferingsEditor({
       await deleteCareOffering(offering.id);
       toast.success(`Das Betreuungsangebot „${offering.name}“ ist gelöscht.`);
       setDeleteTarget(null);
-      await loadAll();
+      await afterWrite.refresh();
     } catch (err) {
       logger.error("care_offering_delete_failed", {
         error: err instanceof Error ? err.message : String(err),
@@ -779,30 +816,31 @@ export function CareOfferingsEditor({
     } finally {
       setDeletingId(null);
     }
-  }, [deleteTarget, loadAll, clearDeleteErrors, showDeleteError, toast]);
+  }, [deleteTarget, afterWrite, clearDeleteErrors, showDeleteError, toast]);
 
   const clone = async (targetPhaseId: string) => {
     if (!cloneSource) return;
-    setSaving(true);
-    formErrors.clear();
-    try {
-      const cloned = await cloneCareOffering(cloneSource.id, {
-        target_phase_id: Number(targetPhaseId),
-      });
-      toast.success(`Das Betreuungsangebot „${cloned.name}“ ist dupliziert.`);
-      setCloneSource(null);
-      await loadAll();
-    } catch (err) {
-      logger.error("care_offering_clone_failed", {
-        error: err instanceof Error ? err.message : String(err),
-      });
-      await formErrors.show(err, {
-        object: "das Betreuungsangebot",
-        retry: () => void latestClone.current(targetPhaseId),
-      });
-    } finally {
-      setSaving(false);
-    }
+    await panelSave.run(async (op) => {
+      formErrors.clear();
+      try {
+        const cloned = await cloneCareOffering(cloneSource.id, {
+          target_phase_id: Number(targetPhaseId),
+        });
+        toast.success(`Das Betreuungsangebot „${cloned.name}“ ist dupliziert.`);
+        if (op.isCurrent()) setCloneSource(null);
+        await afterWrite.refresh();
+      } catch (err) {
+        logger.error("care_offering_clone_failed", {
+          error: err instanceof Error ? err.message : String(err),
+        });
+        // Protokolliert; eine späte Ablehnung zeigt kein neuerer Vorgang.
+        if (!op.isCurrent()) return;
+        await formErrors.show(err, {
+          object: "das Betreuungsangebot",
+          retry: () => void latestClone.current(targetPhaseId),
+        });
+      }
+    });
   };
   const latestClone = useRef(clone);
   useLayoutEffect(() => {
@@ -916,8 +954,6 @@ export function CareOfferingsEditor({
     ],
   );
 
-  const panelOpen = Boolean(draft ?? cloneSource);
-
   return (
     // Flex-Spalte: als Editor-Wurzel einer Tenant-Seite reicht sie den
     // Platz an die Tabelle weiter, die dann bis zur Unterkante des
@@ -927,6 +963,7 @@ export function CareOfferingsEditor({
         <PlannerMetadataNotice onRetry={() => void loadPlannerMetadata()} />
       ) : null}
 
+      <LoadErrorAlert error={afterWrite.error} />
       {loading ? (
         <DataTable
           columns={columns}
@@ -935,7 +972,7 @@ export function CareOfferingsEditor({
           loadingRowCount={6}
           getRowKey={(offering) => offering.id}
         />
-      ) : catalogLoad.error ? (
+      ) : catalogFailed || catalogLoad.error ? (
         // Ein Ladefehler steht an Stelle des Katalogs, nie ein Leerzustand.
         <LoadErrorAlert error={catalogLoad.error} />
       ) : hasNoPhases ? (
@@ -963,15 +1000,14 @@ export function CareOfferingsEditor({
               Liste: das Formular ist zu breit für eine aufgeklappte
               Tabellenzeile, und der Katalog darf dabei nicht verschwinden. */}
           <SlideOver
+            pending={panelSave}
             open={panelOpen}
             onOpenChange={(open) => {
               if (!open) cancelFocusMode();
             }}
           >
             <SlideOverContent size="lg">
-              <SlideOverHeader
-                close={<SlideOverCloseButton disabled={saving} />}
-              >
+              <SlideOverHeader>
                 <SlideOverTitle>
                   {cloneSource
                     ? "Betreuungsangebot duplizieren"

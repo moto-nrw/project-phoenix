@@ -29,6 +29,12 @@ const (
 	BelegSEPADebit = "sepa_debit"
 )
 
+// BelegFamilyDebtorNumber names, in the deletion log only, the rows of the
+// families without a care contract whose debtor number went after its own
+// period (#6692). It is no Beleg type: the instruction and the deletion
+// stop of the Träger for its holiday documents govern it.
+const BelegFamilyDebtorNumber = "family_debtor_number"
+
 // BelegTypes lists every Beleg type in display order.
 var BelegTypes = []string{BelegHolidayDocument, BelegCareInvoice, BelegCareNotice, BelegCareContract, BelegSEPAMandate, BelegSEPADebit}
 

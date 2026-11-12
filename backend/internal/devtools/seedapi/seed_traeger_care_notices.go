@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"slices"
 
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
 )
@@ -29,20 +30,27 @@ var seedTraegerNoticeTemplate = map[string]any{
 const (
 	seedCareNoticeRunOpen = "parent_billing.care_notice_run_open"
 	seedBillingRunEmpty   = "parent_billing.billing_run_empty"
+	// The originals of the run are stored already (#6347).
+	seedBillingLettersExist = "parent_billing.billing_letters_exist"
+	// A run whose preview holds something to settle, and one another seed
+	// discarded a moment earlier (#6626).
+	seedBillingRunNotEmpty  = "parent_billing.billing_run_not_empty"
+	seedBillingRunDiscarded = "parent_billing.billing_run_discarded"
 )
 
 type seedCareNoticeRun struct {
-	ID           int64  `json:"id"`
-	Year         int    `json:"year"`
-	Status       string `json:"status"`
-	PreviewCount int    `json:"preview_count"`
-	PreviewCents int64  `json:"preview_cents"`
-	Fingerprint  string `json:"fingerprint"`
+	ID           int64   `json:"id"`
+	Year         int     `json:"year"`
+	Status       string  `json:"status"`
+	SchoolIDs    []int64 `json:"school_ids"`
+	PreviewCount int     `json:"preview_count"`
+	PreviewCents int64   `json:"preview_cents"`
+	Fingerprint  string  `json:"fingerprint"`
 }
 
 // seedCareNotices issues the Jahresbescheide of the months after current up
 // to December; in December there is no month left and nothing is issued.
-func seedCareNotices(client *Client, auth AuthRef, current calendar.Date) (int, error) {
+func seedCareNotices(client *Client, auth AuthRef, school int64, current calendar.Date) (int, error) {
 	from := monthAfter(current)
 	if from.Year() != current.Year() {
 		return 0, nil
@@ -50,8 +58,8 @@ func seedCareNotices(client *Client, auth AuthRef, current calendar.Date) (int, 
 	if err := seedNoticeTemplateOnce(client, auth); err != nil {
 		return 0, err
 	}
-	runID, err := seedStartNoticeRun(client, auth, from)
-	if err != nil {
+	runID, err := seedStartNoticeRun(client, auth, school, from)
+	if err != nil || runID == 0 {
 		return 0, err
 	}
 	raw, err := client.GetWithAuth(auth, fmt.Sprintf("/traeger/care-notice-runs/%d", runID))
@@ -65,19 +73,56 @@ func seedCareNotices(client *Client, auth AuthRef, current calendar.Date) (int, 
 		return 0, fmt.Errorf("check the notice run: %w", err)
 	}
 	run := envelope.Data
-	if run.Status != "calculated" || run.PreviewCount == 0 {
+	if run.Status != "calculated" {
 		return 0, nil
+	}
+	if run.PreviewCount == 0 {
+		return 0, seedDiscardNoticeRun(client, auth, runID)
 	}
 	_, err = client.PostWithAuth(auth, fmt.Sprintf("/traeger/care-notice-runs/%d/release", runID), map[string]any{
 		"document_count": run.PreviewCount, "total_cents": run.PreviewCents, "fingerprint": run.Fingerprint,
 	})
-	if seedConflictCode(err, seedCareRunReleased) || seedConflictCode(err, seedBillingRunEmpty) {
+	if seedConflictCode(err, seedCareRunReleased) {
 		return 0, nil
+	}
+	if seedConflictCode(err, seedBillingRunEmpty) {
+		return 0, seedDiscardNoticeRun(client, auth, runID)
 	}
 	if err != nil {
 		return 0, fmt.Errorf("release the notice run: %w", err)
 	}
+	if err := seedCareNoticeLetters(client, auth, runID); err != nil {
+		return 0, err
+	}
 	return run.PreviewCount, nil
+}
+
+// seedDiscardNoticeRun discards the seed's notice run that has nothing to
+// issue, so it does not hold the year for the demo schools ordered later
+// (#6641). A run with a booking without a price stays open for the office.
+func seedDiscardNoticeRun(client *Client, auth AuthRef, runID int64) error {
+	_, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/care-notice-runs/%d/discard", runID), nil)
+	if seedConflictCode(err, seedBillingRunNotEmpty) {
+		fmt.Printf("  Träger fee notices: the notice run %d has nothing to issue but something to settle; left open\n", runID)
+		return nil
+	}
+	if err != nil && !seedConflictCode(err, seedBillingRunDiscarded) {
+		return fmt.Errorf("discard the empty notice run: %w", err)
+	}
+	return nil
+}
+
+// seedCareNoticeLetters stores the originals of the issued notices and sends
+// them by mail and to the parents inbox, as the office does (#6347).
+func seedCareNoticeLetters(client *Client, auth AuthRef, runID int64) error {
+	_, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/care-notice-runs/%d/letters", runID), nil)
+	if err != nil && !seedConflictCode(err, seedBillingLettersExist) {
+		return fmt.Errorf("store the originals of the notice run: %w", err)
+	}
+	if _, err := client.PostWithAuth(auth, fmt.Sprintf("/traeger/care-notice-runs/%d/letters/mail", runID), nil); err != nil {
+		return fmt.Errorf("send the notices of the run: %w", err)
+	}
+	return nil
 }
 
 func monthAfter(month calendar.Date) calendar.Date {
@@ -118,13 +163,16 @@ func seedNoticeTemplateOnce(client *Client, auth AuthRef) error {
 	return nil
 }
 
-// seedStartNoticeRun takes the open run of the year or starts one.
-func seedStartNoticeRun(client *Client, auth AuthRef, from calendar.Date) (int64, error) {
+// seedStartNoticeRun starts the notice run of the year for the school
+// alone, or takes the open one that assesses the school. A Träger keeps one
+// open notice run per year: while another school's run is open, the school
+// gets no notices from this seed (0 without an error).
+func seedStartNoticeRun(client *Client, auth AuthRef, school int64, from calendar.Date) (int64, error) {
 	raw, err := client.PostWithAuth(auth, "/traeger/care-notice-runs/", map[string]any{
-		"year": from.Year(), "from_month": from.String(),
+		"year": from.Year(), "from_month": from.String(), "school_ids": []int64{school},
 	})
 	if seedConflictCode(err, seedCareNoticeRunOpen) {
-		return seedOpenNoticeRun(client, auth, from.Year())
+		return seedOpenNoticeRun(client, auth, school, from.Year())
 	}
 	if err != nil {
 		return 0, fmt.Errorf("start the notice run of %d: %w", from.Year(), err)
@@ -136,7 +184,7 @@ func seedStartNoticeRun(client *Client, auth AuthRef, from calendar.Date) (int64
 	return runID, nil
 }
 
-func seedOpenNoticeRun(client *Client, auth AuthRef, year int) (int64, error) {
+func seedOpenNoticeRun(client *Client, auth AuthRef, school int64, year int) (int64, error) {
 	raw, err := client.GetWithAuth(auth, "/traeger/care-notice-runs/")
 	if err != nil {
 		return 0, fmt.Errorf("list the notice runs: %w", err)
@@ -150,9 +198,14 @@ func seedOpenNoticeRun(client *Client, auth AuthRef, year int) (int64, error) {
 		return 0, fmt.Errorf("list the notice runs: %w", err)
 	}
 	for _, run := range envelope.Data.Runs {
-		if run.Year == year && run.Status == "calculated" {
+		if run.Year != year || run.Status != "calculated" {
+			continue
+		}
+		if slices.Contains(run.SchoolIDs, school) {
 			return run.ID, nil
 		}
+		fmt.Printf("  Träger fee notices: the open notice run %d of %d assesses other schools; skipped\n", run.ID, year)
+		return 0, nil
 	}
 	return 0, fmt.Errorf("the notice run of %d is neither open nor startable", year)
 }

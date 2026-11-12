@@ -54,13 +54,13 @@ const moduleFileSizeThreshold = 800
 var moduleFileSizeAllowlist = map[string]int{
 	"cmd/cleanup.go": 1139,
 	// ADR 0087.
-	"database/migrations/request_child_storage_backfill.go": 1186,
+	"database/migrations/request_child_storage_backfill.go": 1184,
 	// ADR 0087.
-	"database/migrations/staff_owner_backfill.go": 868,
+	"database/migrations/staff_owner_backfill.go": 845,
 	// ADR 0087.
-	"database/migrations/student_owner_backfill.go": 850,
+	"database/migrations/student_owner_backfill.go": 827,
 	// ADR 0087.
-	"internal/architecture/semantic.go": 1480,
+	"internal/architecture/semantic.go": 1435,
 	// ADR 0087.
 	"internal/devtools/seedapi/parent_enrollment.go": 1321,
 	// ADR 0087.
@@ -68,7 +68,7 @@ var moduleFileSizeAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/devtools/simulate/demo_day.go": 818,
 	// ADR 0087.
-	"observability/prometheus.go": 1722,
+	"observability/prometheus.go": 1662,
 	// ADR 0087.
 	"test/fixtures.go": 3067,
 }

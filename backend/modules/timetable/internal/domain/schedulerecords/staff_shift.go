@@ -38,8 +38,9 @@ type StaffShift struct {
 	// SeriesID links a materialized row to its StaffShiftSeries (#1889).
 	// Detached marks a series row the user edited via "Nur diese Woche":
 	// re-plans delete and regenerate only non-detached rows.
-	SeriesID *int64 `bun:"series_id" json:"series_id,omitempty"`
-	Detached bool   `bun:"detached,notnull,default:false" json:"detached"`
+	SeriesID       *int64 `bun:"series_id" json:"series_id,omitempty"`
+	Detached       bool   `bun:"detached,notnull,default:false" json:"detached"`
+	SeriesOverride bool   `bun:"series_override,notnull,default:false" json:"-"`
 	// SeriesOccurrenceDate is the concrete recurrence slot this row originally
 	// materialized for. It deliberately does not follow Date when an occurrence
 	// is moved: exceptions, re-plans, and splits must keep addressing the source

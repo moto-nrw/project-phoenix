@@ -1,0 +1,23 @@
+{
+  "attach": "Foto oder Datei anhängen",
+  "attachHint": "Bis zu {max} Dateien, je höchstens {mb} MB: Fotos, PDF, Word, Excel, PowerPoint",
+  "drop": "Dateien hier ablegen",
+  "remove": "Anhang entfernen: {filename}",
+  "uploading": "{filename} wird hochgeladen",
+  "tooMany": "Eine Nachricht kann höchstens {max} Dateien haben.",
+  "tooLarge": "„{filename}“ ist zu groß. Erlaubt sind bis zu {mb} MB je Datei.",
+  "wrongType": "„{filename}“ kann nicht angehängt werden. Erlaubt sind Fotos, PDF, Word, Excel und PowerPoint.",
+  "fileObject": "die Datei",
+  "openImage": "Bild öffnen: {filename}",
+  "openFile": "Datei öffnen: {filename}",
+  "downloadFile": "Herunterladen: {filename}",
+  "moreImages": "{count, plural, one {# weiteres Bild} other {# weitere Bilder}}",
+  "close": "Schließen",
+  "previous": "Vorheriger Anhang",
+  "next": "Nächster Anhang",
+  "download": "Herunterladen",
+  "openInNewTab": "In neuem Tab öffnen",
+  "notViewable": "Diese Datei lässt sich hier nicht anzeigen. Laden Sie sie herunter, um sie zu öffnen.",
+  "notViewableOnDevice": "Auf diesem Gerät lässt sich die Datei hier nicht anzeigen. Öffnen Sie sie in einem neuen Tab oder laden Sie sie herunter.",
+  "position": "{current} von {total}"
+}

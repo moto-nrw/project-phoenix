@@ -7,6 +7,8 @@ import (
 	"errors"
 	"log/slog"
 
+	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
 
 	"github.com/moto-nrw/project-phoenix/modules/careplan"
@@ -163,7 +165,7 @@ func newCareOfferingCatalog(inputs careOfferingCatalogInputs) (careplan.CareOffe
 		Phases:                 owners.CareOfferingCatalogPhases{Phases: inputs.Phases},
 		Timetable:              owners.CareOfferingCatalogTimetable{Timetable: inputs.Timetable},
 		Calendar:               owners.CareOfferingCatalogCalendar{Calendar: inputs.Calendar},
-		Bookings:               owners.CareOfferingCatalogBookings{Bookings: inputs.Bookings},
+		Bookings:               owners.CareOfferingCatalogBookings{Bookings: inputs.Bookings, OfferingSelectionReferences: enrollmentCompose.NewOfferingSelectionReferences()},
 		Settings:               owners.CareOfferingCatalogSettings{Settings: inputs.Settings},
 		Translations:           owners.CareOfferingCatalogTranslations{},
 		SourceRules:            owners.CareOfferingSourceRules{},
@@ -173,4 +175,14 @@ func newCareOfferingCatalog(inputs careOfferingCatalogInputs) (careplan.CareOffe
 		Today:                  inputs.Today,
 		Logger:                 inputs.Logger,
 	})
+}
+
+func (noCareOfferingResync) ResyncTemplatesSourcedFromOfferings(context.Context, []int64, calendar.Date) error {
+	return nil
+}
+func (noCareOfferingResync) DetachTemplatesSourcedFromOfferings(context.Context, []int64, calendar.Date) error {
+	return nil
+}
+func (noCareOfferingResync) ReconcileOfferingPickupForOfferings(context.Context, []int64) error {
+	return nil
 }

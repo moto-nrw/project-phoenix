@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import {
   loginToTenant,
@@ -8,7 +8,11 @@ import {
   tenantBase as base,
   waitForAnimations,
 } from "./tenant-session";
-import { toISODate } from "../src/lib/date-helpers";
+import {
+  berlinTodayISO,
+  parseISODate,
+  toISODate,
+} from "../src/lib/date-helpers";
 
 // Login und Tenant-Herkunft: e2e/tenant-session.ts.
 // Relative page.goto-Ziele laufen gegen die Tenant-Herkunft.
@@ -26,6 +30,34 @@ function weekdayInCurrentWeek(date: Date): Date {
   if (day === 6) weekday.setDate(weekday.getDate() - 1);
   else if (day === 0) weekday.setDate(weekday.getDate() - 2);
   return weekday;
+}
+
+// Navigation und Speichern starten den Datenabruf erst asynchron. Erst nach
+// der Antwort beginnt das unveränderte Budget für die sichtbaren Termine.
+async function waitForCalendarResponse(
+  page: Page,
+  date: string,
+): Promise<void> {
+  const request = await page.waitForRequest((request) => {
+    const url = new URL(request.url());
+    const from = url.searchParams.get("from");
+    const to = url.searchParams.get("to");
+    return (
+      url.origin === new URL(base).origin &&
+      url.pathname === "/api/calendar/my" &&
+      request.method() === "GET" &&
+      from !== null &&
+      to !== null &&
+      from <= date &&
+      date <= to
+    );
+  });
+  const response = await request.response();
+  expect(response?.ok(), "Kalenderabfrage muss erfolgreich sein").toBe(true);
+  expect(
+    await response?.finished(),
+    "Kalenderantwort muss vollständig sein",
+  ).toBeNull();
 }
 
 // Der angelegte Termin wird wieder gelöscht. Sonst stapeln sich bei
@@ -62,12 +94,18 @@ test.describe("Personal calendar flow", () => {
     // Der Kalender blendet Wochenenden zunächst aus. Der Termin liegt daher
     // auch am Wochenende auf einem sichtbaren Wochentag der aktuell
     // angezeigten Woche, damit er nach dem Speichern im Raster erscheint.
-    const start = weekdayInCurrentWeek(new Date());
+    // Die Seite zeigt die Woche des Berliner Schultags; der lokale Tag des
+    // Runners (in CI UTC) ist bis 01:00/02:00 Uhr Berliner Zeit noch der
+    // Vortag und läge montags in der Vorwoche (#6419).
+    const start = weekdayInCurrentWeek(parseISODate(berlinTodayISO()));
     const startDate = toISODate(start);
     const recurrenceEnd = toISODate(addDays(start, 7));
     const title = `Playwright Kalendertermin ${Date.now()}`;
 
-    await page.goto("/calendar");
+    await Promise.all([
+      waitForCalendarResponse(page, startDate),
+      page.goto("/calendar"),
+    ]);
     await expect(
       page.getByRole("heading", { name: "Mein Kalender" }),
     ).toBeVisible();
@@ -120,6 +158,7 @@ test.describe("Personal calendar flow", () => {
         response.url().includes("/api/calendar/appointments") &&
         response.request().method() === "POST",
     );
+    const savedCalendar = waitForCalendarResponse(page, startDate);
     await page.getByRole("button", { name: "Termin speichern" }).click();
     const created = await createResponse;
     await expect(created.ok()).toBeTruthy();
@@ -130,6 +169,7 @@ test.describe("Personal calendar flow", () => {
     const createdId = createdJson.data?.appointment?.id;
     expect(createdId, "Termin-Anlage muss eine ID liefern").toBeTruthy();
     createdAppointmentId = String(createdId);
+    await savedCalendar;
 
     // Seit 0fccd5815c ("tap-to-detail") ist ein Termin im Raster ein
     // kompakter Block; Antwortstatus, Ort und Zusagen/Absagen trägt die
@@ -160,14 +200,20 @@ test.describe("Personal calendar flow", () => {
 
     // Gespeichert im Backend: nach frischem Laden der Seite steht die Zusage
     // weiterhin im Termin.
-    await page.reload({ waitUntil: "domcontentloaded" });
+    await Promise.all([
+      waitForCalendarResponse(page, startDate),
+      page.reload({ waitUntil: "domcontentloaded" }),
+    ]);
     await expect(currentWeekEvent).toBeVisible();
     await currentWeekEvent.click();
     await expect(eventDetail).toContainText("Zugesagt");
     await waitForAnimations(eventDetail);
 
     await eventDetail.getByRole("button", { name: "Schließen" }).click();
-    await page.getByRole("button", { name: "Nächste Woche" }).click();
+    await Promise.all([
+      waitForCalendarResponse(page, recurrenceEnd),
+      page.getByRole("button", { name: "Nächste Woche" }).click(),
+    ]);
     await expect(page.getByRole("button", { name: title })).toBeVisible();
   });
 });

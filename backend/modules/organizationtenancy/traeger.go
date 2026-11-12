@@ -73,6 +73,10 @@ type TraegerMembershipCommand interface {
 // the person needs an account before the operator assigns them to a Träger.
 var ErrTraegerAccountNotFound = errors.New("no account with this e-mail address")
 
+// ErrTraegerAccountInactive reports a deactivated account: the assignment
+// does not reactivate it, so the person gets no Träger access (#6535).
+var ErrTraegerAccountInactive = errors.New("the account is deactivated")
+
 // ErrTraegerMemberNotFound reports an account that is no member of the
 // Träger-Büro the operator acts on.
 var ErrTraegerMemberNotFound = errors.New("account is no member of this Träger-Büro")
@@ -179,4 +183,13 @@ type TraegerMemberProvisioning interface {
 	// RevokeTraegerInvitation withdraws the invitation; its link stops working.
 	RevokeTraegerInvitation(ctx context.Context, input TraegerInvitationCommand) error
 	ResetTraegerMemberMFA(ctx context.Context, input ResetTraegerMemberMFA) error
+}
+
+// AccountRetention supplies only the membership fact needed by account
+// offboarding. It joins the caller's transaction; tenant scope exposes no
+// fact about an account without an active mapping to that school.
+type AccountRetention interface {
+	// HasRetainedTraegerMembership counts pending/active membership independently
+	// of the Träger state. This does not grant permission to sign in.
+	HasRetainedTraegerMembership(ctx context.Context, accountID int64) (bool, error)
 }

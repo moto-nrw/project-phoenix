@@ -40,6 +40,9 @@
   "api/timetable/instances/[id]/complete": [
     "POST tenant /api/timetable/instances/id%2F1/complete"
   ],
+  "api/timetable/instances/[id]/convert-to-series": [
+    "POST tenant /api/timetable/instances/id%2F1/convert-to-series"
+  ],
   "api/timetable/instances/[id]/deviations": [
     "POST tenant /api/timetable/instances/id%2F1/deviations"
   ],

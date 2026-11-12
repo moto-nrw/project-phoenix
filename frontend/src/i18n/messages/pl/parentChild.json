@@ -1,8 +1,6 @@
 {
-  "switcherLabel": "Wybierz dziecko",
   "overviewKicker": "Przegląd dzieci",
   "overviewDescription": "Proszę wybrać dziecko, aby zobaczyć opiekę, dane i kontakty.",
-  "ogsLabel": "{careTerm}",
   "careEnded": {
     "title": "Opieka zakończona",
     "body": "Państwa dziecko nie jest już objęte opieką w tej {careTerm}. Wszystko, co było do tej pory, mogą Państwo nadal przeglądać. Nowe zgłoszenia nie są już możliwe."
@@ -10,10 +8,7 @@
   "notFound": "Pod tym adresem nie ma dziecka powiązanego z Państwa kontem. Proszę wybrać dziecko w przeglądzie.",
   "noChildren": "Z Państwa kontem nie jest jeszcze powiązane żadne dziecko. {careTerm} Państwa szkoły może to ustawić.",
   "sections": {
-    "today": "Dziś",
-    "care": "Opieka w {careTerm}",
-    "data": "Dane dziecka",
-    "people": "Rodzice i osoby upoważnione do odbioru"
+    "today": "Dziś"
   },
   "areas": {
     "label": "Obszary dotyczące dziecka",
@@ -51,8 +46,9 @@
   "consents": {
     "title": "Zgody i potwierdzenia",
     "description": "Tutaj widzą Państwo, co jest zapisane dla Państwa dziecka.",
-    "staffDescription": "Tylko do wiadomości. Rodzice zmieniają zgodę na zdjęcia w portalu dla rodziców.",
+    "staffDescription": "Rodzice zmieniają zgodę na zdjęcia w portalu dla rodziców. Rodzice bez portalu informują Państwa. Wtedy usuń zaznaczenie przy zdjęciu w „Bearbeiten”.",
     "photoDescription": "Zgodę na zdjęcia mogą Państwo zmienić tutaj.",
+    "photoViaCareDescription": "Aby wycofać zgodę na zdjęcia, skontaktuj się z {careTerm}.",
     "items": {
       "agb": "Ogólne warunki umowy (regulamin)",
       "data_processing": "Zapoznano się z informacją o ochronie danych",

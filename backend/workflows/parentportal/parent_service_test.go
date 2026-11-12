@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/parentfixture"
+	"github.com/uptrace/bun"
 
 	"github.com/moto-nrw/project-phoenix/api"
 	owners "github.com/moto-nrw/project-phoenix/roots/owners"
@@ -56,8 +57,12 @@ func (s *stubEnrollmentRequestRepo) BackfillGuardianAccountID(_ context.Context,
 // time, so leaving them nil here is fine.
 func buildParentService(t *testing.T, repo *stubEnrollmentRequestRepo) *parentService.Portal {
 	t.Helper()
-	testpkg.SetupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		Memberships:           parentMemberships(t, db),
+		StudentGuardianRepo:   guardStudentGuardians(t, db),
+		GuardianProfileRepo:   guardProfiles(t, db),
+		StudentRepo:           guardStudents(t, db),
 		GuardianChanges:       owners.ParentGuardianChanges(),
 		DeparturePolicy:       owners.ParentDeparturePolicy(),
 		GuardianPolicy:        owners.NewParentGuardianPolicy(),
@@ -118,8 +123,12 @@ func TestService_ListEnrollmentsForAccount_PropagatesRepoError(t *testing.T) {
 func TestService_ListEnrollmentsForAccount_NilRepoReturnsError(t *testing.T) {
 	t.Parallel()
 
-	testpkg.SetupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Memberships:           parentMemberships(t, db),
+		StudentGuardianRepo:   guardStudentGuardians(t, db),
+		GuardianProfileRepo:   guardProfiles(t, db),
+		StudentRepo:           guardStudents(t, db),
 		GuardianChanges:       owners.ParentGuardianChanges(),
 		DeparturePolicy:       owners.ParentDeparturePolicy(),
 		GuardianPolicy:        owners.NewParentGuardianPolicy(),
@@ -266,8 +275,11 @@ func (p portalLocalePeople) SetGuardianPortalLocale(ctx context.Context, account
 
 func buildParentServiceWithGuardian(t *testing.T, repo *stubGuardianProfileRepo) *parentService.Portal {
 	t.Helper()
-	testpkg.SetupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	return parentportalcompose.New(parentportalcompose.Dependencies{
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		StudentRepo:         guardStudents(t, db),
 		GuardianChanges:     owners.ParentGuardianChanges(),
 		DeparturePolicy:     owners.ParentDeparturePolicy(),
 		GuardianPolicy:      owners.NewParentGuardianPolicy(),
@@ -393,8 +405,11 @@ func TestService_GetProfile_RejectsNonPositiveAccount(t *testing.T) {
 func TestService_GetProfile_NilRepoReturnsError(t *testing.T) {
 	t.Parallel()
 
-	testpkg.SetupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		StudentRepo:         guardStudents(t, db),
 		GuardianChanges:     owners.ParentGuardianChanges(),
 		DeparturePolicy:     owners.ParentDeparturePolicy(),
 		GuardianPolicy:      owners.NewParentGuardianPolicy(),
@@ -439,6 +454,9 @@ func TestService_UpdatePortalLocale_WritesEverySchool(t *testing.T) {
 	otherTenant, _ := testpkg.CreateTestTenant(t, db)
 	repo := &stubGuardianProfileRepo{}
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		StudentRepo:         guardStudents(t, db),
 		GuardianChanges:     owners.ParentGuardianChanges(),
 		DeparturePolicy:     owners.ParentDeparturePolicy(),
 		GuardianPolicy:      owners.NewParentGuardianPolicy(),
@@ -487,8 +505,11 @@ func TestService_UpdatePortalLocale_PropagatesRepoError(t *testing.T) {
 func TestService_UpdatePortalLocale_NilRepoReturnsError(t *testing.T) {
 	t.Parallel()
 
-	testpkg.SetupTestDB(t)
+	db := testpkg.SetupTestDB(t)
 	svc := parentportalcompose.New(parentportalcompose.Dependencies{
+		Memberships:         parentMemberships(t, db),
+		StudentGuardianRepo: guardStudentGuardians(t, db),
+		StudentRepo:         guardStudents(t, db),
 		GuardianChanges:     owners.ParentGuardianChanges(),
 		DeparturePolicy:     owners.ParentDeparturePolicy(),
 		GuardianPolicy:      owners.NewParentGuardianPolicy(),
@@ -533,4 +554,87 @@ func TestService_UpdatePortalLocale_SurfacesMissingProfile(t *testing.T) {
 	_, err := svc.UpdatePortalLocale(testpkg.WithPackageTenantRuntime(context.Background()), 1234, "en")
 	require.Error(t, err)
 	assert.ErrorIs(t, err, parentService.ErrGuardianProfileNotFound)
+}
+
+// parentMemberships, guardStudentGuardians, guardProfiles and guardStudents
+// bind the real ports the child write guard locks through, as the root does.
+func parentMemberships(t testing.TB, db *bun.DB) parentService.SchoolMembershipLock {
+	t.Helper()
+	return owners.NewParentSchoolMembershipLock(testpkg.NewDatabase(t, db))
+}
+
+func guardStudentGuardians(t testing.TB, db *bun.DB) parentService.StudentGuardianReads {
+	t.Helper()
+	return owners.NewParentStudentGuardianReads(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).StudentGuardian)
+}
+
+func guardProfiles(t testing.TB, db *bun.DB) parentService.GuardianProfiles {
+	t.Helper()
+	return owners.NewParentGuardianProfileReads(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).GuardianProfile)
+}
+
+func guardStudents(t testing.TB, db *bun.DB) parentService.StudentReads {
+	t.Helper()
+	return owners.NewParentStudentReads(api.NewPeopleRepositorySuiteFactory(testpkg.NewDatabase(t, db)).Student)
+}
+
+// A parent without a school or guardian profile saves the UI language on
+// the account. The preference survives a new portal instance and grants no
+// school membership or child relationship.
+func TestService_SchoollessPortalLocalePersists(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	database := testpkg.NewDatabase(t, db)
+	identity, err := api.NewIdentityAccessForTests(database)
+	require.NoError(t, err)
+	account := testpkg.CreateTestAccount(t, db, "schoolless-locale")
+	other := testpkg.CreateTestAccount(t, db, "other-schoolless-locale")
+	testpkg.UnclaimTestAccount(t, db, account.ID)
+	testpkg.OwnTestAccount(t, db, account.ID)
+	ctx := testpkg.WithPackageTenantRuntime(context.Background())
+	build := func() *parentService.Portal {
+		return parentportalcompose.New(parentportalcompose.Dependencies{
+			GuardianPolicy: owners.NewParentGuardianPolicy(), CarePlanPolicy: owners.NewParentCarePlanPolicy(),
+			Declarations: owners.ParentDeclarationPolicy(), Fingerprints: owners.SecurityFingerprints{}, Logger: slog.Default(),
+			Locales: owners.ParentPortalLocales(), Runtime: owners.ParentPortalRuntime{},
+			ParentAccounts: owners.NewParentAccounts(identity), GuardianProfileRepo: guardProfiles(t, db),
+			People: portalLocalePeople{repo: &stubGuardianProfileRepo{}},
+		})
+	}
+	portal := build()
+	initial, err := portal.GetProfile(ctx, account.ID)
+	require.NoError(t, err)
+	require.False(t, initial.Explicit)
+	saved, err := portal.UpdatePortalLocale(ctx, account.ID, "en")
+	require.NoError(t, err)
+	require.True(t, saved.Explicit)
+	require.Equal(t, "en", saved.Locale)
+	restored, err := build().GetProfile(ctx, account.ID)
+	require.NoError(t, err)
+	require.True(t, restored.Explicit)
+	require.Equal(t, "en", restored.Locale)
+	untouched, err := build().GetProfile(ctx, other.ID)
+	require.NoError(t, err)
+	require.False(t, untouched.Explicit)
+	_, err = portal.UpdatePortalLocale(ctx, account.ID, "unsupported")
+	require.Error(t, err)
+	restored, err = build().GetProfile(ctx, account.ID)
+	require.NoError(t, err)
+	require.Equal(t, "en", restored.Locale)
+	for _, query := range []string{
+		`SELECT count(*) FROM users.guardian_profiles WHERE account_id = ?`,
+		`SELECT count(*) FROM auth.account_tenants WHERE account_id = ?`,
+	} {
+		var count int
+		require.NoError(t, db.NewRaw(query, account.ID).Scan(ctx, &count))
+		require.Zero(t, count)
+	}
+	t.Cleanup(func() {
+		_, cleanupErr := db.ExecContext(context.Background(), `UPDATE auth.accounts SET personal_data_erased_at = NULL WHERE id = ?`, account.ID)
+		assert.NoError(t, cleanupErr)
+	})
+	_, err = db.ExecContext(ctx, `UPDATE auth.accounts SET personal_data_erased_at = NOW() WHERE id = ?`, account.ID)
+	require.NoError(t, err)
+	_, err = portal.UpdatePortalLocale(ctx, account.ID, "de")
+	require.Error(t, err)
 }

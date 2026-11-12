@@ -7164,33 +7164,33 @@
     },
     {
       "adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
       "classification": "platform",
       "effect": "scope",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteCompletedVisitsBefore",
-      "reason": "Platform protocol participation (scope): student-presence reaches *tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/studentpresence.Owner.DeleteCompletedVisitsBefore. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteExpiredVisits",
+      "reason": "Platform protocol participation (scope): student-presence reaches *tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/studentpresence.Owner.DeleteExpiredVisits. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "student-presence",
       "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
       "classification": "query",
       "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteCompletedVisitsBefore",
-      "reason": "Read-only target already reviewed as query: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence.Owner.DeleteCompletedVisitsBefore. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteExpiredVisits",
+      "reason": "Read-only target already reviewed as query: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence.Owner.DeleteExpiredVisits. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
       "target_owner": "tenant-runtime"
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
+      "approval_adr": "0199",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
       "classification": "unresolved",
       "effect": "unresolved",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteCompletedVisitsBefore",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Capability.DeleteExpiredVisits",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Same observe closure as every Student Presence write (runWrite); set-based visit retention deletion of #6455 replacing DeleteCompletedVisitsBefore, approved by ADR 0199; a changed value or closure needs a fresh approval ADR.",
       "source_owner": "student-presence",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
       "target_owner": ""
@@ -11278,39 +11278,6 @@
       "target_owner": ""
     },
     {
-      "adr": "0098",
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteCompletedVisitsBefore",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
-      "reason": "Platform protocol participation (scope): student-presence reaches *tenant.TransactionRunner.RunInTx (tenant-runtime) through *modules/studentpresence/internal/application.Service.DeleteCompletedVisitsBefore. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "student-presence",
-      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteCompletedVisitsBefore",
-      "classification": "query",
-      "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
-      "reason": "Read-only target already reviewed as query: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/studentpresence/internal/application.Service.DeleteCompletedVisitsBefore. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
-      "source_owner": "student-presence",
-      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "adr": "0083",
-      "approval_adr": "0098",
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteCompletedVisitsBefore",
-      "classification": "unresolved",
-      "effect": "unresolved",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
-      "source_owner": "student-presence",
-      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
-      "target_owner": ""
-    },
-    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteExpiredAttendance",
       "classification": "query",
       "effect": "query",
@@ -11350,6 +11317,39 @@
       "effect": "unresolved",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredMorningAttendance",
       "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Morning attendance operation of #4790 through the module's observer, approved by ADR 0100; a changed value or closure needs a fresh approval ADR.",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteExpiredVisits",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
+      "reason": "Platform protocol participation (scope): student-presence reaches *tenant.TransactionRunner.RunInTx (tenant-runtime) through *modules/studentpresence/internal/application.Service.DeleteExpiredVisits. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "student-presence",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteExpiredVisits",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
+      "reason": "Read-only target already reviewed as query: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/studentpresence/internal/application.Service.DeleteExpiredVisits. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0199",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.DeleteExpiredVisits",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Same observe closure as every Student Presence write (runWrite); set-based visit retention deletion of #6455 replacing DeleteCompletedVisitsBefore, approved by ADR 0199; a changed value or closure needs a fresh approval ADR.",
       "source_owner": "student-presence",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
       "target_owner": ""
@@ -14865,6 +14865,16 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.RecordPrivacyConsents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.PrivacyConsentBatches.RecordPrivacyConsents",
+      "reason": "Read-only target already reviewed as query: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through *modules/studentpresence/internal/application.Service.RecordPrivacyConsents. No persistent, lock or scope effect; the batch form of RecordPrivacyConsent for the data import (#5552, ADR 0067 addendum of 2026-11-08, step 5) joins the caller's unit and opens none.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0098",
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.ListRoomSessionHistory",
       "classification": "platform",
@@ -15036,41 +15046,45 @@
       "target_owner": "care-plan"
     },
     {
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.presenceCarePlanDirectory.ListPickupExceptions",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionCarePlanDirectory.ListPickupExceptions",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/excusedrequests.Date.String; modules/careplan/excusedrequests/contract.go:20. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/excusedrequests.Date.String; modules/careplan/excusedrequests/contract.go:20. May-bind method surface, not a production-call/liveness claim. Final roster batch review: the exception/status consumer filter now carries the bounded To date as well as From. This adapter remains a tenant-scoped read of the existing Care Plan capability with the same date conversion; the full roster batch reads each date range once.",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests.Date.String",
       "target_owner": "care-plan"
     },
     {
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.presenceCarePlanDirectory.ListPickupExceptions",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionCarePlanDirectory.ListPickupExceptions",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/ports.ExceptionQueries.ListPickupExceptions; modules/careplan/ports/student_names.go:26. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/ports.ExceptionQueries.ListPickupExceptions; modules/careplan/ports/student_names.go:26. May-bind method surface, not a production-call/liveness claim. Final roster batch review: the exception/status consumer filter now carries the bounded To date as well as From. This adapter remains a tenant-scoped read of the existing Care Plan capability with the same date conversion; the full roster batch reads each date range once.",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/ports.ExceptionQueries.ListPickupExceptions",
       "target_owner": "care-plan"
     },
     {
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.presenceCarePlanDirectory.ListStudentStatusDays",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionCarePlanDirectory.ListStudentStatusDays",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/excusedrequests.Date.String; modules/careplan/excusedrequests/contract.go:20. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/excusedrequests.Date.String; modules/careplan/excusedrequests/contract.go:20. May-bind method surface, not a production-call/liveness claim. Final roster batch review: the exception/status consumer filter now carries the bounded To date as well as From. This adapter remains a tenant-scoped read of the existing Care Plan capability with the same date conversion; the full roster batch reads each date range once.",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests.Date.String",
       "target_owner": "care-plan"
     },
     {
+      "approval_adr": "0215",
       "binding": "github.com/moto-nrw/project-phoenix/roots/owners.presenceCarePlanDirectory.ListStudentStatusDays",
       "classification": "query",
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SessionCarePlanDirectory.ListStudentStatusDays",
-      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/ports.ExceptionQueries.ListStudentStatusDays; modules/careplan/ports/student_names.go:28. May-bind method surface, not a production-call/liveness claim.",
+      "reason": "Reviewed read/value/construction method; no owned-row mutation or locking read at this terminal. Target modules/careplan/ports.ExceptionQueries.ListStudentStatusDays; modules/careplan/ports/student_names.go:28. May-bind method surface, not a production-call/liveness claim. Final roster batch review: the exception/status consumer filter now carries the bounded To date as well as From. This adapter remains a tenant-scoped read of the existing Care Plan capability with the same date conversion; the full roster batch reads each date range once.",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan/ports.ExceptionQueries.ListStudentStatusDays",
       "target_owner": "care-plan"
@@ -15780,6 +15794,105 @@
       "target_owner": ""
     },
     {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplyActivePartialAbsencesForInstances",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplyActivePartialAbsencesForInstances",
+      "reason": "Existing tenant transaction protocol used by the narrow batch roster command; scope and retry behavior are unchanged.",
+      "source_owner": "student-presence",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplyActivePartialAbsencesForInstances",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplyActivePartialAbsencesForInstances",
+      "reason": "Reads the ambient tenant transaction; no mutation or locking at this terminal.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0215",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplyActivePartialAbsencesForInstances",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplyActivePartialAbsencesForInstances",
+      "reason": "Existing injected Student Presence observation callback, now exposed through the narrow SourcedRosterAttendance capability. No observer behavior change; the unresolved binding remains explicit.",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplyActiveStatusDaysForInstances",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplyActiveStatusDaysForInstances",
+      "reason": "Existing tenant transaction protocol used by the narrow batch roster command; scope and retry behavior are unchanged.",
+      "source_owner": "student-presence",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplyActiveStatusDaysForInstances",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplyActiveStatusDaysForInstances",
+      "reason": "Reads the ambient tenant transaction; no mutation or locking at this terminal.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0215",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplyActiveStatusDaysForInstances",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplyActiveStatusDaysForInstances",
+      "reason": "Existing injected Student Presence observation callback, now exposed through the narrow SourcedRosterAttendance capability. No observer behavior change; the unresolved binding remains explicit.",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
+      "adr": "0098",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplySourcedRosterAttendance",
+      "classification": "platform",
+      "effect": "scope",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplySourcedRosterAttendance",
+      "reason": "Platform transaction protocol for the batch roster command. Attendance reuses the caller school unit through runWrite; the ID-only student lock requires that existing tenant transaction. The participant/date batch and sorted row/day locks do not widen the transaction scope (ADR 0215).",
+      "source_owner": "student-presence",
+      "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplySourcedRosterAttendance",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplySourcedRosterAttendance",
+      "reason": "Reads the existing tenant transaction for the complete sourced roster attendance batch; no mutation, lock acquisition or new scope at this terminal.",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "adr": "0083",
+      "approval_adr": "0215",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.ApplySourcedRosterAttendance",
+      "classification": "unresolved",
+      "effect": "unresolved",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.SourcedRosterAttendance.ApplySourcedRosterAttendance",
+      "reason": "The batch roster/student-row command reuses its owner observation callback. Typed binding resolution cannot follow the injected observer; this boundary remains explicitly unresolved, not a query or approved mutation. The caller transaction and complete batch lock order are covered by the populated roster contract test (ADR 0215).",
+      "source_owner": "student-presence",
+      "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
+      "target_owner": ""
+    },
+    {
       "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/statistics.service.CareTimeOverruns",
       "classification": "query",
       "effect": "query",
@@ -16421,6 +16534,28 @@
       "effect": "lock",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDays.UpsertReported",
       "reason": "Unreviewed cross-owner lock, explicit coordination finding (not a leaf or E1-E5 grant): student-presence reaches modules/careplan.Owner.LockExceptionDay (care-plan) through modules/studentpresence/internal/application/presence.statusDays.UpsertReported. Newly visible through #4836 callable resolution; protocol review is follow-up work (ADR 0098). #4799 binds the status-day write for moto schule class trips in buildClassDayViews; the effect is unchanged (ADR 0102).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.LockExceptionDay",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.ValidateProfileStatusChange",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDays.ValidateProfileStatusChange",
+      "reason": "Care Plan provides the existing student/day gate in the ambient tenant transaction. Profile writes already hold the student row and acquire this day gate for the subsequent status upsert. The guard reads the same day after that gate, before status writes, and propagates refusal for outer rollback; no new owner, lock order, scope switch or side effect is introduced (#6498).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Capability.LockExceptionDay",
+      "target_owner": "care-plan"
+    },
+    {
+      "adr": "0067",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.statusDays.ValidateProfileStatusChange",
+      "classification": "leaf",
+      "effect": "lock",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence.StatusDays.ValidateProfileStatusChange",
+      "reason": "Care Plan provides the existing student/day gate in the ambient tenant transaction. Profile writes already hold the student row and acquire this day gate for the subsequent status upsert. The guard reads the same day after that gate, before status writes, and propagates refusal for outer rollback; no new owner, lock order, scope switch or side effect is introduced (#6498).",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/careplan.Owner.LockExceptionDay",
       "target_owner": "care-plan"
@@ -18814,6 +18949,16 @@
       "target_owner": "device-fleet"
     },
     {
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.PresenceOperations.AdmitVisit",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/inbound/presence.PresenceOperations.AdmitVisit",
+      "reason": "Retrieves the caller's existing tenant transaction for the owner-private ReadVisitAdmission query after the session lock. The resolver opens no unit, acquires no lock, changes no role or scope and performs no write. The SQL reads only Student Presence's tenant-filtered active.visits. This classifies the runtime lookup, not the enclosing admission command (ADR 0067).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
       "adr": "0083",
       "approval_adr": "0176",
       "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.PresenceOperations.AdmitVisit",
@@ -20875,24 +21020,24 @@
       "target_owner": "audit-platform"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.deletionAudit.Create",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.deletionAudit.CreateAll",
       "classification": "query",
       "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.DeletionAudit.Create",
-      "reason": "Read-only newly exposed target: student-presence reaches modules/auditlog/records.DataDeletion.SetTenantID (audit-platform) through roots/owners.deletionAudit.Create. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.DeletionAudit.CreateAll",
+      "reason": "Read-only newly exposed target: student-presence reaches modules/auditlog/records.DataDeletion.SetTenantID (audit-platform) through roots/owners.deletionAudit.CreateAll. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
       "source_owner": "student-presence",
       "target": "*github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataDeletion.SetTenantID",
       "target_owner": "audit-platform"
     },
     {
       "adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.deletionAudit.Create",
+      "binding": "github.com/moto-nrw/project-phoenix/roots/owners.deletionAudit.CreateAll",
       "classification": "platform",
       "effect": "mutation",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.DeletionAudit.Create",
-      "reason": "Platform protocol participation (mutation): student-presence reaches modules/auditlog/records.DataDeletionRepository.Create (audit-platform) through roots/owners.deletionAudit.Create. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.DeletionAudit.CreateAll",
+      "reason": "Platform protocol participation (mutation): student-presence reaches modules/auditlog/records.DataDeletionRepository.CreateAll (audit-platform) through roots/owners.deletionAudit.CreateAll. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "student-presence",
-      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataDeletionRepository.Create",
+      "target": "github.com/moto-nrw/project-phoenix/modules/auditlog/records.DataDeletionRepository.CreateAll",
       "target_owner": "audit-platform"
     },
     {
@@ -21233,33 +21378,33 @@
     },
     {
       "adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
       "classification": "platform",
       "effect": "scope",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.PresenceRetention.DeleteCompletedVisitsBefore",
-      "reason": "Platform protocol participation (scope): student-presence reaches *tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/studentpresence.Owner.DeleteCompletedVisitsBefore. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.PresenceRetention.DeleteExpiredVisits",
+      "reason": "Platform protocol participation (scope): student-presence reaches *tenant.TransactionRunner.RunInTx (tenant-runtime) through modules/studentpresence.Owner.DeleteExpiredVisits. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "student-presence",
       "target": "*github.com/moto-nrw/project-phoenix/tenant.TransactionRunner.RunInTx",
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
       "classification": "query",
       "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.PresenceRetention.DeleteCompletedVisitsBefore",
-      "reason": "Read-only target already reviewed as query: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence.Owner.DeleteCompletedVisitsBefore. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.PresenceRetention.DeleteExpiredVisits",
+      "reason": "Read-only target already reviewed as query: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence.Owner.DeleteExpiredVisits. No persistent, lock or scope effect; newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
       "target_owner": "tenant-runtime"
     },
     {
       "adr": "0083",
-      "approval_adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteCompletedVisitsBefore",
+      "approval_adr": "0199",
+      "binding": "github.com/moto-nrw/project-phoenix/modules/studentpresence.Owner.DeleteExpiredVisits",
       "classification": "unresolved",
       "effect": "unresolved",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.PresenceRetention.DeleteCompletedVisitsBefore",
-      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow (a parameter without a caller in the typed build, typically a testhooks helper fed only by _test.go, or a non-static expression). Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Exposed by #4836 callable resolution (ADR 0098); a changed value or closure needs a fresh approval ADR.",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.PresenceRetention.DeleteExpiredVisits",
+      "reason": "Unresolved binding-flow boundary, not a query or approved leaf. Function-valued field whose typed values include a source the scan cannot follow. Exact boundary: unresolved:function:modules/studentpresence/internal/application.Service.observe. Same observe closure as every Student Presence write (runWrite); set-based visit retention deletion of #6455 replacing DeleteCompletedVisitsBefore, approved by ADR 0199; a changed value or closure needs a fresh approval ADR.",
       "source_owner": "student-presence",
       "target": "unresolved:function:github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application.Service.observe",
       "target_owner": ""
@@ -21751,6 +21896,16 @@
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth.AttendanceContext",
       "target_owner": "device-fleet"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.service.CreateVisit",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/application/presence.Service.CreateVisit",
+      "reason": "Retrieves the caller's existing tenant transaction for the owner-private ReadVisitAdmission query after the session lock. The resolver opens no unit, acquires no lock, changes no role or scope and performs no write. The SQL reads only Student Presence's tenant-filtered active.visits. This classifies the runtime lookup, not the enclosing admission command (ADR 0067).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
     },
     {
       "adr": "0083",
@@ -27626,11 +27781,11 @@
       "target_owner": "tenant-runtime"
     },
     {
-      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.DeleteCompletedVisitsBefore",
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.DeleteExpiredVisits",
       "classification": "query",
       "effect": "query",
-      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.DeleteCompletedVisitsBefore",
-      "reason": "Read-only newly exposed target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.DeleteCompletedVisitsBefore. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.DeleteExpiredVisits",
+      "reason": "Read-only newly exposed target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.DeleteExpiredVisits. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
       "target_owner": "tenant-runtime"
@@ -28381,6 +28536,16 @@
       "effect": "query",
       "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.RecordPrivacyConsent",
       "reason": "Read-only newly exposed target: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.RecordPrivacyConsent. No persistent, lock or scope effect; exposed by #4836 binding-flow resolution (ADR 0098).",
+      "source_owner": "student-presence",
+      "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
+      "target_owner": "tenant-runtime"
+    },
+    {
+      "binding": "*github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/adapters/postgres.Store.RecordPrivacyConsents",
+      "classification": "query",
+      "effect": "query",
+      "port": "github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports.Store.RecordPrivacyConsents",
+      "reason": "Read-only target already reviewed as query: student-presence reaches tenant.CurrentTenantTransaction (tenant-runtime) through modules/studentpresence/internal/adapters/postgres.Store.RecordPrivacyConsents. No persistent, lock or scope effect; the batch form of RecordPrivacyConsent for the data import (#5552, ADR 0067 addendum of 2026-11-08, step 5) joins the caller's unit and opens none.",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/tenant.CurrentTenantTransaction",
       "target_owner": "tenant-runtime"
@@ -29138,28 +29303,6 @@
       "reason": "Platform protocol participation (notice): student-presence reaches realtime.Broadcaster.BroadcastParentMessage (delivery-platform) through realtime.Broadcaster.BroadcastParentMessage. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
       "source_owner": "student-presence",
       "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastParentMessage",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "adr": "0098",
-      "binding": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastToAll",
-      "classification": "platform",
-      "effect": "notice",
-      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToAll",
-      "reason": "Platform protocol participation (notice): student-presence reaches realtime.Hub.BroadcastToAll (delivery-platform) through realtime.Hub.BroadcastToAll. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
-      "source_owner": "student-presence",
-      "target": "*github.com/moto-nrw/project-phoenix/realtime.Hub.BroadcastToAll",
-      "target_owner": "delivery-platform"
-    },
-    {
-      "adr": "0098",
-      "binding": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToAll",
-      "classification": "platform",
-      "effect": "notice",
-      "port": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToAll",
-      "reason": "Platform protocol participation (notice): student-presence reaches realtime.Broadcaster.BroadcastToAll (delivery-platform) through realtime.Broadcaster.BroadcastToAll. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098).",
-      "source_owner": "student-presence",
-      "target": "github.com/moto-nrw/project-phoenix/realtime.Broadcaster.BroadcastToAll",
       "target_owner": "delivery-platform"
     },
     {

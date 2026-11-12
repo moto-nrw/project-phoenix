@@ -401,7 +401,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (s intakeService) ConfirmRenewal(ctx context.Context, token string) (int, error) {\n\treturn s.owner.ConfirmRenewal(ctx, token)\n}",
+      "evidence": "func (s intakeService) ConfirmRenewal(ctx context.Context, token string, confirmation capability.RenewalConfirmation) (int, error) {\n\treturn s.owner.ConfirmRenewal(ctx, token, confirmation)\n}",
       "form": "unchanged-forward-evidence",
       "id": "modules/enrollment/http/intakeService.ConfirmRenewal",
       "owner": "modules/enrollment"
@@ -642,13 +642,6 @@
       "evidence": "func (h *HolidayHostParticipants) HostedHolidayWeeks(ctx context.Context, host enrollment.HolidayHost) ([]enrollment.HostedHolidayWeek, error) {\n\tif host.SchoolID \u003c= 0 {\n\t\treturn nil, errors.New(\"enrollment: the hosting school is required\")\n\t}\n\tweeks, err := h.store.ListHostedHolidayWeeks(ctx, host.SchoolID, h.today())\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tif weeks == nil {\n\t\tweeks = []enrollment.HostedHolidayWeek{}\n\t}\n\treturn weeks, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/enrollment/internal/application/HolidayHostParticipants.HostedHolidayWeeks",
-      "owner": "modules/enrollment"
-    },
-    {
-      "build": "production",
-      "evidence": "func (h *HolidayPeriods) HolidayPeriod(ctx context.Context, organizationID, periodID int64) (enrollment.HolidayPeriod, error) {\n\tif err := holidayPeriodKey(organizationID, periodID); err != nil {\n\t\treturn enrollment.HolidayPeriod{}, err\n\t}\n\treturn foundHolidayPeriod(h.store.FindHolidayPeriod(ctx, organizationID, periodID, false))\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/enrollment/internal/application/HolidayPeriods.HolidayPeriod",
       "owner": "modules/enrollment"
     },
     {

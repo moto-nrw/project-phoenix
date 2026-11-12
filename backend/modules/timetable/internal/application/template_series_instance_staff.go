@@ -2,6 +2,7 @@ package application
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"slices"
 	"sort"
@@ -11,6 +12,7 @@ import (
 	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
 	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-nrw/project-phoenix/tenant"
 )
 
 // instanceStaffReconciliation is the state one staff alignment pass works
@@ -51,12 +53,21 @@ func (s *TemplateService) reconcilePredecessorInstanceStaff(
 	if err != nil || len(instances) == 0 {
 		return err
 	}
+	if err := s.lockOccurrenceDays(ctx, instances); err != nil {
+		return err
+	}
 	pass, err := s.loadInstanceStaffReconciliation(ctx, templateID, instanceIDs, priorSupervisors)
 	if err != nil {
 		return err
 	}
 	if pass.sickDays, err = sickDaysIn(ctx, s.deps.SickReports, occurrenceDays(instances)...); err != nil {
 		return err
+	}
+	// The staff rows of everyone the pass may add, before the first block
+	// row (#6583): offboarding holds a staff row while it locks that person's
+	// occurrences, so taking it after an occurrence closes a cycle.
+	if err := lockStaffRows(ctx, s.deps.InstanceStaffRepo, plannedStaffOf(staffIDs, pass)); err != nil {
+		return &ports.ScheduleError{Op: "reconcile predecessor staff: lock staff", Err: err}
 	}
 	for _, inst := range instances {
 		if err := s.reconcileOccurrenceStaff(ctx, inst, staffIDs, pass); err != nil {
@@ -99,6 +110,19 @@ func (s *TemplateService) loadInstanceStaffReconciliation(
 		pass.existing[instanceStudentPair{instanceID: row.InstanceID, studentID: row.StaffID}] = row
 	}
 	return pass, nil
+}
+
+// plannedStaffOf lists the given staff members the template still plans:
+// only they can gain an occurrence row. A supervisor row exists only for live
+// staff, since offboarding removes a retired person's rows.
+func plannedStaffOf(staffIDs []int64, pass *instanceStaffReconciliation) []int64 {
+	planned := make([]int64, 0, len(staffIDs))
+	for _, staffID := range staffIDs {
+		if len(pass.byStaff[staffID]) > 0 {
+			planned = append(planned, staffID)
+		}
+	}
+	return planned
 }
 
 func supervisorsByStaff(rows []*activityContract.SupervisorPlanned) map[int64][]*activityContract.SupervisorPlanned {
@@ -330,6 +354,34 @@ func sortedInt64Keys(set map[int64]bool) []int64 {
 	}
 	slices.Sort(out)
 	return out
+}
+
+// lockOccurrenceDays takes the day lock of every occurrence the pass may
+// write, ascending, before it reads the sick reports (#6232): a sick-report
+// write holds the days of its range while it writes, so the pass either
+// reads the committed report or the report's cascade sees the rows the pass
+// added. It also serializes participant reconciliation with cancellation.
+// The callers hold the recurrence gate, which every date-moving write takes
+// as well, so the occurrence days stay put.
+func (s *TemplateService) lockOccurrenceDays(ctx context.Context, instances []*scheduleModel.ActivityInstance) error {
+	if len(instances) == 0 {
+		return nil
+	}
+	return lockTemplateDays(ctx, s.deps.Deviations, "reconcile predecessor staff: lock days", occurrenceDays(instances))
+}
+
+// lockTemplateDays takes the day locks of the days once each, ascending.
+func lockTemplateDays(ctx context.Context, deviations ports.SeriesDeviations, op string, days []calendar.Date) error {
+	if deviations == nil {
+		return &ports.ScheduleError{Op: op, Err: errors.New("day locks are not configured")}
+	}
+	tenantID := tenant.FromContext(ctx)
+	for _, day := range ascendingDays(days) {
+		if err := deviations.LockDeviationDays(ctx, tenantID, day, day); err != nil {
+			return &ports.ScheduleError{Op: op, Err: err}
+		}
+	}
+	return nil
 }
 
 // occurrenceDays lists the occurrence dates.

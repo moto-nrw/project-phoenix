@@ -47,6 +47,12 @@ else if (isCompose && args.includes('--no-interpolate')) console.log(`services:\
 else if (isCompose && args.includes('pg_dumpall')) console.log('CREATE ROLE phoenix_auth;');
 else if (isCompose && args.includes('pg_dump')) console.log('database snapshot');
 else if (isCompose && call.includes('SELECT (SELECT count(*)')) console.log('0');
+// ADR 0203: the restored snapshot holds the data-return table unless a test
+// names an older one; the revocation answers how many grants it ended.
+else if (isCompose && call.includes("to_regclass('platform.data_return_grants')")) {
+  if (fail === 'revoke-data-return') exit();
+  console.log(process.env.RELEASE_TEST_DATA_RETURN === 'absent' ? 'f' : 't');
+} else if (isCompose && call.includes('UPDATE platform.data_return_grants')) console.log('2');
 else if (args.includes('-czf')) {
   const bind = args.find(value => value.startsWith('type=bind,src='));
   const directory = bind.split(',')[1].slice(4);

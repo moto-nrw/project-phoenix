@@ -12,6 +12,11 @@ import {
  * here as strings.
  */
 
+import {
+  type BackendDebtorNumberFormat,
+  type DebtorNumberFormat,
+  debtorNumberFormatOf,
+} from "~/lib/debtor-number-format";
 import { apiErrorFromBody, transportFetch } from "./api-error";
 import { filenameFromDisposition } from "./file-download";
 import {
@@ -46,7 +51,11 @@ type HolidayRegistrationEventAction =
   | "proof_upload"
   | "sibling_merge"
   | "sibling_split"
-  | "sibling_cancel";
+  | "sibling_cancel"
+  | "promote"
+  | "wish"
+  | "allocate"
+  | "criteria_check";
 
 /** The filter of the list and the export. Empty values match everything. */
 export interface HolidayRegistrationFilter {
@@ -56,14 +65,34 @@ export interface HolidayRegistrationFilter {
   readonly weekId: string;
   /** A time model name; time models are per week. */
   readonly timeModel: string;
+  /**
+   * The holiday care wish (#4703): "check" for children the office still
+   * has to check, "yes" or "no", empty for all.
+   */
+  readonly wish: HolidayWishFilter;
 }
+
+export type HolidayWishFilter = "" | "check" | "yes" | "no";
 
 export const EMPTY_HOLIDAY_REGISTRATION_FILTER: HolidayRegistrationFilter = {
   status: "",
   school: "",
   weekId: "",
   timeModel: "",
+  wish: "",
 };
+
+/** What is known about a child's holiday care wish (#4703). */
+type HolidayWish = "yes" | "no" | "";
+/** Where the known wish comes from: the parent's account or the office. */
+type HolidayWishSource = "account" | "office" | "";
+
+/**
+ * Whether a booking has a place in its week or waits for one (#4699). In a
+ * period by criteria a booking stays "pending" until the office decides
+ * (#4700); it is neither billed nor reported to the OGS.
+ */
+type HolidayPlacement = "placed" | "waitlisted" | "pending";
 
 interface HolidayRegistrationBooking {
   readonly weekId: string;
@@ -73,6 +102,13 @@ interface HolidayRegistrationBooking {
   readonly hostSchoolId: string;
   readonly timeModelId: string;
   readonly timeModelName: string;
+  readonly placement: HolidayPlacement;
+  /** Place on the waiting list of the week, from 1; null with a place. */
+  readonly waitlistPosition: number | null;
+  /** When the booking moved up from the waiting list; null otherwise. */
+  readonly promotedAt: string | null;
+  /** The booked days of a week by days (#4701); empty for a whole week. */
+  readonly days?: readonly string[];
 }
 
 export interface HolidayRegistrationChild {
@@ -86,6 +122,11 @@ export interface HolidayRegistrationChild {
   readonly bookings: readonly HolidayRegistrationBooking[];
   /** Other registrations of the period with the same child. */
   readonly duplicateRegistrationIds: readonly string[];
+  /** The child's holiday care wish, empty when unknown (#4703). */
+  readonly holidayWish: HolidayWish;
+  readonly holidayWishSource: HolidayWishSource;
+  /** The office still has to check the wish of this child. */
+  readonly holidayWishCheck: boolean;
 }
 
 export interface HolidayRegistrationSummary {
@@ -104,6 +145,12 @@ export interface HolidayRegistrationSummary {
    * confirmation (#5621); empty without one.
    */
   readonly debtorNumber: string;
+  /**
+   * The day moto deletes the registration and the day its health information
+   * goes (#6691), as "YYYY-MM-DD"; null for a period without weeks.
+   */
+  readonly deletesOn: string | null;
+  readonly healthDeletesOn: string | null;
   readonly children: readonly HolidayRegistrationChild[];
 }
 
@@ -160,6 +207,8 @@ export interface HolidayRegistrationContact {
 export interface HolidayBookingChange {
   readonly weekId: string;
   readonly timeModelId: string;
+  /** The days of a week by days (#4701). */
+  readonly days?: readonly string[];
 }
 
 export interface HolidayRegistrationEvent {
@@ -183,6 +232,43 @@ export interface HolidayRegistrationEvent {
   readonly fields: readonly string[];
   /** The other registrations of a sibling merge or split (#5628). */
   readonly siblings: readonly string[];
+  /** The office's decision on the holiday care wish (#4703). */
+  readonly wish: HolidayWish;
+  /** The weeks an allocation decided (#4700). */
+  readonly weekIds?: readonly string[];
+  /** What an allocation decided; absent for other actions. */
+  readonly placement?: "placed" | "waitlisted";
+  /** Why the office differed from the proposal; empty otherwise. */
+  readonly reason?: string;
+  /** The checks of the criteria the office changed (#4700). */
+  readonly checks?: readonly HolidayCriterionCheck[];
+}
+
+/** "yes"/"no" as the office checked it, null for not checked. */
+export type HolidayCriterionCheckValue = "yes" | "no" | null;
+
+/** One check of a criterion by the office (#4700). */
+export interface HolidayCriterionCheck {
+  readonly criterionId: string;
+  /** Null for a criterion of the family. */
+  readonly childId: string | null;
+  readonly checked: HolidayCriterionCheckValue;
+}
+
+/**
+ * The answer to one criterion in a registration (#4700): what the parents
+ * said and what the office checked. The office's check counts first.
+ */
+export interface HolidayRegistrationCriterion {
+  readonly criterionId: string;
+  readonly name: string;
+  readonly question: string;
+  readonly scope: "family" | "child";
+  /** Null for a criterion of the family. */
+  readonly childId: string | null;
+  readonly stated: "yes" | "no" | "unknown";
+  readonly checked: HolidayCriterionCheckValue;
+  readonly checkedAt: string | null;
 }
 
 /** A proof of benefits the parents uploaded with the registration (#5238). */
@@ -239,6 +325,14 @@ export interface HolidayRegistrationDetail extends HolidayRegistrationSummary {
   readonly childAnswers: Readonly<
     Record<string, Readonly<Record<string, unknown>>>
   >;
+  /** Only in a period by criteria (#4700); empty otherwise. */
+  readonly criteria?: readonly HolidayRegistrationCriterion[];
+}
+
+interface BackendCheck {
+  criterion_id: number;
+  child_id: number | null;
+  checked: HolidayCriterionCheckValue;
 }
 
 interface BackendBooking {
@@ -248,6 +342,10 @@ interface BackendBooking {
   host_school_id: number;
   time_model_id: number;
   time_model_name: string;
+  placement?: HolidayPlacement;
+  waitlist_position?: number | null;
+  promoted_at?: string | null;
+  days?: string[] | null;
 }
 
 interface BackendChild {
@@ -259,6 +357,9 @@ interface BackendChild {
   guest_school_name: string;
   bookings?: BackendBooking[] | null;
   duplicate_registration_ids?: number[] | null;
+  holiday_wish?: HolidayWish;
+  holiday_wish_source?: HolidayWishSource;
+  holiday_wish_check?: boolean;
 }
 
 interface BackendSummary {
@@ -272,6 +373,8 @@ interface BackendSummary {
   guardian_phone: string;
   benefits_declared?: boolean;
   debtor_number?: string;
+  deletes_on?: string | null;
+  health_deletes_on?: string | null;
   children?: BackendChild[] | null;
 }
 
@@ -284,6 +387,7 @@ interface BackendList {
 interface BackendBookingChange {
   week_id: number;
   time_model_id: number;
+  days?: string[] | null;
 }
 
 interface BackendDetail extends BackendSummary {
@@ -327,6 +431,11 @@ interface BackendDetail extends BackendSummary {
           debtor_number?: { before: string; after: string } | null;
           fields?: string[] | null;
           siblings?: number[] | null;
+          wish?: HolidayWish;
+          week_ids?: number[] | null;
+          placement?: "placed" | "waitlisted" | null;
+          reason?: string | null;
+          checks?: BackendCheck[] | null;
         } | null;
       }[]
     | null;
@@ -340,6 +449,28 @@ interface BackendDetail extends BackendSummary {
   custom_data?: Record<string, unknown> | null;
   child_custom_data?:
     { child_id: number; custom_data?: Record<string, unknown> | null }[] | null;
+  criteria?:
+    | {
+        criterion_id: number;
+        name: string;
+        question: string;
+        scope: "family" | "child";
+        child_id: number | null;
+        stated: "yes" | "no" | "unknown";
+        checked: HolidayCriterionCheckValue;
+        checked_at: string | null;
+      }[]
+    | null;
+}
+
+function checksFromBackend(
+  checks: BackendCheck[] | null | undefined,
+): HolidayCriterionCheck[] {
+  return (checks ?? []).map((check) => ({
+    criterionId: String(check.criterion_id),
+    childId: check.child_id === null ? null : String(check.child_id),
+    checked: check.checked,
+  }));
 }
 
 function summaryFromBackend(
@@ -356,6 +487,8 @@ function summaryFromBackend(
     guardianPhone: registration.guardian_phone,
     benefitsDeclared: registration.benefits_declared ?? false,
     debtorNumber: registration.debtor_number ?? "",
+    deletesOn: registration.deletes_on ?? null,
+    healthDeletesOn: registration.health_deletes_on ?? null,
     children: (registration.children ?? []).map((child) => ({
       id: String(child.id),
       firstName: child.first_name,
@@ -371,10 +504,17 @@ function summaryFromBackend(
         hostSchoolId: String(booking.host_school_id),
         timeModelId: String(booking.time_model_id),
         timeModelName: booking.time_model_name,
+        placement: booking.placement ?? "placed",
+        waitlistPosition: booking.waitlist_position ?? null,
+        promotedAt: booking.promoted_at ?? null,
+        ...(booking.days?.length ? { days: booking.days } : {}),
       })),
       duplicateRegistrationIds: (child.duplicate_registration_ids ?? []).map(
         String,
       ),
+      holidayWish: child.holiday_wish ?? "",
+      holidayWishSource: child.holiday_wish_source ?? "",
+      holidayWishCheck: child.holiday_wish_check ?? false,
     })),
   };
 }
@@ -385,6 +525,7 @@ function changesFromBackend(
   return (changes ?? []).map((change) => ({
     weekId: String(change.week_id),
     timeModelId: String(change.time_model_id),
+    ...(change.days?.length ? { days: change.days } : {}),
   }));
 }
 
@@ -435,6 +576,18 @@ function detailFromBackend(
       debtorNumber: event.details?.debtor_number ?? null,
       fields: event.details?.fields ?? [],
       siblings: (event.details?.siblings ?? []).map(String),
+      wish: event.details?.wish ?? "",
+      // Only an allocation and a check carry these (#4700).
+      ...(event.details?.week_ids
+        ? { weekIds: event.details.week_ids.map(String) }
+        : {}),
+      ...(event.details?.placement
+        ? { placement: event.details.placement }
+        : {}),
+      ...(event.details?.reason ? { reason: event.details.reason } : {}),
+      ...(event.details?.checks
+        ? { checks: checksFromBackend(event.details.checks) }
+        : {}),
     })),
     legalAcceptances: registration.legal_acceptances ?? {},
     form: {
@@ -452,6 +605,16 @@ function detailFromBackend(
         entry.custom_data ?? {},
       ]),
     ),
+    criteria: (registration.criteria ?? []).map((criterion) => ({
+      criterionId: String(criterion.criterion_id),
+      name: criterion.name,
+      question: criterion.question,
+      scope: criterion.scope,
+      childId: criterion.child_id === null ? null : String(criterion.child_id),
+      stated: criterion.stated,
+      checked: criterion.checked,
+      checkedAt: criterion.checked_at,
+    })),
   };
 }
 
@@ -509,6 +672,7 @@ function holidayRegistrationQuery(
   if (filter.school) params.set("school", filter.school);
   if (filter.weekId) params.set("week_id", filter.weekId);
   if (filter.timeModel) params.set("time_model", filter.timeModel);
+  if (filter.wish) params.set("wish", filter.wish);
   for (const [key, value] of Object.entries(extra)) params.set(key, value);
   const query = params.toString();
   return query ? `?${query}` : "";
@@ -542,6 +706,33 @@ export async function fetchHolidayRegistration(
     await traegerRequest<BackendDetail>(
       registrationPath(periodId, registrationId),
     ),
+  );
+}
+
+/**
+ * The registered children a school of the Träger knows (#6683): child ID to
+ * the one school that manages a child with the same names and date of birth
+ * today. Only a hint; moto links nothing. The backend records every
+ * comparison, so a page asks only for what it shows: the whole period, or
+ * one registration.
+ */
+export async function fetchHolidayKnownChildren(
+  periodId: string,
+  registrationId?: string,
+): Promise<ReadonlyMap<string, string>> {
+  const query = registrationId
+    ? `?registration_id=${encodeURIComponent(registrationId)}`
+    : "";
+  const known = await traegerRequest<{
+    children?: { child_id: number; school_id: number }[] | null;
+  } | null>(
+    `/api/traeger/holiday-periods/${encodeURIComponent(periodId)}/registrations/known-children${query}`,
+  );
+  return new Map(
+    (known?.children ?? []).map((child) => [
+      String(child.child_id),
+      String(child.school_id),
+    ]),
   );
 }
 
@@ -608,6 +799,50 @@ export async function changeHolidayRegistration(
   );
 }
 
+/**
+ * Saves the office's checks of the criteria (#4700). A check changes the
+ * proposal for open bookings and the order of the waiting list.
+ */
+export async function checkHolidayRegistrationCriteria(
+  periodId: string,
+  registrationId: string,
+  checks: readonly HolidayCriterionCheck[],
+): Promise<HolidayRegistrationDetail> {
+  return detailFromBackend(
+    await traegerRequest<BackendDetail>(
+      `${registrationPath(periodId, registrationId)}/criteria`,
+      {
+        method: "PUT",
+        body: {
+          checks: checks.map((check) => ({
+            criterion_id: Number(check.criterionId),
+            child_id: check.childId === null ? null : Number(check.childId),
+            checked: check.checked,
+          })),
+        },
+      },
+    ),
+  );
+}
+
+/**
+ * The office decides the holiday care wish of a child of its schools
+ * (#4703). It only orders the waiting list; no place is given or taken.
+ */
+export async function setHolidayChildWish(
+  periodId: string,
+  registrationId: string,
+  childId: string,
+  wish: "yes" | "no",
+): Promise<HolidayRegistrationDetail> {
+  return detailFromBackend(
+    await traegerRequest<BackendDetail>(
+      `${registrationPath(periodId, registrationId)}/children/${encodeURIComponent(childId)}/holiday-wish`,
+      { method: "PUT", body: { wish } },
+    ),
+  );
+}
+
 /** Replaces the bookings of one child: one time model per week. */
 export async function rebookHolidayChild(
   periodId: string,
@@ -624,6 +859,9 @@ export async function rebookHolidayChild(
           bookings: bookings.map((booking) => ({
             week_id: Number(booking.weekId),
             time_model_id: Number(booking.timeModelId),
+            ...(booking.days && booking.days.length > 0
+              ? { days: booking.days }
+              : {}),
           })),
         },
       },
@@ -750,16 +988,17 @@ export async function editHolidayRegistration(
   );
 }
 
-/** The export of a filter as CSV or Excel, with the backend's file name. */
-export async function downloadHolidayRegistrations(
-  periodId: string,
-  filter: HolidayRegistrationFilter,
-  format: "csv" | "xlsx",
-): Promise<{ readonly blob: Blob; readonly filename: string | null }> {
-  const response = await transportFetch(
-    `${registrationsPath(periodId)}/export${holidayRegistrationQuery(filter, { format })}`,
-    { credentials: "include", cache: "no-store" },
-  );
+interface DownloadedFile {
+  readonly blob: Blob;
+  readonly filename: string | null;
+}
+
+/** Fetches a file of the Träger portal with the backend's file name. */
+async function downloadTraegerFile(path: string): Promise<DownloadedFile> {
+  const response = await transportFetch(path, {
+    credentials: "include",
+    cache: "no-store",
+  });
   if (!response.ok) {
     const text = await response.text();
     let body: unknown = null;
@@ -780,6 +1019,47 @@ export async function downloadHolidayRegistrations(
   };
 }
 
+/** The export of a filter as CSV or Excel, with the backend's file name. */
+export async function downloadHolidayRegistrations(
+  periodId: string,
+  filter: HolidayRegistrationFilter,
+  format: "csv" | "xlsx",
+): Promise<DownloadedFile> {
+  return downloadTraegerFile(
+    `${registrationsPath(periodId)}/export${holidayRegistrationQuery(filter, { format })}`,
+  );
+}
+
+/** The query that asks for the health information in a file (#6691). */
+function healthQuery(withHealth: boolean): Record<string, string> {
+  return withHealth ? { health: "true" } : {};
+}
+
+/**
+ * One registration as a PDF (#6691). With `withHealth` the file names the
+ * health information; the backend admits that only with the right to see it.
+ */
+export async function downloadHolidayRegistrationPdf(
+  periodId: string,
+  registrationId: string,
+  withHealth: boolean,
+): Promise<DownloadedFile> {
+  return downloadTraegerFile(
+    `${registrationPath(periodId, registrationId)}/pdf${holidayRegistrationQuery(EMPTY_HOLIDAY_REGISTRATION_FILTER, healthQuery(withHealth))}`,
+  );
+}
+
+/** The registrations of a filter as a ZIP with one PDF each (#6691). */
+export async function downloadHolidayRegistrationPdfs(
+  periodId: string,
+  filter: HolidayRegistrationFilter,
+  withHealth: boolean,
+): Promise<DownloadedFile> {
+  return downloadTraegerFile(
+    `${registrationsPath(periodId)}/pdf${holidayRegistrationQuery(filter, healthQuery(withHealth))}`,
+  );
+}
+
 /**
  * What a confirmation of the Träger needs (#5621). It lives here, not in the
  * contributions client, because the list reads it for its column too and
@@ -794,6 +1074,8 @@ export interface CostBearerChoice {
 export interface HolidayConfirmationSettings {
   /** The Träger asks for the debtor number of the family. */
   readonly debtorNumberRequired: boolean;
+  /** The format the number must have (#6675); none without the setting. */
+  readonly debtorNumberFormat?: DebtorNumberFormat;
   /** The active cost bearers of the Träger, by name (#5627). */
   readonly costBearers?: readonly CostBearerChoice[];
 }
@@ -801,13 +1083,127 @@ export interface HolidayConfirmationSettings {
 export async function fetchHolidayConfirmationSettings(): Promise<HolidayConfirmationSettings> {
   const settings = await traegerRequest<{
     debtor_number_required: boolean;
+    debtor_number_format?: BackendDebtorNumberFormat | null;
     cost_bearers?: { id: number; name: string }[] | null;
   }>("/api/traeger/holiday-contributions/confirmation-settings");
   return {
     debtorNumberRequired: settings.debtor_number_required,
+    debtorNumberFormat: debtorNumberFormatOf(settings.debtor_number_format),
     costBearers: (settings.cost_bearers ?? []).map((bearer) => ({
       id: String(bearer.id),
       name: bearer.name,
     })),
   };
+}
+
+/** One booking on the waiting list of a week, in its order (#4699). */
+interface HolidayWaitlistEntry {
+  readonly position: number;
+  readonly registrationId: string;
+  readonly registrationStatus: HolidayRegistrationStatus;
+  readonly submittedAt: string;
+  readonly childId: string;
+  readonly childFirstName: string;
+  readonly childLastName: string;
+  readonly timeModelName: string;
+  /** Waits behind the others: no holiday care wish (#4703). */
+  readonly deferred: boolean;
+  /** The wanted days of a booking of days (#4701); empty for a whole week. */
+  readonly days?: readonly string[];
+}
+
+/**
+ * The places of one week of a holiday period (#4699): its capacity, null for
+ * unlimited, the children with a place and the waiting list.
+ */
+export interface HolidayWeekPlaces {
+  readonly weekId: string;
+  /** Calendar dates "YYYY-MM-DD". */
+  readonly startsOn: string;
+  readonly endsOn: string;
+  readonly hostSchoolId: string;
+  readonly capacity: number | null;
+  readonly placed: number;
+  /** Bookings the office has not decided yet (#4700). */
+  readonly pending?: number;
+  readonly waitlist: readonly HolidayWaitlistEntry[];
+  /** "day": the capacity holds for each day (#4701). */
+  readonly bookingUnit?: "week" | "day";
+  /** Placed bookings of each care day of a week by days, in order. */
+  readonly days?: readonly { readonly date: string; readonly placed: number }[];
+}
+
+interface BackendWeekPlaces {
+  week_id: number;
+  starts_on: string;
+  ends_on: string;
+  host_school_id: number;
+  capacity: number | null;
+  placed: number;
+  pending?: number;
+  booking_unit?: "week" | "day";
+  days?: { date: string; placed: number }[] | null;
+  waitlist?:
+    | {
+        position: number;
+        registration_id: number;
+        registration_status: HolidayRegistrationStatus;
+        submitted_at: string;
+        child_id: number;
+        child_first_name: string;
+        child_last_name: string;
+        time_model_name: string;
+        deferred?: boolean;
+        days?: string[] | null;
+      }[]
+    | null;
+}
+
+/** The places and waiting lists of every week of a period (#4699). */
+export async function fetchHolidayWeekPlaces(
+  periodId: string,
+): Promise<readonly HolidayWeekPlaces[]> {
+  const weeks = await traegerRequest<BackendWeekPlaces[] | null>(
+    `/api/traeger/holiday-periods/${encodeURIComponent(periodId)}/places`,
+  );
+  return (weeks ?? []).map((week) => ({
+    weekId: String(week.week_id),
+    startsOn: week.starts_on,
+    endsOn: week.ends_on,
+    hostSchoolId: String(week.host_school_id),
+    capacity: week.capacity,
+    placed: week.placed,
+    pending: week.pending ?? 0,
+    bookingUnit: week.booking_unit ?? "week",
+    days: week.days ?? [],
+    waitlist: (week.waitlist ?? []).map((entry) => ({
+      position: entry.position,
+      registrationId: String(entry.registration_id),
+      registrationStatus: entry.registration_status,
+      submittedAt: entry.submitted_at,
+      childId: String(entry.child_id),
+      childFirstName: entry.child_first_name,
+      childLastName: entry.child_last_name,
+      timeModelName: entry.time_model_name,
+      deferred: entry.deferred ?? false,
+      ...(entry.days?.length ? { days: entry.days } : {}),
+    })),
+  }));
+}
+
+/**
+ * Sets the places of a week, null for unlimited (#4699). Freed places go to
+ * the waiting list at once; the answer names the registrations that moved
+ * up.
+ */
+export async function setHolidayWeekCapacity(
+  periodId: string,
+  weekId: string,
+  capacity: number | null,
+): Promise<{ readonly movedUp: readonly string[] }> {
+  const change = await traegerRequest<{ moved_up?: number[] | null }>(
+    `/api/traeger/holiday-periods/${encodeURIComponent(periodId)}/weeks/${encodeURIComponent(weekId)}/capacity`,
+    { method: "PUT", body: { capacity } },
+  );
+  return { movedUp: (change.moved_up ?? []).map(String) };
 }

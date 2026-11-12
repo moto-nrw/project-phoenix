@@ -46,6 +46,7 @@ jobs:
   check-environment:
     name: Check environment
     runs-on: ubuntu-latest
+    timeout-minutes: 1
     outputs:
       should_deploy: ${{ steps.check.outputs.should_deploy }}
       environment: ${{ steps.check.outputs.environment }}
@@ -89,6 +90,7 @@ jobs:
   validate-migrations:
     name: Validate migrations
     runs-on: ubuntu-latest
+    timeout-minutes: 4
     needs: [check-environment]
     if: needs.check-environment.outputs.should_deploy == 'true'
     permissions:
@@ -112,6 +114,7 @@ jobs:
   build-backend:
     name: Build backend image
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 3
     needs: [check-environment, validate-migrations]
     if: needs.check-environment.outputs.should_deploy == 'true'
     # Cancel superseded builds on rapid pushes to the same ref. Deploy jobs
@@ -181,6 +184,7 @@ jobs:
   build-frontend:
     name: Build frontend image
     runs-on: blacksmith-4vcpu-ubuntu-2404
+    timeout-minutes: 20
     needs: [check-environment, validate-migrations]
     if: needs.check-environment.outputs.should_deploy == 'true'
     # Cancel superseded builds on rapid pushes to the same ref. Deploy jobs
@@ -313,9 +317,9 @@ jobs:
         run: corepack enable
 
       - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v6
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
         with:
-          node-version: "24"
+          node-version: "26"
           cache: "pnpm"
           cache-dependency-path: frontend/pnpm-lock.yaml
 
@@ -426,6 +430,8 @@ jobs:
       group: deploy-staging
       cancel-in-progress: false
     runs-on: ubuntu-latest
+    # Allow six minutes for deployment, five for Sentry and notification headroom.
+    timeout-minutes: 15
     permissions:
       contents: read
       pull-requests: read
@@ -534,6 +540,8 @@ jobs:
       group: deploy-production
       cancel-in-progress: false
     runs-on: ubuntu-latest
+    # Allow six minutes for deployment, five for Sentry and notification headroom.
+    timeout-minutes: 15
     environment:
       name: production
     permissions:
@@ -658,6 +666,9 @@ jobs:
       group: deploy-demo
       cancel-in-progress: false
     runs-on: ubuntu-latest
+    # Normal maximum: 106 s. Preserve the 20-minute order-smoke step and
+    # its failure notification, plus the separately bounded Sentry report.
+    timeout-minutes: 30
     environment:
       name: demo
     permissions:
@@ -733,8 +744,9 @@ jobs:
 
       # Health checks stayed green on 2026-10-27 while every visitor's demo
       # order failed. One order proves the order path of the new release. A
-      # failure alarms in Slack; it rolls nothing back, the demo runtime
-      # cannot roll back by design (deploy-remote.sh).
+      # failure alarms in Slack and turns the run red in the last step; it
+      # rolls nothing back, the demo runtime cannot roll back by design
+      # (deploy-remote.sh).
       - name: Order a demo school
         id: smoke
         continue-on-error: true
@@ -799,10 +811,20 @@ jobs:
           commit_url: ${{ github.server_url }}/${{ github.repository }}/commit/${{ github.sha }}
           sha: ${{ github.sha }}
 
+      # Last step: "Order a demo school" continues on error so cleanup, Sentry
+      # and Slack still run. "Notify Slack" above therefore still reports the
+      # deploy itself as successful; only this step marks the run as failed.
+      - name: Fail the run when the demo order failed
+        if: steps.smoke.outcome == 'failure'
+        run: |
+          echo "::error::Demo deployed, but the test order of a demo school failed; visitors get no demo."
+          exit 1
+
   # Summary job for branch protection
   build-status:
     name: Build status
     runs-on: ubuntu-latest
+    timeout-minutes: 1
     needs: [check-environment, validate-migrations, build-backend, build-frontend]
     if: always() && needs.check-environment.outputs.should_deploy == 'true'
     steps:

@@ -64,6 +64,10 @@ All paths below are relative to the repository root.
   paths with their consumers. IoT errors and auth headers are also consumed by
   `../PyrePortal/`; coordinate both sides.
   Details: [docs/agents/contracts.md](docs/agents/contracts.md).
+- **CI runtime is a budget.** A PR run finishes in 3–5 minutes; every minute
+  is billed and delays other PRs. Reshape or thin slow tests; their assertions
+  change only on request. Targets and timing duty:
+  [.claude/rules/ci-test-performance.md](.claude/rules/ci-test-performance.md).
 
 ## Read when the task matches
 
@@ -87,7 +91,7 @@ path-scoped rules automatically.
 | Guided tours: an element with `data-setup-tour`, a stop selector, or the tour files (`setup-tours.ts`, `staff-onboarding-steps.ts`, `use-setup-tour.ts`, `coach-mark.tsx`) | The affected stop in `frontend/src/components/school-setup/setup-tours.ts` or `frontend/src/components/staff-onboarding/staff-onboarding-steps.ts`; on the seeded native stack run `scripts/dev-native.sh frontend pnpm exec playwright test e2e/onboarding-tours.spec.ts` |
 | New page, new writing route, new portal surface, analytics events, or PostHog dashboards | [.claude/rules/usage-analytics.md](.claude/rules/usage-analytics.md); the page guard in `analytics-routes.test.ts` and the route guard in `TestFullProductionRouterGolden` enforce it |
 | Failing or changing tests | [.claude/rules/no-test-modifications.md](.claude/rules/no-test-modifications.md); [backend fixture rules](docs/agents/backend-testing.md); [frontend tests](docs/agents/frontend-testing.md) for date- or timer-sensitive or absence-asserting Vitest tests |
-| New tests, test helpers or config, CI workflows or runners | [.claude/rules/ci-test-performance.md](.claude/rules/ci-test-performance.md); `ci-cost` skill for CI changes |
+| New or slow tests, test helpers or config, CI workflows or runners | [.claude/rules/ci-test-performance.md](.claude/rules/ci-test-performance.md); `ci-cost` skill for CI changes |
 | Domain terminology or architecture decisions | [CONTEXT.md](CONTEXT.md), relevant `docs/adr/`, [docs/agents/domain.md](docs/agents/domain.md) |
 | Issues or labels | [docs/agents/issue-tracker.md](docs/agents/issue-tracker.md), [docs/agents/triage-labels.md](docs/agents/triage-labels.md) |
 | PR screenshots or service/test-DB commands | [docs/agents/operations.md](docs/agents/operations.md) |
@@ -117,6 +121,9 @@ when changes, failures, or unresolved risks justify it. Report what actually ran
 a missing tool or failed command is not a passed check.
 
 ## Git and skills
+
+Claim an issue before work: if no comment claims it, comment that you take it,
+with your branch; comment again if you drop it.
 
 PRs target `development`, or the branch of the PR below them when stacking;
 the `stacked-pr` skill owns that flow. Open every PR as a draft

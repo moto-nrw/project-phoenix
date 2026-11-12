@@ -82,6 +82,8 @@ export function paymentTextProblem(text: string): string | null {
 export function paymentTextPreview(
   text: string,
   asksDebtorNumber: boolean,
+  /** An example in the Träger's format (#6675); the default without one. */
+  debtorNumberExample = "",
 ): string {
   const sentence =
     text.trim() ||
@@ -90,7 +92,12 @@ export function paymentTextPreview(
       : BUILT_IN_PAYMENT_TEXT);
   return PAYMENT_TEXT_PLACEHOLDERS.reduce(
     (result, placeholder) =>
-      result.replaceAll(placeholder, PAYMENT_TEXT_EXAMPLE[placeholder]),
+      result.replaceAll(
+        placeholder,
+        placeholder === "{Debitorennummer}" && debtorNumberExample
+          ? debtorNumberExample
+          : PAYMENT_TEXT_EXAMPLE[placeholder],
+      ),
     sentence,
   );
 }

@@ -2,11 +2,8 @@ package application
 
 import (
 	"context"
-	"encoding/hex"
-	"encoding/json"
 	"errors"
 	"fmt"
-	"hash/fnv"
 	"slices"
 	"strings"
 
@@ -221,7 +218,7 @@ func fingerprintInvoices(invoices []parentbilling.CareInvoice) []fingerprintInvo
 // run's contracts (#6219). A change of any of them since the review makes the
 // release refuse (#5916).
 func previewFingerprint(run parentbilling.CareRun, rule string, review reviewedMonth) string {
-	state, err := json.Marshal(struct {
+	return contentFingerprint(struct {
 		Run         int64                            `json:"run"`
 		Schools     []int64                          `json:"schools"`
 		InvoiceDate *calendar.Date                   `json:"invoice_date"`
@@ -243,17 +240,6 @@ func previewFingerprint(run parentbilling.CareRun, rule string, review reviewedM
 		fingerprintInvoices(review.excluded), review.unpriced, review.duplicates, review.billed, review.free,
 		review.dueDates.InPaymentOrder(), review.uncounted, review.mealGaps, review.mealUnbilled, review.mealChanged,
 		review.legalRemedy, review.feeNotices})
-	if err != nil {
-		// Every value above marshals; a failure leaves no fingerprint a
-		// release could match.
-		return ""
-	}
-	// A change detector for the reviewer's own state, not a secret: a
-	// 128-bit FNV hash of the canonical JSON is enough to tell two states
-	// apart.
-	hash := fnv.New128a()
-	_, _ = hash.Write(state)
-	return hex.EncodeToString(hash.Sum(nil))
 }
 
 // runSchools resolves the schools a new run bills: the given ones, each a
@@ -351,7 +337,7 @@ func (c *CareBilling) openRun(ctx context.Context, reviewer parentbilling.Holida
 		return parentbilling.CareRun{}, err
 	}
 	if run.Status != parentbilling.RunCalculated {
-		return parentbilling.CareRun{}, parentbilling.ErrBillingRunReleased
+		return parentbilling.CareRun{}, closedRunError(run.Status)
 	}
 	return run, nil
 }
@@ -490,17 +476,23 @@ func (c *CareBilling) reviewDetail(ctx context.Context, reviewer parentbilling.H
 		detail.ExcludedCount++
 		detail.ExcludedCents += invoice.TotalCents
 	}
+	detail.Schools, err = c.runSchoolNames(ctx, organizationID, detail.SchoolIDs)
+	return err
+}
+
+// runSchoolNames names the schools of a run that are not deleted.
+func (c *CareBilling) runSchoolNames(ctx context.Context, organizationID int64, schoolIDs []int64) ([]parentbilling.CareSchool, error) {
 	schools, err := c.schools.TraegerSchools(ctx, organizationID)
 	if err != nil {
-		return fmt.Errorf("parent billing: read the schools: %w", err)
+		return nil, fmt.Errorf("parent billing: read the schools: %w", err)
 	}
-	detail.Schools = []parentbilling.CareSchool{}
+	named := []parentbilling.CareSchool{}
 	for _, school := range schools {
-		if slices.Contains(detail.SchoolIDs, school.ID) {
-			detail.Schools = append(detail.Schools, school)
+		if slices.Contains(schoolIDs, school.ID) {
+			named = append(named, school)
 		}
 	}
-	return nil
+	return named, nil
 }
 
 // excludedContracts names the contracts of the excluded invoices, each once.

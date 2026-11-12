@@ -321,6 +321,18 @@
       "legacy": "enrollment.consent_required"
     },
     {
+      "code": "enrollment.renewal_terms_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.renewal_terms_changed"
+    },
+    {
+      "code": "enrollment.renewal_terms_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.renewal_terms_required"
+    },
+    {
       "code": "enrollment.correction_reason_required",
       "class": "input",
       "parameters": [],
@@ -507,6 +519,12 @@
       "legacy": "enrollment.guardian_phone_required"
     },
     {
+      "code": "enrollment.holiday_care_wish_required",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.holiday_care_wish_required"
+    },
+    {
       "code": "enrollment.holiday_form_field_not_allowed",
       "class": "input",
       "parameters": [],
@@ -537,6 +555,12 @@
       "legacy": "enrollment.holiday_period_not_found"
     },
     {
+      "code": "enrollment.holiday_week_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_week_not_found"
+    },
+    {
       "code": "enrollment.holiday_registration_closed",
       "class": "business_rejection",
       "parameters": [],
@@ -553,6 +577,15 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "enrollment.holiday_registration_form_changed"
+    },
+    {
+      "code": "enrollment.holiday_week_no_care_day",
+      "class": "business_rejection",
+      "parameters": [
+        "date",
+        "name"
+      ],
+      "legacy": "enrollment.holiday_week_no_care_day"
     },
     {
       "code": "enrollment.hosted_holiday_week_not_found",
@@ -603,10 +636,48 @@
       "legacy": "enrollment.holiday_week_booked"
     },
     {
+      "code": "enrollment.holiday_wish_missing",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_wish_missing"
+    },
+    {
+      "code": "enrollment.holiday_booking_unit_booked",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_booking_unit_booked"
+    },
+    {
+      "code": "enrollment.holiday_child_day_limit",
+      "class": "input",
+      "parameters": [
+        "limit",
+        "days",
+        "elsewhere",
+        "child"
+      ],
+      "legacy": "enrollment.holiday_child_day_limit"
+    },
+    {
+      "code": "enrollment.holiday_child_day_limit_public",
+      "class": "input",
+      "parameters": [
+        "limit",
+        "child"
+      ],
+      "legacy": "enrollment.holiday_child_day_limit_public"
+    },
+    {
       "code": "enrollment.holiday_weeks_booked_together",
       "class": "input",
       "parameters": [],
       "legacy": "enrollment.holiday_weeks_booked_together"
+    },
+    {
+      "code": "enrollment.holiday_week_day_limit",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_week_day_limit"
     },
     {
       "code": "enrollment.invalid_email",
@@ -689,10 +760,30 @@
       "legacy": "enrollment.phase_care_offering_conflict"
     },
     {
+      "code": "enrollment.phase_has_effective_bookings",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.phase_has_effective_bookings"
+    },
+    {
       "code": "enrollment.phase_eligibility_setting_required",
       "class": "input",
       "parameters": [],
       "legacy": "enrollment.phase_eligibility_setting_required"
+    },
+    {
+      "code": "enrollment.phase_pending_child_window_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.phase_pending_child_window_conflict"
+    },
+    {
+      "code": "enrollment.phase_booking_bounds_conflict",
+      "class": "business_rejection",
+      "parameters": [
+        "child"
+      ],
+      "legacy": "enrollment.phase_booking_bounds_conflict"
     },
     {
       "code": "enrollment.phase_name_exists",
@@ -839,6 +930,12 @@
       "legacy": "enrollment.submission_rate_limited"
     },
     {
+      "code": "enrollment.submission_email_rate_limited",
+      "class": "unavailable",
+      "parameters": [],
+      "legacy": "enrollment.submission_email_rate_limited"
+    },
+    {
       "code": "enrollment.upload_expired",
       "class": "input",
       "parameters": [],
@@ -915,6 +1012,78 @@
       "class": "input",
       "parameters": [],
       "legacy": "enrollment.family_children_invalid"
+    },
+    {
+      "code": "enrollment.holiday_allocation_mode_locked",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_allocation_mode_locked"
+    },
+    {
+      "code": "enrollment.holiday_allocation_pending",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_allocation_pending"
+    },
+    {
+      "code": "enrollment.holiday_allocation_full",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_allocation_full"
+    },
+    {
+      "code": "enrollment.holiday_allocation_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.holiday_allocation_changed"
+    },
+    {
+      "code": "enrollment.traeger_copy_delete",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.traeger_copy_delete"
+    },
+    {
+      "code": "enrollment.traeger_phase_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.traeger_phase_not_found"
+    },
+    {
+      "code": "enrollment.traeger_offering_not_found",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.traeger_offering_not_found"
+    },
+    {
+      "code": "enrollment.traeger_withdrawn",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.traeger_withdrawn"
+    },
+    {
+      "code": "enrollment.traeger_school_outside",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.traeger_school_outside"
+    },
+    {
+      "code": "enrollment.traeger_catalog_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "enrollment.traeger_catalog_invalid"
+    },
+    {
+      "code": "enrollment.traeger_preview_stale",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.traeger_preview_stale"
+    },
+    {
+      "code": "enrollment.traeger_copy_rejected",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.traeger_copy_rejected"
     }
   ]
 }

@@ -27,6 +27,7 @@ type InstanceLifecycle interface {
 // RosterReconciler keeps the future rosters in step with student transitions
 // and sourced template enrollments.
 type RosterReconciler interface {
+	ReconcileSourcedTemplateRosterBatch(context.Context, []timetable.SourcedTemplateRosterReconcile) error
 	CurrentRosterBaseline(ctx context.Context) (int64, error)
 	ReconcileSourcedTemplateRosters(ctx context.Context, templateID int64, studentIDs []int64, from calendar.Date, prior []timetable.RosterEnrollment) (int, int, error)
 	RemoveStudentsFromFutureRosters(ctx context.Context, transitionID int64, studentIDs []int64) error

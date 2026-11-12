@@ -9,6 +9,7 @@ import (
 
 	"github.com/moto-nrw/project-phoenix/modules/timetable"
 	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-nrw/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -68,6 +69,9 @@ func (s *Store) findActivityInstance(ctx context.Context, id int64, lock string)
 	row := activityInstanceRow{}
 	query := activityInstanceSelect(db, &row, tenantID).Where(`"activity_instance".id = ?`, id)
 	if lock != "" {
+		if err := tenant.OrderLock(ctx, tenant.LockLeaf, "schedule.activity_instances"); err != nil {
+			return timetable.ActivityInstance{}, false, domain.OperationStats{}, err
+		}
 		query = query.For(lock)
 	}
 	found, stats, err := scanOne(ctx, query, "find activity instance")
@@ -368,8 +372,23 @@ const activityInstanceNoDeviations = `NOT EXISTS (
 		  AND ("deviation".is_absent OR "deviation".is_substitute OR "deviation".absence_reason IS NOT NULL)
 	)`
 
+// lockedActivityInstanceIDs selects the given blocks of the tenant and locks
+// them by ascending id, the canonical order every multi-block writer shares
+// (#6232). A write that selects its rows through it as a subquery takes its
+// row locks in that order, whatever plan the write itself gets: PostgreSQL
+// runs a locking subquery as a whole before the outer statement.
+func lockedActivityInstanceIDs(ctx context.Context, db bun.IDB, tenantID int64, ids []int64, strength string) (*bun.SelectQuery, error) {
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "schedule.activity_instances"); err != nil {
+		return nil, err
+	}
+	return db.NewSelect().TableExpr("schedule.activity_instances").Column("id").
+		Where("tenant_id = ?", tenantID).Where("id IN (?)", bun.List(ids)).
+		OrderExpr("id ASC").For(strength), nil
+}
+
 // DeleteActivityInstancesByID removes the given occurrences; the caller
-// already excluded the ones with an execution.
+// already excluded the ones with an execution. The rows are locked by
+// ascending id first (lockedActivityInstanceIDs).
 func (s *Store) DeleteActivityInstancesByID(ctx context.Context, ids []int64) (int64, domain.OperationStats, error) {
 	if len(ids) == 0 {
 		return 0, domain.OperationStats{}, nil
@@ -378,8 +397,12 @@ func (s *Store) DeleteActivityInstancesByID(ctx context.Context, ids []int64) (i
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
+	locked, err := lockedActivityInstanceIDs(ctx, db, tenantID, ids, "UPDATE")
+	if err != nil {
+		return 0, domain.OperationStats{}, err
+	}
 	stats, err := execMeasuredWrite(ctx, db.NewDelete().Table("schedule.activity_instances").
-		Where("tenant_id = ?", tenantID).Where("id IN (?)", bun.List(ids)), "delete activity instances by id")
+		Where("tenant_id = ?", tenantID).Where("id IN (?)", locked), "delete activity instances by id")
 	return stats.Rows, stats, err
 }
 
@@ -433,9 +456,13 @@ func (s *Store) SetActivityInstanceListKind(ctx context.Context, ids []int64, ne
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
+	locked, err := lockedActivityInstanceIDs(ctx, db, tenantID, ids, "NO KEY UPDATE")
+	if err != nil {
+		return 0, domain.OperationStats{}, err
+	}
 	query := db.NewUpdate().Table("schedule.activity_instances").
 		Set("list_kind = ?", newKind).Set("updated_at = ?", updatedAt).
-		Where("tenant_id = ?", tenantID).Where("id IN (?)", bun.List(ids))
+		Where("tenant_id = ?", tenantID).Where("id IN (?)", locked)
 	stats, err := execMeasuredWrite(ctx, query, "set activity instance list kind")
 	return stats.Rows, stats, err
 }
@@ -445,8 +472,15 @@ func (s *Store) DeleteActivityInstancesBefore(ctx context.Context, before string
 	if err != nil {
 		return 0, domain.OperationStats{}, err
 	}
+	// The rows are locked by ascending id first (#6232), as offboarding locks
+	// the same history rows.
+	if err := tenant.OrderLock(ctx, tenant.LockLeaf, "schedule.activity_instances"); err != nil {
+		return 0, domain.OperationStats{}, err
+	}
+	locked := db.NewSelect().TableExpr("schedule.activity_instances").Column("id").
+		Where("tenant_id = ?", tenantID).Where("date < ?::date", before).OrderExpr("id ASC").For("UPDATE")
 	stats, err := execMeasuredWrite(ctx, db.NewDelete().Table("schedule.activity_instances").
-		Where("tenant_id = ?", tenantID).Where("date < ?::date", before), "delete activity instances before")
+		Where("tenant_id = ?", tenantID).Where("id IN (?)", locked), "delete activity instances before")
 	return stats.Rows, stats, err
 }
 

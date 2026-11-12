@@ -2,7 +2,6 @@ package fileformat
 
 import (
 	"bytes"
-	"encoding/csv"
 	"fmt"
 	"io"
 
@@ -46,7 +45,10 @@ func missingClassListColumns(mapping map[string]int) []string {
 
 // ParseClassListCSV parses a CSV file into class-list entry import rows.
 func ParseClassListCSV(reader io.Reader) ([]importModels.ClassListEntryImportRow, error) {
-	csvReader := csv.NewReader(reader)
+	csvReader, err := newCSVReader(reader)
+	if err != nil {
+		return nil, err
+	}
 	csvReader.FieldsPerRecord = -1
 	csvReader.TrimLeadingSpace = true
 	csvReader.LazyQuotes = true

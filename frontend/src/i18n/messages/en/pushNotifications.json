@@ -43,5 +43,9 @@
   "installOutroAndroid": "Open the settings again inside the app. There you can turn notifications on with one tap.",
   "errorObjectEnable": "turning on notifications",
   "errorObjectDisable": "turning off notifications",
-  "errorObjectTest": "the test notification"
+  "errorObjectTest": "the test notification",
+  "enableTooltip": "Turns on notifications here after your device asks for your permission.",
+  "disableTooltip": "Turns off notifications immediately, only on this device.",
+  "installTooltip": "Starts installing moto as an app on this device.",
+  "checkAgainTooltip": "Checks again whether moto may notify you on this device."
 }

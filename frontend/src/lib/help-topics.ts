@@ -223,10 +223,15 @@ export const HELP_TOPICS = {
   traegerInvitation: "einladung-ins-traeger-buero-annehmen",
   traegerAccounts: "personen-ins-traeger-buero-einladen",
   traegerHolidayPeriod: "traeger-ferienzeitraum",
+  traegerClosingDays: "traeger-schliesstage",
   traegerHolidayRegistration: "traeger-ferienanmeldung-teilen",
   traegerHolidayForm: "traeger-ferien-anmeldeformular",
   traegerHolidayRegistrationReview: "traeger-ferienanmeldungen-pruefen",
+  traegerHolidayPlaces: "traeger-ferien-plaetze-warteliste",
+  traegerHolidayWish: "traeger-ferien-ferienwunsch",
+  traegerHolidayAllocation: "traeger-ferienplaetze-nach-kriterien",
   traegerHolidayContribution: "traeger-ferienbeitrag",
+  traegerCatalogPhases: "traeger-anmeldephasen-fuer-mehrere-schulen",
   traegerBillingRun: "ferien-abrechnen",
   traegerCareMonths: "monatsbeitraege-abrechnen",
   traegerCareNotices: "jahresbescheide-ausstellen",
@@ -236,6 +241,8 @@ export const HELP_TOPICS = {
   traegerBillingTerms: "zahlung-und-empfaenger-der-rechnungen",
   traegerSepaMandates: "lastschrift-und-sepa-mandate",
   traegerSepaDebitFile: "lastschriftdatei-bei-der-bank-einreichen",
+  traegerFinanceExports: "sollstellung-fuer-die-kaemmerei",
+  traegerDatevExport: "datev-werte-eintragen",
   traegerAccessLog: "zugriffsprotokoll-des-traegers-lesen",
   traegerSettings: "traeger-einstellungen",
   traegerBriefkopf: "briefkopf-des-traegers",
@@ -382,6 +389,8 @@ const PARENT_EXACT_HELP_TOPICS: Readonly<Record<string, HelpTopicId>> = {
   "/news": HELP_TOPICS.parentNews,
   "/meal-plan": HELP_TOPICS.parentMealPlan,
   "/documents": HELP_TOPICS.parentDocuments,
+  // Die eigenen Ferienanmeldungen und ihr Stand (#6673).
+  "/ferienanmeldungen": HELP_TOPICS.parentHolidayRegistration,
   // Die Seite traegt Sprache und Benachrichtigungen. Der Artikel dazu
   // ist `Benachrichtigungen einstellen`.
   "/settings": HELP_TOPICS.parentNotifications,
@@ -398,6 +407,8 @@ const PARENT_PREFIX_HELP_TOPICS: ReadonlyArray<
   ["/anmeldung", HELP_TOPICS.parentEnroll],
   // Der Link eines Trägers zur Ferienanmeldung (#4661).
   ["/ferienanmeldung", HELP_TOPICS.parentHolidayRegistration],
+  // Das Elternkonto aus dem Link der Ferienanmeldung (#6673).
+  ["/ferienkonto", HELP_TOPICS.parentHolidayRegistration],
   // Einen Betreuungsvertrag aus den Dokumenten oder über den Link der Mail
   // unterschreiben (#4679).
   ["/documents", HELP_TOPICS.parentDocuments],

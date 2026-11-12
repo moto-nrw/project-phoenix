@@ -26,6 +26,8 @@ import (
 // fakeParentService implements PortalService. Only the profile methods
 // carry behaviour; the rest satisfy the interface for the handler tests.
 type fakeParentService struct {
+	claimedEmails []string
+
 	sepaView     parentService.SEPAMandateView
 	sepaText     parentService.SEPAMandateText
 	sepaErr      error
@@ -192,12 +194,21 @@ func (f *fakeParentService) SharedDocumentFile(_ context.Context, accountID, org
 	return f.documentFile, f.documentsErr
 }
 
-func (f *fakeParentService) HolidayRegistrationFamily(_ context.Context, accountID, organizationID int64, schoolIDs []int64) (*parentService.HolidayRegistrationFamily, error) {
-	f.gotHolidayAccount, f.gotHolidayOrganization, f.gotHolidaySchools = accountID, organizationID, schoolIDs
+func (f *fakeParentService) HolidayRegistrationFamily(_ context.Context, accountID int64, scope parentService.HolidayRegistrationScope) (*parentService.HolidayRegistrationFamily, error) {
+	f.gotHolidayAccount, f.gotHolidayOrganization, f.gotHolidaySchools = accountID, scope.OrganizationID, scope.SchoolIDs
 	if f.holidayFamily != nil {
 		return f.holidayFamily, nil
 	}
 	return &parentService.HolidayRegistrationFamily{}, nil
+}
+func (f *fakeParentService) HolidayRegistrationOffers(context.Context, int64) ([]parentService.HolidayRegistrationOffer, error) {
+	return nil, nil
+}
+func (f *fakeParentService) HolidayRegistrationEntries(context.Context, int64) ([]parentService.HolidayRegistrationEntry, error) {
+	return nil, nil
+}
+func (f *fakeParentService) ClaimHolidayRegistrationsAfterSignIn(_ context.Context, email string) {
+	f.claimedEmails = append(f.claimedEmails, email)
 }
 func (f *fakeParentService) ListEnrollmentsForAccount(context.Context, int64) ([]*parentService.EnrollmentRequestSummary, error) {
 	return nil, nil
@@ -1085,4 +1096,16 @@ func TestUpdateMyProfile_PropagatesOtherErrorsAs500(t *testing.T) {
 	rs.updateMyProfile(w, req)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code)
+}
+
+func (f *fakeParentService) PrepareChildMessageAttachment(context.Context, int64, int64, parentService.MessageAttachmentUpload) (*parentService.StoredMessageAttachment, error) {
+	return nil, errors.New("not implemented in fake")
+}
+
+func (f *fakeParentService) DiscardChildMessageAttachment(context.Context, int64, int64, int64) error {
+	return errors.New("not implemented in fake")
+}
+
+func (f *fakeParentService) OpenChildMessageAttachment(context.Context, int64, int64, int64) (*parentService.StoredMessageAttachment, error) {
+	return nil, errors.New("not implemented in fake")
 }

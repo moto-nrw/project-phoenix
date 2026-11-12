@@ -117,8 +117,9 @@ func (s *Service) WithPermittedChild(
 // requiredPermission are checked as admin, between runs the route's Go checks
 // that sit today between the child check and its school unit, and write runs
 // under the child's school's RLS, all in ONE transaction. Nothing of the
-// administrative part locks a row, so write takes the same locks in the same
-// order as in its own school unit.
+// administrative part locks a row: the school part runs guardChildWrite with
+// requiredPermission before write, which then takes the same locks in the
+// same order as in its own school unit (#6529).
 //
 // A caller inside an open unit, or with a context already bound to a school,
 // takes the way before ADR 0161, chosen from the context before anything
@@ -132,12 +133,17 @@ func (s *Service) WithPermittedChildForWrite(
 	requiredPermission string,
 	between func(*Child) error,
 	write func(ctx context.Context, child *Child) error,
+	adjust ...func(*ChildWriteAccess),
 ) error {
+	access := childWriteNeeds(requiredPermission)
+	for _, change := range adjust {
+		change(&access)
+	}
 	if write == nil {
 		return fmt.Errorf("parent: child write is required")
 	}
 	if unitOpen, bound := s.Runtime.AmbientScope(ctx); unitOpen || bound != 0 {
-		return s.permittedChildWriteUnbundled(ctx, accountID, studentID, requiredPermission, between, write)
+		return s.permittedChildWriteUnbundled(ctx, accountID, studentID, requiredPermission, access, between, write)
 	}
 	if accountID <= 0 {
 		return fmt.Errorf("parent: account_id must be positive")
@@ -159,6 +165,9 @@ func (s *Service) WithPermittedChildForWrite(
 		resolved = child
 		return child.TenantID, nil
 	}, func(txCtx context.Context) error {
+		if err := s.guardChildWrite(txCtx, accountID, studentID, resolved, access); err != nil {
+			return err
+		}
 		return write(txCtx, resolved)
 	})
 }
@@ -170,6 +179,7 @@ func (s *Service) permittedChildWriteUnbundled(
 	ctx context.Context,
 	accountID, studentID int64,
 	requiredPermission string,
+	access ChildWriteAccess,
 	between func(*Child) error,
 	write func(ctx context.Context, child *Child) error,
 ) error {
@@ -182,7 +192,7 @@ func (s *Service) permittedChildWriteUnbundled(
 			return err
 		}
 	}
-	return s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	return s.WithChildWrite(ctx, accountID, studentID, child, access, func(txCtx context.Context) error {
 		return write(txCtx, child)
 	})
 }

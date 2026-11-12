@@ -85,6 +85,8 @@ type PhaseRecords interface {
 	CountCreatedStudentsByPhase(context.Context, int64) (int, error)
 	RemovePhase(context.Context, int64) (int, error)
 	PhaseResponseChildren(ctx context.Context, phaseID int64, statuses []string) ([]enrollment.PhaseResponseChild, error)
+	StudentCarePeriodsByStudentIDs(ctx context.Context, studentIDs []int64) ([]*enrollment.StudentCarePeriod, error)
+	UpdateChildActivationPlan(ctx context.Context, id int64, mode string, on *enrollment.Date) error
 }
 
 // PhaseList lists every phase of the tenant.
@@ -94,8 +96,12 @@ type PhaseList interface {
 
 // PhaseOfferings reads the Care Plan offerings linked to a phase.
 type PhaseOfferings interface {
+	HasTraegerCopiesForPhase(context.Context, int64) (bool, error)
 	OfferingIDsForPhase(ctx context.Context, phaseID int64) ([]int64, error)
 	CountOfferingsForPhase(ctx context.Context, phaseID int64) (int, error)
+	// CareOfferingBookingsForPhase lists the bookings of the phase's
+	// offerings, including ended ones.
+	CareOfferingBookingsForPhase(ctx context.Context, phaseID int64) ([]enrollment.OfferingBooking, error)
 }
 
 // CalendarPeriods is the slice of the School Calendar the phase link

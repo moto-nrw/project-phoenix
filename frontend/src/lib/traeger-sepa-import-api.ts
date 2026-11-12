@@ -25,7 +25,8 @@ export type ImportField =
   | "payer"
   | "creditor_id"
   | "sequence"
-  | "last_collected_on";
+  | "last_collected_on"
+  | "debtor_number";
 
 export type PayerKey = "email" | "contract_id";
 
@@ -65,9 +66,21 @@ export interface ImportRow {
   readonly mandateId: string | null;
   readonly problems: readonly ImportProblem[];
   readonly hints: readonly string[];
+  /** Debtor number of the row for the family (#4693), "" without the column. */
+  readonly debtorNumber: string;
+  readonly debtorNumberStatus: DebtorNumberStatus | "";
 }
 
-type ImportCounts = Readonly<Record<ImportRowStatus, number>>;
+/** What the import does with the debtor number of a row (#4693). */
+type DebtorNumberStatus =
+  "new" | "same" | "siblings_differ" | "differs" | "invalid" | "no_family";
+
+type ImportCounts = Readonly<
+  Record<ImportRowStatus, number> & {
+    debtorNumbers: number;
+    debtorConflicts: number;
+  }
+>;
 
 export interface ImportResult {
   readonly encoding: string;
@@ -124,6 +137,8 @@ interface BackendRow {
   mandate_id?: number;
   problems: ImportProblem[] | null;
   hints: string[] | null;
+  debtor_number?: string;
+  debtor_number_status?: DebtorNumberStatus;
 }
 
 interface BackendResult {
@@ -135,7 +150,10 @@ interface BackendResult {
   creditor_id: string;
   fingerprint?: string;
   applied: boolean;
-  counts: Record<ImportRowStatus, number>;
+  counts: Record<ImportRowStatus, number> & {
+    debtor_numbers?: number;
+    debtor_conflicts?: number;
+  };
   rows: BackendRow[] | null;
 }
 
@@ -172,6 +190,8 @@ function mapRow(row: BackendRow): ImportRow {
     mandateId: row.mandate_id ? String(row.mandate_id) : null,
     problems: row.problems ?? [],
     hints: row.hints ?? [],
+    debtorNumber: row.debtor_number ?? "",
+    debtorNumberStatus: row.debtor_number_status ?? "",
   };
 }
 
@@ -190,7 +210,11 @@ function mapImportResult(result: BackendResult): ImportResult {
     creditorId: result.creditor_id,
     fingerprint: result.fingerprint ?? "",
     applied: result.applied,
-    counts: result.counts,
+    counts: {
+      ...result.counts,
+      debtorNumbers: result.counts.debtor_numbers ?? 0,
+      debtorConflicts: result.counts.debtor_conflicts ?? 0,
+    },
     rows: (result.rows ?? []).map(mapRow),
   };
 }

@@ -22,11 +22,14 @@ type Child = care.Child
 // relationship's parent-portal permission. WithPermittedChild is the same
 // check followed by a read of the child's school in one transaction (ADR
 // 0161), for read routes only; WithPermittedChildForWrite is its write
-// counterpart.
+// counterpart. WithChildWrite opens the school unit of a parent write for a
+// resolved child behind the guard that holds the relationship, its
+// permissions and the school membership until commit (#6529).
 type ChildResolver interface {
+	WithChildWrite(ctx context.Context, accountID, studentID int64, child *Child, access care.ChildWriteAccess, write func(context.Context) error) error
 	ResolvePermittedChild(ctx context.Context, accountID, studentID int64, permission string) (*Child, error)
 	WithPermittedChild(ctx context.Context, accountID, studentID int64, permission string, between func(*Child) error, read func(context.Context, *Child) error) error
-	WithPermittedChildForWrite(ctx context.Context, accountID, studentID int64, permission string, between func(*Child) error, write func(context.Context, *Child) error) error
+	WithPermittedChildForWrite(ctx context.Context, accountID, studentID int64, permission string, between func(*Child) error, write func(context.Context, *Child) error, adjust ...func(*care.ChildWriteAccess)) error
 }
 
 // ConversationCore is the consumer-owned port for Communication's shared
@@ -83,12 +86,14 @@ type Config struct {
 
 	AnnouncementRepo AnnouncementAccess
 
-	MessageThreadRepo     MessageThreadAccess
-	MessageRepo           MessageReads
-	MessageReadRepo       MessageInboxReads
-	Conversations         ConversationCore
-	MessagingEnabled      MessagingGate
-	GroupThreads          GroupThreads
+	MessageThreadRepo MessageThreadAccess
+	MessageRepo       MessageReads
+	MessageReadRepo   MessageInboxReads
+	Conversations     ConversationCore
+	MessagingEnabled  MessagingGate
+	GroupThreads      GroupThreads
+	// MessageAttachments stores the photos and files of messages (#6685).
+	MessageAttachments    MessageAttachments
 	Surveys               Surveys
 	ParentMessageNotifier care.StaffParentMessageNotifier
 	Emitter               care.ChildEvents

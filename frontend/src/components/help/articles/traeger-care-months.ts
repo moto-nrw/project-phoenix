@@ -74,6 +74,17 @@ export function traegerCareMonthsTopic(): HelpTopic {
         ],
       },
       {
+        title: "Leeren Monatslauf verwerfen",
+        description:
+          "Hat ein offener Lauf nichts abzurechnen, lässt er sich nicht freigeben. Das passiert zum Beispiel, wenn alle Verträge des Monats geendet haben. Dann verwerfen Sie ihn.",
+        steps: [
+          "Öffnen Sie den Lauf. Steht dort `Dieser Lauf hat nichts abzurechnen`, wählen Sie oben `Leeren Lauf verwerfen`.",
+          "Wählen Sie im Fenster `Verwerfen`.",
+          "Der Lauf steht jetzt als `Verworfen` in der Liste. Er hat nichts ausgestellt. Wer ihn wann verworfen hat, steht im Verlauf.",
+          "Der Monat ist danach frei. Starten Sie bei Bedarf einen neuen Monatslauf.",
+        ],
+      },
+      {
         title: "Eine Rechnung vor der Freigabe ändern",
         description:
           "Sie ändern nur diese eine Rechnung in diesem Lauf. Die Familie und andere Rechnungen bleiben, wie sie sind. Jede Änderung braucht einen Grund und steht im Verlauf der Rechnung.",
@@ -154,7 +165,8 @@ export function traegerCareMonthsTopic(): HelpTopic {
       "In einem beitragsfreien Monat steht im Monatslauf bei `Beitragsfreier Monat`, wie viele Verträge keine Rechnung bekommen.",
     ],
     troubleshootingDetails: [
-      "Eine Schule lässt sich beim Start nicht wählen: Sie ist schon in einem offenen Lauf dieses Monats. Öffnen Sie diesen Lauf in der Liste und geben Sie ihn frei.",
+      "Eine Schule lässt sich beim Start nicht wählen: Sie ist schon in einem offenen Lauf dieses Monats. Öffnen Sie diesen Lauf in der Liste und geben Sie ihn frei. Hat er nichts abzurechnen, wählen Sie `Leeren Lauf verwerfen`.",
+      "`Leeren Lauf verwerfen` meldet, dass der Lauf etwas abzurechnen hat: Seit dem Öffnen ist ein Vertrag oder Preis dazugekommen. Prüfen Sie die Vorschau und geben Sie den Lauf frei.",
       "`Schreiben erstellen` geht nicht: Es fehlt eine Bankverbindung. Tragen Sie sie unter `Einstellungen`, `Abrechnungsvorgaben` ein.",
       "Ein Schreiben geht nicht raus, weil die Person nicht mehr im Vertrag steht: Stornieren Sie die Rechnung. Wählen Sie dann `Neu ausstellen`. Die neue Rechnung geht an die Person im Vertrag.",
       "`Erneut senden` fehlt: Die Mail ist noch unterwegs, oder die Adresse ist gesperrt. Der Hinweis bei der Rechnung sagt, was zu tun ist. Drucken Sie das Schreiben, wenn die Adresse gesperrt ist.",

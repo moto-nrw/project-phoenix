@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 )
 
 // UpdateGuardianContact replaces the contact data (name, email, address,
@@ -31,7 +32,7 @@ func (s *Service) UpdateGuardianContact(ctx context.Context, accountID, studentI
 		return nil, errors.New("parent: guardian records are not configured")
 	}
 	var result *ChildGuardian
-	txErr := s.Runtime.WithinTenant(ctx, child.TenantID, func(txCtx context.Context) error {
+	txErr := s.WithChildWrite(ctx, accountID, studentID, child, ChildWriteAccess{Permissions: []string{GuardianPermissionGuardianEdit}, Profiles: []int64{guardianProfileID}}, func(txCtx context.Context) error {
 		updated, err := s.updateGuardianContactInTx(txCtx, child, accountID, studentID, guardianProfileID, input)
 		result = updated
 		return err
@@ -87,8 +88,7 @@ func (s *Service) updateGuardianContactInTx(ctx context.Context, child *Child, a
 		return nil, err
 	}
 
-	applyContactInput(profile, &input)
-	if err := s.updateGuardianProfile(ctx, profile); err != nil {
+	if err := s.writeGuardianContact(ctx, profile, input, before.email); err != nil {
 		return nil, err
 	}
 	if err := s.replaceGuardianPhones(ctx, profile, input.Phones); err != nil {
@@ -255,4 +255,23 @@ func (s *Service) findLinkedGuardianProfile(ctx context.Context, guardianProfile
 		return nil, ErrGuardianNotLinked
 	}
 	return profile, err
+}
+
+func (s *Service) writeGuardianContact(ctx context.Context, profile *GuardianProfile, input GuardianContactInput, previousEmail string) error {
+	applyContactInput(profile, &input)
+	if contactEmailKey(previousEmail) != contactEmailKey(deref(profile.Email)) {
+		if s.InvalidateInvites == nil {
+			return errors.New("parent: guardian invitation invalidation is not configured")
+		}
+		if err := s.InvalidateInvites(ctx, profile.ID); err != nil {
+			return err
+		}
+	}
+	return s.updateGuardianProfile(ctx, profile)
+}
+
+// contactEmailKey follows account/invitation address normalization. EqualFold
+// also equates distinct Unicode spellings that database LOWER keeps separate.
+func contactEmailKey(address string) string {
+	return strings.ToLower(strings.TrimSpace(address))
 }

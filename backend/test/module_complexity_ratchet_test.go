@@ -115,7 +115,6 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"database/migrations/00_migrations.go:DetectVersionCollisions": 23,
 	// ADR 0087.
-	"database/migrations/00_migrations.go:ValidateMigrations": 43,
 	// ADR 0087.
 	"database/migrations/form_schema_validation_166.go:validateConvertedDepartureSchema": 21,
 	// ADR 0087.
@@ -125,9 +124,9 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"database/migrations/form_schema_validation_166.go:validateMigration166Visibility": 19,
 	// ADR 0087.
-	"database/migrations/guardian_owner_backfill.go:(*guardianOwnerTenantRun).copyBatch": 23,
+	"database/migrations/guardian_owner_backfill.go:(*guardianOwnerTenantRun).copyBatch": 22,
 	// ADR 0087.
-	"database/migrations/guardian_owner_backfill.go:(*guardianOwnerTenantRun).tryCopyBatch": 20,
+	"database/migrations/guardian_owner_backfill.go:(*guardianOwnerTenantRun).tryCopyBatch": 16,
 	// ADR 0087.
 	"database/migrations/guardian_owner_backfill.go:runGuardianOwnerTenant": 17,
 	// ADR 0087.
@@ -143,17 +142,17 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"database/migrations/request_child_storage_contract.go:contractRequestChildStorageChecked": 19,
 	// ADR 0087.
-	"database/migrations/staff_owner_backfill.go:(*staffOwnerTenantRun).copyBatch": 23,
+	"database/migrations/staff_owner_backfill.go:(*staffOwnerTenantRun).copyBatch": 22,
 	// ADR 0087.
-	"database/migrations/staff_owner_backfill.go:(*staffOwnerTenantRun).tryCopyBatch": 20,
+	"database/migrations/staff_owner_backfill.go:(*staffOwnerTenantRun).tryCopyBatch": 16,
 	// ADR 0087.
 	"database/migrations/staff_owner_backfill.go:runStaffOwnerTenant": 17,
 	// ADR 0087.
 	"database/migrations/staff_owner_contract.go:contractStaffOwnerStorageChecked": 19,
 	// ADR 0087.
-	"database/migrations/student_owner_backfill.go:(*studentOwnerTenantRun).copyBatch": 23,
+	"database/migrations/student_owner_backfill.go:(*studentOwnerTenantRun).copyBatch": 22,
 	// ADR 0087.
-	"database/migrations/student_owner_backfill.go:(*studentOwnerTenantRun).tryCopyBatch": 20,
+	"database/migrations/student_owner_backfill.go:(*studentOwnerTenantRun).tryCopyBatch": 16,
 	// ADR 0087.
 	"database/migrations/student_owner_backfill.go:runStudentOwnerTenant": 17,
 	// ADR 0087.
@@ -197,7 +196,6 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"internal/architecture/import_debt.go:basePackageImports": 29,
 	// ADR 0087.
-	"internal/architecture/migration_additions.go:migrationCreateDataObjects": 19,
 	// ADR 0087.
 	"internal/architecture/migration_queries.go:analyzeMigrationQueries": 48,
 	// ADR 0087.

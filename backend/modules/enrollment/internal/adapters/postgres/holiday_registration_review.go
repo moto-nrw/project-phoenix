@@ -42,6 +42,7 @@ type holidayReviewRegistrationRow struct {
 	CustodyConfirmedAt      *time.Time `bun:"custody_confirmed_at"`
 	DeclarationName         *string    `bun:"declaration_name"`
 	DebtorNumber            *string    `bun:"debtor_number"`
+	RetentionDays           int        `bun:"retention_days"`
 	BenefitsProofAttached   bool       `bun:"benefits_proof_attached"`
 }
 
@@ -55,14 +56,20 @@ type holidayReviewChildRow struct {
 	BirthDate                calendar.Date `bun:"birth_date"`
 	HomeSchoolID             *int64        `bun:"home_school_id"`
 	GuestSchoolName          string        `bun:"guest_school_name"`
+	HolidayWish              string        `bun:"holiday_wish"`
+	HolidayWishSource        string        `bun:"holiday_wish_source"`
 	DuplicateRegistrationIDs []int64       `bun:"duplicate_registration_ids,array"`
 }
 
 // holidayReviewBookingRow is one booking of a child.
 type holidayReviewBookingRow struct {
-	ChildID     int64 `bun:"holiday_registration_child_id"`
-	WeekID      int64 `bun:"holiday_period_week_id"`
-	TimeModelID int64 `bun:"holiday_week_time_model_id"`
+	ChildID          int64      `bun:"holiday_registration_child_id"`
+	WeekID           int64      `bun:"holiday_period_week_id"`
+	TimeModelID      int64      `bun:"holiday_week_time_model_id"`
+	Placement        string     `bun:"placement"`
+	WaitlistPosition *int       `bun:"waitlist_position"`
+	PromotedAt       *time.Time `bun:"promoted_at"`
+	Days             *string    `bun:"days"`
 }
 
 const (
@@ -71,7 +78,7 @@ const (
 			privacy_consent_at, health_consent_at, binding_confirmed_at, benefits_declared, consent_version,
 			custody_confirmed_at, declaration_name,
 			second_guardian_first_name, second_guardian_last_name, second_guardian_email, second_guardian_phone,
-			guardian_address_street, guardian_address_postal_code, guardian_address_city, debtor_number,
+			guardian_address_street, guardian_address_postal_code, guardian_address_city, debtor_number, retention_days,
 			EXISTS (SELECT 1 FROM enrollment.holiday_registration_proofs AS proof
 				WHERE proof.organization_id = holiday_registrations.organization_id
 					AND proof.holiday_registration_id = holiday_registrations.id) AS benefits_proof_attached
@@ -82,6 +89,7 @@ const (
 	// cancelled, with a child of the same name and date of birth.
 	reviewChildrenColumns = `child.id, child.holiday_registration_id, child.first_name, child.last_name,
 			child.birth_date, child.home_school_id, child.guest_school_name,
+			COALESCE(child.holiday_wish, '') AS holiday_wish, COALESCE(child.holiday_wish_source, '') AS holiday_wish_source,
 			ARRAY(SELECT DISTINCT other.holiday_registration_id
 				FROM enrollment.holiday_registration_children AS other
 				JOIN enrollment.holiday_registrations AS registration
@@ -98,11 +106,27 @@ const (
 		WHERE child.organization_id = ? AND child.holiday_period_id = ? AND (?::bigint = 0 OR child.holiday_registration_id = ?)
 		ORDER BY child.holiday_registration_id, child.position`
 	reviewChildrenQuery = `SELECT ` + reviewChildrenColumns + reviewChildrenFilter
+	// reviewBookingsQuery reads every booking with its placement and, for a
+	// waitlisted one of a registration that counts, its place in the waiting
+	// list of the week (#4699): the order of the placement.
 	reviewBookingsQuery = `SELECT booking.holiday_registration_child_id, booking.holiday_period_week_id,
-			booking.holiday_week_time_model_id
+			booking.holiday_week_time_model_id, booking.placement, booking.promoted_at, booking.days::text AS days,
+			waiting.position AS waitlist_position
 		FROM enrollment.holiday_registration_bookings AS booking
 		JOIN enrollment.holiday_registration_children AS child
 			ON child.organization_id = booking.organization_id AND child.id = booking.holiday_registration_child_id
+		LEFT JOIN (
+			SELECT waiting_booking.id, row_number() OVER (
+				PARTITION BY waiting_booking.holiday_period_week_id
+				ORDER BY ` + holidayWishDeferredWaitingChild + `, ` + holidayCriteriaOrderHead + "waiting_child" + holidayCriteriaOrderTail + `, registration.submitted_at, registration.id, waiting_child.position) AS position
+			FROM enrollment.holiday_registration_bookings AS waiting_booking
+			JOIN enrollment.holiday_registration_children AS waiting_child
+				ON waiting_child.organization_id = waiting_booking.organization_id AND waiting_child.id = waiting_booking.holiday_registration_child_id
+			JOIN enrollment.holiday_registrations AS registration
+				ON registration.organization_id = waiting_child.organization_id AND registration.id = waiting_child.holiday_registration_id
+			WHERE waiting_booking.organization_id = ? AND waiting_booking.holiday_period_id = ?
+				AND waiting_booking.placement = 'waitlisted' AND registration.status IN ('received', 'confirmed')
+		) AS waiting ON waiting.id = booking.id
 		WHERE booking.organization_id = ? AND booking.holiday_period_id = ? AND (?::bigint = 0 OR child.holiday_registration_id = ?)`
 )
 
@@ -130,18 +154,21 @@ func (s *HolidayRegistrationStore) ReadHolidayReview(ctx context.Context, organi
 		return nil, nil, fmt.Errorf("enrollment postgres: read holiday registration children: %w", err)
 	}
 	var bookings []holidayReviewBookingRow
-	if err := db.NewRaw(reviewBookingsQuery, organizationID, periodID, registrationID, registrationID).
+	if err := db.NewRaw(reviewBookingsQuery, organizationID, periodID, organizationID, periodID, registrationID, registrationID).
 		Scan(ctx, &bookings); err != nil {
 		return nil, nil, fmt.Errorf("enrollment postgres: read holiday registration bookings: %w", err)
 	}
-	return holidayReviewDetails(registrations, children, bookings), holidayFreezeOverrides(registrations), nil
+	details, err := holidayReviewDetails(registrations, children, bookings)
+	if err != nil {
+		return nil, nil, err
+	}
+	return details, holidayFreezeOverrides(registrations), nil
 }
 
-func holidayReviewDetails(registrations []holidayReviewRegistrationRow, children []holidayReviewChildRow, bookings []holidayReviewBookingRow) []enrollment.HolidayRegistrationDetail {
-	childBookings := map[int64][]enrollment.HolidayRegistrationBooking{}
-	for _, booking := range bookings {
-		childBookings[booking.ChildID] = append(childBookings[booking.ChildID],
-			enrollment.HolidayRegistrationBooking{WeekID: booking.WeekID, TimeModelID: booking.TimeModelID})
+func holidayReviewDetails(registrations []holidayReviewRegistrationRow, children []holidayReviewChildRow, bookings []holidayReviewBookingRow) ([]enrollment.HolidayRegistrationDetail, error) {
+	childBookings, err := holidayChildBookings(bookings)
+	if err != nil {
+		return nil, err
 	}
 	byRegistration := map[int64][]enrollment.HolidayRegistrationChild{}
 	for _, child := range children {
@@ -153,6 +180,7 @@ func holidayReviewDetails(registrations []holidayReviewRegistrationRow, children
 			ID: child.ID, FirstName: child.FirstName, LastName: child.LastName, BirthDate: child.BirthDate,
 			HomeSchoolID: child.HomeSchoolID, GuestSchoolName: child.GuestSchoolName,
 			Bookings: childBookings[child.ID], DuplicateRegistrationIDs: duplicates,
+			HolidayWish: child.HolidayWish, HolidayWishSource: child.HolidayWishSource,
 		})
 	}
 	details := make([]enrollment.HolidayRegistrationDetail, len(registrations))
@@ -162,7 +190,7 @@ func holidayReviewDetails(registrations []holidayReviewRegistrationRow, children
 				ID: row.ID, Status: row.Status, SubmittedAt: row.SubmittedAt,
 				GuardianFirstName: row.GuardianFirstName, GuardianLastName: row.GuardianLastName,
 				GuardianEmail: row.GuardianEmail, GuardianPhone: row.GuardianPhone, BenefitsDeclared: row.BenefitsDeclared,
-				Children: byRegistration[row.ID],
+				Children: byRegistration[row.ID], RetentionDays: row.RetentionDays,
 			},
 			PrivacyConsentAt: row.PrivacyConsentAt, HealthConsentAt: row.HealthConsentAt, BindingConfirmedAt: row.BindingConfirmedAt,
 			CustodyConfirmedAt: row.CustodyConfirmedAt, BenefitsProofAttached: row.BenefitsProofAttached,
@@ -188,7 +216,7 @@ func holidayReviewDetails(registrations []holidayReviewRegistrationRow, children
 			}
 		}
 	}
-	return details
+	return details, nil
 }
 
 const (
@@ -250,7 +278,8 @@ const (
 	reviewHistoryQuery = `SELECT action, occurred_at, actor_account_id, details
 		FROM enrollment.holiday_registration_audit
 		WHERE organization_id = ? AND holiday_registration_id = ?
-			AND action IN ('confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'debtor_number', 'edit', 'proof_upload', 'sibling_merge', 'sibling_split', 'sibling_cancel')
+			AND action IN ('confirm', 'cancel', 'rebook', 'freeze', 'reopen', 'debtor_number', 'edit', 'proof_upload', 'sibling_merge', 'sibling_split', 'sibling_cancel', 'promote', 'wish',
+				'allocate', 'criteria_check')
 		ORDER BY occurred_at, id`
 )
 
@@ -379,35 +408,77 @@ func (s *HolidayRegistrationStore) SetHolidayRegistrationFreeze(ctx context.Cont
 }
 
 const (
+	// deleteHolidayChildBookingsQuery removes the bookings of the weeks the
+	// child no longer books and names their weeks.
 	deleteHolidayChildBookingsQuery = `DELETE FROM enrollment.holiday_registration_bookings
-		WHERE organization_id = ? AND holiday_registration_child_id = ?`
-	insertHolidayChildBookingsQuery = `INSERT INTO enrollment.holiday_registration_bookings
-			(organization_id, holiday_period_id, holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id)
-		SELECT ?, ?, ?, booking.week_id, booking.time_model_id
-		FROM unnest(?::bigint[], ?::bigint[]) AS booking(week_id, time_model_id)`
+		WHERE organization_id = ? AND holiday_registration_child_id = ? AND NOT (holiday_period_week_id = ANY(?::bigint[]))
+		RETURNING holiday_period_week_id`
+	// insertHolidayChildBookingsQuery keeps a week the child already books
+	// with its placement and changes only its time model; a new week waits
+	// for its placement (#4699). A booking of days that keeps or drops days
+	// keeps its placement; one that adds a day waits for its placement
+	// again, under the lock of its week (#4701). The week counts as changed
+	// whenever its days changed: a dropped day frees a place.
+	insertHolidayChildBookingsQuery = `WITH wanted AS (
+			SELECT wanted.week_id, wanted.time_model_id, NULLIF(wanted.days, '')::date[] AS days
+			FROM unnest(?::bigint[], ?::bigint[], ?::text[]) AS wanted(week_id, time_model_id, days)
+		), before AS (
+			SELECT existing.holiday_period_week_id, existing.days
+			FROM enrollment.holiday_registration_bookings AS existing
+			WHERE existing.organization_id = ? AND existing.holiday_registration_child_id = ?
+		)
+		INSERT INTO enrollment.holiday_registration_bookings AS booking
+			(organization_id, holiday_period_id, holiday_registration_child_id, holiday_period_week_id, holiday_week_time_model_id, placement, days)
+		SELECT ?, ?, ?, wanted.week_id, wanted.time_model_id, ?::text, wanted.days
+		FROM wanted
+		ON CONFLICT (holiday_registration_child_id, holiday_period_week_id)
+			DO UPDATE SET holiday_week_time_model_id = EXCLUDED.holiday_week_time_model_id,
+				days = EXCLUDED.days,
+				placement = CASE WHEN booking.days IS NULL OR EXCLUDED.days IS NULL OR EXCLUDED.days <@ booking.days
+					THEN booking.placement ELSE ?::text END,
+				promoted_at = CASE WHEN booking.days IS NULL OR EXCLUDED.days IS NULL OR EXCLUDED.days <@ booking.days
+					THEN booking.promoted_at ELSE NULL END
+		RETURNING booking.holiday_period_week_id,
+			(xmax = 0 OR booking.days IS DISTINCT FROM (
+				SELECT before.days FROM before WHERE before.holiday_period_week_id = booking.holiday_period_week_id)) AS inserted`
 )
 
-// ReplaceHolidayChildBookings makes bookings the bookings of the child. The
-// caller checked that the child belongs to the locked registration and that
-// every week and time model belongs to the period.
-func (s *HolidayRegistrationStore) ReplaceHolidayChildBookings(ctx context.Context, organizationID, periodID, childID int64, bookings []enrollment.HolidayBookingInput) error {
+// ReplaceHolidayChildBookings makes bookings the bookings of the child and
+// returns the weeks whose places changed: the weeks it left and the weeks
+// it newly books, which wait for their placement (#4699). A week it keeps
+// keeps its placement. The caller checked that the child belongs to the
+// locked registration and that every week and time model belongs to the
+// period. A new or grown booking takes the placement waiting: waitlisted, or
+// pending in a period by criteria (#4700).
+func (s *HolidayRegistrationStore) ReplaceHolidayChildBookings(ctx context.Context, organizationID, periodID, childID int64, bookings []enrollment.HolidayBookingInput, waiting string) ([]int64, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
-		return err
-	}
-	if _, err := db.NewRaw(deleteHolidayChildBookingsQuery, organizationID, childID).Exec(ctx); err != nil {
-		return fmt.Errorf("enrollment postgres: remove holiday child bookings: %w", err)
+		return nil, err
 	}
 	weekIDs := make([]int64, len(bookings))
 	modelIDs := make([]int64, len(bookings))
+	days := make([]string, len(bookings))
 	for i, booking := range bookings {
-		weekIDs[i], modelIDs[i] = booking.WeekID, booking.TimeModelID
+		weekIDs[i], modelIDs[i], days[i] = booking.WeekID, booking.TimeModelID, holidayDaysLiteral(booking.Days)
 	}
-	if _, err := db.NewRaw(insertHolidayChildBookingsQuery, organizationID, periodID, childID,
-		pgdialect.Array(weekIDs), pgdialect.Array(modelIDs)).Exec(ctx); err != nil {
-		return fmt.Errorf("enrollment postgres: insert holiday child bookings: %w", err)
+	var left []int64
+	if err := db.NewRaw(deleteHolidayChildBookingsQuery, organizationID, childID, pgdialect.Array(weekIDs)).Scan(ctx, &left); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: remove holiday child bookings: %w", err)
 	}
-	return nil
+	var written []struct {
+		WeekID   int64 `bun:"holiday_period_week_id"`
+		Inserted bool  `bun:"inserted"`
+	}
+	if err := db.NewRaw(insertHolidayChildBookingsQuery, pgdialect.Array(weekIDs), pgdialect.Array(modelIDs), pgdialect.Array(days),
+		organizationID, childID, organizationID, periodID, childID, waiting, waiting).Scan(ctx, &written); err != nil {
+		return nil, fmt.Errorf("enrollment postgres: insert holiday child bookings: %w", err)
+	}
+	for _, week := range written {
+		if week.Inserted {
+			left = append(left, week.WeekID)
+		}
+	}
+	return left, nil
 }
 
 const insertHolidayAuditQuery = `INSERT INTO enrollment.holiday_registration_audit
@@ -495,4 +566,20 @@ func (s *HolidayRegistrationStore) ReadHolidayAnswers(ctx context.Context, organ
 		answers[child.RegistrationID] = registration
 	}
 	return answers, nil
+}
+
+// holidayChildBookings groups the bookings by their child.
+func holidayChildBookings(bookings []holidayReviewBookingRow) (map[int64][]enrollment.HolidayRegistrationBooking, error) {
+	childBookings := map[int64][]enrollment.HolidayRegistrationBooking{}
+	for _, booking := range bookings {
+		days, err := holidayDaysOf(booking.Days)
+		if err != nil {
+			return nil, err
+		}
+		childBookings[booking.ChildID] = append(childBookings[booking.ChildID], enrollment.HolidayRegistrationBooking{
+			WeekID: booking.WeekID, TimeModelID: booking.TimeModelID, Placement: booking.Placement,
+			WaitlistPosition: booking.WaitlistPosition, PromotedAt: booking.PromotedAt, Days: days,
+		})
+	}
+	return childBookings, nil
 }

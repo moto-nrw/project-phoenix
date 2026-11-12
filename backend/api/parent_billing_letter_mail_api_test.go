@@ -240,6 +240,7 @@ func TestBillingLetterMailsReachEveryFamilyOnceAndShowTheirState(t *testing.T) {
 	first, second := queued["FE-0001"], queued["FE-0002"]
 	assert.Equal(t, "queued", first.Status)
 	assert.Equal(t, 1, first.Sends)
+	assertInvoiceMailHistory(t, f.traeger, billing, "holiday-documents", first.DocumentID, 1, 0)
 	assert.NotNil(t, first.RequestedAt)
 
 	// While the mail waits, the family is not mailed again.
@@ -257,7 +258,9 @@ func TestBillingLetterMailsReachEveryFamilyOnceAndShowTheirState(t *testing.T) {
 		require.NoError(t, err)
 	}
 	setMailState(first.DocumentID, `status = 'dead_letter', dead_letter_at = NOW(), attempts = 5, last_error = 'mailbox unavailable'`)
+	assertInvoiceMailHistory(t, f.traeger, billing, "holiday-documents", first.DocumentID, 1, 0)
 	setMailState(second.DocumentID, `status = 'sent', sent_at = NOW(), attempts = 1`)
+	assertInvoiceMailHistory(t, f.traeger, billing, "holiday-documents", second.DocumentID, 1, 1)
 	states := letterMailings(t, f, billing, run.ID)
 	assert.Equal(t, "failed", states["FE-0001"].Status)
 	assert.Equal(t, 5, states["FE-0001"].Attempts)

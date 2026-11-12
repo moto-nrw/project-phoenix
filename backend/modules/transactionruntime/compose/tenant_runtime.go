@@ -26,7 +26,7 @@ func NewTenantRuntime(db *bun.DB) (tenant.UnitOfWork, error) {
 	if err != nil {
 		return tenant.UnitOfWork{}, err
 	}
-	runtime = runtime.WithTraegerTransaction(unitOfWork.WithinTraeger)
+	runtime = runtime.WithTraegerTransaction(unitOfWork.WithinTraeger).WithExclusiveRunner(unitOfWork.WithinExclusive)
 	return runtime.WithAdminThenTenantTransaction(unitOfWork.WithinAdminThenTenant), nil
 }
 

@@ -6,6 +6,7 @@
 // eine Vertragsänderung führt im nächsten Lauf zum Änderungsbescheid. Jedes
 // Öffnen steht im Protokoll des Laufs.
 
+import { ArchiveX, Inbox } from "lucide-react";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
 import {
@@ -14,6 +15,7 @@ import {
   NOTICE_RUN_STATUS_LABELS,
   NOTICE_RUN_STATUS_TONES,
   formatDelta,
+  isEmptyNoticeRun,
   noticeCountLabel,
   noticePeriod,
   noticeRateLabel,
@@ -24,8 +26,10 @@ import { HolidayHeadFacts } from "~/components/traeger/holiday-period-head";
 import { Alert } from "~/components/ui/alert";
 import { Button, ButtonLink } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { EmptyState } from "~/components/ui/empty-state";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { SectionCard } from "~/components/ui/section-card";
 import { StatCard } from "~/components/ui/stat-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -39,6 +43,7 @@ import { createLogger } from "~/lib/logger";
 import {
   type CareNotice,
   type CareNoticeRunDetail,
+  discardCareNoticeRun,
   fetchCareNoticeRun,
   releaseCareNoticeRun,
 } from "~/lib/traeger-care-notices-api";
@@ -126,6 +131,8 @@ export default function TraegerCareNoticeRunPage() {
   const [run, setRun] = useState<CareNoticeRunDetail | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [releasing, setReleasing] = useState(false);
+  const [confirmingDiscard, setConfirmingDiscard] = useState(false);
+  const [discarding, setDiscarding] = useState(false);
   const pageLoad = useApiLoadError();
   const { show: showLoadError, clear: clearLoadError } = pageLoad;
   const releaseErrors = useApiErrorDisplay();
@@ -173,6 +180,27 @@ export default function TraegerCareNoticeRunPage() {
     }
   };
 
+  const discard = async () => {
+    if (!run) return;
+    setDiscarding(true);
+    try {
+      setRun(await discardCareNoticeRun(run.id));
+      setConfirmingDiscard(false);
+      success(
+        `Der Lauf ist verworfen. Für ${run.year} können Sie einen neuen Jahreslauf starten.`,
+      );
+    } catch (err) {
+      logger.error("traeger_care_notice_run_discard_failed", {
+        error: err instanceof Error ? err.message : String(err),
+      });
+      setConfirmingDiscard(false);
+      void releaseErrors.show(err, { object: "der Jahreslauf" });
+      void load();
+    } finally {
+      setDiscarding(false);
+    }
+  };
+
   const openNotice = (notice: CareNotice) =>
     router.push(
       traegerPath(
@@ -181,6 +209,8 @@ export default function TraegerCareNoticeRunPage() {
     );
 
   const preview = run?.status === "calculated";
+  const discarded = run?.status === "discarded";
+  const empty = run ? isEmptyNoticeRun(run) : false;
   const changes =
     run?.notices.filter((notice) => notice.kind === "change") ?? [];
   const canRelease =
@@ -207,7 +237,12 @@ export default function TraegerCareNoticeRunPage() {
             <span className="tabular-nums">
               {noticePeriod(run.periodFrom, run.periodUntil)}
             </span>
-            {run.issuedOn ? (
+            {discarded ? (
+              <span>
+                Verworfen am{" "}
+                {run.discardedAt ? formatDate(run.discardedAt) : "–"}
+              </span>
+            ) : run.issuedOn ? (
               <span>
                 {run.previewCount === 0 ? "Abgeschlossen" : "Ausgestellt"} am{" "}
                 {formatDate(run.issuedOn)}
@@ -220,7 +255,16 @@ export default function TraegerCareNoticeRunPage() {
       }
       statsLoading={!run && !pageLoad.error}
       actions={
-        preview ? (
+        empty ? (
+          <Button
+            type="button"
+            variant="outline_danger"
+            size="md"
+            onClick={() => setConfirmingDiscard(true)}
+          >
+            Leeren Lauf verwerfen
+          </Button>
+        ) : preview ? (
           <Button
             type="button"
             variant="primary"
@@ -233,22 +277,56 @@ export default function TraegerCareNoticeRunPage() {
               : "Bescheide ausstellen"}
           </Button>
         ) : run?.status === "released" && run.previewCount > 0 ? (
-          // The PAIN.008 file of the installments has its own page (#4697).
-          <ButtonLink
-            href={traegerPath(
-              `/traeger/abrechnung/jahresbescheide/${run.id}/lastschrift`,
-            )}
-            variant="outline"
-            size="md"
-          >
-            Lastschrift der Raten
-          </ButtonLink>
+          // The PAIN.008 file of the installments (#4697) and the delivery of
+          // the stored originals (#6347) have pages of their own.
+          <div className="flex flex-wrap gap-2">
+            <ButtonLink
+              href={traegerPath(
+                `/traeger/abrechnung/jahresbescheide/${run.id}/lastschrift`,
+              )}
+              variant="outline"
+              size="md"
+            >
+              Lastschrift der Raten
+            </ButtonLink>
+            <ButtonLink
+              href={traegerPath(
+                `/traeger/abrechnung/jahresbescheide/${run.id}/versand`,
+              )}
+              variant="primary"
+              size="md"
+            >
+              An Familien senden
+            </ButtonLink>
+          </div>
         ) : undefined
       }
       error={pageLoad.error}
       loading={!pageLoad.error && !run}
       overlays={
-        run ? (
+        run && empty ? (
+          <ConfirmationModal
+            isOpen={confirmingDiscard}
+            title="Leeren Lauf verwerfen?"
+            confirmText="Verwerfen"
+            confirmVariant="danger"
+            isConfirmLoading={discarding}
+            loadingText="Wird verworfen …"
+            onClose={() => setConfirmingDiscard(false)}
+            onConfirm={() => void discard()}
+          >
+            <div className="space-y-3 text-sm text-gray-700">
+              <p>
+                Der Jahreslauf für das Jahr {run.year} stellt nichts aus. Er
+                bleibt als „Verworfen“ in der Liste.
+              </p>
+              <p>
+                Danach ist das Jahr frei. Sie können sofort einen neuen Lauf
+                starten.
+              </p>
+            </div>
+          </ConfirmationModal>
+        ) : run ? (
           <ConfirmationModal
             isOpen={confirming}
             title={
@@ -291,7 +369,51 @@ export default function TraegerCareNoticeRunPage() {
         ) : null
       }
     >
-      {run ? (
+      {run && (discarded || empty) ? (
+        <SectionCard title="Jahreslauf">
+          <EmptyState
+            tone="neutral"
+            icon={
+              discarded ? (
+                <ArchiveX className="h-7 w-7" aria-hidden="true" />
+              ) : (
+                <Inbox className="h-7 w-7" aria-hidden="true" />
+              )
+            }
+            title={
+              discarded
+                ? "Dieser Lauf ist verworfen"
+                : "Dieser Lauf hat nichts abzurechnen"
+            }
+            description={
+              discarded
+                ? `Er hatte nichts abzurechnen und hat nichts ausgestellt. Für das Jahr ${run.year} können Sie einen neuen Lauf starten.`
+                : `Für das Jahr ${run.year} gibt es keinen Bescheid. Es fehlt auch kein Preis. Sie können den Lauf verwerfen. Danach ist das Jahr frei für einen neuen Lauf.`
+            }
+            className="py-6"
+          />
+          <div className="mt-2 border-t border-gray-100 pt-5">
+            <DataGrid columns={2}>
+              <DataField label="Zeitraum">
+                {noticePeriod(run.periodFrom, run.periodUntil)}
+              </DataField>
+              <DataField label="Schulen">
+                {run.schoolIds.length === 1
+                  ? "1 Schule"
+                  : `${run.schoolIds.length} Schulen`}
+              </DataField>
+              <DataField label="Gestartet am">
+                {formatDate(run.createdAt)}
+              </DataField>
+              {discarded ? (
+                <DataField label="Verworfen am">
+                  {run.discardedAt ? formatDate(run.discardedAt) : "–"}
+                </DataField>
+              ) : null}
+            </DataGrid>
+          </div>
+        </SectionCard>
+      ) : run ? (
         <>
           {preview && run.previewCount > 0 && run.legalRemedyMissing ? (
             <Alert
@@ -379,7 +501,7 @@ export default function TraegerCareNoticeRunPage() {
             caption={
               preview
                 ? "Wählen Sie eine Zeile. Sie sehen Seite 1 des Bescheids."
-                : "Wählen Sie eine Zeile, um den Bescheid anzusehen und zu drucken."
+                : "Wählen Sie eine Zeile, um Seite 1 des Bescheids anzusehen. Das Original zum Versand finden Sie unter „An Familien senden“."
             }
             emptyState={
               <EmptyState
