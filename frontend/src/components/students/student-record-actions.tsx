@@ -122,6 +122,8 @@ export function StudentRecordActions({
     if (canResumeCare(student as Student)) {
       items.push({
         label: "Wieder aufnehmen",
+        description:
+          "Startet die Betreuung mit neuem Beginn, Angebote planen Sie neu.",
         icon: <Undo2 className="size-4" aria-hidden />,
         onClick: () => setResumeOpen(true),
       });
@@ -129,12 +131,16 @@ export function StudentRecordActions({
   } else {
     items.push({
       label: plannedExit ? "Ende ändern" : "Betreuung beenden",
+      description: plannedExit
+        ? "Verschiebt den letzten Betreuungstag, moto zeigt vorher alle Folgen."
+        : "Legt den letzten Betreuungstag fest, moto zeigt vorher alle Folgen.",
       icon: <LogOut className="size-4" aria-hidden />,
       onClick: () => setCareExitOpen(true),
     });
     if (plannedExit) {
       items.push({
         label: "Ende stornieren",
+        description: "Nimmt das geplante Ende zurück, moto fragt vorher nach.",
         icon: <XCircle className="size-4" aria-hidden />,
         disabled: cancellingExit,
         onClick: () => setCancelExitOpen(true),
@@ -143,6 +149,8 @@ export function StudentRecordActions({
   }
   items.push({
     label: "Löschen",
+    description:
+      "Löscht das Kind, Eltern verlieren den App-Zugang. moto fragt vorher nach.",
     icon: <Trash2 className="size-4" aria-hidden />,
     destructive: true,
     onClick: () => setDeleteOpen(true),

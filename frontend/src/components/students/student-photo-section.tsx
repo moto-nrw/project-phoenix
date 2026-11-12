@@ -250,6 +250,7 @@ export function StudentPhotoSection({
             variant="primary"
             size="md"
             onClick={() => fileInputRef.current?.click()}
+            tooltip="Wählt ein Foto vom Gerät, übernommen wird es erst beim Speichern."
           >
             <Upload className="mr-1.5 h-4 w-4" aria-hidden />
             {hasAnyPhoto ? "Foto ersetzen" : "Foto auswählen"}
@@ -260,6 +261,13 @@ export function StudentPhotoSection({
               variant={pendingPhotoRemoved ? "outline" : "outline_danger"}
               size="md"
               onClick={handleRemoveClick}
+              tooltip={
+                pendingPhotoBlob
+                  ? "Verwirft das gewählte Foto, das bisherige bleibt."
+                  : pendingPhotoRemoved
+                    ? "Behält das bisherige Foto doch."
+                    : "Entfernt das Foto beim Speichern aus der Akte."
+              }
             >
               <Trash2 className="mr-1.5 h-4 w-4" aria-hidden />
               {pendingPhotoBlob

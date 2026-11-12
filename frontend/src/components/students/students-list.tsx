@@ -187,6 +187,10 @@ export function StudentsList({
           ? [
               {
                 label: "Ankunftszeit bearbeiten",
+                description:
+                  grouping === "class"
+                    ? "Ändert die Ankunftszeiten aller Kinder dieser Klasse."
+                    : "Ändert die Ankunftszeiten aller Kinder dieser Gruppe.",
                 icon: (
                   <MotoDuotoneIcon
                     icon={carePlanConcept.icon}
@@ -202,6 +206,8 @@ export function StudentsList({
           ? [
               {
                 label: "Klassenfahrt planen",
+                description:
+                  "Trägt Tage ein, an denen diese Kinder auf Klassenfahrt sind.",
                 icon: (
                   <MotoDuotoneIcon
                     icon={classTripConcept.icon}
@@ -418,6 +424,8 @@ interface ListSelectionBarProps {
   onInviteGuardians?: () => void;
 }
 
+const NO_SELECTION_REASON = "Wählen Sie zuerst mindestens ein Kind aus.";
+
 function ListSelectionBar({
   count,
   onClear,
@@ -444,6 +452,7 @@ function ListSelectionBar({
             variant="ghost"
             size="compact"
             onClick={onSelectAllVisible}
+            tooltip="Wählt alle Kinder aus, die die Liste gerade zeigt."
           >
             Alle {visibleCount} auswählen
           </Button>
@@ -455,6 +464,7 @@ function ListSelectionBar({
           variant="outline"
           size="compact"
           onClick={onFinish}
+          tooltip="Beendet die Auswahl, ohne etwas zu ändern."
         >
           Fertig
         </Button>
@@ -467,6 +477,8 @@ function ListSelectionBar({
           size="compact"
           onClick={onArrival}
           disabled={disabled}
+          disabledReason={NO_SELECTION_REASON}
+          tooltip="Ändert die Ankunftszeiten der ausgewählten Kinder."
         >
           Ankunftszeiten
         </Button>
@@ -476,6 +488,8 @@ function ListSelectionBar({
           size="compact"
           onClick={onPickup}
           disabled={disabled}
+          disabledReason={NO_SELECTION_REASON}
+          tooltip="Ändert die Gehzeiten der ausgewählten Kinder."
         >
           Gehzeiten
         </Button>
@@ -485,6 +499,8 @@ function ListSelectionBar({
           size="compact"
           onClick={onClassTrip}
           disabled={disabled}
+          disabledReason={NO_SELECTION_REASON}
+          tooltip="Trägt Tage ein, an denen die Kinder auf Klassenfahrt sind."
         >
           Klassenfahrt
         </Button>
@@ -495,6 +511,8 @@ function ListSelectionBar({
             size="compact"
             onClick={onInviteGuardians}
             disabled={disabled}
+            disabledReason={NO_SELECTION_REASON}
+            tooltip="Lädt die Eltern in die Eltern-App ein, moto fragt vorher nach."
             data-setup-tour="invite-guardians"
           >
             Eltern einladen
@@ -507,6 +525,8 @@ function ListSelectionBar({
             size="compact"
             onClick={onEndCare}
             disabled={disabled}
+            disabledReason={NO_SELECTION_REASON}
+            tooltip="Legt den letzten Betreuungstag fest, moto zeigt vorher alle Folgen."
           >
             Betreuung beenden
           </Button>
