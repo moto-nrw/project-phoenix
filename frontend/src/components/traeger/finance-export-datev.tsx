@@ -84,6 +84,7 @@ export function DatevReadinessNotice({
           href={traegerPath(DATEV_SETTINGS_PATH)}
           variant="ghost_tone"
           size="compact"
+          tooltip="Öffnet die Einstellungen, in denen die DATEV-Werte stehen."
         >
           DATEV-Werte eintragen
         </ButtonLink>
@@ -180,6 +181,7 @@ export function DatevRefusedNotice({
             href={traegerPath(BOOKING_ACCOUNTS_PATH)}
             variant="ghost_tone"
             size="compact"
+            tooltip="Öffnet die Seite „Konten und Kostenstellen“."
           >
             Konten und Kostenstellen
           </ButtonLink>

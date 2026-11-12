@@ -271,7 +271,14 @@ export function BillingTermsCard({
         <OverflowMenu
           ariaLabel={`Aktionen für ${BILLING_SERVICE_LABELS[row.terms.service]}`}
           triggerSize="sm"
-          items={[{ label: "Ändern", onClick: () => setEditing(row) }]}
+          items={[
+            {
+              label: "Ändern",
+              description:
+                "Öffnet Zahlung und Rechnung dieser Leistung zum Bearbeiten.",
+              onClick: () => setEditing(row),
+            },
+          ]}
         />
       ),
     },

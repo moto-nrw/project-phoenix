@@ -153,6 +153,13 @@ function DatevActions({
   let describedBy: string | undefined;
   if (!ready) describedBy = DATEV_READINESS_ID;
   else if (nothingNew) describedBy = datevStateId(run);
+  let blockedReason: string | undefined;
+  if (!ready) {
+    blockedReason = "Tragen Sie zuerst die fehlenden DATEV-Werte ein.";
+  } else if (nothingNew) {
+    blockedReason =
+      "Alle Buchungen dieses Laufs sind schon in einer DATEV-Datei.";
+  }
   return (
     <>
       <Button
@@ -162,6 +169,8 @@ function DatevActions({
         isLoading={downloading === runFileKey("datev", run)}
         loadingText="Wird erstellt"
         disabled={downloading !== null || !ready || nothingNew}
+        disabledReason={blockedReason}
+        tooltip="Lädt die neuen Buchungen des Laufs als DATEV-Datei (CSV) herunter."
         aria-describedby={describedBy}
         aria-label={
           state && state.newBookings > 0
@@ -270,6 +279,7 @@ function runColumns({
             loadingText="Wird erstellt"
             disabled={downloading !== null}
             aria-label={`Sollstellung von ${run.label} herunterladen`}
+            tooltip="Lädt alle Rechnungen des Laufs als CSV-Datei mit neuer Dateinummer herunter."
             onClick={() => onDownload("sollstellung", run)}
           >
             <Download className="mr-1.5 h-4 w-4" aria-hidden="true" />
@@ -407,6 +417,7 @@ function CostCenterFallbackList({
           variant="ghost"
           size="compact"
           aria-expanded={open}
+          noTooltip="Das Wort nennt, was der Klick zeigt; nichts ändert sich."
           onClick={() => setOpen((value) => !value)}
         >
           {open

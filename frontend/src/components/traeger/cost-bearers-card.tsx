@@ -344,6 +344,7 @@ export function CostBearersCard({
           type="button"
           variant="outline"
           size="md"
+          tooltip="Öffnet ein Fenster für einen neuen Kostenträger."
           onClick={() => setCreating(true)}
         >
           <Plus className="mr-2 h-4 w-4" aria-hidden="true" />
@@ -396,9 +397,17 @@ export function CostBearersCard({
                   ariaLabel={`Aktionen für ${bearer.name}`}
                   triggerSize="sm"
                   items={[
-                    { label: "Ändern", onClick: () => setEditingId(bearer.id) },
+                    {
+                      label: "Ändern",
+                      description:
+                        "Öffnet die Angaben in dieser Zeile zum Bearbeiten.",
+                      onClick: () => setEditingId(bearer.id),
+                    },
                     {
                       label: bearer.active ? "Ausschalten" : "Einschalten",
+                      description: bearer.active
+                        ? "Nimmt ihn sofort aus der Auswahl beim Bestätigen."
+                        : "Macht ihn sofort wieder beim Bestätigen wählbar.",
                       onClick: () => void switchActive(bearer),
                     },
                     ...(bearer.inUse
@@ -406,6 +415,8 @@ export function CostBearersCard({
                       : [
                           {
                             label: "Löschen",
+                            description:
+                              "Löscht den Kostenträger. moto fragt vorher nach.",
                             destructive: true,
                             onClick: () => setDeleting(bearer),
                           },

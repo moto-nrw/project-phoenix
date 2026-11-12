@@ -5922,6 +5922,28 @@ const TOOLTIP_SCOPE = [
   "src/app/[tenant]/(protected)/settings/",
   "src/app/traeger/einstellungen/",
   "src/components/settings/",
+  // Träger-Abrechnung: Bausteine für Beiträge, SEPA, Finanzen, Exporte (#6761).
+  "src/components/traeger/billing-carried-corrections-card.tsx",
+  "src/components/traeger/billing-document-card.tsx",
+  "src/components/traeger/billing-letter-preview.tsx",
+  "src/components/traeger/billing-letters-card.tsx",
+  "src/components/traeger/billing-letters-modal.tsx",
+  "src/components/traeger/billing-mail-card.tsx",
+  "src/components/traeger/billing-run-overview-card.tsx",
+  "src/components/traeger/billing-terms-card.tsx",
+  "src/components/traeger/contribution-rules-card.tsx",
+  "src/components/traeger/cost-bearer-totals-card.tsx",
+  "src/components/traeger/cost-bearers-card.tsx",
+  "src/components/traeger/export-file-number-card.tsx",
+  "src/components/traeger/finance-export-datev.tsx",
+  "src/components/traeger/finance-export-tables.tsx",
+  "src/components/traeger/number-range-card.tsx",
+  "src/components/traeger/sepa-creditor-card.tsx",
+  "src/components/traeger/sepa-debit-card.tsx",
+  "src/components/traeger/sepa-import-preview-card.tsx",
+  "src/components/traeger/sepa-mandate-status-card.tsx",
+  "src/components/traeger/sepa-mandates-card.tsx",
+  "src/components/traeger/soll-mapping-editor.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {

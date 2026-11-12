@@ -99,13 +99,33 @@ function ColumnRow({
   const position = index + 1;
   const menuItems = [
     ...(index > 0
-      ? [{ label: "Nach links schieben", onClick: () => onMove(-1) }]
+      ? [
+          {
+            label: "Nach links schieben",
+            description: "Tauscht die Spalte mit der Spalte links daneben.",
+            onClick: () => onMove(-1),
+          },
+        ]
       : []),
     ...(index < count - 1
-      ? [{ label: "Nach rechts schieben", onClick: () => onMove(1) }]
+      ? [
+          {
+            label: "Nach rechts schieben",
+            description: "Tauscht die Spalte mit der Spalte rechts daneben.",
+            onClick: () => onMove(1),
+          },
+        ]
       : []),
     ...(count > 1
-      ? [{ label: "Spalte entfernen", destructive: true, onClick: onRemove }]
+      ? [
+          {
+            label: "Spalte entfernen",
+            description:
+              "Nimmt die Spalte aus dem Entwurf. Erst Speichern übernimmt es.",
+            destructive: true,
+            onClick: onRemove,
+          },
+        ]
       : []),
   ];
   return (
@@ -241,6 +261,8 @@ export function SollMappingEditor({
             variant="outline"
             size="md"
             disabled={draft.columns.length >= 40}
+            disabledReason="Mehr als 40 Spalten gehen nicht. Entfernen Sie zuerst eine."
+            tooltip="Fügt rechts eine neue Spalte an, zuerst mit der Rechnungsnummer."
             onClick={() =>
               setColumns((columns) => [
                 ...columns,
@@ -298,6 +320,7 @@ export function SollMappingEditor({
                 href={traegerPath(BOOKING_ACCOUNTS_PATH)}
                 variant="ghost_tone"
                 size="compact"
+                tooltip="Öffnet die Seite „Konten und Kostenstellen“."
               >
                 Konten ansehen
               </ButtonLink>

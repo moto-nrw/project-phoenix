@@ -269,12 +269,19 @@ function MandateMenu({
       ariaLabel={`Aktionen für das Mandat ${mandate.reference}`}
       triggerSize="sm"
       items={[
-        { label: "Verlauf ansehen", onClick: () => onHistory(mandate) },
+        {
+          label: "Verlauf ansehen",
+          description:
+            "Zeigt, wer das Mandat wann erfasst oder widerrufen hat.",
+          onClick: () => onHistory(mandate),
+        },
         ...(mandate.revokedOn
           ? []
           : [
               {
                 label: "Widerrufen",
+                description:
+                  "Beendet das Mandat zu einem Datum. moto fragt vorher nach.",
                 destructive: true,
                 onClick: () => onRevoke(mandate),
               },
@@ -547,6 +554,7 @@ export function SepaMandatesCard({
         type="button"
         variant="outline"
         size="md"
+        tooltip="Öffnet ein Fenster für das unterschriebene Mandat der Familie."
         onClick={() => setCreating(true)}
       >
         Mandat erfassen

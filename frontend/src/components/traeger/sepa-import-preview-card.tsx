@@ -258,6 +258,12 @@ export function SepaImportPreviewCard({
             size="md"
             onClick={onApply}
             disabled={disabled || importable === 0}
+            disabledReason={
+              disabled
+                ? "Übernehmen geht erst, wenn moto die Datei geprüft hat."
+                : "In der Datei ist keine Zeile bereit zum Übernehmen."
+            }
+            tooltip="Übernimmt die bereiten Zeilen sofort in die Verträge der Familien."
             isLoading={applying}
             loadingText="Wird übernommen …"
           >

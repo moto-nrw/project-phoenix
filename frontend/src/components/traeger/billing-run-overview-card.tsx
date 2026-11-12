@@ -212,10 +212,13 @@ export function BillingRunOverviewCard({
     if (!released || document.kind !== "invoice" || isCancelled(document)) {
       return [];
     }
-    const items: { label: string; onClick: () => void }[] = [];
+    const items: { label: string; description: string; onClick: () => void }[] =
+      [];
     if (onCancel && !isCredited(document)) {
       items.push({
         label: "Rechnung stornieren",
+        description:
+          "Öffnet ein Fenster, um die ganze Rechnung mit Begründung zurückzunehmen.",
         onClick: () => onCancel(document),
       });
     }
@@ -225,6 +228,8 @@ export function BillingRunOverviewCard({
         if (left <= 0) continue;
         items.push({
           label: `Gutschrift für ${child.firstName}`,
+          description:
+            "Öffnet ein Fenster, um für dieses Kind einen Betrag gutzuschreiben.",
           onClick: () => onCredit(document, child, left),
         });
       }
@@ -341,12 +346,16 @@ export function BillingRunOverviewCard({
             items={[
               {
                 label: "Aufschlüsselung ansehen",
+                description:
+                  "Zeigt, wie sich der Betrag für jedes Kind zusammensetzt.",
                 onClick: () => setShownKey(rowKey(document)),
               },
               ...(canPreview && document.id
                 ? [
                     {
                       label: "Schreiben ansehen",
+                      description:
+                        "Zeigt das Schreiben dieser Rechnung als PDF.",
                       onClick: () => openPreview(document),
                     },
                   ]
@@ -354,6 +363,8 @@ export function BillingRunOverviewCard({
               ...(onCorrect
                 ? document.children.map((child) => ({
                     label: `Betrag für ${child.firstName} korrigieren`,
+                    description:
+                      "Öffnet ein Fenster, um den Betrag mit Begründung zu ändern.",
                     onClick: () => onCorrect(document, child),
                   }))
                 : []),
@@ -362,6 +373,8 @@ export function BillingRunOverviewCard({
                 ? [
                     {
                       label: "Schreiben herunterladen",
+                      description:
+                        "Lädt das Schreiben dieser Rechnung als PDF herunter.",
                       onClick: () => onDownloadLetter(document),
                     },
                   ]
