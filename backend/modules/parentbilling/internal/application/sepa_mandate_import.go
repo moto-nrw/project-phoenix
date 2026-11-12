@@ -216,7 +216,11 @@ func (m *SEPAMandates) evaluateImport(ctx context.Context, reviewer parentbillin
 		if err != nil {
 			return nil, err
 		}
-		assignDebtorNumbers(candidates, table, columns, known)
+		format, err := debtorNumberFormatOf(ctx, m.formats, reviewer.OrganizationID)
+		if err != nil {
+			return nil, err
+		}
+		assignDebtorNumbers(candidates, table, columns, known, format)
 	}
 	return candidates, nil
 }

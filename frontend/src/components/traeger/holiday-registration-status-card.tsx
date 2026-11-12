@@ -8,7 +8,9 @@
 // Träger die Debitorennummer ab, ist sie beim Bestätigen Pflicht (#5621).
 // Bei einer bestätigten Anmeldung trägt das Büro die Nummer hier nach oder
 // ändert sie, bis die Rechnung ausgestellt ist; danach hält die Rechnung sie
-// fest.
+// fest. Hat die Familie beim Träger schon eine Nummer, steht sie als
+// Vorschlag am Feld; weicht die eingetragene ab, fragt ein Dialog, welche
+// Nummer gilt (#6692).
 
 import { useEffect, useRef, useState, type ReactNode } from "react";
 import { Alert } from "~/components/ui/alert";
@@ -22,16 +24,28 @@ import {
   FormErrorAlert,
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
-import { Input } from "~/components/ui/input";
 import NavigationLink from "~/components/ui/navigation-link";
 import { ConfirmationModal } from "~/components/ui/modal";
+import { Input } from "~/components/ui/input";
 import { Radio } from "~/components/ui/radio";
 import { SectionCard } from "~/components/ui/section-card";
+import {
+  DEBTOR_NUMBER_TEXT_CLASS,
+  FamilyDebtorNumberConflictDialog,
+  FamilyDebtorNumberHint,
+} from "~/components/traeger/family-debtor-number";
 import {
   useApiErrorDisplay,
   useApiFormError,
   useToast,
 } from "~/contexts/ToastContext";
+import {
+  DEBTOR_NUMBER_MAX_LENGTH,
+  type DebtorNumberFormat,
+  NO_DEBTOR_NUMBER_FORMAT,
+  debtorNumberFormatError,
+  debtorNumberFormatHint,
+} from "~/lib/debtor-number-format";
 import {
   useRefreshAfterWrite,
   type RefreshAfterWrite,
@@ -42,6 +56,9 @@ import {
   cancelHolidayRegistration,
   changeHolidayDebtorNumber,
   confirmHolidayRegistration,
+  familyDebtorNumberConflictOf,
+  type FamilyDebtorNumberChoice,
+  type FamilyDebtorNumberConflict,
   type HolidayContribution,
 } from "~/lib/traeger-contributions-api";
 import {
@@ -99,8 +116,21 @@ function benefitsText(
 const DEBTOR_NUMBER_HINT =
   "Die Nummer der Familie bei der Kasse der Gemeinde. Die Familie gibt sie bei der Überweisung an.";
 
-/** The longest debtor number the backend keeps (#5621). */
-const DEBTOR_NUMBER_MAX_LENGTH = 35;
+/**
+ * The field hints of a number the form refuses before it asks the backend:
+ * none where the Träger wants one (#5621), another format (#6675).
+ */
+function debtorNumberHints(
+  value: string,
+  required: boolean,
+  format: DebtorNumberFormat,
+): Record<string, string> | null {
+  if (required && !value.trim()) {
+    return { debtor_number: "Bitte geben Sie die Debitorennummer ein." };
+  }
+  const formatError = debtorNumberFormatError(value, format);
+  return formatError ? { debtor_number: formatError } : null;
+}
 
 /** What the card says about the debtor number, before and after the invoice. */
 function debtorNumberText(set: boolean, invoiced: boolean): string {
@@ -124,7 +154,9 @@ function DebtorNumberField({
   periodId,
   registrationId,
   debtorNumber,
+  familyNumber,
   required,
+  format,
   invoiced,
   editing,
   onEditingChange,
@@ -133,7 +165,11 @@ function DebtorNumberField({
   periodId: string;
   registrationId: string;
   debtorNumber: string;
+  /** The number the family has at the Träger (#6692); "" for none. */
+  familyNumber: string;
   required: boolean;
+  /** The format of the Träger's numbers (#6675). */
+  format: DebtorNumberFormat;
   invoiced: boolean;
   editing: boolean;
   onEditingChange: (editing: boolean) => void;
@@ -142,6 +178,9 @@ function DebtorNumberField({
 }>) {
   const [value, setValue] = useState(debtorNumber);
   const [saving, setSaving] = useState(false);
+  const [conflict, setConflict] = useState<FamilyDebtorNumberConflict | null>(
+    null,
+  );
   const formRef = useRef<HTMLFormElement>(null);
   const fieldRef = useRef<HTMLInputElement>(null);
   const formErrors = useApiFormError(formRef);
@@ -155,19 +194,33 @@ function DebtorNumberField({
     fieldRef.current?.focus();
   }, [editing, debtorNumber, clearErrors]);
 
-  const submit = async () => {
+  const submit = async (choice?: FamilyDebtorNumberChoice) => {
     if (saving) return;
     formErrors.clear();
-    if (required && !value.trim()) {
-      formErrors.invalid("Bitte prüfen Sie Ihre Angaben.", {
-        debtor_number: "Bitte geben Sie die Debitorennummer ein.",
-      });
+    const hints = debtorNumberHints(value, required, format);
+    if (hints) {
+      formErrors.invalid("Bitte prüfen Sie Ihre Angaben.", hints);
       return;
     }
     setSaving(true);
     try {
-      await changeHolidayDebtorNumber(periodId, registrationId, value.trim());
+      await changeHolidayDebtorNumber(
+        periodId,
+        registrationId,
+        value.trim(),
+        choice,
+      );
+      setConflict(null);
     } catch (err) {
+      // A number that differs from the family's needs a choice (#6692).
+      const differs = familyDebtorNumberConflictOf(err);
+      if (differs) {
+        // The request is over: the dialog's choices must work.
+        setSaving(false);
+        setConflict(differs);
+        return;
+      }
+      setConflict(null);
       logger.error("holiday_debtor_number_change_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -193,32 +246,47 @@ function DebtorNumberField({
         }}
       >
         <FormErrorAlert message={formErrors.error} />
-        <div className="sm:max-w-md">
+        <div className="sm:max-w-xl">
           <Input
             ref={fieldRef}
             id="holiday-debtor-number"
+            required={required}
             name="debtor_number"
             label="Debitorennummer"
-            required={required}
             autoComplete="off"
             controlSize="compact"
+            inputMode={format.digitsOnly ? "numeric" : undefined}
             maxLength={DEBTOR_NUMBER_MAX_LENGTH}
             value={value}
-            aria-describedby="holiday-debtor-number-hint"
+            hint={`${debtorNumberFormatHint(format)} ${DEBTOR_NUMBER_HINT}`.trim()}
+            aria-describedby={
+              familyNumber && value.trim() !== familyNumber
+                ? "holiday-debtor-number-family"
+                : undefined
+            }
             error={formErrors.fieldError("debtor_number") ?? undefined}
             onChange={(event) => setValue(event.target.value)}
           />
-          <p
-            id="holiday-debtor-number-hint"
-            className="mt-1 text-xs text-gray-600"
-          >
-            {DEBTOR_NUMBER_HINT}
-          </p>
+          <FamilyDebtorNumberHint
+            id="holiday-debtor-number-family"
+            familyNumber={familyNumber}
+            value={value}
+            onAdopt={(number) => {
+              setValue(number);
+              fieldRef.current?.focus();
+            }}
+          />
         </div>
         <EditActions
           onCancel={() => onEditingChange(false)}
           saving={saving}
           saveType="submit"
+        />
+        <FamilyDebtorNumberConflictDialog
+          conflict={conflict}
+          running={saving}
+          onChoose={(choice) => void submit(choice)}
+          onClose={() => setConflict(null)}
         />
       </form>
     );
@@ -229,7 +297,9 @@ function DebtorNumberField({
       <DataGrid columns={2}>
         <DataField label="Debitorennummer">
           {debtorNumber ? (
-            <span className="font-mono wrap-anywhere">{debtorNumber}</span>
+            <span className={`wrap-anywhere ${DEBTOR_NUMBER_TEXT_CLASS}`}>
+              {debtorNumber}
+            </span>
           ) : (
             "Noch keine Nummer."
           )}
@@ -292,7 +362,7 @@ function PayerChoice({
       <legend className="mb-2 text-sm font-medium text-gray-700">
         Wer bezahlt den Beitrag?
       </legend>
-      <div className="flex flex-col gap-2 sm:max-w-md">
+      <div className="flex flex-col gap-2 sm:max-w-xl">
         {options.map((option) => {
           const id = `holiday-registration-payer-${option.value}`;
           return (
@@ -354,6 +424,8 @@ export function HolidayRegistrationStatusCard({
   contribution,
   previewPending = false,
   debtorNumberRequired = false,
+  debtorNumberFormat = NO_DEBTOR_NUMBER_FORMAT,
+  familyDebtorNumber = "",
   exemption,
   onExemptionChange,
   costBearers = NO_COST_BEARERS,
@@ -372,6 +444,13 @@ export function HolidayRegistrationStatusCard({
   previewPending?: boolean;
   /** The Träger asks for the debtor number at the confirmation (#5621). */
   debtorNumberRequired?: boolean;
+  /** The format of the Träger's debtor numbers (#6675). */
+  debtorNumberFormat?: DebtorNumberFormat;
+  /**
+   * The number the family already has at the Träger (#6692), proposed at the
+   * field; "" for none.
+   */
+  familyDebtorNumber?: string;
   /** The exemption the confirmation applies; the page shows its preview. */
   exemption: boolean;
   onExemptionChange: (exemption: boolean) => void;
@@ -405,13 +484,19 @@ export function HolidayRegistrationStatusCard({
     readonly registrationId: string;
     readonly value: string;
   } | null>(null);
-  const debtorNumber =
+  const enteredDebtorNumber =
     typedDebtorNumber?.registrationId === registration.id
       ? typedDebtorNumber.value
-      : (contribution?.siblingDebtorNumber ?? "");
+      : null;
+  const debtorNumber =
+    enteredDebtorNumber ?? contribution?.siblingDebtorNumber ?? "";
   const setDebtorNumber = (value: string) =>
     setTypedDebtorNumber({ registrationId: registration.id, value });
   const [editingDebtorNumber, setEditingDebtorNumber] = useState(false);
+  const [conflict, setConflict] = useState<FamilyDebtorNumberConflict | null>(
+    null,
+  );
+  const confirmFieldRef = useRef<HTMLInputElement>(null);
   const confirmRef = useRef<HTMLFormElement>(null);
   const confirmErrors = useApiFormError(confirmRef);
   const errorDisplay = useApiErrorDisplay();
@@ -442,15 +527,25 @@ export function HolidayRegistrationStatusCard({
     running !== null || contribution === null || previewPending;
   const showsDebtorNumber =
     registration.status === "confirmed" &&
-    (debtorNumberRequired || Boolean(registration.debtorNumber));
+    (debtorNumberRequired ||
+      Boolean(registration.debtorNumber) ||
+      Boolean(familyDebtorNumber));
+  // The confirmation asks for the number when the Träger wants it, and
+  // offers it when the family already has one (#6692).
+  const asksDebtorNumber = debtorNumberRequired || Boolean(familyDebtorNumber);
 
-  const confirm = async () => {
+  const confirm = async (choice?: FamilyDebtorNumberChoice) => {
     if (confirmBlocked) return;
     confirmErrors.clear();
-    if (debtorNumberRequired && !debtorNumber.trim()) {
-      confirmErrors.invalid("Bitte prüfen Sie Ihre Angaben.", {
-        debtor_number: "Bitte geben Sie die Debitorennummer ein.",
-      });
+    const hints = debtorNumberHints(
+      debtorNumber,
+      debtorNumberRequired,
+      enteredDebtorNumber === null
+        ? NO_DEBTOR_NUMBER_FORMAT
+        : debtorNumberFormat,
+    );
+    if (hints) {
+      confirmErrors.invalid("Bitte prüfen Sie Ihre Angaben.", hints);
       return;
     }
     setRunning("confirm");
@@ -459,10 +554,22 @@ export function HolidayRegistrationStatusCard({
         periodId,
         registration.id,
         payer === "exemption",
-        debtorNumber.trim(),
+        // An untouched sibling number is inherited under the backend's locks.
+        enteredDebtorNumber?.trim() ?? "",
         payer === "cost_bearer" ? (costBearerId ?? undefined) : undefined,
+        choice,
       );
+      setConflict(null);
     } catch (err) {
+      // A number that differs from the family's needs a choice (#6692).
+      const differs = familyDebtorNumberConflictOf(err);
+      if (differs) {
+        // The request is over: the dialog's choices must work.
+        setRunning(null);
+        setConflict(differs);
+        return;
+      }
+      setConflict(null);
       logger.error("holiday_registration_confirm_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
@@ -637,27 +744,40 @@ export function HolidayRegistrationStatusCard({
             }}
           >
             <FormErrorAlert message={confirmErrors.error} />
-            {debtorNumberRequired ? (
-              <div className="sm:max-w-md">
+            {asksDebtorNumber ? (
+              <div className="sm:max-w-xl">
                 <Input
+                  ref={confirmFieldRef}
                   id="holiday-registration-debtor-number"
+                  required={debtorNumberRequired}
                   name="debtor_number"
                   label="Debitorennummer"
-                  required
                   autoComplete="off"
                   controlSize="compact"
+                  inputMode={
+                    debtorNumberFormat.digitsOnly ? "numeric" : undefined
+                  }
                   maxLength={DEBTOR_NUMBER_MAX_LENGTH}
                   value={debtorNumber}
-                  aria-describedby="holiday-registration-debtor-number-hint"
+                  hint={`${debtorNumberFormatHint(debtorNumberFormat)} ${DEBTOR_NUMBER_HINT}`.trim()}
+                  aria-describedby={
+                    familyDebtorNumber &&
+                    debtorNumber.trim() !== familyDebtorNumber
+                      ? "holiday-registration-debtor-number-family"
+                      : undefined
+                  }
                   error={confirmErrors.fieldError("debtor_number") ?? undefined}
                   onChange={(event) => setDebtorNumber(event.target.value)}
                 />
-                <p
-                  id="holiday-registration-debtor-number-hint"
-                  className="mt-1 text-xs text-gray-600"
-                >
-                  {DEBTOR_NUMBER_HINT}
-                </p>
+                <FamilyDebtorNumberHint
+                  id="holiday-registration-debtor-number-family"
+                  familyNumber={familyDebtorNumber}
+                  value={debtorNumber}
+                  onAdopt={(number) => {
+                    setDebtorNumber(number);
+                    confirmFieldRef.current?.focus();
+                  }}
+                />
               </div>
             ) : null}
           </form>
@@ -667,7 +787,9 @@ export function HolidayRegistrationStatusCard({
             periodId={periodId}
             registrationId={registration.id}
             debtorNumber={registration.debtorNumber}
+            familyNumber={familyDebtorNumber}
             required={debtorNumberRequired}
+            format={debtorNumberFormat}
             invoiced={invoiced}
             editing={editingDebtorNumber}
             onEditingChange={setEditingDebtorNumber}
@@ -685,6 +807,12 @@ export function HolidayRegistrationStatusCard({
           />
         ) : null}
       </div>
+      <FamilyDebtorNumberConflictDialog
+        conflict={conflict}
+        running={running === "confirm"}
+        onChoose={(choice) => void confirm(choice)}
+        onClose={() => setConflict(null)}
+      />
       <ConfirmationModal
         isOpen={confirmingCancel}
         title="Anmeldung stornieren?"

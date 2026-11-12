@@ -163,6 +163,8 @@ export function familyMatches(family: BillingFamily, search: string): boolean {
   return [
     familyName(family),
     family.recipientEmail,
+    family.familyEmail,
+    family.familyDebtorNumber,
     ...family.debtorNumbers,
   ].some((value) => value.toLocaleLowerCase("de").includes(needle));
 }

@@ -901,11 +901,6 @@
       "reason": "ADR 0115 (#4664): Consumer-port adapter of the Elternabrechnung's holiday registrations; it resolves the public link through Enrollment in the caller's administrative transaction and keeps only the Träger and the period."
     },
     {
-      "decision": "0121",
-      "id": "api/parentBillingHolidayRegistrations.SetHolidayDebtorNumber",
-      "reason": "ADR 0121 addendum (#5621): Consumer-port adapter of the Elternabrechnung's holiday registrations; it changes the debtor number through Enrollment's review, which locks the registration and records the change, in the caller's Träger transaction and translates the registration and Enrollment's refusals."
-    },
-    {
       "decision": "0126",
       "id": "api/parentBillingLetterPost.EnqueueDocumentNotice",
       "reason": "ADR 0126 (#4671): Consumer-port adapter of the post of the confirmation letters; it marshals the notice and enqueues the Träger's deferred push that a letter is in the inbox of the parents portal through Delivery in the caller's Träger transaction, keyed by the letter."
