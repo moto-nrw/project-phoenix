@@ -22,6 +22,7 @@ import { useNFCEnabled } from "~/lib/tenant-context";
 import { ActiveSupervisionLoadingView } from "~/components/active-supervisions/states";
 import { CompleteInstanceModal } from "~/components/active-supervisions/complete-instance-modal";
 import { HandOverSupervisionButton } from "~/components/active-supervisions/hand-over-supervision-modal";
+import { ADD_SUPERVISOR_HINT } from "~/components/active-supervisions/supervision-action-hints";
 import { SupervisionStudentGrid } from "~/components/active-supervisions/student-grid";
 import { AddUnplannedStudentModal } from "~/components/active-supervisions/add-unplanned-student-modal";
 import { PresentChildrenPicker } from "~/components/active-supervisions/present-children-picker";
@@ -224,6 +225,7 @@ function AddSupervisorButton({
       variant="surface"
       size="md"
       onClick={() => onAddSupervisor(activeGroupId)}
+      tooltip={ADD_SUPERVISOR_HINT}
     >
       <UserPlus className="h-4 w-4" aria-hidden="true" />
       Betreuer hinzufügen

@@ -48,6 +48,6 @@ describe("TimetableRosterContent complete lead (#3809)", () => {
 
     expect(
       screen.getByRole("button", { name: "Beenden ab 15:45" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 });

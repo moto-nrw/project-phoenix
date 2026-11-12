@@ -3361,6 +3361,9 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
     expect(
       await screen.findByRole("button", { name: "Beaufsichtigen" }),
     ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Beaufsichtigen" }),
+    ).not.toHaveAttribute("aria-disabled");
     const dashboardCall = vi
       .mocked(useSWRAuth)
       .mock.calls.find(([key]) =>
@@ -3389,7 +3392,7 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
     ).toBeDisabled();
     expect(
       await screen.findByRole("button", { name: "Beaufsichtigen" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     // Der Grund steht einmal: die Karte „Spontane Aktivität starten" trägt
     // ihn schon, ein zweiter Hinweis für „Beaufsichtigen" wäre doppelt.
     expect(
@@ -3461,7 +3464,7 @@ describe("MeinRaumPage (Active Supervisions) (3/5)", () => {
 
     expect(
       await screen.findByRole("button", { name: "Beaufsichtigen" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     // Ohne die Karte für spontane Aktivitäten steht der Grund selbst da —
     // eine gesperrte Schaltfläche ohne Grund wäre eine Sackgasse.
     expect(

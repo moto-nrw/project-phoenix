@@ -5922,6 +5922,26 @@ const TOOLTIP_SCOPE = [
   "src/app/[tenant]/(protected)/settings/",
   "src/app/traeger/einstellungen/",
   "src/components/settings/",
+  // Alltag: Aufsicht, Tagesprotokoll, Notfall, Startseite, Profil (#6755).
+  "src/app/[tenant]/(protected)/active-supervisions/page.tsx",
+  "src/app/[tenant]/(protected)/day-log/page.tsx",
+  "src/app/[tenant]/(protected)/emergency/page.tsx",
+  "src/app/[tenant]/(protected)/home/page.tsx",
+  "src/app/[tenant]/(protected)/profile/page.tsx",
+  "src/app/[tenant]/(protected)/tagesinformationen/page.tsx",
+  "src/app/[tenant]/(protected)/wochenprotokolle/[protocolId]/page.tsx",
+  "src/components/active-supervisions/add-supervisor-modal.tsx",
+  "src/components/active-supervisions/add-unplanned-student-modal.tsx",
+  "src/components/active-supervisions/hand-over-supervision-modal.tsx",
+  "src/components/active-supervisions/open-room-sections.tsx",
+  "src/components/active-supervisions/own-supervision-view.tsx",
+  "src/components/active-supervisions/past-blocks-section.tsx",
+  "src/components/active-supervisions/planned-now-section.tsx",
+  "src/components/active-supervisions/present-children-picker.tsx",
+  "src/components/active-supervisions/spontaneous-activity-start.tsx",
+  "src/components/active-supervisions/states.tsx",
+  "src/components/active-supervisions/timetable-roster.tsx",
+  "src/components/active/unclaimed-rooms.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {

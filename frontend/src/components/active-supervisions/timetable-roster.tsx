@@ -285,7 +285,12 @@ interface RosterActionAccess {
   readonly attendance: boolean;
   readonly statuses: boolean;
   readonly absence: boolean;
+  /** „Entschuldigt“ fragt zuerst nach dem Umfang (#3166). */
+  readonly excuseAsksScope: boolean;
 }
+
+const CHECK_IN_TOOLTIP =
+  "Trägt das Kind sofort als anwesend in diesem Block ein.";
 
 interface RosterRowActionsProps {
   readonly access: RosterActionAccess;
@@ -334,6 +339,7 @@ function RosterRowActions({
           onClick={() => runAction("check-in")}
           variant="success"
           size="md"
+          tooltip={CHECK_IN_TOOLTIP}
         >
           Einchecken
         </Button>
@@ -346,6 +352,7 @@ function RosterRowActions({
           onClick={() => runAction("check-in")}
           variant="success"
           size="md"
+          tooltip={CHECK_IN_TOOLTIP}
         >
           Wieder einchecken
         </Button>
@@ -356,6 +363,7 @@ function RosterRowActions({
           onClick={() => runAction("check-out")}
           variant="outline"
           size="md"
+          tooltip="Trägt das Kind sofort aus diesem Raum aus."
         >
           Raum verlassen
         </Button>
@@ -370,6 +378,11 @@ function RosterRowActions({
               onClick={() => runAction("excused")}
               variant="outline"
               size="md"
+              tooltip={
+                access.excuseAsksScope
+                  ? "Fragt, ob das Kind nur hier oder den restlichen Tag entschuldigt ist."
+                  : "Trägt das Kind sofort für diesen Block als entschuldigt ein."
+              }
             >
               Entschuldigt
             </Button>
@@ -380,6 +393,7 @@ function RosterRowActions({
               onClick={() => runAction("absent")}
               variant="outline"
               size="md"
+              tooltip="Trägt das Kind sofort ohne Entschuldigung als abwesend ein."
             >
               Abwesend
             </Button>
@@ -397,6 +411,7 @@ function RosterRowActions({
           onClick={() => runAction("expected")}
           variant="outline"
           size="md"
+          tooltip="Nimmt die Abwesenheit sofort zurück, das Kind wird wieder erwartet."
         >
           Zurück auf erwartet
         </Button>
@@ -407,6 +422,7 @@ function RosterRowActions({
           onClick={() => onHomework?.(row)}
           variant="outline"
           size="md"
+          tooltip="Öffnet ein Fenster für die Rückmeldung zu den Hausaufgaben."
         >
           Hausaufgaben
         </Button>
@@ -421,7 +437,7 @@ function RosterRowActions({
           variant="outline"
           size="icon"
           aria-label={`Profil ansehen: ${row.studentName || `Kind ${row.studentId}`}`}
-          tooltip="Profil ansehen"
+          tooltip="Öffnet die Akte des Kindes."
           className="ml-auto shrink-0 sm:ml-0"
         >
           <ArrowUpRightIcon
@@ -831,6 +847,7 @@ function TimetableRosterHeader({
               onClick={onAddPresentStudents}
               variant="surface"
               size="md"
+              tooltip="Öffnet die Kinder, die gerade in der OGS sind, zum Hinzufügen."
             >
               <Users className="h-4 w-4" aria-hidden="true" />
               Anwesende Kinder
@@ -842,6 +859,7 @@ function TimetableRosterHeader({
               onClick={onAddStudent}
               variant="surface"
               size="md"
+              tooltip="Öffnet ein Fenster, um ein ungeplantes Kind einzutragen."
             >
               <UserPlus className="h-4 w-4" aria-hidden="true" />
               Kind hinzufügen
@@ -853,6 +871,12 @@ function TimetableRosterHeader({
               disabled={
                 isConfirmingExpected || confirmableExpectedRows.length === 0
               }
+              disabledReason={
+                isConfirmingExpected
+                  ? undefined
+                  : "Kein erwartetes Kind wartet noch auf das Einchecken."
+              }
+              tooltip="Trägt alle erwarteten Kinder sofort als anwesend ein."
               onClick={handleConfirmExpectedClick}
               variant="success"
               size="md"
@@ -865,6 +889,12 @@ function TimetableRosterHeader({
             <Button
               type="button"
               disabled={isCompletingInstance || !completeEnabled}
+              disabledReason={
+                isCompletingInstance
+                  ? undefined
+                  : `Der Block lässt sich erst ab ${completeAvailableClock(roster.instance.completeAvailableAt, roster.instance.endTime)} Uhr beenden.`
+              }
+              tooltip="Beendet die Aktivität für alle Kinder. moto fragt vorher nach."
               onClick={handleCompleteClick}
               variant="primary"
               size="md"
@@ -1151,6 +1181,7 @@ export function TimetableRosterContent({
     statuses: lifecycleEnabled,
     absence:
       attendanceWebEnabled && (roster.canReportAbsence ?? lifecycleEnabled),
+    excuseAsksScope: onExcuseRestOfDay !== undefined,
   };
   const viewOnly =
     attendanceWebEnabled &&

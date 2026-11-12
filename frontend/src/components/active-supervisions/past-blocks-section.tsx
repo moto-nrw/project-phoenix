@@ -29,6 +29,7 @@ import { createLogger } from "~/lib/logger";
 import { rosterPickupTimeLabel } from "~/lib/timetable-roster-helpers";
 import { isCareDayExpected } from "~/lib/timetable-types";
 import { timetableOperationsApi } from "~/lib/timetable-operations-api";
+import { REOPEN_TOOLTIP } from "~/components/active-supervisions/supervision-action-hints";
 import type {
   PlannedTimetableInstance,
   TimetableRoster,
@@ -275,6 +276,11 @@ function PastBlockCard({
             onClick={toggleRoster}
             className="w-full justify-between"
             aria-expanded={expanded}
+            tooltip={
+              expanded
+                ? "Blendet die Kinderliste dieses Blocks wieder aus."
+                : "Zeigt die eingeplanten Kinder dieses Blocks."
+            }
           >
             <span>Kinder</span>
             <ChevronDown
@@ -360,6 +366,7 @@ function PastBlockCard({
             loadingText="Öffne wieder …"
             disabled={isReopening}
             aria-label={`${block.title} wieder öffnen`}
+            tooltip={REOPEN_TOOLTIP}
           >
             Wieder öffnen
           </Button>

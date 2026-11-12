@@ -153,7 +153,7 @@ describe("AddUnplannedStudentModal", () => {
 
     const beier = await screen.findByRole("radio", { name: /Marie Beier/ });
     const addButton = screen.getByRole("button", { name: "Hinzufügen" });
-    expect(addButton).toBeDisabled();
+    expect(addButton).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.getByText("Bitte ein Kind aus der Liste antippen."),
     ).toBeInTheDocument();
@@ -161,6 +161,7 @@ describe("AddUnplannedStudentModal", () => {
     fireEvent.click(beier);
     expect(beier).toBeChecked();
     expect(addButton).toBeEnabled();
+    expect(addButton).not.toHaveAttribute("aria-disabled");
     expect(
       screen.getByRole("searchbox", { name: "Kind ungeplant suchen" }),
     ).toBeInTheDocument();
@@ -176,7 +177,10 @@ describe("AddUnplannedStudentModal", () => {
     expect(
       await screen.findByRole("radio", { name: /Marie Beier/ }),
     ).not.toBeChecked();
-    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Hinzufügen" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
   });
 
   it("shows a load failure in the dialog", async () => {

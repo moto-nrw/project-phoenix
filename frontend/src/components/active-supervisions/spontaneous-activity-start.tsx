@@ -363,6 +363,7 @@ export function SpontaneousActivityStart({
               variant="outline"
               size="md"
               onClick={resetAndClose}
+              noTooltip="Schließt nur das Fenster, nichts wird gestartet."
             >
               Abbrechen
             </Button>
@@ -374,6 +375,16 @@ export function SpontaneousActivityStart({
               isLoading={isStarting}
               loadingText="Startet ..."
               disabled={!canSubmit || isLoadingRefs}
+              disabledReason={
+                isLoadingRefs
+                  ? undefined
+                  : startBlockedReason({
+                      title,
+                      roomId,
+                      isSelectedRoomOccupied,
+                    })
+              }
+              tooltip="Startet die Aktivität sofort im gewählten Raum."
             >
               Aktivität starten
             </Button>
@@ -413,6 +424,7 @@ export function SpontaneousActivityStart({
                   variant="surface"
                   size="compact"
                   onClick={() => setActivityInput(activity.name)}
+                  tooltip="Trägt diese Aktivität in das Feld oben ein."
                 >
                   {activity.name}
                 </Button>
@@ -493,4 +505,18 @@ export function SpontaneousActivityStart({
       </FormModal>
     </>
   );
+}
+
+/** Why „Aktivität starten“ is locked, in the order the form asks. */
+function startBlockedReason(input: {
+  title: string;
+  roomId: string;
+  isSelectedRoomOccupied: boolean;
+}): string | undefined {
+  if (input.title.length === 0)
+    return "Wählen oder schreiben Sie zuerst eine Aktivität.";
+  if (input.roomId.length === 0) return "Wählen Sie zuerst einen Raum aus.";
+  if (input.isSelectedRoomOccupied)
+    return "Der Raum ist belegt. Wählen Sie einen freien Raum.";
+  return undefined;
 }

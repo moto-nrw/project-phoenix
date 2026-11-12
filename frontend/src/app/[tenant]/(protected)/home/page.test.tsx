@@ -354,17 +354,22 @@ describe("Startseite", () => {
   });
 
   // „Anpassen" ist auf allen Breiten ein Symbolknopf (#4346): kein
-  // sichtbarer Text, der Name und der Tooltip sagen „Anpassen".
+  // sichtbarer Text, der Name sagt „Anpassen", der Tooltip die Folge (#6755).
   it("zeigt Anpassen als Symbolknopf mit Tooltip", async () => {
     render(<HomePage />);
 
     const button = await screen.findByRole("button", { name: "Anpassen" });
-    expect(button).toHaveTextContent(/^$/);
+    // Der Knopf trägt nur die versteckte Beschreibung, keinen sichtbaren Text.
+    const visibleText = Array.from(button.childNodes)
+      .filter((node) => !(node instanceof HTMLElement && node.hidden))
+      .map((node) => node.textContent)
+      .join("");
+    expect(visibleText).toBe("");
     fireEvent.pointerEnter(button, { pointerType: "mouse" });
     await waitFor(() =>
       expect(
         document.body.querySelector("[data-action-hint]"),
-      ).toHaveTextContent("Anpassen"),
+      ).toHaveTextContent("Öffnet Ihre Startseite zum Anordnen der Bausteine."),
     );
   });
 

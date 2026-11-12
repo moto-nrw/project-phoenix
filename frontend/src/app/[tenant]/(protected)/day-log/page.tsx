@@ -218,6 +218,7 @@ function GroupCard({
           size="md"
           onClick={onOpen}
           className="shrink-0 gap-2"
+          tooltip="Zeigt die Kinder dieser Gruppe nach Status geordnet."
         >
           Details
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
@@ -436,12 +437,16 @@ export default function DayLogPage() {
   // der tägliche Griff, PDF und Excel sind der seltene. Vorher standen alle
   // drei nebeneinander und füllten die halbe Kopfzeile -- dieselbe Reihe, die
   // die Statistik hatte.
+  // Was ein Export enthält: der ganze Tag oder die offene Gruppe.
+  const exportScope = (groupId?: string) =>
+    groupId ? "die Auswertung dieser Gruppe" : "die Tagesauswertung";
   const exportActions = (groupId?: string): OverflowMenuEntry[] => [
     { kind: "header", label: "Herunterladen" },
     {
       label:
         exporting === `pdf-${groupId ?? "all"}` ? "Wird exportiert…" : "PDF",
       icon: <Download className="h-4 w-4" aria-hidden />,
+      description: `Speichert ${exportScope(groupId)} als PDF auf Ihrem Gerät.`,
       onClick: () => void downloadExport("pdf", groupId),
       disabled: !data || exporting !== null,
     },
@@ -449,6 +454,7 @@ export default function DayLogPage() {
       label:
         exporting === `docx-${groupId ?? "all"}` ? "Wird exportiert…" : "Word",
       icon: <FileText className="h-4 w-4" aria-hidden />,
+      description: `Speichert ${exportScope(groupId)} als Word-Datei auf Ihrem Gerät.`,
       onClick: () => void downloadExport("docx", groupId),
       disabled: !data || exporting !== null,
     },
@@ -456,6 +462,7 @@ export default function DayLogPage() {
       label:
         exporting === `xlsx-${groupId ?? "all"}` ? "Wird exportiert…" : "Excel",
       icon: <FileSpreadsheet className="h-4 w-4" aria-hidden />,
+      description: `Speichert ${exportScope(groupId)} als Excel-Datei auf Ihrem Gerät.`,
       onClick: () => void downloadExport("xlsx", groupId),
       disabled: !data || exporting !== null,
     },
@@ -470,6 +477,7 @@ export default function DayLogPage() {
         className="gap-2"
         disabled={!data || exporting !== null}
         onClick={() => void printPdf(groupId)}
+        tooltip={`Öffnet ${exportScope(groupId)} als PDF zum Drucken.`}
       >
         <Printer className="h-4 w-4" aria-hidden />
         {exporting === `print-${groupId ?? "all"}`

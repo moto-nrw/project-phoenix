@@ -884,7 +884,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     });
     const addButton = screen.getByRole("button", { name: "Hinzufügen" });
 
-    expect(addButton).toBeDisabled();
+    expect(addButton).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.getByText("Bitte ein Kind aus der Liste antippen."),
     ).toBeInTheDocument();
@@ -894,6 +894,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     expect(timetableOperationsApi.checkIn).not.toHaveBeenCalled();
     expect(beierCard).toBeChecked();
     expect(addButton).toBeEnabled();
+    expect(addButton).not.toHaveAttribute("aria-disabled");
     expect(
       screen.queryByText("Bitte ein Kind aus der Liste antippen."),
     ).not.toBeInTheDocument();
@@ -910,10 +911,16 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     expect(
       await screen.findByRole("radio", { name: /Marie Beier/ }),
     ).not.toBeChecked();
-    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Hinzufügen" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
 
     fireEvent.click(screen.getByRole("radio", { name: /Marie Beier/ }));
     expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Hinzufügen" }),
+    ).not.toHaveAttribute("aria-disabled");
 
     // Die Liste filtert ab dem ersten Zeichen (#4355); jede Eingabe verwirft
     // die Auswahl, auch wenn das Kind sichtbar bleibt.
@@ -925,7 +932,10 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     expect(
       screen.queryByRole("radio", { name: /Marie Garschagen/ }),
     ).toBeNull();
-    expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Hinzufügen" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
     expect(timetableOperationsApi.checkIn).not.toHaveBeenCalled();
   });
 
@@ -963,6 +973,9 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     });
     expect(garschagenCard).toBeChecked();
     expect(screen.getByRole("button", { name: "Hinzufügen" })).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Hinzufügen" }),
+    ).not.toHaveAttribute("aria-disabled");
 
     fireEvent.click(screen.getByRole("button", { name: "Abbrechen" }));
     await waitFor(() =>
@@ -1033,6 +1046,7 @@ describe("AddUnplannedStudentForm selection flow (#2387)", () => {
     const addButton = screen.getByRole("button", { name: "Hinzufügen" });
 
     expect(addButton).toBeEnabled();
+    expect(addButton).not.toHaveAttribute("aria-disabled");
     expect(
       screen.queryByText("Bitte ein Kind aus der Liste antippen."),
     ).not.toBeInTheDocument();
