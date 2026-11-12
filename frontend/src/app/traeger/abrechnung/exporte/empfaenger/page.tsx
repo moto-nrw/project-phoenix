@@ -35,13 +35,6 @@ const EXPORTS_PATH = "/traeger/abrechnung/exporte";
 const INFO =
   "Hier tragen Sie ein, wohin moto Ihre Exporte übergibt, zum Beispiel an Ihre Kämmerei. moto legt die Datei dort sicher ab und schreibt in das Exportprotokoll, ob sie angekommen ist. Herunterladen können Sie die Dateien weiterhin.";
 
-/** The status line: the state and where files go. */
-function statusOf(recipient: ExportRecipient): string {
-  if (!recipient.configured) return "Noch kein Empfänger";
-  if (!recipient.enabled) return "Ausgeschaltet";
-  return recipient.ready ? "Bereit" : "Unvollständig";
-}
-
 /** The notice of a recipient that cannot take a file yet. */
 function RecipientStateNotice({
   recipient,
@@ -116,7 +109,6 @@ export default function TraegerExportRecipientPage() {
         page ? (
           <TenantPageStats
             items={[
-              { value: statusOf(page.recipient), label: "Zustand" },
               {
                 value: `${arrived} von ${page.handovers.length}`,
                 label: "letzten Übergaben angekommen",

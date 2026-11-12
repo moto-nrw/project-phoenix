@@ -265,7 +265,7 @@ function runColumns({
       align: "right",
       stackedLabel: false,
       render: (run) => (
-        <span className="flex justify-end gap-2 whitespace-nowrap max-sm:flex-wrap max-sm:justify-start">
+        <span className="flex flex-wrap justify-end gap-2 whitespace-nowrap max-sm:justify-start">
           <Button
             type="button"
             variant="surface"

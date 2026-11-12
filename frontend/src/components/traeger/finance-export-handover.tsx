@@ -293,7 +293,10 @@ export function HandoverMenu({
   busy,
   running,
   onHandOver,
+  size = "compact",
 }: Readonly<{
+  /** The size of the actions beside it: compact in a table row, md in a card head. */
+  size?: "compact" | "md";
   run: HandoverRun;
   recipient: ExportRecipient | null;
   formats: readonly HandoverFormat[];
@@ -332,7 +335,7 @@ export function HandoverMenu({
       ariaLabel={`Dateien von ${run.label} an den Empfänger übergeben`}
       disabled={busy}
       items={items}
-      triggerButton={{ variant: "surface", size: "compact" }}
+      triggerButton={{ variant: size === "md" ? "outline" : "surface", size }}
       triggerClassName="gap-1.5 whitespace-nowrap"
       triggerContent={
         <>

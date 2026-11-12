@@ -7,7 +7,6 @@
 import { KeyRound, Send } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import {
-  destinationText,
   HANDOVER_FORMAT_LABELS,
   HANDOVER_STATE_LABELS,
   HANDOVER_STATE_TONES,
@@ -310,7 +309,7 @@ function handoverColumns(): DataTableColumn<ExportHandover>[] {
       header: "Datei",
       render: (handover) => (
         <span className="min-w-0">
-          <span className="block font-medium break-all text-gray-900">
+          <span className="block font-medium break-words text-gray-900">
             {handover.fileName}
           </span>
           <span className="block text-sm text-gray-500">
@@ -324,8 +323,13 @@ function handoverColumns(): DataTableColumn<ExportHandover>[] {
       key: "target",
       header: "Ziel",
       render: (handover) => (
-        <span className="text-sm break-all text-gray-600">
-          {destinationText(handover.targetHost, handover.targetDirectory)}
+        <span className="min-w-0 text-sm text-gray-600">
+          <span className="block break-words">{handover.targetHost}</span>
+          {handover.targetDirectory ? (
+            <span className="block break-words text-gray-500">
+              Ordner {handover.targetDirectory}
+            </span>
+          ) : null}
         </span>
       ),
     },
