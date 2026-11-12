@@ -671,6 +671,7 @@ export function PersonalInfoEditPanel({
         type="button"
         variant="outline"
         size="md"
+        noTooltip="Abbrechen verwirft nur die Eingaben, ohne etwas zu speichern."
         onClick={handleCancel}
         disabled={isSaving}
       >
@@ -682,6 +683,12 @@ export function PersonalInfoEditPanel({
         size="md"
         onClick={() => void handleSave()}
         disabled={isSaving || privacyConsentStatus !== "ready"}
+        tooltip="Speichert die geänderten Angaben des Kindes."
+        disabledReason={
+          privacyConsentStatus === "error"
+            ? "Laden Sie zuerst die Einwilligung neu."
+            : undefined
+        }
       >
         {isSaving ? "Wird gespeichert…" : "Speichern"}
       </Button>
@@ -715,6 +722,7 @@ export function PersonalInfoEditPanel({
               type="button"
               variant="primary"
               size="compact"
+              tooltip="Lädt die Laufgemeinschaft neu und verwirft Ihre Änderungen daran."
               onClick={() => {
                 errors.clear();
                 refreshFromRemote();
@@ -753,6 +761,7 @@ export function PersonalInfoEditPanel({
                 type="button"
                 variant="outline"
                 size="compact"
+                noTooltip="Abbrechen schließt nur die Frage, gespeichert wird nichts."
                 onClick={() => {
                   // Dismissing the question is a NO: drop the conflicts with
                   // it, so the next save asks again instead of widening the
@@ -768,6 +777,12 @@ export function PersonalInfoEditPanel({
                 variant="primary"
                 size="compact"
                 disabled={isSaving || companionsStale}
+                tooltip="Ergänzt „Anderes Kind“ im Heimweg des verknüpften Kindes und speichert."
+                disabledReason={
+                  companionsStale
+                    ? "Laden Sie zuerst die Laufgemeinschaft neu."
+                    : undefined
+                }
                 onClick={() => {
                   // Same reason as in handleSave — the confirmed retry
                   // re-sends the very list that went stale.

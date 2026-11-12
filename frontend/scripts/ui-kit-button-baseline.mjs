@@ -138,13 +138,13 @@ export const buttonRatchetAllowlist = [
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/parent-messages-card.tsx",
-    lines: [144],
+    lines: [145],
     reason: "Nachrichtenzeile, öffnet den Verlauf: Navigationszeile",
   },
   {
     rule: "no-hand-rolled-button",
     file: "src/components/students/planned-status-days-modal.tsx",
-    lines: [1073],
+    lines: [1107],
     reason: "Kalendertag zum Umschalten: Kalender-/Auswahlzelle",
   },
   {

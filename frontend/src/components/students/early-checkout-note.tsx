@@ -133,6 +133,7 @@ export function useEarlyCheckoutDialog(
             type="button"
             variant="outline"
             size="md"
+            noTooltip="Abbrechen schließt nur den Dialog, ohne etwas zu ändern."
             onClick={() => setTarget(null)}
           >
             Abbrechen
@@ -141,6 +142,7 @@ export function useEarlyCheckoutDialog(
             type="button"
             variant="surface"
             size="md"
+            tooltip="Setzt das Kind auf „Im Unterricht“, ohne Grund für frühes Gehen."
             onClick={() => confirm("", "class")}
           >
             Geht zum Unterricht
@@ -149,6 +151,7 @@ export function useEarlyCheckoutDialog(
             type="button"
             variant={target?.room ? "danger" : "primary"}
             size="md"
+            tooltip="Meldet das Kind ab und speichert den Grund beim Kind."
             onClick={() => confirm(note)}
           >
             Geht nach Hause

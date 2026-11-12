@@ -5,7 +5,9 @@ import { Button } from "~/components/ui/button";
 import { SegmentedControl } from "~/components/ui/segmented-control";
 import { SelectionBar } from "~/components/ui/selection-bar";
 import {
+  CHECKIN_HINTS,
   leftOutLabel,
+  selectAllBlockedReason,
   type SelectAllControl,
 } from "~/components/students/school-checkin-select-all";
 import { SpinnerIcon } from "~/components/ui/icons";
@@ -76,6 +78,7 @@ export function SchoolCheckinSelectionBar({
       className={selectionActive ? "ml-1" : undefined}
       onClick={onFinish}
       disabled={isRunning}
+      tooltip={CHECKIN_HINTS.finish}
     >
       Fertig
     </Button>
@@ -109,6 +112,8 @@ export function SchoolCheckinSelectionBar({
                 disabled={
                   selectAll.count === 0 || selectAll.allSelected || isRunning
                 }
+                tooltip={CHECKIN_HINTS.selectAll}
+                disabledReason={selectAllBlockedReason(selectAll)}
               >
                 Alle {selectAll.count} auswählen
               </Button>
@@ -135,6 +140,10 @@ export function SchoolCheckinSelectionBar({
               size="compact"
               onClick={() => onBulkAction("in")}
               disabled={noneSelected || isRunning}
+              tooltip={CHECKIN_HINTS.checkIn}
+              disabledReason={
+                noneSelected ? CHECKIN_HINTS.noneSelected : undefined
+              }
             >
               {runningAction === "in" ? (
                 <SpinnerIcon className="h-3.5 w-3.5" />
@@ -149,6 +158,10 @@ export function SchoolCheckinSelectionBar({
               size="compact"
               onClick={() => onBulkAction("out")}
               disabled={noneSelected || isRunning}
+              tooltip={CHECKIN_HINTS.checkOut}
+              disabledReason={
+                noneSelected ? CHECKIN_HINTS.noneSelected : undefined
+              }
             >
               {runningAction === "out" ? (
                 <SpinnerIcon className="h-3.5 w-3.5" />

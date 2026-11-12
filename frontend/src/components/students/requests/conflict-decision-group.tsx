@@ -191,6 +191,22 @@ function requestChoiceLabel(item: ReviewItem): string {
   }
 }
 
+/** Warum das Ergebnis noch nicht festgelegt werden kann (#6766). */
+function conflictNotReadyReason(state: {
+  complete: boolean;
+  choice: string | null;
+  staffValueReady: boolean;
+  hasResult: boolean;
+  hasReason: boolean;
+}): string | undefined {
+  if (!state.complete) return "Laden Sie zuerst alle Wünsche zu dieser Sache.";
+  if (state.choice === null) return "Wählen Sie zuerst ein Ergebnis aus.";
+  if (!state.staffValueReady || !state.hasResult)
+    return "Tragen Sie zuerst Ihren eigenen Wert ein.";
+  if (!state.hasReason) return "Tragen Sie zuerst eine Begründung ein.";
+  return undefined;
+}
+
 export function ConflictDecisionGroup({
   group,
   onResolved,
@@ -243,6 +259,15 @@ export function ConflictDecisionGroup({
       staffDraftReady(group.staffValueInput, staffDraft)) &&
     resultText !== "" &&
     reason.trim() !== "";
+  const notReadyReason = conflictNotReadyReason({
+    complete: group.complete,
+    choice,
+    staffValueReady:
+      choice !== STAFF_CHOICE ||
+      staffDraftReady(group.staffValueInput, staffDraft),
+    hasResult: resultText !== "",
+    hasReason: reason.trim() !== "",
+  });
 
   const save = async () => {
     if (!kind || choice === null) return;
@@ -380,6 +405,8 @@ export function ConflictDecisionGroup({
           variant="primary"
           size="md"
           disabled={!ready || busy}
+          tooltip="Speichert das Ergebnis, lehnt die anderen Wünsche ab und fragt vorher nach."
+          disabledReason={notReadyReason}
           onClick={() => setConfirming(true)}
         >
           Ergebnis festlegen

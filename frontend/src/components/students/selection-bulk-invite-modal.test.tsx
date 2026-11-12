@@ -125,7 +125,10 @@ describe("SelectionBulkInviteModal", () => {
     const checkbox = await screen.findByLabelText(
       "Offene Einladungen noch einmal senden",
     );
-    expect(screen.getByRole("button", { name: "Einladen" })).toBeDisabled();
+    expect(screen.getByRole("button", { name: "Einladen" })).toHaveAttribute(
+      "aria-disabled",
+      "true",
+    );
 
     fireEvent.click(checkbox);
 

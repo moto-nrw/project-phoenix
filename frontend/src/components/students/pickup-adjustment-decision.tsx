@@ -154,6 +154,12 @@ function OfferingButton(
         size="md"
         className="w-full"
         disabled={props.busy || isFull}
+        tooltip="Zeigt die Folgen dieses Angebots, gespeichert wird noch nichts."
+        disabledReason={
+          isFull
+            ? "Das Angebot ist voll. Wählen Sie ein anderes Angebot."
+            : undefined
+        }
         onClick={() => props.onSelectOffering(props.offering.offering_id)}
       >
         Auf „{props.offering.name}“ umbuchen
@@ -305,6 +311,12 @@ function OfferingConfirmation(props: PickupAdjustmentDecisionProps) {
         size="md"
         className="w-full"
         disabled={!props.confirmed || props.busy}
+        tooltip="Bucht das Kind ab dem gewählten Tag um und speichert den Wochenplan."
+        disabledReason={
+          props.confirmed
+            ? undefined
+            : "Bestätigen Sie zuerst die Änderung mit dem Häkchen."
+        }
         onClick={props.onSaveOffering}
       >
         Angebot ändern und speichern
@@ -346,6 +358,12 @@ function ExceptionAction({
         size="md"
         className="w-full"
         disabled={busy || !canSave}
+        tooltip="Speichert die Zeiten als Ausnahme, das gebuchte Angebot bleibt gleich."
+        disabledReason={
+          canSave
+            ? undefined
+            : "Geht nur, wenn „Gilt ab“ heute oder früher ist."
+        }
         onClick={onSave}
       >
         Als dauerhafte Ausnahme speichern

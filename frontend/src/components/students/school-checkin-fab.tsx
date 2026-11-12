@@ -3,6 +3,7 @@
 import { between } from "~/lib/hooks/use-media-query";
 import { AnimatePresence, motion, useReducedMotion } from "framer-motion";
 import { Check, CheckSquare } from "lucide-react";
+import { CHECKIN_HINTS } from "~/components/students/school-checkin-select-all";
 import { useAttendanceWebEnabled } from "~/lib/tenant-context";
 import { useFloatingFabOffset } from "~/lib/hooks/use-floating-fab-offset";
 import { Button } from "~/components/ui/button";
@@ -111,6 +112,7 @@ export function SchoolCheckinFab({
         disabled={disabled}
         aria-pressed={isActive}
         aria-label={label}
+        tooltip={isActive ? CHECKIN_HINTS.finish : CHECKIN_HINTS.start}
         data-checkin-fab-variant={resolved}
         data-checkin-fab-active={isActive || undefined}
         variant={isActive ? "success" : "surface"}
