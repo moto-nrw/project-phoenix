@@ -207,7 +207,7 @@ export function StudentsList({
               {
                 label: "Klassenfahrt planen",
                 description:
-                  "Trägt Tage ein, an denen diese Kinder auf Klassenfahrt sind.",
+                  "Trägt Tage ein, an denen die Kinder auf Klassenfahrt sind.",
                 icon: (
                   <MotoDuotoneIcon
                     icon={classTripConcept.icon}
@@ -526,7 +526,7 @@ function ListSelectionBar({
             onClick={onEndCare}
             disabled={disabled}
             disabledReason={NO_SELECTION_REASON}
-            tooltip="Legt den letzten Betreuungstag fest, moto zeigt vorher alle Folgen."
+            tooltip="Legt den letzten Betreuungstag fest, moto fragt vorher nach."
           >
             Betreuung beenden
           </Button>

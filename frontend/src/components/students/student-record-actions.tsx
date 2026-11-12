@@ -123,7 +123,7 @@ export function StudentRecordActions({
       items.push({
         label: "Wieder aufnehmen",
         description:
-          "Startet die Betreuung mit neuem Beginn, Angebote planen Sie neu.",
+          "Öffnet die Wiederaufnahme, Gruppe, Angebote und Zeiten planen Sie neu.",
         icon: <Undo2 className="size-4" aria-hidden />,
         onClick: () => setResumeOpen(true),
       });
@@ -132,8 +132,8 @@ export function StudentRecordActions({
     items.push({
       label: plannedExit ? "Ende ändern" : "Betreuung beenden",
       description: plannedExit
-        ? "Verschiebt den letzten Betreuungstag, moto zeigt vorher alle Folgen."
-        : "Legt den letzten Betreuungstag fest, moto zeigt vorher alle Folgen.",
+        ? "Verschiebt den letzten Betreuungstag, moto fragt vorher nach."
+        : "Legt den letzten Betreuungstag fest, moto fragt vorher nach.",
       icon: <LogOut className="size-4" aria-hidden />,
       onClick: () => setCareExitOpen(true),
     });
@@ -150,7 +150,7 @@ export function StudentRecordActions({
   items.push({
     label: "Löschen",
     description:
-      "Löscht das Kind, Eltern verlieren den App-Zugang. moto fragt vorher nach.",
+      "Löscht das Kind auch aus der Eltern-App, moto fragt vorher nach.",
     icon: <Trash2 className="size-4" aria-hidden />,
     destructive: true,
     onClick: () => setDeleteOpen(true),
