@@ -3,7 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 const { mockBffJson } = vi.hoisted(() => ({ mockBffJson: vi.fn() }));
 vi.mock("~/lib/bff-fetch", () => ({ bffJson: mockBffJson }));
 
-import { looksLikePhoneNumber, searchSchool } from "./school-search";
+import {
+  answerQuestionLabel,
+  looksLikePhoneNumber,
+  searchSchool,
+} from "./school-search";
 
 describe("looksLikePhoneNumber", () => {
   it("reads numbers the way the backend does", () => {
@@ -37,5 +41,17 @@ describe("searchSchool", () => {
       body: { query: "0170 1234567" },
       signal: controller.signal,
     });
+  });
+});
+
+describe("answerQuestionLabel", () => {
+  it("drops the question's own end mark before its answer", () => {
+    expect(answerQuestionLabel("Mein Kind darf schwimmen.")).toBe(
+      "Mein Kind darf schwimmen",
+    );
+    expect(answerQuestionLabel("Seepferdchen vorhanden? ")).toBe(
+      "Seepferdchen vorhanden",
+    );
+    expect(answerQuestionLabel("Wunsch-AG")).toBe("Wunsch-AG");
   });
 });

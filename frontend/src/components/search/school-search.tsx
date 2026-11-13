@@ -31,6 +31,7 @@ import { getRelationshipTypeLabel } from "~/lib/guardian-helpers";
 import { useModuleNavigation } from "~/lib/hooks/use-module-navigation";
 import { schoolClassLabel } from "~/lib/school-class-label";
 import {
+  answerQuestionLabel,
   looksLikePhoneNumber,
   searchSchool,
   SCHOOL_SEARCH_MAX_LENGTH,
@@ -159,7 +160,7 @@ function childSubtitle(child: SchoolSearchChild): string {
   if (match.field === "enrollment_answer") {
     // "Mein Kind darf schwimmen." / "Seepferdchen?" lose their own end mark
     // before the answer follows.
-    const question = (match.label ?? "").replace(/[\s.:?!]+$/, "");
+    const question = answerQuestionLabel(match.label ?? "");
     parts.push(`Anmeldung: ${question}: ${match.text ?? ""}`);
   }
   return parts.join(" · ");

@@ -59,6 +59,7 @@ import {
   fetchSchoolClasses,
 } from "~/lib/student-api";
 import type { EnrollmentAnswerFilter } from "~/lib/student-helpers";
+import { answerQuestionLabel } from "~/lib/school-search";
 import { hasPermission } from "~/lib/auth-utils";
 import { createLogger } from "~/lib/logger";
 import type { Student } from "~/lib/student-helpers";
@@ -2082,8 +2083,8 @@ function SearchPageContent() {
     const options = enrollmentAnswerQuestions.flatMap((question) =>
       question.options.map((option) => ({
         value: `${question.key}=${option.value}`,
-        label: `${question.label}: ${option.label} (${option.count})`,
-        chip: `${question.label}: ${option.label}`,
+        label: `${answerQuestionLabel(question.label)}: ${option.label} (${option.count})`,
+        chip: `${answerQuestionLabel(question.label)}: ${option.label}`,
       })),
     );
     if (

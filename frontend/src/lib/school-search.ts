@@ -103,3 +103,12 @@ export function looksLikePhoneNumber(query: string): boolean {
   if (!/^[\d\s+\-/.()]+$/.test(trimmed)) return false;
   return (trimmed.match(/\d/g) ?? []).length >= 4;
 }
+
+/**
+ * A registration question as the label in front of its answer: its own end
+ * mark goes, so "Mein Kind darf schwimmen." reads "Mein Kind darf schwimmen:
+ * Ja" and "Seepferdchen?" reads "Seepferdchen: Ja".
+ */
+export function answerQuestionLabel(question: string): string {
+  return question.replace(/[\s.:?!]+$/, "");
+}
