@@ -6,6 +6,7 @@ package schoolstructurehttp
 import (
 	"context"
 	"errors"
+	"fmt"
 	"log/slog"
 	"net/http"
 	"strconv"
@@ -321,15 +322,16 @@ func (rs *Resource) getGroup(w http.ResponseWriter, r *http.Request) {
 	// Get teachers for this group
 	teachers, err := rs.EducationService.GetGroupTeachers(r.Context(), id)
 	if err != nil {
-		// Log error but continue without teachers
-		slog.Default().Warn("failed to get teachers for group",
-			slog.Int64("group_id", id),
-			slog.String("error", err.Error()))
-		teachers = []*education.Teacher{}
+		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("load group teachers: %w", err)))
+		return
 	}
 
 	// Get student count for this group
-	studentCount := rs.getStudentCount(r.Context(), id)
+	studentCount, err := rs.getStudentCount(r.Context(), id)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("count group students: %w", err)))
+		return
+	}
 
 	common.Respond(w, r, http.StatusOK, newGroupResponse(group, teachers, studentCount), "Group retrieved successfully")
 }
@@ -429,19 +431,32 @@ func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get updated group with room details
-	updatedGroup, err := rs.EducationService.FindGroupWithRoom(r.Context(), group.ID)
+	response, err := rs.updatedGroupResponse(r.Context(), group.ID)
 	if err != nil {
-		updatedGroup = group // Fallback to the original updated group without room details
+		common.RenderError(w, r, common.ErrorInternalServer(err))
+		return
 	}
 
-	// Get teachers for the updated group
-	teachers, _ := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
+	common.Respond(w, r, http.StatusOK, response, "Group updated successfully")
+}
 
-	// Get student count for the updated group
-	studentCount := rs.getStudentCount(r.Context(), group.ID)
-
-	common.Respond(w, r, http.StatusOK, newGroupResponse(updatedGroup, teachers, studentCount), "Group updated successfully")
+// updatedGroupResponse reads the group back after an update. A failed read
+// answers 500, which rolls the update back, instead of a response without
+// room, teachers or children (#6849).
+func (rs *Resource) updatedGroupResponse(ctx context.Context, groupID int64) (GroupResponse, error) {
+	group, err := rs.EducationService.FindGroupWithRoom(ctx, groupID)
+	if err != nil {
+		return GroupResponse{}, fmt.Errorf("load updated group: %w", err)
+	}
+	teachers, err := rs.EducationService.GetGroupTeachers(ctx, groupID)
+	if err != nil {
+		return GroupResponse{}, fmt.Errorf("load group teachers: %w", err)
+	}
+	studentCount, err := rs.getStudentCount(ctx, groupID)
+	if err != nil {
+		return GroupResponse{}, fmt.Errorf("count group students: %w", err)
+	}
+	return newGroupResponse(group, teachers, studentCount), nil
 }
 
 // deleteGroup handles deleting a group

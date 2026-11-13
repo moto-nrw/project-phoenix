@@ -29,13 +29,14 @@ type GroupStudentResponse struct {
 	TagID       string `json:"tag_id,omitempty"`
 }
 
-// getStudentCount returns the number of students in a group.
-func (rs *Resource) getStudentCount(ctx context.Context, groupID int64) int {
+// getStudentCount returns the number of students in a group. A failed read
+// is an error, not an empty group.
+func (rs *Resource) getStudentCount(ctx context.Context, groupID int64) (int, error) {
 	students, err := rs.People.GroupStudents(ctx, groupID)
 	if err != nil {
-		return 0
+		return 0, err
 	}
-	return len(students)
+	return len(students), nil
 }
 
 // buildStudentResponse creates a student response with all necessary data
@@ -77,22 +78,9 @@ func (rs *Resource) buildStudentResponse(
 	if hasFullAccess && person.TagID != nil {
 		response.TagID = *person.TagID
 	}
-	response.Location = rs.resolveLocationForStudent(ctx, student.ID, hasFullAccess, locationSnapshot)
+	response.Location = locationSnapshot.ResolveStudentLocation(student.ID, hasFullAccess)
 
 	return response
-}
-
-// resolveLocationForStudent determines student location from snapshot or fallback
-func (rs *Resource) resolveLocationForStudent(
-	ctx context.Context,
-	studentID int64,
-	hasFullAccess bool,
-	snapshot *studentpresence.StudentLocationSnapshot,
-) string {
-	if snapshot != nil {
-		return snapshot.ResolveStudentLocation(studentID, hasFullAccess)
-	}
-	return rs.resolveStudentLocation(ctx, studentID, hasFullAccess)
 }
 
 // getGroupStudents gets all students in a specific group
@@ -121,11 +109,12 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 		personIDs = append(personIDs, student.PersonID)
 	}
 
-	locationSnapshot, snapshotErr := studentpresence.LoadStudentLocationSnapshot(r.Context(), rs.ActiveService, studentIDs)
-	if snapshotErr != nil {
-		slog.Default().Warn("failed to batch load group student locations",
-			slog.String("error", snapshotErr.Error()))
-		locationSnapshot = nil
+	// A failed presence read leaves every location unknown; answering
+	// "Abwesend" would report an unconfirmed absence (#6849).
+	locationSnapshot, err := studentpresence.LoadStudentLocationSnapshot(r.Context(), rs.ActiveService, studentIDs)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("load group student locations: %w", err)))
+		return
 	}
 
 	persons, personErr := rs.People.ListPersonsByID(r.Context(), personIDs)
@@ -147,40 +136,4 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 	}
 
 	common.Respond(w, r, http.StatusOK, responses, fmt.Sprintf("Found %d students in group", len(responses)))
-}
-
-// resolveStudentLocation determines the student's location string based on active attendance data.
-func (rs *Resource) resolveStudentLocation(ctx context.Context, studentID int64, hasFullAccess bool) string {
-	attendanceStatus, err := rs.ActiveService.GetStudentAttendanceStatus(ctx, studentID)
-	if err != nil || attendanceStatus == nil {
-		return "Abwesend"
-	}
-
-	if attendanceStatus.Status != "checked_in" {
-		return studentpresence.CheckedOutLocation(attendanceStatus, hasFullAccess).Location
-	}
-
-	if !hasFullAccess {
-		return "Anwesend"
-	}
-
-	currentVisit, err := rs.ActiveService.GetStudentCurrentVisit(ctx, studentID)
-	if err != nil || currentVisit == nil {
-		return "Anwesend"
-	}
-
-	if currentVisit.ActiveGroupID <= 0 {
-		return "Anwesend"
-	}
-
-	activeGroup, err := rs.ActiveService.GetActiveGroup(ctx, currentVisit.ActiveGroupID)
-	if err != nil || activeGroup == nil {
-		return "Anwesend"
-	}
-
-	if activeGroup.Room != nil && activeGroup.Room.Name != "" {
-		return fmt.Sprintf("Anwesend - %s", activeGroup.Room.Name)
-	}
-
-	return "Anwesend"
 }
