@@ -106,7 +106,7 @@ func (s *Intake) replaceInTenant(ctx context.Context, token string, tenantID, ph
 	}
 	outcome.Request = plan.req
 	if plan.signatureRequired {
-		doc := newSignedEnrollmentDocument(plan.req, editReq.Children, editReq.AdditionalGuardians, plan.selections)
+		doc := newSignedEnrollmentDocument(plan.req, editReq.Children, editReq.AdditionalGuardians, plan.selections, plan.openByID)
 		if err := s.recordSignature(ctx, plan.req, editReq.Signature, doc); err != nil {
 			return err
 		}
@@ -431,7 +431,7 @@ func (s *Intake) createReplacementChildren(ctx context.Context, editReq *SubmitR
 		if err := s.deps.Children.InsertChild(ctx, row); err != nil {
 			return nil, fmt.Errorf("edit replace: create request child %d: %w", i, err)
 		}
-		if err := s.recordOfferingSubmission(ctx, row.ID, plan.selections[i], plan.locked); err != nil {
+		if err := s.recordOfferingSubmission(ctx, row.ID, plan.selections[i], plan.openByID, plan.locked); err != nil {
 			return nil, fmt.Errorf("edit replace: record child offerings: %w", err)
 		}
 		created = append(created, row)

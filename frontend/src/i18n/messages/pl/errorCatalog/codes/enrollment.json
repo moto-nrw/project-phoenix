@@ -3,6 +3,7 @@
   "approval_care_offering_day_conflict": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "approval_care_offering_exactly_one": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "approval_care_offering_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "approval_offering_terms_changed": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "approval_data_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "approval_staff_profile_required": "To zgłoszenie zawiera godziny odbioru lub przyprowadzenia. Zatwierdzić je może tylko osoba z profilem pracownika.",
   "captcha_failed": "Weryfikacja bezpieczeństwa nie powiodła się. Spróbuj ponownie.",

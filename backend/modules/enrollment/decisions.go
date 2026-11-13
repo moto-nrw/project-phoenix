@@ -77,6 +77,11 @@ type DecideInput struct {
 	// and only for an approval.
 	ExistingStudentID *int64
 	CreateNewStudent  bool
+	// AcceptOfferingChanges is the office's confirmation that the approval
+	// books the offerings' current catalog terms although price, days or
+	// activity changed since the parents submitted (#6837). Without it such
+	// an approval is refused with ErrOfferingTermsChanged.
+	AcceptOfferingChanges bool
 }
 
 // DecideOutcome is what Decide returns: the refreshed child plus the
@@ -159,6 +164,12 @@ type ChildOfferingRow struct {
 	// approved change scheduled for a future date. Those rows are
 	// informational: they describe what will be booked, not what is.
 	StartsLater bool
+	// SubmittedTerms are the catalog terms the parents submitted this
+	// offering under, nil without a snapshot (#6837). ChangedTerms names the
+	// booking-relevant terms the catalog changed since (OfferingTerm*); an
+	// approval books the current terms only after the office confirms them.
+	SubmittedTerms *OfferingTerms
+	ChangedTerms   []OfferingTermChange
 }
 
 // ChildOfferingSet separates the two questions a reader asks about a

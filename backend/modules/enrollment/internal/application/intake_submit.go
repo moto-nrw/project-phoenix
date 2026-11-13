@@ -250,7 +250,7 @@ func (s *Intake) writeSubmission(ctx context.Context, req *SubmitRequest, plan *
 		return err
 	}
 	if plan.signatureRequired {
-		doc := newSignedEnrollmentDocument(request, req.Children, req.AdditionalGuardians, plan.selections)
+		doc := newSignedEnrollmentDocument(request, req.Children, req.AdditionalGuardians, plan.selections, plan.openByID)
 		if err := s.recordSignature(ctx, request, req.Signature, doc); err != nil {
 			return err
 		}
@@ -435,7 +435,7 @@ func (s *Intake) createSubmittedChildren(ctx context.Context, req *SubmitRequest
 		if err := s.deps.Children.InsertChild(ctx, row); err != nil {
 			return nil, fmt.Errorf("submit: create request child %d: %w", i, err)
 		}
-		if err := s.recordOfferingSubmission(ctx, row.ID, plan.selections[i], plan.locked); err != nil {
+		if err := s.recordOfferingSubmission(ctx, row.ID, plan.selections[i], plan.openByID, plan.locked); err != nil {
 			return nil, fmt.Errorf("submit: record child offerings: %w", err)
 		}
 		created = append(created, row)

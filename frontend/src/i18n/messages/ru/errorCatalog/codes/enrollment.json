@@ -3,6 +3,7 @@
   "approval_care_offering_day_conflict": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "approval_care_offering_exactly_one": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "approval_care_offering_missing": "Не удалось изменить: {object}. Проверьте текущее состояние.",
+  "approval_offering_terms_changed": "Не удалось изменить: {object}. Проверьте текущее состояние.",
   "approval_data_invalid": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "approval_staff_profile_required": "В этой заявке указано время прихода или ухода. Одобрить её может только сотрудник с профилем персонала.",
   "captcha_failed": "Проверка безопасности не пройдена. Попробуйте ещё раз.",

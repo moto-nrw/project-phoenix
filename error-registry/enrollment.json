@@ -25,6 +25,12 @@
       "legacy": "enrollment.approval_data_invalid"
     },
     {
+      "code": "enrollment.approval_offering_terms_changed",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "enrollment.approval_offering_terms_changed"
+    },
+    {
       "code": "enrollment.approval_staff_profile_required",
       "class": "permission",
       "parameters": [],

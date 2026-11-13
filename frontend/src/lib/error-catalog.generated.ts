@@ -321,6 +321,8 @@ export const ERROR_CATALOG = {
         "Für dieses Kind ist kein Betreuungsangebot gebucht. Die Familie muss zuerst ein Angebot ergänzen.",
       "enrollment.approval_data_invalid":
         "Die Angaben dieser Anmeldung sind unvollständig. Bitte korrigieren Sie die Daten des Kindes.",
+      "enrollment.approval_offering_terms_changed":
+        "Ein Angebot hat sich seit der Anmeldung geändert. Öffnen Sie die Anmeldung und bestätigen Sie die neuen Angaben.",
       "enrollment.approval_staff_profile_required":
         "Diese Anmeldung enthält Abhol- oder Bringzeiten. Freigeben kann sie nur jemand mit Personalprofil.",
       "enrollment.captcha_failed":

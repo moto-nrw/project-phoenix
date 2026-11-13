@@ -3,6 +3,7 @@
   "approval_care_offering_day_conflict": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "approval_care_offering_exactly_one": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "approval_care_offering_missing": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "approval_offering_terms_changed": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "approval_data_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "approval_staff_profile_required": "У цій заявці вказано час приходу або забирання. Схвалити її може лише працівник із профілем персоналу.",
   "captcha_failed": "Перевірка безпеки не вдалася. Спробуйте ще раз.",

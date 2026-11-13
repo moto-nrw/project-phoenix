@@ -3,6 +3,7 @@
   "approval_care_offering_day_conflict": "Für dieses Kind sind an einem Tag zwei Angebote gebucht, die nicht zusammen gehen. Bitte ändern Sie zuerst die Buchung.",
   "approval_care_offering_exactly_one": "Für dieses Kind muss genau ein Betreuungsangebot gebucht sein. Die Familie muss die Auswahl ändern.",
   "approval_care_offering_missing": "Für dieses Kind ist kein Betreuungsangebot gebucht. Die Familie muss zuerst ein Angebot ergänzen.",
+  "approval_offering_terms_changed": "Ein Angebot hat sich seit der Anmeldung geändert. Öffnen Sie die Anmeldung und bestätigen Sie die neuen Angaben.",
   "approval_data_invalid": "Die Angaben dieser Anmeldung sind unvollständig. Bitte korrigieren Sie die Daten des Kindes.",
   "approval_staff_profile_required": "Diese Anmeldung enthält Abhol- oder Bringzeiten. Freigeben kann sie nur jemand mit Personalprofil.",
   "captcha_failed": "Die Sicherheitsabfrage hat nicht geklappt. Bitte versuchen Sie es noch einmal.",
