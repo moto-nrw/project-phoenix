@@ -136,6 +136,8 @@ func (c workTimeMonthCapability) MonthSummary(ctx context.Context, staffID int64
 		CreditedSickMinutes: summary.CreditedSickMinutes, CreditedVacationMinutes: summary.CreditedVacationMinutes,
 		CreditedTrainingMinutes: summary.CreditedTrainingMinutes, CreditedOtherMinutes: summary.CreditedOtherMinutes,
 		SickDays: summary.SickDays, VacationDays: summary.VacationDays, TrainingDays: summary.TrainingDays,
+		SickDaysWithoutTarget: summary.SickDaysWithoutTarget, VacationDaysWithoutTarget: summary.VacationDaysWithoutTarget,
+		TrainingDaysWithoutTarget: summary.TrainingDaysWithoutTarget, OtherDaysWithoutTarget: summary.OtherDaysWithoutTarget,
 		PlannedShiftMinutes: summary.PlannedShiftMinutes, AdjustmentMinutes: summary.AdjustmentMinutes,
 		BalanceMinutes: summary.BalanceMinutes, ClosingBalanceMinutes: summary.ClosingBalanceMinutes, IsClosed: summary.IsClosed,
 		ClosedAt: summary.ClosedAt, ClosedBy: summary.ClosedBy, CloseReason: summary.CloseReason,

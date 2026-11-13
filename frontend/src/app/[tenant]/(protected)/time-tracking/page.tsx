@@ -1538,6 +1538,7 @@ function OwnZeiterfassungSection({
   viewMode,
   weekAnchor,
   monthAnchor,
+  setTargetHref,
 }: {
   readonly ownStaffId: string | null;
   readonly schedule: import("~/lib/staff-api").StaffSchedule | null;
@@ -1554,6 +1555,8 @@ function OwnZeiterfassungSection({
   readonly viewMode: ViewMode;
   readonly weekAnchor: Date;
   readonly monthAnchor: Date;
+  /** Arbeitszeitmodell der eigenen Person, nur wenn sie das Soll setzen darf. */
+  readonly setTargetHref?: string;
 }) {
   // The Berlin day, not the browser's, and re-rendered on the rollover: this
   // section stays mounted all day, and `new Date()` frozen at mount would keep
@@ -1869,6 +1872,7 @@ function OwnZeiterfassungSection({
             isPreAccountMonth={isPreAccountMonth}
             accountStartsInFuture={accountStartsInFuture}
             accountStartDate={accountStartDate}
+            setTargetHref={setTargetHref}
           />
         </div>
       )}
@@ -4195,6 +4199,11 @@ function TimeTrackingContent() {
         viewMode={viewMode}
         weekAnchor={weekAnchor}
         monthAnchor={monthAnchor}
+        setTargetHref={
+          canSetTarget && ownStaffId
+            ? tenantPath(workTimeModelPath(ownStaffId))
+            : undefined
+        }
         onEditDay={(date, session, absence, laborDay) =>
           setEditModal({ date, session, absence, laborDay })
         }

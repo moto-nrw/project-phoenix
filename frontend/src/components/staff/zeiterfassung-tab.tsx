@@ -470,6 +470,7 @@ export function ZeiterfassungTab({
               accountStartsInFuture={accountStartsInFuture}
               accountStartDate={accountStartDate}
               onReopen={() => setShowReopenModal(true)}
+              onSetTarget={onSetTarget}
             />
           </div>
         )}

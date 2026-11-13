@@ -65,7 +65,7 @@ export function workTimeReviewTopic(): HelpTopic {
       "Weicht das `Ist` von den gestempelten Zeiten ab? Dann gelten Wegpackzeit oder Rundung aus den Einstellungen. Die Zeile zeigt das als Hinweis. Korrigieren Sie nur die Uhrzeiten, moto rechnet die Zugabe neu.",
     ],
     troubleshootingDetails: [
-      "Ein Krankheitstag zählt 0 Stunden? Dann fehlt das Soll. Tragen Sie es im `Arbeitszeitmodell` der Person ein. Gilt es ab dem Krankheitstag, rechnet moto die Stunden nach.",
+      "Ein Krankheitstag zählt 0 Stunden? Dann fehlt das Soll. Die Monatskarte zeigt den Tag dann mit `ohne Soll`. Tragen Sie das Soll im `Arbeitszeitmodell` der Person ein. Gilt es ab dem Krankheitstag, rechnet moto die Stunden nach.",
       "Der Saldo einer Person stimmt nicht? Prüfen Sie ihr `Arbeitszeitmodell` in der Personalakte.",
     ],
     related: [
