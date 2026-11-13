@@ -183,6 +183,7 @@ function CourseWaitlistBlock({
                 variant="surface"
                 size="compact"
                 aria-label={`Anfrage von ${entry.studentName} öffnen`}
+                tooltip="Öffnet die Anfrage dieses Kindes mit allen Angaben."
                 onClick={() => onOpenRequest(entry.studentId, entry.requestId)}
               >
                 Zur Anfrage
