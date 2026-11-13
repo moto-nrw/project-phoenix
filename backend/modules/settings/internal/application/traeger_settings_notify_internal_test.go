@@ -45,7 +45,7 @@ func (f traegerValuesFake) LockByOrganizationAndKey(context.Context, int64, stri
 }
 func (traegerValuesFake) Upsert(context.Context, *config.TraegerSettingValue) error { return nil }
 func (traegerValuesFake) Delete(context.Context, int64, string) error               { return nil }
-func (f traegerValuesFake) RecordChange(context.Context, *config.TraegerSettingAuditEntry, time.Time) error {
+func (f traegerValuesFake) RecordChange(context.Context, *config.TraegerSettingAuditEntry) error {
 	return f.recordErr
 }
 
@@ -68,7 +68,7 @@ func TestTraegerChangeNotifiesEverySchoolAfterTheCommitOnly(t *testing.T) {
 			registry := config.NewRegistry()
 			registry.Register(config.Definition{Key: "beide.key", Type: config.FieldBoolean, Default: true, Tab: "operations", Category: "test", Levels: config.LevelBoth})
 			service, err := NewTraegerSettings(TraegerSettingsDependencies{
-				AuditRetentionYears: 3, Values: traegerValuesFake{recordErr: test.recordErr}, Runtime: traegerRuntimeFake{err: test.runtimeErr},
+				Values: traegerValuesFake{recordErr: test.recordErr}, Runtime: traegerRuntimeFake{err: test.runtimeErr},
 				Schools: func(context.Context, int64) ([]int64, error) { return []int64{11, 12}, nil },
 				Notify: func(_ context.Context, school int64, key string) {
 					assert.Equal(t, "beide.key", key)
@@ -97,7 +97,7 @@ func TestTraegerChangeLocksTheKeyBeforeItReadsTheOldValue(t *testing.T) {
 	registry := config.NewRegistry()
 	registry.Register(config.Definition{Key: "beide.key", Type: config.FieldBoolean, Default: true, Tab: "operations", Category: "test", Levels: config.LevelBoth})
 	service, err := NewTraegerSettings(TraegerSettingsDependencies{
-		AuditRetentionYears: 3, Values: traegerValuesFake{calls: &calls}, Runtime: traegerRuntimeFake{calls: &calls},
+		Values: traegerValuesFake{calls: &calls}, Runtime: traegerRuntimeFake{calls: &calls},
 		Schools: func(context.Context, int64) ([]int64, error) { return nil, nil },
 		Notify:  func(context.Context, int64, string) {},
 		Rights:  map[config.TraegerRight]string{config.TraegerRightSettings: "settings", config.TraegerRightStaff: "staff", config.TraegerRightBilling: "billing"},

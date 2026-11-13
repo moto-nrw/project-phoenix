@@ -62,12 +62,14 @@ func (p *Provisioning) createSchool(adminCtx context.Context, school organizatio
 	if err := p.createWebManualDevice(adminCtx, created.ID); err != nil {
 		return nil, err
 	}
-	p.logAction(adminCtx, operatorID, domain.AuditActionCreate, domain.AuditResourceSchool, &created.ID, clientIP, map[string]any{
+	if err := p.recordAction(adminCtx, operatorID, domain.AuditActionCreate, domain.AuditResourceSchool, &created.ID, clientIP, map[string]any{
 		"name":           created.Name,
 		"slug":           created.Slug,
 		"subdomain":      created.Subdomain,
 		"organizationID": created.OrganizationID,
-	})
+	}); err != nil {
+		return nil, err
+	}
 	return &created, nil
 }
 
@@ -206,13 +208,14 @@ func schoolContactEmailChange(existing organizationtenancy.School, changes organ
 }
 
 // finishSchoolUpdate applies a changed Kinderkontingent and audits the
-// update. A quota change must be audited, so its audit failure fails the
-// update; every other change keeps the best-effort audit.
+// update. Every update commits only with its audit entry (#6844).
 func (p *Provisioning) finishSchoolUpdate(ctx context.Context, existing, updated organizationtenancy.School, changes organizationtenancy.SchoolChanges, diff map[string]any, operatorID int64, clientIP net.IP) (*organizationtenancy.School, error) {
 	id := existing.ID
 	change := changes.ChildQuota
 	if change == nil || sameChildQuota(existing.ChildQuota(), change.Quota) {
-		p.logAction(ctx, operatorID, domain.AuditActionUpdate, domain.AuditResourceSchool, &id, clientIP, diff)
+		if err := p.recordAction(ctx, operatorID, domain.AuditActionUpdate, domain.AuditResourceSchool, &id, clientIP, diff); err != nil {
+			return nil, err
+		}
 		return &updated, nil
 	}
 	updated, err := p.organizations.SetSchoolChildQuota(ctx, id, change.Quota)
@@ -343,12 +346,11 @@ func (p *Provisioning) RestoreSchool(ctx context.Context, schoolID, operatorID i
 		if _, err := p.organizations.RestoreSchool(adminCtx, schoolID); err != nil {
 			return mapSchoolError(err, schoolID, school.OrganizationID)
 		}
-		p.logAction(adminCtx, operatorID, domain.AuditActionRestore, domain.AuditResourceSchool, &schoolID, clientIP, map[string]any{
+		return p.recordAction(adminCtx, operatorID, domain.AuditActionRestore, domain.AuditResourceSchool, &schoolID, clientIP, map[string]any{
 			"name":      school.Name,
 			"slug":      school.Slug,
 			"subdomain": school.Subdomain,
 		})
-		return nil
 	})
 }
 

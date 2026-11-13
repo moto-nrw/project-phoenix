@@ -54,5 +54,5 @@ type TraegerSettingRepository interface {
 	Delete(ctx context.Context, organizationID int64, key string) error
 	// RecordChange appends a change to the Träger's change log and drops
 	// its changes made before retainedSince, in the caller's transaction.
-	RecordChange(ctx context.Context, entry *TraegerSettingAuditEntry, retainedSince time.Time) error
+	RecordChange(ctx context.Context, entry *TraegerSettingAuditEntry) error
 }

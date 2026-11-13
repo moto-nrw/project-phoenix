@@ -168,12 +168,14 @@ func (p *Provisioning) CreateDevice(ctx context.Context, schoolID int64, deviceI
 		if err != nil {
 			return nil, err
 		}
-		p.logAction(adminCtx, operatorID, domain.AuditActionCreate, domain.AuditResourceDevice, &device.ID, clientIP, map[string]any{
+		if err := p.recordAction(adminCtx, operatorID, domain.AuditActionCreate, domain.AuditResourceDevice, &device.ID, clientIP, map[string]any{
 			"device_id":    device.DeviceID,
 			"device_type":  device.DeviceType,
 			"school_id":    schoolID,
 			"api_key_mode": "auto",
-		})
+		}); err != nil {
+			return nil, err
+		}
 		view, err := p.listedDevice(adminCtx, "CreateDevice", device.ID)
 		if err == nil {
 			view.APIKey = device.APIKey

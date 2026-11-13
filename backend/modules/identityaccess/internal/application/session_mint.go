@@ -178,9 +178,6 @@ func (s *AccountAuthentication) mintAccountSession(ctx context.Context, req mint
 	if err != nil {
 		return mintedSession{}, failed("generate tokens", err)
 	}
-	if req.audit != nil {
-		s.auditSession(ctx, req.account.ID, *req.audit)
-	}
 	return mintedSession{accessToken: accessToken, refreshToken: refreshToken, claims: claims}, nil
 }
 
@@ -244,7 +241,13 @@ func (s *AccountAuthentication) persistSessionInTransaction(ctx context.Context,
 				slog.Int64("account_id", req.account.ID),
 				slog.Any("error", err))
 		}
-		return s.capSessionsUnlessDemo(txCtx, req.account.ID, stored)
+		if err := s.capSessionsUnlessDemo(txCtx, req.account.ID, stored); err != nil {
+			return err
+		}
+		if req.audit == nil {
+			return nil
+		}
+		return s.auditSession(txCtx, req.account.ID, *req.audit)
 	})
 	if err != nil {
 		return domain.AccountSession{}, nil, err
@@ -420,10 +423,10 @@ func (s *AccountAuthentication) requireSessionFloor(ctx context.Context, account
 	return s.requireTraegerSchoolMFA(session)
 }
 
-// auditSession records the event of a committed session. Persistence has
-// committed, so a failure is logged rather than reported: reporting it would
-// leave the caller with an issued session but no response.
-func (s *AccountAuthentication) auditSession(ctx context.Context, accountID int64, audit mintAudit) {
+// auditSession records the event of a session in the transaction that
+// persists it: no session commits without its entry (#6844), and a failed
+// entry rolls the session back.
+func (s *AccountAuthentication) auditSession(txCtx context.Context, accountID int64, audit mintAudit) error {
 	// The ledger stores the client address and requires one (ip_address is
 	// NOT NULL); a caller without it, like an in-process tool, files no event
 	// rather than an invented address.
@@ -431,17 +434,24 @@ func (s *AccountAuthentication) auditSession(ctx context.Context, accountID int6
 		s.logger.Warn("authenticated session not audited: no client address",
 			slog.Int64("account_id", accountID),
 			slog.String("event_type", audit.event))
-		return
+		return nil
 	}
-	if audit.schoolID > 0 {
-		ctx = s.runtime.WithTenantID(ctx, audit.schoolID)
+	schoolID := audit.schoolID
+	if schoolID <= 0 {
+		// The ledger is school-scoped: a session without a school files at
+		// the account's default school.
+		var err error
+		if schoolID, _, err = s.resolveAccountTenantDefault(txCtx, accountID); err != nil {
+			return fmt.Errorf("audit %s: resolve school: %w", audit.event, err)
+		}
 	}
-	if err := s.logAuthEvent(ctx, accountID, audit.event, true, audit.ipAddress, audit.userAgent, ""); err != nil {
-		s.logger.Error("failed to audit authenticated session",
-			slog.Int64("account_id", accountID),
-			slog.String("event_type", audit.event),
-			slog.Any("error", err))
+	if err := s.audit.RecordAuthEvent(txCtx, domain.AuthEvent{
+		AccountID: accountID, TenantID: schoolID, Type: audit.event, Success: true,
+		IPAddress: audit.ipAddress, UserAgent: audit.userAgent,
+	}); err != nil {
+		return fmt.Errorf("audit %s: %w", audit.event, err)
 	}
+	return nil
 }
 
 // recordTraegerSchoolSwitch needs the client address: the entry is the
