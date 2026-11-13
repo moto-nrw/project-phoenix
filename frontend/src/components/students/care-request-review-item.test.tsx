@@ -420,6 +420,22 @@ describe("CareRequestReviewItem", () => {
     );
   });
 
+  it("asks for a reload when the weekly plan changed since review", async () => {
+    mockDecide.mockRejectedValueOnce(
+      new ApiError("changed", 409, {
+        code: "students.care_request_plan_changed",
+      }),
+    );
+    render(<CareRequestReviewItem row={row()} onDecided={vi.fn()} />);
+
+    expand();
+    fireEvent.click(screen.getByRole("button", { name: "Freigeben" }));
+
+    await expectErrorToast(
+      catalogText("students.care_request_plan_changed", "die Anfrage"),
+    );
+  });
+
   it("surfaces the recovery action when approval is blocked by pickup_change_conflict", async () => {
     mockDecide.mockRejectedValueOnce(
       new ApiError("schedule: pickup change conflict", 409, {

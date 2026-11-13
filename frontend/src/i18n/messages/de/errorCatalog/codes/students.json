@@ -75,6 +75,7 @@
   "pickup_change_conflict": "Für diesen Tag hat die OGS schon etwas eingetragen. Bitte prüfen Sie den Tag.",
   "pickup_change_expired": "Der Tag liegt in der Vergangenheit. Bitte lehnen Sie {object} ab.",
   "pickup_change_impact_changed": "Der Betreuungsplan hat sich geändert. Bitte laden Sie die Seite neu.",
+  "care_request_plan_changed": "Der Betreuungsplan wurde gerade geändert. Bitte laden Sie die Seite neu. Prüfen Sie die Anfrage dann noch einmal.",
   "pickup_permission_contact_gone": "Die Person ist nicht mehr als Kontakt des Kindes eingetragen. Bitte lehnen Sie die Anfrage ab.",
   "pickup_proof_not_found": "Zu dieser Anfrage gibt es keine Unterschrift.",
   "pickup_reset_requires_offering": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",

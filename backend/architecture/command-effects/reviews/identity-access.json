@@ -3273,7 +3273,7 @@
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.CatererSecondFactor.ConfirmCatererMFA",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithTenantTx (tenant-runtime) through *modules/identityaccess/internal/application.CatererAccess.ConfirmCatererMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). An authentication event without an ambient transaction is filed in its school's tenant transaction through AccountAuthentication.ledgerUnit, the runtime's own WithTenantTx; no new unit or scope switch. Newly inventoried with the single session-mint pipeline: the event filing existed before but stayed invisible behind the owner's runtime interface (#6125). This binding was inventoried before as tenant.WithinCurrentTenant, reached only through the stored-flow union of the former mint guards; its school transaction is this tenant.WithTenantTx. Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithTenantTx (tenant-runtime) through *modules/identityaccess/internal/application.CatererAccess.ConfirmCatererMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). An authentication event without an ambient transaction is filed in its school's tenant transaction through AccountAuthentication.ledgerUnit, the runtime's own WithTenantTx; no new unit or scope switch. Newly inventoried with the single session-mint pipeline: the event filing existed before but stayed invisible behind the owner's runtime interface (#6125). This binding was inventoried before as tenant.WithinCurrentTenant, reached only through the stored-flow union of the former mint guards; its school transaction is this tenant.WithTenantTx. Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Re-reviewed #6844: a session's own event is now filed inside the mint or rotation transaction (AccountAuthentication.auditSession), so a failed entry rolls the session back; this WithTenantTx remains for events filed without an ambient transaction, such as refused attempts. Unit, scope, lock order and effect classification are unchanged.",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
@@ -3493,17 +3493,6 @@
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.CatererSignIn.FinishCatererPasskeyLogin",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithTenantTx (tenant-runtime) through *modules/identityaccess/internal/application.CatererAccess.FinishCatererPasskeyLogin. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). An authentication event without an ambient transaction is filed in its school's tenant transaction through AccountAuthentication.ledgerUnit, the runtime's own WithTenantTx; no new unit or scope switch. Newly inventoried with the single session-mint pipeline: the event filing existed before but stayed invisible behind the owner's runtime interface (#6125). This binding was inventoried before as tenant.WithinCurrentTenant, reached only through the stored-flow union of the former mint guards; its school transaction is this tenant.WithTenantTx. Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "adr": "0098",
-      "binding": "*github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.CatererAccess.FinishCatererPasskeyLogin",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.CatererSignIn.FinishCatererPasskeyLogin",
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through *modules/identityaccess/internal/application.CatererAccess.FinishCatererPasskeyLogin. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Reviewed for #4497: the caterer's second factor (sign-in, code, passkey sign-in, switching on, operator reset and its notice) runs in the module's administrative unit and the shared session mint; no new unit or scope switch. Re-reviewed for #5422: the mint and refresh paths behind this binding now carry the refresh family and the origin of its school-switch lineage into the refresh claims, and switches and the Träger Absprung record that origin on the new session under the account lock the mint already takes; this binding's unit, scope, transaction and lock order are unchanged. Re-reviewed for #5422 legacy Träger handoff deadline: source inheritance now runs in the existing locked mint transaction without retiring the Träger source; transaction participation, scope and effect classification are unchanged. Re-reviewed for the Träger handoff session cap: the session cap in the existing mint transaction now keeps the session that transaction just created and evicts among the account's other sessions; transaction participation, scope, lock order and effect classification are unchanged. Re-reviewed for #5981: the operator row write in this binding's evidence (Service.UpdateOperator) now takes the operator row lock with its read and applies its change to the locked row, inside the administrative unit it already joined, so a concurrent deactivation or password rotation is not reverted; transaction participation, scope, lock order and effect classification are unchanged. Re-reviewed for the closed portal table: the portal scope checks behind this binding read the table instead of literal scope strings, with identical values; unit, scope, transaction, lock order and effect classification are unchanged. Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",
@@ -3603,7 +3592,7 @@
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.CatererSignIn.VerifyCatererMFA",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithTenantTx (tenant-runtime) through *modules/identityaccess/internal/application.CatererAccess.VerifyCatererMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). An authentication event without an ambient transaction is filed in its school's tenant transaction through AccountAuthentication.ledgerUnit, the runtime's own WithTenantTx; no new unit or scope switch. Newly inventoried with the single session-mint pipeline: the event filing existed before but stayed invisible behind the owner's runtime interface (#6125). This binding was inventoried before as tenant.WithinCurrentTenant, reached only through the stored-flow union of the former mint guards; its school transaction is this tenant.WithTenantTx. Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
+      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithTenantTx (tenant-runtime) through *modules/identityaccess/internal/application.CatererAccess.VerifyCatererMFA. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). An authentication event without an ambient transaction is filed in its school's tenant transaction through AccountAuthentication.ledgerUnit, the runtime's own WithTenantTx; no new unit or scope switch. Newly inventoried with the single session-mint pipeline: the event filing existed before but stayed invisible behind the owner's runtime interface (#6125). This binding was inventoried before as tenant.WithinCurrentTenant, reached only through the stored-flow union of the former mint guards; its school transaction is this tenant.WithTenantTx. Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters. Re-reviewed #6844: a session's own event is now filed inside the mint or rotation transaction (AccountAuthentication.auditSession), so a failed entry rolls the session back; this WithTenantTx remains for events filed without an ambient transaction, such as refused attempts. Unit, scope, lock order and effect classification are unchanged.",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
@@ -12420,17 +12409,6 @@
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.StartTraegerSchoolSession",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithTenantTx (tenant-runtime) through modules/identityaccess/internal/application.engine.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). An authentication event without an ambient transaction is filed in its school's tenant transaction through AccountAuthentication.ledgerUnit, the runtime's own WithTenantTx; no new unit or scope switch. Newly inventoried with the single session-mint pipeline: the event filing existed before but stayed invisible behind the owner's runtime interface (#6125). This binding was inventoried before as tenant.WithinCurrentTenant, reached only through the stored-flow union of the former mint guards; its school transaction is this tenant.WithTenantTx. Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "adr": "0098",
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.StartTraegerSchoolSession",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.StartTraegerSchoolSession",
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged. Re-reviewed for #5422: the mint and refresh paths behind this binding now carry the refresh family and the origin of its school-switch lineage into the refresh claims, and switches and the Träger Absprung record that origin on the new session under the account lock the mint already takes; this binding's unit, scope, transaction and lock order are unchanged. Re-reviewed for #5422 legacy Träger handoff deadline: source inheritance now runs in the existing locked mint transaction without retiring the Träger source; transaction participation, scope and effect classification are unchanged. Re-reviewed for the Träger handoff session cap: the session cap in the existing mint transaction now keeps the session that transaction just created and evicts among the account's other sessions; transaction participation, scope, lock order and effect classification are unchanged. Re-reviewed for #5981: the operator row write in this binding's evidence (Service.UpdateOperator) now takes the operator row lock with its read and applies its change to the locked row, inside the administrative unit it already joined, so a concurrent deactivation or password rotation is not reverted; transaction participation, scope, lock order and effect classification are unchanged. Re-reviewed for the closed portal table: the portal scope checks behind this binding read the table instead of literal scope strings, with identical values; unit, scope, transaction, lock order and effect classification are unchanged. Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",
@@ -12464,17 +12442,6 @@
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.SwitchSchool",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithTenantTx (tenant-runtime) through modules/identityaccess/internal/application.engine.SwitchSchool. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). An authentication event without an ambient transaction is filed in its school's tenant transaction through AccountAuthentication.ledgerUnit, the runtime's own WithTenantTx; no new unit or scope switch. Newly inventoried with the single session-mint pipeline: the event filing existed before but stayed invisible behind the owner's runtime interface (#6125). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "adr": "0098",
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.SwitchSchool",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.SwitchSchool",
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess/internal/application.engine.SwitchSchool. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). The account session mint and the refresh rotation open their administrative transaction through AccountAuthentication.mintUnit, the runtime's own WithAdminTx; no new unit or scope switch. Newly inventoried with the single session-mint pipeline: the transaction existed before but stayed invisible behind the owner's runtime interface (#6125). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",
@@ -12500,17 +12467,6 @@
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.RegisterAfterCommit (tenant-runtime) through modules/identityaccess/internal/application.engine.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.RegisterAfterCommit",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "adr": "0098",
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application.engine.SwitchTenant",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.SwitchTenant",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithTenantTx (tenant-runtime) through modules/identityaccess/internal/application.engine.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). An authentication event without an ambient transaction is filed in its school's tenant transaction through AccountAuthentication.ledgerUnit, the runtime's own WithTenantTx; no new unit or scope switch. Newly inventoried with the single session-mint pipeline: the event filing existed before but stayed invisible behind the owner's runtime interface (#6125). This binding was inventoried before as tenant.WithinCurrentTenant, reached only through the stored-flow union of the former mint guards; its school transaction is this tenant.WithTenantTx. Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -13809,17 +13765,6 @@
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.RegisterAfterCommit (tenant-runtime) through modules/identityaccess.Owner.SwitchSchool. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.RegisterAfterCommit",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "adr": "0098",
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.SwitchSchool",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.SchoolAccountLogin.SwitchSchool",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithTenantTx (tenant-runtime) through modules/identityaccess.Owner.SwitchSchool. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). An authentication event without an ambient transaction is filed in its school's tenant transaction through AccountAuthentication.ledgerUnit, the runtime's own WithTenantTx; no new unit or scope switch. Newly inventoried with the single session-mint pipeline: the event filing existed before but stayed invisible behind the owner's runtime interface (#6125). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -15590,17 +15535,6 @@
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.RegisterAfterCommit (tenant-runtime) through api.TraegerPortalIdentity.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.RegisterAfterCommit",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "adr": "0098",
-      "binding": "github.com/moto-ogs/project-phoenix/api.TraegerPortalIdentity.StartTraegerSchoolSession",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess.TraegerSchoolSessions.StartTraegerSchoolSession",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithTenantTx (tenant-runtime) through api.TraegerPortalIdentity.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). An authentication event without an ambient transaction is filed in its school's tenant transaction through AccountAuthentication.ledgerUnit, the runtime's own WithTenantTx; no new unit or scope switch. Newly inventoried with the single session-mint pipeline: the event filing existed before but stayed invisible behind the owner's runtime interface (#6125). This binding was inventoried before as tenant.WithinCurrentTenant, reached only through the stored-flow union of the former mint guards; its school transaction is this tenant.WithTenantTx. Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {
@@ -18638,17 +18572,6 @@
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.StartTraegerSchoolSession",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithTenantTx (tenant-runtime) through modules/identityaccess.Owner.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). An authentication event without an ambient transaction is filed in its school's tenant transaction through AccountAuthentication.ledgerUnit, the runtime's own WithTenantTx; no new unit or scope switch. Newly inventoried with the single session-mint pipeline: the event filing existed before but stayed invisible behind the owner's runtime interface (#6125). This binding was inventoried before as tenant.WithinCurrentTenant, reached only through the stored-flow union of the former mint guards; its school transaction is this tenant.WithTenantTx. Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "adr": "0098",
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.StartTraegerSchoolSession",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.StartTraegerSchoolSession",
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.StartTraegerSchoolSession. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). Re-reviewed for #4496: the shared global identity read (globalIdentityRead) this binding enters now also runs the caterer's own password change (CatererAccess.changePassword); this binding's unit, scope and transaction are unchanged. Re-reviewed for #4497: the binding now also serves the caterer's second factor, which names no school (tenant 0); its zero-school trusted-device and lockout reads resolve the registry default on a context without a school, and the caterer sign-in and its code mint through the same session mint and global identity read; the effect, unit and scope are unchanged. Re-reviewed for #5422: the mint and refresh paths behind this binding now carry the refresh family and the origin of its school-switch lineage into the refresh claims, and switches and the Träger Absprung record that origin on the new session under the account lock the mint already takes; this binding's unit, scope, transaction and lock order are unchanged. Re-reviewed for #5422 legacy Träger handoff deadline: source inheritance now runs in the existing locked mint transaction without retiring the Träger source; transaction participation, scope and effect classification are unchanged. Re-reviewed for the Träger handoff session cap: the session cap in the existing mint transaction now keeps the session that transaction just created and evicts among the account's other sessions; transaction participation, scope, lock order and effect classification are unchanged. Re-reviewed for #5981: the operator row write in this binding's evidence (Service.UpdateOperator) now takes the operator row lock with its read and applies its change to the locked row, inside the administrative unit it already joined, so a concurrent deactivation or password rotation is not reverted; transaction participation, scope, lock order and effect classification are unchanged. Re-reviewed for the closed portal table: the portal scope checks behind this binding read the table instead of literal scope strings, with identical values; unit, scope, transaction, lock order and effect classification are unchanged. Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",
@@ -18682,17 +18605,6 @@
       "classification": "platform",
       "effect": "scope",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.SwitchSchool",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithTenantTx (tenant-runtime) through modules/identityaccess.Owner.SwitchSchool. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). An authentication event without an ambient transaction is filed in its school's tenant transaction through AccountAuthentication.ledgerUnit, the runtime's own WithTenantTx; no new unit or scope switch. Newly inventoried with the single session-mint pipeline: the event filing existed before but stayed invisible behind the owner's runtime interface (#6125). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "adr": "0098",
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.SwitchSchool",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.SwitchSchool",
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithinAdmin (tenant-runtime) through modules/identityaccess.Owner.SwitchSchool. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). The account session mint and the refresh rotation open their administrative transaction through AccountAuthentication.mintUnit, the runtime's own WithAdminTx; no new unit or scope switch. Newly inventoried with the single session-mint pipeline: the transaction existed before but stayed invisible behind the owner's runtime interface (#6125). Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.WithinAdmin",
@@ -18718,17 +18630,6 @@
       "reason": "Platform protocol participation (scope): identity-access reaches tenant.RegisterAfterCommit (tenant-runtime) through modules/identityaccess.Owner.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098); newly attributed to this port by #6125 owner-internal interface resolution (ADR 0176).",
       "source_owner": "identity-access",
       "target": "github.com/moto-ogs/project-phoenix/tenant.RegisterAfterCommit",
-      "target_owner": "tenant-runtime"
-    },
-    {
-      "adr": "0098",
-      "binding": "github.com/moto-ogs/project-phoenix/modules/identityaccess.Owner.SwitchTenant",
-      "classification": "platform",
-      "effect": "scope",
-      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account.AccountSessions.SwitchTenant",
-      "reason": "Platform protocol participation (scope): identity-access reaches tenant.WithTenantTx (tenant-runtime) through modules/identityaccess.Owner.SwitchTenant. The caller enters the platform contract inside its own unit; transaction, savepoint, after-commit and lock-order correctness stay with the platform behavior tests (ADR 0098). An authentication event without an ambient transaction is filed in its school's tenant transaction through AccountAuthentication.ledgerUnit, the runtime's own WithTenantTx; no new unit or scope switch. Newly inventoried with the single session-mint pipeline: the event filing existed before but stayed invisible behind the owner's runtime interface (#6125). This binding was inventoried before as tenant.WithinCurrentTenant, reached only through the stored-flow union of the former mint guards; its school transaction is this tenant.WithTenantTx. Re-reviewed #6125 (ADR 0176): the binding evidence now includes the owner composition adapter or owner-internal unit of work this binding enters.",
-      "source_owner": "identity-access",
-      "target": "github.com/moto-ogs/project-phoenix/tenant.WithTenantTx",
       "target_owner": "tenant-runtime"
     },
     {

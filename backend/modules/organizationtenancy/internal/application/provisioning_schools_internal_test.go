@@ -85,7 +85,8 @@ func TestProvisioningCreateSchool(t *testing.T) {
 		assert.Len(t, h.audit.entries, 1)
 	})
 
-	t.Run("audit failure does not fail the creation", func(t *testing.T) {
+	// The school commits only with its operator audit entry (#6844).
+	t.Run("audit failure fails the creation", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		h.addOrg(1, "Talent", "talent", false)
@@ -93,9 +94,10 @@ func TestProvisioningCreateSchool(t *testing.T) {
 
 		created, err := h.svc.CreateSchool(context.Background(), validCreateSchool(1), testOperatorID, operatorIP)
 
-		require.NoError(t, err)
-		require.NotNil(t, created)
-		assert.Contains(t, h.logs.String(), "failed to create operator audit log")
+		require.ErrorIs(t, err, errBoom)
+		var unavailable *organizationtenancy.OperatorAuditUnavailableError
+		require.ErrorAs(t, err, &unavailable)
+		assert.Nil(t, created)
 	})
 
 	t.Run("nil input", func(t *testing.T) {
@@ -430,7 +432,8 @@ func TestProvisioningUpdateSchool(t *testing.T) {
 		assert.False(t, h.engine.called("FindSchoolBySubdomain"))
 	})
 
-	t.Run("audit failure does not fail the update", func(t *testing.T) {
+	// The update commits only with its operator audit entry (#6844).
+	t.Run("audit failure fails the update", func(t *testing.T) {
 		t.Parallel()
 		h := newHarness(t)
 		h.addOrg(1, "Talent", "talent", false)
@@ -439,8 +442,8 @@ func TestProvisioningUpdateSchool(t *testing.T) {
 
 		updated, err := h.svc.UpdateSchool(context.Background(), 10, schoolChanges(1), testOperatorID, operatorIP)
 
-		require.NoError(t, err)
-		require.NotNil(t, updated)
+		require.ErrorIs(t, err, errBoom)
+		assert.Nil(t, updated)
 	})
 
 	for name, tc := range map[string]struct {
@@ -790,6 +793,17 @@ func TestProvisioningRestoreSchool(t *testing.T) {
 		assert.False(t, h.engine.schools[10].Active)
 		entry := h.onlyAudit(t, domain.AuditActionRestore, domain.AuditResourceSchool, 10)
 		assert.Equal(t, map[string]any{"name": "Burbach", "slug": "burbach", "subdomain": "burbach"}, auditChanges(t, entry))
+	})
+
+	t.Run("audit failure fails the transaction", func(t *testing.T) {
+		t.Parallel()
+		h := newHarness(t)
+		h.addOrg(1, "Talent", "talent", false)
+		h.addSchool(10, 1, "Burbach", "burbach").DeletedAt = deletedNow()
+		h.audit.err = errBoom
+
+		require.ErrorIs(t, h.svc.RestoreSchool(context.Background(), 10, testOperatorID, operatorIP), errBoom)
+		assert.ErrorIs(t, h.tx.lastErr, errBoom)
 	})
 
 	deletedSchool := func(h *provisioningHarness) {

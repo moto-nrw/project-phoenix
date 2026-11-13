@@ -1,6 +1,7 @@
 package common
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -26,6 +27,15 @@ func RenderError(w http.ResponseWriter, r *http.Request, renderer render.Rendere
 		if _, rejected := asInputRejection(errResp.Err); rejected {
 			renderer = ErrorInputRejection(errResp.Err)
 		}
+	}
+	// A request the client canceled is no server error: the failure is the
+	// disconnect, so it answers 499 and reaches neither Sentry nor the ERROR
+	// log. The 5xx it replaces rolled the request transaction back, and so
+	// does this answer.
+	if errResp, ok := renderer.(*ErrResponse); ok && errResp.HTTPStatusCode >= 500 &&
+		errors.Is(errResp.Err, context.Canceled) && r.Context().Err() != nil {
+		tenant.MarkRollback(r.Context())
+		renderer = ErrorClientClosed(errResp.Err)
 	}
 	// A rejected operation may already have written its first rows (a person
 	// before the refused membership). The request transaction commits every

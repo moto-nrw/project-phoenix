@@ -169,3 +169,33 @@ func TestIntegration_UpdateAccountTenantRole_RemovesTheRoleOnlyAtThatSchool(t *t
 	require.NoError(t, err)
 	assert.Equal(t, 1, homeAdmins)
 }
+
+// A school-access grant that cannot write its operator audit entry changes
+// nothing: the mapping and its role roll back with the failed entry (#6844).
+func TestIntegration_GrantAccountTenantAccess_RollsBackWhenTheOperatorAuditFails(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	ctx := context.Background()
+
+	service := buildOperatorAccountAccess(t, db)
+	account, cleanupAccount := setupAccessTestAccount(t, db)
+	defer cleanupAccount()
+	operator := testpkg.CreateTestOperator(t, db)
+	target := accessTargetTenantID(t)
+	_, err := db.NewRaw(`ALTER TABLE platform.operator_audit_log ADD CONSTRAINT reject_access_audit_test CHECK (resource_type <> 'account_tenant')`).Exec(ctx)
+	require.NoError(t, err)
+	before, err := service.ListAccountTenantAccess(ctx, account.ID)
+	require.NoError(t, err)
+
+	_, err = service.GrantAccountTenantAccess(ctx, account.ID, target,
+		accessGrant{RoleID: systemRoleID(t, db, "admin")}, operator.ID, testClientIP)
+
+	require.ErrorIs(t, err, identityaccess.ErrOperatorAuditUnavailable)
+	after, err := service.ListAccountTenantAccess(ctx, account.ID)
+	require.NoError(t, err)
+	assert.Equal(t, before, after, "the grant rolls back with its audit entry")
+	var events int
+	require.NoError(t, db.NewRaw(`SELECT count(*) FROM audit.auth_events WHERE account_id = ? AND event_type = ?`,
+		account.ID, "tenant_access_granted").Scan(ctx, &events))
+	assert.Zero(t, events, "the school's ledger keeps no grant that did not happen")
+}

@@ -194,6 +194,12 @@ credentials, undeleted records and rolled-back session revocations. See
 extraction would not improve this bounded audit invariant and remains separate
 from this correction. Other E5 best-effort/post-commit paths stay unchanged.
 
+#6844 applies the same rule to school creation, update and restore, device
+creation and the school-admin invitation: each returns its audit failure from
+its administrative transaction. The school-account creation keeps its
+post-commit audit, because its tenant unit cannot hold the administrative
+append (#6984).
+
 ### E2 lock-order correction (#4636)
 
 The two-connection regression in `api/care_exit_lock_order_test.go` reproduces

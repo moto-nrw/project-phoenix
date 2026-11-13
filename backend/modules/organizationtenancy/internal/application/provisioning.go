@@ -232,17 +232,9 @@ func (p *Provisioning) RestoreOrganization(ctx context.Context, organizationID, 
 	})
 }
 
-// logAction records the action and only logs a failure: the provisioning
-// write stands even when its audit entry cannot be written.
-func (p *Provisioning) logAction(ctx context.Context, operatorID int64, action, resourceType string, resourceID *int64, clientIP net.IP, changes map[string]any) {
-	if err := p.recordAction(ctx, operatorID, action, resourceType, resourceID, clientIP, changes); err != nil {
-		p.logger.Error("failed to create operator audit log",
-			slog.Any("error", err),
-			slog.String("resource_type", resourceType),
-		)
-	}
-}
-
+// recordAction writes the operator audit entry in the caller's
+// administrative unit. A failure fails the provisioning write, which then
+// rolls back with it (#6844).
 func (p *Provisioning) recordAction(ctx context.Context, operatorID int64, action, resourceType string, resourceID *int64, clientIP net.IP, changes map[string]any) error {
 	entry := domain.OperatorAuditEntry{
 		OperatorID: operatorID, Action: action, ResourceType: resourceType,
