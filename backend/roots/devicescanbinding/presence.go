@@ -104,6 +104,9 @@ func (v visits) Record(ctx context.Context, studentID, sessionID int64) (int64, 
 		if errors.Is(err, studentpresence.ErrStudentGraduated) || errors.Is(err, studentpresence.ErrStudentCareEnded) {
 			return 0, mapError(err, ports.ErrStudentNotInCare)
 		}
+		if errors.Is(err, studentpresence.ErrGroupNotFound) {
+			return 0, mapError(err, ports.ErrSessionEnded)
+		}
 		return 0, err
 	}
 	return visit.ID, nil

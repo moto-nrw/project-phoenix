@@ -200,21 +200,9 @@ func (s *Service) processCheckin(ctx context.Context, student *ports.Student, pe
 		return nil, nil, err
 	}
 
-	selection, err := s.findOrCreateSessionForRoom(ctx, room, student.ID, deviceID)
+	visitID, selection, err := s.recordInRoomSession(ctx, room, student.ID, deviceID)
 	if err != nil {
 		return nil, nil, err
-	}
-	if err := validateActivitySession(&selection.Session); err != nil {
-		return nil, nil, err
-	}
-
-	s.logger.DebugContext(ctx, "creating visit for student",
-		slog.Int64("student_id", student.ID),
-		slog.Int64("active_group_id", selection.Session.ID),
-	)
-	visitID, err := s.visits.Record(ctx, student.ID, selection.Session.ID)
-	if err != nil {
-		return nil, nil, s.classifyRecordFailure(ctx, student.ID, selection, err)
 	}
 
 	s.logger.InfoContext(ctx, "checked in student",
@@ -225,10 +213,42 @@ func (s *Service) processCheckin(ctx context.Context, student *ports.Student, pe
 	return &visitID, selection, nil
 }
 
+// recordInRoomSession selects the room's session and opens the visit in it.
+// The visit locks the session only when it writes, so the session may have
+// ended while the scan waited for that lock. The scan then resolves the room
+// once more and gets the answer a scan after the end gets (#7024).
+func (s *Service) recordInRoomSession(ctx context.Context, room facilities.Room, studentID, deviceID int64) (int64, *selectedSession, error) {
+	for attempt := 0; ; attempt++ {
+		selection, err := s.findOrCreateSessionForRoom(ctx, room, studentID, deviceID)
+		if err != nil {
+			return 0, nil, err
+		}
+		if err := validateActivitySession(&selection.Session); err != nil {
+			return 0, nil, err
+		}
+		s.logger.DebugContext(ctx, "creating visit for student",
+			slog.Int64("student_id", studentID),
+			slog.Int64("active_group_id", selection.Session.ID),
+		)
+		visitID, err := s.visits.Record(ctx, studentID, selection.Session.ID)
+		if err == nil {
+			return visitID, selection, nil
+		}
+		if attempt > 0 || !errors.Is(err, ports.ErrSessionEnded) {
+			return 0, nil, s.classifyRecordFailure(ctx, studentID, selection, err)
+		}
+		s.logger.InfoContext(ctx, "check-in session ended before the visit, resolving the room again",
+			slog.Int64("student_id", studentID),
+			slog.Int64("active_group_id", selection.Session.ID),
+		)
+	}
+}
+
 // classifyRecordFailure maps a refused visit to the kiosk contract: a full
 // room drops the session this scan provisioned, a duplicate scan carries
-// the existing stay, a departed child is "not a student", and everything
-// else is the pinned create failure.
+// the existing stay, a departed child is "not a student", a session that
+// ended again leaves the room without one, and everything else is the
+// pinned create failure.
 func (s *Service) classifyRecordFailure(ctx context.Context, studentID int64, selection *selectedSession, err error) error {
 	if activityCapacity, ok := errors.AsType[*devicescan.ActivityCapacityExceededError](err); ok {
 		refusal := *activityCapacity
@@ -252,6 +272,13 @@ func (s *Service) classifyRecordFailure(ctx context.Context, studentID int64, se
 			slog.Int64("student_id", studentID),
 		)
 		return devicescan.NotFoundWithCode(devicescan.MessagePersonNotStudent, devicescan.CodePersonNotStudent)
+	}
+	if errors.Is(err, ports.ErrSessionEnded) {
+		s.logger.InfoContext(ctx, "check-in rejected: room session ended again",
+			slog.Int64("student_id", studentID),
+			slog.Int64("active_group_id", selection.Session.ID),
+		)
+		return devicescan.NotFoundWithCode(devicescan.MessageNoGroupsInRoom, devicescan.CodeNoGroupsInRoom)
 	}
 	s.logger.ErrorContext(ctx, "failed to create visit",
 		slog.Int64("student_id", studentID),
