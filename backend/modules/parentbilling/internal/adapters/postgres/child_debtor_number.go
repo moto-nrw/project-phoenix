@@ -139,6 +139,34 @@ func (s *Store) DeleteChildDebtorNumber(ctx context.Context, organizationID, acc
 	return &number, nil
 }
 
+// ExtendChildDebtorNumbers moves the last day each number is needed to the
+// later of the stored one and the given one, in one statement; the numbers
+// stay as they are (#7007).
+func (s *Store) ExtendChildDebtorNumbers(ctx context.Context, organizationID int64, numbers []parentbilling.ChildDebtorNumber) error {
+	if len(numbers) == 0 {
+		return nil
+	}
+	db, err := traegerDB(ctx, organizationID)
+	if err != nil {
+		return err
+	}
+	emails, keys, days := make([]string, len(numbers)), make([]string, len(numbers)), make([]string, len(numbers))
+	for i, number := range numbers {
+		emails[i] = parentbilling.FamilyKey(number.FamilyEmail)
+		keys[i] = parentbilling.ChildKey(number.ChildFirstName, number.ChildLastName, number.ChildBirthDate)
+		days[i] = number.LastUsedOn.String()
+	}
+	if _, err := db.NewRaw(`UPDATE parent_billing.child_debtor_numbers AS child
+		SET last_used_on = GREATEST(child.last_used_on, needed.used_on)
+		FROM unnest(?1::text[], ?2::text[], ?3::date[]) AS needed(email, child_key, used_on)
+		WHERE child.organization_id = ?0 AND child.family_email = needed.email AND child.child_key = needed.child_key
+			AND needed.used_on > child.last_used_on`,
+		organizationID, pgdialect.Array(emails), pgdialect.Array(keys), pgdialect.Array(days)).Exec(ctx); err != nil {
+		return fmt.Errorf("extend the debtor numbers of the children: %w", err)
+	}
+	return nil
+}
+
 // InsertChildDebtorNumberEvents records one action of the trail for each
 // number in one statement.
 func (s *Store) InsertChildDebtorNumberEvents(ctx context.Context, organizationID, accountID int64, action string,

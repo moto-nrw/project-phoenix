@@ -274,6 +274,9 @@ func childNumbersToSet(candidates []importCandidate) []parentbilling.ChildDebtor
 // records the change in the trail of the number.
 func (m *SEPAMandates) saveChildNumbers(ctx context.Context, reviewer parentbilling.HolidayReviewer, candidates []importCandidate) error {
 	set := childNumbersToSet(candidates)
+	if err := m.store.ExtendChildDebtorNumbers(ctx, reviewer.OrganizationID, childNumbersToExtend(candidates)); err != nil {
+		return fmt.Errorf("parent billing: keep the debtor numbers of the children: %w", err)
+	}
 	if len(set) == 0 {
 		return nil
 	}
@@ -285,4 +288,25 @@ func (m *SEPAMandates) saveChildNumbers(ctx context.Context, reviewer parentbill
 		return fmt.Errorf("parent billing: record the debtor numbers of the children: %w", err)
 	}
 	return nil
+}
+
+// childNumbersToExtend are the children the file names whose stored number
+// it confirms or leaves: their contracts still need it, until the latest end
+// the import knows, whatever the number of the row.
+func childNumbersToExtend(candidates []importCandidate) []parentbilling.ChildDebtorNumber {
+	var extend []parentbilling.ChildDebtorNumber
+	seen := map[string]bool{}
+	for _, candidate := range candidates {
+		key := importChildKey(candidate)
+		status := candidate.row.DebtorNumberStatus
+		if !candidate.perChild || key == "" || candidate.until.IsZero() || seen[key] ||
+			(status != parentbilling.DebtorNumberSame && status != parentbilling.DebtorNumberDiffers) {
+			continue
+		}
+		seen[key] = true
+		child := candidate.child
+		extend = append(extend, parentbilling.ChildDebtorNumber{FamilyEmail: candidate.family, ChildFirstName: child.FirstName,
+			ChildLastName: child.LastName, ChildBirthDate: child.BirthDate, LastUsedOn: candidate.until})
+	}
+	return extend
 }

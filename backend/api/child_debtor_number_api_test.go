@@ -192,6 +192,16 @@ func TestSEPAMandateImportTakesOverDebtorNumbersPerChild(t *testing.T) {
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
 	assert.Contains(t, rec.Body.String(), `"debtor_number_status":"same"`)
 	assert.Equal(t, before+2, countReads(), "comparing with the stored numbers is in their trail")
+
+	_, err := f.db.ExecContext(context.Background(), `UPDATE parent_billing.child_debtor_numbers SET last_used_on = '2020-01-01'
+		WHERE organization_id = ?`, f.office.organization)
+	require.NoError(t, err)
+	rec = applyImport(t, f.traeger, f.office.token, "ogs.csv", []byte(byContract), fields)
+	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
+	var oldest string
+	require.NoError(t, f.db.NewRaw(`SELECT MIN(last_used_on)::text FROM parent_billing.child_debtor_numbers WHERE organization_id = ?`,
+		f.office.organization).Scan(context.Background(), &oldest))
+	assert.Greater(t, oldest, careMonth, "importing a stored number again keeps it until its contract ends")
 	var familyNumbers int
 	require.NoError(t, f.db.NewRaw(`SELECT COUNT(*) FROM parent_billing.family_billing WHERE organization_id = ? AND debtor_number IS NOT NULL`,
 		f.office.organization).Scan(context.Background(), &familyNumbers))
