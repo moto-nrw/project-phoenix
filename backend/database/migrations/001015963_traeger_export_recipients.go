@@ -7,15 +7,15 @@ import (
 	"github.com/uptrace/bun"
 )
 
-const traegerExportRecipientsVersion = "1.15.962"
+const traegerExportRecipientsVersion = "1.15.963"
 
 func init() {
 	MigrationRegistry.Register(&Migration{
 		Version:     traegerExportRecipientsVersion,
-		Description: "Export Transfer mit mehreren Empfängern je Träger und einem Empfänger je Exportformat (#6911, ADR 0221)",
+		Description: "Export Transfer mit mehreren Empfängern je Träger und einem Empfänger je Exportformat (#6911, ADR 0222)",
 		DependsOn: []string{
-			accountTraegerParentAccessFactVersion, // the newest migration on development (1.15.961)
-			traegerExportTransferVersion,          // the one recipient, the journal and the handovers this one extends
+			workTimeModelArchiveVersion,  // the newest migration on development (1.15.962)
+			traegerExportTransferVersion, // the one recipient, the journal and the handovers this one extends
 		},
 	})
 	Migrations.MustRegister(traegerExportRecipientsUp, traegerExportRecipientsDown)
@@ -23,7 +23,7 @@ func init() {
 
 // traegerExportRecipientsUpSQL lets a Träger keep several recipients of its
 // finance exports and send each export format to exactly one of them (#6911,
-// ADR 0221, extending ADR 0218).
+// ADR 0222, extending ADR 0218).
 //
 //   - config.traeger_export_recipients gets an id and a name of its own; the
 //     Träger is no longer its key. The existing recipient keeps its values
@@ -52,9 +52,12 @@ ALTER TABLE config.traeger_export_recipients
 	ADD CONSTRAINT uq_traeger_export_recipients_organization_id UNIQUE (organization_id, id),
 	ADD CONSTRAINT chk_traeger_export_recipients_name CHECK (
 		name = btrim(name) AND char_length(name) BETWEEN 1 AND 80 AND name !~ '[[:cntrl:]]');
-CREATE UNIQUE INDEX uq_traeger_export_recipients_name ON config.traeger_export_recipients (organization_id, lower(name));
+-- Case-folded with the built-in ICU root collation, so „KÄMMEREI“ and
+-- „Kämmerei“ clash whatever the locale of the server.
+CREATE UNIQUE INDEX uq_traeger_export_recipients_name ON config.traeger_export_recipients
+	(organization_id, lower(name COLLATE "und-x-icu"));
 COMMENT ON TABLE config.traeger_export_recipients IS
-	'The recipients of the finance exports of a Träger (#6824, #6911, ADR 0218, ADR 0221): name, SFTP address, user, sealed password, directory and host key fingerprint.';
+	'The recipients of the finance exports of a Träger (#6824, #6911, ADR 0218, ADR 0222): name, SFTP address, user, sealed password, directory and host key fingerprint.';
 
 CREATE TABLE config.traeger_export_recipient_formats (
 	organization_id BIGINT NOT NULL REFERENCES platform.organizations(id) ON DELETE CASCADE,
@@ -69,7 +72,7 @@ CREATE TABLE config.traeger_export_recipient_formats (
 );
 CREATE INDEX idx_traeger_export_recipient_formats_recipient ON config.traeger_export_recipient_formats (organization_id, recipient_id);
 COMMENT ON TABLE config.traeger_export_recipient_formats IS
-	'Which recipient of a Träger receives which finance export format (#6911, ADR 0221); a format without a row is downloaded only.';
+	'Which recipient of a Träger receives which finance export format (#6911, ADR 0222); a format without a row is downloaded only.';
 INSERT INTO config.traeger_export_recipient_formats (organization_id, export_format, recipient_id, updated_by_account_id, updated_at)
 SELECT recipient.organization_id, format.export_format, recipient.id, recipient.updated_by_account_id, recipient.updated_at
 FROM config.traeger_export_recipients AS recipient

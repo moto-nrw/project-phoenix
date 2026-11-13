@@ -12,7 +12,7 @@ import (
 )
 
 // Transfer hands one finance export of a Träger to the recipient of its
-// format (ADR 0218 section 5, ADR 0221). Each step commits in its own Träger transaction, apart from
+// format (ADR 0218 section 5, ADR 0222). Each step commits in its own Träger transaction, apart from
 // any request transaction:
 //
 //  1. intent: resolve the recipient, let the producer make and record the
@@ -138,7 +138,7 @@ func (s *TraegerService) send(ctx context.Context, request exporttransfer.Traege
 }
 
 // RecipientRekey re-seals the recipient passwords of one Träger on the
-// active bank key (ADR 0183, ADR 0218 section 3, ADR 0221). It runs in the
+// active bank key (ADR 0183, ADR 0218 section 3, ADR 0222). It runs in the
 // Träger transaction the maintenance command opens.
 type RecipientRekey struct {
 	Recipients ports.RecipientStore

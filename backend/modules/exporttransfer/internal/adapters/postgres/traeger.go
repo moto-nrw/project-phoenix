@@ -13,7 +13,7 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/domain"
 )
 
-// The Träger scope (ADR 0218, ADR 0221): config.traeger_export_recipients,
+// The Träger scope (ADR 0218, ADR 0222): config.traeger_export_recipients,
 // config.traeger_export_recipient_formats and audit.traeger_export_transfers. Every statement runs in the Träger
 // transaction of the organization it names and filters by that Träger
 // itself: below row level security the filter alone keeps a Träger to its
@@ -104,7 +104,7 @@ const (
 			WHERE journal.organization_id = recipient.organization_id AND journal.recipient_id = recipient.id
 			ORDER BY journal.created_at DESC, journal.id DESC LIMIT 1) AS last ON true
 		WHERE recipient.organization_id = ?
-		ORDER BY lower(recipient.name), recipient.id`
+		ORDER BY recipient.name COLLATE "und-x-icu", recipient.id`
 	selectRecipientForFormat = `SELECT ` + recipientColumns + ` FROM config.traeger_export_recipient_formats AS assignment
 		JOIN config.traeger_export_recipients AS recipient
 			ON recipient.organization_id = assignment.organization_id AND recipient.id = assignment.recipient_id
@@ -224,7 +224,7 @@ func (s *TraegerStore) InsertRecipient(ctx context.Context, recipient domain.Sto
 	err = db.NewRaw(`INSERT INTO config.traeger_export_recipients
 		(organization_id, name, enabled, host, port, username, password_sealed, remote_directory, host_key_fingerprint, updated_by_account_id)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		ON CONFLICT (organization_id, lower(name)) DO NOTHING RETURNING id`,
+		ON CONFLICT (organization_id, lower(name COLLATE "und-x-icu")) DO NOTHING RETURNING id`,
 		recipient.OrganizationID, recipient.Name, recipient.Enabled, recipient.Host, recipient.Port, recipient.Username,
 		recipient.SealedPassword, recipient.RemoteDirectory, recipient.HostKeyFingerprint, actorOf(actorAccountID)).Scan(ctx, &id)
 	if errors.Is(err, sql.ErrNoRows) {
@@ -250,7 +250,8 @@ func (s *TraegerStore) UpdateRecipient(ctx context.Context, recipient domain.Sto
 	}
 	if err := db.NewRaw(`WITH taken AS (
 			SELECT 1 FROM config.traeger_export_recipients AS other
-			WHERE other.organization_id = ?0 AND lower(other.name) = lower(?2) AND other.id <> ?1),
+			WHERE other.organization_id = ?0 AND lower(other.name COLLATE "und-x-icu") = lower(?2 COLLATE "und-x-icu")
+				AND other.id <> ?1),
 		updated AS (
 			UPDATE config.traeger_export_recipients SET name = ?2, enabled = ?3, host = ?4, port = ?5, username = ?6,
 				password_sealed = ?7, remote_directory = ?8, host_key_fingerprint = ?9, updated_by_account_id = ?10,

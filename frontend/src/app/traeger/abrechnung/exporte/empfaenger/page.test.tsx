@@ -13,7 +13,7 @@ import type {
 } from "~/lib/traeger-export-handovers-api";
 import TraegerExportRecipientsPage from "./page";
 
-// The recipients of the finance exports (#6911, ADR 0221): each file goes to
+// The recipients of the finance exports (#6911, ADR 0222): each file goes to
 // exactly one recipient or stays a download, the assignment is saved as a
 // whole, every recipient shows its state, and the handovers name their
 // recipient.

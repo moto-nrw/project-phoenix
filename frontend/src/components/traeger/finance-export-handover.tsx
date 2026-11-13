@@ -1,7 +1,7 @@
 "use client";
 
 // Handover of a finance export to the recipient of its format (#6824, ADR
-// 0218; #6911, ADR 0221) on the export page and on the page of the debit
+// 0218; #6911, ADR 0222) on the export page and on the page of the debit
 // file: the menu „Übergeben“ of a run, the result of the last handover above
 // the list, and the question before a file goes to the same recipient a
 // second time. The file is made like a download, with its own number and

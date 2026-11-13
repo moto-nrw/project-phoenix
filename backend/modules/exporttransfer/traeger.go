@@ -6,7 +6,7 @@ import (
 	"time"
 )
 
-// The Träger scope of Export Transfer (#6824, ADR 0218; #6911, ADR 0221):
+// The Träger scope of Export Transfer (#6824, ADR 0218; #6911, ADR 0222):
 // several recipients per Träger, each with its own sealed credentials, one
 // recipient per export format, a journal per recipient and Träger
 // transactions of its own. It is a separate capability, so the school scope
@@ -18,7 +18,7 @@ import (
 const KindParentBillingFinance = "parent_billing_finance"
 
 // The finance export formats of the Elternabrechnung a Träger assigns to a
-// recipient (ADR 0221), in the order the Träger sees them.
+// recipient (ADR 0222), in the order the Träger sees them.
 const (
 	FormatSollstellung = "sollstellung"
 	FormatDatev        = "datev"

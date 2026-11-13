@@ -1,7 +1,7 @@
 "use client";
 
 // The recipients of the finance exports of a Träger (#6824, ADR 0218; #6911,
-// ADR 0221): which file goes to which recipient, the list of recipients with
+// ADR 0222): which file goes to which recipient, the list of recipients with
 // their state, the form of one recipient's access, saved with a password
 // that never comes back, and the newest handovers with their outcome.
 

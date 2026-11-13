@@ -10,7 +10,7 @@ import type {
 import type { ExportRun } from "~/lib/traeger-finance-exports-api";
 
 // The handover of a run's file to the recipient of its format (#6824, ADR
-// 0218; #6911, ADR 0221) on the export page: the menu „Übergeben“ per
+// 0218; #6911, ADR 0222) on the export page: the menu „Übergeben“ per
 // format, the result of a handover, the question before a second handover of
 // the same content, and the way to the recipients when a file has none.
 

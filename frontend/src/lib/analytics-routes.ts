@@ -35,6 +35,7 @@ export const TRACKED_TENANT_ROUTE_TEMPLATES = [
   "/dashboard",
   "/database",
   "/database/absence-types",
+  "/database/work-time-models",
   "/database/activities",
   "/database/categories",
   "/database/devices",

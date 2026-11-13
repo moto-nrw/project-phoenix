@@ -7,7 +7,7 @@ import (
 )
 
 // Handover of a finance export to the recipient of its format (#6824, ADR
-// 0218; #6911, ADR 0221). The Elternabrechnung makes the file and keeps the
+// 0218; #6911, ADR 0222). The Elternabrechnung makes the file and keeps the
 // protocol; Export Transfer, bound by the root to FinanceExportTransfer,
 // keeps the recipients, the format each receives and the journal and
 // carries the file; the recipients have their own routes at

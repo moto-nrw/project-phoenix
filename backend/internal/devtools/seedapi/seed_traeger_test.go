@@ -274,7 +274,7 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"PUT /traeger/finance-exports/settings/sollstellung Bearer traeger-token",
 		"GET /traeger/finance-exports/runs/holiday-runs/9/sollstellung Bearer traeger-token",
 		// It enters two recipients, sends each format to one of them and
-		// hands the Sollstellung over (ADR 0218, ADR 0221).
+		// hands the Sollstellung over (ADR 0218, ADR 0222).
 		"GET /traeger/export-recipient/ Bearer traeger-token",
 		"POST /traeger/export-recipient/ Bearer traeger-token",
 		"POST /traeger/export-recipient/ Bearer traeger-token",

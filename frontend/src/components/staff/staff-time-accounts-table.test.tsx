@@ -1,5 +1,5 @@
 import { fireEvent, render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { describe, expect, it, vi, onTestFinished } from "vitest";
 
 import {
   saldoPresets,
@@ -285,6 +285,35 @@ describe("StaffTimeAccountsTable ohne Soll", () => {
     expect(screen.queryByText("Albers, Anna")).not.toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Alle zeigen" }));
     expect(screen.getByText("Albers, Anna")).toBeInTheDocument();
+  });
+
+  it("startet vom Link unter Abrechnung gefiltert und scrollt zum Hinweis", () => {
+    const scrollIntoView = vi.fn();
+    const original = Element.prototype.scrollIntoView;
+    Element.prototype.scrollIntoView = scrollIntoView;
+    onTestFinished(() => {
+      Element.prototype.scrollIntoView = original;
+    });
+    render(
+      <StaffTimeAccountsTable
+        {...baseProps}
+        rows={rows}
+        canSetTarget
+        initialOnlyWithoutTarget
+        onSaldoPresetChange={vi.fn()}
+        onCustomSaldoHoursChange={vi.fn()}
+        showCustomSaldo={false}
+        onShowCustomSaldoChange={vi.fn()}
+      />,
+    );
+
+    expect(screen.getByText("Brandt, Ben")).toBeInTheDocument();
+    expect(screen.queryByText("Albers, Anna")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Alle zeigen" })).toHaveAttribute(
+      "aria-pressed",
+      "true",
+    );
+    expect(scrollIntoView).toHaveBeenCalledTimes(1);
   });
 
   it("nennt ohne Recht, wer das Soll einträgt", () => {

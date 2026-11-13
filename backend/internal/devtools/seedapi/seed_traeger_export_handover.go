@@ -6,7 +6,7 @@ import (
 )
 
 // seedExportHandover enters two recipients of the finance exports of the
-// Träger (#6824, ADR 0218; #6911, ADR 0221): the Kämmerei receives the
+// Träger (#6824, ADR 0218; #6911, ADR 0222): the Kämmerei receives the
 // Sollstellung and the debit file, the tax office the DATEV booking batch.
 // It then hands the Sollstellung of the released holiday run over once.
 // Both recipients are in the documentation range 192.0.2.0/24, which the

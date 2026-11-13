@@ -68,7 +68,7 @@ func mountPayrollDownload(root chi.Router, payroll workforceModule.PayrollDispat
 // substitutions and time tracking.
 func mountStaffRoutes(
 	root, tenant chi.Router, db transactionruntime.Database, logger *slog.Logger, membership schoolMembershipModule.Capability,
-	workTime workforceModule.Capability, users peoplePorts.PersonDirectory, staffAdmin *workforceModule.StaffAdmin,
+	workTime workforceModule.Capability, workTimeCatalog workforceModule.WorkTimeModelCatalog, users peoplePorts.PersonDirectory, staffAdmin *workforceModule.StaffAdmin,
 	workforce owners.WorkforcePlanning, shifts *workforceCompose.ShiftPlanning, education schoolstructure.GroupManagement,
 	substitution SubstitutionOperations, persons peopledirectory.Capability, settings settingsCompose.SettingsService,
 	hub *realtime.Hub, identity identityaccess.Owner, caller *owners.CallerRows, calendar schoolcalendar.Calendar,
@@ -85,7 +85,7 @@ func mountStaffRoutes(
 	absenceTypes := newAbsenceTypesResource(workforceCompose.NewAbsenceTypeAdministration(workTime, logger.With("service", "active")), currentStaffID(caller)).Router()
 	tenant.Mount("/staff", staff.Router())
 	mountPayrollDownload(root, workforce.PayrollDispatch, logger)
-	tenant.Mount("/work-time-models", newWorkTimeModelsResource(workTime, staffTimeTrackingNotifier(hub)).Router())
+	tenant.Mount("/work-time-models", newWorkTimeModelsResource(workTime, workTimeCatalog, staffTimeTrackingNotifier(hub)).Router())
 	tenant.Mount("/staff-shifts", staffShifts.Router())
 	tenant.Mount("/shift-types", newShiftTypesResource(shifts.ShiftTypes).Router())
 	tenant.Mount("/absence-types", absenceTypes)

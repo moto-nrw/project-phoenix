@@ -11,7 +11,7 @@ import (
 	"unicode/utf8"
 )
 
-// The Träger scope (ADR 0218, ADR 0221): the stored recipients of a Träger,
+// The Träger scope (ADR 0218, ADR 0222): the stored recipients of a Träger,
 // the format each receives and the rules a recipient must meet before
 // anything is saved.
 
@@ -162,7 +162,7 @@ func (r StoredRecipient) MissingFields(passwordOpens bool) []string {
 
 // PasswordContext binds a sealed password to its column and its Träger: a
 // ciphertext copied to another Träger or another column does not open. The
-// recipient is not part of it, so the passwords sealed before ADR 0221 keep
+// recipient is not part of it, so the passwords sealed before ADR 0222 keep
 // opening; only the store writes the column, and no route moves a
 // ciphertext from one recipient to another.
 func PasswordContext(organizationID int64) []byte {

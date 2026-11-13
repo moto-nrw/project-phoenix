@@ -10,10 +10,10 @@ import (
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
-// The one recipient of a Träger before 1.15.962 becomes the first of its
+// The one recipient of a Träger before 1.15.963 becomes the first of its
 // recipients without losing anything: its values and sealed password stay,
 // it receives every format it served so far, and the journal and the
-// handovers of the export protocol name it (#6911, ADR 0221). The way back
+// handovers of the export protocol name it (#6911, ADR 0222). The way back
 // refuses while a Träger has more than one recipient.
 func TestTraegerExportRecipientsMigrationKeepsTheExistingRecipient(t *testing.T) {
 	t.Parallel()

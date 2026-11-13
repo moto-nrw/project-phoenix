@@ -414,6 +414,8 @@ import type { workTimeHintsTopic as authored_workTimeHintsTopic } from "./articl
 
 import type { workTimeReviewTopic as authored_workTimeReviewTopic } from "./articles/work-time-review";
 
+import type { workTimeTemplatesTopic as authored_workTimeTemplatesTopic } from "./articles/work-time-templates";
+
 import { HELP_TOPICS } from "~/lib/help-topics";
 
 import type { HelpGroupMode, HelpPresenceMode, HelpTopic } from "./help-types";
@@ -7450,6 +7452,7 @@ export const payrollTopic = function payrollTopic(): HelpTopic {
           "Tragen Sie unter `Feste Lohnarten` die Nummern Ihres Lohnsystems ein.",
           "Tragen Sie unter `DATEV-Mandant` `Beraternummer` und `Mandantennummer` ein.",
           "Tragen Sie die `Personalnummern` bei den Personen nach. Das Feld steht beim Personal im Reiter `Stammdaten`.",
+          "Fehlt bei `Soll (Arbeitszeit)` etwas? Tippen Sie auf `Personen ohne Soll`. Tippen Sie auf eine Person und legen Sie im Reiter `Arbeitszeitmodell` das Soll fest.",
         ],
       },
       {
@@ -7503,11 +7506,14 @@ export const payrollTopic = function payrollTopic(): HelpTopic {
       "Öffnen Sie einen Monat wieder und schließen ihn erneut ab, geht die Datei noch einmal raus. Ihr Name enthält dann „korrektur“.",
     ],
     differences: [
+      "Den Knopf `Personen ohne Soll` sieht nur, wer die Zeiterfassung des Teams verwaltet. Alle anderen sehen nur die Zahl. Das Soll trägt dann die Leitung ein.",
+      "`Soll (Arbeitszeit)` prüft den Vormonat, bis er abgeschlossen ist. Danach prüft es den laufenden Monat.",
       "Eine Kategorie oder eigene Lohnart ohne Lohnartnummer wird nicht exportiert. `Vollständigkeit` nennt sie.",
       "Dieselbe Nummer bei mehreren Kategorien ist erlaubt, führt aber meist zu doppelten Stunden. moto warnt davor.",
     ],
     troubleshootingDetails: [
       "Der Export erzeugt keine Datei? Dann fehlt oben unter `Vollständigkeit` noch etwas.",
+      "Ein Krankheitstag zählt 0 Stunden? Dann fehlt das Soll. `Vollständigkeit` zählt bei `Soll (Arbeitszeit)` alle Personen ohne Soll im laufenden Monat.",
       "`Zuschlagsregel anlegen` lässt sich nicht tippen? Dann fehlt noch eine eigene Lohnart.",
       "Unter `Letzter Versand` steht `Nicht gesendet` oder `Fehlgeschlagen`? Darunter steht der Grund. Wer die Zeiterfassung des Teams verwaltet, bekommt dazu eine E-Mail.",
       "Der `Versandweg` `SFTP` braucht die Gegenstelle aus den Einstellungen unter `Kalender und Export` bei `Zeitkonten übertragen`.",
@@ -8317,7 +8323,7 @@ export const staffRecordTopic = function staffRecordTopic(): HelpTopic {
         steps: [
           "Wählen Sie oben `Arbeitszeitmodell`.",
           "Wählen Sie rechts `Bearbeiten`.",
-          "Wählen Sie `Vorlage zuweisen` für ein Modell, das mehrere Personen teilen.",
+          "Wählen Sie `Vorlage zuweisen` für ein Modell, das mehrere Personen teilen. Vorlagen legen Sie unter `Datenverwaltung` › `Arbeitszeitmodelle` an.",
           "Oder wählen Sie `Eigenes Modell` nur für diese Person.",
           "Wählen Sie bei `Rotation` zum Beispiel `Standard (1 Woche)` oder `A/B-Wochen (2 Wochen)`.",
           "Tragen Sie je Wochentag die Stunden ein, zum Beispiel `4,45`.",
@@ -8356,6 +8362,7 @@ export const staffRecordTopic = function staffRecordTopic(): HelpTopic {
       "Ein Bereich fehlt Ihnen? Dann fehlt Ihrer Rolle das Recht dafür.",
     ],
     related: [
+      HELP_TOPICS.leadWorkTimeTemplates,
       HELP_TOPICS.leadTargetOverride,
       HELP_TOPICS.leadWorkTimeReview,
       HELP_TOPICS.leadInviteStaff,
@@ -10189,7 +10196,7 @@ export const trackWorkTimeTopic = function trackWorkTimeTopic(): HelpTopic {
       "Ihre Schule kann das Einstempeln erst kurz vor Ihrer Schicht erlauben. Dann zeigt moto, ab wann es geht.",
       "Nach der gewählten Pausenlänge läuft die Arbeitszeit automatisch weiter.",
       "Ihr `Ist` ist etwas länger oder kürzer als die gestempelten Zeiten? Dann zählt Ihre OGS eine Wegpackzeit dazu oder rundet. Der Hinweis steht in der Zeile, zum Beispiel `+5 Min. Wegpackzeit`.",
-      "Steht unten `Kein Soll hinterlegt`? Dann zählen Krankheit und Urlaub 0 Stunden. Das Soll trägt die Leitung ein.",
+      "Steht unten `Kein Soll hinterlegt`? Dann zählen Krankheit und Urlaub 0 Stunden. Die Monatskarte zeigt diese Tage mit `ohne Soll`. Das Soll trägt die Leitung ein.",
     ],
     related: [HELP_TOPICS.correctWorkTime, HELP_TOPICS.nfcWorkTime],
   };
@@ -13976,7 +13983,7 @@ export const workTimeReviewTopic = function workTimeReviewTopic(): HelpTopic {
       "Weicht das `Ist` von den gestempelten Zeiten ab? Dann gelten Wegpackzeit oder Rundung aus den Einstellungen. Die Zeile zeigt das als Hinweis. Korrigieren Sie nur die Uhrzeiten, moto rechnet die Zugabe neu.",
     ],
     troubleshootingDetails: [
-      "Ein Krankheitstag zählt 0 Stunden? Dann fehlt das Soll. Tragen Sie es im `Arbeitszeitmodell` der Person ein. Gilt es ab dem Krankheitstag, rechnet moto die Stunden nach.",
+      "Ein Krankheitstag zählt 0 Stunden? Dann fehlt das Soll. Die Monatskarte zeigt den Tag dann mit `ohne Soll`. Tragen Sie das Soll im `Arbeitszeitmodell` der Person ein. Gilt es ab dem Krankheitstag, rechnet moto die Stunden nach.",
       "Der Saldo einer Person stimmt nicht? Prüfen Sie ihr `Arbeitszeitmodell` in der Personalakte.",
     ],
     related: [
@@ -13986,3 +13993,72 @@ export const workTimeReviewTopic = function workTimeReviewTopic(): HelpTopic {
     ],
   };
 } satisfies typeof authored_workTimeReviewTopic;
+
+/**
+ * `/database/work-time-models` (#6891): die Arbeitszeitmodell-Vorlagen der
+ * Schule. Vorher ließ sich eine Vorlage nur aus der Personalakte heraus
+ * anlegen. Zugeordnet wird weiter in der Personalakte.
+ */
+export const workTimeTemplatesTopic =
+  function workTimeTemplatesTopic(): HelpTopic {
+    return {
+      id: HELP_TOPICS.leadWorkTimeTemplates,
+      title: "Vorlagen für Arbeitszeitmodelle verwalten",
+      question: "Wie lege ich ein Arbeitszeitmodell für viele Personen an?",
+      summary:
+        "Eine Vorlage legt die Soll-Stunden fest, die mehrere Mitarbeitende teilen.",
+      group: "personal",
+      audience: "lead",
+      icon: "Hourglass",
+      requirements: [
+        "Sie dürfen die Zeiterfassung aller Mitarbeitenden verwalten.",
+      ],
+      steps: [],
+      instructionGroups: [
+        {
+          title: "Eine Vorlage anlegen",
+          steps: [
+            "Öffnen Sie `Datenverwaltung` und danach `Arbeitszeitmodelle`.",
+            "Wählen Sie oben rechts `Vorlage`.",
+            "Geben Sie einen Namen ein, zum Beispiel `Teilzeit 30 Stunden`.",
+            "Wählen Sie bei `Rotation` zum Beispiel `Standard (1 Woche)` oder `A/B-Wochen (2 Wochen)`.",
+            "Tragen Sie je Wochentag die Stunden ein, zum Beispiel `6`.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Eine Vorlage zuordnen",
+          steps: [
+            "Klappen Sie in der Seitenleiste `Team` auf.",
+            "Öffnen Sie `Mitarbeiter` und wählen Sie die Person.",
+            "Wählen Sie oben `Arbeitszeitmodell` und rechts `Bearbeiten`.",
+            "Wählen Sie `Vorlage zuweisen` und die Vorlage.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+        {
+          title: "Eine Vorlage ändern",
+          steps: [
+            "Wählen Sie die Vorlage in der Liste.",
+            "Ändern Sie die Stunden.",
+            "Wählen Sie `Speichern`.",
+          ],
+        },
+      ],
+      result:
+        "In der Liste steht bei jeder Vorlage, wie viele Personen sie nutzen.",
+      notes: [
+        "Eine Änderung gilt ab heute für alle Personen mit dieser Vorlage. Die Seite zeigt vor dem Speichern, wie viele es sind.",
+        "Über die drei Punkte wählen Sie `Nicht mehr anbieten`. Wer die Vorlage schon nutzt, behält sie. Neu zuordnen lässt sie sich dann nicht mehr.",
+        "Löschen geht nur, wenn niemand die Vorlage nutzt.",
+      ],
+      differences: [
+        "Sie sehen `Arbeitszeitmodelle` nicht? Dann hat Ihre Schule die Zeiterfassung nicht gebucht, oder Ihnen fehlt das Recht dafür.",
+      ],
+      related: [
+        HELP_TOPICS.leadStaffRecord,
+        HELP_TOPICS.leadTargetOverride,
+        HELP_TOPICS.leadWorkTimeReview,
+      ],
+    };
+  } satisfies typeof authored_workTimeTemplatesTopic;

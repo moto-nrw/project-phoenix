@@ -1,6 +1,6 @@
 "use client";
 
-// Ein Empfänger der Finanz-Exporte (#6911, ADR 0221): ob er bereit ist,
+// Ein Empfänger der Finanz-Exporte (#6911, ADR 0222): ob er bereit ist,
 // welche Dateien er bekommt, sein Zugang und seine letzten Übergaben.
 // Entfernen gibt seine Dateien an den Download zurück.
 

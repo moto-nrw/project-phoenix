@@ -3,7 +3,7 @@ import { beforeEach, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import TraegerNewExportRecipientPage from "./page";
 
-// A new recipient (#6911, ADR 0221) needs a name and goes back to the
+// A new recipient (#6911, ADR 0222) needs a name and goes back to the
 // overview, where the Träger assigns its files.
 
 const api = vi.hoisted(() => ({ createExportRecipient: vi.fn() }));

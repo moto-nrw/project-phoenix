@@ -37,7 +37,7 @@ func NewExportHandoverHTTP(exports parentbilling.FinanceExports, debits parentbi
 }
 
 // NewExportRecipientHTTP binds the recipients of the Träger and the format
-// each receives (ADR 0218, ADR 0221) to the right "Finanz-Export", like the
+// each receives (ADR 0218, ADR 0222) to the right "Finanz-Export", like the
 // DATEV values and the field mapping.
 func NewExportRecipientHTTP(transfers exporttransfer.TraegerTransfers) *exportTransferHTTP.RecipientResource {
 	return exportTransferHTTP.NewRecipientResource(transfers, common.RequiresPermission(identityaccess.TraegerRightFinanceExport))

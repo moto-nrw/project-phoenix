@@ -82,9 +82,9 @@ func TestExportHandoversKeepTheTraegerBelowRLS(t *testing.T) {
 		assert.True(t, repeated, "the own pending handover of the same content to the same recipient counts")
 		repeated, err = store.SameContentHandedOver(ctx, own, ownSecond, kaemmerei.RecipientID+1)
 		require.NoError(t, err)
-		assert.False(t, repeated, "another recipient never had the file: the repeat is a question per recipient (ADR 0221)")
+		assert.False(t, repeated, "another recipient never had the file: the repeat is a question per recipient (ADR 0222)")
 		// A pending handover keeps its recipient: no write points it at
-		// another one, which would move the repeat check (ADR 0221).
+		// another one, which would move the repeat check (ADR 0222).
 		_, err = tx.ExecContext(ctx, `SAVEPOINT keep_recipient`)
 		require.NoError(t, err)
 		_, err = tx.ExecContext(ctx, `UPDATE parent_billing.export_file_transfers SET recipient_id = recipient_id + 1

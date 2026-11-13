@@ -1,5 +1,5 @@
 // Router-level tests of the handover of finance exports to the recipients of
-// the Träger (#6824, ADR 0218; #6911, ADR 0221): the recipients without
+// the Träger (#6824, ADR 0218; #6911, ADR 0222): the recipients without
 // their passwords, one recipient per format, the rights, a handover that the
 // production address policy refuses for a loopback recipient (a result, not
 // an error), the protocol entry with its handover, the repeat guard per
@@ -333,7 +333,7 @@ func TestNumberedSollstellungRepeatsTheSameContent(t *testing.T) {
 
 // Each format goes to its own recipient, and the repeat guard asks per
 // recipient: a file one recipient has does not stop its handover to another
-// (#6911, ADR 0221).
+// (#6911, ADR 0222).
 func TestFinanceExportFormatsGoToTheirOwnRecipient(t *testing.T) {
 	t.Parallel()
 	f := sepaDebitFixture(t, "Träger Übergabe zwei Empfänger")

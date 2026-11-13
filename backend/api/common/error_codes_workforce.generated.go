@@ -78,6 +78,7 @@ const CodeWorkforceVacationQuotaExceeded = "workforce.vacation_quota_exceeded"
 const CodeWorkforceVacationQuotaReasonRequired = "workforce.vacation_quota_reason_required"
 const CodeWorkforceVacationRequestInPast = "workforce.vacation_request_in_past"
 const CodeWorkforceWorkSessionOverlap = "workforce.work_session_overlap"
+const CodeWorkforceWorkTimeModelArchived = "workforce.work_time_model_archived"
 
 var errorCodeClassesWorkforce = []errorCodeClass{
 	{CodeWorkforceAbsenceAllowanceExceeded, "business_rejection"},
@@ -157,6 +158,7 @@ var errorCodeClassesWorkforce = []errorCodeClass{
 	{CodeWorkforceVacationQuotaReasonRequired, "input"},
 	{CodeWorkforceVacationRequestInPast, "input"},
 	{CodeWorkforceWorkSessionOverlap, "business_rejection"},
+	{CodeWorkforceWorkTimeModelArchived, "business_rejection"},
 }
 
 func init() {

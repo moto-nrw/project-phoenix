@@ -1,6 +1,6 @@
 /**
  * Client of the handover of finance exports to the recipients of the Träger
- * (#6824, ADR 0218; #6911, ADR 0221): the recipients without their
+ * (#6824, ADR 0218; #6911, ADR 0222): the recipients without their
  * passwords, the recipient of each format, their newest handovers, and the
  * handover of a Sollstellung, a DATEV booking batch or a PAIN.008 file. Backend int64 IDs leave here as strings, instants as ISO
  * strings.

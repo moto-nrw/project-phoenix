@@ -7,6 +7,7 @@
 // rechnet (`has_target` der Monatskarte); hier steht nur, was die Person sieht.
 
 import { Alert } from "~/components/ui/alert";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { parseISODate } from "~/lib/date-helpers";
 import { useStaffHasTarget } from "~/lib/hooks/use-staff-has-target";
 
@@ -24,6 +25,47 @@ export interface MissingTargetHint {
 
 /** Wer das Soll nicht selbst setzen kann, erfährt, wer es tut. */
 export const MISSING_TARGET_OWNER = "Das Soll trägt die Leitung ein.";
+
+/**
+ * „Soll festlegen“ für Personen, die das Soll setzen dürfen: als Link in den
+ * Reiter „Arbeitszeitmodell“ oder als Wechsel auf derselben Seite. Ohne beides
+ * nichts; der Aufrufer nennt dann `MISSING_TARGET_OWNER`.
+ */
+export function SetTargetAction({
+  href,
+  onClick,
+  variant,
+}: {
+  readonly href?: string;
+  readonly onClick?: () => void;
+  readonly variant: "link" | "outline";
+}) {
+  const tooltip = "Öffnet das Arbeitszeitmodell dieser Person.";
+  if (href) {
+    return (
+      <ButtonLink
+        href={href}
+        variant={variant}
+        size="compact"
+        tooltip={tooltip}
+      >
+        Soll festlegen
+      </ButtonLink>
+    );
+  }
+  if (!onClick) return null;
+  return (
+    <Button
+      type="button"
+      variant={variant}
+      size="compact"
+      onClick={onClick}
+      tooltip={tooltip}
+    >
+      Soll festlegen
+    </Button>
+  );
+}
 
 /**
  * Hinweis in „Krank melden" und „Abwesenheit eintragen": die Person hat im

@@ -17,7 +17,7 @@ vi.mock("~/lib/traeger-sepa-debits-api", async (importOriginal) => ({
   ...api,
 }));
 vi.mock("~/lib/file-download", () => ({ downloadBlob: vi.fn() }));
-// The recipients of the handover (ADR 0218, ADR 0221) is tested on its own.
+// The recipients of the handover (ADR 0218, ADR 0222) is tested on its own.
 const handoverApi = vi.hoisted(() => ({ fetchExportRecipients: vi.fn() }));
 vi.mock("~/lib/traeger-export-handovers-api", async (importOriginal) => ({
   ...(await importOriginal<object>()),

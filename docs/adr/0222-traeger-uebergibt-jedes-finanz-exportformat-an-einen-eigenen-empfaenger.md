@@ -1,10 +1,10 @@
 ---
-status: proposed
+status: accepted
 ---
 
 # Träger übergibt jedes Finanz-Exportformat an einen eigenen Empfänger
 
-**Status: Vorgeschlagen.**
+**Status: Akzeptiert.** Freigegeben von Yannick Wenger am 13.11.2026.
 
 Entscheidung zu
 [#6911](https://github.com/moto-ogs/project-phoenix/issues/6911), Teil von
@@ -92,7 +92,7 @@ alle Empfänger des Trägers in Stapeln nach `id`, mit Sperre vor dem Öffnen.
 
 ### 5. Übernahme der Daten
 
-Die Migration 1.15.962 gibt dem vorhandenen Empfänger eine `id` und als Namen
+Die Migration 1.15.963 gibt dem vorhandenen Empfänger eine `id` und als Namen
 seine Adresse (sonst „Empfänger der Exporte“), ordnet ihm alle drei Formate
 zu, die er bisher bediente, und trägt ihn in alle vorhandenen Journal- und
 Übergabezeilen seines Trägers ein. Werte und Chiffrat bleiben unverändert.

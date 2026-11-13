@@ -9,7 +9,7 @@ import (
 
 // A second seed run on the same database (CI seeds the standing demo school
 // after the profiles) saves the recipients of the earlier run again instead
-// of adding a recipient whose name the Träger already has (#6911, ADR 0221).
+// of adding a recipient whose name the Träger already has (#6911, ADR 0222).
 func TestSeedExportHandoverSavesTheRecipientsOfAnEarlierRun(t *testing.T) {
 	t.Parallel()
 

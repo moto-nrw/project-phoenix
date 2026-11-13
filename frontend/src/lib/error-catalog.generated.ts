@@ -1947,6 +1947,8 @@ export const ERROR_CATALOG = {
         "Urlaub können Sie nur ab heute beantragen. Bitte wählen Sie ein anderes Datum.",
       "workforce.work_session_overlap":
         "Die Zeit überschneidet sich mit einem anderen Eintrag an diesem Tag. Bitte prüfen Sie Beginn und Ende.",
+      "workforce.work_time_model_archived":
+        "Diese Vorlage wird nicht mehr angeboten. Bitte wählen Sie eine andere Vorlage.",
     },
   },
   en: {

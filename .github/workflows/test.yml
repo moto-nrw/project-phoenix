@@ -18,6 +18,11 @@ on:
       run-seed-smoke:
         type: boolean
         required: true
+      # True when the changed file list alone proves a selection of at most
+      # 16 packages (main.yml, "Size backend test scope").
+      backend-small-runner:
+        type: boolean
+        default: false
       # True for pull requests: test only what changed against base_ref. False
       # for protected-branch pushes, release pull requests and the nightly run,
       # which run both full suites.
@@ -47,67 +52,19 @@ env:
   GOFLAGS: -tags=testhooks -trimpath
 
 jobs:
-  plan-backend:
-    name: Select backend tests
-    if: ${{ inputs.run-backend && inputs.changed-scope && !inputs.full-backend-suite && inputs.base_ref != '' }}
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: read
-    outputs:
-      matrix: ${{ steps.packages.outputs.matrix }}
-    steps:
-      - name: Checkout code
-        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
-        with:
-          fetch-depth: 1
-          filter: blob:none
-      - name: Fetch backend comparison history
-        env:
-          BASE_REF: ${{ inputs.base_ref }}
-        run: |
-          refs=("$(git rev-parse HEAD)" "+refs/heads/development:refs/remotes/origin/development")
-          if [ -n "$BASE_REF" ] && [ "$BASE_REF" != development ]; then
-            refs+=("+refs/heads/$BASE_REF:refs/remotes/origin/$BASE_REF")
-          fi
-          git fetch --no-tags --unshallow origin "${refs[@]}"
-      - name: Setup Go
-        uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
-        with:
-          go-version-file: backend/go.mod
-          cache: true
-          cache-dependency-path: backend/go.sum
-      # No script self-tests here: this job runs before the backend tests on
-      # the critical path, and those suites took 109 s of its 153 s (#6784).
-      # A change to a selection script or its test sets full-backend-suite
-      # (backend-test-infra in main.yml), which skips this job and runs the
-      # suites in test-backend instead.
-      - name: Select and partition backend packages
-        id: packages
-        working-directory: backend
-        env:
-          FULL_SUITE: ${{ inputs.full-backend-suite }}
-          BASE_REF: ${{ inputs.base_ref }}
-        run: |
-          packages=$(../scripts/backend-affected-packages.sh "origin/$BASE_REF")
-          if [ "$packages" = ./... ]; then
-            packages=$(go list ./...)
-            FULL_SUITE=true
-          fi
-          matrix=$(printf '%s\n' "$packages" | FULL_SUITE="$FULL_SUITE" ../scripts/backend-test-matrix.sh)
-          printf 'matrix=%s\n' "$matrix" >> "$GITHUB_OUTPUT"
-          printf '%s\n' "$matrix" | jq '.include | map({shard, runner, packages: (.packages | split("\n") | map(select(length > 0)) | length)})'
-
   test-backend:
     name: Backend tests (${{ matrix.shard }})
-    needs: plan-backend
-    if: ${{ !cancelled() && inputs.run-backend && (needs.plan-backend.result == 'success' || needs.plan-backend.result == 'skipped') }}
+    if: ${{ inputs.run-backend }}
     strategy:
       fail-fast: false
-      # One job sized from the affected graph (scripts/backend-test-matrix.sh).
-      # Only the nightly race run keeps four shards.
-      matrix: ${{ fromJSON(needs.plan-backend.outputs.matrix || (inputs.backend-race && '{"include":[{"shard":0},{"shard":1},{"shard":2},{"shard":3}]}' || '{"include":[{"shard":0,"blobs":true}]}')) }}
-    runs-on: ${{ matrix.runner || 'blacksmith-8vcpu-ubuntu-2404' }}
+      # One job. Only the nightly race run keeps four shards.
+      matrix: ${{ fromJSON(inputs.backend-race && '{"include":[{"shard":0},{"shard":1},{"shard":2},{"shard":3}]}' || '{"include":[{"shard":0}]}') }}
+    # This job sets the pull request's wall-clock time, so it selects its own
+    # packages in "Run Go tests" instead of waiting for a planning job: that
+    # job took 40-67 s plus 6-15 s for the next runner in 31 pull request
+    # runs (12.11.2026). Before the selection the import graph is unknown, so
+    # the caller sizes the runner from the changed file list alone.
+    runs-on: ${{ inputs.backend-small-runner && 'blacksmith-4vcpu-ubuntu-2404' || 'blacksmith-8vcpu-ubuntu-2404' }}
     # Instrumented builds and tests need more headroom than ordinary runs.
     # Keep the default Actions limit unchanged for non-race callers.
     timeout-minutes: ${{ inputs.backend-race && 60 || 20 }}
@@ -131,6 +88,11 @@ jobs:
           # binaries hold a pool of twelve each, and every isolated clone adds
           # its own: with two clones per package the default of 100 answered
           # "too many clients already" (#6784).
+          #
+          # The local server's fsync=off, full_page_writes=off and
+          # wal_level=minimal change nothing here: on this tmpfs Postgres
+          # took 50.7 % of the busy CPU seconds with them and 48.6-51.2 %
+          # without (full suite, 13.11.2026).
           POSTGRES_INITDB_ARGS: --set max_connections=300
         ports:
           - 5432:5432
@@ -151,7 +113,11 @@ jobs:
           # its history and comparison refs without downloading every branch
           # and tag. Only the architecture suite needs historical blobs.
           fetch-depth: 1
-          filter: ${{ !(matrix.blobs || matrix.shard == 1) && 'blob:none' || '' }}
+          # The architecture suite reads historical source blobs; a partial
+          # clone would fetch them one by one. Whether it is selected is known
+          # only after the history below arrived, so every job but the other
+          # race shards fetches blobs. That fetch runs beside the setup steps.
+          filter: ${{ inputs.backend-race && matrix.shard != 1 && 'blob:none' || '' }}
 
       # Runs in the background while Node, Go and the build cache are set up
       # (28 s of 383 s in series, #6784); "Finish fetching" below waits for it.
@@ -226,8 +192,11 @@ jobs:
           cat "$RUNNER_TEMP/history.log"
           exit "$(cat "$RUNNER_TEMP/history-status")"
 
+      # Pull requests and pushes run these in the "ratchets" suite of
+      # ci-scripts (main.yml), off this job's critical path. The nightly run
+      # has no such job.
       - name: Test backend test scripts
-        if: ${{ matrix.shard == 0 && (!inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '') }}
+        if: ${{ matrix.shard == 0 && inputs.backend-race }}
         run: |
           scripts/backend-affected-packages_test.sh
           scripts/backend-test-matrix_test.sh
@@ -342,15 +311,23 @@ jobs:
           TRAEGER_URL: http://traeger.localhost:3000
           NEXT_PUBLIC_OPERATOR_HOSTNAME: operator.localhost:3000
           TENANT_DOMAIN: localhost
-          TEST_PACKAGES: ${{ matrix.packages }}
-          PACKAGE_WORKERS: ${{ matrix.workers || 6 }}
+          BASE_REF: ${{ inputs.base_ref }}
+          PG_CONTAINER: ${{ job.services.postgres.id }}
           FULL_SUITE: ${{ !inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '' }}
           SHARD_INDEX: ${{ matrix.shard }}
           BACKEND_RACE: ${{ inputs.backend-race }}
           SPLIT_SUITES: ${{ inputs.backend-race }}
         run: |
+          TEST_PACKAGES=
+          if [ "$FULL_SUITE" != true ]; then
+            # A selector failure fails the job; a go.mod or go.sum change
+            # selects everything.
+            TEST_PACKAGES=$(../scripts/backend-affected-packages.sh "origin/$BASE_REF")
+            if [ "$TEST_PACKAGES" = ./... ]; then
+              FULL_SUITE=true
+            fi
+          fi
           if [ "$FULL_SUITE" = true ]; then
-            # Known full runs start immediately, without a planning runner.
             all_packages=$(go list ./...)
             TEST_PACKAGES=$(printf '%s\n' "$all_packages" | FULL_SUITE=true ../scripts/backend-test-matrix.sh |
               jq -er --argjson shard "$SHARD_INDEX" '.include[] | select(.shard == $shard) | .packages')
@@ -365,6 +342,11 @@ jobs:
           fi
           echo "Running ${#packages[@]} selected Go packages"
 
+          # Six package binaries keep eight vCPUs busy, four the small runner.
+          PACKAGE_WORKERS=6
+          if [ "$(nproc)" -lt 8 ]; then
+            PACKAGE_WORKERS=4
+          fi
           race_flags=()
           measure=()
           if [ "$BACKEND_RACE" = true ]; then
@@ -380,11 +362,62 @@ jobs:
             free -m
           fi
 
+          # Counters for "Summarize backend CPU use" below.
+          head -n 1 /proc/stat > "$RUNNER_TEMP/cpu-before"
+          docker exec "$PG_CONTAINER" cat /sys/fs/cgroup/cpu.stat > "$RUNNER_TEMP/postgres-cpu-before" || true
+
           # Single pass produces junit.xml. No retries: flaky tests should fail
           # loudly, not be hidden. gotestsum propagates race/test failures.
-          "${measure[@]}" go tool gotestsum --format pkgname-and-test-fails \
+          #
+          # GOGC=400 is for the compiler, vet and the linker only: they are
+          # short-lived and spent 13 % less CPU with it (549 against 480 CPU s
+          # in the median of four alternating builds of a typical selection,
+          # 11/2026; GOGC=off saved 18 % but leaves memory unbounded). -exec
+          # starts every test binary without it, so tests run as before.
+          GOGC=400 "${measure[@]}" go tool gotestsum --format pkgname-and-test-fails \
             --junitfile junit.xml --jsonfile go-test.json \
-            -- "${race_flags[@]}" -count=1 -parallel 8 -p "$PACKAGE_WORKERS" "${packages[@]}"
+            -- "${race_flags[@]}" -count=1 -parallel 8 -p "$PACKAGE_WORKERS" \
+            -exec "env -u GOGC" \
+            -debug-actiongraph="$RUNNER_TEMP/actiongraph.json" "${packages[@]}"
+
+      # The job keeps its cores busy, so its wall time follows CPU work. This
+      # table says whose: the compiler, vet and the linker from Go's action
+      # graph, Postgres from its cgroup, and the test binaries as the rest.
+      # Compare it before and after a change instead of the job duration,
+      # which varies by minutes between runs of one commit (#6784).
+      - name: Summarize backend CPU use
+        if: ${{ !cancelled() && !inputs.backend-race && hashFiles('backend/go-test.json') != '' }}
+        env:
+          PG_CONTAINER: ${{ job.services.postgres.id }}
+        run: |
+          [ -s "$RUNNER_TEMP/actiongraph.json" ] && [ -s "$RUNNER_TEMP/cpu-before" ] || exit 0
+          read -r _ user nice system idle iowait irq softirq steal _ < "$RUNNER_TEMP/cpu-before"
+          busy_before=$((user + nice + system + irq + softirq + steal)); idle_before=$((idle + iowait))
+          read -r _ user nice system idle iowait irq softirq steal _ < /proc/stat
+          busy=$(((user + nice + system + irq + softirq + steal - busy_before) / $(getconf CLK_TCK)))
+          idle=$(((idle + iowait - idle_before) / $(getconf CLK_TCK)))
+          postgres_cpu() { awk '$1 == "usage_usec" { printf "%d", $2 / 1000000 }' "$@"; }
+          # Without the cgroup counter Postgres stays in the last row.
+          postgres=null
+          after=$(docker exec "$PG_CONTAINER" cat /sys/fs/cgroup/cpu.stat | postgres_cpu) || after=
+          before=$(postgres_cpu "$RUNNER_TEMP/postgres-cpu-before") || before=
+          if [ -n "$after" ] && [ -n "$before" ]; then
+            postgres=$((after - before))
+          fi
+          {
+            echo '### Backend test step: CPU seconds'
+            echo '| Work | Actions | CPU s |'
+            echo '|---|---:|---:|'
+            jq -r --argjson busy "$busy" --argjson idle "$idle" --argjson postgres "$postgres" '
+              [.[] | select(.Cmd != null and (.Mode == "build" or .Mode == "vet" or .Mode == "link"))] as $actions |
+              ($actions | map(.CmdUser + .CmdSys) | add // 0 | . / 1e9 | round) as $toolchain |
+              ($actions | group_by(.Mode) | map("| \(.[0].Mode) | \(length) | \(map(.CmdUser + .CmdSys) | add / 1e9 | round) |") | .[]),
+              (if $postgres == null then empty else "| Postgres | | \($postgres) |" end),
+              "| test binaries\(if $postgres == null then ", Postgres" else "" end) and the rest | | \($busy - $toolchain - ($postgres // 0)) |",
+              "| **busy** | | **\($busy)** |",
+              "| idle | | \($idle) |"
+            ' "$RUNNER_TEMP/actiongraph.json"
+          } | tee -a "$GITHUB_STEP_SUMMARY"
 
       # A package over its budget fails the pull request that made it slower,
       # not the next unrelated one that crosses Go's timeout (#6784).
@@ -543,6 +576,8 @@ jobs:
           TZ: Europe/Berlin
         ports:
           - 5432:5432
+        # A tmpfs for the data directory changed nothing: the seed step took
+        # 84-130 s with it and 110-130 s without (four runs each, 13.11.2026).
         options: >-
           --health-cmd "pg_isready -U postgres"
           --health-interval 2s

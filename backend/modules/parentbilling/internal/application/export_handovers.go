@@ -9,7 +9,7 @@ import (
 )
 
 // The handover of a finance export to the recipient of its format (#6824,
-// ADR 0218; #6911, ADR 0221). A handover is an export like a download: the same producer
+// ADR 0218; #6911, ADR 0222). A handover is an export like a download: the same producer
 // makes the file, takes the next file number and writes the protocol entry.
 // Only the target differs. Export Transfer runs the producer in the Träger
 // transaction of its transfer intent and the settlement in the one that

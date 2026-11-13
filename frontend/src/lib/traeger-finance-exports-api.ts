@@ -145,7 +145,7 @@ export interface ExportProtocolEntry {
 export interface ProtocolHandover {
   readonly state: HandoverState;
   readonly reason: string;
-  /** The recipient at the handover (ADR 0221); empty for an older one. */
+  /** The recipient at the handover (ADR 0222); empty for an older one. */
   readonly recipientName: string;
   readonly targetHost: string;
   readonly targetDirectory: string;

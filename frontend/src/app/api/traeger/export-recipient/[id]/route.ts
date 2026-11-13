@@ -6,7 +6,7 @@ import {
   traeger,
 } from "~/lib/traeger/route-wrapper.server";
 
-// Ein Empfänger der Finanz-Exporte (#6911, ADR 0221): lesen mit seinen
+// Ein Empfänger der Finanz-Exporte (#6911, ADR 0222): lesen mit seinen
 // Übergaben, speichern und entfernen.
 const recipientPath = (params: Record<string, unknown>) =>
   `/traeger/export-recipient/${requirePathSegmentParam(params)}`;

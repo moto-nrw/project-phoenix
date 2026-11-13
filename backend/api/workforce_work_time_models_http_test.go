@@ -55,7 +55,7 @@ func (s *workTimeModelsCapabilityStub) UpdateWorkTimeModel(_ context.Context, in
 // authentication and transaction middleware the composition root supplies.
 func updateWorkTimeModelsRequest(t *testing.T, capability workforce.Capability, notify func(context.Context)) *httptest.ResponseRecorder {
 	t.Helper()
-	resource := worktimemodelsHTTP.NewResource(capability, worktimemodelsHTTP.Runtime{
+	resource := worktimemodelsHTTP.NewResource(capability, nil, worktimemodelsHTTP.Runtime{
 		Protected: func(router chi.Router, routes func(chi.Router, worktimemodelsHTTP.Middleware)) {
 			routes(router, workTimeModelsPassthrough)
 		},
@@ -113,7 +113,7 @@ func TestUpdateNotifiesTimeTrackingOnlyAfterTheWriteSucceeds(t *testing.T) {
 func TestRouterRejectsUsersRead(t *testing.T) {
 	t.Parallel()
 
-	resource := worktimemodelsHTTP.NewResource(&workTimeModelsCapabilityStub{}, workTimeModelsRuntime(func(context.Context) {}))
+	resource := worktimemodelsHTTP.NewResource(&workTimeModelsCapabilityStub{}, nil, workTimeModelsRuntime(func(context.Context) {}))
 	router := resource.Router()
 	claims := routetest.DefaultTestClaims()
 	claims.Roles = []string{"user"}
@@ -130,6 +130,8 @@ func TestRouterRejectsUsersRead(t *testing.T) {
 		{method: http.MethodPost, path: "/"},
 		{method: http.MethodPut, path: "/123"},
 		{method: http.MethodDelete, path: "/123"},
+		{method: http.MethodPost, path: "/123/archive"},
+		{method: http.MethodPost, path: "/123/restore"},
 	} {
 		request := routetest.NewAuthenticatedRequest(t, test.method, test.path, nil, routetest.WithJWTBearer(token))
 		recorder := routetest.ExecuteRequest(router, request)
@@ -149,7 +151,7 @@ func TestUpdateOfAnUnknownWorkTimeModelAnswersNotFound(t *testing.T) {
 	}
 	runtime.Permission = func(string) worktimemodelsHTTP.Middleware { return workTimeModelsPassthrough }
 	capability := &workTimeModelsCapabilityStub{updateErr: workforce.ErrWorkTimeModelNotFound}
-	resource := worktimemodelsHTTP.NewResource(capability, runtime)
+	resource := worktimemodelsHTTP.NewResource(capability, nil, runtime)
 	body := `{"name":"Vollzeit","rotation_length":1,"rotation_anchor_date":"2026-07-01","entries":[]}`
 	request := httptest.NewRequest(http.MethodPut, "/7", strings.NewReader(body))
 	recorder := httptest.NewRecorder()
@@ -188,7 +190,7 @@ func TestGetAndDeleteSeparateNotFoundConflictAndServerErrors(t *testing.T) {
 	} {
 		t.Run(test.name, func(t *testing.T) {
 			t.Parallel()
-			resource := worktimemodelsHTTP.NewResource(test.capability, runtime)
+			resource := worktimemodelsHTTP.NewResource(test.capability, nil, runtime)
 			request := httptest.NewRequest(test.method, "/7", nil)
 			recorder := httptest.NewRecorder()
 			resource.Router().ServeHTTP(recorder, request)

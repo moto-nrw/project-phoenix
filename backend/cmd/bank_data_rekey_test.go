@@ -62,7 +62,7 @@ func TestBankDataRekeyJobOpensBothSourcesWithoutLegacy(t *testing.T) {
  'Synthetic creditor', 'Creditor street 1', 'Debtor street 2', '75175', 'City')`, org, mandateID, contractID, consentText); err != nil {
 			return err
 		}
-		// Two recipients (ADR 0221): batches of one reach both.
+		// Two recipients (ADR 0222): batches of one reach both.
 		if _, err := tx.ExecContext(ctx, `INSERT INTO config.traeger_export_recipients (organization_id, name, password_sealed)
  VALUES (?, 'Kämmerei', ?), (?, 'Steuerbüro', ?)`, org, recipientPassword, org, recipientPassword); err != nil {
 			return err

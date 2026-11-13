@@ -1,6 +1,6 @@
 "use client";
 
-// Empfänger der Finanz-Exporte (#6824, ADR 0218; #6911, ADR 0221): Wohin
+// Empfänger der Finanz-Exporte (#6824, ADR 0218; #6911, ADR 0222): Wohin
 // moto Sollstellung, DATEV-Datei und Lastschriftdatei übergibt. Jede Datei
 // geht an genau einen Empfänger; ohne Empfänger bleibt der Download. Darunter
 // alle Empfänger mit ihrem Zustand und jeder Versuch einer Übergabe. Nur das

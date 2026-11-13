@@ -56,6 +56,10 @@ const SUMMARY = {
   creditedTrainingMinutes: 0,
   creditedOtherMinutes: 0,
   trainingDays: 0,
+  sickDaysWithoutTarget: 0,
+  vacationDaysWithoutTarget: 0,
+  trainingDaysWithoutTarget: 0,
+  otherDaysWithoutTarget: 0,
   balanceMinutes: 120,
   closingBalanceMinutes: 300,
 };

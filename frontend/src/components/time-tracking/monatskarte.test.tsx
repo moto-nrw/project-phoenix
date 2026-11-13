@@ -1,5 +1,6 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
 
 import type { MonthSummary } from "~/lib/time-tracking-helpers";
 import { Monatskarte, monthLabel } from "./monatskarte";
@@ -21,6 +22,10 @@ function makeSummary(overrides: Partial<MonthSummary> = {}): MonthSummary {
     sickDays: 1,
     vacationDays: 0.5,
     trainingDays: 0,
+    sickDaysWithoutTarget: 0,
+    vacationDaysWithoutTarget: 0,
+    trainingDaysWithoutTarget: 0,
+    otherDaysWithoutTarget: 0,
     plannedShiftMinutes: 180,
     adjustmentMinutes: 0,
     adjustments: [],
@@ -143,6 +148,133 @@ describe("Monatskarte", () => {
       expect(
         screen.getByText(/Das Stundenkonto beginnt am 20\.06\.2026/),
       ).toBeInTheDocument();
+    });
+  });
+
+  // Without a maintained Soll every absence day prices to 0 minutes (#6889).
+  // The card still shows the days and says why they credit nothing, so a
+  // Krankmeldung never disappears from the month.
+  describe("month without Soll", () => {
+    const withoutTarget = {
+      hasTarget: false,
+      targetMinutes: 0,
+      targetMinutesToDate: 0,
+      creditedSickMinutes: 0,
+      creditedVacationMinutes: 0,
+      sickDays: 0,
+      vacationDays: 0,
+      sickDaysWithoutTarget: 1,
+      vacationDaysWithoutTarget: 19,
+    };
+
+    it("lists the absence days with 0 hours and names the missing Soll", () => {
+      render(
+        <Monatskarte
+          summary={makeSummary(withoutTarget)}
+          isLoading={false}
+          isCurrentMonth
+        />,
+      );
+
+      const sick = screen.getByText("Gutschrift Krankheit").closest("div");
+      expect(sick).toHaveTextContent("1 Tag ohne Soll");
+      expect(sick).toHaveTextContent("0min");
+      const vacation = screen.getByText("Gutschrift Urlaub").closest("div");
+      expect(vacation).toHaveTextContent("19 Tage ohne Soll");
+      // Anker: the Soll row of the current month, with its badge.
+      expect(screen.getByText("Kein Soll hinterlegt")).toBeInTheDocument();
+      expect(screen.queryByText(/davon bis heute/)).not.toBeInTheDocument();
+      expect(
+        screen.getByText(/Ohne Soll zählen Abwesenheiten 0 Stunden/),
+      ).toBeInTheDocument();
+    });
+
+    it("offers 'Soll festlegen' to those who may set it, and names the Leitung otherwise", async () => {
+      const onSetTarget = vi.fn();
+      const { rerender } = render(
+        <Monatskarte
+          summary={makeSummary(withoutTarget)}
+          isLoading={false}
+          onSetTarget={onSetTarget}
+        />,
+      );
+      await userEvent.click(
+        screen.getByRole("button", { name: "Soll festlegen" }),
+      );
+      expect(onSetTarget).toHaveBeenCalledOnce();
+
+      rerender(
+        <Monatskarte
+          summary={makeSummary(withoutTarget)}
+          isLoading={false}
+          setTargetHref="/staff/42?tab=arbeitszeitmodell"
+        />,
+      );
+      expect(
+        screen.getByRole("link", { name: "Soll festlegen" }),
+      ).toHaveAttribute("href", "/staff/42?tab=arbeitszeitmodell");
+
+      rerender(
+        <Monatskarte summary={makeSummary(withoutTarget)} isLoading={false} />,
+      );
+      // Anker: the note rendered, now naming the Leitung instead of a button.
+      expect(
+        screen.getByText(/Das Soll trägt die Leitung ein\./),
+      ).toBeInTheDocument();
+      expect(
+        screen.queryByRole("button", { name: "Soll festlegen" }),
+      ).not.toBeInTheDocument();
+    });
+
+    // The Soll is decided per day: a schedule from the 15th on credits the
+    // later sick day and leaves the earlier one at 0 hours.
+    it("shows credited days and days without Soll side by side", () => {
+      render(
+        <Monatskarte
+          summary={makeSummary({
+            creditedVacationMinutes: 0,
+            vacationDays: 0,
+            creditedSickMinutes: 480,
+            sickDays: 1,
+            sickDaysWithoutTarget: 2,
+          })}
+          isLoading={false}
+        />,
+      );
+      const sick = screen.getByText("Gutschrift Krankheit").closest("div");
+      expect(sick).toHaveTextContent("1 Tag · 2 Tage ohne Soll");
+      expect(sick).toHaveTextContent("8h");
+    });
+
+    it("keeps a month without absences to the Soll badge", () => {
+      render(
+        <Monatskarte
+          summary={makeSummary({
+            ...withoutTarget,
+            sickDaysWithoutTarget: 0,
+            vacationDaysWithoutTarget: 0,
+          })}
+          isLoading={false}
+        />,
+      );
+      // Anker: the loaded card with its Soll badge and rows.
+      expect(screen.getByText("Kein Soll hinterlegt")).toBeInTheDocument();
+      expect(screen.getByText("Summe Ist")).toBeInTheDocument();
+      expect(
+        screen.queryByText(/Ohne Soll zählen Abwesenheiten 0 Stunden/),
+      ).not.toBeInTheDocument();
+      expect(
+        screen.queryByText("Gutschrift Krankheit"),
+      ).not.toBeInTheDocument();
+    });
+
+    it("shows no Soll badge in a month with Soll", () => {
+      render(<Monatskarte summary={makeSummary()} isLoading={false} />);
+      // Anker: the Soll row the badge would sit in.
+      expect(screen.getByText("Summe Soll")).toBeInTheDocument();
+      expect(
+        screen.queryByText("Kein Soll hinterlegt"),
+      ).not.toBeInTheDocument();
     });
   });
 

@@ -56,6 +56,9 @@ var (
 	ErrTimeExportInvalid       = errors.New("time export request is invalid")
 	ErrPayrollConfigIncomplete = errors.New("payroll configuration is incomplete")
 	ErrScheduleValidation      = errors.New("schedule validation failed")
+	// ErrWorkTimeModelArchived refuses a new assignment of a template the
+	// school no longer offers (#6891).
+	ErrWorkTimeModelArchived = errors.New("work time model is archived")
 )
 
 // WorkSessionWire serializes a work session for the endpoints that return
@@ -631,6 +634,12 @@ type MonthSummary struct {
 	SickDays                float64 `json:"sick_days"`
 	VacationDays            float64 `json:"vacation_days"`
 	TrainingDays            float64 `json:"training_days"`
+	// *DaysWithoutTarget count absence workdays no maintained Soll governs;
+	// they credit nothing (#6889).
+	SickDaysWithoutTarget     float64 `json:"sick_days_without_target"`
+	VacationDaysWithoutTarget float64 `json:"vacation_days_without_target"`
+	TrainingDaysWithoutTarget float64 `json:"training_days_without_target"`
+	OtherDaysWithoutTarget    float64 `json:"other_days_without_target"`
 
 	PlannedShiftMinutes *int `json:"planned_shift_minutes,omitempty"`
 
@@ -722,6 +731,9 @@ type MonthClosing interface {
 type StaffOverview interface {
 	DashboardSummary(ctx context.Context, period string) (*DashboardSummary, error)
 	TimeTrackingOverview(ctx context.Context, filters OverviewFilters) (*TimeTrackingOverview, error)
+	// TargetCoverage counts the active staff without a Soll in a month (#6890).
+	// Year and month both zero mean the current month.
+	TargetCoverage(ctx context.Context, year, month int) (*TargetCoverage, error)
 }
 
 // TimeTrackingAuditLog serves the cross-staff audit feed.

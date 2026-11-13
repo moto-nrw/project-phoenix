@@ -2,7 +2,7 @@
   "registerVersion": 1,
   "formatVersion": 1,
   "catalogVersion": 1,
-  "catalogSHA256": "4bb980d07eb3b52fb6df94ab264b6805e426aa8094e89dceca15f5ccac59913c",
+  "catalogSHA256": "8b7c9101bf77f25b114fb42065590cbbe2c4991a623f9f14c168b912aedf9dff",
   "about": "Dieses Register beschreibt das Rückgabepaket von moto: welche Tabellen und Felder es enthält, welche Typen sie haben, ob sie leer sein dürfen und wie die Tabellen verbunden sind. Es enthält keine Kundendaten. Jedes Paket enthält dieselbe Beschreibung für seine Tabellen als model.json. formatVersion und catalogSHA256 stehen auch in der manifest.json des Pakets.",
   "standards": [
     {
@@ -10439,6 +10439,12 @@
           "type": "timestamp with time zone",
           "udt": "timestamptz",
           "nullable": false
+        },
+        {
+          "name": "archived_at",
+          "type": "timestamp with time zone",
+          "udt": "timestamptz",
+          "nullable": true
         }
       ],
       "relationships": [

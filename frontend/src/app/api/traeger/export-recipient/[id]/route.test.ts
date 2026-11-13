@@ -1,7 +1,7 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-// One recipient of the finance exports (ADR 0218, ADR 0221) on the Träger
+// One recipient of the finance exports (ADR 0218, ADR 0222) on the Träger
 // session: read and save pass through, removing answers the page without
 // it, so the list can show it at once. Not a pure proxy route, so the proxy
 // table does not cover it.
