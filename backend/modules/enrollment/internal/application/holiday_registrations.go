@@ -451,7 +451,7 @@ func (h *HolidayRegistrations) enqueueReceipt(ctx context.Context, link enrollme
 		OrganizationID: link.OrganizationID, Kind: enrollment.MailKindHolidayRegistrationReceived,
 		Recipient: input.Guardian.Email, Payload: payload,
 		RelatedType: enrollment.MailRelatedHolidayRegistration, RelatedID: receipt.ID,
-		IdempotencyKey: fmt.Sprintf("holiday-registration-received:%d", receipt.ID),
+		IdempotencyKey: holidayReceiptMailKey(receipt.ID),
 	}); err != nil {
 		return fmt.Errorf("enrollment: enqueue holiday registration mail: %w", err)
 	}

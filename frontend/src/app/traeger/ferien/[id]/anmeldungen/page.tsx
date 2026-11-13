@@ -59,6 +59,7 @@ import type {
   FilterConfig,
 } from "~/components/ui/page-header/types";
 import { StatusBadge } from "~/components/ui/status-badge";
+import { HolidayRegistrationMailProblemBadge } from "~/components/traeger/holiday-registration-mail-problems";
 import { holidayPlacementStatus } from "~/components/traeger/holiday-placement";
 import { HOLIDAY_PDF_HEALTH_KEY } from "~/components/traeger/use-holiday-registration-pdf";
 import { holidayDeletionNotice } from "~/components/traeger/holiday-registration-retention";
@@ -377,6 +378,9 @@ function columns(
           {registration.frozen ? (
             <StatusBadge tone="gray" label="Eingefroren" />
           ) : null}
+          <HolidayRegistrationMailProblemBadge
+            problems={registration.mailProblems}
+          />
         </div>
       ),
       sortValue: (registration) => registration.status,

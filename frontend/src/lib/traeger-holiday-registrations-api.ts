@@ -129,6 +129,21 @@ export interface HolidayRegistrationChild {
   readonly holidayWishCheck: boolean;
 }
 
+/** Which mail of a registration to the parents (#6737). */
+export type HolidayRegistrationMailKind =
+  "holiday_registration_received" | "holiday_registration_accepted";
+
+/**
+ * What became of a mail that did not reach the parents (#6737): moto gave it
+ * up or it came back, the address is blocked, or the outcome is unknown.
+ */
+export type HolidayRegistrationMailState = "failed" | "blocked" | "unknown";
+
+export interface HolidayRegistrationMailProblem {
+  readonly kind: HolidayRegistrationMailKind;
+  readonly state: HolidayRegistrationMailState;
+}
+
 export interface HolidayRegistrationSummary {
   readonly id: string;
   readonly status: HolidayRegistrationStatus;
@@ -151,6 +166,8 @@ export interface HolidayRegistrationSummary {
    */
   readonly deletesOn: string | null;
   readonly healthDeletesOn: string | null;
+  /** Receipt and acceptance mails that did not reach the parents (#6737). */
+  readonly mailProblems: readonly HolidayRegistrationMailProblem[];
   readonly children: readonly HolidayRegistrationChild[];
 }
 
@@ -375,6 +392,7 @@ interface BackendSummary {
   debtor_number?: string;
   deletes_on?: string | null;
   health_deletes_on?: string | null;
+  mail_problems?: HolidayRegistrationMailProblem[] | null;
   children?: BackendChild[] | null;
 }
 
@@ -489,6 +507,10 @@ function summaryFromBackend(
     debtorNumber: registration.debtor_number ?? "",
     deletesOn: registration.deletes_on ?? null,
     healthDeletesOn: registration.health_deletes_on ?? null,
+    mailProblems: (registration.mail_problems ?? []).map((problem) => ({
+      kind: problem.kind,
+      state: problem.state,
+    })),
     children: (registration.children ?? []).map((child) => ({
       id: String(child.id),
       firstName: child.first_name,

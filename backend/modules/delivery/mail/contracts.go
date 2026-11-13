@@ -47,6 +47,10 @@ var (
 	// deployment that no longer has one. Its provider already gave up on it, so
 	// the request ends here.
 	ErrFallbackRemoved = errors.New("the security fallback was requested but is not configured")
+	// ErrThrottled marks a mail the server asked to send later (SMTP 4xx): a
+	// rate limit or an exhausted quota of the provider. The mail itself is
+	// fine, so the attempt does not count against its limit (#6737).
+	ErrThrottled = errors.New("mail server asked to send the mail later")
 )
 
 // Message struct holds all parts of a specific email Message.

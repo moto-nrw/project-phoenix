@@ -166,12 +166,23 @@ func (r TransactionalMailRenderer) Render(_ context.Context, intent *deliveryCom
 	return &payload.Message, nil
 }
 
+// transactionalSendFinal reports whether a send ends the mail: it went out,
+// the server refused it for good, or it used up the last attempt. A throttled
+// send is postponed without using up an attempt (#6737), so it never ends the
+// mail, even at its last attempt.
+func transactionalSendFinal(attempt, maxAttempts int, sendErr error) bool {
+	if sendErr == nil || errors.Is(sendErr, email.ErrPermanentRejection) {
+		return true
+	}
+	return attempt >= maxAttempts && !errors.Is(sendErr, deliveryCompose.ErrSendThrottled)
+}
+
 func (r TransactionalMailRenderer) RecordDelivery(ctx context.Context, intent *deliveryCompose.MailIntent, sendErr error) error {
 	payload, err := decodeTransactionalMail(intent)
 	if err != nil {
 		return err
 	}
-	result := email.DeliveryResult{Attempt: intent.Attempts + 1, MaxAttempt: payload.MaxAttempts, SentAt: time.Now(), Err: sendErr, Final: sendErr == nil || intent.Attempts+1 >= payload.MaxAttempts || errors.Is(sendErr, email.ErrPermanentRejection)}
+	result := email.DeliveryResult{Attempt: intent.Attempts + 1, MaxAttempt: payload.MaxAttempts, SentAt: time.Now(), Err: sendErr, Final: transactionalSendFinal(intent.Attempts+1, payload.MaxAttempts, sendErr)}
 	result.Status = email.DeliveryStatusSent
 	if sendErr != nil {
 		result.Status = email.DeliveryStatusFailed

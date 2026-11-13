@@ -579,6 +579,49 @@ describe("TraegerHolidayRegistrationPage", () => {
     ).toBeInTheDocument();
   });
 
+  it("warns when a mail to the parents did not arrive (#6737)", async () => {
+    mockRegistration.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION,
+      mailProblems: [
+        { kind: "holiday_registration_received", state: "failed" },
+        { kind: "holiday_registration_accepted", state: "blocked" },
+      ],
+    });
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    expect(
+      await screen.findByText("E-Mail an die Eltern prüfen"),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die Eingangsbestätigung hat die Eltern nicht erreicht.",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Die Annahme-Mail wurde nicht gesendet. Die E-Mail-Adresse ist gesperrt.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("shows no mail warning while the mails are on their way (#6737)", async () => {
+    mockRegistration.mockResolvedValue(HOLIDAY_REGISTRATION);
+    render(
+      <ToastProvider>
+        <TraegerHolidayRegistrationPage />
+      </ToastProvider>,
+    );
+
+    expect(await screen.findByText("eva@example.org")).toBeInTheDocument();
+    expect(
+      screen.queryByText("E-Mail an die Eltern prüfen"),
+    ).not.toBeInTheDocument();
+  });
+
   it("says when moto deletes the registration and downloads it as a PDF (#6691)", async () => {
     mockRegistration.mockResolvedValue({
       ...HOLIDAY_REGISTRATION,

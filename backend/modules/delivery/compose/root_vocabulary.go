@@ -90,6 +90,9 @@ var (
 	// whose mail must not go out, or not yet.
 	ErrRenderCancelled = emailoutbox.ErrRenderCancelled
 	ErrRenderDeferred  = emailoutbox.ErrRenderDeferred
+	// ErrSendThrottled marks a send result whose attempt does not count: the
+	// mail server asked to send later, and Delivery postpones the mail.
+	ErrSendThrottled = emailoutbox.ErrSendThrottled
 	// ErrNoWebPushSubscribers, ErrNotificationsDisabled and
 	// ErrOutsideNotificationWindow are the answers of a notice nobody
 	// receives: no subscriber, notifications off, outside the tenant's window.

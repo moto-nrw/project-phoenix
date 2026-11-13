@@ -39,6 +39,7 @@ import { holidayRegistrationDeletionNotice } from "~/components/traeger/holiday-
 import { HolidayRegistrationHistory } from "~/components/traeger/holiday-registration-history";
 import { HolidayRegistrationProofCard } from "~/components/traeger/holiday-registration-proof-card";
 import { HolidayRegistrationStatusCard } from "~/components/traeger/holiday-registration-status-card";
+import { HolidayRegistrationMailProblemsAlert } from "~/components/traeger/holiday-registration-mail-problems";
 import { useHolidayPeriodBillingHref } from "~/components/traeger/use-holiday-period-billing-href";
 import { useTraegerSchools } from "~/components/traeger/use-traeger-schools";
 import { isRefusal } from "~/components/traeger/use-traeger-confirmed-resource";
@@ -482,6 +483,9 @@ export default function TraegerHolidayRegistrationPage() {
           {deletionNotice ? (
             <Alert type="info" message={deletionNotice} />
           ) : null}
+          <HolidayRegistrationMailProblemsAlert
+            problems={registration.mailProblems}
+          />
           <HolidayRegistrationStatusCard
             periodId={periodId}
             registration={registration}

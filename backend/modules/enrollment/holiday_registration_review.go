@@ -188,6 +188,38 @@ type HolidayRegistrationSummary struct {
 	RetentionDays   int            `json:"retention_days"`
 	DeletesOn       *calendar.Date `json:"deletes_on"`
 	HealthDeletesOn *calendar.Date `json:"health_deletes_on"`
+
+	// MailProblems are the receipt and acceptance mails that did not reach
+	// the parent who registered (#6737); empty while they are on their way
+	// or arrived. Only the list and the detail of the review name them.
+	MailProblems []HolidayRegistrationMailProblem `json:"mail_problems,omitempty"`
+}
+
+// What became of a mail of the registration that did not reach the parents
+// (#6737): moto gave it up or the mail server returned it, the address is
+// blocked so the mail stayed back, or it is unknown whether it went out
+// because sending stopped midway or the server never reported a result.
+const (
+	HolidayMailFailed  = "failed"
+	HolidayMailBlocked = "blocked"
+	HolidayMailUnknown = "unknown"
+)
+
+// HolidayRegistrationMailProblem is a mail of the registration that did not
+// reach the parents: Kind is MailKindHolidayRegistrationReceived or
+// MailKindHolidayRegistrationAccepted, State one of the HolidayMail values.
+type HolidayRegistrationMailProblem struct {
+	Kind  string `json:"kind"`
+	State string `json:"state"`
+}
+
+// HolidayMailStates reads, in the caller's Träger transaction, what became of
+// the Träger's mails with the idempotency keys, in one read (#6737). The
+// answer names only the mails that did not reach their recipient, by key,
+// with a HolidayMail value; a mail on its way or delivered has no entry. The
+// root binds it to Delivery.
+type HolidayMailStates interface {
+	HolidayMailProblems(ctx context.Context, organizationID int64, idempotencyKeys []string) (map[string]string, error)
 }
 
 // HolidayRegistrationList is the list of a period: the registrations of the

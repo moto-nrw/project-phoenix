@@ -2,6 +2,8 @@ package owners
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"testing"
 
 	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
@@ -51,5 +53,27 @@ func TestTransactionalMailMarksSecurityMail(t *testing.T) {
 
 		require.NoError(t, err, mailType)
 		assert.Equal(t, security, capture.intent.Security, mailType)
+	}
+}
+
+// #6737: a throttled send at the last attempt leaves the delivery record open,
+// because Delivery postpones the mail instead of giving it up.
+func TestTransactionalSendFinalLeavesAThrottledSendOpen(t *testing.T) {
+	t.Parallel()
+	throttled := fmt.Errorf("%w: 421 4.7.0 rate limit", deliveryCompose.ErrSendThrottled)
+	if transactionalSendFinal(3, 3, throttled) {
+		t.Fatal("a throttled send must not end the mail")
+	}
+	if !transactionalSendFinal(3, 3, errors.New("connection reset")) {
+		t.Fatal("the last counted attempt ends the mail")
+	}
+	if transactionalSendFinal(1, 3, errors.New("connection reset")) {
+		t.Fatal("an earlier failed attempt leaves the mail open")
+	}
+	if !transactionalSendFinal(1, 3, fmt.Errorf("%w: 550 5.1.1", email.ErrPermanentRejection)) {
+		t.Fatal("a permanent rejection ends the mail")
+	}
+	if !transactionalSendFinal(1, 3, nil) {
+		t.Fatal("a sent mail is final")
 	}
 }

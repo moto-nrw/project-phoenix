@@ -411,6 +411,25 @@ describe("TraegerHolidayRegistrationsPage", () => {
     );
   });
 
+  it("marks a registration whose mail did not reach the parents (#6737)", async () => {
+    mockFetchList.mockResolvedValue({
+      ...HOLIDAY_REGISTRATION_LIST,
+      registrations: [
+        {
+          ...HOLIDAY_REGISTRATION_LIST.registrations[0]!,
+          mailProblems: [
+            { kind: "holiday_registration_received", state: "unknown" },
+          ],
+        },
+      ],
+    });
+    renderPage();
+    const table = await screen.findByRole("table");
+    await within(table).findByText("Eva Muster");
+
+    expect(within(table).getByText("E-Mail prüfen")).toBeInTheDocument();
+  });
+
   it("says when moto deletes the registrations and downloads them as PDFs in a ZIP (#6691)", async () => {
     sessionPermissions.current = [];
     mockFetchList.mockResolvedValue({

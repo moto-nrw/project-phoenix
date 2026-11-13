@@ -130,14 +130,16 @@ func TestSMTPMailerGeneratesAMessageIDWithoutAToken(t *testing.T) {
 func TestSMTPMailerClassifiesRefusals(t *testing.T) {
 	t.Parallel()
 	for name, tc := range map[string]struct {
-		answers             smtpAnswers
-		permanent, rejected bool
+		answers                        smtpAnswers
+		permanent, rejected, throttled bool
 	}{
 		"unknown mailbox":    {answers: smtpAnswers{rcptTo: "550 5.1.1 <guardian@example.com> unknown"}, permanent: true, rejected: true},
 		"unknown at data":    {answers: smtpAnswers{dataClose: "550 5.1.1 <guardian@example.com> unknown"}, permanent: true, rejected: true},
 		"undeliverable mail": {answers: smtpAnswers{dataClose: "554 5.6.0 cannot convert"}, permanent: true},
-		"full mailbox":       {answers: smtpAnswers{rcptTo: "452 4.2.2 mailbox full"}},
-		"busy after data":    {answers: smtpAnswers{dataClose: "451 4.3.0 try later"}},
+		"full mailbox":       {answers: smtpAnswers{rcptTo: "452 4.2.2 mailbox full"}, throttled: true},
+		"busy after data":    {answers: smtpAnswers{dataClose: "451 4.3.0 try later"}, throttled: true},
+		"rate limited":       {answers: smtpAnswers{mailFrom: "421 4.7.0 rate limit exceeded"}, throttled: true},
+		"quota at rcpt":      {answers: smtpAnswers{rcptTo: "450 4.7.1 sending quota reached"}, throttled: true},
 		"sender misconfig":   {answers: smtpAnswers{mailFrom: "550 5.7.1 sender not allowed"}},
 		"sender at rcpt":     {answers: smtpAnswers{rcptTo: "554 5.7.1 sender address rejected"}},
 		"relay denied":       {answers: smtpAnswers{rcptTo: "550 5.7.1 relaying denied"}},
@@ -155,6 +157,7 @@ func TestSMTPMailerClassifiesRefusals(t *testing.T) {
 			require.Error(t, err)
 			assert.Equal(t, tc.permanent, errors.Is(err, mailcontract.ErrPermanentRejection), "permanent")
 			assert.Equal(t, tc.rejected, errors.Is(err, mailcontract.ErrRecipientRejected), "recipient")
+			assert.Equal(t, tc.throttled, errors.Is(err, mailcontract.ErrThrottled), "throttled")
 			assert.NotContains(t, err.Error(), "guardian@example.com")
 		})
 	}
@@ -197,4 +200,44 @@ func TestSMTPMailerClassifiesAddressStatuses(t *testing.T) {
 			})
 		}
 	}
+}
+
+// #6737: throttling is expected under load and has its own alarm, so it is no
+// ERROR line; other failures stay one.
+func TestSMTPMailerLogsThrottlingAsWarning(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		answers smtpAnswers
+		level   string
+	}{
+		"throttled": {answers: smtpAnswers{mailFrom: "421 4.7.0 rate limit exceeded"}, level: "level=WARN"},
+		"refused":   {answers: smtpAnswers{mailFrom: "550 5.7.1 sender not allowed"}, level: "level=ERROR"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			client, _ := fakeSMTP(t, tc.answers)
+			mailer := identityMailer(t, client)
+			var logs strings.Builder
+			var mu sync.Mutex
+			mailer.logger = slog.New(slog.NewTextHandler(lockedWriter{w: &logs, mu: &mu}, nil))
+
+			require.Error(t, mailer.SendContext(context.Background(), identityMessage()))
+
+			mu.Lock()
+			defer mu.Unlock()
+			assert.Contains(t, logs.String(), tc.level+` msg="email send failed"`)
+			assert.NotContains(t, logs.String(), "guardian@example.com")
+		})
+	}
+}
+
+type lockedWriter struct {
+	w  *strings.Builder
+	mu *sync.Mutex
+}
+
+func (l lockedWriter) Write(p []byte) (int, error) {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.w.Write(p)
 }

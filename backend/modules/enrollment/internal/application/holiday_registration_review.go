@@ -97,6 +97,9 @@ type HolidayRegistrationReview struct {
 	// calendar names the host schools' days without care (#4702); a
 	// rebooking is refused without it.
 	calendar enrollment.HolidaySchoolCalendar
+	// mailStates names the receipt and acceptance mails that did not reach
+	// the parents (#6737); without it the review names none.
+	mailStates enrollment.HolidayMailStates
 }
 
 var _ enrollment.HolidayRegistrationReview = (*HolidayRegistrationReview)(nil)
@@ -106,9 +109,10 @@ var _ enrollment.HolidayRegistrationReview = (*HolidayRegistrationReview)(nil)
 // information (#4722), schoolCalendar names the host schools' days without
 // care (#4702), traeger names the Träger and the host schools in the mail of
 // a booking that moved up (#6437), of a decision by criteria and of the
-// acceptance (#6672). A nil today uses the Berlin calendar day. The allocation by criteria shares the
+// acceptance (#6672), mailStates names the receipt and acceptance mails that
+// did not reach the parents (#6737). A nil today uses the Berlin calendar day. The allocation by criteria shares the
 // review's store, locks and mail (#4700), the files (#6691) its reads.
-func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPeriodStore, forms HolidayFormStore, health enrollment.HolidayHealthCipher, today func() calendar.Date, mail enrollment.TraegerMailOutbox, traeger enrollment.HolidayTraegerDirectory, schoolCalendar enrollment.HolidaySchoolCalendar) (*HolidayRegistrationReview, *HolidayPlaces, *HolidayAllocation, *HolidayRegistrationRecords) {
+func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPeriodStore, forms HolidayFormStore, health enrollment.HolidayHealthCipher, today func() calendar.Date, mail enrollment.TraegerMailOutbox, traeger enrollment.HolidayTraegerDirectory, schoolCalendar enrollment.HolidaySchoolCalendar, mailStates enrollment.HolidayMailStates) (*HolidayRegistrationReview, *HolidayPlaces, *HolidayAllocation, *HolidayRegistrationRecords) {
 	if store == nil || periods == nil || forms == nil {
 		panic("enrollment: the holiday review store, the period store and the form store are required")
 	}
@@ -120,7 +124,7 @@ func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPerio
 	}
 	review := &HolidayRegistrationReview{
 		store: store, periods: periods, forms: forms, health: health, today: today,
-		placement: holidayPlacement{store: store, traeger: traeger, mail: mail}, calendar: schoolCalendar,
+		placement: holidayPlacement{store: store, traeger: traeger, mail: mail}, calendar: schoolCalendar, mailStates: mailStates,
 	}
 	return review, NewHolidayPlaces(store, periods, traeger, mail), NewHolidayAllocation(review), &HolidayRegistrationRecords{review: review, store: store}
 }
@@ -141,6 +145,13 @@ func (h *HolidayRegistrationReview) ListHolidayRegistrations(ctx context.Context
 	}
 	for _, registration := range matching {
 		list.Registrations = append(list.Registrations, registration.HolidayRegistrationSummary)
+	}
+	summaries := make([]*enrollment.HolidayRegistrationSummary, len(list.Registrations))
+	for i := range list.Registrations {
+		summaries[i] = &list.Registrations[i]
+	}
+	if err := h.addMailProblems(ctx, reviewer.OrganizationID, summaries); err != nil {
+		return enrollment.HolidayRegistrationList{}, err
 	}
 	return list, nil
 }
@@ -588,6 +599,9 @@ func (h *HolidayRegistrationReview) detail(ctx context.Context, reviewer enrollm
 		return enrollment.HolidayRegistrationDetail{}, err
 	}
 	if detail.Criteria, err = h.detailCriteria(ctx, reviewer.OrganizationID, period, detail); err != nil {
+		return enrollment.HolidayRegistrationDetail{}, err
+	}
+	if err := h.addMailProblems(ctx, reviewer.OrganizationID, []*enrollment.HolidayRegistrationSummary{&detail.HolidayRegistrationSummary}); err != nil {
 		return enrollment.HolidayRegistrationDetail{}, err
 	}
 	return detail, nil
