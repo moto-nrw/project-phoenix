@@ -500,10 +500,13 @@ func (s *RosterReconciler) reconcileSourcedTemplateRosters(
 	}
 
 	// Mirror the materializer's post-copy pass for the rows just inserted: a
-	// child with an active broad day status on that date must read absent with
-	// the matching substatus, not expected.
-	if _, err := s.applyActiveStatusDays(ctx, pass.touched, "reconcile sourced roster"); err != nil {
-		return pass.created, pass.removed, err
+	// child with an active broad day status or a partial-day excusal on that
+	// date must read absent with the matching substatus, not expected. The
+	// batch pass takes all student rows, then all care-day locks in (student,
+	// date) order, one statement each, instead of one pair per occurrence and
+	// child (#6981).
+	if err := s.applySourcedRosterStatusDays(ctx, pass.touched); err != nil {
+		return pass.created, pass.removed, &ports.ScheduleError{Op: "reconcile sourced roster: apply student status days", Err: WrapDatabaseError("apply sourced roster attendance", err)}
 	}
 
 	if pass.created > 0 || pass.removed > 0 {
