@@ -68,7 +68,7 @@ export function SchoolSearchTrigger() {
         onClick={() => setIsOpen(true)}
         aria-keyshortcuts="Control+K Meta+K"
         aria-haspopup="dialog"
-        className="hidden xl:inline-flex"
+        className="hidden gap-2 xl:inline-flex"
       >
         <Search aria-hidden="true" className="h-4 w-4 text-gray-500" />
         <span className="text-gray-600">Suchen</span>
