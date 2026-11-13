@@ -435,6 +435,16 @@ for path in 'scripts/test-changed.sh' 'scripts/test-changed_test.sh' 'scripts/te
 done
 assert_workflow_output_contains run-ci-scripts "steps.filter.outputs.backend-local-test-scripts == 'true'"
 assert_workflow_output_contains toolchain-changed "steps.filter.outputs.backend-local-test-scripts == 'true'"
+# The script self-tests left the backend test job: the ratchets suite must
+# start wherever that job ran them, on every full backend suite.
+for output in run-ci-scripts toolchain-changed; do
+  assert_workflow_output_contains "$output" "steps.backend-size.outputs.full == 'true'"
+  assert_workflow_output_contains "$output" "steps.filter.outputs.backend-test-infra == 'true'"
+  assert_workflow_output_contains "$output" "github.event_name == 'push'"
+  assert_workflow_output_contains "$output" "steps.scope.outputs.release == 'true'"
+done
+grep -qF 'scripts/backend-test-matrix_test.sh' <(sed -n '/- name: Verify backend test scripts/,/^  [a-z-]*:$/p' "$repo_root/.github/workflows/main.yml") ||
+  { echo 'the ratchets suite must run the test matrix self-test' >&2; exit 1; }
 for path in 'scripts/backend-source-ratchets.mjs' 'backend/test/*_test.go'; do
   assert_workflow_filter script-tests "$path" present
   # Do not buy the release-restore or extra toolchain-ratchet jobs for these.

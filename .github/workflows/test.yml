@@ -89,21 +89,11 @@ jobs:
           # its own: with two clones per package the default of 100 answered
           # "too many clients already" (#6784).
           #
-          # The other settings are the local test server's too. Clones and
-          # fixtures are disposable, and every clone and drop forces a
-          # checkpoint: with full_page_writes each one is followed by a full
-          # image of every page touched next. Postgres used 914-1017 of the
-          # 1786-2092 CPU seconds of a full test step with the defaults
-          # (13.11.2026), more than the test binaries.
-          POSTGRES_INITDB_ARGS: >-
-            --set max_connections=300
-            --set fsync=off
-            --set synchronous_commit=off
-            --set full_page_writes=off
-            --set shared_buffers=32MB
-            --set wal_level=minimal
-            --set max_wal_senders=0
-            --set max_wal_size=256MB
+          # The local server's fsync=off, full_page_writes=off and
+          # wal_level=minimal change nothing here: on this tmpfs Postgres
+          # took 50.7 % of the busy CPU seconds with them and 48.6-51.2 %
+          # without (full suite, 13.11.2026).
+          POSTGRES_INITDB_ARGS: --set max_connections=300
         ports:
           - 5432:5432
         # Package database drops force checkpoints. These disposable databases
@@ -202,8 +192,11 @@ jobs:
           cat "$RUNNER_TEMP/history.log"
           exit "$(cat "$RUNNER_TEMP/history-status")"
 
+      # Pull requests and pushes run these in the "ratchets" suite of
+      # ci-scripts (main.yml), off this job's critical path. The nightly run
+      # has no such job.
       - name: Test backend test scripts
-        if: ${{ matrix.shard == 0 && (!inputs.changed-scope || inputs.full-backend-suite || inputs.base_ref == '') }}
+        if: ${{ matrix.shard == 0 && inputs.backend-race }}
         run: |
           scripts/backend-affected-packages_test.sh
           scripts/backend-test-matrix_test.sh
