@@ -20,8 +20,8 @@ export function schoolSearchTopic(): HelpTopic {
         title: "Die Suche öffnen",
         ordered: false,
         steps: [
-          "Am Computer: Wählen Sie oben `Suchen`. Oder drücken Sie Strg und K. Am Mac drücken Sie ⌘ und K.",
-          "Am Tablet und am Handy: Wählen Sie oben die Lupe.",
+          "Am Computer: Wählen Sie oben `Überall suchen`. Oder drücken Sie Strg und K. Am Mac drücken Sie ⌘ und K.",
+          "Am Tablet und am Handy: Wählen Sie oben neben dem Fragezeichen die Lupe. Der Reiter `Suchen` unten öffnet dagegen `Alle Kinder`.",
         ],
       },
       {

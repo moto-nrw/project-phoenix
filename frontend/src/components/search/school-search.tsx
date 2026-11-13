@@ -416,7 +416,7 @@ export function SchoolSearchDialog({
     <CommandPalette
       isOpen={isOpen}
       onClose={close}
-      label="Suchen"
+      label="Überall suchen"
       query={query}
       onQueryChange={setQuery}
       placeholder={

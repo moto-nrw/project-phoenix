@@ -84,7 +84,7 @@ export function SchoolSearchTrigger({
           className="hidden gap-2 xl:inline-flex"
         >
           <Search aria-hidden="true" className="h-4 w-4 text-gray-500" />
-          <span className="text-gray-600">Suchen</span>
+          <span className="text-gray-600">Überall suchen</span>
           {shortcut ? (
             <span className="ml-6 text-xs text-gray-400">{shortcut}</span>
           ) : null}
@@ -95,7 +95,7 @@ export function SchoolSearchTrigger({
         variant="ghost"
         size="icon"
         onClick={() => setIsOpen(true)}
-        aria-label="Suchen"
+        aria-label="Überall suchen"
         aria-keyshortcuts="Control+K Meta+K"
         aria-haspopup="dialog"
         className={placement === "header" ? "xl:hidden" : "lg:hidden"}
