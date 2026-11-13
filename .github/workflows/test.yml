@@ -576,9 +576,9 @@ jobs:
           TZ: Europe/Berlin
         ports:
           - 5432:5432
-        # The seed writes a throwaway database; keep it off the runner's disk.
+        # A tmpfs for the data directory changed nothing: the seed step took
+        # 84-130 s with it and 110-130 s without (four runs each, 13.11.2026).
         options: >-
-          --tmpfs /var/lib/postgresql/data:rw,size=4g
           --health-cmd "pg_isready -U postgres"
           --health-interval 2s
           --health-timeout 5s
