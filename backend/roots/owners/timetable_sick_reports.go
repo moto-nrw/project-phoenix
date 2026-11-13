@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // SickReportAbsences is the one Workforce absence read the materializer's
@@ -27,35 +27,33 @@ type timetableSickReports struct {
 	absences SickReportAbsences
 }
 
-// OpenSickReports lists the full-day sick reports overlapping [from, to] the
-// way Workforce hands them to the sick cascade: a half-day report never
-// cascades, and the half boundary days of a range are skipped.
+// OpenSickReports lists the absences in force overlapping [from, to] the way
+// Workforce hands them to the sick cascade (#6292): every type since #6847, a
+// reported entry or an approved request; a single half day never cascades,
+// and the half boundary days of a range are skipped.
 func (r timetableSickReports) OpenSickReports(ctx context.Context, from, to calendar.Date) ([]timetable.SickReport, error) {
 	rows, err := r.absences.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{
-		Types:       []string{workforce.AbsenceTypeSick},
-		Statuses:    workforce.RangeBlockingAbsenceStatuses(),
+		Statuses:    workforce.PlanEffectiveAbsenceStatuses(),
 		OverlapFrom: from.String(),
 		OverlapTo:   to.String(),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("list sick reports: %w", err)
+		return nil, fmt.Errorf("list absences: %w", err)
 	}
 	reports := make([]timetable.SickReport, 0, len(rows))
 	for _, row := range rows {
-		if row.HalfDay {
-			continue
-		}
 		start, err := calendar.ParseDate(row.DateStart)
 		if err != nil {
-			return nil, fmt.Errorf("sick report %d has an invalid date_start %q: %w", row.ID, row.DateStart, err)
+			return nil, fmt.Errorf("absence %d has an invalid date_start %q: %w", row.ID, row.DateStart, err)
 		}
 		end, err := calendar.ParseDate(row.DateEnd)
 		if err != nil {
-			return nil, fmt.Errorf("sick report %d has an invalid date_end %q: %w", row.ID, row.DateEnd, err)
+			return nil, fmt.Errorf("absence %d has an invalid date_end %q: %w", row.ID, row.DateEnd, err)
 		}
+		skipStart, skipEnd := row.HalfBoundaryDays()
 		reports = append(reports, timetable.SickReport{
-			AbsenceID: row.ID, StaffID: row.StaffID, DateStart: start, DateEnd: end,
-			SkipStartDay: row.StartHalfDay, SkipEndDay: row.EndHalfDay,
+			AbsenceID: row.ID, StaffID: row.StaffID, Sick: row.AbsenceType == workforce.AbsenceTypeSick,
+			DateStart: start, DateEnd: end, SkipStartDay: skipStart, SkipEndDay: skipEnd,
 		})
 	}
 	return reports, nil

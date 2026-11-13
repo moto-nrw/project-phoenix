@@ -334,7 +334,7 @@ export function RolloverForm({
           <div className="grid gap-3 sm:grid-cols-2">
             <ISODatePicker
               id="rollover-service-start"
-              controlSize="md"
+              controlSize="compact"
               label="Betreuung von"
               ariaLabel="Betreuung von"
               value={draft.service_start_date}
@@ -348,7 +348,7 @@ export function RolloverForm({
             />
             <ISODatePicker
               id="rollover-service-end"
-              controlSize="md"
+              controlSize="compact"
               label="Betreuung bis"
               ariaLabel="Betreuung bis"
               min={draft.service_start_date || undefined}

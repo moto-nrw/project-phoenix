@@ -1,4 +1,4 @@
-package requestreviewhttp
+package requestreviewhttp_test
 
 import "strings"
 

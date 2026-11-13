@@ -14,7 +14,7 @@ export function traegerCareCostSharesTopic(): HelpTopic {
     icon: "HandCoins",
     requirements: [
       "Ihre Rolle im Träger-Büro ist Abrechnung.",
-      "Der Kostenträger steht unter `Einstellungen` und `Abrechnung`.",
+      "Der Kostenträger steht unter `Einstellungen` und `Abrechnungsvorgaben`.",
       "Sie haben den Bescheid geprüft.",
     ],
     steps: [],
@@ -22,7 +22,7 @@ export function traegerCareCostSharesTopic(): HelpTopic {
       {
         title: "Anteil eintragen",
         steps: [
-          "Wählen Sie `Abrechnung` und dann den Reiter `Kostenträger`.",
+          "Wählen Sie `Familien und Zahlung` und dann den Reiter `Kostenübernahmen`.",
           "Wählen Sie beim Kind das Menü und dann `Anteil eintragen`.",
           "Wählen Sie bei `Wer zahlt mit?` die Art: `Bildung und Teilhabe`, `Jugendamt` oder `Sonstiger Zuschuss`.",
           "Wählen Sie den `Kostenträger`.",
@@ -67,7 +67,7 @@ export function traegerCareCostSharesTopic(): HelpTopic {
     ],
     notes: [
       "moto speichert nur Art, Anteil, Zeitraum und Aktenzeichen. Den Bescheid behalten Sie.",
-      "Jedes Öffnen der Seite `Kostenträger` steht im Zugriffsprotokoll.",
+      "Jedes Öffnen des Reiters `Kostenübernahmen` steht im Zugriffsprotokoll.",
     ],
     related: [
       HELP_TOPICS.traegerCareReductions,

@@ -19,5 +19,7 @@
   "openInNewTab": "Hape në skedë të re",
   "notViewable": "Ky skedar nuk mund të shfaqet këtu. Shkarkojeni për ta hapur.",
   "notViewableOnDevice": "Në këtë pajisje skedari nuk mund të shfaqet këtu. Hapeni në një skedë të re ose shkarkojeni.",
-  "position": "{current} nga {total}"
+  "position": "{current} nga {total}",
+  "downloadHint": "Ruan skedarin në pajisjen tuaj.",
+  "openInNewTabHint": "Hap skedarin në një skedë të re."
 }

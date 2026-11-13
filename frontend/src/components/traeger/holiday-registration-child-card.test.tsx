@@ -1,4 +1,10 @@
-import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import {
+  fireEvent,
+  render,
+  screen,
+  waitFor,
+  within,
+} from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { apiErrorFromBody } from "~/lib/api-error";
@@ -59,6 +65,54 @@ describe("HolidayRegistrationChildCard", () => {
     vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", "traeger.localhost:3000");
   });
   afterEach(() => vi.unstubAllEnvs());
+
+  // Whoever reads the Gesundheit box before the holiday week must not miss
+  // an intolerance the form asked for: health answers stand there.
+  it("puts the answers to health questions into the Gesundheit box", () => {
+    renderCard(
+      {
+        ...HOLIDAY_REGISTRATION,
+        form: {
+          version: 2,
+          fields: [
+            {
+              key: "unvertraeglich",
+              label: "Lebensmittelunverträglichkeiten",
+              type: "text",
+              applies_to_child: true,
+              health: true,
+              sort_order: 0,
+            },
+            {
+              key: "ausfluege",
+              label: "Darf an Ausflügen teilnehmen",
+              type: "boolean",
+              applies_to_child: true,
+              sort_order: 1,
+            },
+          ],
+        },
+        childAnswers: { "9": { unvertraeglich: "Laktose", ausfluege: true } },
+      },
+      0,
+    );
+
+    const healthBox = within(
+      screen.getByRole("heading", { name: "Gesundheit" }).parentElement!,
+    );
+    expect(healthBox.getByText("Erdnüsse")).toBeInTheDocument();
+    expect(
+      healthBox.getByText("Lebensmittelunverträglichkeiten"),
+    ).toBeInTheDocument();
+    expect(healthBox.getByText("Laktose")).toBeInTheDocument();
+    const otherBox = within(
+      screen.getByRole("heading", { name: "Weitere Angaben" }).parentElement!,
+    );
+    expect(
+      otherBox.getByText("Darf an Ausflügen teilnehmen"),
+    ).toBeInTheDocument();
+    expect(otherBox.queryByText("Laktose")).not.toBeInTheDocument();
+  });
 
   it("shows school, weeks, health information and the duplicate hint", () => {
     renderCard(HOLIDAY_REGISTRATION, 0);

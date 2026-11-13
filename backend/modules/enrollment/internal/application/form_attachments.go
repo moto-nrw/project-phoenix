@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 func (s *FormSchemas) normalizeAttachments(ctx context.Context, attachments []enrollment.FormAttachment) ([]enrollment.FormAttachment, error) {

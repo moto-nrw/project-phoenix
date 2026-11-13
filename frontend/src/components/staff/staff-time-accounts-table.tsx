@@ -12,9 +12,11 @@
 // Berechtigung feuert der Request gar nicht erst.
 
 import { EmptyState } from "~/components/ui/empty-state";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { ChevronLeft, ChevronRight, Download, Lock } from "lucide-react";
 
+import { MISSING_TARGET_OWNER } from "~/components/staff/missing-target-notice";
+import { Alert } from "~/components/ui/alert";
 import { FieldLabel } from "~/components/ui/field-label";
 import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -105,6 +107,12 @@ interface Props {
   /** Ladefehler der Zeitkonten, am besten aus `useApiLoadError`. */
   readonly error: FormErrorInput;
   readonly onRowClick: (row: TimeAccountRow) => void;
+  /** Darf das Soll setzen (Reiter „Arbeitszeitmodell“): dann führt der
+   *  Hinweis zum Klick auf die Zeile, sonst nennt er, wer es einträgt. */
+  readonly canSetTarget?: boolean;
+  /** Startet mit dem Filter „ohne Soll“, etwa vom Link unter Abrechnung
+   *  (#6890). Greift nur, solange es solche Personen gibt. */
+  readonly initialOnlyWithoutTarget?: boolean;
   /** Nur die Freieingabe der Saldo-Grenzen; die Presets stehen darüber. */
   readonly saldoPreset: SaldoPresetId;
   readonly onSaldoPresetChange: (preset: SaldoPresetId) => void;
@@ -132,6 +140,8 @@ export function StaffTimeAccountsTable({
   isLoading,
   error,
   onRowClick,
+  canSetTarget = false,
+  initialOnlyWithoutTarget = false,
   saldoPreset,
   onSaldoPresetChange,
   customSaldoHours,
@@ -143,9 +153,34 @@ export function StaffTimeAccountsTable({
   // Filtert die geladenen Zeilen: die Zahl der markierten Tage steckt schon
   // in jeder Zeile, eine neue Abfrage braucht es dafür nicht (#4804).
   const [onlyWithHints, setOnlyWithHints] = useState(false);
+  // Personen ohne gepflegtes Soll (#6887): ihre Krankheits- und Urlaubstage
+  // zählen 0 Stunden. Der Hinweis über der Tabelle zählt sie und filtert auf
+  // Wunsch auf sie, ohne neue Abfrage.
+  const [onlyWithoutTarget, setOnlyWithoutTarget] = useState(
+    initialOnlyWithoutTarget,
+  );
+  const withoutTargetCount = useMemo(
+    () => rows.filter((row) => !row.hasTarget).length,
+    [rows],
+  );
+  const showOnlyWithoutTarget = onlyWithoutTarget && withoutTargetCount > 0;
+  // Vom Link unter Abrechnung (#6890): einmal zum Hinweis über der Tabelle
+  // scrollen, sobald die Personen ohne Soll geladen sind.
+  const withoutTargetRef = useRef<HTMLDivElement>(null);
+  const scrolledToTarget = useRef(!initialOnlyWithoutTarget);
+  useEffect(() => {
+    if (scrolledToTarget.current || withoutTargetCount === 0) return;
+    scrolledToTarget.current = true;
+    withoutTargetRef.current?.scrollIntoView({ block: "start" });
+  }, [withoutTargetCount]);
   const visibleRows = useMemo(
-    () => (onlyWithHints ? rows.filter((row) => row.laborHintDays > 0) : rows),
-    [rows, onlyWithHints],
+    () =>
+      rows.filter(
+        (row) =>
+          (!onlyWithHints || row.laborHintDays > 0) &&
+          (!showOnlyWithoutTarget || !row.hasTarget),
+      ),
+    [rows, onlyWithHints, showOnlyWithoutTarget],
   );
   const columns = useMemo<DataTableColumn<TimeAccountRow>[]>(
     () => [
@@ -173,12 +208,16 @@ export function StaffTimeAccountsTable({
         key: "soll",
         header: "Soll",
         align: "right",
-        sortValue: (row) => row.sollMinutes,
-        render: (row) => (
-          <span className="text-gray-700 tabular-nums">
-            {formatDuration(row.sollMinutes)}
-          </span>
-        ),
+        // Ohne Soll vor jedem echten Wert, auch vor 0 Minuten.
+        sortValue: (row) => (row.hasTarget ? row.sollMinutes : -1),
+        render: (row) =>
+          row.hasTarget ? (
+            <span className="text-gray-700 tabular-nums">
+              {formatDuration(row.sollMinutes)}
+            </span>
+          ) : (
+            <StatusBadge label="Kein Soll" tone="warning" compact />
+          ),
       },
       {
         key: "ist",
@@ -434,6 +473,35 @@ export function StaffTimeAccountsTable({
 
       <LoadErrorAlert error={error} />
 
+      {withoutTargetCount > 0 && (
+        <div ref={withoutTargetRef} className="scroll-mt-24">
+          <Alert
+            type="warning"
+            announce="off"
+            message={`${
+              withoutTargetCount === 1
+                ? "1 Person hat"
+                : `${withoutTargetCount} Personen haben`
+            } in ${formatOverviewMonth(year, month)} kein Soll. Krankheit, Urlaub und Fortbildung zählen bei ihnen 0 Stunden. ${
+              canSetTarget
+                ? "Ein Klick auf die Zeile öffnet das Arbeitszeitmodell."
+                : MISSING_TARGET_OWNER
+            }`}
+            action={
+              <Button
+                type="button"
+                size="compact"
+                variant="ghost_tone"
+                onClick={() => setOnlyWithoutTarget((value) => !value)}
+                aria-pressed={showOnlyWithoutTarget}
+              >
+                {showOnlyWithoutTarget ? "Alle zeigen" : "Nur diese zeigen"}
+              </Button>
+            }
+          />
+        </div>
+      )}
+
       {/* Ohne geladene Zeitkonten ist die Liste nicht leer, sondern fehlt. */}
       {error && rows.length === 0 ? null : (
         <DataTable
@@ -447,7 +515,7 @@ export function StaffTimeAccountsTable({
           // rendert nur die ersten 50 Zeilen und lädt auf Klick nach. Sortiert
           // wird trotzdem über den vollen Datensatz, nicht über die Seite.
           pageSize={50}
-          paginationResetKey={`${paginationResetKey ?? ""}|${onlyWithHints}`}
+          paginationResetKey={`${paginationResetKey ?? ""}|${onlyWithHints}|${showOnlyWithoutTarget}`}
           emptyState={
             <EmptyState
               title="Keine Zeitkonten gefunden"

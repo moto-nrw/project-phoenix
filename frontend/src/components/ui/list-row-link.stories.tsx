@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { expect, fn, userEvent, within } from "storybook/test";
 
 import { LOCATION_COLORS } from "~/lib/location-helper";
 import { FramedList } from "./framed-list";
@@ -91,7 +92,7 @@ export const Unread: Story = {
           badge={
             <NotificationBadge
               count={2}
-              tone="parents"
+              tone="blue"
               ariaLabel="2 ungelesene Nachrichten"
             />
           }
@@ -108,7 +109,7 @@ export const Unread: Story = {
           badge={
             <NotificationBadge
               count={1}
-              tone="parents"
+              tone="blue"
               ariaLabel="1 ungelesene Nachricht"
             />
           }
@@ -126,4 +127,22 @@ export const Unread: Story = {
       </li>
     </FramedList>
   ),
+};
+
+/** Tastaturfokus auf der einzelnen Karte. */
+export const FramedFocused: Story = {
+  args: { framed: true },
+  play: async ({ canvasElement }) => {
+    await userEvent.tab();
+    await expect(within(canvasElement).getByRole("link")).toHaveFocus();
+  },
+};
+
+/** Einzelne Karte ohne Ziel: eine Schaltfläche. */
+export const FramedButton: Story = {
+  args: { framed: true, href: undefined, onClick: fn() },
+};
+
+export const FramedDisabled: Story = {
+  args: { framed: true, href: undefined, onClick: fn(), disabled: true },
 };

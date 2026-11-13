@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
+	appointmentcap "github.com/moto-ogs/project-phoenix/modules/appointments"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal/internal/ports"
 )
 
 // StaffAppointmentICS renders an appointment the current staff member can see
@@ -33,8 +33,7 @@ func (s *service) StaffAppointmentICS(ctx context.Context, appointmentID int64) 
 	if err != nil {
 		return "", "", err
 	}
-	_, recipientID := staffRecipientStatus(recipients, staff.ID)
-	if appointment.OrganizerStaffID != staff.ID && recipientID == nil {
+	if appointment.OrganizerStaffID != staff.ID && staffRecipient(recipients, staff.ID) == nil {
 		return "", "", ErrNotFound
 	}
 	return s.renderAppointmentICS(ctx, appointment)

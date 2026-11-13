@@ -1,7 +1,7 @@
 package users
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/contact"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/contact"
 )
 
 // RelationshipType represents the type of relationship between a person and guardian

@@ -3,9 +3,9 @@ package api
 import (
 	"context"
 
-	facilitiesNative "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesNative "github.com/moto-ogs/project-phoenix/modules/facilities"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 // roomActivityNames serves the activity group names the room occupancy and

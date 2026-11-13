@@ -5,7 +5,7 @@ import (
 	"errors"
 	"fmt"
 
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // ModuleKey identifies one additional module of the module catalog (#4812).

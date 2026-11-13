@@ -13,8 +13,9 @@ export function InvoicePaymentLine({
 }: Readonly<{ payment: InvoicePayment }>) {
   const hint = dueSourceHint(payment);
   return (
-    <p className="mt-0.5 text-xs text-gray-600">
-      {PAYMENT_METHOD_LABELS[payment.method]} · {dueOnText(payment)}
+    <p className="mt-0.5 text-sm text-gray-600">
+      {PAYMENT_METHOD_LABELS[payment.method]} ·{" "}
+      <span className="whitespace-nowrap">{dueOnText(payment)}</span>
       {hint ? <span className="text-gray-500"> ({hint})</span> : null}
     </p>
   );

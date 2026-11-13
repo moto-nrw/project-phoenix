@@ -5,7 +5,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 func TestFormLabelsResponseKeepsOnlyWhatNamesAnAnswer(t *testing.T) {

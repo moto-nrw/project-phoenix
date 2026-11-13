@@ -9,8 +9,12 @@
  */
 export interface DatePickerLabels {
   readonly clear?: string;
+  /** What the clear button does (#6744), shown on hover and focus. */
+  readonly clearHint?: string;
   readonly previousMonth?: string;
+  readonly previousMonthHint?: string;
   readonly nextMonth?: string;
+  readonly nextMonthHint?: string;
   readonly month?: string;
   readonly year?: string;
   /** Receives the count, e.g. (3) => "3 Tage ausgewählt". */

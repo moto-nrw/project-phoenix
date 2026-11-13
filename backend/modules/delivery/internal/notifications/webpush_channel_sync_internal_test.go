@@ -12,8 +12,8 @@ import (
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
 	webpush "github.com/SherClockHolmes/webpush-go"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	deliveryModels "github.com/moto-ogs/project-phoenix/modules/delivery/subscriptions"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"

@@ -5,14 +5,14 @@ import (
 	"context"
 	"net/http"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
 )
 
 // GuardianProfiles loads the guardian profile an account holds in one school,
@@ -132,7 +132,18 @@ func (rs *Resource) Router(configureSession func(chi.Router)) chi.Router {
 	return r
 }
 
-// mountPublicRoutes registers the parent-facing routes.
+// PublicRoutes is the table of the parent-facing routes, relative to the
+// mount of Router. The root matches a request against it before routing to
+// give these routes the limit of a public link (#6739); its handlers never
+// run.
+func PublicRoutes() chi.Routes {
+	r := chi.NewRouter()
+	(&Resource{}).mountPublicRoutes(r)
+	return r
+}
+
+// mountPublicRoutes registers the parent-facing routes. PublicRoutes calls
+// it on a zero Resource, so it only binds handlers and reads no field.
 func (rs *Resource) mountPublicRoutes(r chi.Router) {
 	r.Get("/phases/public/{tenantSlug}", rs.listPublicPhases)
 	r.Get("/form-bootstrap/public/{tenantSlug}/{phaseId}", rs.publicFormBootstrap)

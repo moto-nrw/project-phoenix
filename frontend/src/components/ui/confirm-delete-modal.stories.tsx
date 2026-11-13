@@ -192,3 +192,10 @@ export const ParentsPortal: Story = {
     error: "",
   },
 };
+
+export const ParentsPortalLoading: Story = {
+  args: {
+    ...ParentsPortal.args,
+    loading: true,
+  },
+};

@@ -1,8 +1,8 @@
 package careplanhttp
 
 import (
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
-	departure "github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	careplan "github.com/moto-ogs/project-phoenix/modules/careplan"
+	departure "github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 )
 
 // toCompanionLinks converts the wire entries into the service's link shape.

@@ -32,6 +32,7 @@ export const STATUS_TONES: Record<FamilyChildrenStatus, StatusBadgeTone> = {
   changed: "warning",
   confirmed: "green",
   expiring: "warning",
+  // An expired number no longer counts for the price: red, it needs a check.
   expired: "red",
   upcoming: "blue",
 };

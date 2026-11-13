@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 )
 
 func (w *ExcusedRequests) ListHistory(ctx context.Context, filter careplan.RequestQueueFilter) (items []*careplan.ExcusedRequestHistoryItem, next *careplan.RequestCursor, err error) {

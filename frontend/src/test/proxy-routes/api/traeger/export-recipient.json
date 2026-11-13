@@ -1,0 +1,5 @@
+{
+  "api/traeger/export-recipient/formats": [
+    "PUT traeger /traeger/export-recipient/formats"
+  ]
+}

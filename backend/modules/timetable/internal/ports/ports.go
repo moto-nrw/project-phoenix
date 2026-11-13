@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type Store interface {
@@ -61,6 +61,9 @@ type Store interface {
 	UpdateTemplate(context.Context, int64, timetable.TemplateUpdate) (int64, domain.OperationStats, error)
 	ArchiveTemplate(context.Context, int64) (int64, domain.OperationStats, error)
 	UpdateGroupOfferingSource(context.Context, int64, timetable.OfferingSourceInput) (domain.OperationStats, error)
+	UpdateGroupOfferingSources(context.Context, map[int64]timetable.OfferingSourceInput) (domain.OperationStats, error)
+	SaveSourcedRosterChanges(context.Context, timetable.SourcedRosterChanges) (domain.OperationStats, error)
+	SaveSourcedInstanceStudents(context.Context, []timetable.InstanceStudentInput, []int64) (domain.OperationStats, error)
 	UpdateTemplateRosterReview(context.Context, int64, timetable.TemplateRosterReviewUpdate) (int64, domain.OperationStats, error)
 	ListGroupTargets(context.Context, []int64) (map[int64][]timetable.GroupTarget, domain.OperationStats, error)
 	ReplaceGroupTargets(context.Context, int64, []timetable.GroupTargetInput) (domain.OperationStats, error)

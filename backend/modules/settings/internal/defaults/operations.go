@@ -1,7 +1,7 @@
 package defaults
 
 import (
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 func init() {
@@ -247,7 +247,7 @@ var operations_init_sitzungsbereinigung_4Definitions = []config.Definition{
 	{
 		Key:             config.KeySessionCleanupEnabled,
 		Label:           "Bereinigung verlassener Sitzungen",
-		Description:     "Automatische Bereinigung von Sitzungen ohne Aktivität",
+		Description:     "Beendet Sitzungen ohne Aktivität, wenn das Gerät offline ist. Sitzungen mit Kindern im Raum bleiben offen.",
 		Type:            config.FieldBoolean,
 		Default:         false,
 		ReadPermission:  "config:read",
@@ -275,7 +275,7 @@ var operations_init_sitzungsbereinigung_4Definitions = []config.Definition{
 	{
 		Key:             config.KeySessionAbandonedThresholdMin,
 		Label:           "Inaktivitätsschwelle (Minuten)",
-		Description:     "Minuten ohne Aktivität, bevor eine Sitzung als verlassen gilt",
+		Description:     "Minuten ohne Aktivität, bevor eine Sitzung ohne Kinder im Raum als verlassen gilt",
 		Type:            config.FieldNumber,
 		Default:         60,
 		ReadPermission:  "config:read",
@@ -290,7 +290,7 @@ var operations_init_sitzungsbereinigung_4Definitions = []config.Definition{
 	{
 		Key:             config.KeySessionInactivityTimeoutMin,
 		Label:           "Standard-Sitzungstimeout (Minuten)",
-		Description:     "Standardzeit ohne Aktivität, nach der eine Sitzung automatisch beendet wird, sofern für die Sitzung kein eigenes Timeout gesetzt ist",
+		Description:     "Zeitlimit ohne Aktivität für Sitzungen ohne eigenes Zeitlimit. Nur ein Hinweis für das Gerät: Die Sitzung endet dadurch nicht.",
 		Type:            config.FieldNumber,
 		Default:         30,
 		ReadPermission:  "config:read",

@@ -6,9 +6,9 @@ status: proposed
 
 **Status: Vorgeschlagen.**
 
-Vorschlag vom 09.11.2026 zu [#6347](https://github.com/moto-nrw/project-phoenix/issues/6347),
+Vorschlag vom 09.11.2026 zu [#6347](https://github.com/moto-ogs/project-phoenix/issues/6347),
 Entscheidung **A** im Issue (Yannick, 09.11.2026), Etappe 2 der Spec
-[#4611](https://github.com/moto-nrw/project-phoenix/issues/4611). Er löst die Folge
+[#4611](https://github.com/moto-ogs/project-phoenix/issues/4611). Er löst die Folge
 „Schreiben, Mail und Elternpostfach für Bescheide“ aus
 [ADR 0182](0182-jahresbescheid-veranlagt-die-monate-eines-jahres-und-keine-monatsrechnung-rechnet-sie-noch-einmal-ab.md)
 (Punkt 8) nach dem Muster von

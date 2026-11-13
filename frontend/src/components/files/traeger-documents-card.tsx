@@ -14,7 +14,10 @@ import {
 import { Button } from "~/components/ui/button";
 import { FileTypeIcon } from "~/components/ui/file-type-icon";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { documentsConcept } from "~/lib/concepts/documents";
@@ -99,10 +102,7 @@ export function TraegerDocumentsCard({
       ) : (
         <ResponsiveActionList>
           {documents.map((document) => (
-            <li
-              key={document.id}
-              className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
-            >
+            <ResponsiveActionRow key={document.id}>
               <div className="flex min-w-0 items-start gap-3">
                 <FileTypeIcon
                   contentType={document.contentType}
@@ -138,7 +138,7 @@ export function TraegerDocumentsCard({
                   Herunterladen
                 </Button>
               </div>
-            </li>
+            </ResponsiveActionRow>
           ))}
         </ResponsiveActionList>
       )}

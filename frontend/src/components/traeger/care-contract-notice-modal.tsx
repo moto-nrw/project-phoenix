@@ -6,7 +6,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/detail-modal-components";
 import { ChoiceTile } from "~/components/ui/choice-tile";
 import { DatePicker } from "~/components/ui/date-picker";
@@ -43,8 +43,19 @@ import {
   parseISODate,
   toISODate,
 } from "~/lib/date-helpers";
+import { ApiError } from "~/lib/api-error";
+import { traegerPath } from "~/lib/traeger-url";
 import { createLogger } from "~/lib/logger";
 import { TERMINATION_KIND_LABELS } from "./care-contract-format";
+
+/** No answer arrived, or a gateway gave up: the request may have run. */
+function connectionLost(err: unknown): boolean {
+  return (
+    err instanceof ApiError &&
+    (err.noResponse === true ||
+      [408, 499, 502, 503, 504].includes(err.status ?? 0))
+  );
+}
 
 const logger = createLogger({ component: "CareContractNoticeModal" });
 
@@ -144,6 +155,10 @@ export function RecordNoticeModal({
   const submit = async () => {
     if (!choices || optionsError || missingText) return;
     formErrors.clear();
+    const recordedMessage =
+      kind === "widerruf"
+        ? "Der Widerruf ist eingetragen. Die Eltern bekommen eine Bestätigung per E-Mail."
+        : "Die Kündigung ist eingetragen. Die Eltern bekommen eine Bestätigung per E-Mail.";
     await save.run(async (op) => {
       try {
         const next = await recordContractNotice(contractId, {
@@ -162,18 +177,35 @@ export function RecordNoticeModal({
                       : choices?.ordinaryEndsOn) ?? undefined,
                 }),
         });
-        success(
-          kind === "widerruf"
-            ? "Der Widerruf ist eingetragen. Die Eltern haben eine Bestätigung bekommen."
-            : "Die Kündigung ist eingetragen. Die Eltern haben eine Bestätigung bekommen.",
-        );
+        success(recordedMessage);
         if (op.isCurrent()) onRecorded(next);
       } catch (err) {
         logger.error("traeger_care_contract_notice_record_failed", {
           error: err instanceof Error ? err.message : String(err),
         });
+        // After a lost connection the notice may be recorded all the same, its
+        // mail to the parents sent: read the contract again before a second
+        // try could record it twice.
+        if (connectionLost(err)) {
+          const recorded = await fetchContractNoticeOptions(contractId).catch(
+            (readErr: unknown) => {
+              // The original error stays the message; this read only spares
+              // a second entry.
+              logger.warn("traeger_care_contract_notice_recheck_failed", {
+                error:
+                  readErr instanceof Error ? readErr.message : String(readErr),
+              });
+              return null;
+            },
+          );
+          if (recorded?.notice) {
+            success(recordedMessage);
+            if (op.isCurrent()) onRecorded(recorded);
+            return;
+          }
+        }
         if (!op.isCurrent()) return;
-        void formErrors.show(err, { object: "die Erklärung" });
+        void formErrors.show(err, { object: "die Kündigung" });
       }
     });
   };
@@ -407,6 +439,25 @@ export function RecordNoticeModal({
         <Alert
           type="warning"
           message="Die Eltern bekommen sofort eine Bestätigung per E-Mail. Das lässt sich nicht rückgängig machen."
+          actionLayout="responsive"
+          action={
+            // The mail carries the Träger's text from the settings, not the
+            // letter template „Bestätigung der Kündigung“. A new tab keeps
+            // this dialog and its entries.
+            <ButtonLink
+              href={traegerPath("/traeger/einstellungen?bereich=vertraege")}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-label="Text der E-Mail ansehen, neuer Tab"
+              variant="ghost_tone"
+              size="compact"
+              tooltip="Öffnet die Einstellungen mit dem Text der E-Mail in einem neuen Tab."
+              // Under the message on a phone: the label starts with the text.
+              className="max-sm:-ml-2.5"
+            >
+              Text der E-Mail ansehen
+            </ButtonLink>
+          }
         />
       </form>
     </FormModal>

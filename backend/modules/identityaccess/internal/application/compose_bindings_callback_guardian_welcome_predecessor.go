@@ -4,9 +4,9 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	identityBindingPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func NewGuardianWelcomePredecessor(mails identityBindingPorts.PrecedingMails) func(ctx context.Context, outboxID int64) (bool, bool, error) {

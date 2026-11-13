@@ -14,7 +14,6 @@ import { redirect, useSearchParams } from "next/navigation";
 import { DatabaseCreateAction } from "~/components/database/database-create-action";
 import { DatabasePageLayout } from "~/components/database/database-page-layout";
 import { formatCount } from "~/lib/format-utils";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import type {
   ActiveFilter,
@@ -425,34 +424,30 @@ function ActivitiesPageContent() {
           />
         ),
       }}
-      search={
-        <PageHeaderWithSearch
-          embedded
-          title=""
-          badge={{
-            icon: (
-              <MotoDuotoneIcon
-                icon={activitiesConcept.icon}
-                tone={activitiesConcept.tone}
-                size={20}
-              />
-            ),
-            count: filteredActivities.length,
-            label: "Aktivitäten",
-          }}
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: "Aktivitäten suchen…",
-          }}
-          filters={filters}
-          activeFilters={activeFilters}
-          onClearAllFilters={() => {
-            setSearchTerm("");
-            setCategoryFilter("all");
-          }}
-        />
-      }
+      searchRow={{
+        badge: {
+          icon: (
+            <MotoDuotoneIcon
+              icon={activitiesConcept.icon}
+              tone={activitiesConcept.tone}
+              size={20}
+            />
+          ),
+          count: filteredActivities.length,
+          label: "Aktivitäten",
+        },
+        search: {
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: "Aktivitäten suchen…",
+        },
+        filters,
+        activeFilters,
+        onClearAllFilters: () => {
+          setSearchTerm("");
+          setCategoryFilter("all");
+        },
+      }}
     >
       {canShowDetail ? (
         <div className="min-h-0 flex-1 pb-4">

@@ -1,6 +1,6 @@
 package application
 
-import "github.com/moto-nrw/project-phoenix/modules/communication"
+import "github.com/moto-ogs/project-phoenix/modules/communication"
 
 type ParentMessagePeople interface {
 	communication.ParentMessagePeople

@@ -63,6 +63,7 @@ export const codes = [
   "workforce.shift_series_no_occurrences",
   "workforce.shift_series_outside_period",
   "workforce.shift_series_week_cycle_missing",
+  "workforce.shift_type_archived",
   "workforce.shift_type_inactive",
   "workforce.staff_profile_missing",
   "workforce.stammdaten_invalid",
@@ -77,6 +78,7 @@ export const codes = [
   "workforce.vacation_quota_reason_required",
   "workforce.vacation_request_in_past",
   "workforce.work_session_overlap",
+  "workforce.work_time_model_archived",
 ] as const;
 
 export const classes = {
@@ -143,6 +145,7 @@ export const classes = {
   "workforce.shift_series_no_occurrences": "input",
   "workforce.shift_series_outside_period": "input",
   "workforce.shift_series_week_cycle_missing": "input",
+  "workforce.shift_type_archived": "business_rejection",
   "workforce.shift_type_inactive": "business_rejection",
   "workforce.staff_profile_missing": "business_rejection",
   "workforce.stammdaten_invalid": "input",
@@ -157,6 +160,7 @@ export const classes = {
   "workforce.vacation_quota_reason_required": "input",
   "workforce.vacation_request_in_past": "input",
   "workforce.work_session_overlap": "business_rejection",
+  "workforce.work_time_model_archived": "business_rejection",
 } as const;
 
 export const parameters = {
@@ -223,6 +227,7 @@ export const parameters = {
   "workforce.shift_series_no_occurrences": [],
   "workforce.shift_series_outside_period": [],
   "workforce.shift_series_week_cycle_missing": [],
+  "workforce.shift_type_archived": [],
   "workforce.shift_type_inactive": [],
   "workforce.staff_profile_missing": [],
   "workforce.stammdaten_invalid": [],
@@ -237,4 +242,5 @@ export const parameters = {
   "workforce.vacation_quota_reason_required": [],
   "workforce.vacation_request_in_past": [],
   "workforce.work_session_overlap": [],
+  "workforce.work_time_model_archived": [],
 } as const;

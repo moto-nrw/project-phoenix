@@ -6,10 +6,10 @@ import (
 	"context"
 	"time"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	owner0 "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	owner0 "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 )
 
 // CareWithdrawalTestRows are the care-withdrawal completions the suites read

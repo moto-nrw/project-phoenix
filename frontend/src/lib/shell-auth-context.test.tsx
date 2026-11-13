@@ -94,6 +94,8 @@ import {
   useShellAuth,
 } from "./shell-auth-context";
 import { sidebarMemoryKey } from "./sidebar-memory";
+import { ApiError } from "./api-error";
+import { errorLogFields } from "./error-log";
 
 describe("TeacherShellProvider", () => {
   beforeEach(() => {
@@ -481,6 +483,41 @@ describe("TeacherShellProvider", () => {
     expect(mockSignOut).not.toHaveBeenCalled();
     expect(mockClearSessionCache).not.toHaveBeenCalled();
 
+    vi.unstubAllGlobals();
+  });
+
+  // Sentry FRONTEND-1E: a stalled logout route timed out as a raw
+  // DOMException, which the display classed as a crash without retry.
+  it("shows a logout timeout as an unreachable service with retry", async () => {
+    vi.stubGlobal(
+      "fetch",
+      vi
+        .fn()
+        .mockRejectedValue(
+          new DOMException("signal timed out", "TimeoutError"),
+        ),
+    );
+    mockUseSession.mockReturnValue({
+      data: { user: { name: "User", email: "user@example.com", roles: [] } },
+      status: "authenticated",
+    });
+
+    const { result } = renderHook(() => useShellAuth(), { wrapper });
+
+    await expect(result.current.logout()).rejects.toThrow();
+    expect(mockShowLogoutError).toHaveBeenCalledTimes(1);
+    const [shown, options] = mockShowLogoutError.mock.calls[0] as [
+      unknown,
+      { retry?: unknown },
+    ];
+    expect(shown).toBeInstanceOf(ApiError);
+    expect(shown).toMatchObject({
+      code: "general.unavailable",
+      noResponse: true,
+    });
+    expect(errorLogFields(shown).error_class).toBe("unavailable");
+    expect(options.retry).toEqual(expect.any(Function));
+    expect(mockSignOut).not.toHaveBeenCalled();
     vi.unstubAllGlobals();
   });
 

@@ -17,6 +17,7 @@
 import useSWR, {
   mutate as swrMutate,
   useSWRConfig,
+  type Cache,
   type Middleware,
   type SWRConfiguration,
   type SWRResponse,
@@ -32,6 +33,7 @@ import {
 } from "react";
 import { useSession } from "next-auth/react";
 import { swrConfig, immutableConfig } from "./config";
+import { isAccessRefusal, noteShownDataRefusal } from "~/lib/access-refusal";
 import {
   DiscardedAnswer,
   currentSWRDataGeneration,
@@ -106,7 +108,12 @@ const generationLockMiddleware: Middleware =
     const locked =
       typeof key === "string" && fetcher ? lockFetcher(key, fetcher) : fetcher;
     const onError: OnError = (error, errorKey, current) => {
-      if (!isDiscardedAnswer(error)) config.onError?.(error, errorKey, current);
+      if (isDiscardedAnswer(error)) return;
+      // SWR keeps the data next to a refusal; useRefreshAfterWrite learns
+      // of it here, since the revalidation itself never rejects (#6801).
+      const shown = (current as { cache?: Cache }).cache?.get(errorKey)?.data;
+      if (isAccessRefusal(error) && shown !== undefined) noteShownDataRefusal();
+      config.onError?.(error, errorKey, current);
     };
     const onErrorRetry: OnErrorRetry = (
       error,

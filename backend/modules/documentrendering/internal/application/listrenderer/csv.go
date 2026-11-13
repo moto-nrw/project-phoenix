@@ -6,7 +6,7 @@ import (
 	"regexp"
 	"strings"
 
-	listrecords "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
+	listrecords "github.com/moto-ogs/project-phoenix/modules/documentrendering/records"
 )
 
 // renderCSV writes the list as a flat table (#4663): the column labels, then

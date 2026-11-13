@@ -43,6 +43,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/peopledirectory/behaviortest",
+      "owner": "people-directory",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/peopledirectory/guardianhold",
       "owner": "people-directory",
       "role": "public",
@@ -64,6 +71,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/peopledirectory/compose/behaviortest",
+      "owner": "people-directory",
+      "role": "test-support",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/peopledirectory/contracttest",
       "owner": "people-directory",
       "role": "test-support",
@@ -78,9 +92,23 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/peopledirectory/http/behaviortest",
+      "owner": "people-directory",
+      "role": "test-support",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/peopledirectory/inbound/students",
       "owner": "people-directory",
       "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/peopledirectory/inbound/students/behaviortest",
+      "owner": "people-directory",
+      "role": "test-support",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
@@ -171,6 +199,10 @@
     },
     {
       "name": "users.student_family_protection_events",
+      "write_owner": "people-directory"
+    },
+    {
+      "name": "users.student_note_team_notices",
       "write_owner": "people-directory"
     },
     {

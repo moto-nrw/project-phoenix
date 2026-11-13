@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"testing"
 
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

@@ -3,7 +3,7 @@ package application
 import (
 	context "context"
 
-	peopledirectory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopledirectory "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // StudentTagReleaser frees the bracelets of students through the People

@@ -9,7 +9,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/staffannouncementaudience/contract"
+	"github.com/moto-ogs/project-phoenix/modules/staffannouncementaudience/contract"
 
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"

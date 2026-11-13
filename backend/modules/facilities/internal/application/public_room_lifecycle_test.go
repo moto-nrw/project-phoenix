@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -65,10 +65,10 @@ func (e *lifecycleEngine) UpdateRoom(_ context.Context, input facilities.UpdateR
 	return facilities.Room{ID: input.ID, Name: input.Name, Color: input.Color}, nil
 }
 
-func (e *lifecycleEngine) DeleteRoom(_ context.Context, id int64) error {
+func (e *lifecycleEngine) DeleteRoom(_ context.Context, id int64) (facilities.RoomRemoval, error) {
 	e.calls++
 	e.deleted = id
-	return nil
+	return facilities.RoomRemoval{}, nil
 }
 
 func (e *lifecycleEngine) ObserveRejection(string, time.Duration, error) {}
@@ -122,11 +122,11 @@ func TestDeleteRoomValidatesIdentifierAtPublicSeam(t *testing.T) {
 	engine := &lifecycleEngine{}
 	module := newTestModule(engine)
 
-	err := module.DeleteRoom(testpkg.TenantContext(42), 0)
+	_, err := module.DeleteRoom(testpkg.TenantContext(42), 0)
 	require.ErrorIs(t, err, facilities.ErrInvalidRoom)
 	assert.Zero(t, engine.calls)
 
-	err = module.DeleteRoom(testpkg.TenantContext(42), 41)
+	_, err = module.DeleteRoom(testpkg.TenantContext(42), 41)
 	require.NoError(t, err)
 	assert.Equal(t, int64(41), engine.deleted)
 	assert.Equal(t, 1, engine.calls)

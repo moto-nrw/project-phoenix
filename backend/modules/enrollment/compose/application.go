@@ -5,11 +5,11 @@ import (
 	"database/sql"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/adapters/turnstile"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment/internal/adapters/turnstile"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -75,9 +75,9 @@ func NewResyncingPhases(deps PhaseDependencies) (*Phases, error) {
 		Students:                        deps.Students, Bookings: deps.Bookings, CareStudents: deps.CareStudents,
 		Settings:  deps.Settings,
 		Responses: responses,
-		Runtime:   tenantRuntime(),
-		Logger:    deps.Logger,
-		Today:     deps.Today,
+		Runtime:   tenantRuntime(), TraegerCopies: newStore(),
+		Logger: deps.Logger,
+		Today:  deps.Today,
 	})
 }
 
@@ -156,4 +156,13 @@ func tenantRuntime() application.Runtime {
 		WithoutTransaction: tenant.ContextWithoutTransaction,
 		DetachTransaction:  application.NewDetachedContext(tenant.ContextWithoutAfterCommitHooks, tenant.ContextWithoutTransaction),
 	}
+}
+
+// NewCareOfferingValues binds the values to the catalog.
+func NewCareOfferingValues(catalog CareOfferingCatalogAdministration) *CareOfferingValues {
+	return &CareOfferingValues{CareOfferingValues: application.CareOfferingValues{CareOfferingRows: NewCareOfferingRows(catalog)}}
+}
+
+type CareOfferingValues struct {
+	application.CareOfferingValues
 }

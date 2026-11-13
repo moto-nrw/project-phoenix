@@ -6,8 +6,8 @@ import (
 
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // Children of the family on a care contract of the inbox (#5918): the

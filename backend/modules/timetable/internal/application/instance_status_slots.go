@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 )
 
 // InstanceStatusSlots serves the status-day slot writes in plain YYYY-MM-DD

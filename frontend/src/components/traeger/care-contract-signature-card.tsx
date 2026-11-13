@@ -202,7 +202,7 @@ function SignatureDetails({
                 className="max-h-full max-w-full object-contain"
               />
             </div>
-            <figcaption className="text-xs text-gray-500">
+            <figcaption className="text-sm text-gray-500">
               Gespeicherte Unterschrift
             </figcaption>
           </figure>
@@ -218,7 +218,7 @@ function SignatureDetails({
         }
         className="[&>div]:min-w-0"
         details={
-          <p className="mt-2 text-xs">
+          <p className="mt-2 text-sm">
             Unterschriebenes PDF (SHA-256):{" "}
             <span className="font-mono break-all">
               {signature.documentSha256}

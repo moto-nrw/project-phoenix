@@ -5,9 +5,9 @@ status: accepted
 # Parent portal is an application workflow
 
 `services/parent` serves the guardian portal
-([#3227](https://github.com/moto-nrw/project-phoenix/issues/3227)). Add
+([#3227](https://github.com/moto-ogs/project-phoenix/issues/3227)). Add
 `parent-portal` as a workflow owner under
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580), with no
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580), with no
 runtime data ownership, and move the package's flows into
 `workflows/parentportal`. It does not introduce a new domain.
 
@@ -76,10 +76,10 @@ its owner's public capability as that capability appears.
 
 ## Follow-up
 
-[#3228](https://github.com/moto-nrw/project-phoenix/issues/3228) moves the
+[#3228](https://github.com/moto-ogs/project-phoenix/issues/3228) moves the
 remaining write, master-data and guardian flows into the workflow and deletes
 `services/parent` together with that consumer edge.
-[#3229](https://github.com/moto-nrw/project-phoenix/issues/3229) moves
+[#3229](https://github.com/moto-ogs/project-phoenix/issues/3229) moves
 `api/parent` onto the workflow.
 
 This decision was authorized in the implementation session on 2026-09-16.

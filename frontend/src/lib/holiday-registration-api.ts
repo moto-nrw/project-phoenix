@@ -1,5 +1,6 @@
 import {
   holidayAddressRequirement,
+  holidayHealthRequirement,
   holidayLegalBlocks,
   type HolidayLegalBlockWire,
 } from "~/lib/holiday-form-field";
@@ -155,6 +156,7 @@ interface BackendOffer {
     fields?: HolidayFormField[] | null;
     legal_blocks?: HolidayLegalBlockWire[] | null;
     address_requirement?: string | null;
+    health_requirement?: string | null;
   } | null;
   consent_texts?: BackendConsentTexts | null;
   holiday_wish_mode?: HolidayWishMode;
@@ -286,6 +288,9 @@ function offerFromBackend(offer: BackendOffer): HolidayRegistrationOffer {
       addressRequirement: holidayAddressRequirement(
         offer.form?.address_requirement,
       ),
+      healthRequirement: holidayHealthRequirement(
+        offer.form?.health_requirement,
+      ),
     },
     consentTexts: consentTextsFromBackend(offer.consent_texts),
     holidayWishMode: offer.holiday_wish_mode ?? "off",
@@ -369,11 +374,20 @@ function receiptPlacement(value: string): HolidayReceiptPlacement["placement"] {
   return "placed";
 }
 
+/**
+ * The answer of a sent registration: the place of every booking and the
+ * token of its status page (#6676), "" when the answer has none.
+ */
+export interface HolidayRegistrationReceipt {
+  readonly placements: readonly HolidayReceiptPlacement[];
+  readonly statusToken: string;
+}
+
 /** Sends the registration and answers with the place of every booking. */
 export async function submitHolidayRegistration(
   token: string,
   payload: HolidayRegistrationPayload,
-): Promise<readonly HolidayReceiptPlacement[]> {
+): Promise<HolidayRegistrationReceipt> {
   const response = await request(registrationPath(token), {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -389,13 +403,17 @@ export async function submitHolidayRegistration(
     data?: {
       placements?:
         { child_position: number; week_id: number; placement: string }[] | null;
+      status_token?: string | null;
     };
   } | null;
-  return (body?.data?.placements ?? []).map((entry) => ({
-    childPosition: entry.child_position,
-    weekId: String(entry.week_id),
-    placement: receiptPlacement(entry.placement),
-  }));
+  return {
+    placements: (body?.data?.placements ?? []).map((entry) => ({
+      childPosition: entry.child_position,
+      weekId: String(entry.week_id),
+      placement: receiptPlacement(entry.placement),
+    })),
+    statusToken: body?.data?.status_token ?? "",
+  };
 }
 
 /** The bookings of one child of the form, for its contribution (#4664). */
@@ -453,6 +471,29 @@ export interface HolidayKnownChild {
   readonly holidayWish: "yes" | "no" | "";
   /** The sealed statement the form sends back with the child. */
   readonly holidayWishProof: string;
+  /**
+   * The child's other guardians as the school knows them (#6682): the second
+   * custodian and the emergency and pickup contacts. Never health data.
+   */
+  readonly contacts: readonly HolidayKnownContact[];
+}
+
+/**
+ * Another guardian of a known child (#6682). Email and phone are "" when
+ * the school knows none; an own account does not hide them here.
+ */
+export interface HolidayKnownContact {
+  readonly guardianProfileId: string;
+  readonly firstName: string;
+  readonly lastName: string;
+  readonly email: string;
+  readonly phone: string;
+  /** "parent", "guardian", "relative", "other" or "". */
+  readonly relationshipType: string;
+  /** A custodian: offered as the second custodian. */
+  readonly fullGuardian: boolean;
+  readonly emergency: boolean;
+  readonly pickup: boolean;
 }
 
 /** What the schools of the Träger know of a parent with an account. */
@@ -462,6 +503,12 @@ export interface HolidayKnownFamily {
     readonly lastName: string;
     readonly email: string;
     readonly phone: string;
+    /** The parent's postal address as the school knows it (#6682). */
+    readonly address: {
+      readonly street: string;
+      readonly postalCode: string;
+      readonly city: string;
+    } | null;
   };
   readonly children: readonly HolidayKnownChild[];
   /**
@@ -472,12 +519,25 @@ export interface HolidayKnownFamily {
   readonly accountProof: string;
 }
 
+interface BackendKnownContact {
+  guardian_profile_id: string;
+  first_name: string;
+  last_name: string;
+  email?: string;
+  phone?: string;
+  relationship_type?: string;
+  full_guardian?: boolean;
+  emergency?: boolean;
+  pickup?: boolean;
+}
+
 interface BackendFamily {
   guardian: {
     first_name: string;
     last_name: string;
     email: string;
     phone: string;
+    address?: { street: string; postal_code: string; city: string } | null;
   };
   children?:
     | {
@@ -488,6 +548,7 @@ interface BackendFamily {
         birth_date?: string;
         holiday_wish?: "yes" | "no";
         holiday_wish_proof?: string;
+        contacts?: BackendKnownContact[] | null;
       }[]
     | null;
   account_proof?: string;
@@ -519,6 +580,13 @@ export async function fetchHolidayRegistrationFamily(
       lastName: data.guardian.last_name,
       email: data.guardian.email,
       phone: data.guardian.phone,
+      address: data.guardian.address
+        ? {
+            street: data.guardian.address.street,
+            postalCode: data.guardian.address.postal_code,
+            city: data.guardian.address.city,
+          }
+        : null,
     },
     children: (data.children ?? []).map((child) => ({
       studentId: child.student_id,
@@ -528,6 +596,17 @@ export async function fetchHolidayRegistrationFamily(
       birthDate: child.birth_date ?? "",
       holidayWish: child.holiday_wish ?? "",
       holidayWishProof: child.holiday_wish_proof ?? "",
+      contacts: (child.contacts ?? []).map((contact) => ({
+        guardianProfileId: contact.guardian_profile_id,
+        firstName: contact.first_name,
+        lastName: contact.last_name,
+        email: contact.email ?? "",
+        phone: contact.phone ?? "",
+        relationshipType: contact.relationship_type ?? "",
+        fullGuardian: contact.full_guardian ?? false,
+        emergency: contact.emergency ?? false,
+        pickup: contact.pickup ?? false,
+      })),
     })),
     accountProof: data.account_proof ?? "",
   };

@@ -15,16 +15,16 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	announcement "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
-	records "github.com/moto-nrw/project-phoenix/modules/communication/internal/staffannouncements"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/roots/communicationtest"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	announcement "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
+	records "github.com/moto-ogs/project-phoenix/modules/communication/internal/staffannouncements"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/roots/communicationtest"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 // Surveys (#4781). Protection goal of an anonymous survey: the school cannot

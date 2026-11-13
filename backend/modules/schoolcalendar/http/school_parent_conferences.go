@@ -5,8 +5,8 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	calendarService "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
 )
 
 // mountSchoolParentConferences mounts the Elternsprechtag of moto schule

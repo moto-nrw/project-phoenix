@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -57,6 +57,12 @@ func TestPayrollDispatchesMigrationRoundTrip(t *testing.T) {
 	db := testpkg.SetupIsolatedTestDB(t)
 	// The message attachments (1.15.936, #6685) extend the erasure functions
 	// this test restores; they go first.
+	// The pickup change notices (1.15.960, #6855) extend the erasure of 1.15.956; they go first.
+	// The room archive (#6845) turns room keys into NO ACTION; it goes first.
+	require.NoError(t, roomsArchiveDown(t.Context(), db))
+	require.NoError(t, pickupChangeTeamNoticesDown(t.Context(), db))
+	// The note notices (1.15.956, #6854) extend the erasure of 1.15.942; they go first.
+	require.NoError(t, studentNoteTeamNoticesDown(t.Context(), db))
 	require.NoError(t, messageAttachmentsDown(t.Context(), db))
 	ctx := context.Background()
 	exists := func() bool {

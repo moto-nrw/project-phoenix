@@ -80,7 +80,7 @@ Kiosk-Sitzungsspiegel, Aktivität anlegen und Betreuerrouten, Materialisierung.
 | Presence `LockStaffSupervision` | Leaf | Austritt |
 | Presence `lockStaffForSupervision` | StaffWorkTime | Betreuerschreiber: alle Saldo-Gates vor allen Staff-Zeilen |
 | `workflows/staffpersonmerge` Gate | StaffPersonMerge | Merge (exklusiv) |
-| Austritt `PreviewAccess`, Identity `LockStaffOffboardingAccounts` | Account | Austritt; geplante Austritte sperren alle Konten mit einer geordneten Abfrage vor ihren Gates, ohne Zugriffsvorschauen zu laden; Zugang schließen: Konto vor Person |
+| Austritt `PreviewAccess`, Identity `LockStaffOffboardingAccounts` | Account | Austritt; ein geplanter Austritt sperrt in seiner eigenen Transaktion sein Konto vor seinen Gates, ohne Zugriffsvorschau; jedes Sperrwarten ist während der gesamten Ausführung einschließlich Fortschrittsmarken auf 3 s begrenzt, danach wird der Austritt vollständig zurückgerollt und folgt im nächsten Lauf (#6703); Zugang schließen: Konto vor Person |
 | Personal-Import | StaffPersonMerge | Upsert nimmt das Merge-Gate vor der ersten Aktualisierung |
 | Personal-Import Aktualisieren/Upsert | StaffRows | jeder Chunk sperrt die Staff-Zeilen aller Treffer aufsteigend vor seiner ersten Zeile (`BatchWriteConfig`) |
 | Jahrgangswechsel anwenden/zurücknehmen | StaffRows | `StaffFilter.ForMutation` sperrt alle betroffenen Personalzeilen gebündelt aufsteigend, bevor Klassenzuordnungen gelöscht oder wieder angelegt werden; beim Zurücknehmen bleiben ausgetretene Personen ausgeschlossen |

@@ -26,11 +26,12 @@ vi.mock("next/navigation", () => ({
   useSearchParams: () => currentSearch,
 }));
 
+const mockToastSuccess = vi.hoisted(() => vi.fn());
 vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/contexts/ToastContext")>()),
   useApiErrorDisplay: () => ({ show: vi.fn() }),
   useToast: () => ({
-    success: vi.fn(),
+    success: mockToastSuccess,
     error: vi.fn(),
     warning: vi.fn(),
     info: vi.fn(),
@@ -339,5 +340,79 @@ describe("Dienstarten — Kategorie-Zuordnung (#1837, #3114)", () => {
       Record<string, unknown> | undefined;
     expect(payload).toMatchObject({ isActive: false });
     expect(payload).not.toHaveProperty("categoryIds");
+  });
+});
+
+// Eine Dienstart mit geplanten Diensten wird archiviert statt gelöscht, damit
+// auch vergangene Dienste sie behalten (#6845).
+describe("Dienstarten — Entfernen (#6845)", () => {
+  function openRemoval(title: string) {
+    fireEvent.click(
+      screen.getByRole("button", { name: /Aktionen für Betreuung/ }),
+    );
+    fireEvent.click(screen.getByRole("menuitem", { name: "Löschen" }));
+    return screen.getByRole("dialog", { name: title });
+  }
+
+  function withUsage(usage: { shifts: number; series: number }) {
+    swrState.current["database-shift-types"] = {
+      data: [{ ...SHIFT_TYPES[0], usage }],
+      error: undefined,
+      isLoading: false,
+    };
+  }
+
+  it("explains that a used type is kept for its planned shifts", async () => {
+    withUsage({ shifts: 12, series: 1 });
+    shiftTypeService.deleteShiftType.mockResolvedValue("archived");
+    render(<ShiftTypesPage />);
+
+    // Die Rückfrage sagt, was passiert: archivieren, nicht löschen.
+    const dialog = openRemoval("Dienstart archivieren?");
+    expect(within(dialog).getByText("12 geplante Dienste")).toBeVisible();
+    expect(within(dialog).getByText("1 Schichtserie")).toBeVisible();
+    expect(
+      within(dialog).getByText(
+        /Geplante und vergangene Dienste behalten ihre Dienstart/,
+      ),
+    ).toBeVisible();
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Ja, archivieren" }),
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Archivieren" }),
+    );
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "Die Dienstart „Betreuung“ steht nicht mehr zur Auswahl. Geplante Dienste behalten sie.",
+      ),
+    );
+    expect(shiftTypeService.deleteShiftType).toHaveBeenCalledWith("10");
+  });
+
+  it("deletes an unused type and names the category mapping it loses", async () => {
+    withUsage({ shifts: 0, series: 0 });
+    shiftTypeService.deleteShiftType.mockResolvedValue("deleted");
+    render(<ShiftTypesPage />);
+
+    const dialog = openRemoval("Dienstart löschen?");
+    expect(
+      within(dialog).getByText(/Kein geplanter Dienst nutzt sie/),
+    ).toHaveTextContent(
+      "1 Kategorie des Betreuungsplans verliert diese Zuordnung.",
+    );
+
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Ja, löschen" }),
+    );
+    fireEvent.click(
+      within(dialog).getByRole("button", { name: "Endgültig löschen" }),
+    );
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "Die Dienstart „Betreuung“ ist gelöscht.",
+      ),
+    );
   });
 });

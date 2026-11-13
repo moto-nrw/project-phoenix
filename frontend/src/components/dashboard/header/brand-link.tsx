@@ -3,7 +3,7 @@
 
 "use client";
 
-import { NavLink } from "~/components/ui/nav-link";
+import NavigationLink from "~/components/ui/navigation-link";
 import Image from "next/image";
 
 /**
@@ -56,11 +56,13 @@ export function BrandTraegerLine({
 
 /**
  * Tailwind kennt keine zusammengesetzten Klassennamen zur Laufzeit, deshalb
- * beide Varianten als vollständige Literale.
+ * beide Varianten als vollständige Literale. Unterhalb der Breite ist der
+ * Text nur unsichtbar, nicht entfernt: das Logo-Bild hat keinen Alternativtext,
+ * und ohne den Text hätte der Link keinen Namen für die Vorlesehilfe.
  */
 const HIDE_LABEL_CLASS = {
-  md: "hidden md:flex",
-  lg: "hidden lg:flex",
+  md: "sr-only md:not-sr-only md:flex",
+  lg: "sr-only lg:not-sr-only lg:flex",
 } as const;
 
 /**
@@ -89,7 +91,7 @@ export function BrandLink({
   const usesTenantLabel = Boolean(label?.trim());
 
   return (
-    <NavLink
+    <NavigationLink
       href={href}
       className="group flex max-w-[180px] min-w-0 items-center gap-2.5 sm:max-w-[240px] lg:max-w-[280px]"
     >
@@ -103,7 +105,7 @@ export function BrandLink({
         <span className={brandLabelClass(usesTenantLabel)}>{displayLabel}</span>
         <BrandTraegerLine traegerName={traegerName} />
       </div>
-    </NavLink>
+    </NavigationLink>
   );
 }
 

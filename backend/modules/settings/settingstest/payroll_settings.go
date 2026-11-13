@@ -7,7 +7,7 @@ package settingstest
 import (
 	"context"
 
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // The unit values a day-valued wage type accepts.

@@ -65,7 +65,7 @@ go build -o "$deadcode_binary" golang.org/x/tools/cmd/deadcode
 # The filter reports both tooling packages as well as the command itself.
 tool_output=$(
   cd "$repo_root/scripts/backend-architecture"
-  "$deadcode_binary" -filter '^github\.com/moto-nrw/project-phoenix/(internal/architecture|internal/passthrough|architecture/artifacts|architecture/querybudget|tools/architecturecmd)($|/)' ./...
+  "$deadcode_binary" -filter '^github\.com/moto-ogs/project-phoenix/(internal/architecture|internal/passthrough|architecture/artifacts|architecture/querybudget|tools/architecturecmd)($|/)' ./...
 )
 tool_findings=$(printf '%s\n' "$tool_output" | grep -v '^go: ' || true)
 if [[ -n "$tool_findings" ]]; then

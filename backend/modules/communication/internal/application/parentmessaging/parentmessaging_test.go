@@ -11,7 +11,7 @@ import (
 	"math/rand/v2"
 	"testing"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -4,7 +4,7 @@ import (
 	"context"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/traegerview"
+	"github.com/moto-ogs/project-phoenix/modules/traegerview"
 )
 
 // Who acted in an access log entry (#4655). A ledger records the acting

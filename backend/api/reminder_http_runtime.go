@@ -4,9 +4,9 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	remindersHTTP "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/http"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	remindersHTTP "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery/http"
 )
 
 // ReminderHTTPRuntime binds the reminder routes to the tenant transaction,

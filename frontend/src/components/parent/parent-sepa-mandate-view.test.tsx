@@ -10,6 +10,10 @@ import type {
 } from "~/lib/parent-sepa-mandate-api";
 import { ParentSepaMandateEntry } from "./parent-sepa-mandate-entry";
 import { ParentSepaMandateView } from "./parent-sepa-mandate-view";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 const mocks = vi.hoisted(() => ({
   fetch: vi.fn(),
@@ -227,11 +231,32 @@ describe("ParentSepaMandateView", () => {
 describe("Reload after the revocation (#6652)", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it.each([
-    [403, "general.permission"],
-    [404, "parent_billing.parent_document_not_found"],
-  ] as const)(
-    "hides the mandate and its actions when the reload refuses access (%s)",
+  // #6801: a refused reload loads the page anew; its first load shows the
+  // refusal without the mandate.
+  it("loads the page anew when the reload refuses access (403)", async () => {
+    mocks.fetch
+      .mockResolvedValueOnce(granted)
+      .mockRejectedValueOnce(
+        new ApiError("refused", 403, { code: "general.permission" }),
+      )
+      .mockResolvedValue(open);
+    mocks.revoke.mockResolvedValue(granted);
+    renderView();
+    expect(await screen.findByText(granted.mandate!.ibanMasked)).toBeVisible();
+    resetPageReloads();
+    fireEvent.click(screen.getByRole("button", { name: "Mandat widerrufen" }));
+    fireEvent.click(
+      within(await screen.findByRole("dialog")).getByRole("button", {
+        name: "Widerrufen",
+      }),
+    );
+
+    await expectPageReloadedAfterRefusal();
+    expect(mocks.revoke).toHaveBeenCalledTimes(1);
+  });
+
+  it.each([[404, "parent_billing.parent_document_not_found"]] as const)(
+    "hides the mandate and its actions when the reload no longer finds it (%s)",
     async (status, code) => {
       mocks.fetch
         .mockResolvedValueOnce(granted)

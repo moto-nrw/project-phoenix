@@ -3,7 +3,7 @@ package application
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/appointments"
+	"github.com/moto-ogs/project-phoenix/modules/appointments"
 )
 
 func normalizeWallClock(value time.Time) time.Time {

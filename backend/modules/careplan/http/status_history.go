@@ -3,8 +3,8 @@ package careplanhttp
 import (
 	slog "log/slog"
 
-	absencerecords "github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	absencerecords "github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 func boolPtrValue(v *bool) bool {

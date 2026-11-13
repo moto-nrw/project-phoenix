@@ -3,7 +3,7 @@ package securityruntime
 import (
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/application/authorize"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime/internal/application/authorize"
 )
 
 // HasPermission evaluates a required permission with the shared wildcard rules.

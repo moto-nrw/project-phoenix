@@ -8,6 +8,13 @@
       "external_test_role": "workflow-integration-test"
     },
     {
+      "path": "workflows/studentdeletion/behaviortest",
+      "owner": "student-deletion",
+      "role": "test-support",
+      "internal_test_role": "workflow-decision-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
       "path": "workflows/studentdeletion/compose",
       "owner": "student-deletion",
       "role": "compose",

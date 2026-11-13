@@ -7,7 +7,7 @@ import (
 
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // accountTenantActive is the only mapping status that grants access; an
@@ -89,12 +89,15 @@ func (s *Store) FindAccountRecord(ctx context.Context, id int64) (domain.Managed
 	return scanAdministeredAccount(ctx, query.Where(`"account".id = ?`, id).Limit(1), "find account record")
 }
 
-func (s *Store) FindManageableAccountRecord(ctx context.Context, id int64, visibility domain.AccountVisibility) (domain.ManagedAccountRecord, bool, domain.OperationStats, error) {
+func (s *Store) FindManageableAccountRecord(ctx context.Context, id int64, visibility domain.AccountVisibility, forUpdate bool) (domain.ManagedAccountRecord, bool, domain.OperationStats, error) {
 	query, err := s.accountSelect(ctx)
 	if err != nil {
 		return domain.ManagedAccountRecord{}, false, domain.OperationStats{}, err
 	}
 	query = scopeAccounts(query.Where(`"account".id = ?`, id), visibility)
+	if forUpdate {
+		query = query.For("UPDATE")
+	}
 	return scanAdministeredAccount(ctx, query.Limit(1), "find manageable account record")
 }
 

@@ -1,0 +1,6 @@
+{
+  "scenario": "modules.peopledirectory.student_note_team_notices.list",
+  "max": 4,
+  "exact": true,
+  "description": "modules/peopledirectory — the reader's unread team markers (#6854). Four statements however many markers, children and authors: the markers with their notes, the children's status, the children's names and one bulk read of the authors' names."
+}

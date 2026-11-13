@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func TransactionRunWriteBinding(ctx context.Context, retry bool, callback func(context.Context) error, execute0 func(ctx context.Context, fn func(context.Context) error) error, execute1 func(ctx context.Context, id tenant.TenantID, fn func(context.Context) error) error) error {

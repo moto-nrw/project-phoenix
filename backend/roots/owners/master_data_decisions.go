@@ -5,19 +5,20 @@ import (
 	"errors"
 	"log/slog"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // NewMasterDataDecisions composes the Stammdaten decision. Nil effects are
@@ -27,6 +28,7 @@ func NewMasterDataDecisions(
 	audit peoplePorts.StudentChangeRecorder, scope carePlanCompose.ReviewScopeResolver,
 	emitter eventContract.Emitter, broadcaster realtime.Broadcaster, events peopledirectory.ParentRequestEvents,
 	shares carePlanCompose.ShareVisibility, logger *slog.Logger, today func() timezone.Date,
+	classChanges carePlanCompose.MasterDataClassChanges,
 ) (*carePlanCompose.MasterDataDecisions, error) {
 	if students == nil || persons == nil || fields == nil {
 		return nil, errors.New("master data decisions: student and person repositories and the field review are required")
@@ -37,7 +39,7 @@ func NewMasterDataDecisions(
 			Students: students, Persons: persons, Details: fields,
 			Writes: peopleCompose.NewAuditedStudentUpdates(students, audit),
 		},
-		Today: careplan.Today, Logger: logger,
+		Today: careplan.Today, Logger: logger, ClassChanges: classChanges,
 	}
 	if today != nil {
 		deps.Today = func() careplan.Date { return careplan.Date(today()) }
@@ -52,6 +54,23 @@ func NewMasterDataDecisions(
 		deps.Ledger = NewParentRequestLedger(events)
 	}
 	return carePlanCompose.NewMasterDataDecisions(deps)
+}
+
+// NewMasterDataClassChanges binds the Stammdaten decision's class follow-up
+// (#6951): Care Plan's gates for offering-derived writes (class-writes, then
+// recurrence) and, after the write, its offering resync and Timetable's
+// cohort rosters, as every other writer of a child's Klasse runs them.
+func NewMasterDataClassChanges(bookings careplan.BookingMaterializationCapability, rosters timetable.CohortRosters) carePlanCompose.MasterDataClassChanges {
+	follow := FollowClassChanges(rosters)
+	return carePlanCompose.MasterDataClassChanges{
+		Lock: bookings.LockOfferingDerivedWrites,
+		Follow: func(ctx context.Context, previousClasses map[int64]string, from careplan.Date) error {
+			if err := bookings.ResyncOfferingSourcedTemplates(ctx, timezone.Date(from)); err != nil {
+				return err
+			}
+			return follow(ctx, previousClasses, timezone.Date(from))
+		},
+	}
 }
 
 // NewParentRequestCoordinator composes the cross-kind commands over the four

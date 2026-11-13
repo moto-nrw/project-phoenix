@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"slices"
 	"strconv"
+	"strings"
 	"time"
 )
 
@@ -34,6 +35,7 @@ func (seedParentEngagementStep) Run(ctx context.Context, rt *Runtime) error {
 		// portal opens on a conversation that ends with the OGS's answer.
 		func() error { return seedParentConversation(rt, auth, studentID) },
 		func() error { return seedParentAppointments(rt, studentID) },
+		func() error { return seedParentCafeAnswers(rt, auth) },
 	}
 	for _, step := range steps {
 		if err := step(); err != nil {
@@ -204,7 +206,7 @@ func seedParentDayAppointments(today seedDate) []map[string]any {
 // seedComingSchoolAppointments are the school's dates of the coming weeks.
 func seedComingSchoolAppointments(today seedDate) []map[string]any {
 	photoDay := seedWeekdayOnOrAfter(today.AddDays(9)).String()
-	parentCafe := seedWeekdayOnOrAfter(today.AddDays(12)).String()
+	parentCafe := seedParentCafeDate(today)
 	holidayDeadline := seedWeekdayOnOrAfter(today.AddDays(21)).String()
 	closingDay := seedWeekdayOnOrAfter(today.AddDays(24)).String()
 	festival := seedLanternFestivalDate(today).String()
@@ -219,11 +221,16 @@ func seedComingSchoolAppointments(today seedDate) []map[string]any {
 			"start_date":  photoDay, "end_date": photoDay, "start_time": "08:30", "end_time": "12:30", "all_day": false,
 			"delivery_mode": "informational", "targets": withTeachers, "send_email": false,
 		},
+		// A weekly series the families answer date by date (#6987).
 		{
-			"title": "Elterncafé in der OGS", "location": "Mensa",
+			"title": seedParentCafeTitle, "location": "Mensa",
 			"description": "Bei Kaffee und Kuchen lernen Sie das Team und andere Eltern kennen. Die Kinder spielen in der Zeit draußen.",
-			"start_date":  parentCafe, "end_date": parentCafe, "start_time": "15:00", "end_time": "16:30", "all_day": false,
-			"delivery_mode": "informational", "targets": allParents, "send_email": false,
+			"start_date":  parentCafe.String(), "end_date": parentCafe.String(), "start_time": "15:00", "end_time": "16:30", "all_day": false,
+			"recurrence": map[string]any{
+				"frequency": "weekly", "interval_count": 1, "occurrence_count": seedParentCafeDates,
+				"weekdays": []string{strings.ToLower(parentCafe.Weekday().String())},
+			},
+			"delivery_mode": "rsvp_required", "overview_visibility": "all", "targets": allParents, "send_email": false,
 		},
 		{
 			"title":       "Anmeldeschluss für die Ferienbetreuung",
@@ -244,6 +251,57 @@ func seedComingSchoolAppointments(today seedDate) []map[string]any {
 			"delivery_mode": "rsvp_required", "overview_visibility": "all", "targets": withTeachers, "send_email": false,
 		},
 	}
+}
+
+const (
+	seedParentCafeTitle = "Elterncafé in der OGS"
+	seedParentCafeDates = 4
+)
+
+// seedParentCafeDate is the first date of the weekly Elterncafé.
+func seedParentCafeDate(today seedDate) seedDate {
+	return seedWeekdayOnOrAfter(today.AddDays(12))
+}
+
+// seedParentCafeAnswers lets the parent come to the Elterncafé, but not on
+// its second date (#6987): the series answer and one answer for a single
+// date, as the parents portal sends them.
+func seedParentCafeAnswers(rt *Runtime, auth AuthRef) error {
+	first := seedParentCafeDate(todaySeedDate())
+	second := first.AddDays(7)
+	raw, err := rt.Client.GetWithAuth(auth, fmt.Sprintf("/parent/me/calendar?from=%s&to=%s", first, second))
+	if err != nil {
+		return fmt.Errorf("load the parent calendar for the Elterncafé: %w", err)
+	}
+	var resp struct {
+		Data struct {
+			Events []struct {
+				Title       string `json:"title"`
+				RecipientID string `json:"recipient_id"`
+			} `json:"events"`
+		} `json:"data"`
+	}
+	if err := parseJSON(raw, &resp); err != nil {
+		return fmt.Errorf("parse the parent calendar: %w", err)
+	}
+	recipientID := ""
+	for _, event := range resp.Data.Events {
+		if event.Title == seedParentCafeTitle && event.RecipientID != "" {
+			recipientID = event.RecipientID
+			break
+		}
+	}
+	if recipientID == "" {
+		return fmt.Errorf("the parent is not invited to the Elterncafé")
+	}
+	path := "/parent/me/calendar/recipients/" + recipientID + "/response"
+	if _, err := rt.Client.PostWithAuth(auth, path, map[string]any{"status": "accepted"}); err != nil {
+		return fmt.Errorf("accept the Elterncafé: %w", err)
+	}
+	if _, err := rt.Client.PostWithAuth(auth, path, map[string]any{"status": "declined", "occurrence_date": second.String()}); err != nil {
+		return fmt.Errorf("decline one date of the Elterncafé: %w", err)
+	}
+	return nil
 }
 
 // seedStudentGroupID reads the group a child belongs to.

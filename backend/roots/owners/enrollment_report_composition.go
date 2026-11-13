@@ -3,10 +3,10 @@ package owners
 import (
 	"context"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // NewEnrollmentReports composes Enrollment's reports over the root's reads.

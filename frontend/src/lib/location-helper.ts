@@ -2,6 +2,8 @@
  * Centralized helpers for parsing, styling, and rendering student location data.
  */
 
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
+
 interface ParsedLocation {
   status: string;
   room?: string;
@@ -36,9 +38,6 @@ export interface StudentLocationContext {
   class_trip?: boolean;
   class_trip_since?: string | null;
   has_full_access?: boolean;
-  /** Today has an arrival-schedule exception with null expected time — student is not coming */
-  not_arrival_today?: boolean;
-  not_arrival_reason?: string | null;
 }
 
 export const LOCATION_STATUSES = {
@@ -59,283 +58,6 @@ export const LOCATION_STATUSES = {
   NOT_ARRIVAL: "Kommt heute nicht",
   UNPLANNED_PRESENT: "Ungeplant anwesend",
 } as const;
-
-/** Shared brand palette. Red follows Phoenix notifications and hours accounts. */
-export type MotoDuotoneTone =
-  | "blue"
-  | "timeTracking"
-  | "teal"
-  | "magenta"
-  | "orange"
-  | "amber"
-  | "purple"
-  | "greenDeep"
-  | "greenVivid"
-  | "indigo"
-  | "red"
-  | "coral"
-  | "cyan"
-  | "navy"
-  | "mint"
-  | "wine"
-  | "gold"
-  | "petrol"
-  | "neutral"
-  | "stone";
-
-export const MOTO_COLOR_PALETTE = {
-  green: {
-    soft: "#EEF9E1",
-    muted: "#D7E8C3",
-    light: "#92D63C",
-    base: "#83CD2D",
-    vivid: "#5F9F1B",
-    hover: "#74B825",
-    active: "#6DB118",
-    strong: "#3F6F12",
-    fill: "#4A7F14",
-  },
-  blue: {
-    soft: "#EDF3FC",
-    light: "#6B95E0",
-    base: "#5080D8",
-    hover: "#3B68C0",
-    strong: "#315C9B",
-  },
-  timeTracking: {
-    soft: "#E0F2FE",
-    light: "#7DD3FC",
-    base: "#0EA5E9",
-    strong: "#0369A1",
-  },
-  orange: {
-    soft: "#FFF3E5",
-    base: "#F78C10",
-    hover: "#E07400",
-    strong: "#9B5609",
-  },
-  red: {
-    soft: "#FEF2F2",
-    base: "#DC2626",
-    hover: "#B91C1C",
-    strong: "#B91C1C",
-  },
-  teal: {
-    soft: "#E8F8F5",
-    light: "#5CC8BA",
-    base: "#159E90",
-    strong: "#0F766E",
-  },
-  amber: {
-    soft: "#FEF3C7",
-    light: "#FACC15",
-    base: "#EAB308",
-    strong: "#92400E",
-    // The "Achtung" pill (#5617). soft/strong read almost exactly like the
-    // orange Schulhof pill (#FFF3E5 / #9B5609), so the pill takes a clearly
-    // yellow tint and a darker label instead: 8.1:1.
-    pill: "#FEF9C3",
-    pillText: "#713F12",
-  },
-  purple: {
-    soft: "#F3E8FF",
-    light: "#A78BFA",
-    base: "#7C3AED",
-    strong: "#6B21A8",
-  },
-  magenta: {
-    soft: "#FAE8FF",
-    light: "#E879F9",
-    base: "#D946EF",
-    strong: "#86198F",
-  },
-  indigo: {
-    soft: "#EEF2FF",
-    light: "#818CF8",
-    base: "#4F46E5",
-    strong: "#3730A3",
-  },
-  coral: {
-    soft: "#FFF0ED",
-    light: "#F29A8D",
-    base: "#E85D4A",
-    strong: "#A83A2E",
-  },
-  cyan: {
-    soft: "#ECFEFF",
-    light: "#67E8F9",
-    base: "#0891B2",
-    strong: "#155E75",
-  },
-  navy: {
-    soft: "#EEF4F8",
-    light: "#7FA6C9",
-    base: "#365D83",
-    strong: "#1E3A5F",
-  },
-  mint: {
-    soft: "#EAF9F3",
-    light: "#8AD9BB",
-    base: "#3BAF83",
-    strong: "#187255",
-  },
-  wine: {
-    soft: "#FBECEF",
-    light: "#CF7180",
-    base: "#8F2535",
-    strong: "#681A27",
-  },
-  gold: {
-    soft: "#FFF7E6",
-    light: "#E6B85C",
-    base: "#B7791F",
-    strong: "#7A4A0B",
-  },
-  petrol: {
-    soft: "#E9F7F6",
-    light: "#72BDB8",
-    base: "#217A78",
-    strong: "#155A59",
-  },
-  neutral: {
-    soft: "#F3F4F6",
-    muted: "#D1D5DB",
-    light: "#9CA3AF",
-    base: "#6B7280",
-    strong: "#374151",
-  },
-  stone: {
-    soft: "#F5F5F4",
-    light: "#A8A29E",
-    base: "#78716C",
-    strong: "#44403C",
-  },
-  roomCategory: { group: "#10B981", theme: "#8B5CF6", sport: "#EC4899" },
-} as const;
-
-export interface LocationBadgeTone {
-  backgroundColor: string;
-  textColor: string;
-}
-
-/**
- * Tailwind gray-50 — the pill background every badge outside the palette
- * falls back to, and the surface its label contrast has to be measured
- * against (white would overstate it).
- */
-const SURFACE_GRAY_50 = "#F9FAFB";
-
-const LOCATION_BADGE_TONES: Record<string, LocationBadgeTone> = {
-  [MOTO_COLOR_PALETTE.green.base]: {
-    backgroundColor: MOTO_COLOR_PALETTE.green.soft,
-    textColor: MOTO_COLOR_PALETTE.green.strong,
-  },
-  [MOTO_COLOR_PALETTE.blue.base]: {
-    backgroundColor: MOTO_COLOR_PALETTE.blue.soft,
-    textColor: MOTO_COLOR_PALETTE.blue.strong,
-  },
-  [MOTO_COLOR_PALETTE.orange.base]: {
-    backgroundColor: MOTO_COLOR_PALETTE.orange.soft,
-    textColor: MOTO_COLOR_PALETTE.orange.strong,
-  },
-  [MOTO_COLOR_PALETTE.red.base]: {
-    backgroundColor: MOTO_COLOR_PALETTE.red.soft,
-    textColor: MOTO_COLOR_PALETTE.red.strong,
-  },
-  [MOTO_COLOR_PALETTE.navy.base]: {
-    backgroundColor: MOTO_COLOR_PALETTE.navy.soft,
-    textColor: MOTO_COLOR_PALETTE.navy.strong,
-  },
-  [MOTO_COLOR_PALETTE.cyan.base]: {
-    backgroundColor: MOTO_COLOR_PALETTE.cyan.soft,
-    textColor: MOTO_COLOR_PALETTE.cyan.strong,
-  },
-  [MOTO_COLOR_PALETTE.petrol.base]: {
-    backgroundColor: MOTO_COLOR_PALETTE.petrol.soft,
-    textColor: MOTO_COLOR_PALETTE.petrol.strong,
-  },
-  [MOTO_COLOR_PALETTE.stone.base]: {
-    backgroundColor: MOTO_COLOR_PALETTE.stone.soft,
-    textColor: MOTO_COLOR_PALETTE.stone.strong,
-  },
-  [MOTO_COLOR_PALETTE.amber.base]: {
-    backgroundColor: MOTO_COLOR_PALETTE.amber.pill,
-    textColor: MOTO_COLOR_PALETTE.amber.pillText,
-  },
-  [MOTO_COLOR_PALETTE.purple.base]: {
-    backgroundColor: MOTO_COLOR_PALETTE.purple.soft,
-    textColor: MOTO_COLOR_PALETTE.purple.strong,
-  },
-  [MOTO_COLOR_PALETTE.magenta.base]: {
-    backgroundColor: MOTO_COLOR_PALETTE.magenta.soft,
-    textColor: MOTO_COLOR_PALETTE.magenta.strong,
-  },
-  [MOTO_COLOR_PALETTE.indigo.base]: {
-    backgroundColor: MOTO_COLOR_PALETTE.indigo.soft,
-    textColor: MOTO_COLOR_PALETTE.indigo.strong,
-  },
-  [MOTO_COLOR_PALETTE.neutral.base]: {
-    backgroundColor: MOTO_COLOR_PALETTE.neutral.soft,
-    // gray-600, bewusst heller als neutral.strong (gray-700): das neutrale
-    // Badge soll zurueckhaltender wirken als ein Statuslabel. StatusBadge
-    // tone="gray" fuehrt denselben Wert.
-    textColor: "#4B5563",
-  },
-  // Homeoffice. Not a LOCATION_COLORS entry — staff-helpers emits this hex
-  // directly — but it reaches StatusColorBadge all the same, and without a row
-  // here it falls through to the neutral gray label and reads exactly like the
-  // Krank/Urlaub badges. The base hue carries text at 2.65:1, the -strong step
-  // at 5.68:1.
-  [MOTO_COLOR_PALETTE.timeTracking.base]: {
-    backgroundColor: MOTO_COLOR_PALETTE.timeTracking.soft,
-    textColor: MOTO_COLOR_PALETTE.timeTracking.strong,
-  },
-  // Rejected absence requests. Deliberately NOT LOCATION_COLORS.DANGER: the
-  // absence list puts the type pill and the status pill in one row, and
-  // ABSENCE_TYPE_HEX.sick is already that red — a denied sick note would show
-  // two identical red pills. Deep red still reads as a refusal.
-  [MOTO_COLOR_PALETTE.wine.base]: {
-    backgroundColor: MOTO_COLOR_PALETTE.wine.soft,
-    textColor: MOTO_COLOR_PALETTE.wine.strong,
-  },
-  [MOTO_COLOR_PALETTE.gold.base]: {
-    backgroundColor: MOTO_COLOR_PALETTE.gold.soft,
-    textColor: MOTO_COLOR_PALETTE.gold.strong,
-  },
-  [MOTO_COLOR_PALETTE.teal.base]: {
-    backgroundColor: MOTO_COLOR_PALETTE.teal.soft,
-    textColor: MOTO_COLOR_PALETTE.teal.strong,
-  },
-};
-
-/**
- * Accepts a missing color on purpose: an indexed palette lookup is
- * `string | undefined` under `noUncheckedIndexedAccess`, and a status the
- * backend adds before the frontend knows it must not blow up a badge. Falls
- * back to the neutral tone rather than throwing on `.toUpperCase()`.
- */
-export function getLocationBadgeTone(
-  color: string | null | undefined,
-): LocationBadgeTone {
-  if (color === null || color === undefined || color.trim() === "") {
-    return {
-      backgroundColor: SURFACE_GRAY_50,
-      textColor: NEUTRAL_TEXT_COLOR,
-    };
-  }
-
-  // Anything outside the table is a per-room hex (#1324). Those can never
-  // match a row by construction — the backend reserves exactly the status
-  // hexes, so an admin-picked room color is always something else. Darkening
-  // the room's own hue keeps the badge distinguishable; a flat neutral label
-  // would collapse every custom room onto the same pill.
-  return (
-    LOCATION_BADGE_TONES[color.toUpperCase()] ?? {
-      backgroundColor: SURFACE_GRAY_50,
-      textColor: getAccessibleTextColor(color, SURFACE_GRAY_50),
-    }
-  );
-}
 
 export const LOCATION_COLORS = {
   GROUP_ROOM: MOTO_COLOR_PALETTE.green.base,
@@ -359,6 +81,27 @@ export const LOCATION_COLORS = {
 } as const;
 
 /**
+ * Legacy room colours (#6573) whose badge keeps a label the kit palette no
+ * longer derives. #FF3130 was the Zuhause colour before the palette move; the
+ * backend still reserves it (`reservedRoomColors` in
+ * `backend/modules/facilities/room_lifecycle.go`), so rooms created before
+ * that can carry it. Their label has always read #c62826 (5.4:1 on the gray-50
+ * pill). The badge hands the kit that shade instead of the room hex: it lies
+ * outside the palette and clears the contrast target, so the kit keeps it.
+ */
+const LEGACY_ROOM_BADGE_COLORS: Readonly<Record<string, string>> = {
+  "#FF3130": "#c62826",
+};
+
+/**
+ * The colour a location badge shows for a room's own colour: the room hex,
+ * except for the legacy colours above.
+ */
+export function getRoomBadgeColor(roomColor: string): string {
+  return LEGACY_ROOM_BADGE_COLORS[roomColor.trim().toUpperCase()] ?? roomColor;
+}
+
+/**
  * Hover/active/text/background shade variants of the brand green
  * (LOCATION_COLORS.GROUP_ROOM). Centralised so the school check-in toggle and
  * any future "primary action" buttons stop hardcoding hex literals — see
@@ -373,163 +116,6 @@ export const GROUP_ROOM_SHADES = {
   bgHover: MOTO_COLOR_PALETTE.green.soft,
   bgActive: MOTO_COLOR_PALETTE.green.muted,
 } as const;
-
-/**
- * Text shades of the palette above, dark enough to carry a label. The raw brand
- * hexes are fills: on white #83CD2D reaches 2.0:1, #F78C10 2.4:1 and #EAB308
- * 1.9:1, all far under the WCAG minimum for normal text. These keep the hue and
- * only take brightness away.
- *
- * Calibrated against Tailwind gray-50 (#F9FAFB), the darker of the two surfaces
- * they run on (the badge pill; cards are white), so every entry holds on both.
- * The comments carry the ratio on gray-50; on white each value is a little
- * better still.
- *
- * Keyed by the lowercased base hex, so a component only knows its brand color
- * and asks `getAccessibleTextColor()` for the matching label color. Colors that
- * are not part of the palette (per-room hexes, the Homeoffice blue in
- * staff-helpers) are darkened arithmetically by the same function, against the
- * surface they are actually drawn on.
- *
- * These are NOT the StatusBadge label colors: those are darkened further to sit
- * on a tinted pill, which reads muddy on a large figure on white (#8A5600 turns
- * brown). Both tables exist on purpose.
- */
-const ACCESSIBLE_TEXT_COLORS: Record<string, string> = {
-  "#83cd2d": GROUP_ROOM_SHADES.text, // 6.0:1 — green.strong #3F6F12
-  "#5080d8": "#3d6ab8", // 5.1:1
-  "#ff3130": "#c62826", // 5.4:1
-  "#f78c10": "#a35c0b", // 4.9:1
-  "#d946ef": "#af39c1", // 4.8:1
-  "#eab308": "#8b6a05", // 4.8:1
-  "#6b7280": "#374151", // 9.9:1 — neutral figures read as gray-700, not gray-500
-  // EXCUSED #7C3AED is absent on purpose: at 5.5:1 the raw purple already
-  // clears the target and is returned unchanged.
-};
-
-const SURFACE_WHITE = "#FFFFFF";
-
-/**
- * WCAG AA for normal text is 4.5:1; the target sits above it so a shade never
- * lands on the boundary, where a rounded channel decides pass or fail. Normal
- * text is the strict case, so one target covers large text too.
- */
-const TEXT_CONTRAST_TARGET = 4.75;
-
-/** Used when there is no usable color to darken. */
-const NEUTRAL_TEXT_COLOR = "#374151";
-
-const accessibleTextCache = new Map<string, string>();
-
-/**
- * Returns a text color for `color` that clears {@link TEXT_CONTRAST_TARGET}
- * against `background` — pass the surface the text actually sits on, since the
- * same shade passes on white and fails on gray-50. Palette colors start from
- * {@link ACCESSIBLE_TEXT_COLORS}, anything else (a per-room hex, a status color
- * outside the palette) from the color itself; either is scaled down
- * channel-wise until the ratio holds, which keeps the hue. Colors that already
- * pass are returned unchanged.
- *
- * Use it for the LABEL only. Dots, bars, and other fills keep the raw color —
- * they carry no text and contrast rules do not apply the same way.
- *
- * Accepts a missing color: an indexed palette lookup is `string | undefined`
- * under `noUncheckedIndexedAccess`, and a status the backend adds before the
- * frontend knows it must not blow up a badge. It falls back to neutral gray.
- */
-export function getAccessibleTextColor(
-  color: string | null | undefined,
-  background: string = SURFACE_WHITE,
-): string {
-  if (color === null || color === undefined || color.trim() === "") {
-    return NEUTRAL_TEXT_COLOR;
-  }
-
-  const key = `${color.trim().toLowerCase()}|${background.trim().toLowerCase()}`;
-
-  const cached = accessibleTextCache.get(key);
-  if (cached !== undefined) {
-    return cached;
-  }
-
-  const resolved = resolveAccessibleTextColor(color, background);
-  accessibleTextCache.set(key, resolved);
-  return resolved;
-}
-
-function resolveAccessibleTextColor(color: string, background: string): string {
-  const candidate = ACCESSIBLE_TEXT_COLORS[color.trim().toLowerCase()] ?? color;
-
-  const rgb = hexToRgb(candidate);
-  const backgroundRgb = hexToRgb(background);
-  if (!rgb || !backgroundRgb) {
-    // Non-hex input (a CSS keyword, a var()): darkening it is not possible, so
-    // fall back to the neutral text color rather than passing it through.
-    return NEUTRAL_TEXT_COLOR;
-  }
-
-  if (contrastRatio(rgb, backgroundRgb) >= TEXT_CONTRAST_TARGET) {
-    return candidate;
-  }
-
-  return rgbToHex(darkenToContrast(rgb, backgroundRgb, TEXT_CONTRAST_TARGET));
-}
-
-/**
- * Largest brightness factor that still clears `target`, found by bisection.
- * The rounding to integer channels happens inside the predicate — rounding
- * afterwards can push a borderline result back below the target.
- */
-function darkenToContrast(
-  rgb: RgbColor,
-  background: RgbColor,
-  target: number,
-): RgbColor {
-  let tooDark = 0;
-  let tooBright = 1;
-
-  for (let i = 0; i < 24; i++) {
-    const factor = (tooDark + tooBright) / 2;
-    if (contrastRatio(scaleChannels(rgb, factor), background) >= target) {
-      tooDark = factor;
-    } else {
-      tooBright = factor;
-    }
-  }
-
-  return scaleChannels(rgb, tooDark);
-}
-
-function scaleChannels(rgb: RgbColor, factor: number): RgbColor {
-  return {
-    r: Math.round(rgb.r * factor),
-    g: Math.round(rgb.g * factor),
-    b: Math.round(rgb.b * factor),
-  };
-}
-
-/** WCAG relative luminance (sRGB). */
-function relativeLuminance({ r, g, b }: RgbColor): number {
-  const channel = (value: number): number => {
-    const srgb = value / 255;
-    return srgb <= 0.03928
-      ? srgb / 12.92
-      : Math.pow((srgb + 0.055) / 1.055, 2.4);
-  };
-
-  return 0.2126 * channel(r) + 0.7152 * channel(g) + 0.0722 * channel(b);
-}
-
-/** WCAG contrast ratio between two colors. */
-function contrastRatio(a: RgbColor, b: RgbColor): number {
-  const lumA = relativeLuminance(a);
-  const lumB = relativeLuminance(b);
-  return (Math.max(lumA, lumB) + 0.05) / (Math.min(lumA, lumB) + 0.05);
-}
-
-function rgbToHex({ r, g, b }: RgbColor): string {
-  return `#${[r, g, b].map((v) => v.toString(16).padStart(2, "0")).join("")}`;
-}
 
 const LOCATION_SEPARATOR = "-";
 const UNKNOWN_STATUS = LOCATION_STATUSES.UNKNOWN;
@@ -673,7 +259,7 @@ function getColorForPresentWithRoom(
   // form sends "" when the user clears the picker, the backend translates
   // both to NULL; either way the badge falls back to OTHER_ROOM blue).
   if (roomColor && roomColor.length > 0) {
-    return roomColor;
+    return getRoomBadgeColor(roomColor);
   }
 
   // The Schulhof arrives here as an ordinary room ("Anwesend - Schulhof"),
@@ -724,7 +310,7 @@ export function getLocationColor(
     roomColor &&
     roomColor.length > 0
   ) {
-    return roomColor;
+    return getRoomBadgeColor(roomColor);
   }
 
   // Check status-based colors first (Home, Schoolyard, Transit)
@@ -881,28 +467,26 @@ export function isCheckedInLocation(location?: string | null): boolean {
   return CHECKED_IN_STATUSES.has(parseLocation(location).status);
 }
 
-export type CountedDayStatus = "sick" | "class_trip" | "excused";
-
 /**
- * Der Tagesstatus, nach dem Zahlen, Statusfilter und Statusgruppen ein Kind
- * einordnen; krank vor Klassenfahrt vor entschuldigt.
+ * Wie ein Ortsbadge den Tagesstatus (krank, Klassenfahrt, entschuldigt,
+ * „Kommt heute nicht“) zeigt:
+ * - `replace`: Ohne Check-in ersetzt der Status den Ort („Krank“ statt
+ *   „Zuhause“). Das gilt auch für „Schule“, den nur aus dem Tagesplan
+ *   abgeleiteten Ort vor dem ersten Check-in.
+ * - `hint`: Ein eingechecktes Kind behält seinen Ort, der Status steht als
+ *   Hinweis darunter (Ort vor Status, #6371).
+ * - `none`: Hat das Personal das Kind zum Unterricht abgemeldet, zeigt das
+ *   Badge nur „Im Unterricht“, ohne Hinweis (#5710). „Im Unterricht“ entsteht
+ *   nur aus dieser erfassten Abmeldung, nie aus dem Tagesplan.
  *
- * Ort vor Status (#6371): Ein eingechecktes Kind zählt in jeder Ansicht als
- * anwesend, genau einmal. Seine Krankmeldung, Entschuldigung oder Klassenfahrt
- * ist dann nur ein Hinweis am Ortsbadge und zählt nirgends mit. Ein Kind ohne
- * Check-in behält seinen Status.
+ * `resolvePresence` und `countedDayStatus` (`~/lib/presence-status`) folgen
+ * dieser Regel.
  */
-export function countedDayStatus(student: {
-  readonly sick?: boolean | null;
-  readonly class_trip?: boolean | null;
-  readonly excused?: boolean | null;
-  readonly current_location?: string | null;
-}): CountedDayStatus | null {
-  if (isCheckedInLocation(student.current_location)) return null;
-  if (student.sick) return "sick";
-  if (student.class_trip) return "class_trip";
-  if (student.excused) return "excused";
-  return null;
+export function dayStatusPresentation(
+  location?: string | null,
+): "replace" | "hint" | "none" {
+  if (isInClassLocation(location)) return "none";
+  return isNotCheckedInLocation(location) ? "replace" : "hint";
 }
 
 /**
@@ -917,27 +501,4 @@ export function isSchoolyardLocation(location?: string | null): boolean {
  */
 export function isTransitLocation(location?: string | null): boolean {
   return parseLocation(location).status === LOCATION_STATUSES.TRANSIT;
-}
-
-interface RgbColor {
-  r: number;
-  g: number;
-  b: number;
-}
-
-function hexToRgb(hexColor: string): RgbColor | null {
-  const sanitized = hexColor.trim().replace("#", "");
-  if (sanitized.length !== 6) {
-    return null;
-  }
-
-  const r = Number.parseInt(sanitized.slice(0, 2), 16);
-  const g = Number.parseInt(sanitized.slice(2, 4), 16);
-  const b = Number.parseInt(sanitized.slice(4, 6), 16);
-
-  if (Number.isNaN(r) || Number.isNaN(g) || Number.isNaN(b)) {
-    return null;
-  }
-
-  return { r, g, b };
 }

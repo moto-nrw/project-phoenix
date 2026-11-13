@@ -27,7 +27,10 @@ import { Alert } from "~/components/ui/alert";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
 import { useRefreshAfterWrite } from "~/lib/hooks/use-refresh-after-write";
 import { Button, ButtonLink } from "~/components/ui/button";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { useApiErrorDisplay, useToast } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
@@ -237,10 +240,7 @@ function SchoolVacationHintList({
       >
         <ResponsiveActionList>
           {hints.map((hint) => (
-            <li
-              key={`${hint.startDate}-${hint.endDate}`}
-              className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
-            >
+            <ResponsiveActionRow key={`${hint.startDate}-${hint.endDate}`}>
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-900">
                   {hint.name}
@@ -252,7 +252,7 @@ function SchoolVacationHintList({
               <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end">
                 {actions(hint, true)}
               </div>
-            </li>
+            </ResponsiveActionRow>
           ))}
         </ResponsiveActionList>
       </SectionCard>

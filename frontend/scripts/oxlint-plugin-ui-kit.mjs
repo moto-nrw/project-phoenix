@@ -100,7 +100,8 @@ import {
 // One more keeps form fields on the kit (#5217):
 //
 //   ui-kit/no-kit-domain-import     — files in components/ui import no other
-//                                     components and fetch no data (#5586)
+//                                     components, only pure ~/lib modules
+//                                     and fetch no data (#5586, #6582)
 //   ui-kit/no-raw-table             — no <table> outside components/ui; use
 //                                     DataTable (#5600)
 //   ui-kit/no-em-dash-empty-value   — an empty value is "–", never "—" (#5600)
@@ -139,8 +140,9 @@ import {
 //
 //   ui-kit/no-shadcn-tokens         — no shadcn theme tokens (bg-background,
 //                                     text-muted-foreground …); bg-white/gray-*
-//   ui-kit/no-raw-z-index           — no `z-[n]` inside src/components/ui/;
-//                                     levels come from Z_LAYER
+//   ui-kit/no-raw-z-index           — no `z-[n]` or `z-n` inside
+//                                     src/components/ui/; levels come from
+//                                     Z_LAYER (#6574)
 //
 // One more keeps icon tiles on the kit (#5582):
 //
@@ -214,7 +216,7 @@ const SHADCN_TOKEN_RE =
   /(?<![\w-])(?:bg|text|border(?:-[trblxyse])?|ring|ring-offset|outline|fill|stroke|divide|placeholder|from|via|to|caret|accent|decoration|shadow)-(?:background|foreground|muted(?:-foreground)?|accent(?:-foreground)?|popover(?:-foreground)?|card(?:-foreground)?|primary(?:-foreground)?|secondary(?:-foreground)?|destructive(?:-foreground)?|input|ring|border)(?![\w-])/g;
 // Arbitrary stacking numbers (`z-[9999]`) inside the kit; the levels live in
 // `Z_LAYER` (overlay-styles.ts), the one file this rule skips (#5579).
-const RAW_Z_INDEX_RE = /(?<![\w-])z-\[[^\]\s]+\](?![\w-])/g;
+const RAW_Z_INDEX_RE = /(?<![\w-])z-(?:\[[^\]\s]+\]|\d+)(?![\w-])/g;
 const Z_LAYER_FILE = "src/components/ui/overlay-styles.ts";
 
 const EXEMPT_FILE_RE = /(?:\.(?:test|stories)\.)|(?:\.d\.ts$)/;
@@ -719,7 +721,6 @@ const SURFACE_CONTROL_ELEMENTS = new Set([
   "select",
   "textarea",
   "Link",
-  "NavLink",
   "NavigationLink",
   "Button",
   "ButtonLink",
@@ -1088,7 +1089,7 @@ const noRawZIndex = makeClassStringRule({
   skipUiKit: false,
   onlyUiKit: true,
   skipFiles: [Z_LAYER_FILE],
-  docs: "Disallow arbitrary z-index numbers in the UI kit; overlays take their level from Z_LAYER.",
+  docs: "Disallow z-index classes in the UI kit; every level comes from Z_LAYER.",
   messageId: "rawZIndex",
   message:
     "{{match}} is a stacking number of its own. Take the level from Z_LAYER / Z_INDEX in overlay-styles.ts, or add a named level there.",
@@ -2422,11 +2423,51 @@ const confirmationLoadingText = {
 // The kit works in every portal, so it knows no domain: a file under
 // components/ui/ imports nothing from other component folders and loads no
 // data. Context arrives through props and slots (#5586).
+//
+// src/lib holds pure helpers next to domain modules (tenant context, concepts,
+// API clients, domain calculations). The kit loads only the modules listed in
+// KIT_PURE_LIB_MODULES: no tenant or school knowledge, no API, no domain rule
+// (#6582). A type-only import stays allowed from every lib
+// module: it leaves no code in the bundle and only names the shape a prop
+// takes (MotoConcept, ModuleKey).
+
+const KIT_PURE_LIB_MODULES = new Set([
+  "src/lib/constants/input-limits",
+  "src/lib/date-helpers",
+  "src/lib/date-picker-labels",
+  "src/lib/file-format",
+  "src/lib/format-utils",
+  "src/lib/hooks/use-berlin-today",
+  "src/lib/hooks/use-latest",
+  "src/lib/hooks/use-media-query",
+  "src/lib/hooks/use-scroll-y",
+  "src/lib/hooks/use-viewport-at-least",
+  "src/lib/kit-palette",
+  // Infrastructure, not domain: frontend/CLAUDE.md requires createLogger for
+  // every log line. It reads the portal only to pick its ingest path.
+  "src/lib/logger",
+  "src/lib/search-fold",
+  "src/lib/use-clipboard-copy",
+  "src/lib/utils",
+]);
 
 const KIT_DATA_HOOK_RE = /^useSWR/;
 
-function kitImportLeavesKit(source, key) {
-  if (source === "swr" || source.startsWith("swr/")) return true;
+/** `import type …`, `export type …`, or only `type` specifiers. */
+function isTypeOnlyImport(node) {
+  if (node.type === "ImportExpression") return false;
+  if (node.importKind === "type" || node.exportKind === "type") return true;
+  const specifiers = node.specifiers ?? [];
+  return (
+    specifiers.length > 0 &&
+    specifiers.every(
+      (specifier) =>
+        specifier.importKind === "type" || specifier.exportKind === "type",
+    )
+  );
+}
+
+function kitImportTarget(source, key) {
   const alias = /^[~@]\/(.*)$/.exec(source);
   let target;
   if (alias) {
@@ -2439,10 +2480,20 @@ function kitImportLeavesKit(source, key) {
     }
     target = parts.join("/");
   } else {
-    return false;
+    return null;
   }
-  if (target.startsWith(UI_KIT_DIR)) return false;
-  return target.startsWith("src/components/") || target.startsWith("src/app/");
+  return target.replace(/\.(?:ts|tsx|js|mjs)$/, "");
+}
+
+function kitImportLeavesKit(node, source, key) {
+  if (source === "swr" || source.startsWith("swr/")) return true;
+  const target = kitImportTarget(source, key);
+  if (target === null || target.startsWith(UI_KIT_DIR)) return false;
+  if (target.startsWith("src/components/") || target.startsWith("src/app/")) {
+    return true;
+  }
+  if (!target.startsWith("src/lib/")) return false;
+  return !KIT_PURE_LIB_MODULES.has(target) && !isTypeOnlyImport(node);
 }
 
 const noKitDomainImport = {
@@ -2454,7 +2505,7 @@ const noKitDomainImport = {
     },
     messages: {
       domainImport:
-        "Das Kit importiert keine Fachlogik ('{{source}}'). Baustein nach components/ui ziehen oder Kontext über Props oder Slots hereinreichen (#5586, .claude/rules/frontend-ui-kit.md).",
+        "Das Kit importiert keine Fachlogik ('{{source}}'). Fachbaustein in seinen Fachordner ziehen oder Kontext über Props oder Slots hereinreichen; aus ~/lib nur reine Module (KIT_PURE_LIB_MODULES) und Typen (#5586, #6582, .claude/rules/frontend-ui-kit.md).",
       dataAccess:
         "Das Kit lädt keine Daten ('{{name}}'). Die Daten kommen über Props vom fachlichen Aufrufer (#5586, .claude/rules/frontend-ui-kit.md).",
     },
@@ -2465,7 +2516,7 @@ const noKitDomainImport = {
     if (!key.startsWith(UI_KIT_DIR) || EXEMPT_FILE_RE.test(key)) return {};
 
     const checkSource = (node, source) => {
-      if (typeof source !== "string" || !kitImportLeavesKit(source, key))
+      if (typeof source !== "string" || !kitImportLeavesKit(node, source, key))
         return;
       context.report({ node, messageId: "domainImport", data: { source } });
     };
@@ -2654,7 +2705,7 @@ const noEmDashEmptyValue = {
 //
 // Jede Aktion nutzt Button, ButtonLink oder buttonClassName aus dem Kit.
 //
-//   no-hand-rolled-button — natives <button>, <a>, <Link>, <NavLink>,
+//   no-hand-rolled-button — natives <button>, <a>, <Link>,
 //     <NavigationLink> oder ein Element mit role="button", das wie ein Knopf
 //     aussieht: Hintergrund- oder Ring-/Rahmenfarbe plus Radius plus Polster
 //     oder Höhe, jeweils ohne Zustandspräfix.
@@ -2675,15 +2726,13 @@ const NATIVE_ACTION_ELEMENTS = new Set([
   "button",
   "a",
   "Link",
-  "NavLink",
   "NavigationLink",
 ]);
 const KIT_BUTTONS = new Set(["Button", "ButtonLink"]);
 const KIT_BUTTON_EXPORTS = new Set(["Button", "ButtonLink", "buttonClassName"]);
-const ACTION_COMPONENTS = new Set(["Link", "NavLink", "NavigationLink"]);
+const ACTION_COMPONENTS = new Set(["Link", "NavigationLink"]);
 const DEFAULT_ACTION_COMPONENTS = new Map([
   ["next/link", "Link"],
-  ["~/components/ui/nav-link", "NavLink"],
   ["~/components/ui/navigation-link", "NavigationLink"],
 ]);
 
@@ -3225,7 +3274,7 @@ const noButtonOverride = makeRatchetRule({
 // prüft, auch in Ternär-Zweigen und Konstanten derselben Datei. Zustände
 // (hover:, active:, aria-pressed:) dürfen grau tönen. Keine Knöpfe in diesem
 // Sinn (frontend-ui-kit.md, Buttons): Schalter, Reiter, Menü- und
-// Auswahleinträge (role), Navigationszeilen (aria-current, NavLink,
+// Auswahleinträge (role), Navigationszeilen (aria-current,
 // NavigationLink) und die Spur eines SegmentedControl. Hart null: keine
 // Baseline; begründete Ausnahmen in der Allowlist (ui-kit-button-baseline.mjs).
 
@@ -3239,7 +3288,7 @@ const NOT_BUTTON_ROLES = new Set([
   "option",
   "radio",
 ]);
-const NAVIGATION_ROWS = new Set(["NavLink", "NavigationLink"]);
+const NAVIGATION_ROWS = new Set(["NavigationLink"]);
 
 function isNavigationOrControl(node, name, bindings) {
   const role = staticAttributeValue(jsxAttribute(node, "role"));
@@ -3712,7 +3761,6 @@ const INTERACTIVE_ELEMENTS = new Set([
   "button",
   "a",
   "Link",
-  "NavLink",
   "NavigationLink",
   "Button",
   "ButtonLink",
@@ -3884,7 +3932,7 @@ const noSelectOverride = {
     },
     messages: {
       override:
-        'Keine eigene Optik am Auswahlfeld ({{tokens}}): Rahmen, Hintergrund, Höhe und Radius kommen aus dem Kit. controlSize="compact" (ListboxDropdown: size) wählen, className nur für Layout (#5580, .claude/rules/frontend-ui-kit.md).',
+        'Keine eigene Optik am Auswahlfeld ({{tokens}}): Rahmen, Hintergrund, Höhe und Radius kommen aus dem Kit. Ohne Angabe 40 px, controlSize="dense" (ListboxDropdown: size) für dichte Zeilen, className nur für Layout (#5580, .claude/rules/frontend-ui-kit.md).',
       unstyled:
         "unstyledTrigger ist nur im Kit erlaubt; außerhalb gilt die Feldoptik von ListboxDropdown (#5580).",
     },
@@ -3989,7 +4037,7 @@ const noControlHeightOverride = {
     },
     messages: {
       override:
-        'Keine eigene Bedienhöhe ({{tokens}}): Input und Auswahlfelder nehmen controlSize="compact" (40 px), OverflowMenu triggerSize (#5605, .claude/rules/frontend-ui-kit.md).',
+        'Keine eigene Bedienhöhe ({{tokens}}): Input nimmt controlSize="compact" (40 px), Auswahlfelder haben 40 px ohne Angabe (ControlSize, control-geometry.ts), OverflowMenu triggerSize (#5605, .claude/rules/frontend-ui-kit.md).',
     },
     schema: [],
   },
@@ -4248,6 +4296,48 @@ const noHandRolledStickyBar = {
   },
 };
 
+// ui-kit/no-hand-rolled-action-row (#6571, hard-zero) — eine Zeile mit eigener
+// Aktionsspalte ist `ResponsiveActionRow`. Fund: `grid-cols-subgrid` außerhalb
+// des Kits, in einem Klassen-String oder einer Konstante.
+function isHandRolledActionRow(text) {
+  return text
+    .split(/\s+/)
+    .some((token) => bareUtility(token) === "grid-cols-subgrid");
+}
+
+const noHandRolledActionRow = {
+  meta: {
+    type: "problem",
+    docs: {
+      description:
+        "Disallow hand-built subgrid rows outside the UI kit; use ResponsiveActionRow.",
+    },
+    messages: {
+      handRolled:
+        "Keine eigene Zeile mit Aktionsspalte: ResponsiveActionRow (~/components/ui/responsive-action-list) in ResponsiveActionList (#6571).",
+    },
+    schema: [],
+  },
+  create(context) {
+    const key = fileKey(context);
+    if (!key.startsWith("src/")) return {};
+    if (EXEMPT_FILE_RE.test(key) || key.startsWith(UI_KIT_DIR)) return {};
+    const check = (node, text) => {
+      if (isHandRolledActionRow(text)) {
+        context.report({ node, messageId: "handRolled" });
+      }
+    };
+    return {
+      Literal(node) {
+        if (typeof node.value === "string") check(node, node.value);
+      },
+      TemplateLiteral(node) {
+        for (const quasi of node.quasis) check(node, quasi.value.raw);
+      },
+    };
+  },
+};
+
 // ui-kit/no-hand-rolled-field-label (#5589) — die Beschriftung eines Felds kommt
 // aus `FieldLabel` oder der `label`-Prop. Fund: `<label>` mit text-xs/text-sm und
 // font-medium/font-semibold, ein `<span>` dieser Art mit `block` und `mb-*` über
@@ -4492,7 +4582,14 @@ const PORTAL_NAV_KIT_ROW_EXPORTS = new Set([
   "sidebarRowClasses",
   "sidebarLabelClasses",
   "SIDEBAR_GROUP_HEADING_CLASSES",
-  "SIDEBAR_SUB_ITEM_CLASSES",
+  "sidebarSubItemClasses",
+  "sidebarGroupBodyClasses",
+  "sidebarGroupIconClasses",
+  "sidebarChevronClasses",
+  "sidebarFadeClasses",
+  "SIDEBAR_RAIL_BADGE_CLASSES",
+  "SIDEBAR_GROUP_HEADING_RAIL_BADGE_CLASSES",
+  "SidebarRowContent",
 ]);
 
 function hasPortalNavShellSignature(text) {
@@ -5922,6 +6019,8 @@ const TOOLTIP_SCOPE = [
   "src/app/[tenant]/(protected)/settings/",
   "src/app/traeger/einstellungen/",
   "src/components/settings/",
+  // Kit-Bausteine bringen ihre Standardtexte selbst mit (#6744).
+  "src/components/ui/",
   // Träger: Betreuungsverträge, Dokumente und Familien (#6762).
   "src/components/traeger/care-contract-change-card.tsx",
   "src/components/traeger/care-contract-change-modal.tsx",
@@ -6233,7 +6332,10 @@ const buttonNeedsTooltip = {
 // Überschrift: sie sagen, was sie sind) und rein navigierende Einträge mit
 // `selected`, etwa die „Mehr“-Leiste der Navigation; ein statisch falscher
 // Wert wie `false` oder `undefined` ist keine Navigation und befreit nicht.
-// Ein unbekannter Wert bleibt als Navigation ausgenommen. Verlangt wird
+// Ein unbekannter Wert bleibt als Navigation ausgenommen. Objekte mit
+// `tooltip` oder `noTooltip` sind Knöpfe, etwa `moreAction` der DataTable;
+// sie erklärt `ui-kit/button-needs-tooltip`, ein Menüeintrag hat kein
+// `tooltip`. Verlangt wird
 // `description` oder ein begründetes `noDescription: "<Grund>"`; ein leerer
 // oder `undefined` gesetzter Wert ist ein Fehler. Wie bei
 // `ui-kit/button-needs-tooltip` gilt ein unbekannter Spread ohne Erklärung als
@@ -6293,6 +6395,8 @@ const menuItemNeedsDescription = {
         const selected = staticObjectProperty(node, "selected");
         if (
           staticObjectProperty(node, "kind") ||
+          staticObjectProperty(node, "tooltip") ||
+          staticObjectProperty(node, "noTooltip") ||
           (selected && !isStaticallyFalsy(selected.value))
         ) {
           return;
@@ -6387,6 +6491,7 @@ export default {
     "no-hand-rolled-removable-chip": noHandRolledRemovableChip,
     "no-arbitrary-slide-over-width": noArbitrarySlideOverWidth,
     "no-hand-rolled-sticky-bar": noHandRolledStickyBar,
+    "no-hand-rolled-action-row": noHandRolledActionRow,
     "no-slide-over-row-override": noSlideOverRowOverride,
     "no-hand-rolled-surface": noHandRolledSurface,
     "no-hand-rolled-weekday-toggle": noHandRolledWeekdayToggle,

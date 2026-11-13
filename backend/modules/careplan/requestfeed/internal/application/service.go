@@ -9,9 +9,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/requestfeed"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/requestfeed/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/requestfeed/internal/ports"
 )
 
 const retention = 30 * 24 * time.Hour

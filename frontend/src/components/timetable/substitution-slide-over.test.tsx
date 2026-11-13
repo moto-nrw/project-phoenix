@@ -552,6 +552,28 @@ describe("SubstitutionSlideOver", () => {
     });
   });
 
+  // Since #6847 an approved vacation stamps the plan like a sick report; the
+  // lock must not call it a Krankmeldung.
+  it("nennt eine gesperrte Urlaubsabwesenheit nicht Krankmeldung", () => {
+    const vacation = makeInstance({
+      staff: [
+        plannedPerson({
+          isAbsent: true,
+          isSickAbsence: true,
+          absenceReason: "Abwesenheit",
+        }),
+      ],
+    });
+    renderEditor({ instance: vacation, dayInstances: [vacation] });
+
+    expect(
+      screen.getByText(
+        "Diese Abwesenheit ist in der Zeiterfassung eingetragen. Sie können hier nur die Vertretung ändern.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.queryByText(/Krankmeldung/)).not.toBeInTheDocument();
+  });
+
   it("sperrt die Krankmeldung, lässt aber den Umfang der Vertretung wählen", async () => {
     const onApply = applyMock();
     const sick = makeInstance({

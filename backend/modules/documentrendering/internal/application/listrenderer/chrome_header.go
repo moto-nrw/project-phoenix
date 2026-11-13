@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	listrecords "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
+	listrecords "github.com/moto-ogs/project-phoenix/modules/documentrendering/records"
 
 	"github.com/signintech/gopdf"
 	"golang.org/x/text/unicode/norm"

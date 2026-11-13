@@ -3,7 +3,7 @@ package authorize
 import (
 	"slices"
 
-	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
+	securitycontract "github.com/moto-ogs/project-phoenix/modules/securityruntime/ports"
 )
 
 // securitycontract.StudentNoteReader is the caller as the note audience needs them. The facts

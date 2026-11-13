@@ -3,8 +3,8 @@ package application
 import (
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The rule chain of the holiday contribution (ADR 0088 section 4, ADR 0115):

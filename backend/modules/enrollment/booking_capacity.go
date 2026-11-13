@@ -241,3 +241,18 @@ func gradeCountBefore(a, b *OfferingGradeCount) bool {
 	}
 	return *a.GradeLevel < *b.GradeLevel
 }
+
+// MaterializableOfferingCounts reads the complete catalog cohort once.
+func (p *BookingProjection) MaterializableOfferingCounts(ctx context.Context, ids []int64, today Date) (map[int64]int, error) {
+	bookings, children, err := p.offeringCapacityFacts(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	counts := map[int64]int{}
+	for _, booking := range bookings {
+		if capacityChild(children, booking.RequestChildID) && (booking.ValidUntil == nil || today.Before(*booking.ValidUntil)) {
+			counts[booking.CareOfferingID]++
+		}
+	}
+	return counts, nil
+}

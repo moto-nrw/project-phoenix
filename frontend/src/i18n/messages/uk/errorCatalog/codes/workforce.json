@@ -55,6 +55,7 @@
   "shift_series_no_occurrences": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "shift_series_outside_period": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "shift_series_week_cycle_missing": "Не вдалося зберегти: {object}. Перевірте введені дані.",
+  "shift_type_archived": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "shift_type_inactive": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "staff_profile_missing": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "stammdaten_invalid": "Не вдалося зберегти: {object}. Перевірте введені дані.",
@@ -75,5 +76,6 @@
   "payroll_wage_type_in_use": "Не вдалося змінити: {object}. Перевірте поточний стан.",
   "payroll_wage_type_name_taken": "Не вдалося зберегти: {object}. Перевірте введені дані.",
   "qualification_type_name_taken": "Не вдалося змінити: {object}. Перевірте поточний стан.",
-  "qualification_type_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан."
+  "qualification_type_not_found": "Не вдалося змінити: {object}. Перевірте поточний стан.",
+  "work_time_model_archived": "Не вдалося змінити: {object}. Перевірте поточний стан."
 }

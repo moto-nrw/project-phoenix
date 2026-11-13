@@ -5,7 +5,7 @@ status: proposed
 # Belege des Trägers gehen nur auf Weisung nach ihrer Frist
 
 **Status: Vorgeschlagen.** Vorschlag vom 09.11.2026 zu
-[#4720](https://github.com/moto-nrw/project-phoenix/issues/4720), Slice 2
+[#4720](https://github.com/moto-ogs/project-phoenix/issues/4720), Slice 2
 „Frist je Beleg“, Teil von #4611. Grundlage ist das Löschkonzept
 Finanz- und Vertragsunterlagen der Träger im Legal-Repo
 (`vertragspaket/intern/loeschkonzept-traeger-finanzdaten.md`, Stand

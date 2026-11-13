@@ -9,9 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/sessionrecordstest"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/sessionrecordstest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // TestFlowC_GapsAndSubstitute exercises the Krankmeldung scenario:
@@ -25,7 +24,7 @@ func TestFlowC_GapsAndSubstitute(t *testing.T) {
 	s := setupTimetableScenarioModule(t)
 
 	// Pick a Tuesday ≥ 7 days out (must be today-or-future for /gaps and /substitute).
-	target := nextWeekday(calendar.TodayDate(), 2, 7)
+	target := s.plannableWeekday(2, 7)
 	fromS := target.String()
 
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-C-%d", time.Now().UnixNano()), target)

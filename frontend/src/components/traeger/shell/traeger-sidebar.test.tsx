@@ -75,7 +75,9 @@ describe("TraegerSidebar", () => {
       ["Übersicht", "Schulen"],
       ["Übersicht", "Stichtagszahlen"],
       ["Betreuung", "Ferienbetreuung"],
-      ["Finanzen", "Abrechnung"],
+      ["Finanzen", "Abrechnungsläufe"],
+      ["Finanzen", "Familien und Zahlung"],
+      ["Finanzen", "Preise und Ermäßigungen"],
     ] as const) {
       expect(
         within(mainNav().getByRole("list", { name: group })).getByRole("link", {
@@ -89,9 +91,13 @@ describe("TraegerSidebar", () => {
       "Stichtagszahlen",
       "Belegung",
       "Ferienbetreuung",
+      // Anmeldephasen für mehrere Schulen, mit demselben Recht (#4704).
+      "Anmeldephasen",
       "Schließtage",
       "Dokumente",
-      "Abrechnung",
+      "Abrechnungsläufe",
+      "Familien und Zahlung",
+      "Preise und Ermäßigungen",
     ]);
     expect(
       mainNav().getByRole("link", { name: "Stichtagszahlen" }),
@@ -125,6 +131,7 @@ describe("TraegerSidebar", () => {
       "Dokumente",
     ]);
     expect(mainNav().queryByText("Ferienbetreuung")).toBeNull();
+    expect(mainNav().queryByText("Anmeldephasen")).toBeNull();
     expect(mainNav().queryByText("Finanzen")).toBeNull();
   });
 

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	legacy "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	legacy "github.com/moto-ogs/project-phoenix/modules/devicefleet/compose"
 )
 
 type sessionDeviceLookup struct {

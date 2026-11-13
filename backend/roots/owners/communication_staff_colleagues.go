@@ -3,9 +3,9 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // NewCommunicationStaffColleagues binds the same People Directory lookup once.

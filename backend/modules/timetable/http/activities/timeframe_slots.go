@@ -3,7 +3,7 @@ package httpadapter
 import (
 	"time"
 
-	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	timetableModule "github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 // The Timetable owner keeps clock values as timezone-free HH:MM:SS strings

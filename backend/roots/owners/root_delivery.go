@@ -5,31 +5,31 @@ import (
 	"maps"
 	"slices"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	settingsValues "github.com/moto-nrw/project-phoenix/modules/settings"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	settingsValues "github.com/moto-ogs/project-phoenix/modules/settings"
 
-	realtime "github.com/moto-nrw/project-phoenix/realtime"
+	realtime "github.com/moto-ogs/project-phoenix/realtime"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
-	calendarService "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	careContractCompose "github.com/moto-ogs/project-phoenix/modules/carecontract/compose"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	communicationCompose "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	deliveryModule "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	parentBillingCompose "github.com/moto-ogs/project-phoenix/modules/parentbilling/compose"
+	calendarService "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // DeliveryNotifications are Delivery's notification side (#1845): the
@@ -41,6 +41,9 @@ type DeliveryNotifications struct {
 	Preferences         deliveryCompose.NotificationPreferenceService
 	StaffParentMessages deliveryCompose.StaffParentMessageNotifier
 	AbsenceNotifier     deliveryCompose.AbsenceNotifier
+	// ResponsibleStaff names the staff responsible for a child, such as the
+	// team told about a changed pickup time (#6855).
+	ResponsibleStaff deliveryContract.ResponsibleStaff
 	// UnreportedAbsences tells the Schulverwaltung about children missing
 	// without a report (#4791).
 	UnreportedAbsences deliveryContract.UnreportedAbsenceNotifier
@@ -91,13 +94,18 @@ func BuildDeliveryNotifications(
 	if !ok {
 		return DeliveryNotifications{}, fmt.Errorf("absence notifier does not send the notice about children missing without a report")
 	}
+	responsible, ok := recipients.(deliveryContract.ResponsibleStaff)
+	if !ok {
+		return DeliveryNotifications{}, fmt.Errorf("staff recipients do not name the staff responsible for a child")
+	}
 	return DeliveryNotifications{
 		UnreportedAbsences: unreported,
 		Notifier:           notifier,
 		Preferences:        preferences,
 		StaffParentMessages: deliveryCompose.NewStaffParentMessageNotifier(notifier, recipients,
 			messaging.ParentMessageThread, BindParentMessageLeadership(people.Staff, identity), db.Pool(), logger.With("producer", "staff_parent_message_notifications")),
-		AbsenceNotifier: absences,
+		AbsenceNotifier:  absences,
+		ResponsibleStaff: responsible,
 	}, nil
 }
 

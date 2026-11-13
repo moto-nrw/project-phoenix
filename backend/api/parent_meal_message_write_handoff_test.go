@@ -9,9 +9,9 @@ import (
 	"testing"
 	"time"
 
-	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	settingsModule "github.com/moto-ogs/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -311,7 +311,8 @@ func TestParentMealMessageWritesStoreTheirWrite(t *testing.T) {
 
 // TestParentMealMessageWritesPersistNothingWhenCancelled cancels the
 // request right after the child's lock (the conversation: after its thread
-// lookup): the write answers 500 and stores nothing.
+// lookup): the write answers 499 (the client went away, no server error) and
+// stores nothing.
 func TestParentMealMessageWritesPersistNothingWhenCancelled(t *testing.T) {
 	t.Parallel()
 	rig := newMealWriteRig(t)
@@ -337,7 +338,7 @@ func TestParentMealMessageWritesPersistNothingWhenCancelled(t *testing.T) {
 		rig.faults.arm(func(w *writeFaults) { w.afterAt, w.after = at, cancel })
 		rec := rig.call(t, ctx, mealWriteCallFor(route, f), f.token)
 		cancel()
-		require.Equal(t, http.StatusInternalServerError, rec.Code, "%s: %s", route, rec.Body.String())
+		require.Equal(t, 499, rec.Code, "%s: %s", route, rec.Body.String())
 		require.True(t, rig.sameRows(f.TenantID, startCmp, 1), "%s: nothing stored", route)
 		rig.restore(t, f.TenantID, start)
 	}

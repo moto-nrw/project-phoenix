@@ -6,10 +6,10 @@ import (
 	"errors"
 	"fmt"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	delivery "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
 )
 
 type Provider interface {
@@ -138,7 +138,7 @@ func (p ProviderAdapter) Send(ctx context.Context, intent domain.Intent) (delive
 	claimed := deliveryContract.ClaimedIntent{
 		ID: intent.ID, TenantID: intent.TenantID, OrganizationID: intent.OrganizationID, Transport: deliveryContract.Transport(intent.Transport),
 		Template: intent.Template, DeliveryToken: intent.DeliveryToken, Security: intent.Security, UseFallback: intent.UseFallback, RelatedEntityType: intent.RelatedEntityType,
-		RelatedEntityID: intent.RelatedEntityID, Attempts: intent.Attempts,
+		RelatedEntityID: intent.RelatedEntityID, Attempts: intent.Attempts, CreatedAt: intent.CreatedAt,
 	}
 	if intent.LeaseToken != nil {
 		claimed.LeaseToken = *intent.LeaseToken
@@ -172,7 +172,9 @@ func ProviderResult(value deliveryContract.ProviderResult, err error) (deliveryC
 	if errors.Is(err, deliveryContract.ErrCancelled) {
 		err = fmt.Errorf("%w: %v", domain.ErrCancelled, err)
 	}
-	if errors.Is(err, deliveryContract.ErrDeferred) {
+	if errors.Is(err, deliveryContract.ErrThrottled) {
+		err = fmt.Errorf("%w: %w: %v", domain.ErrDeferred, domain.ErrThrottled, err)
+	} else if errors.Is(err, deliveryContract.ErrDeferred) {
 		err = fmt.Errorf("%w: %v", domain.ErrDeferred, err)
 	}
 	if errors.Is(err, deliveryContract.ErrRecipientRejected) {

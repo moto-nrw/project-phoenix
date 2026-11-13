@@ -10,7 +10,7 @@ import (
 // unclassifiedTableRecord is a base-baseline entry recording that the fixture
 // source package accesses a table nobody owns yet.
 func unclassifiedTableRecord(issue int, table string) string {
-	return fmt.Sprintf("{\"scope\":\"production\",\"rule\":\"tables.unclassified\",\"source\":\"example.test/architecture-fixture/source\",\"target\":%q,\"issue\":\"https://github.com/moto-nrw/project-phoenix/issues/%d\"}\n", table, issue)
+	return fmt.Sprintf("{\"scope\":\"production\",\"rule\":\"tables.unclassified\",\"source\":\"example.test/architecture-fixture/source\",\"target\":%q,\"issue\":\"https://github.com/moto-ogs/project-phoenix/issues/%d\"}\n", table, issue)
 }
 
 // An owned table cannot change hands under a reviewed epoch even when the

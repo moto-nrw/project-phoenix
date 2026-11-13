@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // SEPA direct debit of the families (#4695, spec #4611 user stories 82, 84,

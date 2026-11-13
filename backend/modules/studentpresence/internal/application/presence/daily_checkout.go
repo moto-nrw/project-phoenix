@@ -6,16 +6,24 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
+// deviceSupervisorUnavailableError says why a device has no supervisor to act
+// for it. cause is ErrNoActiveSession when the device runs no session at all,
+// so the kiosk receives its "no active session" answer instead of a 500.
 type deviceSupervisorUnavailableError struct {
 	reason string
+	cause  error
 }
 
 func (e *deviceSupervisorUnavailableError) Error() string {
 	return e.reason
+}
+
+func (e *deviceSupervisorUnavailableError) Unwrap() error {
+	return e.cause
 }
 
 // getDeviceSupervisorID retrieves the supervisor staff ID for a device's active group.
@@ -27,13 +35,13 @@ func (s *service) getDeviceSupervisorID(ctx context.Context, deviceID int64) (in
 	if err != nil {
 		// Handle case where no active group exists for this device
 		if errors.Is(err, ErrNoActiveSession) {
-			return 0, &deviceSupervisorUnavailableError{reason: fmt.Sprintf("no active group assigned to device %d", deviceID)}
+			return 0, &deviceSupervisorUnavailableError{reason: fmt.Sprintf("no active group assigned to device %d", deviceID), cause: ErrNoActiveSession}
 		}
 		return 0, fmt.Errorf("error finding active group for device %d: %w", deviceID, err)
 	}
 
 	if activeGroup == nil {
-		return 0, &deviceSupervisorUnavailableError{reason: fmt.Sprintf("no active group assigned to device %d", deviceID)}
+		return 0, &deviceSupervisorUnavailableError{reason: fmt.Sprintf("no active group assigned to device %d", deviceID), cause: ErrNoActiveSession}
 	}
 
 	// Get supervisors for the active group

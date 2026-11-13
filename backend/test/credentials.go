@@ -3,7 +3,7 @@ package test
 import (
 	"encoding/base64"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // NewTestPassword creates a throwaway credential satisfying the password policy.

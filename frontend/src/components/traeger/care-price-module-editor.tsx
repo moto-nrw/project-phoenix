@@ -162,7 +162,7 @@ export function CarePriceModuleEditor({
           <Input
             id={`care-price-${field}`}
             name={field}
-            controlSize="compact"
+            controlSize="touch"
             aria-label={`${moduleName}, ${column.long}, ${row.label}, Monatspreis in Euro`}
             inputMode="decimal"
             placeholder={row.sibling ? "wie 1." : booked ? "fehlt" : "–"}
@@ -220,7 +220,7 @@ export function CarePriceModuleEditor({
                 ariaLabel={`Werte für ${moduleName} von einem anderen Modul übernehmen`}
                 options={copySources}
                 onChange={onCopyFrom}
-                controlSize="compact"
+                controlSize="dense"
                 className="w-56"
               />
             ) : null}

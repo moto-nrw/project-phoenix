@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func auditTestTenantID(ctx context.Context) int64 { return auditModels.TenantIDFromContext(ctx) }

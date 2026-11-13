@@ -22,6 +22,13 @@
       "external_test_role": "module-behavior-test"
     },
     {
+      "path": "modules/schoolstructure/internal/application/groups/behaviortest",
+      "owner": "school-structure",
+      "role": "test-support",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
       "path": "modules/schoolstructure",
       "owner": "school-structure",
       "role": "public",
@@ -39,6 +46,13 @@
       "path": "modules/schoolstructure/http",
       "owner": "school-structure",
       "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/schoolstructure/http/behaviortest",
+      "owner": "school-structure",
+      "role": "test-support",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },

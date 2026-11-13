@@ -5,7 +5,7 @@ status: proposed
 # Shift writes read sick reports through the Workforce observer
 
 Decision of 2026-11-09 for
-[#6302](https://github.com/moto-nrw/project-phoenix/issues/6302). It approves
+[#6302](https://github.com/moto-ogs/project-phoenix/issues/6302). It approves
 eleven new command-effect diagnostics. It adds no owner, no policy rule, no
 lock and no runtime exception.
 

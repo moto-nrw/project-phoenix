@@ -75,6 +75,7 @@
   "pickup_change_conflict": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "pickup_change_expired": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "pickup_change_impact_changed": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "care_request_plan_changed": "Bakım planı az önce değişti. Lütfen sayfayı yenileyin. Ardından talebi tekrar kontrol edin.",
   "pickup_permission_contact_gone": "{object} değiştirilemedi. Lütfen güncel durumu kontrol edin.",
   "pickup_proof_not_found": "{object} değiştirilemedi. Lütfen güncel durumu kontrol edin.",
   "pickup_reset_requires_offering": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
@@ -88,7 +89,9 @@
   "staff_value_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "staff_value_unsupported": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "status_day_conflict": "Bazı günlerde zaten bir kayıt var. Bu günler değiştirilmedi.",
+  "status_day_occupied": "Bugün için bir sınıf gezisi girilmiş. Önce sınıf gezisini kaldırın.",
   "guardian_email_block_needs_review": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "guardian_email_block_lift_failed": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
-  "guardian_email_block_stays": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin."
+  "guardian_email_block_stays": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "person_has_active_profile": "{object} değiştirilemedi. Güncel durumu kontrol edin."
 }

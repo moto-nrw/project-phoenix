@@ -3,9 +3,9 @@ package owners
 import (
 	"errors"
 
-	projection "github.com/moto-nrw/project-phoenix/modules/timetableprojection/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/studentdeletion"
+	projection "github.com/moto-ogs/project-phoenix/modules/timetableprojection/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/workflows/studentdeletion"
 )
 
 func NewStudentActivityEnrollments() studentdeletion.ActivityEnrollments {

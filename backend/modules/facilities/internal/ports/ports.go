@@ -4,15 +4,16 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/facilities/internal/domain"
 )
 
 type Store interface {
 	Create(context.Context, facilities.CreateRoom) (facilities.Room, domain.OperationStats, error)
 	Update(context.Context, facilities.UpdateRoom) (facilities.Room, domain.OperationStats, error)
-	Delete(context.Context, int64) (domain.OperationStats, error)
+	Delete(context.Context, int64) (bool, domain.OperationStats, error)
+	Archive(context.Context, int64) (facilities.Room, domain.OperationStats, error)
 	FindByID(context.Context, int64, string) (facilities.Room, bool, domain.OperationStats, error)
 	FindByName(context.Context, string) (facilities.Room, bool, domain.OperationStats, error)
 	FindToilet(context.Context, int64) (facilities.Room, bool, domain.OperationStats, error)
@@ -28,13 +29,17 @@ type Transaction interface {
 }
 
 // RoomUsage answers the two questions a room deletion asks other owners: is
-// a session running in the room, and does a care offering need it. Facilities
-// owns the port and the decision; the composition root binds the answers to
-// Student Presence and Care Plan.
+// a session running in the room, and does a care offering need it.
+// Facilities owns the port and the decision; the composition root binds the
+// answers to Student Presence and Care Plan.
 type RoomUsage interface {
 	HasActiveSessions(ctx context.Context, roomID int64) (bool, error)
 	RequiredByCareOffering(ctx context.Context, roomID int64) (bool, error)
 }
+
+// RoomReferences counts what Timetable, School Structure, Device Fleet and
+// Student Presence still keep pointing at a room (#6845).
+type RoomReferences func(ctx context.Context, roomID int64) (facilities.RoomReferences, error)
 
 type DeletionLock func(context.Context) error
 

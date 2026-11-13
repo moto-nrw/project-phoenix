@@ -4,7 +4,7 @@ status: accepted
 
 # Lohnbüro-Versand ist ein dauerhafter Auftrag von Workforce
 
-Entscheidung vom 30.10.2026 zu [#4805](https://github.com/moto-nrw/project-phoenix/issues/4805).
+Entscheidung vom 30.10.2026 zu [#4805](https://github.com/moto-ogs/project-phoenix/issues/4805).
 Sie führt keinen neuen Owner ein und ändert keine Abhängigkeitsrichtung.
 
 ## Kontext

@@ -3,7 +3,7 @@ package timetracking
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // PreviewCompTimeBalance projects what a comp_time absence over [start, end]
@@ -88,8 +88,8 @@ func (s *absenceCommands) DeleteOwnAbsence(ctx context.Context, staffID int64, a
 // (#1843 admin delete). Deleting a sick report first reverses its plan
 // cascade — reactivates the shifts it cancelled and clears the block
 // absences it stamped — in the same tenant tx, so a failed reversal aborts
-// the delete. CancelAbsence needs no such hook: it only accepts
-// requested/approved vacation-flow rows, never a reported sick absence.
+// the delete. Every absence type stamps plans since #6847; withdrawing an
+// approved request (CancelAbsence) reverses them the same way.
 func (s *absenceCommands) DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) (err error) {
 	err = s.commands.runCommand(ctx, func(txCtx context.Context) error {
 		err = s.commands.DeleteAbsenceFor(txCtx, subjectStaffID, actorStaffID, actorAccountID, absenceID)

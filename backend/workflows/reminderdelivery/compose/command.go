@@ -3,9 +3,9 @@ package compose
 import (
 	"context"
 
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
-	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/internal/application"
-	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
+	reminder "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery"
+	"github.com/moto-ogs/project-phoenix/workflows/reminderdelivery/internal/application"
+	"github.com/moto-ogs/project-phoenix/workflows/reminderdelivery/ports"
 )
 
 // NewCommand binds the independent tenant transaction and synchronous post-commit dispatch.

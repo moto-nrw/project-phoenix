@@ -5,7 +5,9 @@
 // Anschrift), ein eigener Zahlungsweg und ein eigener Zahltag. Die Familie
 // ist die E-Mail-Adresse der Person im Vertrag; die Abweichung gilt für alle
 // ihre Rechnungen ab dem nächsten Lauf. Weicht nichts mehr ab, ist sie
-// entfernt.
+// entfernt. Die Debitorennummer gehört der Familie, nicht dem Vertrag:
+// „Wieder wie im Vertrag“ lässt sie stehen (#6692), und sie hat das Format
+// des Trägers (#6675).
 
 import { useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
@@ -15,7 +17,15 @@ import { EditActions } from "~/components/ui/edit-actions";
 import { FieldLabel } from "~/components/ui/field-label";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { Input } from "~/components/ui/input";
+import { Radio } from "~/components/ui/radio";
 import { useApiFormError, useToast } from "~/contexts/ToastContext";
+import {
+  DEBTOR_NUMBER_MAX_LENGTH,
+  type DebtorNumberFormat,
+  NO_DEBTOR_NUMBER_FORMAT,
+  debtorNumberFormatError,
+  debtorNumberFormatHint,
+} from "~/lib/debtor-number-format";
 import { createLogger } from "~/lib/logger";
 import {
   type FamilyBilling,
@@ -97,8 +107,15 @@ const EMAIL_PATTERN = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
  */
 export function familyBillingErrors(
   draft: FamilyBillingDraft,
+  format: DebtorNumberFormat = NO_DEBTOR_NUMBER_FORMAT,
+  storedNumber = "",
 ): Record<string, string> {
   const errors: Record<string, string> = {};
+  const debtorNumberError =
+    draft.debtorNumber.trim() === storedNumber
+      ? null
+      : debtorNumberFormatError(draft.debtorNumber, format);
+  if (debtorNumberError) errors.debtor_number = debtorNumberError;
   const need = (field: string, value: string, hint: string) => {
     if (!value.trim()) errors[field] = hint;
   };
@@ -177,7 +194,7 @@ const RECIPIENT_ITEMS: readonly { value: RecipientKind; label: string }[] = [
 ];
 
 const DUE_DAY_OPTIONS = [
-  { value: "", label: "Wie der Lauf" },
+  { value: "", label: "Wie im Lauf" },
   ...Array.from({ length: MAX_DUE_DAY }, (_, index) => ({
     value: String(index + 1),
     label: `Am ${index + 1}. des Monats`,
@@ -188,13 +205,22 @@ const DUE_DAY_OPTIONS = [
 export function FamilyBillingForm({
   target,
   existing,
+  runDueText,
+  format = NO_DEBTOR_NUMBER_FORMAT,
   onCancel,
   onSaved,
 }: Readonly<{
   /** The contract whose family is set. */
   target: FamilyBillingTarget;
+  /** The format of the Träger's debtor numbers (#6675). */
+  format?: DebtorNumberFormat;
   /** The family's deviation as stored, null without one. */
   existing: FamilyBilling | null;
+  /**
+   * The run's due dates as the run page names them („Überweisung am …“),
+   * so „Wie im Lauf“ says which dates it takes. Missing outside a run.
+   */
+  runDueText?: string | null;
   onCancel: () => void;
   onSaved: (family: FamilyBilling | null) => void;
 }>) {
@@ -212,7 +238,7 @@ export function FamilyBillingForm({
 
   const submit = async () => {
     formErrors.clear();
-    const errors = familyBillingErrors(draft);
+    const errors = familyBillingErrors(draft, format, existing?.debtorNumber);
     if (Object.keys(errors).length > 0) {
       formErrors.invalid("Bitte prüfen Sie die markierten Felder.", errors);
       return;
@@ -232,18 +258,20 @@ export function FamilyBillingForm({
       logger.error("family_billing_save_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      void formErrors.show(err, { object: "Empfänger und Zahlung" });
+      void formErrors.show(err, {
+        object: "die Angabe zu Empfänger und Zahlung",
+      });
     } finally {
       setSaving(false);
     }
   };
 
   const id = (field: string) => `family-billing-${field}`;
+  // The number is the family's, not a deviation from the contract.
   const deviates =
     draft.recipientKind !== "applicant" ||
     draft.paymentMethod !== "" ||
-    draft.dueDay !== "" ||
-    draft.debtorNumber.trim() !== "";
+    draft.dueDay !== "";
 
   return (
     <form
@@ -261,20 +289,23 @@ export function FamilyBillingForm({
           : "Gilt für alle Rechnungen dieser Familie, auch für Geschwister. Die Vorschau zeigt die Änderung gleich."}
       </p>
       <div className="space-y-2">
-        <FieldLabel>Rechnung an</FieldLabel>
+        <FieldLabel id={id("recipient-label")}>Rechnung an</FieldLabel>
         <div
-          role="group"
-          aria-label="Rechnung an"
+          role="radiogroup"
+          aria-labelledby={id("recipient-label")}
           className="grid gap-2 sm:grid-cols-3"
         >
           {RECIPIENT_ITEMS.map((item) => (
             <ChoiceTile
               key={item.value}
-              as="button"
               selected={draft.recipientKind === item.value}
-              aria-pressed={draft.recipientKind === item.value}
-              onClick={() => set({ recipientKind: item.value })}
             >
+              <Radio
+                name={id("recipient")}
+                value={item.value}
+                checked={draft.recipientKind === item.value}
+                onChange={() => set({ recipientKind: item.value })}
+              />
               {item.label}
             </ChoiceTile>
           ))}
@@ -290,7 +321,7 @@ export function FamilyBillingForm({
       {draft.recipientKind === "both" ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <Input
-            controlSize="compact"
+            controlSize="touch"
             id={id("second-first")}
             name="second_first_name"
             label="Vorname des zweiten Elternteils"
@@ -301,7 +332,7 @@ export function FamilyBillingForm({
             onChange={(event) => set({ secondFirstName: event.target.value })}
           />
           <Input
-            controlSize="compact"
+            controlSize="touch"
             id={id("second-last")}
             name="second_last_name"
             label="Nachname des zweiten Elternteils"
@@ -316,7 +347,7 @@ export function FamilyBillingForm({
       {draft.recipientKind === "payer" ? (
         <div className="grid gap-3 sm:grid-cols-2">
           <Input
-            controlSize="compact"
+            controlSize="touch"
             id={id("payer-first")}
             name="payer_first_name"
             label="Vorname"
@@ -327,7 +358,7 @@ export function FamilyBillingForm({
             onChange={(event) => set({ payerFirstName: event.target.value })}
           />
           <Input
-            controlSize="compact"
+            controlSize="touch"
             id={id("payer-last")}
             name="payer_last_name"
             label="Nachname"
@@ -339,7 +370,7 @@ export function FamilyBillingForm({
           />
           <div className="sm:col-span-2">
             <Input
-              controlSize="compact"
+              controlSize="touch"
               id={id("payer-email")}
               name="payer_email"
               type="email"
@@ -353,7 +384,7 @@ export function FamilyBillingForm({
           </div>
           <div className="sm:col-span-2">
             <Input
-              controlSize="compact"
+              controlSize="touch"
               id={id("street")}
               name="payer_address.street"
               label="Straße und Hausnummer"
@@ -365,7 +396,7 @@ export function FamilyBillingForm({
             />
           </div>
           <Input
-            controlSize="compact"
+            controlSize="touch"
             id={id("postal-code")}
             name="payer_address.postal_code"
             label="Postleitzahl"
@@ -377,7 +408,7 @@ export function FamilyBillingForm({
             onChange={(event) => set({ postalCode: event.target.value })}
           />
           <Input
-            controlSize="compact"
+            controlSize="touch"
             id={id("city")}
             name="payer_address.city"
             label="Ort"
@@ -390,14 +421,14 @@ export function FamilyBillingForm({
         </div>
       ) : null}
       <div className="space-y-2">
-        <FieldLabel>Zahlungsweg</FieldLabel>
+        <FieldLabel id={id("payment-label")}>Zahlungsweg</FieldLabel>
         <div
-          role="group"
-          aria-label="Zahlungsweg"
+          role="radiogroup"
+          aria-labelledby={id("payment-label")}
           className="grid gap-2 sm:grid-cols-3"
         >
           {[
-            { value: "" as const, label: "Wie die Leistung" },
+            { value: "" as const, label: "Wie in den Abrechnungsvorgaben" },
             ...PAYMENT_METHODS.map((method) => ({
               value: method,
               label: PAYMENT_METHOD_LABELS[method],
@@ -405,46 +436,66 @@ export function FamilyBillingForm({
           ].map((item) => (
             <ChoiceTile
               key={item.value}
-              as="button"
               selected={draft.paymentMethod === item.value}
-              aria-pressed={draft.paymentMethod === item.value}
-              onClick={() => set({ paymentMethod: item.value })}
             >
+              <Radio
+                name={id("payment")}
+                value={item.value}
+                checked={draft.paymentMethod === item.value}
+                onChange={() => set({ paymentMethod: item.value })}
+              />
               {item.label}
             </ChoiceTile>
           ))}
         </div>
+        {/* The precondition where the person chooses the debit. */}
+        <p className="text-sm text-gray-600">
+          Lastschrift geht nur mit gültigem Mandat. Den Stand sehen Sie unten
+          unter „SEPA-Lastschriftmandat“.
+        </p>
       </div>
       <CustomSelect
         id={id("due-day")}
         name="due_day"
-        label="Eigener Zahltag"
+        label="Zahltag"
         value={draft.dueDay}
         options={DUE_DAY_OPTIONS}
-        hint="Die Rechnung ist am nächsten dieser Tage fällig. „Wie der Lauf“ nimmt das Datum des Laufs."
+        hint={`Fällig ist der nächste gewählte Tag nach dem Rechnungsdatum. ${
+          runDueText
+            ? `„Wie im Lauf“: ${runDueText}.`
+            : "„Wie im Lauf“ nimmt die Fälligkeit des Laufs."
+        }`}
         error={fieldError("due_day")}
         onChange={(dueDay) => set({ dueDay })}
       />
       <Input
-        controlSize="compact"
         id={id("debtor-number")}
         name="debtor_number"
         label="Debitorennummer"
-        value={draft.debtorNumber}
-        maxLength={35}
         autoComplete="off"
-        hint="Die Nummer der Familie in Ihrer Buchhaltung. Sie steht auf jeder neuen Rechnung und in der Sollstellung."
+        controlSize="compact"
+        inputMode={format.digitsOnly ? "numeric" : undefined}
+        maxLength={DEBTOR_NUMBER_MAX_LENGTH}
+        value={draft.debtorNumber}
+        hint={`${debtorNumberFormatHint(format)} Die Nummer der Familie in Ihrer Buchhaltung. Sie steht auf jeder neuen Monats- und Ferienrechnung und in der Sollstellung. Hat eine Ferienanmeldung eine eigene Nummer, gilt diese.`.trim()}
         error={fieldError("debtor_number")}
         onChange={(event) => set({ debtorNumber: event.target.value })}
       />
       {deviates ? (
         <Button
           type="button"
-          variant="link"
+          variant="outline"
+          size="compact"
+          className="self-start"
           tooltip="Leert alle Abweichungen im Formular, gespeichert wird erst mit „Speichern“."
-          onClick={() => setDraft(EMPTY_FAMILY_BILLING)}
+          onClick={() =>
+            setDraft((current) => ({
+              ...EMPTY_FAMILY_BILLING,
+              debtorNumber: current.debtorNumber,
+            }))
+          }
         >
-          Wieder wie im Vertrag
+          Felder wie im Vertrag ausfüllen
         </Button>
       ) : null}
       <FormErrorAlert message={formErrors.error} />

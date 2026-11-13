@@ -15,8 +15,8 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	timetableModule "github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 type offeringSourcesResponse struct {

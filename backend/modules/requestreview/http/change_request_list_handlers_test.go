@@ -1,4 +1,4 @@
-package requestreviewhttp
+package requestreviewhttp_test
 
 import (
 	"context"
@@ -11,15 +11,19 @@ import (
 	"testing"
 	"time"
 
-	reviewbindings "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding"
+	reviewbindings "github.com/moto-ogs/project-phoenix/roots/requestreviewbinding"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/requestreview"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/requestreview"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/go-chi/chi/v5"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	requestreviewhttp "github.com/moto-ogs/project-phoenix/modules/requestreview/http"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -243,7 +247,7 @@ type aggFakes struct {
 	excused  *aggExcusedFake
 }
 
-func newAggResource() (*Resource, *aggFakes) {
+func newAggResource() (*requestreviewhttp.Resource, *aggFakes) {
 	fakes := &aggFakes{
 		master:   &aggMasterFake{},
 		care:     &aggCareFake{},
@@ -252,7 +256,7 @@ func newAggResource() (*Resource, *aggFakes) {
 	}
 	// The list route reads the shared request-review projection (#2705);
 	// the fakes stand in for the retained owner queues it adapts.
-	access, err := reviewbindings.NewAccess(RequestReviewPrincipal, nil)
+	access, err := reviewbindings.NewAccess(requestreviewhttp.RequestReviewPrincipal, nil)
 	if err != nil {
 		panic(err)
 	}
@@ -279,7 +283,7 @@ func newAggResource() (*Resource, *aggFakes) {
 	if err != nil {
 		panic(err)
 	}
-	rs := testResource(ResourceConfig{
+	rs := testResource(requestreviewhttp.ResourceConfig{
 
 		RequestReview: review,
 	})
@@ -345,7 +349,17 @@ func aggRequest(t *testing.T, rawQuery string, perms []string) *http.Request {
 	}
 	ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 55})
 	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, perms)
-	return req.WithContext(ctx)
+	principal, err := permissions.NewPrincipal(permissions.PrincipalInput{AccountID: 55, TenantID: testpkg.UniqueTestTenantID(t), Permissions: perms})
+	require.NoError(t, err)
+	return req.WithContext(permissions.WithPrincipal(ctx, principal))
+}
+
+// serveAggregated serves r through the resource's registered routes, without
+// the tenant transaction the root mounts around them.
+func serveAggregated(rs *requestreviewhttp.Resource, w http.ResponseWriter, r *http.Request) {
+	router := chi.NewRouter()
+	rs.Register(router, func(next http.Handler) http.Handler { return next })
+	router.ServeHTTP(w, r)
 }
 
 type aggPage struct {
@@ -357,10 +371,10 @@ type aggPage struct {
 	NextCursor string `json:"next_cursor"`
 }
 
-func execAggregated(t *testing.T, rs *Resource, rawQuery string, perms []string) (*httptest.ResponseRecorder, aggPage) {
+func execAggregated(t *testing.T, rs *requestreviewhttp.Resource, rawQuery string, perms []string) (*httptest.ResponseRecorder, aggPage) {
 	t.Helper()
 	rr := httptest.NewRecorder()
-	rs.listAggregatedChangeRequests(rr, aggRequest(t, rawQuery, perms))
+	serveAggregated(rs, rr, aggRequest(t, rawQuery, perms))
 	var env struct {
 		Data aggPage `json:"data"`
 	}
@@ -548,10 +562,10 @@ type conflictPage struct {
 	ReviewAccess string `json:"review_access"`
 }
 
-func execConflictPage(t *testing.T, rs *Resource, rawQuery string, perms []string) conflictPage {
+func execConflictPage(t *testing.T, rs *requestreviewhttp.Resource, rawQuery string, perms []string) conflictPage {
 	t.Helper()
 	rr := httptest.NewRecorder()
-	rs.listAggregatedChangeRequests(rr, aggRequest(t, rawQuery, perms))
+	serveAggregated(rs, rr, aggRequest(t, rawQuery, perms))
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
 	var env struct {
 		Data conflictPage `json:"data"`

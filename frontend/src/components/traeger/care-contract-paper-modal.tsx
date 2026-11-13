@@ -121,6 +121,7 @@ export function PaperSignatureModal({
           der Vertrag aktiv.
         </p>
         <Input
+          controlSize="touch"
           name="signer_name"
           label="Unterschrieben von"
           required

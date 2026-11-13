@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // StatisticsRetentionSource is the resolver slice the statistics retention

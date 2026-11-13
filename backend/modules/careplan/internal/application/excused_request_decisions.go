@@ -7,8 +7,8 @@ import (
 	"time"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
 )
 
 // decisionReason trims the staff reason and checks it against the verdict's
@@ -229,7 +229,7 @@ func (w *ExcusedRequests) Correct(ctx context.Context, requestID int64, approve 
 	if utf8.RuneCountInString(trimmed) > excusedRequestMaxReasonLen {
 		return careplan.ErrExcusedRequestRejectReasonTooLong
 	}
-	req, err := w.lockCorrectableRequest(ctx, requestID, expectedVersion, approve)
+	req, err := w.lockCorrectableRequest(ctx, requestID, expectedVersion, approve, reviewedBy)
 	if err != nil {
 		return err
 	}
@@ -266,7 +266,7 @@ func (w *ExcusedRequests) Correct(ctx context.Context, requestID int64, approve 
 // lockCorrectableRequest locks a decided request and its child, re-checks the
 // caller's scope and brings the child's absence days in line with the new
 // verdict.
-func (w *ExcusedRequests) lockCorrectableRequest(ctx context.Context, requestID int64, expectedVersion string, approve bool) (careplan.ExcusedAbsenceRequest, error) {
+func (w *ExcusedRequests) lockCorrectableRequest(ctx context.Context, requestID int64, expectedVersion string, approve bool, reviewer int64) (careplan.ExcusedAbsenceRequest, error) {
 	req, student, err := w.lockRequestStudent(ctx, requestID, false)
 	if err != nil {
 		return careplan.ExcusedAbsenceRequest{}, err
@@ -281,7 +281,7 @@ func (w *ExcusedRequests) lockCorrectableRequest(ctx context.Context, requestID 
 	if err := w.requireReviewer(ctx, &student); err != nil {
 		return careplan.ExcusedAbsenceRequest{}, err
 	}
-	if err := w.correctAbsenceDays(ctx, &req, &student, approve); err != nil {
+	if err := w.correctAbsenceDays(ctx, &req, &student, approve, reviewer); err != nil {
 		return careplan.ExcusedAbsenceRequest{}, err
 	}
 	return req, nil
@@ -289,9 +289,9 @@ func (w *ExcusedRequests) lockCorrectableRequest(ctx context.Context, requestID 
 
 // correctAbsenceDays re-runs the ordinary apply for rejected → approved and
 // undoes the request's own absence days for approved → rejected.
-func (w *ExcusedRequests) correctAbsenceDays(ctx context.Context, req *careplan.ExcusedAbsenceRequest, student *careplan.ReviewStudent, approve bool) error {
+func (w *ExcusedRequests) correctAbsenceDays(ctx context.Context, req *careplan.ExcusedAbsenceRequest, student *careplan.ReviewStudent, approve bool, reviewer int64) error {
 	if !approve {
-		return w.revertApprovedAbsence(ctx, req)
+		return w.revertApprovedAbsence(ctx, req, reviewer)
 	}
 	// A correction never replaces a partial absence: that stays the
 	// deliberate choice of a pending decision.

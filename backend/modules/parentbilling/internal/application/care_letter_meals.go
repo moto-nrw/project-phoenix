@@ -3,7 +3,7 @@ package application
 import (
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // careMealFacts prints one line per Mensa month of an invoice (#4686), as

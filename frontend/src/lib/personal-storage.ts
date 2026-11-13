@@ -59,6 +59,8 @@ export const PERSONAL_STORAGE_PREFIXES: readonly string[] = [
   "student-search:last-filters:",
   // Zuletzt gewähltes Angebot im Dialog „Anwesende Kinder“.
   "moto:present-children-offering:",
+  // Gewähltes Ziel „Anmelden in“ des An- und Abmelde-Modus mit Raumnamen (#6953).
+  "moto:checkin-target:",
   // Vorbelegung des Verfassers mit Kindern und Namen; liegt seit #5000 nur
   // noch im RAM, der Präfix räumt Einträge aus der Zeit davor.
   "moto:announcement-prefill:",

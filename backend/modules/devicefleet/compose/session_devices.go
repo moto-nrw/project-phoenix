@@ -1,8 +1,8 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/internal/application"
 )
 
 // NewSessionDeviceIDs binds the native attendance device port.

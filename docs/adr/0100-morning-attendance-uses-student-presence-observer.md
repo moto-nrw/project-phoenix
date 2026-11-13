@@ -5,7 +5,7 @@ status: accepted
 # Morning attendance uses Student Presence's observer
 
 Decision of 2026-10-24 for
-[#4790](https://github.com/moto-nrw/project-phoenix/issues/4790). It approves
+[#4790](https://github.com/moto-ogs/project-phoenix/issues/4790). It approves
 three new command-effect diagnostics. It adds no owner, no policy rule and no
 runtime exception.
 

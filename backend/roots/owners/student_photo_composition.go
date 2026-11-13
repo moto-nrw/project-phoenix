@@ -6,15 +6,15 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-ogs/project-phoenix/realtime"
 
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // ErrPhotoNoTenant refuses a photo route reached without a tenant context.

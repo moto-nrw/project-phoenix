@@ -4,11 +4,11 @@ import { describe, expect, it } from "vitest";
 import { NotificationBadge } from "./notification-badge";
 
 describe("NotificationBadge", () => {
-  it("uses the staff tone and provided accessible label", () => {
+  it("uses the orange tone and provided accessible label", () => {
     render(
       <NotificationBadge
         count={2}
-        tone="staff"
+        tone="orange"
         ariaLabel="2 offene Abwesenheitsanträge"
       />,
     );
@@ -21,11 +21,11 @@ describe("NotificationBadge", () => {
     );
   });
 
-  it("uses the parents tone and caps the visible count", () => {
+  it("uses the blue tone and caps the visible count", () => {
     render(
       <NotificationBadge
         count={120}
-        tone="parents"
+        tone="blue"
         ariaLabel="120 ungelesene Nachrichten"
       />,
     );
@@ -37,11 +37,11 @@ describe("NotificationBadge", () => {
     expect(screen.getByText("99+")).toBeInTheDocument();
   });
 
-  it("uses the feedback tone", () => {
+  it("uses the coral tone", () => {
     render(
       <NotificationBadge
         count={3}
-        tone="feedback"
+        tone="coral"
         ariaLabel="3 neue Feedbackeinträge"
       />,
     );
@@ -54,14 +54,14 @@ describe("NotificationBadge", () => {
 
   it("renders nothing for an empty count", () => {
     const { container } = render(
-      <NotificationBadge count={0} tone="staff" ariaLabel="Keine" />,
+      <NotificationBadge count={0} tone="orange" ariaLabel="Keine" />,
     );
 
     expect(container).toBeEmptyDOMElement();
   });
 
   it.each([
-    ["danger", "bg-moto-red"],
+    ["red", "bg-moto-red"],
     ["blue", "bg-moto-blue-strong"],
   ] as const)("shows the %s tone with white text", (tone, fill) => {
     render(<NotificationBadge count={3} tone={tone} ariaLabel="3 offen" />);

@@ -22,6 +22,13 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/delivery/http/sse/behaviortest",
+      "owner": "delivery-platform",
+      "role": "test-support",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/delivery/internal/adapters/deliverypostgres",
       "owner": "delivery-platform",
       "role": "postgres",
@@ -141,9 +148,23 @@
       "external_test_role": "workflow-integration-test"
     },
     {
+      "path": "modules/delivery/internal/notifications/behaviortest",
+      "owner": "delivery-platform",
+      "role": "test-support",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
       "path": "modules/delivery/internal/pwa",
       "owner": "delivery-platform",
       "role": "application",
+      "internal_test_role": "workflow-integration-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
+      "path": "modules/delivery/internal/pwa/behaviortest",
+      "owner": "delivery-platform",
+      "role": "test-support",
       "internal_test_role": "workflow-integration-test",
       "external_test_role": "workflow-integration-test"
     },
