@@ -3,7 +3,7 @@
  * die Schule. Eine Freigabe heißt immer nach den Menschen, die das Dokument
  * sehen: „Eltern der Gruppe Sonnenblumen (OGS Nord)“, „Alle Schulen“.
  */
-import { formatBytes } from "~/lib/files-api";
+import { formatBytes } from "~/lib/file-format";
 import type {
   TraegerDocumentRelease,
   TraegerDocumentSchool,

@@ -49,8 +49,8 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
-  PageHeaderSearchLayout: ({
+vi.mock("~/components/ui/tenant-page-search-row", () => ({
+  TenantPageSearchRow: ({
     search,
     filters,
     onClearAllFilters,

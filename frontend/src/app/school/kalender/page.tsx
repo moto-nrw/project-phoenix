@@ -364,7 +364,7 @@ export default function SchoolCalendarPage() {
                           label="Erster Tag"
                           id="school-start-date"
                           name="start_date"
-                          controlSize="lg"
+                          controlSize="large"
                           value={draft.startDate}
                           error={formErrors.fieldError("start_date")}
                           onChange={(next) =>
@@ -384,7 +384,7 @@ export default function SchoolCalendarPage() {
                           label="Letzter Tag"
                           id="school-end-date"
                           name="end_date"
-                          controlSize="lg"
+                          controlSize="large"
                           value={draft.endDate}
                           error={formErrors.fieldError("end_date")}
                           min={draft.startDate}

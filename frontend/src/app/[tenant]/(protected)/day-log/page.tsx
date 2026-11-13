@@ -25,7 +25,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "~/components/ui/button";
 import { DatePicker } from "~/components/ui/date-picker";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuEntry } from "~/components/ui/page-header/types";
 import {
   SlideOver,
   SlideOverContent,
@@ -518,7 +518,7 @@ export default function DayLogPage() {
         <>
           {/* Kit-picker call-site pattern from the datepicker sweep (#2016):
               w-44 trigger, field-aligned popover panel. Once the sweep
-              lands, switch to ISODatePicker + controlSize="md". */}
+              lands, switch to ISODatePicker + controlSize="compact". */}
           <DatePicker
             value={selectedDate}
             onChange={(date) => {

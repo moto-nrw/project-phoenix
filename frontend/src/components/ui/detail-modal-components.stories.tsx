@@ -80,20 +80,16 @@ export const InfoSectionDefault: Story = {
 export const InfoSectionColors: Story = {
   render: () => (
     <div className="flex flex-col gap-3">
-      <InfoSection title="Blau" icon={DetailIcons.person} accentColor="blue">
+      <InfoSection title="Blau" icon={DetailIcons.person}>
         <InfoText>Blauer Akzent</InfoText>
       </InfoSection>
-      <InfoSection
-        title="Orange"
-        icon={DetailIcons.building}
-        accentColor="orange"
-      >
+      <InfoSection title="Orange" icon={DetailIcons.building}>
         <InfoText>Oranger Akzent</InfoText>
       </InfoSection>
-      <InfoSection title="Grün" icon={DetailIcons.check} accentColor="green">
+      <InfoSection title="Grün" icon={DetailIcons.check}>
         <InfoText>Grüner Akzent</InfoText>
       </InfoSection>
-      <InfoSection title="Rot" icon={DetailIcons.x} accentColor="red">
+      <InfoSection title="Rot" icon={DetailIcons.x}>
         <InfoText>Roter Akzent</InfoText>
       </InfoSection>
     </div>
@@ -107,11 +103,7 @@ export const InfoSectionColors: Story = {
 export const Composition: Story = {
   render: () => (
     <div className="flex max-w-md flex-col gap-3">
-      <InfoSection
-        title="Stammdaten"
-        icon={DetailIcons.person}
-        accentColor="blue"
-      >
+      <InfoSection title="Stammdaten" icon={DetailIcons.person}>
         <DataGrid>
           <DataField label="Vorname">Max</DataField>
           <DataField label="Nachname">Mustermann</DataField>
@@ -121,7 +113,7 @@ export const Composition: Story = {
           </DataField>
         </DataGrid>
       </InfoSection>
-      <InfoSection title="Notizen" icon={DetailIcons.notes} accentColor="amber">
+      <InfoSection title="Notizen" icon={DetailIcons.notes}>
         <InfoText>Keine besonderen Vorkommnisse.</InfoText>
       </InfoSection>
     </div>

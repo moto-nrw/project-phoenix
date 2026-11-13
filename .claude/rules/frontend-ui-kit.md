@@ -16,8 +16,8 @@ This kit is the MOTO design system.
 | Concern | Location |
 |---|---|
 | UI components | `frontend/src/components/ui/` |
-| Header / list-page kit | `frontend/src/components/ui/page-header/` |
-| Semantic brand colors | `frontend/src/lib/location-helper.ts` → `LOCATION_COLORS` (the ONLY source) |
+| Search row parts, kebab menu | `frontend/src/components/ui/page-header/` |
+| Brand colors | meaning: `lib/location-helper.ts` `LOCATION_COLORS` (sole source); hex: `lib/kit-palette.ts` |
 | Radius / spacing / shadow tokens | `@moto-nrw/design-system` via the `@theme` block `globals.css` pulls in |
 
 Use direct file imports: `import { Button } from "~/components/ui/button"`. No `ui/index.ts` barrel.
@@ -46,7 +46,7 @@ What that forbids in a page file: `max-w`, `mx-auto`, own root padding, a second
 
 **One tab component per position.** Page-level tabs go through `TenantPage`'s `tabs` prop. `ui/Tabs` is only for tabs INSIDE a card (the substitution slide-over's Bearbeiten/Verlauf), `SegmentedControl` for every value choice — Monat/Woche/Tag, A/B-Woche, target group, export range, list filter. `ui-kit/no-tabs-as-value-switcher` fails a value switcher built from `ui/Tabs`.
 
-**One card per job, all from the kit.** A content surface in a tenant page is never a hand-written class chain: `SectionCard` (with `title`, or without it for the plain surface), `TileCard` for anything clickable (`containsControls` when the tile carries its own buttons, `nativeAnchor` for a document link), `StatCard` for every figure, `TenantPageHeaderSkeleton` for a loading head. `ui-kit/no-hand-rolled-page-card` fails a page that spells the surface out again.
+**One card per job, all from the kit.** A content surface in a tenant page is never a hand-written class chain: `SectionCard` (with `title`, or without it for the plain surface), `TileCard` for anything clickable (`nativeAnchor` for a document link, `newTab` for a new tab; frame, padding, hover and focus ring come from `card-surface.ts`), `StatCard` for every figure, `TenantPageHeaderSkeleton` for a loading head. `ui-kit/no-hand-rolled-page-card` fails a page that spells the surface out again.
 
 **One create button per surface, also when it is empty.** The create action stays in the head (`TenantPage` `actions`, `SectionCard` `action`), where it also sits when the list is filled. The empty state shows title and description without a second create button and may point to the head in text; on the database pages that includes the mobile FAB. `empty.action` / `EmptyState` `action` is only for a different step, such as „Filter zurücksetzen" while a search or filter is active (#5034). Outside production `TenantPage` logs `tenant_page_empty_action_repeats_head_action` when an empty-state control carries the name of a head control.
 
@@ -62,7 +62,7 @@ The full conversion spec, including what to do when a page's head lives in a vie
 
 | Pattern | File | Why it's canonical |
 | --- | --- | --- |
-| List / index page | `frontend/src/app/[tenant]/(protected)/staff/page.tsx` | `PageHeaderWithSearch` + filter chips + `DataTable`; compact and operational |
+| List / index page | `frontend/src/app/[tenant]/(protected)/staff/page.tsx` | `TenantPage` `search`/`filters` + filter chips + `DataTable`; compact and operational |
 | Detail page | `frontend/src/app/[tenant]/(protected)/staff/[id]/page.tsx` | `ui/Tabs` + `detail-modal-components` field layout |
 | Dense dashboard | `frontend/src/app/[tenant]/(protected)/time-tracking/page.tsx` | KPI/Saldo cards, charts, tables, modals — how a complex operational screen stays dense, not decorative |
 | Page scaffold | `frontend/src/components/ui/tenant-page.tsx` | the root every tenant page renders |
@@ -97,8 +97,8 @@ An unexplained bespoke component is a review failure, not a style preference.
 |---|---|---|
 | Button / CTA | `Button` (actions), `ButtonLink` (navigation), `buttonClassName` (anything else that must look like a button) — rules in [Buttons](#buttons) below. Pass `type="button"` outside forms. | `~/components/ui/button` |
 | What a click does (hover, key focus, never tap) | `tooltip` on `Button`/`ButtonLink`, else `ActionHint`; no `title`. `Tooltip`: text only. Blocked: `disabled` + `disabledReason` (also on tap). [Writing rule](#what-a-click-does) | `~/components/ui/button` |
-| Text input | `Input` (`controlSize` `compact` 40 px, `touch` 44 px by finger), multiline `Textarea` (`autoGrow`): `required`/`aria-required` shows the star; `error` sets hint and `aria-invalid`; `type="password" revealable`: eye button | `~/components/ui/input`, `ui/textarea` |
-| Field label, hint | `label`/`hint` of `Input`, `Textarea`, `CustomSelect`, `ISODatePicker`; `DatePicker`: `hint`; else `FieldLabel`. Never in Versalien. Field + button: `FormRow` | `~/components/ui/field-label`, `ui/form-row` |
+| Text input | `Input` (`controlSize` `compact` 40 px, `touch` 44 px by finger, `ControlSize`), multiline `Textarea` (`autoGrow`): `required`/`aria-required` shows the star; `error` sets hint and `aria-invalid`; `type="password" revealable`: eye button | `~/components/ui/input`, `ui/textarea` |
+| Field label, hint | `label`/`hint` of `Input`, `Textarea`, `CustomSelect`, `ISODatePicker`; `DatePicker`: `hint`; else `FieldLabel`; kit: `FieldShell`. Never in Versalien. Field + button: `FormRow` | `~/components/ui/field-label`, `ui/form-row` |
 | Required field | `required` on the kit control. A control without its own label gets `FieldLabel required`, a required group `FormFieldset required`. Never a star in a label string or translation (#5217) | `~/components/ui/field-label` |
 | Checkbox | `Checkbox` (gray-900), in your own `<label>`; framed row: `ChoiceTile` or `CheckboxCard` (`label`, `hint`); box inside a toggle button: `CheckboxIndicator` | `~/components/ui/checkbox` |
 | On/off setting | `Switch` (`ariaLabel`); with label, description `SwitchRow` (`framed`) | `~/components/ui/switch` |
@@ -110,7 +110,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Row as its own surface (start page, roster, persons in a panel); own button beside a link: no `href`, link in `children` | `ListRow` — `href`, `onClick`, `tone`, `density`, `trailing`; loading: `SkeletonRows`, `ListRowSkeleton` | `~/components/ui/list-row`, `ui/skeleton` |
 | Framed list with dividers, inside a card or panel | `FramedList` — `maxHeight`, `header` | `~/components/ui/framed-list` |
 | Row leading elsewhere: icon, title, subtitle, badge, arrow | `ListRowLink`: `selected`, `accent`, `overline`/`meta`/`unread`; alone `framed` | `~/components/ui/list-row-link` |
-| Rows with their own actions in a desktop column | `ResponsiveActionList` | `~/components/ui/responsive-action-list` |
+| Rows with their own actions in a desktop column | `ResponsiveActionList`, rows `ResponsiveActionRow`. Lint `no-hand-rolled-action-row` | `~/components/ui/responsive-action-list` |
 | Transient feedback | `Toast` — presentational surface only; queue, lifetime, and placement stay in `ToastProvider` | `~/components/ui/toast` |
 | Modal dialog | `Modal`, `ConfirmationModal` (header `icon`, `description`; loading locks closing, opt-out `dismissibleWhileLoading="<Grund>"`) | `~/components/ui/modal` |
 | Form in a modal | `FormModal`; save: `useFormModalPending` | `~/components/ui/form-modal` |
@@ -140,7 +140,7 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Who sees a field | `VisibilityBadge audience` | `~/components/ui/visibility-badge` |
 | File drop or choice | `Dropzone`; caller checks beyond `accept` | `~/components/ui/dropzone` |
 | Key or link to copy | `CopyField`; button only: `useClipboardCopy` | `~/components/ui/copy-field` |
-| Location / presence badge | `LocationBadge`, `PresenceBadge`, `StudentPresenceBadge` | `~/components/ui/location-badge`, etc. |
+| Location / presence badge | `LocationBadge`, `PresenceBadge`, `StudentPresenceBadge` | `~/components/students/presence/…` |
 | Status pill | `StatusBadge` (#5584) | `~/components/ui/status-badge` |
 | Pill in a data colour (amber: `WARNING`) | `StatusColorBadge` | `~/components/ui/status-color-badge` |
 | Colour dot, only in legends and plans | `StatusDot` — hex `color` or `bg-…` in `className`, `size`; `label` (no text beside it) or `decorative` | `~/components/ui/status-dot` |
@@ -148,18 +148,16 @@ An unexplained bespoke component is a review failure, not a style preference.
 | Progress bar | `ProgressBar` — `label`, `tone` or hex `color`, `size` | `~/components/ui/progress-bar` |
 | Legend, also with counts | `PlanLegend` — entries with `value`, `variant="dot"`, `size="md"` | `~/components/ui/planning/plan-legend` |
 | Empty / no-results state, result of a step | `EmptyState` — `variant` `compact`/`dashed`, `tone` (result medallion), `progress`, `action` | `~/components/ui/empty-state` |
-| Back navigation (Unterseite → Sammlung) | `TenantPage` mit `back` / `backHref` / `backLabel`; außerhalb des Gerüsts `TenantBackLink` (Tenant) oder `BackLink` (anderes Portal, fertiger Pfad). Ein Link mit Pfeil und Ziel als Text („Zurück zu den Räumen"), auf jeder Breite, über dem Titel; nie ein eigener Knopf im Inhalt (#4364). Eine Ansicht ohne eigene Adresse (Editor → Übersicht derselben Seite) nimmt `BackAction`, denselben Rückweg als Knopf (#4397) | `~/components/ui/tenant-page`, `~/components/ui/back-link` |
-| Portal sidebar, bottom bar | `PortalSidebar(Frame)`; `PortalBottomNav`; rows `ui/sidebar-*`. Lint `no-hand-rolled-portal-nav` | `~/components/ui/portal-sidebar`, `~/components/ui/portal-bottom-nav` |
+| Back navigation (Unterseite → Sammlung) | `TenantPage` mit `back` / `backHref` / `backLabel`; außerhalb des Gerüsts `TenantBackLink` (über `PagePathProvider`) oder `BackLink` (fertiger Pfad). Ein Link mit Pfeil und Ziel als Text („Zurück zu den Räumen"), auf jeder Breite, über dem Titel; nie ein eigener Knopf im Inhalt (#4364). Eine Ansicht ohne eigene Adresse (Editor → Übersicht derselben Seite) nimmt `BackAction`, denselben Rückweg als Knopf (#4397) | `~/components/ui/tenant-page`, `~/components/ui/back-link` |
+| Portal sidebar, bottom bar | `PortalSidebar(Frame)`; `PortalBottomNav`, `PortalMoreBottomNav`; rows `ui/sidebar-*`. Lint `no-hand-rolled-portal-nav` | `~/components/ui/portal-sidebar`, `ui/portal-bottom-nav`, `ui/portal-more-bottom-nav` |
 | Icon in a sidebar row (any portal) | `MotoNavIcon` with `scene` / `NavSceneIcon`: the glyph's animated scene; a glyph new to a sidebar needs a scene: `.claude/rules/sidebar-icon-scenes.md` | `~/components/ui/moto-nav-icon`, `~/components/ui/nav-scene-icon/nav-scene-icon` |
-| Link in the app shell (sidebar, bottom nav, breadcrumbs, header menus) | `NavLink` — `next/link` without viewport prefetch; prefetches on hover, focus, or touch start instead (#2976). | `~/components/ui/nav-link` |
-| Interner Link im Seiteninhalt | `NavigationLink` — meldet den Wechsel an die Portalhülle und verwirft die Meldung bei abgebrochenem Klick. `ButtonLink` nutzt dieselbe Meldung bei String-Zielen. Plain `next/link` bleibt richtig für externe Ziele, Downloads, neue Tabs und Bereiche ohne `PortalShell`. | `~/components/ui/navigation-link` |
-| Rückmeldung, dass ein Seitenwechsel läuft | `NavigationProgressBar` / `NavigationProgressProvider` — steckt bereits in `PortalShell`; `NavLink`, `NavigationLink` und `ButtonLink` melden den ausstehenden Wechsel selbst (#2828). Nicht nachbauen, keine eigene Ladehülle über mehrere Seiten. | `~/components/ui/navigation-progress` |
+| Interner Link (Seitenleiste, untere Leiste, Brotkrumen, Kopfmenüs, Seiteninhalt) | `NavigationLink` (#6570): lädt erst bei Hover, Fokus oder Touch-Beginn vor (#2976); meldet den Wechsel beim Klick an die Portalhülle, verwirft die Meldung bei abgebrochenem Klick. In Button-Optik: `ButtonLink`, gebaut darauf. Plain `next/link` für externe Ziele, Downloads, neue Tabs und Bereiche ohne `PortalShell`. Ziel, aktuelle Adresse, „Pfad dieser Seite“: `~/components/ui/navigation-url`. | `~/components/ui/navigation-link` |
+| Rückmeldung, dass ein Seitenwechsel läuft | `NavigationProgressBar` / `NavigationProgressProvider` — steckt bereits in `PortalShell`; `NavigationLink` (und damit `ButtonLink`) meldet den ausstehenden Wechsel selbst (#2828). Nicht nachbauen, keine eigene Ladehülle über mehrere Seiten. | `~/components/ui/navigation-progress` |
 | Overlay / side panel | `Drawer`, slide-over (`SlideOverContent size="md\|lg\|xl"`, `SlideOverHeader close`; save: `pending` from `useFormModalPending(open)`, `ui-kit/slide-over-pending`); levels: `Z_LAYER` (`overlay-styles`) | `~/components/ui/drawer`, `~/components/ui/slide-over` |
 | Sticky save bar | `StickyActionBar summary?` | `~/components/ui/sticky-action-bar` |
 | Selection bar | `SelectionBar count label? actions onClear placement` | `~/components/ui/selection-bar` |
 | Failed API call shown to the user | `useApiErrorDisplay` (toast), `useApiFormError` + `FormErrorAlert`, `useApiLoadError` + `LoadErrorAlert`; rules in `.claude/rules/error-path.md` | `~/contexts/ToastContext`, `~/components/ui/form-error-alert` |
-| List/search page header | `PageHeaderWithSearch` | `~/components/ui/page-header/PageHeaderWithSearch` |
-| Header nav tabs (sliding indicator, mobile dropdown) | `NavigationTabs` | `~/components/ui/page-header/NavigationTabs` |
+| List search, filters, count; page tabs | `TenantPage` `search`, `filters`, `badge`, `filterPanel`, `tabs` (the only page head; tests mock `TenantPageSearchRow`); search elsewhere: `SearchBar` | `~/components/ui/tenant-page` |
 | Kebab / overflow action menu (every row action of a list item goes here; `bauart/no-row-action-buttons` fails a per-row `Button` named Bearbeiten/Löschen/Archivieren/…); menu behind a text button | `OverflowMenu` — entry `description`, `selected`; `triggerButton` + `triggerContent` for a kit button, `wrapperClassName` | `~/components/ui/page-header/OverflowMenu` |
 | Filter toggle button | `FilterButton` | `~/components/ui/page-header/FilterButton` |
 | Stammdaten-Katalog einer Schule (Kategorien, Planungsspuren, Schichtarten, Abwesenheitsarten): Sammlung + Objektbearbeitung | `CatalogPage` auf einer eigenen Route unter `/database/…`; ein Formular, dem ein Eintrag fehlt, trägt nur die Auswahl und `CatalogManageLink`. Nie ein Slide-over, Modal oder Auswahlfeld — `bauart/no-manage-surface-in-overlay` fällt darauf (#3114). | `~/components/database/catalog/catalog-page`, `~/components/database/catalog/catalog-manage-link` |
@@ -200,7 +198,7 @@ Decided in #5529, enforced since #5531. Not up for renegotiation: if code cannot
 
 **Deliberate exceptions (do not align):** the stamp buttons and the break stepper −/+ of time tracking; `global-error` (inline styles, loads no CSS; only colour, radius and weight follow kit `primary`); event rows and month chips in the parents calendar. **Not buttons in this sense:** list and selection rows, tiles (`TileCard`), tabs, `SegmentedControl`, checkboxes, switches, menu entries, navigation rows, steppers inside fields.
 
-**Ratchet (hard-zero, #6182).** `ui-kit/no-hand-rolled-button`: native `button`/`a`/`Link`/`NavLink`/`NavigationLink`/`role="button"` (or `label`/`span` + `cursor-pointer`) with fill or frame colour (also `moto-content-surface`, `style`; #5608) + radius + padding/height. `ui-kit/no-button-override`: such classes on `Button`/`ButtonLink`/`buttonClassName({ className })`. `ui-kit/no-grey-button-fill`: resting `bg-gray-100`–`-300`; exempt: switches, tabs, menus, `aria-pressed`, nav rows. Exceptions: `ui-kit-button-baseline.mjs`.
+**Ratchet (hard-zero, #6182).** `ui-kit/no-hand-rolled-button`: native `button`/`a`/`Link`/`NavigationLink`/`role="button"` (or `label`/`span` + `cursor-pointer`) with fill or frame colour (also `moto-content-surface`, `style`; #5608) + radius + padding/height. `ui-kit/no-button-override`: such classes on `Button`/`ButtonLink`/`buttonClassName({ className })`. `ui-kit/no-grey-button-fill`: resting `bg-gray-100`–`-300`; exempt: switches, tabs, menus, `aria-pressed`, nav rows. Exceptions: `ui-kit-button-baseline.mjs`.
 
 ## What a click does
 
@@ -221,7 +219,7 @@ Use when one screen shows two or more notices of the same kind, each about its o
 Build it from existing kit parts, as Tristan Heitger and Florian (`fl0r14n28`) set them up; add no wrapper component:
 
 1. **One neutral section.** A `SectionCard` holds all entries as rows in `ResponsiveActionList` (`divide-y divide-gray-100`). Colour stays on the icon (`leading`) and on a count that names a fact („3 offen“); the rows are white, never one coloured `Alert` per entry.
-2. **Actions in one flush column.** From `sm` on, every row's actions start at the same place (rows take `sm:col-span-2 sm:grid sm:grid-cols-subgrid`); below `sm` they sit under the text, side by side from 480 px and one per line below. Actions of equal rank look the same: `Button` or, for navigation, `ButtonLink`, both `variant="surface" size="compact"`, with an `aria-label` naming the row's object. A text link next to a button is no equal-rank action.
+2. **Actions in one flush column.** From `sm` on, every row's actions start at the same place; below `sm` they sit under the text, side by side from 480 px and one per line below. Actions of equal rank look the same: `Button` or, for navigation, `ButtonLink`, both `variant="surface" size="compact"`, with an `aria-label` naming the row's object. A text link next to a button is no equal-rank action.
 3. **Shared text once.** A hint that applies to several rows stands once above the list, also when only one row needs it, never repeated per row.
 4. **Only concrete labels.** Show what OGS staff can act on (name, children, days). Skip markers or badges that carry no concrete information.
 5. **Long lists fold.** More than 5 open rows: show the first 5 and a `ghost` button „N weitere anzeigen“ / „Weniger anzeigen“ with `aria-expanded`. Decided or done entries go into a second `SectionCard` with `collapsible defaultCollapsed`.
@@ -270,7 +268,7 @@ failure this table exists to prevent: a `Record` or `switch` that maps one
 state to `SICK` and another to `DANGER` renders both identically. Check the
 resolved hex, not the constant name.
 
-Green shades (from `GROUP_ROOM_SHADES` in `location-helper.ts`): base `#83CD2D`, hover `#74B825`, active `#6DB118`, text `#3F6F12`, fill `#4A7F14`. **An opaque green surface with text or an icon carries white on the fill steps** (#5141): `bg-moto-green-fill text-white hover:bg-moto-green-fill-hover active:bg-moto-green-fill-active` (4.84 / 6.0 / 7.0 : 1), or `Button variant="success"`, which already does this. Base, hover, active, light and vivid are for indicators without text (dots, bars, borders): white on `#83CD2D` is 1.96:1. Tinted surfaces (`bg-moto-green/10`, `-soft`) keep dark or `text-moto-green-strong` text. The ratchet `ui-kit/green-fill-white-text` fails dark text on any opaque green and white text on the light greens.
+Green shades (from `GROUP_ROOM_SHADES` in `location-helper.ts`): base `#83CD2D`, hover `#74B825`, active `#6DB118`, text `#3F6F12`, fill `#4A7F14`. **An opaque green surface with text or an icon carries white on the fill steps** (#5141): `bg-moto-green-fill text-white hover:bg-moto-green-fill-hover active:bg-moto-green-fill-active` (4.84 / 6.0 / 7.0 : 1), or `Button variant="success"`. Base, hover, active, light and vivid are for indicators without text (dots, bars, borders): white on `#83CD2D` is 1.96:1. Tinted surfaces take the one `-soft` step, as `Alert` (#6564), with dark or `text-moto-green-strong` text. The ratchet `ui-kit/green-fill-white-text` fails dark text on any opaque green and white text on the light greens.
 
 **Do NOT use the package color palette.** The `@moto-nrw/design-system` `@theme` ships a `steel` / `sage` / `warm` palette and `--color-brand-primary` (= sage `#7ba05b`). That is **not** the app's green. The app's brand green is `#83CD2D` (`LOCATION_COLORS.GROUP_ROOM` / the logo). Use `LOCATION_COLORS` for brand semantics and Tailwind `gray-*` for neutrals; never `bg-sage-*`, `bg-steel-*`, or `--color-brand-primary`.
 
@@ -307,7 +305,6 @@ Standard 4px scale — Tailwind `p-*` / `gap-*` / `m-*` map 1:1: `1`=4 · `2`=8 
 - **Kit `Tabs` is Radix-based.** In tests, select a tab with `fireEvent.mouseDown(tab, { button: 0 })`, **not** `fireEvent.click` — Radix activates on mousedown/focus, so a synthetic click does nothing. Mirror `src/components/database/detail-panel.test.tsx`.
 - **`ui/Button` defaults `type="submit"`** — in a non-form context pass `type="button"`. `size="sm"` is the same height as `base` (`px-5 py-3`), not a small button; the normal action size is `md` ([Buttons](#buttons)).
 - **The last surface of a `TenantPage` grows to the bottom of the screen.** The unlayered `.moto-tenant-body` rule in `globals.css` sets `flex: 1 0 auto` on it and its wrappers, which beats any `flex-1 min-h-0` utility. A surface whose height comes from a wrapper and that scrolls inside must carry `moto-scroll-surface`, the documented exit from the rule. Otherwise it grows to its full content height and the fixed-height wrapper clips it or it spills past the wrapper (#3328, #3330). Current users: the chats (`useChatViewportLock`), and `MasterDetailLayout` and `DatabaseListLayout` on desktop (`useFillHeight`). Surfaces nested inside a scroll surface do not count for the rule, so its wrappers keep their own `flex-direction`. On a phone, prefer page scrolling: no fixed height, no exit, the card grows with its list (both database layouts do this below `md`). Do not work around the rule with inline `flex` styles. Browser check: `pnpm run test:layout` (`frontend/e2e/layout/`); add a case there for every new user of the exit.
-- **`NavigationTabs` collapses to a dropdown on mobile**: page navigation only; value switcher: `SegmentedControl`.
 
 ## UI skills: this rule outranks all of them
 
@@ -344,7 +341,7 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 
 `ui-kit/no-raw-table` (#5600, hard-zero): no `<table>` outside `ui/`.
 
-`ui-kit/no-kit-domain-import` (#5586, hard-zero): `components/ui/` imports no other component folder and calls no `fetch`/`useSWR*`; context comes through props and slots. Planning pieces live in `ui/planning/`. `no-hand-rolled-surface` applies in `ui/` too.
+`ui-kit/no-kit-domain-import` (#5586, hard-zero): `components/ui/` imports no other component folder and calls no `fetch`/`useSWR*`; context comes through props and slots. `~/lib`: `KIT_PURE_LIB_MODULES`, types. Planning pieces live in `ui/planning/`. `no-hand-rolled-surface` applies in `ui/` too.
 
 `ui-kit/no-hand-rolled-menu` / `-popover` (#5601, hard-zero): `role="menu|menuitem*|listbox|option"`, `<datalist>` / `moto-popover-surface` only in `ui/`.
 
@@ -352,7 +349,7 @@ On motion, `ui-skills` is stricter than `frontend/.claude/skills/better-ui/anima
 
 `ui-kit/no-hand-rolled-dot` (hard-zero): no hand-built dot or colour bar outside `ui/`; `ui-kit/no-status-dot-outside-plans`: `StatusDot` only in the plugin's legends and plans (ADR 0149).
 
-`moto-content-surface` and `moto-popover-surface` are unlayered, so they beat Tailwind border, background, shadow and ring utilities on the same element; `ui-kit/no-dead-surface-utility` fails such utilities beside them (focus: `outline-2`, override: `!`). With a tinted branch (`danger ? "border-moto-red/20 bg-moto-red/10" : …`), `moto-content-surface` goes in the neutral branch only. Its `backdrop-filter: blur(8px)` makes it the containing block for `position: fixed` descendants (kit `Modal` is portal-rendered and unaffected).
+`moto-content-surface` and `moto-popover-surface` are unlayered, so they beat Tailwind border, background, shadow and ring utilities on the same element; `ui-kit/no-dead-surface-utility` fails such utilities beside them (focus: `outline-2`, override: `!`). With a tinted branch (`danger ? "border-moto-red/20 bg-moto-red-soft" : …`), `moto-content-surface` goes in the neutral branch only. Its `backdrop-filter: blur(8px)` makes it the containing block for `position: fixed` descendants (kit `Modal` is portal-rendered and unaffected).
 
 ## Design-review checklist
 

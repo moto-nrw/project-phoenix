@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Download } from "lucide-react";
 
-import { fetchMessageAttachmentFile } from "~/lib/message-attachments";
 import { cn } from "~/lib/utils";
 import {
   AttachmentViewer,
@@ -66,6 +65,7 @@ export function MessageAttachments({
   attachments,
   downloadUrl,
   align = "start",
+  loadFile,
   labels = GERMAN_LABELS,
 }: Readonly<{
   attachments: readonly MessageAttachmentItem[];
@@ -73,6 +73,8 @@ export function MessageAttachments({
   downloadUrl: (attachmentId: string) => string;
   /** Which edge the block hugs: the sender's own messages sit at the end. */
   align?: "start" | "end";
+  /** Loads a PDF's bytes for the viewer; see `AttachmentViewer` `loadFile`. */
+  loadFile?: (src: string) => Promise<Blob>;
   labels?: MessageAttachmentLabels;
 }>) {
   const [viewing, setViewing] = useState<number | null>(null);
@@ -196,7 +198,7 @@ export function MessageAttachments({
         index={viewing}
         onIndexChange={setViewing}
         onClose={() => setViewing(null)}
-        loadFile={fetchMessageAttachmentFile}
+        loadFile={loadFile}
         labels={labels.lightbox}
       />
     </div>

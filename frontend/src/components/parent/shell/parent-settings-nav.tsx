@@ -4,6 +4,7 @@ import { useSearchParams } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { Suspense } from "react";
 import { PortalOverflowBottomNav } from "~/components/ui/portal-overflow-bottom-nav";
+import { moreConcept } from "~/lib/concepts/more";
 import { PortalSettingsSidebarEntries } from "~/components/ui/portal-sidebar";
 import {
   SettingsReturnPathMemory,
@@ -83,6 +84,7 @@ function ParentSettingsBottomNavContent() {
     <PortalOverflowBottomNav
       items={[back, ...items]}
       navItemAttribute={NAV_ITEM_ATTRIBUTE}
+      moreConcept={moreConcept}
       moreLabel={moreLabel}
     />
   );

@@ -3,8 +3,6 @@
 import React, { useEffect, useCallback } from "react";
 import { createPortal } from "react-dom";
 import { FocusScope } from "@radix-ui/react-focus-scope";
-import { useModal } from "./modal-context";
-import { useScrollLock } from "~/components/ui/hooks/useScrollLock";
 import { useLatest } from "~/lib/hooks/use-latest";
 import {
   OVERLAY_BACKDROP_CLASS,
@@ -13,12 +11,17 @@ import {
   OVERLAY_PANEL_STYLE,
   Z_LAYER,
 } from "./overlay-styles";
+import {
+  MODAL_SCOPE_PROPS,
+  SCROLL_AREA_PROPS,
+  useOverlay,
+} from "./overlay-stack";
 import { Button } from "./button";
 import { CloseIcon } from "./close-icon";
 import { SpinnerIcon } from "./icons";
 import { useBusyFocus } from "./hooks/useBusyFocus";
-
-const visibleModals: string[] = [];
+import { ModalCancelButton, ModalFrameContext } from "./modal-frame";
+import { MODAL_CLOSE_DELAY_MS, MODAL_MOTION_STYLE } from "./motion";
 
 // Shared a11y contract for all modal dialogs.
 const dialogAriaProps = {
@@ -27,15 +30,32 @@ const dialogAriaProps = {
 };
 
 /** Maximum dialog width: `md` is the default confirmation/form width. */
-export type ModalSize = "sm" | "md" | "lg" | "xl";
+export type ModalSize = "sm" | "md" | "md-wide" | "lg" | "lg-wide" | "xl";
 
 // Literal class strings so Tailwind finds them.
 const MODAL_MAX_WIDTH: Record<ModalSize, string> = {
   sm: "max-w-md",
   md: "max-w-lg",
+  "md-wide": "max-w-xl",
   lg: "max-w-2xl",
+  "lg-wide": "max-w-3xl",
   xl: "max-w-4xl",
 };
+
+/** How the footer of a phone sheet arranges its actions. */
+type ModalSheetFooter = "stacked" | "row";
+
+// The phone layout of a dialog footer lives here only: the sheet adds the
+// safe-area inset, and a stacked footer turns into a row from `sm` on.
+function getModalFooterClass(sheetFooter: ModalSheetFooter | null): string {
+  if (sheetFooter === "stacked") {
+    return "flex-col pb-[calc(1rem+env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:pb-6";
+  }
+  if (sheetFooter === "row") {
+    return "justify-end pb-[calc(1rem+env(safe-area-inset-bottom))] sm:pb-6";
+  }
+  return "justify-end";
+}
 
 function getModalAnimationClass(
   isAnimating: boolean,
@@ -49,10 +69,6 @@ function getModalAnimationClass(
 interface ModalProps {
   readonly isOpen: boolean;
   readonly onClose: () => void;
-  /** Runs when an animated dismissal starts, before the delayed close callback. */
-  readonly onDismissStart?: () => void;
-  /** Resets the dialog animation without remounting its children. */
-  readonly animationKey?: string;
   readonly title: string;
   /**
    * Name of the dialog when it shows no `title` and draws its own heading
@@ -74,11 +90,6 @@ interface ModalProps {
   /** Maximum dialog width; `md` (`max-w-lg`) by default. */
   readonly size?: ModalSize;
   /**
-   * Tailwind width utilities for the dialog container. Overrides `size` on
-   * the centered dialog; ignored with `mobileSheet`, which takes `size`.
-   */
-  readonly widthClass?: string;
-  /**
    * Accessible label for the close button. Defaults to German; pass a
    * translated string on localized surfaces (e.g. the parents portal).
    */
@@ -88,7 +99,11 @@ interface ModalProps {
    * pass a translated string on localized surfaces.
    */
   readonly backdropLabel?: string;
-  /** Prevent every dismissal path while an operation must finish in place. */
+  /**
+   * Locks every dismissal path (X, Escape, backdrop, `ModalCancelButton`)
+   * while an operation must finish in place. The one name for this lock in
+   * every kit dialog (#6575).
+   */
   readonly isDismissDisabled?: boolean;
   /** Keep backdrop taps from discarding in-progress form input. */
   readonly isBackdropDismissDisabled?: boolean;
@@ -102,6 +117,12 @@ interface ModalProps {
    * Berührung ab (#3661). Geschlossen wird über X, Hintergrund oder Escape.
    */
   readonly mobileSheet?: boolean;
+  /**
+   * Footer of the phone sheet: `stacked` (default) puts the actions under
+   * each other in full width, as a confirmation does; `row` keeps them one
+   * right-aligned row, as a form does. Ignored without `mobileSheet`.
+   */
+  readonly sheetFooter?: ModalSheetFooter;
   /**
    * Fokus beim Öffnen auf den Titel statt auf das erste Bedienelement (das X).
    * Für Dialoge, die sich ohne Klick selbst öffnen: dort zeigte der Browser um
@@ -120,8 +141,6 @@ interface ModalProps {
 export function Modal({
   isOpen,
   onClose,
-  onDismissStart,
-  animationKey,
   title,
   ariaLabel,
   titleLevel = 3,
@@ -130,13 +149,13 @@ export function Modal({
   children,
   footer,
   size = "md",
-  widthClass,
   closeLabel = "Modal schließen",
   backdropLabel = "Hintergrund - Klicken zum Schließen",
   isDismissDisabled = false,
   isBackdropDismissDisabled = false,
   busy = false,
   mobileSheet = false,
+  sheetFooter = "stacked",
   focusTitleOnOpen = false,
   suspended = false,
 }: ModalProps) {
@@ -149,14 +168,9 @@ export function Modal({
   const panelRef = React.useRef<HTMLDivElement>(null);
   const [isAnimating, setIsAnimating] = React.useState(false);
   const [isExiting, setIsExiting] = React.useState(false);
-  const { openModal, closeModal } = useModal();
-
-  // Store functions in refs to avoid effect re-runs
-  const openModalRef = useLatest(openModal);
-  const closeModalRef = useLatest(closeModal);
-
-  // Use scroll lock hook
-  useScrollLock(visible);
+  // A suspended dialog is off the stack: it neither locks the page scroll
+  // nor takes Escape from the overlay above it.
+  const { isTopmost } = useOverlay(visible, "modal", { lockScroll: true });
 
   // A body that scrolls must be reachable by keyboard, also when it holds
   // nothing focusable (a read-only list): it then joins the tab order.
@@ -176,11 +190,10 @@ export function Modal({
 
   // Store onClose in a ref so handleClose never changes identity
   const onCloseRef = useLatest(onClose);
-  const onDismissStartRef = useLatest(onDismissStart);
   const isDismissDisabledRef = useLatest(isDismissDisabled);
 
   // Pending dismissal (exit-animation delay before onClose). Tracked so a
-  // confirmation that starts during the 250ms window can cancel it —
+  // confirmation that starts during the exit animation can cancel it —
   // otherwise the queued onClose would hide the modal while the confirmed
   // operation is still running.
   const dismissTimerRef = React.useRef<ReturnType<typeof setTimeout> | null>(
@@ -191,7 +204,6 @@ export function Modal({
   const handleClose = useCallback(() => {
     if (isDismissDisabledRef.current) return;
     if (dismissTimerRef.current !== null) return;
-    onDismissStartRef.current?.();
     setIsExiting(true);
     setIsAnimating(false);
 
@@ -206,8 +218,8 @@ export function Modal({
         return;
       }
       onCloseRef.current();
-    }, 250);
-  }, [isDismissDisabledRef, onCloseRef, onDismissStartRef]);
+    }, MODAL_CLOSE_DELAY_MS);
+  }, [isDismissDisabledRef, onCloseRef]);
 
   // Cancel an in-flight dismissal as soon as dismissal gets locked, and bring
   // the dialog back from its exit animation.
@@ -228,29 +240,16 @@ export function Modal({
     };
   }, []);
 
+  const frame = React.useMemo(
+    () => ({
+      isDismissDisabled,
+      stackedSheetFooter: mobileSheet && sheetFooter === "stacked",
+    }),
+    [isDismissDisabled, mobileSheet, sheetFooter],
+  );
+
   // Keeps focus in the dialog while a busy footer is disabled (#6533).
   useBusyFocus(panelRef, busy);
-
-  // Handle modal context state for blur overlay
-  useEffect(() => {
-    if (visible) {
-      const openModal = openModalRef.current;
-      const closeModal = closeModalRef.current;
-      openModal();
-      return () => {
-        closeModal();
-      };
-    }
-  }, [closeModalRef, visible, openModalRef]);
-
-  useEffect(() => {
-    if (!visible) return;
-    visibleModals.push(titleId);
-    return () => {
-      const index = visibleModals.indexOf(titleId);
-      if (index !== -1) visibleModals.splice(index, 1);
-    };
-  }, [visible, titleId]);
 
   // Handle escape key and animations
   useEffect(() => {
@@ -274,11 +273,7 @@ export function Modal({
     // undefined and the guard never triggers.
     const inFlightEvent = window.event;
     const handleEscKey = (event: KeyboardEvent) => {
-      if (
-        event.key === "Escape" &&
-        event !== inFlightEvent &&
-        visibleModals.at(-1) === titleId
-      ) {
+      if (event.key === "Escape" && event !== inFlightEvent && isTopmost()) {
         handleClose();
       }
     };
@@ -294,7 +289,7 @@ export function Modal({
       document.removeEventListener("keydown", handleEscKey);
       clearTimeout(animationTimer);
     };
-  }, [visible, handleClose, animationKey, titleId]);
+  }, [visible, handleClose, isTopmost]);
 
   if (!isOpen) return null;
 
@@ -332,7 +327,7 @@ export function Modal({
       }
     >
       <div
-        data-modal-focus-scope="true"
+        {...MODAL_SCOPE_PROPS}
         className={`fixed inset-0 ${Z_LAYER.modal} ${suspended ? "hidden" : "flex"} justify-center ${
           mobileSheet ? "items-end sm:items-center" : "items-center"
         }`}
@@ -342,6 +337,7 @@ export function Modal({
         // `document.body { pointer-events: none }`. Without this, the modal
         // is portaled to body and inherits `none`, leaving inputs unclickable.
         style={{
+          ...MODAL_MOTION_STYLE,
           position: "fixed",
           top: 0,
           left: 0,
@@ -378,7 +374,7 @@ export function Modal({
           className={`relative flex transform flex-col overflow-hidden overscroll-contain border border-gray-200/50 shadow-2xl outline-none ${
             mobileSheet
               ? `max-h-[calc(100dvh-3rem-env(safe-area-inset-top))] w-full rounded-t-2xl max-sm:max-w-none sm:mx-4 sm:max-h-[calc(100dvh-2rem)] sm:w-[calc(100%-2rem)] sm:rounded-2xl ${MODAL_MAX_WIDTH[size]}`
-              : `${widthClass ?? `mx-4 w-[calc(100%-2rem)] ${MODAL_MAX_WIDTH[size]}`} max-h-[calc(100dvh-2rem)] rounded-2xl`
+              : `mx-4 w-[calc(100%-2rem)] ${MODAL_MAX_WIDTH[size]} max-h-[calc(100dvh-2rem)] rounded-2xl`
           } ${getModalAnimationClass(isAnimating, isExiting)}`}
           {...dialogAriaProps}
           ref={panelRef}
@@ -428,7 +424,7 @@ export function Modal({
               size="icon"
               onClick={handleClose}
               disabled={isDismissDisabled}
-              className="absolute top-4 right-4 z-10"
+              className={`absolute top-4 right-4 ${Z_LAYER.raised}`}
               aria-label={closeLabel}
               data-overlay-close=""
             >
@@ -441,7 +437,7 @@ export function Modal({
           <div
             ref={bodyRef}
             className="scrollbar-hidden min-h-0 flex-1 overflow-y-auto overscroll-contain focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-gray-400"
-            data-modal-content="true"
+            {...SCROLL_AREA_PROPS}
             tabIndex={bodyScrolls ? 0 : undefined}
             role={bodyScrolls ? "region" : undefined}
             aria-labelledby={bodyScrolls && title ? titleId : undefined}
@@ -461,13 +457,13 @@ export function Modal({
           {/* Footer if provided */}
           {footer && (
             <div
-              className={`flex shrink-0 gap-3 border-t border-gray-100 bg-gray-50/50 p-4 sm:p-6 ${
-                mobileSheet
-                  ? "flex-col pb-[calc(1rem+env(safe-area-inset-bottom))] sm:flex-row sm:justify-end sm:pb-6"
-                  : "justify-end"
-              }`}
+              className={`flex shrink-0 gap-3 border-t border-gray-100 bg-gray-50/50 p-4 sm:p-6 ${getModalFooterClass(
+                mobileSheet ? sheetFooter : null,
+              )}`}
             >
-              {footer}
+              <ModalFrameContext.Provider value={frame}>
+                {footer}
+              </ModalFrameContext.Provider>
             </div>
           )}
         </div>
@@ -556,18 +552,12 @@ export function ConfirmationModal({
     isDismissDisabled || (isConfirmLoading && !dismissibleWhileLoading);
   const modalFooter = (
     <>
-      <Button
-        type="button"
-        variant="outline"
-        size="md"
+      <ModalCancelButton
         onClick={onClose}
-        disabled={dismissLocked}
-        className={`flex-1 whitespace-nowrap disabled:cursor-not-allowed ${
-          mobileSheet ? "hidden sm:inline-flex" : ""
-        }`}
+        className="flex-1 whitespace-nowrap disabled:cursor-not-allowed"
       >
         {cancelText}
-      </Button>
+      </ModalCancelButton>
 
       <Button
         type="button"

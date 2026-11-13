@@ -9,7 +9,10 @@
 // (care-run-letter-invoices.tsx), damit der Lauf ihren Code nicht lädt.
 
 import { Wallet } from "lucide-react";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { ButtonLink } from "~/components/ui/button";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -535,10 +538,7 @@ export function CareUnpricedCard({
           const first = entries[0];
           if (!first) return null;
           return (
-            <li
-              key={first.contractId}
-              className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
-            >
+            <ResponsiveActionRow key={first.contractId}>
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-900">
                   {first.childFirstName} {first.childLastName}
@@ -566,7 +566,7 @@ export function CareUnpricedCard({
                   Preis eintragen
                 </ButtonLink>
               </div>
-            </li>
+            </ResponsiveActionRow>
           );
         })}
       </ResponsiveActionList>
@@ -677,10 +677,7 @@ export function CareDuplicatesCard({
           const child = `${first.childFirstName} ${first.childLastName}`;
           const booked = bookedTwice(entries);
           return (
-            <li
-              key={key}
-              className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
-            >
+            <ResponsiveActionRow key={key}>
               <div className="min-w-0">
                 <p className="text-sm font-semibold text-gray-900">{child}</p>
                 <p className="mt-0.5 text-sm text-gray-600">
@@ -706,7 +703,7 @@ export function CareDuplicatesCard({
                   );
                 })}
               </div>
-            </li>
+            </ResponsiveActionRow>
           );
         })}
       </ResponsiveActionList>

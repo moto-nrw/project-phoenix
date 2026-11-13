@@ -10,6 +10,7 @@ import {
   useState,
 } from "react";
 
+import { atLeastClockTime, CLOCK_TIME_RE } from "~/lib/date-helpers";
 import { cn } from "~/lib/utils";
 
 const HOURS = Array.from({ length: 24 }, (_, hour) =>
@@ -18,7 +19,6 @@ const HOURS = Array.from({ length: 24 }, (_, hour) =>
 const MINUTES = Array.from({ length: 12 }, (_, step) =>
   String(step * 5).padStart(2, "0"),
 );
-export const COMPLETE_TIME = /^([01]\d|2[0-3]):([0-5]\d)$/;
 const ENABLED_OPTION = '[role="option"]:not([aria-disabled="true"])';
 
 export type TimePickerLabels = Readonly<{
@@ -171,7 +171,7 @@ export function TimePickerPanel({
     column: "hour" | "minute";
   } | null>(null);
 
-  const time = COMPLETE_TIME.exec(value);
+  const time = CLOCK_TIME_RE.exec(value);
   const hour = time?.[1] ?? null;
   const minute = time?.[2] ?? waitingMinute;
   const minuteOptions = optionsForMinuteColumn(hour, minTime);
@@ -180,19 +180,6 @@ export function TimePickerPanel({
     centerSelectedOption(hourColumnRef.current);
     centerSelectedOption(minuteColumnRef.current);
   }, []);
-
-  // Radix hört im Slide-over schon in der Capture-Phase am Dokument auf Escape
-  // und würde es mitschließen. Nur das Fenster kommt davor.
-  useEffect(() => {
-    const closeOnEscape = (event: globalThis.KeyboardEvent) => {
-      if (event.key !== "Escape") return;
-      event.preventDefault();
-      event.stopImmediatePropagation();
-      close();
-    };
-    window.addEventListener("keydown", closeOnEscape, true);
-    return () => window.removeEventListener("keydown", closeOnEscape, true);
-  }, [close]);
 
   useEffect(() => {
     if (!columnToFocus) return;
@@ -207,7 +194,7 @@ export function TimePickerPanel({
   // Grenze wählt, landet mit einer zu frühen Minute auf dem Minimum selbst.
   const emit = (nextHour: string, nextMinute: string) => {
     const next = `${nextHour}:${nextMinute}`;
-    onChange(minTime && next < minTime ? minTime : next);
+    onChange(atLeastClockTime(next, minTime));
   };
 
   const handleNavigate = (event: KeyboardEvent<HTMLElement>) => {

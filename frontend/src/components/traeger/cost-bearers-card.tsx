@@ -21,7 +21,10 @@ import {
 } from "~/components/ui/use-form-modal-pending";
 import { Input } from "~/components/ui/input";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { Textarea } from "~/components/ui/textarea";
@@ -368,10 +371,7 @@ export function CostBearersCard({
                 onSaved={afterWrite.refresh}
               />
             ) : (
-              <li
-                key={bearer.id}
-                className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-start"
-              >
+              <ResponsiveActionRow key={bearer.id} align="start">
                 <div className="min-w-0 space-y-0.5 text-sm text-gray-700">
                   <p className="flex flex-wrap items-center gap-2">
                     <span className="font-semibold wrap-anywhere text-gray-900">
@@ -416,7 +416,7 @@ export function CostBearersCard({
                         ]),
                   ]}
                 />
-              </li>
+              </ResponsiveActionRow>
             ),
           )}
         </ResponsiveActionList>

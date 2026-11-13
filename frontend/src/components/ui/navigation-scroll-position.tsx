@@ -52,7 +52,7 @@ function restoreScrollPosition(top: number, onStop: () => void): () => void {
   return stop;
 }
 
-function currentUrl() {
+function currentAddressWithHash() {
   return `${window.location.pathname}${window.location.search}${window.location.hash}`;
 }
 
@@ -98,7 +98,7 @@ export function NavigationScrollPosition() {
   const isRestoring = useRef(false);
 
   useEffect(() => {
-    committedUrl.current = currentUrl();
+    committedUrl.current = currentAddressWithHash();
     const handleScroll = () => {
       lastScrollY.current = window.scrollY;
       // Nach einem Wechsel kann Next den Zielpfad schon bestätigen, bevor ein
@@ -119,7 +119,7 @@ export function NavigationScrollPosition() {
     };
     const handleHistoryTraversal = () => {
       const target = window.location.pathname;
-      const targetUrl = currentUrl();
+      const targetUrl = currentAddressWithHash();
       const beforeCommit = target !== committedPathname.current;
       const afterCommit =
         !beforeCommit &&
@@ -170,7 +170,7 @@ export function NavigationScrollPosition() {
       }
     };
     const handleHashChange = () => {
-      committedUrl.current = currentUrl();
+      committedUrl.current = currentAddressWithHash();
       stopRestore.current?.();
       stopRestore.current = undefined;
       isRestoring.current = false;
@@ -210,7 +210,7 @@ export function NavigationScrollPosition() {
   }, []);
 
   useEffect(() => {
-    const url = currentUrl();
+    const url = currentAddressWithHash();
     if (
       committedPathname.current === pathname &&
       committedUrl.current !== undefined &&
@@ -240,7 +240,7 @@ export function NavigationScrollPosition() {
       );
     }
     committedPathname.current = pathname;
-    committedUrl.current = currentUrl();
+    committedUrl.current = currentAddressWithHash();
 
     if (isTraversal) {
       awaitingPathTraversal.current = false;

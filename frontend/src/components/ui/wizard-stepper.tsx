@@ -1,6 +1,6 @@
 "use client";
 
-import { LOCATION_COLORS } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 
 interface WizardStepperProps {
   readonly steps: readonly string[];
@@ -14,7 +14,7 @@ interface WizardStepperProps {
   readonly labeled?: boolean;
 }
 
-const ACTIVE = LOCATION_COLORS.GROUP_ROOM;
+const ACTIVE = MOTO_COLOR_PALETTE.green.base;
 const INACTIVE = "#E5E7EB";
 const ACTIVE_TEXT = "#1F2937";
 

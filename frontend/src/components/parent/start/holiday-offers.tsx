@@ -5,7 +5,10 @@ import { useLocale } from "next-intl";
 import { ArrowRight } from "lucide-react";
 import { ButtonLink } from "~/components/ui/button";
 import { DataField } from "~/components/ui/data-field";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { useCareTermTranslations } from "~/lib/care-facility-term";
@@ -114,9 +117,9 @@ function HolidayOfferList({
     >
       <ResponsiveActionList>
         {offers.map((offer) => (
-          <li
+          <ResponsiveActionRow
             key={offer.token}
-            className="py-3.5 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
+            className="block gap-[normal] py-3.5"
           >
             <div className="min-w-0">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
@@ -137,7 +140,7 @@ function HolidayOfferList({
                 <RegisterLink offer={offer} />
               </div>
             ) : null}
-          </li>
+          </ResponsiveActionRow>
         ))}
       </ResponsiveActionList>
     </SectionCard>

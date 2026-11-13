@@ -7,7 +7,10 @@
 // weitere Kind, wenn das Büro einen eingetragen hat. Ein gebuchter Tag ohne
 // Preis ist markiert, denn das Kind kommt sonst nicht in den Monatslauf.
 
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { Button } from "~/components/ui/button";
 import { CustomSelect } from "~/components/ui/custom-select";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
@@ -407,7 +410,7 @@ export function CarePriceListCard({
         )}
         {gaps.length > 0 ? (
           <ResponsiveActionList>
-            <li className="bg-moto-orange/10 flex flex-col gap-2 rounded-xl px-4 py-3 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center">
+            <ResponsiveActionRow className="bg-moto-orange/10 rounded-xl px-4 first:pt-3 last:pb-3">
               <p className="text-sm text-gray-900">
                 {gaps.length === 1
                   ? `„${gaps[0]?.moduleName}“ hat gebuchte Tage ohne Preis.`
@@ -426,7 +429,7 @@ export function CarePriceListCard({
                   Preise ergänzen
                 </Button>
               </div>
-            </li>
+            </ResponsiveActionRow>
           </ResponsiveActionList>
         ) : null}
       </div>

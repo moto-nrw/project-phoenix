@@ -14,6 +14,7 @@ import type { FormErrorInput } from "./form-error";
 import { FormErrorAlert } from "./form-error-alert";
 import { Input } from "./input";
 import { Modal } from "./modal";
+import { ModalCancelButton } from "./modal-frame";
 import { Radio } from "./radio";
 
 // Shared destructive-confirmation shell for every destructive action in the
@@ -93,6 +94,11 @@ interface ConfirmDeleteModalProps {
   readonly onConfirm: () => Promise<void> | void;
   readonly onClose: () => void;
   readonly loading: boolean;
+  /**
+   * Locks every way to close the dialog without a running operation; the
+   * one name for this lock in every kit dialog (#6575). `loading` locks it too.
+   */
+  readonly isDismissDisabled?: boolean;
   /** A plain string or the error from `useApiFormError`, which brings retry
    *  and the request ID to copy for a server error (#2513). */
   readonly error: FormErrorInput;
@@ -121,6 +127,7 @@ export function ConfirmDeleteModal({
   onConfirm,
   onClose,
   loading,
+  isDismissDisabled = false,
   error,
   confirmLabel = "Endgültig löschen",
   loadingLabel = "Wird gelöscht…",
@@ -189,18 +196,12 @@ export function ConfirmDeleteModal({
 
   const footer = (
     <>
-      <Button
-        type="button"
-        variant="outline"
-        size="md"
+      <ModalCancelButton
         onClick={close}
-        disabled={loading}
-        className={`disabled:cursor-not-allowed ${
-          mobileSheet ? "hidden sm:inline-flex" : ""
-        }`}
+        className="disabled:cursor-not-allowed"
       >
         {cancelLabel}
-      </Button>
+      </ModalCancelButton>
       {inFirstStep ? (
         <Button
           type="button"
@@ -235,7 +236,7 @@ export function ConfirmDeleteModal({
       onClose={close}
       title={title}
       footer={footer}
-      isDismissDisabled={loading}
+      isDismissDisabled={isDismissDisabled || loading}
       isBackdropDismissDisabled
       closeLabel={closeLabel}
       backdropLabel={backdropLabel}

@@ -70,6 +70,10 @@ import {
   NavigationProgressBar,
   NavigationProgressProvider,
 } from "./navigation-progress";
+import {
+  NavigationProgressContext,
+  type NavigationProgressStore,
+} from "./navigation-progress-store";
 
 const appRouter = router as unknown as AppRouterInstance;
 type NextLinkNavigationEvent = Parameters<
@@ -147,14 +151,11 @@ describe("NavigationProgress", () => {
       <ButtonLink href="/calendar-periods">Planungszeiträume</ButtonLink>,
     );
 
-    const notify = vi.spyOn(window, "m");
     fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
 
     expect(screen.getByTestId("navigation-progress")).toHaveClass(
       "moto-nav-progress",
     );
-    expect(notify).toHaveBeenCalledExactlyOnceWith("/calendar-periods");
-    notify.mockRestore();
   });
 
   it("cancels ButtonLink progress when onNavigate blocks the link", () => {
@@ -709,5 +710,114 @@ describe("NavigationProgress", () => {
     // Anker: der Balken rendert seinen Ansagebereich ohne Provider.
     expect(screen.getByRole("status")).toHaveTextContent("");
     expect(screen.queryByTestId("navigation-progress")).toBeNull();
+  });
+});
+
+// #6570: ButtonLink nutzt NavigationLink. Beide melden den Wechsel beim
+// Klick, also vor dem Router-Dispatch, und verwerfen abgebrochene Klicks.
+describe.each([
+  {
+    name: "NavigationLink",
+    render: (props: ComponentProps<typeof Link>) => <Link {...props} />,
+  },
+  {
+    name: "ButtonLink",
+    render: (props: ComponentProps<typeof Link>) => <ButtonLink {...props} />,
+  },
+])("$name progress timing (#6570)", ({ render: renderLink }) => {
+  beforeEach(() => {
+    navigateTo("/dienstplan");
+  });
+
+  function fakeStore() {
+    return {
+      subscribe: () => () => undefined,
+      isPending: () => false,
+      startNavigation: vi.fn(() => 1),
+      startLinkNavigation: vi.fn(() => 7),
+      startHistory: vi.fn(),
+      completeNavigation: vi.fn(),
+      cancelNavigation: vi.fn(),
+    } satisfies NavigationProgressStore;
+  }
+
+  it("reports the target before the router dispatches", () => {
+    const store = fakeStore();
+    const reportedBeforeDispatch = vi.fn();
+    render(
+      <NavigationProgressContext.Provider value={store}>
+        {renderLink({
+          href: "/calendar-periods?b=2&a=1",
+          children: "Planungszeiträume",
+          onNavigate: () =>
+            reportedBeforeDispatch(store.startLinkNavigation.mock.calls),
+        })}
+      </NavigationProgressContext.Provider>,
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
+
+    expect(reportedBeforeDispatch).toHaveBeenCalledExactlyOnceWith([
+      ["/calendar-periods?b=2&a=1"],
+    ]);
+    expect(store.cancelNavigation).not.toHaveBeenCalled();
+  });
+
+  it("discards the report when the caller's click handler cancels", () => {
+    renderShell(
+      renderLink({
+        href: "/calendar-periods",
+        children: "Planungszeiträume",
+        onClick: (event: MouseEvent<HTMLAnchorElement>) =>
+          event.preventDefault(),
+      }),
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
+
+    expect(screen.getByRole("status")).toHaveTextContent("");
+    expect(screen.queryByTestId("navigation-progress")).toBeNull();
+  });
+
+  it("discards the report when onNavigate cancels", () => {
+    const store = fakeStore();
+    render(
+      <NavigationProgressContext.Provider value={store}>
+        {renderLink({
+          href: "/calendar-periods",
+          children: "Planungszeiträume",
+          onNavigate: (event: NextLinkNavigationEvent) =>
+            event.preventDefault(),
+        })}
+      </NavigationProgressContext.Provider>,
+    );
+
+    fireEvent.click(screen.getByRole("link", { name: "Planungszeiträume" }));
+
+    expect(store.startLinkNavigation).toHaveBeenCalledOnce();
+    expect(store.cancelNavigation).toHaveBeenCalledExactlyOnceWith(7);
+  });
+
+  it.each([
+    ["a modifier click", { ctrlKey: true }, {}],
+    ["a new tab", {}, { target: "_blank" }],
+  ])("reports nothing for %s", (_case, clickInit, linkProps) => {
+    const store = fakeStore();
+    render(
+      <NavigationProgressContext.Provider value={store}>
+        {renderLink({
+          href: "/calendar-periods",
+          children: "Planungszeiträume",
+          ...linkProps,
+        })}
+      </NavigationProgressContext.Provider>,
+    );
+
+    fireEvent.click(
+      screen.getByRole("link", { name: "Planungszeiträume" }),
+      clickInit,
+    );
+
+    expect(store.startLinkNavigation).not.toHaveBeenCalled();
   });
 });

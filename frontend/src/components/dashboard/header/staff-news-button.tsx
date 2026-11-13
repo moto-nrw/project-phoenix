@@ -151,7 +151,7 @@ export function StaffNewsButton() {
           <Newspaper className="h-5 w-5" aria-hidden="true" />
           <NotificationBadge
             count={count}
-            tone="danger"
+            tone="red"
             size="sm"
             ariaLabel={`${count} ungelesen`}
             className="absolute -top-0.5 -right-0.5"

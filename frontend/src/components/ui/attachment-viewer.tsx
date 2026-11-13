@@ -11,7 +11,7 @@ import {
 } from "lucide-react";
 
 import { createLogger } from "~/lib/logger";
-import { useScrollLock } from "~/components/ui/hooks/useScrollLock";
+import { useScrollLock } from "./overlay-stack";
 import { buttonClassName, Button } from "./button";
 import { CloseIcon } from "./close-icon";
 import { FileTypeIcon } from "./file-type-icon";

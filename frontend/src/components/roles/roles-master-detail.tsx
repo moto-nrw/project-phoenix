@@ -327,7 +327,6 @@ function RoleStammdatenTab({
             size={18}
           />
         }
-        accentColor="purple"
       >
         <DataGrid>
           <DataField label="Name">{getRoleDisplayName(role.name)}</DataField>
