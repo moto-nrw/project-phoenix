@@ -33,6 +33,11 @@
     "messageHint": "Napisz do {careTerm} w sprawie: {name}",
     "pickupWithMode": "Zmień odbiór: {name}",
     "pickupCompactWithMode": "Zmień odbiór",
-    "pickupHintWithMode": "Zmień godzinę lub sposób odbioru na jeden dzień"
+    "pickupHintWithMode": "Zmień godzinę lub sposób odbioru na jeden dzień",
+    "profileTooltip": "Otwiera stronę Twojego dziecka ze wszystkimi danymi.",
+    "sickTooltip": "Otwiera formularz zgłoszenia nieobecności dziecka.",
+    "pickupTooltip": "Otwiera formularz prośby o inną godzinę odbioru.",
+    "pickupWithModeTooltip": "Otwiera formularz prośby o zmianę odbioru.",
+    "messageTooltip": "Otwiera wiadomości z {careTerm} o Twoim dziecku."
   }
 }

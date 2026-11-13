@@ -37,5 +37,6 @@
     "none": "Her zamanki gibi",
     "hint": "Sadece kişilerinize eklediğiniz kişiler.",
     "manageLink": "Kişilerinize yeni bir kişi ekleyin"
-  }
+  },
+  "proofPdfTooltip": "Belgeyi PDF olarak bu cihaza kaydeder."
 }

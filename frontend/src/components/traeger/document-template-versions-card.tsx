@@ -57,6 +57,7 @@ export function DocumentTemplateVersionsCard({
                     variant="surface"
                     size="compact"
                     aria-label={`Text übernehmen: Version ${version.version}`}
+                    tooltip="Lädt den Text ins Formular, gespeichert wird erst mit „Speichern“."
                     disabled={disabled}
                     onClick={() => onLoad(version)}
                   >

@@ -119,6 +119,18 @@ const noticeColumns: DataTableColumn<CareNotice>[] = [
   },
 ];
 
+/** Why issuing is blocked, in the order the warnings show. */
+function releaseBlockReason(run: CareNoticeRunDetail): string | undefined {
+  if (run.previewCount === 0) return undefined;
+  if (run.legalRemedyMissing) {
+    return "Tragen Sie zuerst die Rechtsbehelfsbelehrung in der Vorlage „Bescheid“ ein.";
+  }
+  if (!run.numberRangeSet) {
+    return "Legen Sie zuerst das Muster der Rechnungsnummern für Monatsbeiträge fest.";
+  }
+  return undefined;
+}
+
 /** "1 Kind", "3 Kinder". */
 function childrenLabel(count: number): string {
   return count === 1 ? "1 Kind" : `${count} Kinder`;
@@ -260,6 +272,7 @@ export default function TraegerCareNoticeRunPage() {
             type="button"
             variant="outline_danger"
             size="md"
+            tooltip="moto fragt vorher nach, dann ist das Jahr frei für einen neuen Lauf."
             onClick={() => setConfirmingDiscard(true)}
           >
             Leeren Lauf verwerfen
@@ -270,6 +283,12 @@ export default function TraegerCareNoticeRunPage() {
             variant="primary"
             size="md"
             disabled={!canRelease}
+            disabledReason={releaseBlockReason(run)}
+            tooltip={
+              run.previewCount === 0
+                ? "moto fragt vorher nach, dann ist der Jahreslauf ohne Bescheid abgeschlossen."
+                : "moto fragt vorher nach, dann sind alle Bescheide mit Nummer festgeschrieben."
+            }
             onClick={() => setConfirming(true)}
           >
             {run.previewCount === 0
@@ -286,6 +305,7 @@ export default function TraegerCareNoticeRunPage() {
               )}
               variant="outline"
               size="md"
+              tooltip="Öffnet die Lastschrift der Raten mit der Datei für Ihre Bank."
             >
               Lastschrift der Raten
             </ButtonLink>
@@ -295,6 +315,7 @@ export default function TraegerCareNoticeRunPage() {
               )}
               variant="primary"
               size="md"
+              tooltip="Öffnet den Versand, dort senden Sie die Bescheide an die Familien."
             >
               An Familien senden
             </ButtonLink>
@@ -427,6 +448,7 @@ export default function TraegerCareNoticeRunPage() {
                   )}
                   variant="surface"
                   size="compact"
+                  tooltip="Öffnet die Vorlage „Bescheid“ in den Einstellungen."
                 >
                   Vorlage öffnen
                 </ButtonLink>
@@ -442,6 +464,7 @@ export default function TraegerCareNoticeRunPage() {
                   href={traegerPath("/traeger/einstellungen/abrechnung")}
                   variant="surface"
                   size="compact"
+                  tooltip="Öffnet die Einstellungen für das Muster der Rechnungsnummern."
                 >
                   Muster festlegen
                 </ButtonLink>

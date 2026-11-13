@@ -53,5 +53,14 @@
     "declined": "Odrzucone",
     "pending": "Otwarte",
     "privacy": "Nie widzisz imion innych rodziców."
-  }
+  },
+  "openEventTooltip": "Pokazuje lub ukrywa szczegóły tego terminu.",
+  "acceptTooltip": "Od razu potwierdza. Później można jeszcze zmienić odpowiedź.",
+  "declineTooltip": "Od razu odmawia. Później można jeszcze zmienić odpowiedź.",
+  "previousMonthTooltip": "Pokazuje terminy z poprzedniego miesiąca.",
+  "nextMonthTooltip": "Pokazuje terminy z następnego miesiąca.",
+  "previousMonthBlocked": "Kalendarz nie pokazuje minionych miesięcy.",
+  "nextMonthBlocked": "Kalendarz nie pokazuje jeszcze późniejszych miesięcy.",
+  "closeTooltip": "Zamyka szczegóły i znów pokazuje kalendarz.",
+  "changeAnswerTooltip": "Znów pokazuje „Przyjmij” i „Odrzuć”. Odpowiedź zostaje do nowego wyboru."
 }

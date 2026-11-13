@@ -288,7 +288,13 @@ export function Monatskarte({
             </span>
           )}
           {summary.isClosed && onReopen && (
-            <Button type="button" size="md" variant="ghost" onClick={onReopen}>
+            <Button
+              type="button"
+              size="md"
+              variant="ghost"
+              onClick={onReopen}
+              tooltip="Hebt den Abschluss nur für diese Person auf. moto fragt vorher nach."
+            >
               Monat wieder öffnen…
             </Button>
           )}

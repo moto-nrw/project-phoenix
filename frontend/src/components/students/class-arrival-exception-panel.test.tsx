@@ -198,12 +198,12 @@ describe("ClassArrivalExceptionPanel", () => {
       <ClassArrivalExceptionPanel schoolClass="4a" classLabel="Klasse 4a" />,
     );
     const save = await screen.findByRole("button", { name: "Tag speichern" });
-    expect(save).toBeDisabled();
+    expect(save).toHaveAttribute("aria-disabled", "true");
 
     fireEvent.change(screen.getByLabelText("Kommt um"), {
       target: { value: "12:45" },
     });
-    expect(save).toBeDisabled();
+    expect(save).toHaveAttribute("aria-disabled", "true");
   });
 
   it.each(schoolDateCases("2026-05-27"))(

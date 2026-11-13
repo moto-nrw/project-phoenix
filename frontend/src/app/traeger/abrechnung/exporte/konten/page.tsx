@@ -117,6 +117,7 @@ export default function TraegerBookingAccountsPage() {
                   href={traegerPath(DATEV_SETTINGS_PATH)}
                   variant="ghost_tone"
                   size="compact"
+                  tooltip="Öffnet die DATEV-Werte in den Einstellungen."
                 >
                   DATEV-Werte eintragen
                 </ButtonLink>

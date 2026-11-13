@@ -120,7 +120,13 @@ describe("ChildConsentsSection", () => {
     const withdrawButton = screen.getByRole("button", {
       name: "Foto-Einwilligung widerrufen",
     });
-    expect(withdrawButton).toHaveTextContent(/^Widerrufen$/);
+    // Sichtbar steht nur das kurze Wort; die Erklärung des Klicks hängt als
+    // verborgene Beschreibung im Knopf (#6756).
+    const visibleLabel = Array.from(withdrawButton.childNodes)
+      .filter((node) => !(node instanceof HTMLElement && node.hidden))
+      .map((node) => node.textContent)
+      .join("");
+    expect(visibleLabel).toBe("Widerrufen");
   });
 
   it("nennt die Änderungsmöglichkeit nur bei einer änderbaren Foto-Einwilligung", async () => {

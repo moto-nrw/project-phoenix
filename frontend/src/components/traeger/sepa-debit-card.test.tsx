@@ -111,7 +111,7 @@ it("requires a downloaded file before confirmation", async () => {
   );
   expect(
     await screen.findByRole("button", { name: "Bei der Bank eingereicht" }),
-  ).toBeDisabled();
+  ).toHaveAttribute("aria-disabled", "true");
 });
 
 it("confirms the message ID of a file named with its file number (#4693)", async () => {

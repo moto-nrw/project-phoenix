@@ -27,5 +27,8 @@
   "booked": "Takimi juaj në orën {time} u rezervua.",
   "cancelled": "Takimi juaj u anulua.",
   "errorObject": "takimin me prindërit",
-  "errorObjectBooking": "rezervimin"
+  "errorObjectBooking": "rezervimin",
+  "cancelTooltip": "Anulon takimin dhe e liron orën. moto pyet më parë.",
+  "entryActionTooltip": "Hap oraret e lira të ditës së takimeve për rezervim.",
+  "entryActionBookedTooltip": "Hap takimin tuaj, aty mund ta zhvendosni ose anuloni."
 }

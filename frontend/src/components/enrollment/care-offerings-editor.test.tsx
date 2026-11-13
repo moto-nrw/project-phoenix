@@ -378,7 +378,11 @@ describe("CareOfferingsEditor", () => {
     expect(
       screen.getByText("Bedingung 1: Wählen Sie mindestens eine Klassenstufe."),
     ).toBeVisible();
-    expect(screen.getByRole("button", { name: "Erstellen" })).toBeDisabled();
+    const create = screen.getByRole("button", { name: "Erstellen" });
+    expect(create).toHaveAttribute("aria-disabled", "true");
+    expect(create).toHaveAccessibleDescription(
+      "Vervollständigen Sie zuerst die markierten Bedingungen.",
+    );
     const availabilityFields = within(
       screen.getByRole("group", {
         name: "Bedingungen für die Verfügbarkeit",
@@ -693,7 +697,11 @@ describe("CareOfferingsEditor", () => {
         "Der Regeltermin enthält Tage, die im Angebot nicht auswählbar sind.",
       ),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Erstellen" })).toBeDisabled();
+    const create = screen.getByRole("button", { name: "Erstellen" });
+    expect(create).toHaveAttribute("aria-disabled", "true");
+    expect(create).toHaveAccessibleDescription(
+      "Wählen Sie einen passenden Regeltermin oder entfernen Sie ihn.",
+    );
 
     for (const day of ["Di", "Mi", "Do", "Fr"]) {
       fireEvent.click(screen.getByRole("button", { name: day }));
@@ -1303,7 +1311,10 @@ describe("CareOfferingsEditor", () => {
     expect(
       screen.getByText(/aktives Betreuungsangebot braucht einen aktiven/),
     ).toBeVisible();
-    expect(save).toBeDisabled();
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).toHaveAccessibleDescription(
+      "Wählen Sie einen passenden Regeltermin oder entfernen Sie ihn.",
+    );
 
     fireEvent.click(activeCheckbox);
     expect(
@@ -1382,7 +1393,11 @@ describe("CareOfferingsEditor", () => {
     expect(
       screen.getByText(/muss den ganzen Betreuungszeitraum/),
     ).toBeInTheDocument();
-    expect(screen.getByRole("button", { name: "Speichern" })).toBeDisabled();
+    const save = screen.getByRole("button", { name: "Speichern" });
+    expect(save).toHaveAttribute("aria-disabled", "true");
+    expect(save).toHaveAccessibleDescription(
+      "Wählen Sie einen passenden Regeltermin oder entfernen Sie ihn.",
+    );
   });
 
   it("does not expose technical series-gap errors returned on save", async () => {

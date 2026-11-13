@@ -77,6 +77,7 @@ function rowMenuItems(
     items.push({
       label: "Schreiben ansehen",
       icon: <Eye className="size-4" aria-hidden />,
+      description: "So, wie die Familie es bekommt",
       onClick: () => actions.onShowLetter(letter),
     });
     if (live && canSendMail(letter) && actions.sendingKey === null) {
@@ -97,6 +98,7 @@ function rowMenuItems(
     items.push({
       label: "Stornieren",
       icon: <Undo2 className="size-4" aria-hidden />,
+      description: "Hebt die Rechnung auf, moto fragt vorher nach",
       destructive: true,
       onClick: () => actions.onCancel(letter),
     });

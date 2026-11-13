@@ -191,6 +191,26 @@ function requestChoiceLabel(item: ReviewItem): string {
   }
 }
 
+/** Warum das Ergebnis noch nicht festgelegt werden kann (#6766). */
+function conflictNotReadyReason(state: {
+  complete: boolean;
+  choice: string | null;
+  staffValueReady: boolean;
+  hasResult: boolean;
+  hasReason: boolean;
+}): string | undefined {
+  if (!state.complete) return "Laden Sie zuerst alle Wünsche zu diesem Punkt.";
+  if (state.choice === null) return "Wählen Sie zuerst ein Ergebnis aus.";
+  if (
+    state.choice === STAFF_CHOICE &&
+    !(state.staffValueReady && state.hasResult)
+  )
+    return "Tragen Sie zuerst Ihren eigenen Wert ein.";
+  if (!state.hasResult) return "Wählen Sie zuerst ein Ergebnis aus.";
+  if (!state.hasReason) return "Tragen Sie zuerst eine Begründung ein.";
+  return undefined;
+}
+
 export function ConflictDecisionGroup({
   group,
   onResolved,
@@ -236,13 +256,14 @@ export function ConflictDecisionGroup({
   const missing = Math.max(0, group.expectedCount - group.items.length);
   // Eine Begründung ist hier immer Pflicht, unabhängig von der Einstellung
   // der Schule: das Ergebnis lehnt Wünsche ab, die Eltern gestellt haben.
-  const ready =
-    group.complete &&
-    choice !== null &&
-    (choice !== STAFF_CHOICE ||
-      staffDraftReady(group.staffValueInput, staffDraft)) &&
-    resultText !== "" &&
-    reason.trim() !== "";
+  const notReadyReason = conflictNotReadyReason({
+    complete: group.complete,
+    choice,
+    staffValueReady: staffDraftReady(group.staffValueInput, staffDraft),
+    hasResult: resultText !== "",
+    hasReason: reason.trim() !== "",
+  });
+  const ready = notReadyReason === undefined;
 
   const save = async () => {
     if (!kind || choice === null) return;
@@ -380,6 +401,8 @@ export function ConflictDecisionGroup({
           variant="primary"
           size="md"
           disabled={!ready || busy}
+          tooltip="Speichert das Ergebnis und lehnt die anderen Wünsche ab, moto fragt vorher nach."
+          disabledReason={notReadyReason}
           onClick={() => setConfirming(true)}
         >
           Ergebnis festlegen

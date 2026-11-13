@@ -104,6 +104,7 @@ export function CareResumeModal({
             type="button"
             variant="outline"
             size="md"
+            noTooltip="Schließt nur das Fenster, die Betreuung bleibt beendet."
             onClick={onClose}
             disabled={saving}
           >
@@ -115,7 +116,13 @@ export function CareResumeModal({
             size="md"
             isLoading={saving}
             loadingText="Wird gespeichert…"
+            tooltip="Trägt den neuen Beginn ein, danach können Eltern wieder Änderungen schicken."
             disabled={saving || !newStart || !checked}
+            disabledReason={
+              !newStart
+                ? "Wählen Sie zuerst den neuen Beginn."
+                : "Bestätigen Sie zuerst, dass Sie alles geprüft haben."
+            }
             onClick={() => void handleResume()}
           >
             Betreuung wieder aufnehmen

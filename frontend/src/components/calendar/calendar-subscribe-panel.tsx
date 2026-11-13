@@ -51,6 +51,10 @@ interface CalendarSubscribeCopy {
   readonly regenerated: string;
   readonly copied: string;
   readonly copyFailed: string;
+  readonly showLinkHint: string;
+  readonly subscribeHint: string;
+  readonly rotateHint: string;
+  readonly copyLinkHint: string;
 }
 
 interface CalendarSubscribePanelProps {
@@ -67,6 +71,8 @@ interface CopyValueRowProps {
   readonly label: string;
   readonly value: string;
   readonly copyLabel: string;
+  /** What copying is for, shown on hover and keyboard focus (#6751). */
+  readonly copyHint: string;
   readonly copiedLabel: string;
   readonly copiedMessage: string;
   readonly copyFailedMessage: string;
@@ -78,6 +84,7 @@ function CopyValueRow({
   label,
   value,
   copyLabel,
+  copyHint,
   copiedLabel,
   copiedMessage,
   copyFailedMessage,
@@ -115,6 +122,7 @@ function CopyValueRow({
           className="shrink-0 sm:min-w-28"
           aria-describedby={id}
           onClick={copyValue}
+          tooltip={copyHint}
         >
           {copied ? (
             <Check className="mr-2 size-4" aria-hidden />
@@ -161,6 +169,10 @@ export function CalendarSubscribePanel({
     regenerated: isStaff ? staffT("regenerated") : t("regenerated"),
     copied: t("copied"),
     copyFailed: t("copyFailed"),
+    showLinkHint: t("showLinkHint"),
+    subscribeHint: t("subscribeHint"),
+    rotateHint: isStaff ? staffT("rotateHint") : t("rotateHint"),
+    copyLinkHint: t("copyLinkHint"),
   };
   const feedApi = {
     parent: [getParentCalendarFeed, rotateParentCalendarFeed],
@@ -236,6 +248,7 @@ export function CalendarSubscribePanel({
               isLoading={loading}
               loadingText={copy.loading}
               onClick={load}
+              tooltip={copy.showLinkHint}
             >
               <Link className="mr-2 size-4" aria-hidden />
               {copy.showLink}
@@ -248,13 +261,18 @@ export function CalendarSubscribePanel({
             isLoading={loading}
             loadingText={copy.loading}
             onClick={rotate}
+            tooltip={copy.rotateHint}
           >
             <RefreshCw className="mr-2 size-4" aria-hidden />
             {copy.createNew}
           </Button>
         ) : feed?.url ? (
           <>
-            <ButtonLink href={feed.webcal_url} size="md">
+            <ButtonLink
+              href={feed.webcal_url}
+              size="md"
+              tooltip={copy.subscribeHint}
+            >
               <CalendarDays className="mr-2 size-4" aria-hidden />
               {copy.subscribe}
             </ButtonLink>
@@ -265,6 +283,7 @@ export function CalendarSubscribePanel({
               isLoading={loading}
               loadingText={copy.loading}
               onClick={rotate}
+              tooltip={copy.rotateHint}
             >
               <RefreshCw className="mr-2 size-4" aria-hidden />
               {copy.regenerate}
@@ -286,6 +305,7 @@ export function CalendarSubscribePanel({
                 label={copy.linkLabel}
                 value={feed.url}
                 copyLabel={copy.copy}
+                copyHint={copy.copyLinkHint}
                 copiedLabel={copy.copiedButton}
                 copiedMessage={copy.copied}
                 copyFailedMessage={copy.copyFailed}
@@ -336,6 +356,7 @@ export function CalendarSubscribePanel({
                   label={staffT("caldavAddress")}
                   value={feed.caldav.server_url}
                   copyLabel={copy.copy}
+                  copyHint={staffT("copyAddressHint")}
                   copiedLabel={copy.copiedButton}
                   copiedMessage={staffT("addressCopied")}
                   copyFailedMessage={copy.copyFailed}
@@ -345,6 +366,7 @@ export function CalendarSubscribePanel({
                   label={staffT("caldavUsername")}
                   value={feed.caldav.username}
                   copyLabel={copy.copy}
+                  copyHint={staffT("copyUsernameHint")}
                   copiedLabel={copy.copiedButton}
                   copiedMessage={staffT("usernameCopied")}
                   copyFailedMessage={copy.copyFailed}
@@ -356,6 +378,7 @@ export function CalendarSubscribePanel({
                       label={staffT("caldavPassword")}
                       value={feed.caldav.app_password}
                       copyLabel={copy.copy}
+                      copyHint={staffT("copyPasswordHint")}
                       copiedLabel={copy.copiedButton}
                       copiedMessage={staffT("passwordCopied")}
                       copyFailedMessage={copy.copyFailed}

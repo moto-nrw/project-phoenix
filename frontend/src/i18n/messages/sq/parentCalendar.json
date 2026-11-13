@@ -53,5 +53,14 @@
     "declined": "Refuzuan",
     "pending": "Pa përgjigje",
     "privacy": "Emrat e prindërve të tjerë nuk i shihni."
-  }
+  },
+  "openEventTooltip": "Shfaq ose fsheh hollësitë e këtij takimi.",
+  "acceptTooltip": "Pranon menjëherë. Përgjigjen mund ta ndryshoni edhe më vonë.",
+  "declineTooltip": "Refuzon menjëherë. Përgjigjen mund ta ndryshoni edhe më vonë.",
+  "previousMonthTooltip": "Shfaq takimet e muajit të kaluar.",
+  "nextMonthTooltip": "Shfaq takimet e muajit të ardhshëm.",
+  "previousMonthBlocked": "Kalendari nuk shfaq muajt e kaluar.",
+  "nextMonthBlocked": "Kalendari ende nuk shfaq muajt e mëvonshëm.",
+  "closeTooltip": "Mbyll hollësitë dhe shfaq përsëri kalendarin.",
+  "changeAnswerTooltip": "Shfaq përsëri „Pranoni” dhe „Refuzoni”. Përgjigjja mbetet derisa të zgjidhni sërish."
 }

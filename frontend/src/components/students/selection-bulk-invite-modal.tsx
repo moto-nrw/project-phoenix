@@ -169,7 +169,13 @@ export function SelectionBulkInviteModal({
       footer={
         <div className="flex justify-end gap-2 p-4">
           {sent ? (
-            <Button type="button" variant="outline" size="md" onClick={onClose}>
+            <Button
+              type="button"
+              variant="outline"
+              size="md"
+              noTooltip="Schließen schließt nur den Dialog, die Einladungen sind schon verschickt."
+              onClick={onClose}
+            >
               Schließen
             </Button>
           ) : (
@@ -178,6 +184,7 @@ export function SelectionBulkInviteModal({
                 type="button"
                 variant="outline"
                 size="md"
+                noTooltip="Abbrechen schließt nur den Dialog, ohne etwas zu ändern."
                 onClick={onClose}
                 disabled={sending}
               >
@@ -189,6 +196,12 @@ export function SelectionBulkInviteModal({
                 size="md"
                 onClick={handleSend}
                 disabled={sending || toMail === 0}
+                tooltip="Schickt den Eltern sofort eine E-Mail mit dem Zugang zum Elternportal."
+                disabledReason={
+                  preview && toMail === 0
+                    ? "In dieser Auswahl gibt es niemanden einzuladen."
+                    : undefined
+                }
               >
                 {sending
                   ? "Wird gesendet..."

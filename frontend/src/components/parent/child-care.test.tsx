@@ -202,7 +202,7 @@ describe("PickupTimeModal — failed preload guard", () => {
     const saveButton = screen.getByRole("button", {
       name: "Anfrage senden",
     });
-    expect(saveButton).toBeDisabled();
+    expect(saveButton).toHaveAttribute("aria-disabled", "true");
 
     // Even if a click slips through, handleSubmit refuses to submit.
     fireEvent.click(saveButton);
@@ -280,6 +280,9 @@ describe("PickupTimeModal — failed preload guard", () => {
     expect(
       screen.getByRole("button", { name: "Anfrage senden" }),
     ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Anfrage senden" }),
+    ).not.toHaveAttribute("aria-disabled");
     fireEvent.change(pickupInput, { target: { value: "14:30" } });
     fireEvent.change(reasonInput!, { target: { value: "Arzttermin" } });
 
@@ -294,6 +297,9 @@ describe("PickupTimeModal — failed preload guard", () => {
     expect(
       screen.getByRole("button", { name: "Anfrage senden" }),
     ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Anfrage senden" }),
+    ).not.toHaveAttribute("aria-disabled");
     options.mockRestore();
   });
 
@@ -800,6 +806,9 @@ describe("PickupTimeModal — Änderungsfrist für heute", () => {
     expect(
       screen.getByRole("button", { name: "Anfrage senden" }),
     ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Anfrage senden" }),
+    ).not.toHaveAttribute("aria-disabled");
   });
 
   it("zeigt die Frist nicht für einen späteren Tag", () => {
@@ -823,6 +832,9 @@ describe("PickupTimeModal — Änderungsfrist für heute", () => {
     expect(
       screen.getByRole("button", { name: "Anfrage senden" }),
     ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Anfrage senden" }),
+    ).not.toHaveAttribute("aria-disabled");
   });
 
   it("sperrt heute nach der Frist und nennt die Uhrzeit", () => {
@@ -838,7 +850,7 @@ describe("PickupTimeModal — Änderungsfrist für heute", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Anfrage senden" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   const todayGuardianChange: CareException = {
@@ -957,7 +969,7 @@ describe("PickupTimeModal — Änderungsfrist für heute", () => {
     expect(onCutoffPassed).toHaveBeenCalled();
     expect(
       screen.getByRole("button", { name: "Anfrage senden" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 });
 
@@ -1007,7 +1019,7 @@ describe("PickupTimeModal — Betreuungsende", () => {
     ).not.toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Anfrage senden" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("lässt nach dem Betreuungsende einen anderen Tag zu", () => {
@@ -1046,7 +1058,7 @@ describe("PickupTimeModal — Betreuungsende", () => {
     expect(onCutoffPassed).toHaveBeenCalled();
     expect(
       screen.getByRole("button", { name: "Anfrage senden" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 });
 
@@ -1090,7 +1102,7 @@ describe("SickNoteModal — Abmeldegrund", () => {
     );
     expect(
       screen.getByRole("button", { name: /an die OGS senden/ }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
   });
 
   it("uses the compact shared modal button size", () => {
@@ -1409,6 +1421,9 @@ describe("SickNoteModal — Teil-Abwesenheit der Schule", () => {
     expect(
       screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
     ).toBeEnabled();
+    expect(
+      screen.getByRole("button", { name: "Krankmeldung an die OGS senden" }),
+    ).not.toHaveAttribute("aria-disabled");
     fillReason();
     send();
     await waitFor(() =>

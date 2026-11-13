@@ -120,6 +120,17 @@ export function ClassTripBulkStatusModal({
   const chosenIds = schoolReport
     ? selectedIds
     : students.map((student) => student.id);
+  // Warum Speichern gesperrt ist; ohne Grund ist es frei (#6765).
+  const blockReason =
+    chosenIds.length === 0
+      ? schoolReport
+        ? "Wählen Sie zuerst mindestens ein Kind aus."
+        : "In dieser Klasse sind keine Kinder."
+      : !from || !to
+        ? "Wählen Sie zuerst den Zeitraum."
+        : to < from
+          ? "Das Ende darf nicht vor dem Beginn liegen."
+          : undefined;
 
   const handleSubmit = async () => {
     formErrors.clear();
@@ -228,6 +239,7 @@ export function ClassTripBulkStatusModal({
             type="button"
             variant="outline"
             size="md"
+            noTooltip="Schließt nur das Fenster, nichts wird eingetragen."
             onClick={onClose}
             disabled={saving}
           >
@@ -237,10 +249,14 @@ export function ClassTripBulkStatusModal({
             type="button"
             variant="success"
             size="md"
-            onClick={handleSubmit}
-            disabled={
-              saving || chosenIds.length === 0 || !from || !to || to < from
+            tooltip={
+              schoolReport
+                ? "Meldet die gewählten Kinder der OGS an diesen Tagen sofort als unterwegs."
+                : "Trägt alle Kinder an diesen Tagen sofort als Klassenfahrt ein."
             }
+            disabledReason={saving ? undefined : blockReason}
+            onClick={handleSubmit}
+            disabled={saving || blockReason !== undefined}
           >
             {saving
               ? "Speichern..."

@@ -342,6 +342,8 @@ function InfoDisplaysPageContent() {
                 items={[
                   {
                     label: "Umbenennen",
+                    description:
+                      "Ändert nur den Namen, der Link bleibt gültig.",
                     onClick: () => {
                       setNameInput(row.name);
                       setRenameTarget(row);
@@ -349,14 +351,21 @@ function InfoDisplaysPageContent() {
                   },
                   {
                     label: "Neuen Link erstellen",
+                    description:
+                      "Ersetzt den Link sofort. Der alte Link geht nicht mehr.",
                     onClick: () => void handleRegenerate(row),
                   },
                   {
                     label: row.isActive ? "Deaktivieren" : "Aktivieren",
+                    description: row.isActive
+                      ? "Der Bildschirm zeigt dann nur noch „Display deaktiviert“."
+                      : "Der Bildschirm zeigt dann wieder die Anwesenheit.",
                     onClick: () => void handleToggleActive(row),
                   },
                   {
                     label: "Löschen",
+                    description:
+                      "Entfernt das Display und seinen Link. moto fragt vorher nach.",
                     destructive: true,
                     onClick: () => {
                       deleteErrors.clear();
@@ -390,6 +399,7 @@ function InfoDisplaysPageContent() {
           <Button
             type="button"
             size="md"
+            tooltip="Öffnet ein Fenster für ein neues Display mit eigenem Link."
             onClick={() => {
               setNameInput("");
               setCreateOpen(true);
@@ -431,6 +441,7 @@ function InfoDisplaysPageContent() {
                   type="button"
                   variant="outline"
                   size="md"
+                  noTooltip="Abbrechen schließt nur das Fenster, ohne etwas zu ändern."
                   onClick={closeNameModal}
                 >
                   Abbrechen
@@ -439,6 +450,14 @@ function InfoDisplaysPageContent() {
                   type="button"
                   size="md"
                   disabled={busy || nameInput.trim() === ""}
+                  disabledReason={
+                    busy ? undefined : "Geben Sie zuerst einen Namen ein."
+                  }
+                  tooltip={
+                    renameTarget
+                      ? "Speichert den neuen Namen, der Link bleibt gleich."
+                      : "Legt das Display an und zeigt seinen Link einmal."
+                  }
                   onClick={() =>
                     void (renameTarget ? handleRename() : handleCreate())
                   }
@@ -537,7 +556,12 @@ function TokenModal({
       size="md"
       footer={
         <div className="flex justify-end">
-          <Button type="button" size="md" onClick={onClose}>
+          <Button
+            type="button"
+            size="md"
+            tooltip="Schließt das Fenster, danach ist der Link nicht mehr zu sehen."
+            onClick={onClose}
+          >
             Fertig
           </Button>
         </div>

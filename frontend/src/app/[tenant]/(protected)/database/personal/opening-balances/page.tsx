@@ -30,6 +30,10 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { ModuleRouteGuard } from "~/components/tenant/module-route-guard";
 import { UploadSection } from "~/components/import/upload-section";
 import {
+  DISCARD_UPLOAD_HINT,
+  TEMPLATE_DOWNLOAD_HINT,
+} from "~/components/import/import-hints";
+import {
   useApiErrorDisplay,
   useApiFormError,
   useToast,
@@ -576,6 +580,7 @@ function OpeningBalanceImportPageContent() {
             type="button"
             variant="outline"
             size="md"
+            tooltip={TEMPLATE_DOWNLOAD_HINT}
             onClick={() => void handleDownloadTemplate()}
           >
             Vorlage herunterladen
@@ -637,6 +642,12 @@ function OpeningBalanceImportPageContent() {
               variant="outline"
               size="md"
               disabled={!paramsComplete || isLoading}
+              disabledReason={
+                isLoading
+                  ? undefined
+                  : "Tragen Sie zuerst Stichtag und Begründung ein."
+              }
+              tooltip="Prüft die Datei noch einmal mit Stichtag und Begründung."
               onClick={() => void runPreview(uploadedFile)}
             >
               Vorschau erneut erstellen
@@ -697,6 +708,7 @@ function OpeningBalanceImportPageContent() {
               type="button"
               variant="outline"
               size="md"
+              tooltip="Leert die Seite für die nächste Datei."
               onClick={resetAll}
             >
               Weitere Datei importieren
@@ -746,6 +758,7 @@ function OpeningBalanceImportPageContent() {
                 variant="success"
                 size="md"
                 disabled={isImporting}
+                tooltip="Bucht die restlichen Zeilen der Datei zum Stichtag."
                 onClick={() => void handleImport()}
               >
                 {isImporting ? "Wird übernommen…" : "Erneut versuchen"}
@@ -762,6 +775,7 @@ function OpeningBalanceImportPageContent() {
             variant="outline"
             size="md"
             className="flex-1"
+            tooltip={DISCARD_UPLOAD_HINT}
             onClick={resetAll}
           >
             Abbrechen
@@ -772,6 +786,12 @@ function OpeningBalanceImportPageContent() {
             size="md"
             className="flex-1"
             disabled={importable === 0 || isImporting}
+            disabledReason={
+              isImporting
+                ? undefined
+                : "Die Datei enthält keine Zeile, die sich buchen lässt."
+            }
+            tooltip="Bucht Stundensaldo und Urlaub der fehlerfreien Zeilen zum Stichtag."
             onClick={() => void handleImport()}
           >
             {importButtonLabel}

@@ -14,5 +14,9 @@
   "passwordCopied": "Fjalëkalimi i aplikacionit u kopjua.",
   "passwordOnce": "Fjalëkalimin e aplikacionit e shihni vetëm tani. Ruajeni menjëherë në programin e kalendarit.",
   "passwordHidden": "Fjalëkalimi i aplikacionit është shfaqur tashmë. Nëse nuk e keni më, krijoni të dhëna të reja hyrjeje.",
-  "caldavUnavailable": "Lidhja nuk është e disponueshme tani. Ju lutemi provoni përsëri."
+  "caldavUnavailable": "Lidhja nuk është e disponueshme tani. Ju lutemi provoni përsëri.",
+  "rotateHint": "Krijon menjëherë të dhëna të reja hyrjeje, abonimi i vjetër përfundon.",
+  "copyAddressHint": "Kopjon adresën për ta ngjitur në programin e kalendarit.",
+  "copyUsernameHint": "Kopjon emrin e përdoruesit për ta ngjitur në programin e kalendarit.",
+  "copyPasswordHint": "Kopjon fjalëkalimin e aplikacionit për ta ngjitur në programin e kalendarit."
 }

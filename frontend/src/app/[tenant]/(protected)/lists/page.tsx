@@ -2064,18 +2064,22 @@ export default function SlotListsPage() {
     { kind: "header", label: "Drucken oder exportieren" },
     {
       label: isExporting ? "Erstelle PDF…" : "Drucken",
+      description: "Öffnet die Liste als PDF zum Drucken.",
       icon: <Printer className="h-4 w-4" aria-hidden />,
       onClick: () => void handleExport("pdf", "print"),
       disabled: exportBlocked,
     },
     {
       label: "PDF herunterladen",
+      description: "Speichert die angezeigte Liste als PDF auf Ihrem Gerät.",
       icon: <Download className="h-4 w-4" aria-hidden />,
       onClick: () => void handleExport("pdf", "download"),
       disabled: exportBlocked,
     },
     {
       label: "Excel herunterladen",
+      description:
+        "Speichert die angezeigte Liste als Excel-Datei auf Ihrem Gerät.",
       icon: <FileSpreadsheet className="h-4 w-4" aria-hidden />,
       onClick: () => void handleExport("xlsx", "download"),
       disabled: exportBlocked,
@@ -2296,6 +2300,7 @@ export default function SlotListsPage() {
                 type="button"
                 variant="ghost"
                 size="compact"
+                tooltip="Nimmt wieder alle geplanten Angebote in die Liste auf."
                 onClick={() => {
                   setSelectedSlotIds(null);
                   replaceListUrl({ selectedSlotIds: null });
@@ -2439,6 +2444,7 @@ export default function SlotListsPage() {
                   type="button"
                   variant="outline"
                   size="compact"
+                  tooltip="Entfernt alle Filter und zeigt die ganze Liste."
                   onClick={resetFilterLink}
                 >
                   Filter zurücksetzen

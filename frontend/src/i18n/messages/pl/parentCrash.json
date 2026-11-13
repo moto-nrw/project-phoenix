@@ -1,5 +1,6 @@
 {
   "title": "Nie udało się wyświetlić strony",
   "object": "strona",
-  "home": "Do strony głównej"
+  "home": "Do strony głównej",
+  "homeTooltip": "Otwiera stronę startową aplikacji dla rodziców."
 }

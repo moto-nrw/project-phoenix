@@ -87,6 +87,8 @@ export function ExportFileNumberCard({
               variant="outline"
               size="field"
               disabled={!valid}
+              disabledReason="Geben Sie zuerst eine ganze Zahl ab 1 ein."
+              tooltip="Legt die erste Dateinummer für immer fest. moto fragt vorher nach."
               onClick={() => setConfirming(true)}
             >
               Festlegen

@@ -13,6 +13,10 @@ import type { HolidayAllocationMode, HolidayPeriod } from "~/lib/traeger-api";
 import { traegerPath } from "~/lib/traeger-url";
 import { formatDateRange, holidayStatusLabel } from "./holiday-period-format";
 
+/** Was ein Klick auf die Kriterien der Platzvergabe tut (#6747). */
+export const HOLIDAY_CRITERIA_HINT =
+  "Öffnet die Kriterien für alle Ferien mit Vergabe nach Kriterien.";
+
 export type HolidayPeriodTab =
   "planung" | "formular" | "anmeldungen" | "plaetze" | "vergabe";
 

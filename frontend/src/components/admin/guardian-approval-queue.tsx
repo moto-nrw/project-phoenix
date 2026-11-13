@@ -128,6 +128,7 @@ function ApprovalsEmptyState({
               variant="outline"
               size="md"
               onClick={() => router.push("/settings?tab=operations")}
+              tooltip="Öffnet die Einstellung, ob Einladungen der Eltern eine Freigabe brauchen."
             >
               Zu den Einstellungen
             </Button>
@@ -167,6 +168,7 @@ function InviteModeDependentEmptyState({
         error={{
           message:
             "Die Einladungs-Einstellung konnte nicht geladen werden. Darum ist unklar, warum hier keine Anfragen stehen.",
+          // oxlint-disable-next-line ui-kit/menu-item-needs-description -- Wiederholen im Fehlerkasten, kein Menüeintrag.
           retry: { label: "Wiederholen", onClick: state.retry },
           attempt: 0,
         }}
@@ -395,6 +397,7 @@ export default function GuardianApprovalQueue({
                   size="md"
                   isLoading={actingId === req.id}
                   onClick={() => void handleApprove(req)}
+                  tooltip="Gibt der Person Zugang zum Kind und schickt ihr sofort eine E-Mail."
                 >
                   <Check className="mr-1 h-4 w-4" />
                   Freigeben
@@ -405,6 +408,7 @@ export default function GuardianApprovalQueue({
                   size="md"
                   disabled={actingId === req.id}
                   onClick={() => setRejectTarget(req)}
+                  tooltip="Lehnt die Anfrage ab, ohne Zugang und ohne E-Mail. moto fragt vorher nach."
                 >
                   <X className="mr-1 h-4 w-4" />
                   Ablehnen

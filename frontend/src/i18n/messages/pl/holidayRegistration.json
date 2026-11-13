@@ -203,5 +203,6 @@
     "parent": "Rodzic",
     "guardian": "Opiekun prawny",
     "relative": "Krewny"
-  }
+  },
+  "accountHintLoginTooltip": "Otwiera logowanie, potem wrócą Państwo tutaj."
 }

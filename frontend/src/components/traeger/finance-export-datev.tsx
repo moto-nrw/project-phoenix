@@ -84,6 +84,7 @@ export function DatevReadinessNotice({
           href={traegerPath(DATEV_SETTINGS_PATH)}
           variant="ghost_tone"
           size="compact"
+          tooltip="Öffnet die Einstellungen, in denen die DATEV-Werte stehen."
         >
           DATEV-Werte eintragen
         </ButtonLink>
@@ -121,6 +122,10 @@ function datevProblemText(problem: DatevBookingProblem): string {
 
 /** Where the Träger keeps its revenue accounts and cost centers (#4821). */
 export const BOOKING_ACCOUNTS_PATH = "/traeger/abrechnung/exporte/konten";
+
+/** What every link to `BOOKING_ACCOUNTS_PATH` does (#6761). */
+export const BOOKING_ACCOUNTS_HINT =
+  "Öffnet die Seite „Konten und Kostenstellen“.";
 
 /**
  * One line per reason with the invoices it names, so a reason that applies
@@ -180,6 +185,7 @@ export function DatevRefusedNotice({
             href={traegerPath(BOOKING_ACCOUNTS_PATH)}
             variant="ghost_tone"
             size="compact"
+            tooltip={BOOKING_ACCOUNTS_HINT}
           >
             Konten und Kostenstellen
           </ButtonLink>

@@ -324,6 +324,12 @@ function BillingRunsPage() {
           variant="primary"
           size="md"
           disabled={!data || noPeriod}
+          disabledReason={
+            noPeriod
+              ? "Zuerst braucht es einen veröffentlichten Ferienzeitraum."
+              : undefined
+          }
+          tooltip="Öffnet ein Fenster, um einen Lauf für einen Ferienzeitraum zu starten."
           aria-describedby={noPeriod ? "billing-run-needs-period" : undefined}
           onClick={() => setStarting(true)}
         >

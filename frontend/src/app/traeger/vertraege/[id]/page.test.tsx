@@ -389,9 +389,11 @@ describe("TraegerVertragPage", () => {
 
       expect(await screen.findByText(text)).toBeInTheDocument();
       expect(screen.queryByText(/Prüfen Sie die Adresse/)).toBeNull();
-      expect(
-        screen.getByRole("button", { name: "Erneut senden" }),
-      ).toBeDisabled();
+      const resend = screen.getByRole("button", { name: "Erneut senden" });
+      expect(resend).toHaveAttribute("aria-disabled", "true");
+      expect(resend).toHaveAccessibleDescription(expect.stringMatching(/\S/));
+      fireEvent.click(resend);
+      expect(api.sendCareContracts).not.toHaveBeenCalled();
     },
   );
 
@@ -463,7 +465,7 @@ describe("TraegerVertragPage", () => {
     renderPage();
     expect(
       await screen.findByRole("button", { name: "Erneut senden" }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.getByText(/Die Mail wartet auf den Versand/),
     ).toBeInTheDocument();

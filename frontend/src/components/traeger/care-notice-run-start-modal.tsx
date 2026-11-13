@@ -164,6 +164,11 @@ export function CareNoticeRunStartModal({
                 type="button"
                 variant="link"
                 size="md"
+                tooltip={
+                  allSelected
+                    ? "Nimmt bei allen Schulen den Haken weg."
+                    : "Setzt bei allen Schulen den Haken für den Jahreslauf."
+                }
                 onClick={() =>
                   setSelected(
                     allSelected ? [] : schools.map((school) => school.id),

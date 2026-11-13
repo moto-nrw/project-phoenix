@@ -140,7 +140,13 @@ export function CareRulesCard({
         ) : null
       }
       action={
-        <Button type="button" variant="outline" size="md" onClick={onCreate}>
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          tooltip="Öffnet ein Fenster für eine neue Regel mit Monaten und Schulen."
+          onClick={onCreate}
+        >
           {CREATE_LABELS[kind]}
         </Button>
       }
@@ -172,11 +178,14 @@ export function CareRulesCard({
                       {
                         icon: <Pencil className="size-4" aria-hidden />,
                         label: "Ändern",
+                        description: "Monate, Schulen und Wirkung der Regel",
                         onClick: () => onEdit(rule),
                       },
                       {
                         label: "Löschen",
                         icon: <Trash2 className="size-4" aria-hidden />,
+                        description:
+                          "Gilt ab dem nächsten Lauf nicht mehr, moto fragt vorher nach",
                         destructive: true,
                         onClick: () => onDelete(rule),
                       },

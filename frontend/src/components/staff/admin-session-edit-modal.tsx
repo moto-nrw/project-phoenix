@@ -258,6 +258,20 @@ export function AdminSessionEditModal({
       ? `Eintrag bearbeiten · ${formatLongDate(date)}`
       : `Eintrag nachtragen · ${formatLongDate(date)}`;
 
+  // Gesperrt wegen ungültiger Eingabe: der Knopf nennt, was zuerst fehlt.
+  // Während des Speicherns bleibt er nativ gesperrt, ohne Grund.
+  const saveBlockedReason = isSaving
+    ? undefined
+    : !notesValid
+      ? "Geben Sie zuerst eine Begründung ein."
+      : !timesValid
+        ? "Prüfen Sie zuerst Beginn und Ende."
+        : hasActiveBreak
+          ? "Die laufende Pause muss die Person zuerst beenden."
+          : !breakValid
+            ? "Prüfen Sie zuerst die Pause."
+            : undefined;
+
   const footer = (
     <div className="flex w-full flex-col-reverse gap-2 sm:flex-row sm:justify-end">
       <Button
@@ -266,6 +280,7 @@ export function AdminSessionEditModal({
         size="md"
         onClick={onClose}
         disabled={isSaving}
+        noTooltip="Abbrechen schließt den Dialog, ohne etwas zu ändern."
       >
         Abbrechen
       </Button>
@@ -275,6 +290,12 @@ export function AdminSessionEditModal({
         size="md"
         onClick={handleSubmit}
         disabled={isSaving || !notesValid || !timesValid || !breakValid}
+        disabledReason={saveBlockedReason}
+        tooltip={
+          mode === "edit"
+            ? "Ändert den Eintrag und zeigt die Begründung im Verlauf der Person."
+            : "Trägt die Zeit nach und zeigt die Begründung im Verlauf der Person."
+        }
       >
         {isSaving
           ? "Speichern…"

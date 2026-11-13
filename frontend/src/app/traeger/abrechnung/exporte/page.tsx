@@ -172,6 +172,7 @@ function MorePages({
         size="md"
         isLoading={loading}
         loadingText="Wird geladen …"
+        tooltip="Zeigt weitere Einträge unten in der Liste an."
         onClick={onMore}
       >
         Ältere anzeigen
@@ -370,6 +371,7 @@ export default function TraegerFinanceExportsPage() {
             href={traegerPath(EXPORT_RECIPIENT_PATH)}
             variant="outline"
             size="md"
+            tooltip="Öffnet die Empfänger, an die moto die Exporte schickt."
           >
             Empfänger der Exporte
           </ButtonLink>
@@ -377,6 +379,7 @@ export default function TraegerFinanceExportsPage() {
             href={traegerPath(DATEV_SETTINGS_PATH)}
             variant="outline"
             size="md"
+            tooltip="Öffnet die DATEV-Werte in den Einstellungen."
           >
             DATEV-Werte
           </ButtonLink>
@@ -384,6 +387,7 @@ export default function TraegerFinanceExportsPage() {
             href={traegerPath("/traeger/abrechnung/exporte/feldzuordnung")}
             variant="outline"
             size="md"
+            tooltip="Öffnet die Spalten der Sollstellung für die Kämmerei zum Ändern."
           >
             Feldzuordnung
           </ButtonLink>
@@ -391,6 +395,7 @@ export default function TraegerFinanceExportsPage() {
             href={traegerPath(BOOKING_ACCOUNTS_PATH)}
             variant="outline"
             size="md"
+            tooltip="Öffnet die Erlöskonten und Kostenstellen für DATEV-Datei und Sollstellung."
           >
             Konten und Kostenstellen
           </ButtonLink>

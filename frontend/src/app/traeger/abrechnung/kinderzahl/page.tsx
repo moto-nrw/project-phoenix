@@ -286,6 +286,8 @@ export default function TraegerKinderzahlPage() {
               label: family.count?.confirmedChildren
                 ? "Kinderzahl ändern"
                 : "Kinderzahl bestätigen",
+              description:
+                "Öffnet ein Fenster, um die Kinderzahl zu bestätigen oder zu ändern",
               onClick: () => setChecking(family),
             },
             ...(family.count
@@ -293,6 +295,8 @@ export default function TraegerKinderzahlPage() {
                   {
                     label: "Kinderzahl entfernen",
                     icon: <Trash2 className="size-4" aria-hidden />,
+                    description:
+                      "moto fragt vorher nach, dann zählen neue Läufe nur Kinder mit Vertrag",
                     destructive: true,
                     onClick: () => setRemoving(family),
                   },
@@ -433,6 +437,7 @@ export default function TraegerKinderzahlPage() {
                       variant="surface"
                       size="compact"
                       aria-label={`Kinderzahl von ${familyName(family)} prüfen`}
+                      tooltip="Öffnet ein Fenster, um die Kinderzahl zu bestätigen oder zu ändern."
                       onClick={() => setChecking(family)}
                     >
                       Prüfen
@@ -449,6 +454,11 @@ export default function TraegerKinderzahlPage() {
               size="compact"
               className="mt-3"
               aria-expanded={checksExpanded}
+              tooltip={
+                checksExpanded
+                  ? "Zeigt wieder nur die ersten Familien der Liste."
+                  : "Zeigt alle Familien, deren Kinderzahl Sie prüfen müssen."
+              }
               onClick={() => setChecksExpanded((open) => !open)}
             >
               {checksExpanded ? (

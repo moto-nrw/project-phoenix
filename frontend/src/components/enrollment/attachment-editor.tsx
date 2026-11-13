@@ -174,6 +174,7 @@ export function AttachmentEditor({
                     className="gap-2"
                     disabled={busy}
                     aria-label={`PDF ${index + 1} ersetzen`}
+                    tooltip="Tauscht die PDF aus, wirksam erst nach dem Speichern."
                     onClick={() => {
                       replacing.current = attachment.document_url;
                       replacementPicker.current?.click();
@@ -188,7 +189,7 @@ export function AttachmentEditor({
                     size="icon"
                     disabled={busy}
                     aria-label={`PDF ${index + 1} entfernen`}
-                    title="PDF entfernen"
+                    tooltip="Nimmt die PDF aus der Liste, wirksam erst nach dem Speichern."
                     onClick={() =>
                       onChange(attachments.filter((_, i) => i !== index))
                     }
@@ -232,6 +233,7 @@ export function AttachmentEditor({
           disabled={busy}
           isLoading={uploading}
           loadingText="PDFs werden hochgeladen…"
+          tooltip="Hängt PDF-Dateien an, wirksam erst nach dem Speichern."
           onClick={() => picker.current?.click()}
         >
           <Plus className="h-4 w-4 shrink-0" aria-hidden="true" />

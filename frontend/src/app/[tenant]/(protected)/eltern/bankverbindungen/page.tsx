@@ -244,6 +244,8 @@ function BankverbindungenContent() {
           items={[
             {
               label: "Exportieren",
+              description:
+                "Öffnet den Export aller Bankverbindungen mit ganzer IBAN.",
               icon: <Download className="h-4 w-4" aria-hidden />,
               onClick: () => setExportOpen(true),
               disabled: exportUnavailable,

@@ -4,6 +4,8 @@
     "download": "İndir",
     "openLabel": "{label} aç",
     "downloadLabel": "{label} indir",
+    "openHint": "PDF'yi yeni bir sekmede açar.",
+    "downloadHint": "PDF'yi bu cihaza kaydeder.",
     "errorObject": "PDF dosyası",
     "popupBlocked": "Lütfen yeni bir pencerenin açılmasına izin verin."
   },

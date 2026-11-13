@@ -246,6 +246,7 @@ export function SepaCreditorCard({
           type="button"
           variant="outline"
           size="md"
+          tooltip="Öffnet Gläubiger-ID, Vorabankündigung und Regel ohne Mandat zum Bearbeiten."
           onClick={() => setEditing(true)}
         >
           Ändern
@@ -281,6 +282,7 @@ export function SepaCreditorCard({
                 href={traegerPath(ONLINE_MANDATE_SETTINGS_PATH)}
                 variant="link"
                 size="md"
+                tooltip="Öffnet die Einstellung, ob Eltern das Mandat in der App erteilen."
               >
                 In den Einstellungen ändern
               </ButtonLink>

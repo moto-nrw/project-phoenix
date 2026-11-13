@@ -4,6 +4,8 @@
     "download": "Завантажити",
     "openLabel": "Відкрити {label}",
     "downloadLabel": "Завантажити {label}",
+    "openHint": "Відкриває PDF у новій вкладці.",
+    "downloadHint": "Зберігає PDF на цьому пристрої.",
     "errorObject": "PDF-файл",
     "popupBlocked": "Дозвольте відкрити нове вікно."
   },

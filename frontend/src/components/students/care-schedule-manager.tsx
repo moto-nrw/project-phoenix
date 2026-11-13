@@ -293,6 +293,11 @@ function getAbsenceStatus(
   return null;
 }
 
+// Wochenwechsel am Desktop und auf dem Handy erklären sich gleich (#6765).
+const PREVIOUS_WEEK_HINT = "Zeigt die Betreuungszeiten der Woche davor.";
+const NEXT_WEEK_HINT = "Zeigt die Betreuungszeiten der Woche danach.";
+const CURRENT_WEEK_HINT = "Springt zurück zu den Zeiten dieser Woche.";
+
 export function CareScheduleManager({
   studentId,
   readOnly = false,
@@ -1050,6 +1055,7 @@ export function CareScheduleManager({
               type="button"
               variant="outline"
               size="md"
+              tooltip={CURRENT_WEEK_HINT}
               onClick={showCurrentWeek}
               disabled={isCurrentWeek}
               className="disabled:hidden"
@@ -1066,6 +1072,7 @@ export function CareScheduleManager({
                 variant="outline"
                 size="md"
                 className="gap-1.5"
+                tooltip="Öffnet die festen Zeiten jeder Woche zum Bearbeiten."
                 onClick={() => {
                   setRosterImpact(null);
                   setIsEditingWeekly(true);
@@ -1087,6 +1094,7 @@ export function CareScheduleManager({
               variant="surface"
               size="md"
               aria-label="Vorherige Woche"
+              tooltip={PREVIOUS_WEEK_HINT}
               onClick={() => moveWeek(-1)}
               className="gap-1.5"
             >
@@ -1103,6 +1111,7 @@ export function CareScheduleManager({
               type="button"
               variant="surface"
               size="md"
+              tooltip={CURRENT_WEEK_HINT}
               onClick={showCurrentWeek}
               className="absolute left-1/2 hidden -translate-x-1/2 sm:inline-flex"
             >
@@ -1115,6 +1124,7 @@ export function CareScheduleManager({
               variant="surface"
               size="md"
               aria-label="Nächste Woche"
+              tooltip={NEXT_WEEK_HINT}
               onClick={() => moveWeek(1)}
               className="gap-1.5"
             >
@@ -1277,6 +1287,7 @@ function MobileCareWeek({
           variant="surface"
           size="icon"
           aria-label="Vorherige Woche"
+          tooltip={PREVIOUS_WEEK_HINT}
           onClick={onPreviousWeek}
         >
           <ChevronLeft className="h-4 w-4" aria-hidden="true" />
@@ -1289,6 +1300,7 @@ function MobileCareWeek({
           variant="surface"
           size="icon"
           aria-label="Nächste Woche"
+          tooltip={NEXT_WEEK_HINT}
           onClick={onNextWeek}
         >
           <ChevronRight className="h-4 w-4" aria-hidden="true" />
@@ -1443,7 +1455,11 @@ function CareDayCard({
               variant="surface"
               size="compact"
               onClick={() => onEditDay(day.date)}
-              title={hasException ? "Ausnahme ändern" : "Ausnahme eintragen"}
+              tooltip={
+                hasException
+                  ? "Öffnet die Ausnahme dieses Tages zum Ändern."
+                  : "Öffnet ein Fenster für eine Abweichung nur an diesem Tag."
+              }
             >
               <SquarePen className="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
               Ausnahme

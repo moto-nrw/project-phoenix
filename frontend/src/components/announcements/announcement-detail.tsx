@@ -430,6 +430,11 @@ function PollResultsPanel({
                   variant="ghost"
                   size="compact"
                   onClick={() => setOnlyOpen((prev) => !prev)}
+                  tooltip={
+                    onlyOpen
+                      ? "Zeigt wieder alle Kinder mit ihren Antworten."
+                      : "Zeigt nur Kinder, für die noch keine Antwort da ist."
+                  }
                 >
                   {onlyOpen ? "Alle anzeigen" : "Nur offene"}
                 </Button>
@@ -478,6 +483,7 @@ function PollResultsPanel({
               onClick={() => void handleRemind()}
               isLoading={reminding}
               loadingText="Wird gesendet…"
+              tooltip="Schickt den Eltern ohne Antwort sofort eine Erinnerung."
               className="mt-4 gap-1.5"
             >
               <BellRing className="size-4" aria-hidden />
