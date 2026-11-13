@@ -167,6 +167,8 @@ func NewUsersResource(module peopleModule.Capability, accountEmails func(context
 				apiCommon.RenderError(w, r, apiCommon.ErrorNotFound(err))
 			case usersAPI.FailureConflict:
 				apiCommon.RenderError(w, r, apiCommon.ErrorConflict(err))
+			case usersAPI.FailurePersonHasActiveProfile:
+				apiCommon.RenderError(w, r, apiCommon.ErrorConflictWithCode(err, apiCommon.CodeStudentsPersonHasActiveProfile))
 			default:
 				apiCommon.RenderError(w, r, apiCommon.ErrorInternalServerWrap("Internal server error", err))
 			}

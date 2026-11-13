@@ -83,7 +83,9 @@ func (p *Provisioning) listPersons(ctx context.Context, schools []organizationte
 // Wiederaufnahme (ADR 0021), but the offboarding already closed that login at
 // this school and the account may still serve another school or the parents
 // portal, so it is only unlinked. A staff member who still supervises a group
-// cannot be deleted.
+// cannot be deleted, and neither can a child or a live staff member: the
+// school removes those through the student deletion or the offboarding
+// first, which clean up behind them (#6840).
 func (p *Provisioning) SoftDeletePerson(ctx context.Context, personID int64, operatorID int64, clientIP net.IP) error {
 	if personID <= 0 {
 		return invalidData("person id is required")
@@ -96,7 +98,7 @@ func (p *Provisioning) SoftDeletePerson(ctx context.Context, personID int64, ope
 		if !found {
 			return &organizationtenancy.PersonNotFoundError{PersonID: personID}
 		}
-		if err := p.ensureNoActiveSupervision(adminCtx, personID); err != nil {
+		if err := p.ensureDeletable(adminCtx, person); err != nil {
 			return err
 		}
 		if err := p.unlinkPersonCard(adminCtx, person); err != nil {
@@ -121,6 +123,19 @@ func (p *Provisioning) SoftDeletePerson(ctx context.Context, personID int64, ope
 		)
 		return nil
 	})
+}
+
+// ensureDeletable refuses the deletion of a supervising staff member, a live
+// staff member and a child (#6840). The supervision answer comes first: it
+// names what the school has to end.
+func (p *Provisioning) ensureDeletable(ctx context.Context, person domain.Person) error {
+	if err := p.ensureNoActiveSupervision(ctx, person.ID); err != nil {
+		return err
+	}
+	if person.LiveStaff || person.Student {
+		return &organizationtenancy.PersonHasActiveProfileError{PersonID: person.ID}
+	}
+	return nil
 }
 
 // ensureNoActiveSupervision refuses the deletion of a staff member with an

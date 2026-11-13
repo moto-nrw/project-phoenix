@@ -87,6 +87,7 @@ export const OPERATOR_PORTAL_ERROR_CODES = [
   "provisioning.device_same_school",
   "provisioning.person_not_found",
   "provisioning.person_has_supervisions",
+  "provisioning.person_has_active_profile",
   "provisioning.caregiver_capability_blocked",
   // School settings (`modules/settings/inbound/operator/settings.go`).
   "settings.not_found",

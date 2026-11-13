@@ -50,10 +50,43 @@ func (s *Service) DeletePerson(ctx context.Context, id int64) error {
 		if err := s.requireLocked(txCtx, id, stats); err != nil {
 			return err
 		}
+		if err := s.requireNoLiveProfile(txCtx, id); err != nil {
+			return err
+		}
 		deleteStats, err := s.store.SoftDelete(txCtx, id)
 		stats.Add(deleteStats)
 		return err
 	})
+}
+
+// errLiveStaffUnbound names a composition that reaches a person deletion
+// without the School Membership seam behind it. It refuses rather than
+// guesses, so an unwired graph cannot orphan a staff membership.
+var errLiveStaffUnbound = errors.New("people directory: live staff lookup is not configured")
+
+// requireNoLiveProfile refuses to retire a person that a child or a live
+// staff membership still names (#6840). It runs under the person's row lock:
+// a staff creation locks the person before it commits, so none can slip in
+// behind the check.
+func (s *Service) requireNoLiveProfile(ctx context.Context, personID int64) error {
+	if s.students == nil || s.liveStaff == nil {
+		return errLiveStaffUnbound
+	}
+	students, err := s.students.ListByPersonIDs(ctx, []int64{personID})
+	if err != nil {
+		return err
+	}
+	if len(students) > 0 {
+		return peopledirectory.ErrPersonHasActiveProfile
+	}
+	_, staff, err := s.liveStaff.FindStaffIDByPerson(ctx, personID)
+	if err != nil {
+		return err
+	}
+	if staff {
+		return peopledirectory.ErrPersonHasActiveProfile
+	}
+	return nil
 }
 
 func (s *Service) FindPerson(ctx context.Context, id int64) (peopledirectory.Person, error) {

@@ -30,6 +30,9 @@ const (
 	FailureInternal       FailureKind = "internal"
 	FailureUnauthorized   FailureKind = "unauthorized"
 	FailureForbidden      FailureKind = "forbidden"
+	// FailurePersonHasActiveProfile is the conflict of a person deletion a
+	// child or live staff membership still blocks (#6840).
+	FailurePersonHasActiveProfile FailureKind = "person_has_active_profile"
 )
 
 type Pagination struct {
@@ -343,6 +346,8 @@ func classifyModuleError(err error) FailureKind {
 		return FailureInvalidRequest
 	case errors.Is(err, peopledirectory.ErrTagConflict), errors.Is(err, peopledirectory.ErrAccountConflict):
 		return FailureConflict
+	case errors.Is(err, peopledirectory.ErrPersonHasActiveProfile):
+		return FailurePersonHasActiveProfile
 	default:
 		return FailureInternal
 	}
@@ -354,7 +359,7 @@ func statusOf(kind FailureKind) int {
 		return http.StatusBadRequest
 	case FailureNotFound:
 		return http.StatusNotFound
-	case FailureConflict:
+	case FailureConflict, FailurePersonHasActiveProfile:
 		return http.StatusConflict
 	case FailureUnauthorized:
 		return http.StatusUnauthorized

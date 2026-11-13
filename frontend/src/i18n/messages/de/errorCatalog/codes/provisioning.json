@@ -28,5 +28,6 @@
   "device_same_school": "Das Gerät gehört schon zu dieser Schule. Bitte wählen Sie eine andere Schule.",
   "person_not_found": "Diese Person gibt es nicht mehr. Bitte laden Sie die Seite neu.",
   "person_has_supervisions": "Diese Person führt gerade eine Aufsicht. Bitte beenden Sie die Aufsicht zuerst.",
-  "caregiver_capability_blocked": "Die Betreuungsrolle kann noch nicht entfernt werden, weil die Person noch eingeplant ist. Bitte lösen Sie diese Zuordnungen zuerst."
+  "caregiver_capability_blocked": "Die Betreuungsrolle kann noch nicht entfernt werden, weil die Person noch eingeplant ist. Bitte lösen Sie diese Zuordnungen zuerst.",
+  "person_has_active_profile": "Diese Person ist noch als Kind oder Fachkraft an der Schule angelegt. Die Schule muss das Kind löschen oder den Austritt der Fachkraft eintragen."
 }

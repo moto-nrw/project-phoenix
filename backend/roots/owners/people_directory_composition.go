@@ -31,6 +31,7 @@ func ComposePeopleDirectory(
 	guardianMemberships peopleCompose.GuardianMembershipQuery,
 ) (*peopleCompose.Directory, error) {
 	directory.StudentOwners = NewStudentOwners(membership, careProfiles)
+	directory.LiveStaff = membership
 	directory.StudentFieldAudit = studentFieldAuditLog{repo: audit.StudentFieldEdit}
 	directory.StudentNoteDeletionAudit = studentNoteDeletionAudit{repo: audit.DataDeletion}
 	directory.StudentConsentHistory = studentConsentHistory{repo: audit.StudentConsentChange}

@@ -32,6 +32,7 @@ type StudentDirectoryRows = postgres.StudentDirectory
 type GuardianMembershipQuery func(context.Context, []int64) (map[int64][]int64, error)
 
 type Dependencies struct {
+	LiveStaff                  peoplePorts.LiveStaffProfiles // optional; without it person deletions are refused
 	StudentOwners              peoplePorts.StudentOwners
 	StudentClassWriteGateQuery func(context.Context) (*bun.SelectQuery, error)
 	DB                         *bun.DB
@@ -68,11 +69,9 @@ type Dependencies struct {
 	// GuardianRolePresets is the role policy the guardian lifecycle links and
 	// promotes with. Optional on the same terms.
 	GuardianRolePresets peoplePorts.GuardianRolePresets
-	// GuardianLinkRows is the guardian link projection the root binds; without
-	// it the link reads fail closed.
+	// GuardianLinkRows is the root-bound guardian link projection; reads fail closed without it.
 	GuardianLinkRows postgres.GuardianLinks
-	// Now is the clock a granted photo consent is stamped with. Optional;
-	// time.Now by default.
+	// Now stamps a granted photo consent. Optional; time.Now by default.
 	Now func() time.Time
 	// GuardianProvider serves the guardian, phone-number and link
 	// capability. Optional: without it those flows refuse with
@@ -135,6 +134,7 @@ func New(dependencies Dependencies, memberships GuardianMembershipQuery) (*Direc
 		StudentAudit: studentAudit, StudentConsents: studentConsents,
 		StudentPhotos: studentPhotos, StudentNotes: studentNotes,
 		GuardianLifecycle: application.NewGuardianLifecycle(guardians, dependencies.GuardianRolePresets),
+		LiveStaff:         dependencies.LiveStaff,
 	}, providers...)
 	return &Directory{
 		Owner: service, students: students,

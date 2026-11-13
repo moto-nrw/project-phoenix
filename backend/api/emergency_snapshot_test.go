@@ -309,7 +309,10 @@ func TestEmergencySnapshotPersonIdentityFilteringMatchesRetainedReader(t *testin
 	require.NoError(t, err)
 	require.Len(t, beforeOld, 1)
 	require.Len(t, beforeNew, 1)
-	require.NoError(t, people.DeletePerson(ctx, student.PersonID))
+	// The person deletion refuses a child's person since #6840; the fixture
+	// writes the deleted-person state the readers must both filter directly.
+	_, err = db.NewRaw(`UPDATE users.persons SET deleted_at = now() WHERE id = ?`, student.PersonID).Exec(ctx)
+	require.NoError(t, err)
 	afterOld, err := testpkg.TenantQuery1(t, ctx, db, old.FindByIDs, ids)
 	require.NoError(t, err)
 	afterNew, err := people.ListPersonsByID(ctx, ids)
