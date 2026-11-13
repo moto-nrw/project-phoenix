@@ -1,4 +1,4 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"context"
@@ -20,6 +20,8 @@ import (
 	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 type conflictServiceStub struct {
@@ -59,13 +61,13 @@ func responseCode(t *testing.T, w *httptest.ResponseRecorder) string {
 func TestResolveRequestConflictForwardsTheWholeGroup(t *testing.T) {
 	t.Parallel()
 	svc := &conflictServiceStub{}
-	rs := testResource(ResourceConfig{
+	rs := testResource(careplanhttp.ResourceConfig{
 		ParentRequestConflictService: svc})
 	w, req := resolveConflictRequest(t, `{"kind":"excused","request_ids":["12","13"],`+
 		`"expected_versions":["v1","v2"],"chosen_request_id":"13",`+
 		`"conflict_key":"absence:2026-09-01","reason":"Mit den Eltern geklärt"}`)
 
-	rs.resolveRequestConflict(w, req)
+	serveRoute(t, rs, w, req)
 
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.Equal(t, parentrequests.KindExcused, svc.input.Kind)
@@ -81,12 +83,12 @@ func TestResolveRequestConflictForwardsTheWholeGroup(t *testing.T) {
 func TestResolveRequestConflictForwardsAStaffValueUnread(t *testing.T) {
 	t.Parallel()
 	svc := &conflictServiceStub{}
-	rs := testResource(ResourceConfig{
+	rs := testResource(careplanhttp.ResourceConfig{
 		ParentRequestConflictService: svc})
 	w, req := resolveConflictRequest(t, `{"kind":"pickup_change","request_ids":["12","13"],`+
 		`"expected_versions":["v1","v2"],"staff_value":{"value":"15:30"},"reason":"Kompromiss"}`)
 
-	rs.resolveRequestConflict(w, req)
+	serveRoute(t, rs, w, req)
 
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.JSONEq(t, `{"value":"15:30"}`, string(svc.input.StaffValue),
@@ -97,12 +99,12 @@ func TestResolveRequestConflictForwardsAStaffValueUnread(t *testing.T) {
 func TestResolveRequestConflictRejectsMalformedIDs(t *testing.T) {
 	t.Parallel()
 	svc := &conflictServiceStub{err: errors.New("must not be called")}
-	rs := testResource(ResourceConfig{
+	rs := testResource(careplanhttp.ResourceConfig{
 		ParentRequestConflictService: svc})
 	w, req := resolveConflictRequest(t, `{"kind":"excused","request_ids":["12","no"],`+
 		`"expected_versions":["v1","v2"],"none":true,"reason":"Geklärt"}`)
 
-	rs.resolveRequestConflict(w, req)
+	serveRoute(t, rs, w, req)
 
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 	assert.False(t, svc.called)
@@ -110,11 +112,11 @@ func TestResolveRequestConflictRejectsMalformedIDs(t *testing.T) {
 
 func TestResolveRequestConflictAnswersWithoutAWiredService(t *testing.T) {
 	t.Parallel()
-	rs := &Resource{}
+	rs := &careplanhttp.Resource{}
 	w, req := resolveConflictRequest(t, `{"kind":"excused","request_ids":["12","13"],`+
 		`"expected_versions":["v1","v2"],"none":true,"reason":"Geklärt"}`)
 
-	rs.resolveRequestConflict(w, req)
+	serveRoute(t, rs, w, req)
 
 	assert.Equal(t, http.StatusInternalServerError, w.Code,
 		"deciding the group one by one is the bug this route exists to prevent")
@@ -147,14 +149,14 @@ func TestResolveRequestConflictErrorCodes(t *testing.T) {
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
 			t.Parallel()
-			rs := testResource(ResourceConfig{
+			rs := testResource(careplanhttp.ResourceConfig{
 
 				ParentRequestConflictService: &conflictServiceStub{err: tt.err},
 			})
 			w, req := resolveConflictRequest(t, `{"kind":"excused","request_ids":["12","13"],`+
 				`"expected_versions":["v1","v2"],"none":true,"reason":"Geklärt"}`)
 
-			rs.resolveRequestConflict(w, req)
+			serveRoute(t, rs, w, req)
 
 			require.Equal(t, tt.want, w.Code, w.Body.String())
 			if tt.code != "" {

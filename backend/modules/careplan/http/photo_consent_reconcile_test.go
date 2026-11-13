@@ -1,10 +1,12 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"testing"
 	"time"
 
 	peopleState "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 func TestReconcilePhotoConsentRequest_StaleUnchangedValuesAreNoOp(t *testing.T) {
@@ -34,7 +36,7 @@ func TestReconcilePhotoConsentRequest_StaleUnchangedValuesAreNoOp(t *testing.T) 
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := reconcilePhotoConsentRequest(
+			got := careplanhttp.ReconcilePhotoConsentRequestForTest(
 				&tc.requested,
 				&peopleState.StudentState{PhotoConsentGivenAt: tc.snapshot},
 				&peopleState.StudentState{PhotoConsentGivenAt: tc.fresh},
@@ -73,7 +75,7 @@ func TestReconcilePhotoConsentRequest_UserTransitionsStillApply(t *testing.T) {
 
 	for _, tc := range tests {
 		t.Run(tc.name, func(t *testing.T) {
-			got := reconcilePhotoConsentRequest(
+			got := careplanhttp.ReconcilePhotoConsentRequestForTest(
 				&tc.requested,
 				&peopleState.StudentState{PhotoConsentGivenAt: tc.snapshot},
 				&peopleState.StudentState{PhotoConsentGivenAt: tc.fresh},

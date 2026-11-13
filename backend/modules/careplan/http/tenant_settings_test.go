@@ -1,4 +1,4 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"testing"
@@ -6,6 +6,8 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
 	"github.com/moto-ogs/project-phoenix/modules/settings"
 	"github.com/stretchr/testify/assert"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 // TestTenantSettingKeysMatchTheRegistry pins every key and value this
@@ -14,28 +16,29 @@ import (
 func TestTenantSettingKeysMatchTheRegistry(t *testing.T) {
 	t.Parallel()
 
-	assert.Equal(t, settings.KeyAttendanceLogEnabled, settingAttendanceLogEnabled)
-	assert.Equal(t, settings.KeyAttendanceVisibleDays, settingAttendanceVisibleDays)
-	assert.Equal(t, settings.KeyRoomDetailVisibleDays, settingRoomDetailVisibleDays)
-	assert.Equal(t, settings.KeyPrivacyConsentRetentionDays, settingPrivacyConsentRetentionDays)
-	assert.Equal(t, settings.KeyEnrollmentBookingsAuthoritative, settingEnrollmentBookingsAuthoritative)
-	assert.Equal(t, settings.KeyCareDefaultArrivalTime, settingCareDefaultArrivalTime)
-	assert.Equal(t, settings.KeyCareDefaultPickupTime, settingCareDefaultPickupTime)
-	assert.Equal(t, settings.KeyParentRequestReasonPolicy, settingParentRequestReasonPolicy)
+	keys := careplanhttp.TenantSettingKeysForTest
+	assert.Equal(t, settings.KeyAttendanceLogEnabled, keys.AttendanceLogEnabled)
+	assert.Equal(t, settings.KeyAttendanceVisibleDays, keys.AttendanceVisibleDays)
+	assert.Equal(t, settings.KeyRoomDetailVisibleDays, keys.RoomDetailVisibleDays)
+	assert.Equal(t, settings.KeyPrivacyConsentRetentionDays, keys.PrivacyConsentRetentionDays)
+	assert.Equal(t, settings.KeyEnrollmentBookingsAuthoritative, keys.EnrollmentBookingsAuthoritative)
+	assert.Equal(t, settings.KeyCareDefaultArrivalTime, keys.CareDefaultArrivalTime)
+	assert.Equal(t, settings.KeyCareDefaultPickupTime, keys.CareDefaultPickupTime)
+	assert.Equal(t, settings.KeyParentRequestReasonPolicy, keys.ParentRequestReasonPolicy)
 	assert.Equal(t, settings.ReasonPolicyNobody, parentrequests.ReasonPolicyNobody)
 	assert.Equal(t, settings.ReasonPolicyGuardians, parentrequests.ReasonPolicyGuardians)
 	assert.Equal(t, settings.ReasonPolicyStaff, parentrequests.ReasonPolicyStaff)
 	assert.Equal(t, settings.ReasonPolicyBoth, parentrequests.ReasonPolicyBoth)
-	assert.Equal(t, settings.KeySessionEndTime, settingSessionEndTime)
-	assert.Equal(t, settings.KeyStudentAbsenceEditScope, settingStudentAbsenceEditScope)
-	assert.Equal(t, settings.KeyPresenceMode, settingPresenceMode)
-	assert.Equal(t, settings.KeyStudentPhotosEnabled, settingStudentPhotosEnabled)
-	assert.Equal(t, settings.KeyClassArrivalExceptionEditors, settingClassArrivalExceptionEditors)
-	assert.Equal(t, settings.KeyFeedbackEnabled, settingFeedbackEnabled)
-	assert.Equal(t, settings.StudentAbsenceEditScopeAllStaff, studentAbsenceEditScopeAllStaff)
-	assert.Equal(t, settings.ClassArrivalExceptionEditorsAllStaff, classArrivalExceptionEditorsAllStaff)
-	assert.Equal(t, settings.SchoolPeriodCount, schoolPeriodCount)
-	for period := 1; period <= schoolPeriodCount; period++ {
-		assert.Equal(t, settings.SchoolPeriodEndKey(period), schoolPeriodEndSetting(period))
+	assert.Equal(t, settings.KeySessionEndTime, keys.SessionEndTime)
+	assert.Equal(t, settings.KeyStudentAbsenceEditScope, keys.StudentAbsenceEditScope)
+	assert.Equal(t, settings.KeyPresenceMode, keys.PresenceMode)
+	assert.Equal(t, settings.KeyStudentPhotosEnabled, keys.StudentPhotosEnabled)
+	assert.Equal(t, settings.KeyClassArrivalExceptionEditors, keys.ClassArrivalExceptionEditors)
+	assert.Equal(t, settings.KeyFeedbackEnabled, keys.FeedbackEnabled)
+	assert.Equal(t, settings.StudentAbsenceEditScopeAllStaff, keys.StudentAbsenceEditScopeAllStaff)
+	assert.Equal(t, settings.ClassArrivalExceptionEditorsAllStaff, keys.ClassArrivalExceptionEditorsAllStaff)
+	assert.Equal(t, settings.SchoolPeriodCount, keys.SchoolPeriodCount)
+	for period := 1; period <= keys.SchoolPeriodCount; period++ {
+		assert.Equal(t, settings.SchoolPeriodEndKey(period), keys.SchoolPeriodEnd(period))
 	}
 }

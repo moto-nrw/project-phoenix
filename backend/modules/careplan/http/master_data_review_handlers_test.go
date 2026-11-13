@@ -1,4 +1,4 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"context"
@@ -10,7 +10,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/go-chi/chi/v5"
 	"github.com/moto-ogs/project-phoenix/api/testutil"
 	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 	"github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests"
@@ -18,6 +17,8 @@ import (
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 type fakeMasterDataReviewService struct {
@@ -35,14 +36,9 @@ func (*fakeMasterDataReviewService) Correct(context.Context, int64, bool, string
 	return nil
 }
 
-func staffRequest(method, path, body string, requestID string) *http.Request {
+func staffRequest(method, path, body string) *http.Request {
 	req := httptest.NewRequest(method, path, strings.NewReader(body))
-	req = req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 55}))
-	rctx := chi.NewRouteContext()
-	if requestID != "" {
-		rctx.URLParams.Add("requestId", requestID)
-	}
-	return req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, rctx))
+	return req.WithContext(context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 55}))
 }
 
 func reviewItem(status string) *masterdatarequests.ReviewItem {
@@ -63,8 +59,8 @@ func reviewItem(status string) *masterdatarequests.ReviewItem {
 
 func TestMasterDataChangeRequestRoutesRequireUsersUpdate(t *testing.T) {
 	t.Parallel()
-	router := (testResource(ResourceConfig{
-		MasterDataReviewService: &fakeMasterDataReviewService{}})).Router(scopeTestTenantRoutes(testpkg.TenantSessionGatesWithCaches(scopeTestSettingsCache)))
+	router := (testResource(careplanhttp.ResourceConfig{
+		MasterDataReviewService: &fakeMasterDataReviewService{}})).Router(careplanhttp.ScopeTestTenantRoutes(testpkg.TenantSessionGatesWithCaches(scopeTestSettingsCache)))
 	// The decide route gates on users:update (deciding a request is the same
 	// child write as editing the child directly), with per-child scope enforced
 	// in the service. A caller with only users:read cannot reach it.
@@ -84,17 +80,16 @@ func TestDecideMasterDataChangeRequest_ForwardsDecisionAndReviewer(t *testing.T)
 	t.Parallel()
 
 	svc := &fakeMasterDataReviewService{decided: reviewItem(masterdatarequests.StatusApproved)}
-	rs := testResource(ResourceConfig{
+	rs := testResource(careplanhttp.ResourceConfig{
 		MasterDataReviewService: svc})
 	req := staffRequest(
 		http.MethodPost,
 		"/students/master-data-change-requests/100/decide",
 		`{"approve":true,"reason":"passt"}`,
-		"100",
 	)
 	w := httptest.NewRecorder()
 
-	rs.decideMasterDataChangeRequest(w, req)
+	serveRoute(t, rs, w, req, permissions.UsersUpdate)
 
 	require.Equal(t, http.StatusOK, w.Code)
 	assert.Equal(t, int64(100), svc.gotInput.RequestID)
@@ -109,22 +104,22 @@ func TestDecideMasterDataChangeRequest_ForwardsDecisionAndReviewer(t *testing.T)
 func TestDecideMasterDataChangeRequest_RejectsBadRequest(t *testing.T) {
 	t.Parallel()
 
-	rs := testResource(ResourceConfig{
+	rs := testResource(careplanhttp.ResourceConfig{
 		MasterDataReviewService: &fakeMasterDataReviewService{}})
 
-	req := staffRequest(http.MethodPost, "/students/master-data-change-requests/nope/decide", `{}`, "nope")
+	req := staffRequest(http.MethodPost, "/students/master-data-change-requests/nope/decide", `{}`)
 	w := httptest.NewRecorder()
-	rs.decideMasterDataChangeRequest(w, req)
+	serveRoute(t, rs, w, req, permissions.UsersUpdate)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	req = staffRequest(http.MethodPost, "/students/master-data-change-requests/100/decide", `{`, "100")
+	req = staffRequest(http.MethodPost, "/students/master-data-change-requests/100/decide", `{`)
 	w = httptest.NewRecorder()
-	rs.decideMasterDataChangeRequest(w, req)
+	serveRoute(t, rs, w, req, permissions.UsersUpdate)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 
-	req = staffRequest(http.MethodPost, "/students/master-data-change-requests/100/decide", `{"aproove":true}`, "100")
+	req = staffRequest(http.MethodPost, "/students/master-data-change-requests/100/decide", `{"aproove":true}`)
 	w = httptest.NewRecorder()
-	rs.decideMasterDataChangeRequest(w, req)
+	serveRoute(t, rs, w, req, permissions.UsersUpdate)
 	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
@@ -146,12 +141,12 @@ func TestDecideMasterDataChangeRequest_MapsServiceErrors(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			rs := testResource(ResourceConfig{
+			rs := testResource(careplanhttp.ResourceConfig{
 				MasterDataReviewService: &fakeMasterDataReviewService{decideErr: tt.err}})
-			req := staffRequest(http.MethodPost, "/students/master-data-change-requests/100/decide", `{"approve":false}`, "100")
+			req := staffRequest(http.MethodPost, "/students/master-data-change-requests/100/decide", `{"approve":false}`)
 			w := httptest.NewRecorder()
 
-			rs.decideMasterDataChangeRequest(w, req)
+			serveRoute(t, rs, w, req, permissions.UsersUpdate)
 
 			assert.Equal(t, tt.want, w.Code)
 			if tt.code != "" {

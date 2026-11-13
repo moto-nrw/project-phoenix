@@ -1,4 +1,4 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"context"
@@ -14,6 +14,8 @@ import (
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 type recordingAbsenceNotifier struct {
@@ -32,7 +34,7 @@ func TestStaffManualStatusAbsenceNotificationCallback(t *testing.T) {
 	today := calendar.NewDate(2026, 8, 24)
 	t.Run("manual status change enqueues before commit", func(t *testing.T) {
 		notifier := &recordingAbsenceNotifier{}
-		resource := testResource(ResourceConfig{NotifyAbsenceReported: func(ctx context.Context, tenantID int64, ids []int64, status string, dates []calendar.Date, fromParent bool, actorID int64) error {
+		resource := testResource(careplanhttp.ResourceConfig{NotifyAbsenceReported: func(ctx context.Context, tenantID int64, ids []int64, status string, dates []calendar.Date, fromParent bool, actorID int64) error {
 			return notifier.NotifyAbsenceReported(ctx, studentpresence.AbsenceReport{TenantID: tenantID, StudentIDs: ids, Status: status, Dates: dates, FromParent: fromParent, ActorAccountID: actorID})
 		}})
 		baseCtx := tenant.WithTenantID(context.Background(), tenantID)
@@ -40,11 +42,11 @@ func TestStaffManualStatusAbsenceNotificationCallback(t *testing.T) {
 		ctx, commit := tenanttest.WithAfterCommitHooks(baseCtx)
 		excused := true
 
-		require.NoError(t, resource.scheduleStudentUpdateWakes(
+		require.NoError(t, resource.ScheduleStudentUpdateWakesForTest(
 			ctx,
 			tenantID,
 			41,
-			&UpdateStudentRequest{Excused: &excused},
+			&careplanhttp.UpdateStudentRequest{Excused: &excused},
 			false,
 			absencerecords.StudentStatusDayExcused,
 			today,
