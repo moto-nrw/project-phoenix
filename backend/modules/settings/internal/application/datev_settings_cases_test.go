@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	_ "github.com/moto-nrw/project-phoenix/modules/settings/internal/defaults"
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	_ "github.com/moto-ogs/project-phoenix/modules/settings/internal/defaults"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // The save side of the DATEV settings (#4694). The same case list drives

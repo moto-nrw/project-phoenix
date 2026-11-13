@@ -3,7 +3,7 @@ package listexport
 import (
 	"testing"
 
-	listrecords "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
+	listrecords "github.com/moto-ogs/project-phoenix/modules/documentrendering/records"
 )
 
 func columnIDs(columns []listrecords.Column) []listrecords.ColumnID {

@@ -2,7 +2,7 @@
 
 package compose
 
-import "github.com/moto-nrw/project-phoenix/modules/workforce"
+import "github.com/moto-ogs/project-phoenix/modules/workforce"
 
 // NewStaffScheduleOverview builds suites' week-grid reader; production uses NewShiftPlanning.
 // Its public values use string dates and ClockLayout wall clocks, not row models.

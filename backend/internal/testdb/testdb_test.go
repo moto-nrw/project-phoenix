@@ -8,6 +8,7 @@ import (
 	"net"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"syscall"
@@ -28,7 +29,7 @@ func TestSharedRowPredicateFollowsAccountOwnership(t *testing.T) {
 
 	assert.Equal(t,
 		fmt.Sprintf("NOT EXISTS (SELECT 1 FROM auth.account_tenants m WHERE m.account_id = t.id AND m.tenant_id >= %d)", TenantIDBase),
-		sharedRowPredicate("auth.accounts", false),
+		sharedRowPredicate("auth.accounts", false, false),
 	)
 	for _, table := range []string{
 		"audit.auth_events",
@@ -41,27 +42,45 @@ func TestSharedRowPredicateFollowsAccountOwnership(t *testing.T) {
 	} {
 		assert.Equal(t,
 			fmt.Sprintf("NOT EXISTS (SELECT 1 FROM auth.account_tenants m WHERE m.account_id = t.account_id AND m.tenant_id >= %d)", TenantIDBase),
-			sharedRowPredicate(table, false),
+			sharedRowPredicate(table, false, false),
 			table,
 		)
 	}
 	assert.Equal(t,
 		fmt.Sprintf("t.tenant_id IS NULL OR t.tenant_id < %d", TenantIDBase),
-		sharedRowPredicate("auth.account_tenants", true),
+		sharedRowPredicate("auth.account_tenants", true, false),
 		"each account mapping is owned by its own tenant",
 	)
 
-	assert.Empty(t, sharedRowPredicate("auth.password_reset_rate_limits", false),
+	assert.Empty(t, sharedRowPredicate("auth.password_reset_rate_limits", false, false),
 		"email-only rows cannot safely inherit ownership from an account")
 	assert.Equal(t,
 		fmt.Sprintf("NOT EXISTS (SELECT 1 FROM auth.roles m WHERE m.id = t.role_id AND m.tenant_id >= %d)", TenantIDBase),
-		sharedRowPredicate("auth.role_permissions", false),
+		sharedRowPredicate("auth.role_permissions", false, false),
 	)
 	assert.Equal(t,
 		fmt.Sprintf("(NOT EXISTS (SELECT 1 FROM auth.account_tenants m WHERE m.account_id = t.account_id AND m.tenant_id >= %d)) AND (t.tenant_id IS NULL OR t.tenant_id < %d)", TenantIDBase, TenantIDBase),
-		sharedRowPredicate("auth.mfa_email_challenges", true),
+		sharedRowPredicate("auth.mfa_email_challenges", true, false),
 		"either the challenge tenant or its account mapping can establish test ownership",
 	)
+}
+
+// A Träger's row without tenant_id is owned through its organization_id
+// (#6962). A school's identity column and a set tenant_id still win over it.
+func TestSharedRowPredicateFollowsOrganizationOwnership(t *testing.T) {
+	t.Parallel()
+	assert.Equal(t,
+		fmt.Sprintf("t.organization_id IS NULL OR t.organization_id < %d", TenantIDBase),
+		sharedRowPredicate("parent_billing.cost_bearers", false, true))
+	assert.Equal(t,
+		fmt.Sprintf("COALESCE(t.tenant_id, t.organization_id) IS NULL OR COALESCE(t.tenant_id, t.organization_id) < %d", TenantIDBase),
+		sharedRowPredicate("platform.push_outbox", true, true),
+		"a set tenant_id decides before an organization_id")
+	assert.Equal(t,
+		fmt.Sprintf("t.id < %d", TenantIDBase),
+		sharedRowPredicate("platform.schools", false, true),
+		"a school is its own tenant, whatever organization it belongs to")
+	assert.Empty(t, sharedRowPredicate("platform.operators", false, false))
 }
 
 func TestParsePostgresDSNRejectsInvalidInput(t *testing.T) {
@@ -382,6 +401,30 @@ func TestMigrationsHashIsStableAndSourceSensitive(t *testing.T) {
 	assert.Len(t, h1, 32)
 }
 
+// The template carries the bootstrap rows (#6962), so its name must change
+// with them: a template prepared with older bootstrap text is never reused.
+func TestTemplateHashCoversMigrationsAndBootstrap(t *testing.T) {
+	t.Parallel()
+	migrations, err := MigrationsHash()
+	require.NoError(t, err)
+	current, err := TemplateHash()
+	require.NoError(t, err)
+	preparation := append(slices.Clone(templateBootstrapStatements), sharedRowRules()...)
+	assert.Equal(t, templateHash(migrations, preparation), current)
+	assert.Len(t, current, 32)
+	assert.NotEqual(t, migrations, current)
+
+	edited := slices.Clone(preparation)
+	edited[0] += " "
+	assert.NotEqual(t, current, templateHash(migrations, edited), "an edited bootstrap statement names a new template")
+	assert.NotEqual(t, current, templateHash(migrations, preparation[1:]), "a removed bootstrap statement names a new template")
+	edited = slices.Clone(preparation)
+	edited[len(edited)-1] += " "
+	assert.NotEqual(t, current, templateHash(migrations, edited), "a changed shared-row rule names a new template")
+	assert.NotEqual(t, current, templateHash(migrations+"0", preparation), "a migration change names a new template")
+	assert.Contains(t, sharedRowRules(), "auth.accounts|false|false|"+sharedRowPredicate("auth.accounts", false, false))
+}
+
 func TestMigrationSetsMatchRequiresExactSet(t *testing.T) {
 	t.Parallel()
 	wanted := []string{"0.0.0", "1.15.301"}
@@ -569,6 +612,21 @@ func TestMigrationsCompleteAgainstRealTemplate(t *testing.T) {
 	complete, err := migrationsComplete(ctx, templateCfg.TemplateDSN())
 	require.NoError(t, err)
 	assert.True(t, complete, "the migrated template must pass the default completeness check — otherwise CI rebuilds instead of adopting")
+
+	// The preparation wrote the bootstrap rows and the gate's start state
+	// into the template, under the current rules (#6962).
+	template := openSQL(templateCfg.TemplateDSN())
+	defer func() { require.NoError(t, template.Close()) }()
+	var bootstrapSchool, organizationSequence int64
+	require.NoError(t, template.QueryRowContext(ctx, `SELECT id FROM platform.schools WHERE id = 1`).Scan(&bootstrapSchool))
+	require.NoError(t, template.QueryRowContext(ctx, `SELECT last_value FROM platform.organizations_id_seq`).Scan(&organizationSequence))
+	assert.GreaterOrEqual(t, organizationSequence, TenantIDCeiling)
+	_, recorded, ok, err := readSharedBaseline(ctx, template)
+	require.NoError(t, err)
+	require.True(t, ok, "the template carries the leftover gate's start state")
+	current, err := tableSharedPredicates(ctx, template)
+	require.NoError(t, err)
+	assert.Equal(t, current, recorded)
 }
 
 func TestCreateCloneAndSweepLifecycle(t *testing.T) {
@@ -591,6 +649,14 @@ func TestCreateCloneAndSweepLifecycle(t *testing.T) {
 
 	require.True(t, strings.HasPrefix(handle.Name, ClonePrefix+runID+"_"))
 	require.True(t, databaseExists(t, ctx, cfg, handle.Name))
+
+	// The maintenance session set the clone's search_path before anyone
+	// connected to it; a fresh connection inherits it (#6962).
+	clone := openSQL(handle.DSN)
+	var searchPath string
+	require.NoError(t, clone.QueryRowContext(ctx, `SHOW search_path`).Scan(&searchPath))
+	require.NoError(t, clone.Close())
+	assert.Equal(t, CloneSearchPath, searchPath)
 
 	// The keeper connection pins the clone: a GC pass from a foreign run must
 	// not collect it. The ambient run IS spared — this test runs inside the
@@ -730,6 +796,112 @@ func TestLeftoversIgnoresRowsInsideTheTestTenantBand(t *testing.T) {
 	deltas, err := Leftovers(ctx, handle.DSN)
 	require.NoError(t, err)
 	assert.Empty(t, deltas, "a row in the test's own tenant is not a leftover")
+}
+
+// A Träger's rows without tenant_id belong to a test when its organization
+// lies in the test band; the gate still reports a row of an organization
+// below the band, one without organization, and a changed shared row (#6962).
+func TestLeftoversFollowsOrganizationOwnershipToTenantlessRows(t *testing.T) {
+	t.Parallel()
+	cfg := integrationConfig(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	build := func(ctx context.Context, dsn string) error {
+		db := openSQL(dsn)
+		defer func() { _ = db.Close() }()
+		_, err := db.ExecContext(ctx, `
+			CREATE TABLE traeger_rows (id bigint PRIMARY KEY, organization_id bigint, payload text);
+			INSERT INTO traeger_rows VALUES (1, 1, 'bootstrap Träger');
+			CREATE TABLE outbox (id bigint PRIMARY KEY, tenant_id bigint, organization_id bigint)`)
+		return err
+	}
+	templateCfg, err := EnsureTemplate(ctx, cfg, WithBuild(build), WithMigrationsHash("organizationownershiphash"))
+	require.NoError(t, err)
+
+	handle, err := CreateClone(ctx, templateCfg, SanitizeRunID(""))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = handle.Close()
+		dropBareClone(t, cfg, handle.Name)
+	})
+	require.NoError(t, SnapshotSharedBaseline(ctx, handle.DSN))
+
+	clone := openSQL(handle.DSN)
+	defer func() { require.NoError(t, clone.Close()) }()
+	_, err = clone.ExecContext(ctx, `INSERT INTO traeger_rows VALUES (2, $1, 'own Träger'), (3, $2, 'own Träger');
+		INSERT INTO outbox VALUES (1, NULL, $1), (2, $1, NULL), (3, $1, 7)`,
+		TenantIDBase, TenantIDCeiling+5)
+	require.NoError(t, err)
+	deltas, err := Leftovers(ctx, handle.DSN)
+	require.NoError(t, err)
+	assert.Empty(t, deltas, "rows of an organization in the test band are the test's own")
+
+	for _, leftover := range []struct{ name, table, leave, undo string }{
+		{"a Träger below the band", "public.traeger_rows", `INSERT INTO traeger_rows VALUES (4, 7, 'foreign')`, `DELETE FROM traeger_rows WHERE id = 4`},
+		{"no Träger", "public.traeger_rows", `INSERT INTO traeger_rows VALUES (5, NULL, 'foreign')`, `DELETE FROM traeger_rows WHERE id = 5`},
+		{"a changed shared row", "public.traeger_rows", `UPDATE traeger_rows SET payload = 'changed' WHERE id = 1`, `UPDATE traeger_rows SET payload = 'bootstrap Träger' WHERE id = 1`},
+		{"a shared school's row of an own Träger", "public.outbox", `INSERT INTO outbox VALUES (4, 7, ` + fmt.Sprint(TenantIDBase) + `)`, `DELETE FROM outbox WHERE id = 4`},
+		{"a Träger row below the band", "public.outbox", `INSERT INTO outbox VALUES (5, NULL, 7)`, `DELETE FROM outbox WHERE id = 5`},
+		{"a row without scope", "public.outbox", `INSERT INTO outbox VALUES (6, NULL, NULL)`, `DELETE FROM outbox WHERE id = 6`},
+	} {
+		_, err = clone.ExecContext(ctx, leftover.leave)
+		require.NoError(t, err)
+		deltas, err = Leftovers(ctx, handle.DSN)
+		require.NoError(t, err)
+		require.Len(t, deltas, 1, leftover.name)
+		assert.Equal(t, leftover.table, deltas[0].Table, leftover.name)
+		_, err = clone.ExecContext(ctx, leftover.undo)
+		require.NoError(t, err)
+		deltas, err = Leftovers(ctx, handle.DSN)
+		require.NoError(t, err)
+		require.Empty(t, deltas, "undoing %s restores the start state", leftover.name)
+	}
+}
+
+// A clone inherits the template's start state. EnsureSharedBaseline keeps a
+// current one — so a row written afterwards stays a leftover — and takes a
+// missing or outdated one again (#6962).
+func TestEnsureSharedBaselineKeepsCurrentAndRetakesStaleSnapshot(t *testing.T) {
+	t.Parallel()
+	cfg := integrationConfig(t)
+	ctx, cancel := context.WithTimeout(context.Background(), 120*time.Second)
+	defer cancel()
+
+	builds := 0
+	templateCfg, err := EnsureTemplate(ctx, cfg, WithBuild(fakeBuild(&builds)), WithMigrationsHash("ensurebaselinehash"))
+	require.NoError(t, err)
+	handle, err := CreateClone(ctx, templateCfg, SanitizeRunID(""))
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_ = handle.Close()
+		dropBareClone(t, cfg, handle.Name)
+	})
+	clone := openSQL(handle.DSN)
+	defer func() { require.NoError(t, clone.Close()) }()
+
+	// Missing: the fake template recorded none.
+	require.NoError(t, EnsureSharedBaseline(ctx, handle.DSN))
+	deltas, err := Leftovers(ctx, handle.DSN)
+	require.NoError(t, err)
+	require.Empty(t, deltas)
+
+	// Current: kept, so a later row is still reported.
+	_, err = clone.ExecContext(ctx, `INSERT INTO marker (id) VALUES (1)`)
+	require.NoError(t, err)
+	require.NoError(t, EnsureSharedBaseline(ctx, handle.DSN))
+	deltas, err = Leftovers(ctx, handle.DSN)
+	require.NoError(t, err)
+	require.Len(t, deltas, 1)
+	assert.Equal(t, "public.marker", deltas[0].Table)
+
+	// Outdated: recorded under another predicate, taken again.
+	_, err = clone.ExecContext(ctx, `UPDATE `+baselineTable+` SET shared_predicate = 'false' WHERE table_name = 'public.marker'`)
+	require.NoError(t, err)
+	require.NoError(t, EnsureSharedBaseline(ctx, handle.DSN))
+	deltas, err = Leftovers(ctx, handle.DSN)
+	require.NoError(t, err)
+	assert.Empty(t, deltas, "a snapshot under outdated rules is replaced by one under the current rules")
 }
 
 func TestLeftoversFollowsAccountOwnershipToTenantlessRows(t *testing.T) {

@@ -105,7 +105,7 @@ weiterhin auf.
 
 Abgebrochene Requests: pro Aufruf 10 bis 28 `fetch`-Requests auf Seitenpfade (`/students/search`, `/rooms`, `/ogs-groups`, `/anfragen`, `/settings`, `/staff`, `/time-tracking`, …), die der Browser wieder abbricht. Das sind die Router-Prefetches der `next/link`-Einträge in Seitenleiste und Bottom-Nav. Folge-Issue #2976.
 
-Nachmessung nach #2976 (Shell-Links über `NavLink`: kein Viewport-Prefetch, Prefetch erst bei Hover, Fokus oder Touch-Beginn; gleicher Harness, Stand 2026-09-04, frischer Seed): `cold.requests.failed` ist auf 17 von 18 kalten Aufrufen leer. Der eine Ausreißer (Dashboard, Lauf 3) zeigt 2 abgebrochene Prefetches, `/ogs-groups` und `/students/search`, und die kommen aus den Karten im Seiteninhalt des Dashboards (`InfoCard href`), nicht aus der Seitenleiste. Inhaltslinks nutzen weiter `next/link` mit Standard-Prefetch; das ist gewollt, weil sie wenige sind und auf den nächsten Klick zielen.
+Nachmessung nach #2976 (Shell-Links über `NavLink`, seit #6570 `NavigationLink`: kein Viewport-Prefetch, Prefetch erst bei Hover, Fokus oder Touch-Beginn; gleicher Harness, Stand 2026-09-04, frischer Seed): `cold.requests.failed` ist auf 17 von 18 kalten Aufrufen leer. Der eine Ausreißer (Dashboard, Lauf 3) zeigt 2 abgebrochene Prefetches, `/ogs-groups` und `/students/search`, und die kommen aus den Karten im Seiteninhalt des Dashboards (`InfoCard href`), nicht aus der Seitenleiste. Inhaltslinks nutzen weiter `next/link` mit Standard-Prefetch; das ist gewollt, weil sie wenige sind und auf den nächsten Klick zielen.
 
 ## Seitenwechsel statt Seitenaufruf (#2828)
 

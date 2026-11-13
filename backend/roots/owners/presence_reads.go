@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	presenceProjection "github.com/moto-nrw/project-phoenix/modules/presenceprojection/compose"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/careexit"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	presenceProjection "github.com/moto-ogs/project-phoenix/modules/presenceprojection/compose"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/workflows/careexit"
 )
 
 // presenceProjectionReads runs the presence legacy view's reads in the

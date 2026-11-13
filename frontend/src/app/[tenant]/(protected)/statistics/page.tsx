@@ -34,7 +34,7 @@ import { EmptyState } from "~/components/ui/empty-state";
 import { ForbiddenPage } from "~/components/ui/forbidden-page";
 import { MultiSelect } from "~/components/ui/multi-select";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuEntry } from "~/components/ui/page-header/types";
 import { PlanningContextBar } from "~/components/ui/planning/planning-context-bar";
 import { SectionCard } from "~/components/ui/section-card";
 import { SegmentedControl } from "~/components/ui/segmented-control";
@@ -48,7 +48,8 @@ import {
   apiErrorFromResponse,
   transportFetch,
 } from "~/lib/api-error";
-import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
+import { LOCATION_COLORS } from "~/lib/location-helper";
+import { getAccessibleTextColor } from "~/lib/kit-palette";
 import {
   berlinTodayISO,
   formatDate,
@@ -1019,7 +1020,7 @@ export default function StatisticsPage() {
                 onChange={setSchoolClasses}
                 placeholder="Alle Klassen"
                 summaryLabel={(count) => `${count} Klassen`}
-                controlSize="compact"
+                controlSize="dense"
                 className="md:w-44"
               />
               <MultiSelect
@@ -1029,7 +1030,7 @@ export default function StatisticsPage() {
                 onChange={setGroupIds}
                 placeholder="Alle Gruppen"
                 summaryLabel={(count) => `${count} Gruppen`}
-                controlSize="compact"
+                controlSize="dense"
                 className="md:w-56"
               />
             </div>

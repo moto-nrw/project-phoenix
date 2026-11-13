@@ -3,9 +3,9 @@ package ports
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	scheduleModels "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	scheduleModels "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The services below are what the roots hold of the Timetable application;
@@ -27,6 +27,7 @@ type InstanceLifecycle interface {
 // RosterReconciler keeps the future rosters in step with student transitions
 // and sourced template enrollments.
 type RosterReconciler interface {
+	ReconcileSourcedTemplateRosterBatch(context.Context, []timetable.SourcedTemplateRosterReconcile) error
 	CurrentRosterBaseline(ctx context.Context) (int64, error)
 	ReconcileSourcedTemplateRosters(ctx context.Context, templateID int64, studentIDs []int64, from calendar.Date, prior []timetable.RosterEnrollment) (int, int, error)
 	RemoveStudentsFromFutureRosters(ctx context.Context, transitionID int64, studentIDs []int64) error

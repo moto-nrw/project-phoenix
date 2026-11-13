@@ -4,7 +4,7 @@ status: accepted
 
 # Ratchets protect invariants and expose command effects
 
-Decision of 2026-10-23 for [#4548](https://github.com/moto-nrw/project-phoenix/issues/4548).
+Decision of 2026-10-23 for [#4548](https://github.com/moto-ogs/project-phoenix/issues/4548).
 Keep the structural safety gates. Replace location-dependent shape accounting
 with method-level evidence, and add typed command-effect accounting through
 root bindings. Do not equate a permitted import with a safe business protocol.
@@ -289,7 +289,7 @@ invariants and authorizes no ownership merger, alias or policy widening.
 ## Implementation addendum 2026-10-23 (#4739)
 
 Decision of 2026-10-23 for the first implementation slice of
-[#4739](https://github.com/moto-nrw/project-phoenix/issues/4739), implementing
+[#4739](https://github.com/moto-ogs/project-phoenix/issues/4739), implementing
 part of [ADR 0083 §2](0083-ratchets-protect-invariants-and-expose-command-effects.md#2-supplement-structural-checks-with-typed-command-effects).
 No coordinator, owner, permission, budget or runtime behavior moves.
 
@@ -516,7 +516,7 @@ participation, after-commit durability or deadlock freedom.
 ## Gate-gap closure 2026-10-23 (#4836)
 
 This implements the three gate repairs from
-[#4836](https://github.com/moto-nrw/project-phoenix/issues/4836), not the complete
+[#4836](https://github.com/moto-ogs/project-phoenix/issues/4836), not the complete
 platform/protocol follow-up. No runtime owner, command, transaction, permission,
 policy rule or shape budget changes. At implementation start PR #4753 was
 unmerged; its later base integration brings the finite Roster/Bookings runtime

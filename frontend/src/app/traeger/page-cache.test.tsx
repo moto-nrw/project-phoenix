@@ -212,7 +212,7 @@ describe("Träger list-to-detail cache", () => {
     fireEvent.click(screen.getByRole("button", { name: "Refresh metadata" }));
     expect(
       await screen.findByText(
-        catalogText("general.unavailable", "den Ferienzeitraum"),
+        catalogText("general.unavailable", "die Übersicht des Ferienzeitraums"),
       ),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Draft text")).toHaveValue("Unsaved text");
@@ -262,7 +262,7 @@ describe("Träger list-to-detail cache", () => {
     fireEvent.click(screen.getByRole("button", { name: "Refresh metadata" }));
     expect(
       await screen.findByText(
-        catalogText("general.unavailable", "den Ferienzeitraum"),
+        catalogText("general.unavailable", "die Übersicht des Ferienzeitraums"),
       ),
     ).toBeInTheDocument();
     expect(screen.getByLabelText("Questions")).toHaveValue("Unsaved questions");
@@ -288,7 +288,7 @@ describe("Träger list-to-detail cache", () => {
     // Anker: both refresh requests ran after the form was fully loaded.
     expect(
       await screen.findByText(
-        catalogText("general.unavailable", "den Ferienzeitraum"),
+        catalogText("general.unavailable", "die Übersicht des Ferienzeitraums"),
       ),
     ).toBeInTheDocument();
     expect(api.fetchTraegerSchools).toHaveBeenCalledTimes(2);
@@ -305,7 +305,7 @@ describe("Träger list-to-detail cache", () => {
     // Anker: the refusal of a previously loaded detail is shown.
     expect(
       await screen.findByText(
-        catalogText("general.permission", "den Ferienzeitraum"),
+        catalogText("general.permission", "die Übersicht des Ferienzeitraums"),
       ),
     ).toBeInTheDocument();
     expect(screen.queryByLabelText("Draft text")).not.toBeInTheDocument();

@@ -3,10 +3,10 @@ package presenceprojectionhttp
 import (
 	http "net/http"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	securityruntime "github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	securityruntime "github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // respondCreatedStudent writes the 201 response for a freshly created student.

@@ -3,7 +3,7 @@ package records
 import (
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
 )
 
 // The class list exists twice (#4749): the Kinderlisten-Vorlage

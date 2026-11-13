@@ -1,0 +1,25 @@
+/* Die Schriften der App (src/app/layout.tsx lädt sie über next/font, das
+   Storybook nie rendert). Ohne sie fällt jede Story auf das Arial des
+   Systems zurück: andere Laufweiten als in der App, und der Pixel-Vergleich
+   (#6562) hinge an den Schriften des Rechners. `font-display: block` hält den
+   Text bis zum Laden unsichtbar, statt kurz in Arial zu zeichnen. */
+@font-face {
+  font-family: "Inter Storybook";
+  src: url("../src/fonts/inter-latin-variable.woff2") format("woff2");
+  font-weight: 100 900;
+  font-style: normal;
+  font-display: block;
+}
+
+@font-face {
+  font-family: "Kalam Storybook";
+  src: url("../src/fonts/kalam-latin-700.woff2") format("woff2");
+  font-weight: 700;
+  font-style: normal;
+  font-display: block;
+}
+
+:root {
+  --font-inter: "Inter Storybook";
+  --font-moto: "Kalam Storybook";
+}

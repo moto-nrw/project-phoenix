@@ -1,22 +1,28 @@
 "use client";
 
-import { LOCATION_COLORS } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 
 interface WizardStepperProps {
   readonly steps: readonly string[];
   readonly current: number;
   readonly className?: string;
+  /**
+   * Names every step under its bar instead of „Schritt 1 von 3“ and the
+   * current name: for a process the person reads ahead (a billing run),
+   * not for a dialog that walks through it.
+   */
+  readonly labeled?: boolean;
 }
 
-const ACTIVE = LOCATION_COLORS.GROUP_ROOM;
+const ACTIVE = MOTO_COLOR_PALETTE.green.base;
 const INACTIVE = "#E5E7EB";
 const ACTIVE_TEXT = "#1F2937";
-const INACTIVE_TEXT = "#9CA3AF";
 
 export function WizardStepper({
   steps,
   current,
   className = "",
+  labeled = false,
 }: Readonly<WizardStepperProps>) {
   const total = steps.length;
   const clampedCurrent = Math.max(0, Math.min(current, total - 1));
@@ -45,12 +51,34 @@ export function WizardStepper({
           );
         })}
       </div>
-      <div className="flex items-center justify-between text-xs">
-        <span className="font-medium" style={{ color: ACTIVE_TEXT }}>
-          Schritt {clampedCurrent + 1} von {total}
-        </span>
-        <span style={{ color: INACTIVE_TEXT }}>{steps[clampedCurrent]}</span>
-      </div>
+      {labeled ? (
+        // One name under each bar; on a phone one step per line, where
+        // only the weight and the shade mark the current step: the other
+        // steps stay a clear step lighter. text-pretty: a long name never
+        // leaves its last word alone on a line.
+        <ol className="flex gap-2 text-sm max-sm:flex-col max-sm:gap-1">
+          {steps.map((label, index) => (
+            <li
+              key={label}
+              className={`min-w-0 flex-1 text-pretty ${index === clampedCurrent ? "font-semibold" : "text-gray-500"}`}
+              style={
+                index === clampedCurrent ? { color: ACTIVE_TEXT } : undefined
+              }
+            >
+              {index + 1}. {label}
+            </li>
+          ))}
+        </ol>
+      ) : (
+        <div className="flex items-center justify-between text-xs">
+          <span className="font-medium" style={{ color: ACTIVE_TEXT }}>
+            Schritt {clampedCurrent + 1} von {total}
+          </span>
+          {/* The name of the current step is read, not decoration: it keeps
+              the contrast of body text (WCAG 1.4.3). */}
+          <span className="text-gray-600">{steps[clampedCurrent]}</span>
+        </div>
+      )}
     </div>
   );
 }

@@ -367,6 +367,22 @@ out of its cache key (`resolveTenantCached` in
 `frontend/src/app/[tenant]/layout.tsx`). Each limiter rejection writes one
 `RATE_LIMIT_EXCEEDED` event; a 429 a handler writes itself writes none.
 
+The auth limiter on the login, second-factor, reset and other credential
+routes of every portal (`buildAuthRateLimiters`) spends a token per client IP
+only on a refused attempt (a 4xx answer) and on a request that mails a reset
+link or a code (`sendsAuthMail`); an accepted login gives its token back
+(#6738). Parents at a parents' evening or a school's staff behind one address
+thus sign in together, while guesses from that address meet
+`RATE_LIMIT_AUTH_REQUESTS_PER_MINUTE` (burst `max(10, value)`). A request
+holds its token while it runs, so parallel guesses cannot pass together.
+Guessing one account from many addresses meets the account's own failure
+lock (`checkPasswordLogin`); the general limiter still bounds the volume per
+address, accepted logins included. At most burst requests of one address
+run at once, and a 5xx answer spends no token. The other routes behind this
+limiter (parent SEPA mandate and declaration writes, caterer password and
+factor changes, invitation previews and accepts) follow the same rule. A new
+auth-limited route that mails on success extends `authMailPathSuffixes`.
+
 ### Password-reset address limits
 
 Every normalized address receives the same password-reset response sequence,
@@ -909,6 +925,23 @@ Backend paths in this section are relative to `backend/`:
   the token wire schema in `modules/identityaccess/tokenprimitives/session_wire.go`, and trusted-device settings
   `security.mfa_*`. Include the school frontend's MFA chain when changing its login.
 
+#### Account-wide changes by a school administrator (#6862)
+
+The login address, the name and the second factor belong to the account, not
+to one school. A school administrator (`users:manage`) changes the address
+(`PUT /auth/accounts/{id}`) and resets the second factor
+(`DELETE /auth/accounts/{id}/mfa`) only while their school alone holds the
+account: it is the account's only active school and the account has neither
+a retained Träger-Büro membership nor parents-portal access at a Träger
+(ADR 0216) (`AccountOwnership` in
+`modules/identityaccess/internal/application/account_ownership.go`). Otherwise
+both answer 403 `identity.account_shared_across_schools`; the school-scoped
+override (`PUT …/mfa/override`) stays open, and the operator changes the rest.
+A changed address mails the previous address and a reset mails the holder
+(`account-login-address-changed.html`, `account-mfa-reset.html`), queued in the
+transaction of the change. The school administrator's account-wide MFA writes
+leave the request's school transaction for an administrative one.
+
 #### Privileged MFA floor (#3841, slice 3841-f)
 
 Effective school permissions, not role names, impose the MFA minimum in
@@ -1269,6 +1302,16 @@ account's children at the link's Träger schools whose relationship grants
 child gets an `audit.data_access_log` row (`holiday_prefill`) at its school.
 The submission stays the public, captcha-gated
 `POST /traeger/holiday-registrations/{token}` and names no student.
+
+Each submission draws a random status token (#6676). The submit answer and
+the receipt mail carry it; the page `/parents/ferienanmeldung/status/{token}`
+reads `GET /traeger/holiday-registrations/status/{token}` without a session,
+under the rate limit of the public link. The token resolves in the
+administrative transaction, the read runs in the Träger transaction. The
+answer holds the state, the period and per child the first name with weeks,
+time models, host schools and placements; no health information, address,
+contact, last name or date of birth. The token lives in the registration row,
+so the link ends when the retention deletes the registration. Logs redact it.
 
 The start page of the parents app reads
 `GET /parent/me/holiday-registrations` (#6671, ADR 0207): the published

@@ -169,6 +169,13 @@ const (
 	// collect it (#6678). StudentID names the child; Metadata["week_ids"]
 	// names the weeks.
 	ResourceTypeHolidayStudentRegistration = "holiday_student_registration"
+	// ResourceTypeHolidayHomeSchoolBookings records a staff member of the
+	// home school reading the confirmed holiday bookings of its own children
+	// in weeks other schools of its Träger host (#6679): name, date of
+	// birth, week, hosting school and booked care. StudentID is NIL;
+	// RangeStart and RangeEnd span the weeks; metadata carries week_ids and
+	// children.
+	ResourceTypeHolidayHomeSchoolBookings = "holiday_home_school_bookings"
 	// ResourceTypeCareContractApplications records the Träger-Büro reading
 	// the accepted applications of a school to create care contracts
 	// (#4678, ADR 0153): child, guardian and booked offering. StudentID is

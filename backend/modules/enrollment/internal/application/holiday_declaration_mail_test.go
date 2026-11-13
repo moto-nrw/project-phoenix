@@ -9,7 +9,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // The receipt repeats the declaration (#5626): the fixed declarations the
@@ -34,7 +34,7 @@ func TestHolidayMailDeclarationRepeatsEveryDeclarationGiven(t *testing.T) {
 	declaration := holidayMailDeclaration(enrollment.HolidayPeriod{Binding: false}, form, input, givenAt)
 	require.NotNil(t, declaration)
 	assert.Equal(t, enrollment.HolidayRegistrationMailDeclaration{
-		Name: "Eva Muster", GivenAt: givenAt, ConsentVersion: 4,
+		Name: "Eva Muster", GivenAt: givenAt, ConsentVersion: enrollment.HolidayConsentVersionCurrent,
 		Statements: []enrollment.HolidayDeclarationStatement{
 			{Title: "Datenschutz", Text: texts.PrivacyConsent},
 			{Title: "Sorgerecht", Text: texts.CustodyConfirmed},
@@ -62,7 +62,7 @@ func TestHolidayReceiptRendersTheDeclarationInBerlinTime(t *testing.T) {
 		},
 	})
 	require.NoError(t, err)
-	mail, err := renderHolidayRegistrationReceived(context.Background(), enrollment.MailKindHolidayRegistrationReceived, raw)
+	mail, err := renderHolidayRegistrationReceived(context.Background(), enrollment.MailKindHolidayRegistrationReceived, raw, "https://eltern.example.org/")
 	require.NoError(t, err)
 	content, ok := mail.Content.(map[string]any)
 	require.True(t, ok)
@@ -75,9 +75,30 @@ func TestHolidayReceiptRendersTheDeclarationInBerlinTime(t *testing.T) {
 
 	raw, err = json.Marshal(enrollment.HolidayRegistrationMail{Recipient: "eva@example.org"})
 	require.NoError(t, err)
-	mail, err = renderHolidayRegistrationReceived(context.Background(), enrollment.MailKindHolidayRegistrationReceived, raw)
+	mail, err = renderHolidayRegistrationReceived(context.Background(), enrollment.MailKindHolidayRegistrationReceived, raw, "https://eltern.example.org/")
 	require.NoError(t, err)
 	content, ok = mail.Content.(map[string]any)
 	require.True(t, ok)
 	assert.Nil(t, content["Declaration"], "a mail enqueued before #5626 renders without the declaration")
+	assert.Empty(t, content["StatusURL"], "a mail enqueued before #6676 carries no token and shows no status link")
+}
+
+// TestHolidayReceiptLinksTheStatusPage pins the status link of the receipt
+// (#6676): the renderer builds it from the token and the parents URL at
+// sending; without a parents URL the mail shows none.
+func TestHolidayReceiptLinksTheStatusPage(t *testing.T) {
+	t.Parallel()
+	raw, err := json.Marshal(enrollment.HolidayRegistrationMail{Recipient: "eva@example.org", StatusToken: "abc_DEF-123"})
+	require.NoError(t, err)
+	mail, err := renderHolidayRegistrationReceived(context.Background(), enrollment.MailKindHolidayRegistrationReceived, raw, "https://eltern.example.org/")
+	require.NoError(t, err)
+	content, ok := mail.Content.(map[string]any)
+	require.True(t, ok)
+	assert.Equal(t, "https://eltern.example.org/ferienanmeldung/status/abc_DEF-123", content["StatusURL"])
+
+	mail, err = renderHolidayRegistrationReceived(context.Background(), enrollment.MailKindHolidayRegistrationReceived, raw, "")
+	require.NoError(t, err)
+	content, ok = mail.Content.(map[string]any)
+	require.True(t, ok)
+	assert.Empty(t, content["StatusURL"])
 }

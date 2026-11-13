@@ -6,8 +6,8 @@ import (
 	"strconv"
 	"strings"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 )
 
 type classRosterApprovedEnrollment struct {

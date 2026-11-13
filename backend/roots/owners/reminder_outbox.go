@@ -6,15 +6,15 @@ import (
 	"errors"
 	"fmt"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
-	reminderPorts "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	delivery "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	reminderCompose "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery/compose"
+	reminderPorts "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery/ports"
 )
 
 const reminderPushKind = "parent_appointment_reminder"

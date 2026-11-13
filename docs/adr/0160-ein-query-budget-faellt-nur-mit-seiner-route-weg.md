@@ -5,8 +5,8 @@ status: accepted
 # Ein Query-Budget fällt nur mit seiner Route weg
 
 Entscheidung vom 07.11.2026 zu
-[#5972](https://github.com/moto-nrw/project-phoenix/issues/5972), Teil von
-[#4611](https://github.com/moto-nrw/project-phoenix/issues/4611). Sie ist die
+[#5972](https://github.com/moto-ogs/project-phoenix/issues/5972), Teil von
+[#4611](https://github.com/moto-ogs/project-phoenix/issues/4611). Sie ist die
 eigene ADR, die [ADR 0070](0070-principle-only-the-target-is-a-rule-and-debt-leaves-with-evidence.md)
 Punkt 4 und [ADR 0083](0083-ratchets-protect-invariants-and-expose-command-effects.md)
 Abschnitt 1 für das Stilllegen einer Messung verlangen.

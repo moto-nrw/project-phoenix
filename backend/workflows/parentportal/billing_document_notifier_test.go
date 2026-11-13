@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	deliveryPolicy "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	deliveryPolicy "github.com/moto-ogs/project-phoenix/modules/delivery/devices"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 type documentPreferencesDouble struct{ optedIn []int64 }

@@ -65,20 +65,29 @@ const CodeParentBillingDatevBookingsInvalid = "parent_billing.datev_bookings_inv
 const CodeParentBillingDatevBookingsTaken = "parent_billing.datev_bookings_taken"
 const CodeParentBillingDatevNoNewBookings = "parent_billing.datev_no_new_bookings"
 const CodeParentBillingDatevNotReady = "parent_billing.datev_not_ready"
+const CodeParentBillingDebtorNumberDigitRange = "parent_billing.debtor_number_digit_range"
+const CodeParentBillingDebtorNumberDigits = "parent_billing.debtor_number_digits"
 const CodeParentBillingDebtorNumberInvalid = "parent_billing.debtor_number_invalid"
 const CodeParentBillingDebtorNumberLocked = "parent_billing.debtor_number_locked"
 const CodeParentBillingDirectDebitWithoutMandate = "parent_billing.direct_debit_without_mandate"
 const CodeParentBillingDocumentKindInvalid = "parent_billing.document_kind_invalid"
 const CodeParentBillingDueDatesInvalid = "parent_billing.due_dates_invalid"
+const CodeParentBillingExportAlreadyHandedOver = "parent_billing.export_already_handed_over"
 const CodeParentBillingExportFileNumberStartLocked = "parent_billing.export_file_number_start_locked"
+const CodeParentBillingExportFormatsInvalid = "parent_billing.export_formats_invalid"
 const CodeParentBillingExportInvoiceNotFound = "parent_billing.export_invoice_not_found"
 const CodeParentBillingExportMappingInvalid = "parent_billing.export_mapping_invalid"
+const CodeParentBillingExportRecipientInvalid = "parent_billing.export_recipient_invalid"
+const CodeParentBillingExportRecipientNameTaken = "parent_billing.export_recipient_name_taken"
+const CodeParentBillingExportRecipientNotFound = "parent_billing.export_recipient_not_found"
+const CodeParentBillingExportRecipientNotReady = "parent_billing.export_recipient_not_ready"
 const CodeParentBillingExportRunEmpty = "parent_billing.export_run_empty"
 const CodeParentBillingExportRunNotFound = "parent_billing.export_run_not_found"
 const CodeParentBillingFamilyBillingInvalid = "parent_billing.family_billing_invalid"
 const CodeParentBillingFamilyBillingNotFound = "parent_billing.family_billing_not_found"
 const CodeParentBillingFamilyChildrenInvalid = "parent_billing.family_children_invalid"
 const CodeParentBillingFamilyChildrenNotFound = "parent_billing.family_children_not_found"
+const CodeParentBillingFamilyDebtorNumberConflict = "parent_billing.family_debtor_number_conflict"
 const CodeParentBillingFamilyNotFound = "parent_billing.family_not_found"
 const CodeParentBillingFamilyUnknown = "parent_billing.family_unknown"
 const CodeParentBillingFamilyWithoutAddress = "parent_billing.family_without_address"
@@ -186,20 +195,29 @@ var errorCodeClassesParentBilling = []errorCodeClass{
 	{CodeParentBillingDatevBookingsTaken, "business_rejection"},
 	{CodeParentBillingDatevNoNewBookings, "business_rejection"},
 	{CodeParentBillingDatevNotReady, "business_rejection"},
+	{CodeParentBillingDebtorNumberDigitRange, "input"},
+	{CodeParentBillingDebtorNumberDigits, "input"},
 	{CodeParentBillingDebtorNumberInvalid, "input"},
 	{CodeParentBillingDebtorNumberLocked, "business_rejection"},
 	{CodeParentBillingDirectDebitWithoutMandate, "business_rejection"},
 	{CodeParentBillingDocumentKindInvalid, "input"},
 	{CodeParentBillingDueDatesInvalid, "input"},
+	{CodeParentBillingExportAlreadyHandedOver, "business_rejection"},
 	{CodeParentBillingExportFileNumberStartLocked, "business_rejection"},
+	{CodeParentBillingExportFormatsInvalid, "input"},
 	{CodeParentBillingExportInvoiceNotFound, "business_rejection"},
 	{CodeParentBillingExportMappingInvalid, "input"},
+	{CodeParentBillingExportRecipientInvalid, "input"},
+	{CodeParentBillingExportRecipientNameTaken, "business_rejection"},
+	{CodeParentBillingExportRecipientNotFound, "business_rejection"},
+	{CodeParentBillingExportRecipientNotReady, "business_rejection"},
 	{CodeParentBillingExportRunEmpty, "business_rejection"},
 	{CodeParentBillingExportRunNotFound, "business_rejection"},
 	{CodeParentBillingFamilyBillingInvalid, "input"},
 	{CodeParentBillingFamilyBillingNotFound, "business_rejection"},
 	{CodeParentBillingFamilyChildrenInvalid, "input"},
 	{CodeParentBillingFamilyChildrenNotFound, "business_rejection"},
+	{CodeParentBillingFamilyDebtorNumberConflict, "business_rejection"},
 	{CodeParentBillingFamilyNotFound, "business_rejection"},
 	{CodeParentBillingFamilyUnknown, "business_rejection"},
 	{CodeParentBillingFamilyWithoutAddress, "business_rejection"},

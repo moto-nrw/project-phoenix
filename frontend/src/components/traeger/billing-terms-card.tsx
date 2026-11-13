@@ -8,6 +8,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { Radio } from "~/components/ui/radio";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EditActions } from "~/components/ui/edit-actions";
 import { FieldLabel } from "~/components/ui/field-label";
@@ -167,7 +168,7 @@ function ServiceTermsModal({
           </p>
         </div>
         <Input
-          controlSize="compact"
+          controlSize="touch"
           id={`billing-terms-days-${service}`}
           name="due_days"
           label="Zahlungsziel in Tagen"
@@ -181,10 +182,10 @@ function ServiceTermsModal({
         />
         {row && row.options.length > 0 ? (
           <div className="space-y-2">
-            <FieldLabel>Rechnung</FieldLabel>
+            <FieldLabel id="billing-terms-bundle-label">Rechnung</FieldLabel>
             <div
-              role="group"
-              aria-label="Rechnung"
+              role="radiogroup"
+              aria-labelledby="billing-terms-bundle-label"
               className="grid gap-2 sm:grid-cols-2"
             >
               {[
@@ -193,11 +194,14 @@ function ServiceTermsModal({
               ].map((item) => (
                 <ChoiceTile
                   key={item.value}
-                  as="button"
                   selected={bundleWith === item.value}
-                  aria-pressed={bundleWith === item.value}
-                  onClick={() => setBundleWith(item.value)}
                 >
+                  <Radio
+                    name="billing-terms-bundle"
+                    value={item.value}
+                    checked={bundleWith === item.value}
+                    onChange={() => setBundleWith(item.value)}
+                  />
                   {item.label}
                 </ChoiceTile>
               ))}
@@ -270,7 +274,6 @@ export function BillingTermsCard({
       render: (row) => (
         <OverflowMenu
           ariaLabel={`Aktionen für ${BILLING_SERVICE_LABELS[row.terms.service]}`}
-          triggerSize="sm"
           items={[{ label: "Ändern", onClick: () => setEditing(row) }]}
         />
       ),

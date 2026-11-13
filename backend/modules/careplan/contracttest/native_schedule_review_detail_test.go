@@ -6,11 +6,11 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/careplantest"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 
@@ -42,6 +42,7 @@ func TestScheduleDetailAuthorizesBeforeLoadingNames(t *testing.T) {
 	deps := compose.ScheduleReviewDependencies{StudentDirectory: testpkg.StudentDirectory{}, People: directory, Bookings: struct{ compose.ReviewBookings }{}, Classes: struct{ compose.ReviewClassTimes }{},
 		Scope:                 func(context.Context) (compose.ReviewScope, error) { return scope, nil },
 		BookingsAuthoritative: func(context.Context) (bool, error) { return false, nil }, Today: func() careplan.Date { return "2026-09-20" },
+		Fingerprint: func(content []byte) string { return string(content) },
 	}
 	query, err := compose.NewScheduleReviews(db, func(compose.Observation) {}, deps)
 	require.NoError(t, err)

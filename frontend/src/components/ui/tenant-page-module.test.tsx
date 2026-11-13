@@ -9,9 +9,10 @@ import {
   useTenantSafe,
 } from "~/lib/tenant-context";
 
-import { NotBookedPageProvider } from "~/lib/not-booked-page-context";
-
-import { ModuleNotBookedSlots } from "~/components/tenant/module-not-booked-state";
+import {
+  ModuleNotBookedSlots,
+  NotBookedPageProvider,
+} from "~/components/tenant/module-not-booked-state";
 import { TenantPage } from "./tenant-page";
 
 const navigation = vi.hoisted(() => ({ pathname: "/time-tracking" }));

@@ -5,26 +5,26 @@ import (
 	"errors"
 	"fmt"
 
-	realtime "github.com/moto-nrw/project-phoenix/realtime"
+	realtime "github.com/moto-ogs/project-phoenix/realtime"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	arrivalTimetable "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	deliveryModule "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	education "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	arrivalTimetable "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // EnrollmentNotices are Enrollment's mail branding and decision notices over
@@ -120,6 +120,7 @@ func BuildEnrollmentDecisions(
 		IsTransient:            transactionFailures.IsTransientDatabaseError,
 		IsSavepointRollback:    func(err error) bool { return errors.Is(err, tenant.ErrSavepointRollback) },
 		LockTemplateRecurrence: owner.RecurrenceLock.LockRecurrenceWrites,
+		FollowClassChanges:     FollowClassChanges(owner.CohortRosters),
 		Pickups:                weeklyPickupHooks(schedules.AutoExcusal, carePlanRows.PickupStudentLocks),
 		Logger:                 env.Logger.With("service", "enrollment-decision"), Today: env.Today,
 	})

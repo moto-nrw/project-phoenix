@@ -4,8 +4,8 @@ status: accepted
 
 # Vorbefüllung der Ferienanmeldung liest im Elternportal
 
-Entscheidung vom 25.10.2026 zu [#4662](https://github.com/moto-nrw/project-phoenix/issues/4662),
-Etappe 1 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung vom 25.10.2026 zu [#4662](https://github.com/moto-ogs/project-phoenix/issues/4662),
+Etappe 1 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Story 27. Sie baut auf
 [ADR 0110](0110-oeffentliche-ferienanmeldung-schreibt-in-der-traeger-transaktion.md)
 auf und führt keinen neuen Owner ein.
@@ -65,7 +65,7 @@ auf und führt keinen neuen Owner ein.
 ## Nachtrag 10.11.2026: Ferienwunsch (#4703)
 
 Entscheidung vom 09.11.2026 zu
-[#4703](https://github.com/moto-nrw/project-phoenix/issues/4703) (B + C).
+[#4703](https://github.com/moto-ogs/project-phoenix/issues/4703) (B + C).
 
 1. **Ferienwunsch in der Vorbefüllung:** Berücksichtigt der Zeitraum den
    Ferienwunsch (`holiday_periods.holiday_wish_rule`), liest die

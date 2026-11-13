@@ -8,7 +8,7 @@
 -- public form correctly offered - and the backend correctly accepted -
 -- Tuesday..Friday picks. Two child rows with non-Monday days were stored
 -- that way (request_child_offering_id 14 and 18, see
--- https://github.com/moto-nrw/project-phoenix/issues/1834#issuecomment-4893612999).
+-- https://github.com/moto-ogs/project-phoenix/issues/1834#issuecomment-4893612999).
 --
 -- Detection heuristic:
 --   * the offering name contains exactly ONE German weekday word

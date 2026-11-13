@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/domain"
 )
 
 // The Dienstplan rows (#2689): concrete shifts, their recurrence rules, the
@@ -586,15 +586,10 @@ func (s *Service) UpdateShiftType(ctx context.Context, shiftType workforce.Shift
 	return shiftTypeToPublic(result), mapShiftError(err)
 }
 
+// DeleteShiftType removes a shift type like RemoveShiftType: a type that
+// planned shifts or series still carry is archived, never hard-deleted, so
+// no caller can null their classification (#6845).
 func (s *Service) DeleteShiftType(ctx context.Context, id int64) error {
-	if id <= 0 {
-		return workforce.ErrShiftTypeNotFound
-	}
-	return mapShiftError(s.run(ctx, "delete_shift_type", func(ctx context.Context, stats *domain.OperationStats) error {
-		return s.transaction.RunWrite(ctx, func(txCtx context.Context) error {
-			writeStats, err := s.store.DeleteShiftType(txCtx, id)
-			stats.Add(writeStats)
-			return err
-		})
-	}))
+	_, err := s.RemoveShiftType(ctx, id)
+	return err
 }

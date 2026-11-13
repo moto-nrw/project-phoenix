@@ -1,31 +1,37 @@
 "use client";
 import { BELOW_SM } from "~/lib/hooks/use-media-query";
 import { Z_LAYER } from "./overlay-styles";
+import {
+  MODAL_SCOPE_SELECTOR,
+  OverlayOwnerProvider,
+  SCROLL_AREA_PROPS,
+  SHEET_SCOPE_SELECTOR,
+  type OverlayOwner,
+} from "./overlay-stack";
+import { useAnchoredPanel } from "./anchored-panel";
+import { PANEL_VIEWPORT_MARGIN } from "./panel-geometry";
 import { useBerlinToday } from "~/lib/hooks/use-berlin-today";
 import { parseISODate } from "~/lib/date-helpers";
 import { cn } from "~/lib/utils";
 
-import { Suspense, useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import type { DateRange, Matcher } from "react-day-picker";
+import { FocusScope } from "@radix-ui/react-focus-scope";
+import type { DateRange, Matcher, Modifiers } from "react-day-picker";
 import { addDays } from "date-fns/addDays";
-import { addMonths } from "date-fns/addMonths";
 import { format } from "date-fns/format";
-import { subMonths } from "date-fns/subMonths";
+import { isSameDay } from "date-fns/isSameDay";
 import { de } from "date-fns/locale/de";
-import "react-day-picker/style.css";
 import {
-  CALENDAR_PANEL_MARGIN,
   computeCalendarPanelPosition,
   type PanelGeometry,
 } from "~/components/ui/calendar-panel-position";
 import { selectTriggerClassName } from "~/components/ui/select-trigger-styles";
 import {
   DAY_PICKER_CLASSNAMES,
-  DayPickerSkeleton,
-  LazyDayPicker,
   preloadDayPicker,
 } from "~/components/ui/lazy-day-picker";
+import { CalendarMonthHeader, CalendarShell } from "./calendar-shell";
 
 interface Preset {
   readonly label: string;
@@ -51,13 +57,42 @@ interface DateRangePickerProps {
 // on each month has a fixed one; the single month on a phone fills the panel.
 // The cells touch: the range band runs through them without a gap.
 const RANGE_MONTHS_CLASS = "flex flex-col gap-4 sm:flex-row";
-const RANGE_MONTH_CLASS = "w-full sm:w-56";
+// By finger a month gets 7 × 44 px and every day 44 px of height.
+const RANGE_MONTH_CLASS = "w-full sm:w-56 pointer-coarse:sm:w-80";
 const RANGE_CLASSNAMES = {
   ...DAY_PICKER_CLASSNAMES,
   months: RANGE_MONTHS_CLASS,
   month: RANGE_MONTH_CLASS,
-  day: "flex-1 min-w-0 h-9 p-0 text-center text-sm relative",
+  day: "flex-1 min-w-0 h-9 p-0 text-center text-sm relative pointer-coarse:h-11",
+  // The range paints itself (rangeStart, rangeEnd, rangeMiddle, singlePick);
+  // `selected` only carries the semantics for assistive tech.
+  selected: "",
 };
+
+/** Every calendar day from `from` to `to`, both included. */
+function daysOfRange(from: Date | undefined, to: Date | undefined): Date[] {
+  if (!from) return [];
+  const days: Date[] = [];
+  for (
+    let day = from;
+    day <= (to ?? from) && days.length < 3700;
+    day = addDays(day, 1)
+  ) {
+    days.push(day);
+  }
+  return days;
+}
+
+/** The German name of a day button, with its place in the range. */
+function rangeDayLabel(date: Date, modifiers?: Modifiers): string {
+  const day = format(date, "EEEE, d. MMMM yyyy", { locale: de });
+  const named = modifiers?.today ? `Heute, ${day}` : day;
+  if (modifiers?.rangeStart) return `${named}, Beginn des Zeitraums`;
+  if (modifiers?.rangeEnd) return `${named}, Ende des Zeitraums`;
+  if (modifiers?.rangeMiddle) return `${named}, im Zeitraum`;
+  if (modifiers?.singlePick) return `${named}, gewählt`;
+  return named;
+}
 
 // The look of `DAY_PICKER_CLASSNAMES.selected`. Important because the day marks
 // a caller adds (`modifiersClassNames`) are too.
@@ -84,29 +119,48 @@ export function DateRangePicker({
   const containerRef = useRef<HTMLDivElement>(null);
   const triggerRef = useRef<HTMLButtonElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
-
-  useEffect(() => {
-    function handleClickOutside(event: MouseEvent) {
-      const target = event.target as Node;
-      // The panel now lives in a portal outside containerRef, so it has to be
-      // treated as "inside" explicitly — otherwise clicking a day would close
-      // the panel before the selection lands.
-      if (panelRef.current?.contains(target)) {
-        return;
-      }
-      if (containerRef.current && !containerRef.current.contains(target)) {
-        setIsOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
+  const panelId = useId();
+  // Closing from inside the panel (a finished range, a preset) hands focus
+  // back to the trigger; the panel would otherwise take it along. Escape does
+  // the same through the engine below.
+  const closeToTrigger = useCallback(() => {
+    setIsOpen(false);
+    triggerRef.current?.focus();
   }, []);
+
+  // The engine closes the calendar on a press outside and on Escape, like in
+  // `DatePicker`. The overlay stack decides whether it is the topmost overlay
+  // (several calendars, a popover or a dialog above it), and an open select
+  // above it keeps its own Escape. It takes its place in the overlay stack
+  // (#6732): over the overlay it opened from, under one that opens later. It
+  // closes when that overlay closes or rests, or when a dialog, side panel or
+  // tour opens above it, as the click that usually opens them would have.
+  // The panel follows its trigger on scroll and resize (`RangeCalendar`).
+  const closeCovered = useCallback(() => setIsOpen(false), []);
+  const repositionRef = useRef<(() => void) | null>(null);
+  const reposition = useCallback(() => repositionRef.current?.(), []);
+  const { owner } = useAnchoredPanel({
+    open: isOpen,
+    onClose: (reason) => {
+      setIsOpen(false);
+      if (reason === "escape") triggerRef.current?.focus();
+    },
+    anchorRef: containerRef,
+    panelRef,
+    outsidePress: "tap",
+    scroll: "follow",
+    reposition,
+    onCovered: closeCovered,
+  });
 
   return (
     <div className={`relative ${className}`} ref={containerRef}>
       <button
         ref={triggerRef}
         type="button"
+        aria-haspopup="dialog"
+        aria-expanded={isOpen}
+        aria-controls={isOpen ? panelId : undefined}
         onClick={() => setIsOpen((v) => !v)}
         // Fetch the calendar module before the click, so opening does not
         // wait for it.
@@ -155,6 +209,9 @@ export function DateRangePicker({
         <RangeCalendar
           triggerRef={triggerRef}
           panelRef={panelRef}
+          owner={owner}
+          repositionRef={repositionRef}
+          panelId={panelId}
           value={value}
           presets={presets}
           fromMin={fromMin}
@@ -163,7 +220,7 @@ export function DateRangePicker({
             onChange(range);
             // Close only when both bounds are picked (or when a preset fires).
             if (range?.from && range.to) {
-              setIsOpen(false);
+              closeToTrigger();
             }
           }}
         />
@@ -172,18 +229,10 @@ export function DateRangePicker({
   );
 }
 
-function isSameCalendarDay(left: Date, right: Date): boolean {
-  return (
-    left.getFullYear() === right.getFullYear() &&
-    left.getMonth() === right.getMonth() &&
-    left.getDate() === right.getDate()
-  );
-}
-
 function formatRangeLabel(range: DateRange | undefined): string {
   if (!range?.from) return "Zeitraum wählen";
   // Ein einzelner Tag zeigt nur ein Datum, nicht „6.–6. Okt. 2026".
-  if (!range.to || isSameCalendarDay(range.from, range.to)) {
+  if (!range.to || isSameDay(range.from, range.to)) {
     return format(range.from, "d. MMM yyyy", { locale: de });
   }
   const sameYear = range.from.getFullYear() === range.to.getFullYear();
@@ -207,10 +256,17 @@ function formatRangeLabel(range: DateRange | undefined): string {
 function RangeCalendar({
   triggerRef,
   panelRef,
+  owner,
+  repositionRef,
+  panelId,
   ...props
 }: RangeCalendarProps & {
   readonly triggerRef: React.RefObject<HTMLElement | null>;
   readonly panelRef: React.RefObject<HTMLDivElement | null>;
+  readonly owner: OverlayOwner;
+  /** Receives the placement, which the engine calls on scroll and resize. */
+  readonly repositionRef: React.RefObject<(() => void) | null>;
+  readonly panelId: string;
 }) {
   const [geometry, setGeometry] = useState<PanelGeometry | null>(null);
   const [isNarrowViewport, setIsNarrowViewport] = useState<boolean | null>(
@@ -249,43 +305,92 @@ function RangeCalendar({
     setMounted(true);
   }, []);
 
+  // Opening moves focus into the panel: onto the chosen start day when there
+  // is one, else onto the first control. The panel is portaled after the
+  // page, so keyboard users would otherwise not reach it.
+  useEffect(() => {
+    if (!mounted) return;
+    const frame = requestAnimationFrame(() => {
+      const panel = panelRef.current;
+      if (!panel || panel.contains(document.activeElement)) return;
+      const target =
+        panel.querySelector<HTMLElement>('[aria-selected="true"] button') ??
+        panel.querySelector<HTMLElement>(
+          "button:not([disabled]), [tabindex='0']",
+        );
+      target?.focus({ preventScroll: true });
+    });
+    return () => cancelAnimationFrame(frame);
+  }, [mounted, panelRef]);
+
   useEffect(() => {
     sync();
-    window.addEventListener("resize", sync);
-    window.addEventListener("scroll", sync, true);
+    repositionRef.current = sync;
     return () => {
-      window.removeEventListener("resize", sync);
-      window.removeEventListener("scroll", sync, true);
+      repositionRef.current = null;
     };
-  }, [sync]);
+  }, [repositionRef, sync]);
 
   // Below the sm breakpoint the panel is too wide for any alignment to help, so
   // it spans the viewport with a margin, as before.
   const narrowStyle = {
-    left: CALENDAR_PANEL_MARGIN,
-    right: CALENDAR_PANEL_MARGIN,
+    left: PANEL_VIEWPORT_MARGIN,
+    right: PANEL_VIEWPORT_MARGIN,
     top: 80,
   } as const;
 
   if (!mounted) return null;
 
-  return createPortal(
+  // Like `DatePicker`: inside a modal the panel stays in its FocusScope, or the
+  // trap pulls keyboard focus out of the calendar. The modal wrapper has no
+  // transform, so it can host the fixed panel. A slide-over transforms its
+  // content, so its calendar stays at the body with its own FocusScope.
+  // A press or focus in that body portal does not close the slide-over: Radix
+  // `DismissableLayer` counts portal children as inside through the React tree
+  // (test "keeps the slide-over open on a pointer press and focus in its
+  // calendar", real Vaul). No `stopPropagation` here: a press in one calendar
+  // must still close another open one.
+  // Inside a modal the panel shares the modal's stacking context, exactly like
+  // `DatePicker`: a tour coach mark over an open dialog lies above both alike.
+  const modalScope = triggerRef.current?.closest(MODAL_SCOPE_SELECTOR);
+  const needsPortalledFocusScope =
+    !modalScope && triggerRef.current?.closest(SHEET_SCOPE_SELECTOR) != null;
+
+  const panel = (
     <div
       ref={panelRef}
+      id={panelId}
+      role="dialog"
+      aria-label="Zeitraum wählen"
       data-range-panel
+      // A dialog locks the page scroll; the panel scrolls like `DatePicker`'s.
+      {...SCROLL_AREA_PROPS}
       className={`fixed ${Z_LAYER.popover} moto-popover-surface max-h-[calc(100vh-6rem)] w-max max-w-[calc(100vw-1rem)] overflow-y-auto rounded-xl border sm:max-h-none sm:overflow-visible`}
       style={
         isNarrowViewport || !geometry
           ? {
               ...narrowStyle,
+              pointerEvents: "auto",
               visibility: isNarrowViewport === null ? "hidden" : undefined,
             }
-          : { top: geometry.top, left: geometry.left }
+          : { top: geometry.top, left: geometry.left, pointerEvents: "auto" }
       }
     >
-      <RangeCalendarInline {...props} />
-    </div>,
-    document.body,
+      <OverlayOwnerProvider owner={owner}>
+        <RangeCalendarInline {...props} />
+      </OverlayOwnerProvider>
+    </div>
+  );
+
+  return createPortal(
+    needsPortalledFocusScope ? (
+      <FocusScope asChild loop trapped>
+        {panel}
+      </FocusScope>
+    ) : (
+      panel
+    ),
+    modalScope ?? document.body,
   );
 }
 
@@ -307,12 +412,12 @@ function formatDraftRangeLabel(
   draftFrom: Date | undefined,
   draftTo: Date | undefined,
 ): string {
-  if (!draftFrom) return "Klicke ein Startdatum";
-  if (!draftTo) return "Klicke ein Enddatum";
-  if (isSameCalendarDay(draftFrom, draftTo)) {
+  if (!draftFrom) return "Startdatum wählen";
+  if (!draftTo) return "Enddatum wählen";
+  if (isSameDay(draftFrom, draftTo)) {
     return format(draftFrom, "d. MMM yyyy", { locale: de });
   }
-  return `${format(draftFrom, "d. MMM yyyy", { locale: de })} - ${format(
+  return `${format(draftFrom, "d. MMM yyyy", { locale: de })} – ${format(
     draftTo,
     "d. MMM yyyy",
     { locale: de },
@@ -341,7 +446,7 @@ export function RangeCalendarInline({
   const today = useBerlinToday();
   const [month, setMonth] = useState(value?.from ?? parseISODate(today));
   const isSingleMonth = useIsSingleMonthCalendar();
-  // Manual draft state. We use `mode="single"` on the underlying DayPicker
+  // Manual draft state. We use `mode="multiple"` on the underlying DayPicker
   // and manage the two-click range logic ourselves, react-day-picker v10's
   // mode="range" calls onSelect with surprising payloads (sometimes a complete
   // {from, to} pair on first click), which would cause the picker to close
@@ -376,19 +481,22 @@ export function RangeCalendarInline({
 
   const hasPresets = presets && presets.length > 0;
   const draftLabel = formatDraftRangeLabel(draftFrom, draftTo);
+  const selectedDays = daysOfRange(draftFrom, draftTo);
 
   return (
     <div
       className={`flex flex-col sm:flex-row ${hasPresets ? "" : "justify-center"}`}
     >
       {hasPresets && (
-        <div className="flex max-w-[calc(100vw-2rem)] gap-1 overflow-x-auto border-b border-gray-100 p-2 text-sm sm:max-w-none sm:flex-col sm:overflow-visible sm:border-r sm:border-b-0 sm:p-3">
+        // On a phone the presets wrap into rows: a scrolled row cut the last
+        // one at the edge without a cue.
+        <div className="flex flex-wrap gap-1 border-b border-gray-100 p-2 text-sm sm:flex-col sm:flex-nowrap sm:border-r sm:border-b-0 sm:p-3">
           {presets.map((preset) => (
             <button
               key={preset.label}
               type="button"
               onClick={() => handlePreset(preset)}
-              className="shrink-0 rounded-md px-3 py-2 text-left text-gray-700 hover:bg-gray-100"
+              className="shrink-0 rounded-md px-3 py-2 text-left text-gray-700 hover:bg-gray-100 pointer-coarse:min-h-11"
             >
               {preset.label}
             </button>
@@ -396,127 +504,80 @@ export function RangeCalendarInline({
         </div>
       )}
       <div className="p-3 sm:p-4">
-        <div className="mb-3 text-center text-sm font-medium text-gray-700">
+        {/* Announced as it changes: after the first day „Enddatum wählen“,
+            after the second the chosen range. */}
+        <div
+          role="status"
+          className="mb-3 text-center text-sm font-medium text-gray-700"
+        >
           {draftLabel}
         </div>
-        <div className="mb-3 flex items-center justify-between">
-          <button
-            type="button"
-            onClick={() => setMonth(subMonths(month, 1))}
-            aria-label="Vorheriger Monat"
-            className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
-          >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M15 19l-7-7 7-7"
-              />
-            </svg>
-          </button>
-          <span className="text-sm font-medium text-gray-900">
-            {format(month, "MMMM yyyy", { locale: de })}
-            {" - "}
-            {format(addMonths(month, 1), "MMMM yyyy", { locale: de })}
-          </span>
-          <button
-            type="button"
-            onClick={() => setMonth(addMonths(month, 1))}
-            aria-label="Nächster Monat"
-            className="rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
-          >
-            <svg
-              className="h-4 w-4"
-              fill="none"
-              viewBox="0 0 24 24"
-              stroke="currentColor"
-            >
-              <path
-                strokeLinecap="round"
-                strokeLinejoin="round"
-                strokeWidth={2}
-                d="M9 5l7 7-7 7"
-              />
-            </svg>
-          </button>
-        </div>
+        <CalendarMonthHeader
+          variant="range"
+          singleMonth={isSingleMonth}
+          month={month}
+          onMonthChange={setMonth}
+        />
         {/* The skeleton keeps the panel's measured size: RangeCalendar places
             the panel from its width on mount. */}
-        <Suspense
-          fallback={
-            <DayPickerSkeleton
-              month={month}
-              numberOfMonths={isSingleMonth ? 1 : 2}
-              monthsClassName={RANGE_MONTHS_CLASS}
-              monthClassName={RANGE_MONTH_CLASS}
-            />
-          }
-        >
-          <LazyDayPicker
-            today={parseISODate(today)}
-            mode="single"
-            selected={undefined}
-            onDayClick={handleDayClick}
-            month={month}
-            onMonthChange={setMonth}
-            numberOfMonths={isSingleMonth ? 1 : 2}
-            locale={de}
-            weekStartsOn={1}
-            showOutsideDays={false}
-            hideNavigation
-            disabled={[
-              ...(fromMin ? [{ before: fromMin }] : []),
-              ...(toMax ? [{ after: toMax }] : []),
-            ]}
-            modifiers={{
-              ...extraModifiers,
-              // Range start/end only fire when there's an actual span (from !==
-              // to). A single-day or in-progress selection is handled by
-              // `singlePick` so it gets a standalone rounded pill instead of a
-              // half-band that points nowhere.
-              rangeStart:
-                draftFrom &&
-                draftTo &&
-                draftFrom.getTime() !== draftTo.getTime()
-                  ? [draftFrom]
-                  : [],
-              rangeEnd:
-                draftTo &&
-                draftFrom &&
-                draftFrom.getTime() !== draftTo.getTime()
-                  ? [draftTo]
-                  : [],
-              rangeMiddle:
-                draftFrom && draftTo
-                  ? { after: draftFrom, before: draftTo }
-                  : [],
-              singlePick:
-                draftFrom &&
-                (!draftTo || draftFrom.getTime() === draftTo.getTime())
-                  ? [draftFrom]
-                  : [],
-            }}
-            modifiersClassNames={{
-              ...extraModifiersClassNames,
-              // Half-cell gradient on the cell (light band only on the inner
-              // half) + dark rounded pill on the button. This keeps the band
-              // continuous from start to end without "tails" outside.
-              rangeStart: `!bg-[linear-gradient(to_right,transparent_50%,var(--color-gray-100)_50%)] ${RANGE_PILL_CLASS}`,
-              rangeEnd: `!bg-[linear-gradient(to_right,var(--color-gray-100)_50%,transparent_50%)] ${RANGE_PILL_CLASS}`,
-              // Normal weight also for today; its blue stays readable here.
-              rangeMiddle:
-                "!bg-gray-100 [&>button]:font-normal [&>button:hover]:bg-gray-200",
-              singlePick: RANGE_PILL_CLASS,
-            }}
-            classNames={RANGE_CLASSNAMES}
-          />
-        </Suspense>
+        <CalendarShell
+          // The chosen days are the grid's selection, so a screen reader
+          // hears them; the two-click logic stays in handleDayClick.
+          mode="multiple"
+          selected={selectedDays}
+          labels={{
+            labelDayButton: rangeDayLabel,
+            labelGridcell: rangeDayLabel,
+          }}
+          // onSelect keeps `selected` controlled in react-day-picker.
+          // Ignore its toggle result and keep our two-click range logic.
+          onSelect={(_selected, day) => handleDayClick(day)}
+          month={month}
+          onMonthChange={setMonth}
+          numberOfMonths={isSingleMonth ? 1 : 2}
+          locale={de}
+          showOutsideDays={false}
+          disabled={[
+            ...(fromMin ? [{ before: fromMin }] : []),
+            ...(toMax ? [{ after: toMax }] : []),
+          ]}
+          modifiers={{
+            ...extraModifiers,
+            // Range start/end only fire when there's an actual span (from !==
+            // to). A single-day or in-progress selection is handled by
+            // `singlePick` so it gets a standalone rounded pill instead of a
+            // half-band that points nowhere.
+            rangeStart:
+              draftFrom && draftTo && draftFrom.getTime() !== draftTo.getTime()
+                ? [draftFrom]
+                : [],
+            rangeEnd:
+              draftTo && draftFrom && draftFrom.getTime() !== draftTo.getTime()
+                ? [draftTo]
+                : [],
+            rangeMiddle:
+              draftFrom && draftTo ? { after: draftFrom, before: draftTo } : [],
+            singlePick:
+              draftFrom &&
+              (!draftTo || draftFrom.getTime() === draftTo.getTime())
+                ? [draftFrom]
+                : [],
+          }}
+          modifiersClassNames={{
+            ...extraModifiersClassNames,
+            // Half-cell gradient on the cell (light band only on the inner
+            // half) + dark rounded pill on the button. This keeps the band
+            // continuous from start to end without "tails" outside.
+            rangeStart: `!bg-[linear-gradient(to_right,transparent_50%,var(--color-gray-100)_50%)] ${RANGE_PILL_CLASS}`,
+            rangeEnd: `!bg-[linear-gradient(to_right,var(--color-gray-100)_50%,transparent_50%)] ${RANGE_PILL_CLASS}`,
+            // Normal weight also for today; its blue stays readable here.
+            rangeMiddle:
+              "!bg-gray-100 [&>button]:font-normal [&>button:hover]:bg-gray-200",
+            singlePick: RANGE_PILL_CLASS,
+          }}
+          classNames={RANGE_CLASSNAMES}
+          skeletonClassNames={RANGE_CLASSNAMES}
+        />
       </div>
     </div>
   );

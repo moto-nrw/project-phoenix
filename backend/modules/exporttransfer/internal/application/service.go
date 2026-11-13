@@ -9,9 +9,9 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer"
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/ports"
 )
 
 // ErrUnavailable marks a transfer that could not be attempted for a reason

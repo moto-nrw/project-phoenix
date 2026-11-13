@@ -7,8 +7,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // HolidayStore persists the rules and the frozen contributions and knows
@@ -16,6 +16,7 @@ import (
 type HolidayStore interface {
 	Store
 	HolidaySiblingStore
+	FamilyMemoryStore
 	// IssuedRegistrations names the registrations of the period that an
 	// invoice of the service already bills.
 	IssuedRegistrations(ctx context.Context, organizationID int64, service string, periodID int64) (map[int64]bool, error)
@@ -36,16 +37,24 @@ type HolidayContributions struct {
 	store         HolidayStore
 	registrations parentbilling.HolidayRegistrations
 	settings      parentbilling.HolidayBillingSettings
+	// today is the Berlin day the family's number is needed from (#6692).
+	today func() calendar.Date
 }
 
 var _ parentbilling.HolidayContributions = (*HolidayContributions)(nil)
 
-// NewHolidayContributions builds the holiday contribution.
-func NewHolidayContributions(store HolidayStore, registrations parentbilling.HolidayRegistrations, settings parentbilling.HolidayBillingSettings) (parentbilling.HolidayContributions, parentbilling.HolidayAllocationBilling) {
+// NewHolidayContributions builds the holiday contribution; a nil today uses
+// the Berlin day.
+func NewHolidayContributions(store HolidayStore, registrations parentbilling.HolidayRegistrations, settings parentbilling.HolidayBillingSettings,
+	today func() calendar.Date,
+) (parentbilling.HolidayContributions, parentbilling.HolidayAllocationBilling) {
 	if store == nil || registrations == nil || settings == nil {
 		panic("parent billing: the store, the holiday registrations and the settings are required")
 	}
-	contributions := &HolidayContributions{store: store, registrations: registrations, settings: settings}
+	if today == nil {
+		today = calendar.TodayDate
+	}
+	contributions := &HolidayContributions{store: store, registrations: registrations, settings: settings, today: today}
 	return contributions, contributions
 }
 
@@ -178,9 +187,16 @@ func (h *HolidayContributions) memberContribution(ctx context.Context, organizat
 // switched-off cost bearer refuse the confirmation before anything is
 // written (#5627). The caller rolls the transaction back when this fails
 // after the confirmation.
-func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, benefitsExemption bool, costBearerID int64, debtorNumber string) (parentbilling.HolidayConfirmation, error) {
+func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, reviewer parentbilling.HolidayReviewer, periodID, registrationID int64, benefitsExemption bool, costBearerID int64, debtorNumber, familyChoice string) (parentbilling.HolidayConfirmation, error) {
 	if reviewer.OrganizationID <= 0 || reviewer.AccountID <= 0 {
 		return parentbilling.HolidayConfirmation{}, errTraegerRequired
+	}
+	if err := validFamilyChoice(familyChoice); err != nil {
+		return parentbilling.HolidayConfirmation{}, err
+	}
+	debtorNumber, err := h.debtorNumberOf(ctx, reviewer.OrganizationID, debtorNumber)
+	if err != nil {
+		return parentbilling.HolidayConfirmation{}, err
 	}
 	bearer, err := h.chosenCostBearer(ctx, reviewer.OrganizationID, benefitsExemption, costBearerID, true)
 	if err != nil {
@@ -202,6 +218,13 @@ func (h *HolidayContributions) ConfirmHolidayRegistration(ctx context.Context, r
 	}
 	choice := holidayMemberChoice{exemption: benefitsExemption, bearer: bearer}
 	if err := h.freezeConfirmed(ctx, reviewer, periodID, registration, others, issued, choice); err != nil {
+		return parentbilling.HolidayConfirmation{}, err
+	}
+	// The family keeps the number of the registration and of the group that
+	// took it (#6692); the caller rolls everything back on a conflict.
+	number := registration.DebtorNumber
+	if err := h.rememberFamilies(ctx, reviewer, slices.Concat([]parentbilling.HolidayRegistration{registration}, confirmedSharers(others, issued)),
+		&number, familyChoice, registration.ID); err != nil {
 		return parentbilling.HolidayConfirmation{}, err
 	}
 	frozen, found, err := h.store.HolidayContributions(ctx, reviewer.OrganizationID, registration.ID)

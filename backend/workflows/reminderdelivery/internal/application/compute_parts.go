@@ -8,8 +8,8 @@ package application
 import (
 	"context"
 
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
-	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
+	reminder "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery"
+	"github.com/moto-ogs/project-phoenix/workflows/reminderdelivery/ports"
 )
 
 func (s *service) computePickupPart(ctx context.Context, scope reminder.Scope, today string, nowMin int, pickupUpcoming, pickupOverdue bool, nextChange int) (pickupPart []reminder.Reminder, next int, err error) {

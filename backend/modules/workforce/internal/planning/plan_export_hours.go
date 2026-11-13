@@ -3,7 +3,7 @@ package planning
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/planexport"
+	"github.com/moto-ogs/project-phoenix/modules/planexport"
 )
 
 // planExportHours serves the hours sheet of the printable Dienstplan (#3819)

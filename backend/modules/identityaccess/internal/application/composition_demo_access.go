@@ -3,9 +3,9 @@ package application
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
-	restoredPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
+	restoredPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
 func NewDemoAccessBinding(dbReady bool, sessions ports.DemoSessions, deps *restoredPorts.DemoDependencies, store ports.DemoAccessStore, execute ports.DemoAdminTx) (*identityaccess.DemoAccess, error) {

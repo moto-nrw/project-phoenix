@@ -5,11 +5,11 @@ import (
 	"os"
 	"strings"
 
-	seedapi "github.com/moto-nrw/project-phoenix/internal/devtools/seedapi"
-	mealcompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
-	presencecompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	seedapi "github.com/moto-ogs/project-phoenix/internal/devtools/seedapi"
+	mealcompose "github.com/moto-ogs/project-phoenix/modules/mealplan/compose"
+	presencecompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // openPresenceHistory binds the seeder's past attendance and room visits to

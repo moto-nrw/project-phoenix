@@ -11,7 +11,7 @@ import { Input } from "~/components/ui/input";
 import { Textarea } from "~/components/ui/textarea";
 import { categorySelectProps } from "./category-option";
 import type { PlanningTrack } from "~/lib/planning-track-api";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import { getActivityColor } from "~/lib/timetable-helpers";
 import { Field } from "./field";
 import { isoWeekday } from "./form-model";
@@ -327,7 +327,7 @@ export function StepTermin({
             id="event_date"
             ariaDescribedBy={dateHint ? "event_date_hint" : undefined}
             name="date"
-            controlSize="md"
+            controlSize="compact"
             value={form.date}
             error={fieldErrors.date}
             calendarLayout="popover"
@@ -384,7 +384,7 @@ export function StepTermin({
                 ? "event_series_start_hint event_series_start_error"
                 : "event_series_start_hint"
             }
-            controlSize="md"
+            controlSize="compact"
             value={form.seriesStartDate}
             min={seriesStartEdit.min}
             max={seriesStartEdit.original}

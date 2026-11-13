@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	parentAPI "github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	parentAPI "github.com/moto-ogs/project-phoenix/modules/delivery/devices"
 )
 
 // ParentDevices exposes the existing parent operations through Delivery's public contract.

@@ -48,9 +48,10 @@ export function alertSentence(
       return `${figures.childrenSick} von ${figures.childrenTotal} Kindern sind heute krank (${percentFormat.format(share)}).`;
     }
     case "open_enrollments":
+      // The school decides, in its own app; the sentence names who acts.
       return school.openEnrollments === 1
-        ? "1 Kind wartet auf eine Entscheidung."
-        : `${school.openEnrollments} Kinder warten auf eine Entscheidung.`;
+        ? "1 Kind wartet auf eine Entscheidung der Schule."
+        : `${school.openEnrollments} Kinder warten auf eine Entscheidung der Schule.`;
   }
 }
 

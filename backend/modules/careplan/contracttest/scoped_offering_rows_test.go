@@ -3,9 +3,9 @@ package contracttest_test
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	enrollmentTest "github.com/moto-nrw/project-phoenix/modules/enrollment/enrollmenttest"
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	enrollmentTest "github.com/moto-ogs/project-phoenix/modules/enrollment/enrollmenttest"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 )
 
 // scopedCareOfferingRows is the fixture root around catalog administration,

@@ -3,9 +3,9 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // RequestPickupPlans is the schedule surface used by request decisions.

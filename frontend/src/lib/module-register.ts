@@ -115,6 +115,7 @@ export const PAGE_MODULES: Readonly<Record<string, ModuleScope>> = {
   // Abwesenheitsarten des Teams: Urlaub und Krankheit gehören zur
   // Zeiterfassung.
   "/database/absence-types": "zeiterfassung",
+  "/database/work-time-models": "zeiterfassung",
   "/database/groups": BASIS,
   "/database/roles": BASIS,
   "/database/devices": "nfc_anwesenheit",

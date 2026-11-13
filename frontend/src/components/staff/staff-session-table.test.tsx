@@ -1619,6 +1619,9 @@ describe("staff-session-table.invalidation", () => {
         "phoenix:staff-absences-42-2026-08-01-2026-08-31",
         "phoenix:staff-month-summary-42-2026-8",
         "phoenix:staff-schedule-targets-42-2026-08-01-2026-08-31",
+        // The Übersicht charts sum the same projection over the account range
+        // (#6847): their Ist and Saldo move with the save as well.
+        "phoenix:staff-schedule-targets-42-account-2026-01-01-2026-12-31",
         // Own-service portal keys (no staff id): a manager correcting their OWN
         // days also has the self-service table and weekly KPI open, which key
         // without an id and read the same projection.
@@ -1629,12 +1632,8 @@ describe("staff-session-table.invalidation", () => {
       }
     });
 
-    it("leaves the target-only account chart and unrelated caches alone", () => {
+    it("leaves unrelated caches alone", () => {
       for (const key of [
-        // Fetched with target_only=true: pure Soll, which a session edit cannot
-        // change. Refetching the whole account range on every correction would
-        // be a large request for an unchanged answer.
-        "phoenix:staff-schedule-targets-account-42-2026-01-01-2026-12-31",
         "phoenix:staff-schedule-42",
         "phoenix:time-tracking-holidays-2026-08-01-2026-08-31",
         "phoenix:time-tracking-closing-days-2026-08-01-2026-08-31",
@@ -1658,5 +1657,80 @@ describe("staff-session-table.invalidation", () => {
       expect(isStaleAfterSessionSave(["staff-history-42"], "42")).toBe(false);
       expect(isStaleAfterSessionSave(undefined, "42")).toBe(false);
     });
+  });
+});
+
+describe("staff-session-table.credit", () => {
+  // #6851, #6852: Wegpackzeit und Rundung stecken in der Ist-Zeit; die
+  // Hinweis-Spalte zeigt sie, die gestempelten Zeiten bleiben stehen.
+  function renderCredit(session: StaffHistorySession) {
+    return render(
+      <StaffSessionTable
+        staffId="1"
+        from={new Date(2026, 0, 5)}
+        to={new Date(2026, 0, 11)}
+        sessions={[session]}
+        schedule={null}
+        accountStartDate=""
+        accountStartDatePending={false}
+        accountStartDateError={false}
+        today={new Date(2026, 5, 15)}
+        isAdminView
+      />,
+    );
+  }
+
+  const stamped: StaffHistorySession = {
+    id: "51",
+    date: "2026-01-05",
+    // 08:00–14:03 Berlin, +5 Min. Wegpackzeit, auf 15 Min. gerundet: 6:15.
+    net_minutes: 375,
+    check_in_time: "2026-01-05T07:00:00Z",
+    check_out_time: "2026-01-05T13:03:00Z",
+    break_minutes: 0,
+    pack_up_minutes: 5,
+    rounding_minutes: 7,
+  };
+
+  it("zeigt Wegpackzeit und Rundung neben den gestempelten Zeiten", () => {
+    renderCredit(stamped);
+
+    expect(screen.getByText("+5 Min. Wegpackzeit")).toBeInTheDocument();
+    expect(screen.getByText("Gerundet +7 Min.")).toBeInTheDocument();
+    expect(screen.getByText("14:03")).toBeInTheDocument();
+  });
+
+  it("behält die Hinweise bei einem Checkout genau um Mitternacht", () => {
+    renderCredit({
+      ...stamped,
+      check_in_time: "2026-01-05T22:03:00Z",
+      check_out_time: "2026-01-05T23:00:00Z",
+      net_minutes: 60,
+      rounding_minutes: -2,
+    });
+    expect(screen.getByText("+5 Min. Wegpackzeit")).toBeInTheDocument();
+    expect(screen.getByText("Gerundet -2 Min.")).toBeInTheDocument();
+    expect(screen.getByText("00:00")).toBeInTheDocument();
+  });
+
+  it("bucht Wegpackzeit nur auf den letzten Tag des Nachtblocks", () => {
+    renderCredit({
+      ...stamped,
+      check_in_time: "2026-01-05T21:00:00Z",
+      check_out_time: "2026-01-06T00:00:00Z",
+      net_minutes: 185,
+      rounding_minutes: 0,
+    });
+    expect(screen.getByText("2h")).toBeInTheDocument();
+    expect(screen.getByText("1h 5min")).toBeInTheDocument();
+    expect(screen.getAllByText("+5 Min. Wegpackzeit")).toHaveLength(1);
+  });
+
+  it("zeigt abgerundete Minuten mit Minuszeichen", () => {
+    renderCredit({ ...stamped, pack_up_minutes: 0, rounding_minutes: -3 });
+
+    expect(screen.getByText("Gerundet -3 Min.")).toBeInTheDocument();
+    expect(screen.getByText("14:03")).toBeInTheDocument();
+    expect(screen.queryByText(/Wegpackzeit/)).not.toBeInTheDocument();
   });
 });

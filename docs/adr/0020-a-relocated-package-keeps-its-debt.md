@@ -5,7 +5,7 @@ status: accepted
 # A relocated package keeps its debt
 
 The backend migration of
-[#2580](https://github.com/moto-nrw/project-phoenix/issues/2580) moves packages
+[#2580](https://github.com/moto-ogs/project-phoenix/issues/2580) moves packages
 for a living: a legacy package leaves its old path and lands inside the module
 that owns it, with the same owner, the same role and the same imports. The
 exact ratchet identifies a violation by `scope|rule|source|target`, so a move
@@ -20,7 +20,7 @@ keys. It grants nothing.
 ## Why the existing mechanisms do not cover it
 
 Neither route worked, and both were measured against
-[#3226](https://github.com/moto-nrw/project-phoenix/issues/3226), which moves
+[#3226](https://github.com/moto-ogs/project-phoenix/issues/3226), which moves
 `auth/jwt`, `models/auth` and `database/repositories/auth` into
 `modules/identityaccess/legacy`:
 
@@ -103,8 +103,8 @@ keys.
   and 690 baseline entries whose issues are unchanged; 65 of them are simply
   read at the new paths.
 - The remaining relocation-shaped tickets under #2580 —
-  [#3230](https://github.com/moto-nrw/project-phoenix/issues/3230),
-  [#3231](https://github.com/moto-nrw/project-phoenix/issues/3231),
+  [#3230](https://github.com/moto-ogs/project-phoenix/issues/3230),
+  [#3231](https://github.com/moto-ogs/project-phoenix/issues/3231),
   #3349–#3356 and most of Block 10 — use the same declaration instead of a new
   compatibility-permission tail.
 - The issue audit keeps working: a relocated entry still names one open

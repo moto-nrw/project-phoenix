@@ -3,10 +3,10 @@ package importpkg
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/internal/adapters/fileformat"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/internal/adapters/fileformat"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	usersModel "github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	usersModel "github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

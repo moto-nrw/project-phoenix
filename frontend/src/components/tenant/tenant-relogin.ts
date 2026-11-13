@@ -1,4 +1,4 @@
-import { apiErrorFromResponse } from "~/lib/api-error";
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { clearPersonalStorage } from "~/lib/personal-storage";
 import { mutate } from "~/lib/swr";
@@ -28,7 +28,7 @@ async function endSessionAndNavigate(
   // The response-aware BFF can refresh/reissue that cookie while logging out.
   // The revocation never waits for push (#5194); the backend drops the
   // family's push subscriptions with it.
-  const response = await fetch("/api/auth/logout", {
+  const response = await transportFetch("/api/auth/logout", {
     method: "POST",
     signal: AbortSignal.any([signal, AbortSignal.timeout(5000)]),
   });

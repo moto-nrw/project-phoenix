@@ -280,7 +280,11 @@ describe("SchoolCalendarPage", () => {
     fireEvent.click(screen.getByRole("button", { name: "Zusagen" }));
 
     await waitFor(() =>
-      expect(mockRespondSchoolCalendar).toHaveBeenCalledWith("42", "accepted"),
+      expect(mockRespondSchoolCalendar).toHaveBeenCalledWith(
+        "42",
+        "accepted",
+        undefined,
+      ),
     );
     expect(mockToastSuccess).toHaveBeenCalledWith(
       "Ihre Zusage ist gespeichert.",

@@ -875,6 +875,10 @@ export interface WorkTimeModel {
   rotationAnchorDate: string;
   entries: WorkTimeModelEntry[];
   weeklyTotals: number[];
+  /** Gesetzt, solange die Schule die Vorlage nicht mehr anbietet (#6891). */
+  archivedAt: string | null;
+  /** Nur aus `listWithUsage`: so viele Personen erreicht eine Änderung. */
+  assignedStaffCount?: number;
 }
 
 interface BackendWorkTimeModel {
@@ -884,6 +888,29 @@ interface BackendWorkTimeModel {
   rotation_anchor_date: string;
   entries: BackendScheduleEntry[];
   weekly_totals: number[];
+  archived_at?: string | null;
+  assigned_staff_count?: number;
+}
+
+interface WorkTimeModelInput {
+  name: string;
+  rotationLength: number;
+  rotationAnchorDate: string;
+  entries: WorkTimeModelEntry[];
+}
+
+function workTimeModelBody(input: WorkTimeModelInput) {
+  return {
+    name: input.name,
+    rotation_length: input.rotationLength,
+    rotation_anchor_date: input.rotationAnchorDate,
+    entries: input.entries.map((e) => ({
+      week_index: e.weekIndex,
+      day_of_week: e.dayOfWeek,
+      target_minutes: e.targetMinutes,
+      ...(e.startTime ? { start_time: e.startTime } : {}),
+    })),
+  };
 }
 
 function mapWorkTimeModel(m: BackendWorkTimeModel): WorkTimeModel {
@@ -899,7 +926,22 @@ function mapWorkTimeModel(m: BackendWorkTimeModel): WorkTimeModel {
       startTime: e.start_time ?? undefined,
     })),
     weeklyTotals: m.weekly_totals ?? [],
+    archivedAt: m.archived_at ?? null,
+    ...(m.assigned_staff_count === undefined
+      ? {}
+      : { assignedStaffCount: m.assigned_staff_count }),
   };
+}
+
+async function readWorkTimeModel(
+  response: Response,
+  fallback: string,
+): Promise<WorkTimeModel> {
+  if (!response.ok) {
+    throw await apiErrorFromResponse(response, fallback);
+  }
+  const json = (await response.json()) as { data: BackendWorkTimeModel };
+  return mapWorkTimeModel(json.data);
 }
 
 class WorkTimeModelService {
@@ -907,6 +949,76 @@ class WorkTimeModelService {
     const response = await sessionFetch(`/api/work-time-models`);
     const json = (await response.json()) as { data: BackendWorkTimeModel[] };
     return (json.data ?? []).map(mapWorkTimeModel);
+  }
+
+  /** Für die Katalogseite: archivierte Vorlagen und die Nutzungszahl. */
+  async listWithUsage(): Promise<WorkTimeModel[]> {
+    const response = await sessionFetch(
+      `/api/work-time-models?with_usage=true`,
+    );
+    if (!response.ok) {
+      throw await apiErrorFromResponse(
+        response,
+        "Vorlagen konnten nicht geladen werden",
+      );
+    }
+    const json = (await response.json()) as {
+      data: BackendWorkTimeModel[] | null;
+    };
+    return (json.data ?? []).map(mapWorkTimeModel);
+  }
+
+  async create(input: WorkTimeModelInput): Promise<WorkTimeModel> {
+    const response = await sessionFetch(`/api/work-time-models`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(workTimeModelBody(input)),
+    });
+    return readWorkTimeModel(response, "Vorlage konnte nicht angelegt werden");
+  }
+
+  async update(id: string, input: WorkTimeModelInput): Promise<WorkTimeModel> {
+    const response = await sessionFetch(`/api/work-time-models/${id}`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(workTimeModelBody(input)),
+    });
+    return readWorkTimeModel(
+      response,
+      "Vorlage konnte nicht gespeichert werden",
+    );
+  }
+
+  async archive(id: string): Promise<WorkTimeModel> {
+    const response = await sessionFetch(`/api/work-time-models/${id}/archive`, {
+      method: "POST",
+    });
+    return readWorkTimeModel(
+      response,
+      "Vorlage konnte nicht aus der Auswahl genommen werden",
+    );
+  }
+
+  async restore(id: string): Promise<WorkTimeModel> {
+    const response = await sessionFetch(`/api/work-time-models/${id}/restore`, {
+      method: "POST",
+    });
+    return readWorkTimeModel(
+      response,
+      "Vorlage konnte nicht wieder angeboten werden",
+    );
+  }
+
+  async remove(id: string): Promise<void> {
+    const response = await sessionFetch(`/api/work-time-models/${id}`, {
+      method: "DELETE",
+    });
+    if (!response.ok) {
+      throw await apiErrorFromResponse(
+        response,
+        "Vorlage konnte nicht gelöscht werden",
+      );
+    }
   }
 }
 
@@ -943,6 +1055,10 @@ export interface StaffHistorySession {
   notes?: string;
   edit_count?: number;
   audit_count?: number;
+  // Credit inside `net_minutes` (#6851, #6852): pack-up time of a regular
+  // checkout and the signed change of the rounding. 0 for an open block.
+  pack_up_minutes?: number;
+  rounding_minutes?: number;
 }
 
 /** Die Antwort der Verlaufsroute samt Wochensummen und ArbZG-Hinweisen. */
@@ -1517,7 +1633,6 @@ import {
   MAX_TARGET_RANGE_DAYS,
   mapBalanceAdjustmentResponse,
   mapDailyProjectionResponse,
-  mapDailyTargetsResponse,
   mapMonthCloseResultResponse,
   mapMonthCloseSnapshotResponse,
   mapMonthSummaryResponse,
@@ -1526,7 +1641,6 @@ import {
   mapWorkSessionEditResponse,
   type BackendBalanceAdjustment,
   type BackendDailyProjection,
-  type BackendDailyTarget,
   type DayProjection,
   type BackendMonthCloseResult,
   type BackendMonthCloseSnapshot,
@@ -1637,43 +1751,21 @@ class StaffMonthSummaryService {
     return mapDailyProjectionResponse(json.data);
   }
 
-  // Admin counterpart to timeTrackingService.getScheduleTargets — the same
-  // date-valid Soll the Monatskarte is computed from, so card and table can
-  // never disagree after a schedule change (#1842).
-  async getScheduleTargets(
-    staffId: string,
-    from: string,
-    to: string,
-  ): Promise<ReadonlyMap<string, number>> {
-    const params = new URLSearchParams({ from, to, target_only: "true" });
-    const response = await sessionFetch(
-      `/api/staff/${staffId}/time-tracking/schedule-targets?${params}`,
-    );
-    if (!response.ok) {
-      throw await apiErrorFromResponse(
-        response,
-        `Failed to fetch schedule targets: ${response.statusText}`,
-      );
-    }
-    const json = (await response.json()) as {
-      data: BackendDailyTarget[] | null;
-    };
-    return mapDailyTargetsResponse(json.data);
-  }
-
   /**
-   * Same date-valid Soll as `getScheduleTargets`, for a range that may be
-   * longer than the endpoint's MAX_TARGET_RANGE_DAYS window. The Übersicht
-   * charts reach back to the configured account start ("Gesamt"), which can be
-   * years — one request would simply 400. The windows are fetched with bounded
-   * concurrency and merged; days repeat across no two windows, so the merge is
-   * a plain union.
+   * The same per-day projection as `getDailyProjection` (Soll, Gutschrift,
+   * Ist, Saldo), for a range that may be longer than the endpoint's
+   * MAX_TARGET_RANGE_DAYS window. The Übersicht charts reach back to the
+   * configured account start ("Gesamt"), which can be years — one request
+   * would simply 400. The windows are fetched with bounded concurrency and
+   * merged; days repeat across no two windows, so the merge is a plain union.
+   * The charts sum these server days instead of crediting absences themselves
+   * (#6847).
    */
-  async getScheduleTargetsRange(
+  async getDailyProjectionRange(
     staffId: string,
     from: string,
     to: string,
-  ): Promise<ReadonlyMap<string, number>> {
+  ): Promise<ReadonlyMap<string, DayProjection>> {
     // Windows are MAX_TARGET_RANGE_DAYS calendar days INCLUSIVE — one day
     // inside the endpoint's cap, which counts the gap between the bounds
     // rather than the days. Nothing rides on the last day of headroom, and a
@@ -1700,18 +1792,18 @@ class StaffMonthSummaryService {
     const chunks = await mapWithConcurrency(
       windows,
       MAX_TARGET_RANGE_CONCURRENCY,
-      (w) => this.getScheduleTargets(staffId, w.from, w.to),
+      (w) => this.getDailyProjection(staffId, w.from, w.to),
     );
-    const merged = new Map<string, number>();
+    const merged = new Map<string, DayProjection>();
     for (const chunk of chunks) {
-      for (const [day, minutes] of chunk) merged.set(day, minutes);
+      for (const [day, projection] of chunk) merged.set(day, projection);
     }
     return merged;
   }
 }
 
-// Upper bound on schedule-target windows fetched at once by
-// getScheduleTargetsRange. Four keeps the round-trips overlapping without
+// Upper bound on projection windows fetched at once by
+// getDailyProjectionRange. Four keeps the round-trips overlapping without
 // letting a long-lived account open a dozen+ concurrent DB-backed requests.
 const MAX_TARGET_RANGE_CONCURRENCY = 4;
 

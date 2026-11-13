@@ -3,7 +3,7 @@ package peopledirectory
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 func (p *DirectoryPersonSnapshot) Validate() error {

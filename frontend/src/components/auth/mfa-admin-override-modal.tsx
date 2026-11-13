@@ -388,7 +388,6 @@ export function MFAAdminOverrideModal({
       isOpen
       onClose={onClose}
       title="Zwei-Faktor-Authentifizierung verwalten"
-      widthClass="mx-4 w-[calc(100%-2rem)] max-w-lg"
       isDismissDisabled={isWorking || overrideWorking || globalWorking}
       isBackdropDismissDisabled
       closeLabel="Schließen"
@@ -424,7 +423,7 @@ export function MFAAdminOverrideModal({
               <p className="text-sm text-gray-600">
                 {scope === "caterer"
                   ? "Die 2FA-Einrichtung und alle vertrauenswürdigen Geräte des Caterers werden entfernt; seine Passkeys bleiben. Danach meldet er sich mit seinem Passwort an und kann die 2FA im Konto wieder einschalten. Er bekommt eine E-Mail. Die Aktion wird im Audit-Log mit Ihrem Konto und dem angegebenen Grund erfasst."
-                  : "Die bestehende 2FA-Einrichtung und alle vertrauenswürdigen Geräte werden entfernt. Beim nächsten Login wird der Account neu durch das 2FA-Setup geführt. Die Aktion wird im Audit-Log mit Ihrem Konto und dem angegebenen Grund erfasst."}
+                  : `Die bestehende 2FA-Einrichtung und alle vertrauenswürdigen Geräte werden entfernt. Beim nächsten Login wird der Account neu durch das 2FA-Setup geführt.${scope === "traeger" ? "" : " Die Person bekommt eine E-Mail."} Die Aktion wird im Audit-Log mit Ihrem Konto und dem angegebenen Grund erfasst.`}
               </p>
               <div className="space-y-2">
                 <Textarea

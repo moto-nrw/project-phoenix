@@ -33,4 +33,4 @@
     student_owner_contract_scale_test.go:62: Contract observed resources: bun_query_events=26 pool_wait_count_delta=0 pool_wait_duration_delta=0s database_deadlocks_before=0 database_deadlocks_after=0 successful_runs=1 unexpected_errors=0
 --- PASS: TestStudentOwnerContractObservedProductionCardinalities (15.02s)
 PASS
-ok  	github.com/moto-nrw/project-phoenix/database/migrations	15.773s
+ok  	github.com/moto-ogs/project-phoenix/database/migrations	15.773s

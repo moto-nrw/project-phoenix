@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
 )
 
 // DownloadOpeningBalanceTemplate handles the template download (CSV or Excel).

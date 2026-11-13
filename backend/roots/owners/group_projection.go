@@ -3,12 +3,12 @@ package owners
 import (
 	"context"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleBirthday "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleBirthday "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
 
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // groupStudentRepository and OverlappingRosterGroupNames name the groups of

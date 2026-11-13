@@ -16,6 +16,7 @@ import { TraegerLetterheadPreview } from "~/components/traeger/traeger-letterhea
 import { TraegerLogoCard } from "~/components/traeger/traeger-logo-card";
 import { Alert } from "~/components/ui/alert";
 import { ButtonLink } from "~/components/ui/button";
+import NavigationLink from "~/components/ui/navigation-link";
 import { metadataLoadError } from "~/components/traeger/metadata-load-error";
 import { SectionCard } from "~/components/ui/section-card";
 import { TenantPage } from "~/components/ui/tenant-page";
@@ -114,12 +115,32 @@ export default function TraegerBriefkopfPage() {
           {!canEdit ? (
             <Alert
               type="info"
-              message="Sie können die Angaben nur ansehen. Ändern kann, wer im Träger-Büro das Recht „Einstellungen“ hat."
+              message="Sie können die Angaben nur ansehen. Ändern kann, wer im Träger-Büro die Rolle „Verwaltung“ hat."
             />
           ) : null}
           <SectionCard
             title="Vorschau"
-            description="So sehen Kopf und Fuß eines Briefs aus. Die Vorschau ändert sich mit Ihren Angaben."
+            description={
+              // The preview prints facts kept elsewhere: say where.
+              <>
+                So sehen Kopf und Fuß eines Briefs aus. Die Vorschau ändert sich
+                mit Ihren Angaben. Die Ansprechperson ändern Sie unter{" "}
+                <NavigationLink
+                  href={traegerPath("/traeger/einstellungen?bereich=kontakt")}
+                  className="font-medium text-gray-900 underline underline-offset-2"
+                >
+                  Allgemein › Kontakt
+                </NavigationLink>
+                , die Bankverbindung unter{" "}
+                <NavigationLink
+                  href={traegerPath("/traeger/einstellungen/abrechnung")}
+                  className="font-medium text-gray-900 underline underline-offset-2"
+                >
+                  Abrechnungsvorgaben
+                </NavigationLink>
+                .
+              </>
+            }
           >
             <TraegerLetterheadPreview
               logoSrc={masterData.logo ? traegerLogoSrc(masterData.logo) : null}
@@ -148,6 +169,10 @@ export default function TraegerBriefkopfPage() {
               onReset={resetSetting}
               onSchemaRefresh={() => void refresh()}
               audience="traeger"
+              headingLevel={2}
+              autosaveNote
+              confirmTextReset
+              plainTextareas
             />
           ))}
 

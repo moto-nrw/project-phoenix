@@ -3,7 +3,7 @@ package groups
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/domain"
 )
 
 // The ports of the retained School Structure services (#2742). The service

@@ -6,8 +6,8 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/database/migrations"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/database/migrations"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/spf13/cobra"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

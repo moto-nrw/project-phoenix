@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // parentAccountGuardianIndexes are the DemoGuardians who get a parent-portal

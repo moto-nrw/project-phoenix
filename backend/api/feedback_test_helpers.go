@@ -5,12 +5,12 @@ package api
 import (
 	"context"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	feedbackModule "github.com/moto-nrw/project-phoenix/modules/feedback"
-	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	feedbackModule "github.com/moto-ogs/project-phoenix/modules/feedback"
+	feedbackCompose "github.com/moto-ogs/project-phoenix/modules/feedback/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // FeedbackTestModule is the Feedback owner the kiosk feedback routes drive;

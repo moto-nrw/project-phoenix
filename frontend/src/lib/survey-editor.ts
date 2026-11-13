@@ -8,6 +8,7 @@ import {
   berlinClockFromISO,
   berlinDateTimeISO,
   berlinDayFromISO,
+  CLOCK_TIME_RE,
 } from "~/lib/date-helpers";
 import type { SurveyQuestionKind } from "~/lib/survey-form";
 import type {
@@ -162,7 +163,7 @@ export function hasEditorErrors(errors: SurveyEditorErrors): boolean {
 }
 
 function isValidTime(value: string): boolean {
-  return /^([01]\d|2[0-3]):[0-5]\d$/.test(value);
+  return CLOCK_TIME_RE.test(value);
 }
 
 /** Der Zeitpunkt „Teilnahme bis“ als RFC 3339, oder null ohne gültige Angabe. */

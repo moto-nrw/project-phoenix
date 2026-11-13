@@ -77,6 +77,9 @@ type CareRequestDiffResponse struct {
 	CareKind string   `json:"care_kind,omitempty"`
 	OldModes []string `json:"old_modes,omitempty"`
 	NewMode  string   `json:"new_mode,omitempty"`
+	// SubmittedOld is the value the family saw when it submitted, present
+	// only when the plan changed since (#6990).
+	SubmittedOld string `json:"submitted_old,omitempty"`
 }
 
 // CareRequestHistoryResponse is one decided care-schedule request. It never

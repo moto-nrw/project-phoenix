@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
 // readRecords is the shared shape of every whole-row read: one statement in a
@@ -177,4 +177,17 @@ func (s *StudentService) ListEnrolledIDsByIdentities(ctx context.Context, tenant
 		return err
 	})
 	return ids, err
+}
+
+func (s *StudentService) LockRows(ctx context.Context, ids []int64) (count int, err error) {
+	if err = s.tx.RequireTransaction(ctx); err != nil {
+		return 0, err
+	}
+	err = s.run(ctx, "lock_student_rows", func(ctx context.Context, fn func(context.Context) error) error { return fn(ctx) }, func(ctx context.Context, stats *domain.OperationStats) error {
+		var queryStats domain.OperationStats
+		count, queryStats, err = s.store.LockRows(ctx, ids)
+		stats.Add(queryStats)
+		return err
+	})
+	return count, err
 }

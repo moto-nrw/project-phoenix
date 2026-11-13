@@ -12,8 +12,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/domain"
 	"github.com/stretchr/testify/require"
 )
 
@@ -93,6 +93,12 @@ func (tx *fakeTx) RunAdmin(ctx context.Context, fn func(context.Context) error) 
 
 func (tx *fakeTx) RunAdminRetry(ctx context.Context, fn func(context.Context) error) error {
 	return tx.RunAdmin(ctx, fn)
+}
+
+// RunAdminDetached leaves an ambient school unit open and runs fn in an
+// administrative one of its own.
+func (tx *fakeTx) RunAdminDetached(ctx context.Context, fn func(context.Context) error) error {
+	return tx.RunAdmin(context.WithValue(ctx, tenantCtxKey{}, nil), fn)
 }
 
 func (tx *fakeTx) RunTenant(ctx context.Context, tenantID int64, fn func(context.Context) error) error {

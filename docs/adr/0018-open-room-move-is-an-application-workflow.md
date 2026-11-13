@@ -4,11 +4,11 @@ status: accepted
 
 # Open-room move is an application workflow
 
-The open-room specification [#3062](https://github.com/moto-nrw/project-phoenix/issues/3062)
-lets staff on a phone ([#3066](https://github.com/moto-nrw/project-phoenix/issues/3066))
-and, later, a child at an NFC device ([#3067](https://github.com/moto-nrw/project-phoenix/issues/3067))
+The open-room specification [#3062](https://github.com/moto-ogs/project-phoenix/issues/3062)
+lets staff on a phone ([#3066](https://github.com/moto-ogs/project-phoenix/issues/3066))
+and, later, a child at an NFC device ([#3067](https://github.com/moto-ogs/project-phoenix/issues/3067))
 record the same **Ortswechsel** into a released room. Add `open-room-move` as
-a workflow owner under [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580),
+a workflow owner under [#2580](https://github.com/moto-ogs/project-phoenix/issues/2580),
 with no runtime data ownership. It does not introduce a new domain.
 
 ## Why a workflow

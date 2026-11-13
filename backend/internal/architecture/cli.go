@@ -152,7 +152,7 @@ func runRatchet(options checkOptions, policy *Policy, violations []Violation, gr
 }
 
 func compareWithBase(options checkOptions, policy *Policy, manifest *LegacyManifest, graph *Graph) error {
-	basePolicy, baseManifest, err := LoadBasePolicyAndManifest(options.project, options.policy, options.baseline, options.baseRef)
+	basePolicy, baseManifest, rewrite, err := loadBaseForCandidate(options.project, options.policy, options.baseline, options.baseRef, policy)
 	if err != nil {
 		return err
 	}
@@ -161,7 +161,7 @@ func compareWithBase(options checkOptions, policy *Policy, manifest *LegacyManif
 		CompareCandidateLegacyBaselines(options.project, options.baseRef, manifest, baseManifest, basePolicy, policy),
 		CompareCompositionSurface(options.project, options.baseRef, basePolicy, policy),
 		CompareRatchetBudgets(options.project, options.baseRef),
-		compareCommandEffectsIfEnabled(options.project, options.baseRef, policy),
+		compareCommandEffectsIfEnabled(options.project, options.baseRef, policy, rewrite),
 	)
 }
 

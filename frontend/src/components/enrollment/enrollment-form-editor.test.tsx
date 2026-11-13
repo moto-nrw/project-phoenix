@@ -1531,8 +1531,13 @@ describe("EnrollmentFormEditor", () => {
     expect(displaySwitches[0]).toHaveAttribute("aria-checked", "false");
     fireEvent.click(displaySwitches[0]!);
     expect(displaySwitches[0]).toHaveAttribute("aria-checked", "true");
-    // Nur das Kebab-Symbol; den Auslöser gestaltet OverflowMenu selbst.
-    expect(actionMenus[0]).toHaveTextContent("");
+    // Nur das Kebab-Symbol; den Auslöser gestaltet OverflowMenu selbst. Die
+    // versteckte Beschreibung der Blase (#6744) ist kein sichtbarer Text.
+    const visibleText = Array.from(actionMenus[0]!.childNodes)
+      .filter((node) => !(node instanceof HTMLElement && node.hidden))
+      .map((node) => node.textContent ?? "")
+      .join("");
+    expect(visibleText).toBe("");
   });
 
   it("restores missing standard legal blocks when editing an older schema", async () => {

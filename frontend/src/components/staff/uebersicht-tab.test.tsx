@@ -34,7 +34,7 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 const getSchedule = vi.fn();
-const getScheduleTargetsRange = vi.fn();
+const getDailyProjectionRange = vi.fn();
 vi.mock("~/lib/staff-api", () => ({
   staffAbsenceService: { getAbsences: vi.fn() },
   staffBalanceAdjustmentService: { list: vi.fn() },
@@ -43,8 +43,8 @@ vi.mock("~/lib/staff-api", () => ({
     getSchedule: (...args: unknown[]) => getSchedule(...args),
   },
   staffMonthSummaryService: {
-    getScheduleTargetsRange: (...args: unknown[]) =>
-      getScheduleTargetsRange(...args),
+    getDailyProjectionRange: (...args: unknown[]) =>
+      getDailyProjectionRange(...args),
     getMonthSummary: vi.fn(),
   },
 }));
@@ -68,7 +68,7 @@ import {
   UebersichtTab,
   buildWeeklyBalanceSeriesRange,
   countSessionDaysInRange,
-  indexSessionNetMinutesByBerlinDate,
+  splitSessionNetMinutesByBerlinDate,
 } from "./uebersicht-tab";
 
 beforeEach(() => {
@@ -116,14 +116,14 @@ describe("UebersichtTab Soll-Quelle", () => {
         ? { data: balanceAdjustments, isLoading: false, error: undefined }
         : undefined;
     getSchedule.mockClear();
-    getScheduleTargetsRange.mockClear();
+    getDailyProjectionRange.mockClear();
   });
 
   it("lädt datumsgültige Targets für den Kontozeitraum", () => {
     render(<UebersichtTab staffId="1" />);
 
     expect(
-      swr.keys.some((k) => k.startsWith("staff-schedule-targets-account-1-")),
+      swr.keys.some((k) => k.startsWith("staff-schedule-targets-1-account-")),
     ).toBe(true);
   });
 
@@ -142,7 +142,7 @@ describe("UebersichtTab Soll-Quelle", () => {
     expect(
       swr.keys.some(
         (k) =>
-          k.startsWith("staff-schedule-targets-account-1-") &&
+          k.startsWith("staff-schedule-targets-1-account-") &&
           k.endsWith("-2025-03-10"),
       ),
     ).toBe(true);
@@ -267,7 +267,7 @@ describe("UebersichtTab Freizeitausgleich-Verteilung", () => {
       ) {
         return { data: [], isLoading: false, error: undefined };
       }
-      if (key?.startsWith("staff-schedule-targets-account-")) {
+      if (key?.startsWith("staff-schedule-targets-1-account-")) {
         return { data: new Map(), isLoading: false, error: undefined };
       }
       if (key === "time-tracking-config") {
@@ -304,7 +304,7 @@ describe("UebersichtTab Nachtblöcke", () => {
       ],
     };
 
-    expect(indexSessionNetMinutesByBerlinDate([session])).toEqual(
+    expect(splitSessionNetMinutesByBerlinDate(session)).toEqual(
       new Map([
         ["2026-07-20", 120],
         ["2026-07-21", 90],
@@ -321,7 +321,7 @@ describe("UebersichtTab Nachtblöcke", () => {
       break_minutes: 30,
     };
 
-    expect(indexSessionNetMinutesByBerlinDate([session])).toEqual(
+    expect(splitSessionNetMinutesByBerlinDate(session)).toEqual(
       new Map([
         ["2026-07-20", 90],
         ["2026-07-21", 120],
@@ -413,8 +413,6 @@ describe("buildWeeklyBalanceSeriesRange", () => {
     const points = buildWeeklyBalanceSeriesRange(
       new Map(),
       [],
-      [],
-      [],
       new Date(2026, 2, 1),
       new Date(2026, 2, 31),
     );
@@ -426,6 +424,66 @@ describe("buildWeeklyBalanceSeriesRange", () => {
       "KW 12",
       "KW 13",
       "KW 14",
+    ]);
+  });
+});
+
+// The Saldo line sums the server's day balances. It used to credit absences
+// itself and could then draw another week than the Stundenkonto above it
+// (#6847): a vacation day is worth what the server credits, nothing more.
+describe("buildWeeklyBalanceSeriesRange from the server projection", () => {
+  it("adds the day balances and the bookings of each week", () => {
+    const projection = new Map([
+      // KW 10: Mon worked an hour over, Tue on vacation (credit, Saldo 0).
+      [
+        "2026-03-02",
+        {
+          targetMinutes: 480,
+          creditMinutes: 0,
+          actualMinutes: 540,
+          balanceMinutes: 60,
+        },
+      ],
+      [
+        "2026-03-03",
+        {
+          targetMinutes: 480,
+          creditMinutes: 480,
+          actualMinutes: 0,
+          balanceMinutes: 0,
+        },
+      ],
+      // KW 11: Freizeitausgleich charges the day's Soll.
+      [
+        "2026-03-09",
+        {
+          targetMinutes: 480,
+          creditMinutes: 0,
+          actualMinutes: 0,
+          balanceMinutes: -480,
+        },
+      ],
+    ]);
+    const payout = {
+      id: "1",
+      type: "payout",
+      minutesDelta: -30,
+      effectiveDate: "2026-03-10",
+      note: "",
+      decidedBy: "9",
+      decidedAt: "2026-03-10T08:00:00Z",
+    } as const;
+
+    const points = buildWeeklyBalanceSeriesRange(
+      projection,
+      [payout],
+      new Date(2026, 2, 2),
+      new Date(2026, 2, 15),
+    );
+
+    expect(points).toEqual([
+      { weekLabel: "KW 10", balance: 60 },
+      { weekLabel: "KW 11", balance: 60 - 480 - 30 },
     ]);
   });
 });

@@ -6,11 +6,11 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	timetableModule "github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
 	"github.com/uptrace/bun"
 )
@@ -256,7 +256,10 @@ func calendarPeriodUsageFor(usage timetablePorts.CalendarPeriodUsageRepository) 
 		}
 		result := make(map[int64]CalendarPeriodUsageCounts, len(values))
 		for id, value := range values {
-			result[id] = CalendarPeriodUsageCounts(value)
+			result[id] = CalendarPeriodUsageCounts{
+				EnrollmentPhases: value.EnrollmentPhases, ActivityGroups: value.ActivityGroups, Schedules: value.Schedules,
+				StudentEnrollments: value.StudentEnrollments, Supervisors: value.Supervisors, ActivityInstances: value.ActivityInstances,
+			}
 		}
 		return result, nil
 	})

@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // GuardianBankExportFields opens the sealed IBAN and account holder of a

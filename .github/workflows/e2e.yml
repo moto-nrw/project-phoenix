@@ -6,6 +6,12 @@ name: Frontend E2E
 # über den webServer-Block von frontend/playwright.config.ts. Die serverlosen
 # Layouttests unter frontend/e2e/layout/ laufen weiter in test.yml.
 #
+# Jede Suite läuft mit einem Worker; die meiste Zeit kompiliert `next dev`
+# Seiten beim ersten Aufruf. Darum laufen die Suites parallel in eigenen Jobs:
+# die Flows in Shards mit je eigenem Seed, die Netzwerksuiten ohne Datenbank
+# gegen ihr synthetisches Backend. Das Repository ist öffentlich, die
+# GitHub-Runner kosten nichts; jeder Shard kostet nur seinen Aufbau an Zeit.
+#
 # Kein Required Check: die Flows hängen am echten Heute und an den Seed-Daten.
 # Nachts prüft der Lauf den development-Stand gegen UI-Drift; Änderungen an
 # den Specs, ihrer Konfiguration, den Abhängigkeiten oder diesem Workflow laufen
@@ -78,17 +84,94 @@ env:
   GOTOOLCHAIN: local
 
 jobs:
-  e2e:
-    name: Playwright E2E flows
+  # Synthetic localhost backend, no database or seed (e2e/network/server.mjs).
+  network:
+    name: Playwright ${{ matrix.suite }}
     if: github.event_name != 'pull_request' || !github.event.pull_request.draft
     runs-on: ubuntu-latest
-    timeout-minutes: 60
+    timeout-minutes: 30
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: [network evidence, tenant switch]
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # Systemweites Google Chrome statt des gebündelten Chromium (#5612):
+      # --force aktualisiert das veraltete Chrome des Runner-Images;
+      # frontend/scripts/secure-chrome.setup.ts lehnt ungepatchte Versionen ab.
+      - name: Install Google Chrome
+        working-directory: frontend
+        run: pnpm exec playwright install --with-deps --force chrome
+
+      # Separate frontend + localhost-only synthetic API; never calls vendors.
+      - name: Run portal network evidence
+        if: matrix.suite == 'network evidence'
+        working-directory: frontend
+        env:
+          # Readiness must work even when Node cannot resolve portal hosts.
+          NODE_OPTIONS: "--require ./e2e/network/no-subdomain-dns.cjs"
+        run: pnpm run test:network
+
+      - name: Upload sanitized network evidence
+        if: always() && matrix.suite == 'network evidence'
+        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
+        with:
+          name: portal-network-evidence-${{ github.run_id }}
+          path: frontend/test-results/network/*/network*.json
+          if-no-files-found: error
+
+      # Shared-cookie fixture domains and keys; its own job starts with a fresh
+      # Turbopack dev cache (a stale one caused an HMR reload loop).
+      - name: Run shared-cookie tenant-switch regression
+        if: matrix.suite == 'tenant switch'
+        working-directory: frontend
+        env:
+          NODE_OPTIONS: "--require ./e2e/network/no-subdomain-dns.cjs"
+        run: pnpm run test:tenant-switch
+
+  flows:
+    name: Playwright E2E flows (${{ matrix.part }})
+    if: github.event_name != 'pull_request' || !github.event.pull_request.draft
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      # The tour spec runs in order (mode "default") and is one indivisible
+      # block of about five minutes; Playwright's --shard would put it and
+      # half of the rest into one shard. A misspelled list fails safe:
+      # --test-list then finds no test (rejected below), the invert runs all.
+      matrix:
+        include:
+          - part: Touren
+            tests: --test-list "${RUNNER_TEMP}/tours.list"
+          - part: Rest 1/2
+            tests: --test-list-invert "${RUNNER_TEMP}/tours.list" --shard=1/2
+          - part: Rest 2/2
+            tests: --test-list-invert "${RUNNER_TEMP}/tours.list" --shard=2/2
 
     services:
       postgres:
-        image: postgres:17-alpine
+        image: postgres:17.12-alpine3.24@sha256:34261f594522cf41dfcb76aefd42b9d201098b0e6b23c9c68733f169e4218b6f
         env:
           POSTGRES_DB: phoenix_e2e
           POSTGRES_USER: postgres
@@ -171,6 +254,32 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
+      - name: Enable corepack
+        run: corepack enable
+
+      - name: Setup Node.js
+        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
+        with:
+          node-version: "26"
+          cache: "pnpm"
+          cache-dependency-path: frontend/pnpm-lock.yaml
+
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile --ignore-scripts
+
+      # Systemweites Google Chrome statt des gebündelten Chromium (#5612):
+      # --force aktualisiert das veraltete Chrome des Runner-Images;
+      # frontend/scripts/secure-chrome.setup.ts lehnt ungepatchte Versionen ab.
+      # Läuft im Hintergrund, während Backend-Build und Seed laufen.
+      - name: Start Google Chrome install
+        working-directory: frontend
+        run: |
+          (
+            pnpm exec playwright install --with-deps --force chrome
+            echo $? > "${RUNNER_TEMP}/chrome-install.rc"
+          ) > "${RUNNER_TEMP}/chrome-install.log" 2>&1 &
+
       - name: Setup Go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
@@ -219,60 +328,21 @@ jobs:
             --pin "${OGS_DEVICE_PIN}" \
             --url http://localhost:8080
 
-      - name: Enable corepack
-        run: corepack enable
-
-      - name: Setup Node.js
-        uses: actions/setup-node@949feb2413d6458794dcd2491c4babbbce0c15c1 # v7.1.0
-        with:
-          node-version: "26"
-          cache: "pnpm"
-          cache-dependency-path: frontend/pnpm-lock.yaml
-
-      - name: Install frontend dependencies
-        working-directory: frontend
-        run: pnpm install --frozen-lockfile --ignore-scripts
-
-      # Systemweites Google Chrome statt des gebündelten Chromium (#5612):
-      # --force aktualisiert das veraltete Chrome des Runner-Images;
-      # frontend/scripts/secure-chrome.setup.ts lehnt ungepatchte Versionen ab.
-      - name: Install Google Chrome
-        working-directory: frontend
-        run: pnpm exec playwright install --with-deps --force chrome
-
-      # Separate frontend + localhost-only synthetic API; never calls vendors.
-      - name: Run portal network evidence
-        working-directory: frontend
-        env:
-          # Readiness must work even when Node cannot resolve portal hosts.
-          NODE_OPTIONS: "--require ./e2e/network/no-subdomain-dns.cjs"
-        run: pnpm run test:network
-
-      - name: Upload sanitized network evidence
-        if: always()
-        uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
-        with:
-          name: portal-network-evidence-${{ github.run_id }}
-          path: frontend/test-results/network/*/network*.json
-          if-no-files-found: error
-
-      - name: Run shared-cookie tenant-switch regression
-        working-directory: frontend
-        env:
-          NODE_OPTIONS: "--require ./e2e/network/no-subdomain-dns.cjs"
-        # Different fixture domains/keys must not reuse a stale Turbopack dev
-        # graph (observed HMR reload loop). Leave the seeded flow a fresh cache.
+      - name: Wait for Google Chrome install
+        timeout-minutes: 5
         run: |
-          mfa_switch_cache=$(mktemp -d "${RUNNER_TEMP}/tenant-switch-cache.XXXXXX")
-          if [ -d .next/dev ]; then mv .next/dev "$mfa_switch_cache/before"; fi
-          trap 'if [ -d .next/dev ]; then mv .next/dev "$mfa_switch_cache/after"; fi' EXIT
-          pnpm run test:tenant-switch
+          while [ ! -f "${RUNNER_TEMP}/chrome-install.rc" ]; do sleep 1; done
+          cat "${RUNNER_TEMP}/chrome-install.log"
+          exit "$(cat "${RUNNER_TEMP}/chrome-install.rc")"
 
       # playwright.config.ts starts `next dev` on port 3000 itself (CI=true
-      # disables reuseExistingServer) and runs one worker.
+      # disables reuseExistingServer) and runs one worker. Each part has its
+      # own seeded database.
       - name: Run E2E flows
         working-directory: frontend
-        run: pnpm run test:e2e
+        run: |
+          echo onboarding-tours.spec.ts > "${RUNNER_TEMP}/tours.list"
+          pnpm run test:e2e ${{ matrix.tests }}
 
       # Reject empty runs and fixture skips. Only the Krank-Flow's explicit
       # weekend skip is expected: its grid has no Saturday/Sunday columns.
@@ -300,7 +370,7 @@ jobs:
         if: failure()
         uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9 # v7.0.2
         with:
-          name: e2e-report-${{ github.run_id }}
+          name: e2e-report-${{ github.run_id }}-${{ strategy.job-index }}
           path: |
             frontend/playwright-report/
             frontend/test-results/

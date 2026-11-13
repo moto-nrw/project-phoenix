@@ -7,8 +7,8 @@ import (
 	"strconv"
 	"time"
 
-	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	mealplanModule "github.com/moto-ogs/project-phoenix/modules/mealplan"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // OrderChangeResponse is a numbered change of an order. The school's view

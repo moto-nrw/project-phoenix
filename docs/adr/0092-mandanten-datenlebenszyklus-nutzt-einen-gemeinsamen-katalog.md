@@ -5,9 +5,9 @@ status: accepted
 # Mandantenlöschung und Datenrückgabe nutzen einen gemeinsamen Katalog
 
 Entscheidung vom 23.10.2026 für Slice 3837-a, Grundlage für
-[#3837](https://github.com/moto-nrw/project-phoenix/issues/3837) und
-[#3838](https://github.com/moto-nrw/project-phoenix/issues/3838) unter
-[#3846](https://github.com/moto-nrw/project-phoenix/issues/3846).
+[#3837](https://github.com/moto-ogs/project-phoenix/issues/3837) und
+[#3838](https://github.com/moto-ogs/project-phoenix/issues/3838) unter
+[#3846](https://github.com/moto-ogs/project-phoenix/issues/3846).
 
 ## Ausgangslage
 
@@ -214,7 +214,7 @@ Details: [DB-Vertrag](../reference/mandantenloeschung-datenbank.md) und
 
 ## Ergänzung: Trägerwurzel und Löschauftrag (#4657)
 
-Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611) User
+Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611) User
 Story 11 verlangt das Löschen eines Trägers nach Vertragsende, nur nach
 erfasster schriftlicher Bestätigung und mit Schonfrist. Die Ausnahme aus
 Punkt 2 deckt dafür auch die Trägerwurzel; es entsteht kein neuer Owner und

@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 
-	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
+	workforceModule "github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // The constructors below hand suites that may not import the Workforce

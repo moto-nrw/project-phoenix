@@ -8,12 +8,15 @@ import {
   useState,
 } from "react";
 import { Button } from "./button";
+import { CONFIRM_TOOLTIP, FIRST_STEP_TOOLTIP } from "./confirm-tooltip";
 import { ChoiceTile } from "./choice-tile";
 import { FieldLabel } from "./field-label";
 import type { FormErrorInput } from "./form-error";
 import { FormErrorAlert } from "./form-error-alert";
 import { Input } from "./input";
+import { useKitDefault } from "./kit-locale";
 import { Modal } from "./modal";
+import { ModalCancelButton } from "./modal-frame";
 import { Radio } from "./radio";
 
 // Shared destructive-confirmation shell for every destructive action in the
@@ -93,16 +96,30 @@ interface ConfirmDeleteModalProps {
   readonly onConfirm: () => Promise<void> | void;
   readonly onClose: () => void;
   readonly loading: boolean;
+  /**
+   * Locks every way to close the dialog without a running operation; the
+   * one name for this lock in every kit dialog (#6575). `loading` locks it too.
+   */
+  readonly isDismissDisabled?: boolean;
   /** A plain string or the error from `useApiFormError`, which brings retry
    *  and the request ID to copy for a server error (#2513). */
   readonly error: FormErrorInput;
   readonly confirmLabel?: string;
+  /**
+   * What the final delete button does (#6744), e.g. „Löscht den Raum sofort,
+   * seine Termine bleiben.“ Defaults to „Führt die Aktion sofort aus, ohne
+   * weitere Nachfrage.“ on German surfaces; a localized surface passes its
+   * own translated sentence.
+   */
+  readonly confirmTooltip?: string;
   readonly loadingLabel?: string;
   /** Label of the cancel button. Defaults to German; pass a translated
    *  string on localized surfaces (parents portal). */
   readonly cancelLabel?: string;
   /** Accessible label of the close button; see `Modal`. */
   readonly closeLabel?: string;
+  /** What the close X does; see `Modal`. */
+  readonly closeTooltip?: string;
   /** Accessible label of the dismiss-on-tap backdrop; see `Modal`. */
   readonly backdropLabel?: string;
   /** Bottom sheet on narrow screens; see `Modal`. Required when the dialog
@@ -121,11 +138,14 @@ export function ConfirmDeleteModal({
   onConfirm,
   onClose,
   loading,
+  isDismissDisabled = false,
   error,
   confirmLabel = "Endgültig löschen",
+  confirmTooltip,
   loadingLabel = "Wird gelöscht…",
-  cancelLabel = "Abbrechen",
+  cancelLabel,
   closeLabel,
+  closeTooltip,
   backdropLabel,
   mobileSheet = false,
 }: ConfirmDeleteModalProps) {
@@ -187,20 +207,19 @@ export function ConfirmDeleteModal({
   const confirmDisabled =
     gateBlocked || (gate.mode === "textConfirm" && !textGatePassed);
 
+  const kitDefault = useKitDefault();
+  const firstStepHint = kitDefault(FIRST_STEP_TOOLTIP);
+  const confirmHint = confirmTooltip ?? kitDefault(CONFIRM_TOOLTIP);
+
   const footer = (
     <>
-      <Button
-        type="button"
-        variant="outline"
-        size="md"
+      <ModalCancelButton
         onClick={close}
-        disabled={loading}
-        className={`disabled:cursor-not-allowed ${
-          mobileSheet ? "hidden sm:inline-flex" : ""
-        }`}
+        className="disabled:cursor-not-allowed"
+        noTooltip="Abbrechen schließt den Dialog und löscht nichts."
       >
-        {cancelLabel}
-      </Button>
+        {cancelLabel ?? "Abbrechen"}
+      </ModalCancelButton>
       {inFirstStep ? (
         <Button
           type="button"
@@ -209,6 +228,7 @@ export function ConfirmDeleteModal({
           onClick={() => setConfirmed(true)}
           disabled={gateBlocked}
           className="disabled:cursor-not-allowed"
+          tooltip={firstStepHint}
         >
           {gate.mode === "twoStep" && gate.firstStepLabel
             ? gate.firstStepLabel
@@ -222,6 +242,7 @@ export function ConfirmDeleteModal({
           onClick={() => void onConfirm()}
           disabled={confirmDisabled}
           className="disabled:cursor-not-allowed"
+          tooltip={confirmHint}
         >
           {loading ? loadingLabel : confirmLabel}
         </Button>
@@ -235,9 +256,10 @@ export function ConfirmDeleteModal({
       onClose={close}
       title={title}
       footer={footer}
-      isDismissDisabled={loading}
+      isDismissDisabled={isDismissDisabled || loading}
       isBackdropDismissDisabled
       closeLabel={closeLabel}
+      closeTooltip={closeTooltip}
       backdropLabel={backdropLabel}
       mobileSheet={mobileSheet}
     >

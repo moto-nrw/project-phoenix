@@ -233,7 +233,7 @@ export function MultiSelectField({
             }}
             ariaLabel="Jahrgang, Klasse oder Gruppe komplett hinzufügen"
             placeholder="Jahrgang/Klasse/Gruppe komplett hinzufügen …"
-            controlSize="compact"
+            controlSize="dense"
             className="w-auto font-medium"
           />
         )}

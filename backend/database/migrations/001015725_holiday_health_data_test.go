@@ -13,8 +13,8 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/migrate"
 
-	securityRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/securityruntime/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	securityRuntimeCompose "github.com/moto-ogs/project-phoenix/modules/securityruntime/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func testHolidayHealthCipher(t *testing.T) holidayFieldCipher {

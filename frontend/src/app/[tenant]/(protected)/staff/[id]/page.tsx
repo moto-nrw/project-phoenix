@@ -65,7 +65,7 @@ import {
   LoadErrorAlert,
 } from "~/components/ui/form-error-alert";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuItem } from "~/components/ui/page-header/types";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
 import { TenantPage, type TenantPageTab } from "~/components/ui/tenant-page";
 import { FormerEmploymentDetails } from "~/components/staff/former-employment-details";
@@ -869,6 +869,11 @@ export default function StaffDetailContent() {
               initialDate={initialTimeTrackingDate}
               staff={staff}
               canBookAbsences={canManageTimeTracking}
+              onSetTarget={
+                showWorkTimeModel
+                  ? () => setSelectedTab("arbeitszeitmodell")
+                  : undefined
+              }
             />
           )}
 

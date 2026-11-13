@@ -5,7 +5,7 @@ import (
 	"testing"
 	"time"
 
-	clockcontract "github.com/moto-nrw/project-phoenix/workflows/staffclock"
+	clockcontract "github.com/moto-ogs/project-phoenix/workflows/staffclock"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

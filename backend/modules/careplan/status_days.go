@@ -21,6 +21,13 @@ type StudentStatusDay struct {
 	Source            string
 	GuardianAccountID *int64
 	Note              *string
+	// ReportedByAccountID is the account that reported the day; nil for a
+	// device, a school portal without an account or an automatic run.
+	ReportedByAccountID *int64
+	// ClearedSource and ClearedByAccountID say who cleared the day. Clearing
+	// leaves Source to the report (#6842).
+	ClearedSource      *string
+	ClearedByAccountID *int64
 }
 
 type StudentStatusDayFilter struct {
@@ -103,8 +110,10 @@ type StudentStatusDaysQuery interface {
 
 type StudentStatusDaysCommand interface {
 	UpsertStudentStatusDay(context.Context, StudentStatusDay) (StudentStatusDay, error)
-	ClearStudentStatusDays(context.Context, int64, string, []Date, time.Time, string) error
-	ClearStudentStatusDayByID(context.Context, int64, time.Time, string) error
+	// The clearing source and the clearing account (nil when no account
+	// cleared it) are kept next to the report's source (#6842).
+	ClearStudentStatusDays(ctx context.Context, studentID int64, status string, dates []Date, clearedAt time.Time, source string, accountID *int64) error
+	ClearStudentStatusDayByID(ctx context.Context, id int64, clearedAt time.Time, source string, accountID *int64) error
 	ArchiveStudentStatusFlags(context.Context, StatusFlagArchive) (int64, error)
 }
 

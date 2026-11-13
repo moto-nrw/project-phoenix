@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { TenantPage } from "~/components/ui/tenant-page";
+import { TenantPageHeaderSkeleton } from "~/components/ui/page-skeletons";
 import { ParentPageHeader } from "~/components/parent/parent-page";
 import { HELP_TOPICS, type HelpTopicId } from "~/lib/help-topics";
 import {
@@ -16,6 +17,21 @@ const state = vi.hoisted(() => ({
   roles: ["admin"],
   helpTopic: undefined as HelpTopicId | undefined,
 }));
+
+const STAFF_PAGE_HEADS = [
+  {
+    name: "the loaded page head",
+    Head: () => <TenantPage title="Kinder" />,
+    assertAnchor: (header: HTMLElement) =>
+      expect(header).toContainElement(screen.getByRole("heading")),
+  },
+  {
+    name: "the loading page head",
+    Head: TenantPageHeaderSkeleton,
+    assertAnchor: (header: HTMLElement) =>
+      expect(header.querySelector(".animate-pulse")).toBeInTheDocument(),
+  },
+] as const;
 
 vi.mock("next/navigation", () => ({
   usePathname: () => state.pathname,
@@ -44,27 +60,30 @@ beforeEach(() => {
 });
 
 describe("mobile page help", () => {
-  it("opens staff help from the page header, preserving filters and return path", async () => {
-    render(
-      <MobilePageHelpPortal>
-        <TenantPage title="Kinder" />
-      </MobilePageHelpPortal>,
-    );
-    const link = await screen.findByRole("link", {
-      name: "Hilfe zu dieser Seite",
-    });
-    expect(link.closest("header")).toContainElement(
-      screen.getByRole("heading"),
-    );
-    expect(link).toHaveClass("lg:hidden");
-    const url = new URL(link.getAttribute("href")!, "https://moto.invalid");
-    expect(url.pathname).toBe("/help/kindersuche");
-    expect(url.searchParams.get("return_to")).toBe(
-      "/testschule/students/search?filter=heute",
-    );
-    expect(url.searchParams.get("role")).toBe("lead");
-    expect(link).not.toHaveAttribute("target");
-  });
+  it.each(STAFF_PAGE_HEADS)(
+    "opens staff help from $name, preserving filters and return path",
+    async ({ Head, assertAnchor }) => {
+      render(
+        <MobilePageHelpPortal>
+          <Head />
+        </MobilePageHelpPortal>,
+      );
+      const link = await screen.findByRole("link", {
+        name: "Hilfe zu dieser Seite",
+      });
+      const header = link.closest("header");
+      expect(header).toBeInTheDocument();
+      assertAnchor(header!);
+      expect(link).toHaveClass("lg:hidden");
+      const url = new URL(link.getAttribute("href")!, "https://moto.invalid");
+      expect(url.pathname).toBe("/help/kindersuche");
+      expect(url.searchParams.get("return_to")).toBe(
+        "/testschule/students/search?filter=heute",
+      );
+      expect(url.searchParams.get("role")).toBe("lead");
+      expect(link).not.toHaveAttribute("target");
+    },
+  );
 
   it.each(["/parents/children/12", "/children/12"])(
     "opens parent help in the parent page header for %s",

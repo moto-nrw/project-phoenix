@@ -4,10 +4,13 @@
 // Geschwisterregeln. Jede Zeile zeigt Name, Wirkung, Monate und Schulen; die
 // Aktionen stehen im Menü der Zeile.
 
-import { BadgePercent, Crown, HeartHandshake, Users } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import type {
@@ -22,18 +25,26 @@ import {
   ruleEffect,
   validityLabel,
 } from "./care-reduction-format";
+import { contributionsConcept } from "~/lib/concepts/contributions";
+import { siblingsConcept } from "~/lib/concepts/siblings";
+import { singleParentConcept } from "~/lib/concepts/singleParent";
+import { billingConcept } from "~/lib/concepts/billing";
 
-const KIND_ICONS = {
-  income_level: BadgePercent,
-  sibling: Users,
-  single_parent: HeartHandshake,
-  cap: Crown,
+// Each rule kind carries its concept in colour, as the OGS card heads do:
+// income levels the contribution coins, siblings several children, single
+// parents one adult, the cap the billing.
+const KIND_CONCEPTS = {
+  income_level: contributionsConcept,
+  sibling: siblingsConcept,
+  single_parent: singleParentConcept,
+  cap: billingConcept,
 } as const;
 
 const CREATE_LABELS: Record<CareRuleKind, string> = {
   income_level: "Stufe anlegen",
-  sibling: "Regel anlegen",
-  single_parent: "Regel anlegen",
+  // Two buttons on one page may not share a name.
+  sibling: "Geschwisterregel anlegen",
+  single_parent: "Regel für Alleinerziehende anlegen",
   cap: "Höchstbetrag anlegen",
 };
 
@@ -122,7 +133,7 @@ export function CareRulesCard({
     <SectionCard
       title={label}
       description={CARE_RULE_KIND_PURPOSE[kind]}
-      icon={KIND_ICONS[kind]}
+      concept={KIND_CONCEPTS[kind]}
       titleBadge={
         rules.length > 0 ? (
           <StatusBadge tone="gray" label={String(rules.length)} />
@@ -143,10 +154,7 @@ export function CareRulesCard({
           {rules.map((rule) => {
             const state = stateOf(rule, currentMonth);
             return (
-              <li
-                key={rule.id}
-                className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
-              >
+              <ResponsiveActionRow key={rule.id}>
                 <div className="min-w-0">
                   <p className="flex flex-wrap items-center gap-2 text-sm font-semibold text-gray-900">
                     <span>{rule.name}</span>
@@ -161,16 +169,21 @@ export function CareRulesCard({
                   <OverflowMenu
                     ariaLabel={`Aktionen: ${rule.name}`}
                     items={[
-                      { label: "Ändern", onClick: () => onEdit(rule) },
+                      {
+                        icon: <Pencil className="size-4" aria-hidden />,
+                        label: "Ändern",
+                        onClick: () => onEdit(rule),
+                      },
                       {
                         label: "Löschen",
+                        icon: <Trash2 className="size-4" aria-hidden />,
                         destructive: true,
                         onClick: () => onDelete(rule),
                       },
                     ]}
                   />
                 </div>
-              </li>
+              </ResponsiveActionRow>
             );
           })}
         </ResponsiveActionList>

@@ -14,11 +14,11 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
+	"github.com/moto-ogs/project-phoenix/api/testutil/routetest"
 )
 
 const (
-	backendModulePath = "github.com/moto-nrw/project-phoenix"
+	backendModulePath = "github.com/moto-ogs/project-phoenix"
 	commonPackagePath = backendModulePath + "/api/common"
 )
 

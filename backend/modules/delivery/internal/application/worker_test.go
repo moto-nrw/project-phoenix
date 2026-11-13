@@ -8,8 +8,8 @@ import (
 	"testing"
 	"time"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/domain"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -30,6 +30,7 @@ type workerStore struct {
 	renewToken          string
 	cancelledBeforeSend bool
 	deferredToken       string
+	deferredUntil       time.Time
 	statuses            []deliveryContract.EmailDeliveryStatus
 	expiredDispatches   int64
 	expiredDispatchErr  error
@@ -77,8 +78,9 @@ func (s *workerStore) FinalizeCancelled(_ context.Context, _ domain.Transport, _
 	return s.finalizeCancelled, nil
 }
 
-func (s *workerStore) FinalizeDeferred(_ context.Context, _ domain.Transport, _ int64, token, _ string, _ time.Time) (bool, error) {
+func (s *workerStore) FinalizeDeferred(_ context.Context, _ domain.Transport, _ int64, token, _ string, nextRetryAt time.Time) (bool, error) {
 	s.deferredToken = token
+	s.deferredUntil = nextRetryAt
 	return true, nil
 }
 
@@ -242,6 +244,42 @@ func TestWorkerDefersWithoutConsumingAnAttempt(t *testing.T) {
 	assert.Equal(t, 1, stats.Retried)
 	assert.NotEmpty(t, store.deferredToken)
 	assert.Zero(t, store.failureAttempts)
+}
+
+// #6737: a provider that throttles (SMTP 4xx) postpones the mail without
+// using up an attempt, and waits longer the older the mail is.
+func TestWorkerPostponesAThrottledMailWithoutConsumingAnAttempt(t *testing.T) {
+	t.Parallel()
+	for name, tc := range map[string]struct {
+		age       time.Duration
+		wantDelay time.Duration
+	}{
+		"new mail":      {age: 0, wantDelay: time.Minute},
+		"ten minutes":   {age: 10 * time.Minute, wantDelay: 10 * time.Minute},
+		"a day waiting": {age: 24 * time.Hour, wantDelay: time.Hour},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+			intent := claimedEmail(5)
+			intent.CreatedAt = time.Now().Add(-tc.age)
+			store := &workerStore{claimed: []domain.Intent{intent}, renewed: true}
+			providerErr := fmt.Errorf("send throttled: %w: 421 4.7.0 rate limit", deliveryContract.ErrThrottled)
+			_, mapped := ProviderResult(deliveryContract.ProviderResult{}, fmt.Errorf("%w: %w", deliveryContract.ErrDeferred, providerErr))
+			var operations []string
+			worker := NewWorker(store, &workerProvider{err: mapped}, func(o domain.Observation) { operations = append(operations, o.Operation) })
+			started := time.Now()
+
+			stats, err := worker.RunOnce(context.Background(), 1, 6)
+
+			require.NoError(t, err)
+			assert.Equal(t, 1, stats.Retried)
+			assert.Zero(t, stats.DeadLettered)
+			assert.Zero(t, store.failureAttempts, "a throttled send must not use up an attempt")
+			assert.NotEmpty(t, store.deferredToken)
+			assert.WithinDuration(t, started.Add(tc.wantDelay), store.deferredUntil, 5*time.Second)
+			assert.Contains(t, operations, "throttled")
+		})
+	}
 }
 
 func TestWorkerCancelsNonRetryableProviderDecision(t *testing.T) {

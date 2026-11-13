@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import type { FormErrorDetail } from "~/components/ui/form-error";
 import { MasterDetailSkeleton } from "./master-detail-skeleton";
 import { TenantBackLink, TenantPage } from "~/components/ui/tenant-page";
+import type { TenantPageSearchRowProps } from "~/components/ui/tenant-page-search-row";
 
 /** Kopfkarte der Seite. Der Titel ist statisch, deshalb rendert die Karte auch
  *  im Ladezustand sofort. */
@@ -21,10 +22,11 @@ interface DatabasePageLayoutProps {
   sessionLoading: boolean;
   /** Kopfkarte der Seite; entfällt nur bei Seiten ohne eigenen Kopf. */
   intro?: DatabasePageHead;
-  /** Such- und Filterzeile der Liste. Sie steht im unteren Teil der Kopfkarte,
-   *  damit Kopfkarte und Suchzeile nicht als zwei fast leere Zeilen
-   *  übereinander liegen. */
-  search?: ReactNode;
+  /** Such- und Filterzeile der Liste: Suche, Filter und Zähler-Plakette, wie
+   *  `TenantPage` sie nimmt. Sie steht im unteren Teil der Kopfkarte, damit
+   *  Kopfkarte und Suchzeile nicht als zwei fast leere Zeilen übereinander
+   *  liegen. Solange die Seite lädt, bleibt sie weg. */
+  searchRow?: TenantPageSearchRowProps;
   /** Page content to render when not loading */
   children: ReactNode;
   /** Optional className for the content wrapper */
@@ -59,7 +61,7 @@ export function DatabasePageLayout({
   loading,
   sessionLoading,
   intro,
-  search,
+  searchRow,
   children,
   className,
   error,
@@ -95,7 +97,7 @@ export function DatabasePageLayout({
         // und bricht die Hydration.
         statsLoading={isLoading}
         actions={intro.actions}
-        searchSlot={!isLoading && search ? search : undefined}
+        {...(isLoading ? undefined : searchRow)}
         error={error ?? null}
         empty={!isLoading && !error ? (empty ?? null) : null}
         back
