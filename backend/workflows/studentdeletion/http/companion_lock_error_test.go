@@ -1,4 +1,4 @@
-package studentdeletionhttp
+package studentdeletionhttp_test
 
 import (
 	"errors"
@@ -9,6 +9,7 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
 	"github.com/moto-ogs/project-phoenix/workflows/studentdeletion"
+	studentdeletionhttp "github.com/moto-ogs/project-phoenix/workflows/studentdeletion/http"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -29,7 +30,7 @@ func TestStudentDeletionErrorRenderer_CompanionLockBusy(t *testing.T) {
 	// Deleting a child drops its links, which takes the same far-end locks as an
 	// update — so the delete path needs the identical classification.
 	t.Run("busy lock is a retriable conflict", func(t *testing.T) {
-		resp := rendererStatus(t, (&Resource{ResourceConfig: ResourceConfig{ConstraintViolation: transactionFailures.IsConstraintViolation}}).studentDeletionErrorRenderer(studentdeletion.ErrCompanionLockBusy))
+		resp := rendererStatus(t, (&studentdeletionhttp.Resource{ResourceConfig: studentdeletionhttp.ResourceConfig{ConstraintViolation: transactionFailures.IsConstraintViolation}}).StudentDeletionErrorRendererForTest(studentdeletion.ErrCompanionLockBusy))
 
 		assert.Equal(t, http.StatusConflict, resp.HTTPStatusCode)
 		assert.Equal(t, studentdeletion.ErrCompanionLockBusy.Error(), resp.Detail)
@@ -37,7 +38,7 @@ func TestStudentDeletionErrorRenderer_CompanionLockBusy(t *testing.T) {
 	})
 
 	t.Run("an unrelated error is still a server error", func(t *testing.T) {
-		resp := rendererStatus(t, (&Resource{ResourceConfig: ResourceConfig{ConstraintViolation: transactionFailures.IsConstraintViolation}}).studentDeletionErrorRenderer(errors.New("boom")))
+		resp := rendererStatus(t, (&studentdeletionhttp.Resource{ResourceConfig: studentdeletionhttp.ResourceConfig{ConstraintViolation: transactionFailures.IsConstraintViolation}}).StudentDeletionErrorRendererForTest(errors.New("boom")))
 
 		assert.Equal(t, http.StatusInternalServerError, resp.HTTPStatusCode)
 	})
