@@ -412,6 +412,7 @@ export default function TraegerHolidayRegistrationPage() {
         variant="outline"
         size="md"
         aria-label={label}
+        tooltip="Öffnet diese Angaben zum Bearbeiten, ohne Nachricht an die Eltern."
         onClick={() => setEditing(section)}
       >
         Ändern
@@ -521,6 +522,7 @@ export default function TraegerHolidayRegistrationPage() {
                     type="button"
                     variant="outline"
                     size="md"
+                    tooltip="moto fragt vorher nach, dann zählen die Kinder einzeln beim Ferienbeitrag."
                     onClick={() => setConfirmingSplit(true)}
                   >
                     Trennen

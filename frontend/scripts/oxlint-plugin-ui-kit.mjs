@@ -6029,6 +6029,23 @@ const TOOLTIP_SCOPE = [
   "src/app/[tenant]/(protected)/students/[id]/unfallanzeigen/[reportId]/page.tsx",
   "src/app/[tenant]/(protected)/students/search/page.tsx",
   "src/app/[tenant]/(protected)/students/search/use-child-scope-tabs.tsx",
+  // Träger-Seiten Übersicht, Ferien, Verträge, Dokumente, Schulen und
+  // Schließtage (#6747).
+  "src/app/traeger/page.tsx",
+  "src/app/traeger/dokumente/page.tsx",
+  "src/app/traeger/dokumente/[id]/page.tsx",
+  "src/app/traeger/ferien/page.tsx",
+  "src/app/traeger/ferien/[id]/anmeldungen/[registrationId]/page.tsx",
+  "src/app/traeger/ferien/[id]/anmeldungen/page.tsx",
+  "src/app/traeger/ferien/[id]/formular/page.tsx",
+  "src/app/traeger/ferien/[id]/page.tsx",
+  "src/app/traeger/ferien/[id]/vergabe/page.tsx",
+  "src/app/traeger/schliesstage/page.tsx",
+  "src/app/traeger/schulen/[id]/page.tsx",
+  "src/app/traeger/uebersicht/page.tsx",
+  "src/app/traeger/vertraege/page.tsx",
+  "src/app/traeger/vertraege/[id]/page.tsx",
+  "src/components/traeger/booking-accounts-cards.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {
