@@ -79,3 +79,23 @@ func TestUpdateGroup_ReadBackFailureRollsBack(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t, group.Name, stored.Name)
 }
+
+// failingGroupCounts fails the batched child count of the group list.
+type failingGroupCounts struct {
+	schoolHTTP.GroupPeople
+}
+
+func (failingGroupCounts) CountByGroupIDs(context.Context, []int64) (map[int64]int, error) {
+	return nil, errors.New("counts unavailable")
+}
+
+// A failed count read is no list of empty groups (#6849).
+func TestListGroups_CountReadFailureIsAnError(t *testing.T) {
+	t.Parallel()
+	tc, router := setupProtectedRouter(t)
+	testpkg.CreateTestEducationGroup(t, tc.db, "ListCountFailure")
+	tc.resource.People = failingGroupCounts{GroupPeople: tc.resource.People}
+
+	rr := testutil.ExecuteRequest(router, newReq(t, http.MethodGet, "/groups/", nil, testutil.DefaultTestClaims(), "groups:read"))
+	testutil.AssertErrorResponse(t, rr, http.StatusInternalServerError)
+}

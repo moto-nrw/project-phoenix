@@ -264,42 +264,21 @@ func (rs *Resource) listGroups(w http.ResponseWriter, r *http.Request) {
 	// Get all groups
 	groups, err := rs.EducationService.ListGroups(r.Context(), query)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("list groups", err))
 		return
 	}
 
-	// Collect group IDs for batch operations
-	groupIDs := make([]int64, len(groups))
-	for i, g := range groups {
-		groupIDs[i] = g.ID
-	}
-
-	// Batch load student counts (1 query instead of N)
-	studentCounts, err := rs.People.CountByGroupIDs(r.Context(), groupIDs)
+	responses, err := rs.groupResponses(r.Context(), groups)
 	if err != nil {
-		slog.Default().Warn("failed to batch load student counts", slog.String("error", err.Error()))
-		studentCounts = make(map[int64]int)
-	}
-
-	// Batch load teachers for all groups (2 queries instead of ~N*4)
-	teachersByGroup, err := rs.EducationService.GetTeachersForGroups(r.Context(), groupIDs)
-	if err != nil {
-		slog.Default().Warn("failed to batch load teachers", slog.String("error", err.Error()))
-		teachersByGroup = make(map[int64][]*education.Teacher)
-	}
-
-	// Build response using pre-loaded data
-	responses := make([]GroupResponse, 0, len(groups))
-	for _, group := range groups {
-		teachers := teachersByGroup[group.ID]
-		studentCount := studentCounts[group.ID]
-		responses = append(responses, newGroupResponse(group, teachers, studentCount))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load group details", err))
+		return
 	}
 
 	// Count total for pagination (same filters, no LIMIT/OFFSET)
-	total, countErr := rs.EducationService.CountGroups(r.Context(), query)
-	if countErr != nil {
-		total = len(responses)
+	total, err := rs.EducationService.CountGroups(r.Context(), query)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("count groups", err))
+		return
 	}
 
 	common.RespondPaginated(w, r, http.StatusOK, responses, common.PaginationParams{Page: page, PageSize: pageSize, Total: total}, "Groups retrieved successfully")
@@ -319,21 +298,13 @@ func (rs *Resource) getGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get teachers for this group
-	teachers, err := rs.EducationService.GetGroupTeachers(r.Context(), id)
+	response, err := rs.groupResponse(r.Context(), group)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("load group teachers: %w", err)))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load group details", err))
 		return
 	}
 
-	// Get student count for this group
-	studentCount, err := rs.getStudentCount(r.Context(), id)
-	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("count group students: %w", err)))
-		return
-	}
-
-	common.Respond(w, r, http.StatusOK, newGroupResponse(group, teachers, studentCount), "Group retrieved successfully")
+	common.Respond(w, r, http.StatusOK, response, "Group retrieved successfully")
 }
 
 // createGroup handles creating a new group
@@ -370,19 +341,13 @@ func (rs *Resource) createGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Get the created group with room details
-	createdGroup, err := rs.EducationService.FindGroupWithRoom(r.Context(), group.ID)
+	response, err := rs.storedGroupResponse(r.Context(), group.ID)
 	if err != nil {
-		createdGroup = group // Fallback to the original group without room details
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load created group", err))
+		return
 	}
 
-	// Get teachers for the group
-	teachers, _ := rs.EducationService.GetGroupTeachers(r.Context(), group.ID)
-
-	// New group has no students yet
-	studentCount := 0
-
-	common.Respond(w, r, http.StatusCreated, newGroupResponse(createdGroup, teachers, studentCount), "Group created successfully")
+	common.Respond(w, r, http.StatusCreated, response, "Group created successfully")
 }
 
 // updateGroup handles updating a group
@@ -431,32 +396,61 @@ func (rs *Resource) updateGroup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	response, err := rs.updatedGroupResponse(r.Context(), group.ID)
+	response, err := rs.storedGroupResponse(r.Context(), group.ID)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load updated group", err))
 		return
 	}
 
 	common.Respond(w, r, http.StatusOK, response, "Group updated successfully")
 }
 
-// updatedGroupResponse reads the group back after an update. A failed read
-// answers 500, which rolls the update back, instead of a response without
-// room, teachers or children (#6849).
-func (rs *Resource) updatedGroupResponse(ctx context.Context, groupID int64) (GroupResponse, error) {
+// groupResponses adds the teachers and student counts of a page of groups in
+// two batch reads. A failed read is an error, not groups without teachers or
+// children (#6849).
+func (rs *Resource) groupResponses(ctx context.Context, groups []*education.Group) ([]GroupResponse, error) {
+	groupIDs := make([]int64, len(groups))
+	for i, g := range groups {
+		groupIDs[i] = g.ID
+	}
+	studentCounts, err := rs.People.CountByGroupIDs(ctx, groupIDs)
+	if err != nil {
+		return nil, fmt.Errorf("count group students: %w", err)
+	}
+	teachersByGroup, err := rs.EducationService.GetTeachersForGroups(ctx, groupIDs)
+	if err != nil {
+		return nil, fmt.Errorf("load group teachers: %w", err)
+	}
+	responses := make([]GroupResponse, 0, len(groups))
+	for _, group := range groups {
+		responses = append(responses, newGroupResponse(group, teachersByGroup[group.ID], studentCounts[group.ID]))
+	}
+	return responses, nil
+}
+
+// storedGroupResponse reads a group back after a write. A failed read answers
+// 500, which rolls the write back, instead of a response without room,
+// teachers or children (#6849).
+func (rs *Resource) storedGroupResponse(ctx context.Context, groupID int64) (GroupResponse, error) {
 	group, err := rs.EducationService.FindGroupWithRoom(ctx, groupID)
 	if err != nil {
-		return GroupResponse{}, fmt.Errorf("load updated group: %w", err)
+		return GroupResponse{}, fmt.Errorf("load group: %w", err)
 	}
-	teachers, err := rs.EducationService.GetGroupTeachers(ctx, groupID)
+	return rs.groupResponse(ctx, group)
+}
+
+// groupResponse adds a group's teachers and student count. A failed read is
+// an error, not a group without teachers or children (#6849).
+func (rs *Resource) groupResponse(ctx context.Context, group *education.Group) (GroupResponse, error) {
+	teachers, err := rs.EducationService.GetGroupTeachers(ctx, group.ID)
 	if err != nil {
 		return GroupResponse{}, fmt.Errorf("load group teachers: %w", err)
 	}
-	studentCount, err := rs.getStudentCount(ctx, groupID)
+	students, err := rs.People.GroupStudents(ctx, group.ID)
 	if err != nil {
 		return GroupResponse{}, fmt.Errorf("count group students: %w", err)
 	}
-	return newGroupResponse(group, teachers, studentCount), nil
+	return newGroupResponse(group, teachers, len(students)), nil
 }
 
 // deleteGroup handles deleting a group

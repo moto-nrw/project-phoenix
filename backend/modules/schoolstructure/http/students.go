@@ -29,16 +29,6 @@ type GroupStudentResponse struct {
 	TagID       string `json:"tag_id,omitempty"`
 }
 
-// getStudentCount returns the number of students in a group. A failed read
-// is an error, not an empty group.
-func (rs *Resource) getStudentCount(ctx context.Context, groupID int64) (int, error) {
-	students, err := rs.People.GroupStudents(ctx, groupID)
-	if err != nil {
-		return 0, err
-	}
-	return len(students), nil
-}
-
 // buildStudentResponse creates a student response with all necessary data
 func (rs *Resource) buildStudentResponse(
 	ctx context.Context,
@@ -50,10 +40,10 @@ func (rs *Resource) buildStudentResponse(
 ) *GroupStudentResponse {
 	person, found := persons[student.PersonID]
 	var err error
-	// Keep the single-person fallback on batch failure and the account lookup's
-	// error semantics for linked identities. Normal child identities need no
-	// account enrichment and use the owner-scoped batch directly.
-	if persons == nil || person.AccountID != nil {
+	// Keep the account lookup's error semantics for linked identities. Normal
+	// child identities need no account enrichment and use the owner-scoped
+	// batch directly.
+	if person.AccountID != nil {
 		person, err = rs.People.FindPerson(ctx, student.PersonID)
 	} else if !found {
 		err = fmt.Errorf("person %d: %w", student.PersonID, peopledirectory.ErrPersonNotFound)
@@ -98,7 +88,7 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 	// Get students for this group
 	students, err := rs.People.GroupStudents(r.Context(), id)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(err))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load group students", err))
 		return
 	}
 
@@ -113,13 +103,17 @@ func (rs *Resource) getGroupStudents(w http.ResponseWriter, r *http.Request) {
 	// "Abwesend" would report an unconfirmed absence (#6849).
 	locationSnapshot, err := studentpresence.LoadStudentLocationSnapshot(r.Context(), rs.ActiveService, studentIDs)
 	if err != nil {
-		common.RenderError(w, r, common.ErrorInternalServer(fmt.Errorf("load group student locations: %w", err)))
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load group student locations", err))
 		return
 	}
 
-	persons, personErr := rs.People.ListPersonsByID(r.Context(), personIDs)
-	if personErr != nil {
-		persons = nil
+	// An unknown person is absent from the batch, so a failed batch is a
+	// failed read (an aborted transaction, say): per-person reads would fail
+	// the same way and leave an empty group (#6849).
+	persons, err := rs.People.ListPersonsByID(r.Context(), personIDs)
+	if err != nil {
+		common.RenderError(w, r, common.ErrorInternalServerWrap("load group student persons", err))
+		return
 	}
 
 	// Build response with person data for each student
