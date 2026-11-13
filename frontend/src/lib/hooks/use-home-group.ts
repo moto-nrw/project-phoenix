@@ -7,7 +7,8 @@ import type {
   OgsLiveViewData,
   OgsLiveWireStudent,
 } from "~/lib/ogs-group-live-api";
-import { countedDayStatus, isCheckedInLocation } from "~/lib/location-helper";
+import { isCheckedInLocation } from "~/lib/location-helper";
+import { countedDayStatus } from "~/lib/presence-status";
 import {
   combineTimeNotes,
   comesOnlyIfLessonCancelled,

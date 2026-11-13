@@ -30,16 +30,25 @@
 // spelling (getDeltaStatus) map it to "orange" at the boundary.
 //
 // A tone is one brand color, used twice: the progress bar takes it raw (a bar
-// is a fill), the figure takes its accessible shade from location-helper (a
+// is a fill), the figure takes its text-safe shade from the kit palette (a
 // figure is text — the raw hexes miss the contrast minimum on white, brand
-// green by a factor of two). Both come from LOCATION_COLORS, so this component
-// holds no palette values of its own and cannot go stale when the palette moves.
+// green by a factor of two). Both come from MOTO_COLOR_PALETTE, so this
+// component holds no colour values of its own and cannot go stale when the
+// palette moves.
 
 import { cn } from "~/lib/utils";
-import { listRowClasses } from "./list-row-styles";
+import {
+  LIST_ROW_NEUTRAL_GROUP_HOVER,
+  listRowClasses,
+} from "./list-row-styles";
+import {
+  CARD_FOCUS_RING,
+  CARD_FRAME,
+  cardSurfaceClasses,
+} from "./card-surface";
 import type { ReactNode } from "react";
 import Link from "~/components/ui/navigation-link";
-import { LOCATION_COLORS, getAccessibleTextColor } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE, getAccessibleTextColor } from "~/lib/kit-palette";
 import { IconTile } from "~/components/ui/icon-tile";
 import { ProgressBar } from "~/components/ui/progress-bar";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -53,11 +62,11 @@ import { Skeleton } from "~/components/ui/skeleton";
 type StatCardTone = "blue" | "green" | "orange" | "red" | "gray" | "neutral";
 
 const TONE_COLOR: Record<Exclude<StatCardTone, "neutral">, string> = {
-  blue: LOCATION_COLORS.OTHER_ROOM,
-  green: LOCATION_COLORS.GROUP_ROOM,
-  orange: LOCATION_COLORS.SCHOOLYARD,
-  red: LOCATION_COLORS.DANGER,
-  gray: LOCATION_COLORS.UNKNOWN,
+  blue: MOTO_COLOR_PALETTE.blue.base,
+  green: MOTO_COLOR_PALETTE.green.base,
+  orange: MOTO_COLOR_PALETTE.orange.base,
+  red: MOTO_COLOR_PALETTE.red.base,
+  gray: MOTO_COLOR_PALETTE.stone.base,
 };
 
 /** Textfarbe der Zahl; `undefined` lässt die Klasse (Dunkelgrau) gelten. */
@@ -67,7 +76,7 @@ function figureStyle(tone: StatCardTone): { color: string } | undefined {
 }
 
 function barColor(tone: StatCardTone): string {
-  return tone === "neutral" ? LOCATION_COLORS.UNKNOWN : TONE_COLOR[tone];
+  return tone === "neutral" ? TONE_COLOR.gray : TONE_COLOR[tone];
 }
 
 type StatCardProps = {
@@ -131,7 +140,7 @@ function StatInline({ label, value, detail, icon }: StatInlineProps) {
   return (
     // Mittig ausgerichtet, damit eine Kachel ohne Zusatzwert neben einer
     // umbrochenen Nachbarkachel nicht oben klebt.
-    <div className="moto-content-surface flex items-center rounded-2xl border px-4 py-3">
+    <div className={cn(CARD_FRAME, "flex items-center px-4 py-3")}>
       <div className="flex min-w-0 flex-1 items-center gap-3">
         {icon == null ? null : <IconTile size="sm" shape="round" icon={icon} />}
         <span className="min-w-0">
@@ -196,12 +205,7 @@ export function StatCard(
 
   const card =
     props.variant === "row" ? (
-      <div
-        className={cn(
-          listRowClasses(),
-          "transition-colors group-hover:bg-gray-100/50",
-        )}
-      >
+      <div className={cn(listRowClasses(), LIST_ROW_NEUTRAL_GROUP_HOVER)}>
         {icon}
         <span className="min-w-0 flex-1 truncate text-sm font-medium text-gray-900">
           {label}
@@ -220,14 +224,12 @@ export function StatCard(
     ) : (
       <div
         title={title}
-        // `shadow-md!`: moto-content-surface setzt seinen Schatten unlayered
-        // und schlägt jede normale Utility; nur `!important` hebt die
-        // verlinkte Kachel beim Überfahren an (#5577).
-        className={`moto-content-surface compact:p-4 relative flex h-full flex-col rounded-2xl border p-5 max-sm:p-3 ${
-          href
-            ? "transition-all duration-150 group-hover:-translate-y-0.5 group-hover:shadow-md!"
-            : ""
-        }`}
+        // Verlinkt reagiert die Kachel beim Überfahren wie `TileCard`, und
+        // jede Kachel hat deren Innenabstand: eine Karte, ein Verhalten (#6565).
+        className={cn(
+          cardSurfaceClasses({ padded: true, hover: Boolean(href) }),
+          "relative flex h-full flex-col",
+        )}
       >
         {/* Absolute so a tile carrying an action keeps the same label→value
           rhythm as its neighbours in the row. */}
@@ -302,7 +304,12 @@ export function StatCard(
             ? `${label}: ${loading ? "…" : value}, Liste öffnen`
             : undefined
         }
-        className={`focus-visible:ring-moto-blue group block focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 ${props.variant === "row" ? "rounded-xl" : "h-full rounded-2xl"}`}
+        className={
+          props.variant === "row"
+            ? "focus-visible:ring-moto-blue group block rounded-xl focus:outline-none focus-visible:ring-2 focus-visible:ring-offset-2"
+            : // Der Link um die Fläche trägt den Fokusring der Karte.
+              cn("group block h-full cursor-pointer", CARD_FOCUS_RING)
+        }
       >
         {card}
       </Link>

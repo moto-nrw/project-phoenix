@@ -33,8 +33,7 @@ import { DatabaseFormModal } from "~/components/database/database-form-modal";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { MotoDuotoneIcon } from "~/components/ui/moto-duotone-icon";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
-import { PageHeaderWithSearch } from "~/components/ui/page-header/PageHeaderWithSearch";
+import type { OverflowMenuEntry } from "~/components/ui/page-header/types";
 import { Skeleton } from "~/components/ui/skeleton";
 import type { FormErrorInput } from "~/components/ui/form-error";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
@@ -656,28 +655,24 @@ export function CatalogPage<T extends CatalogItem>({
             </div>
           ) : undefined,
       }}
-      search={
-        <PageHeaderWithSearch
-          embedded
-          title=""
-          badge={{
-            icon: (
-              <MotoDuotoneIcon
-                icon={concept.icon}
-                tone={concept.tone}
-                size={20}
-              />
-            ),
-            count: visible.length,
-            label: config.title,
-          }}
-          search={{
-            value: searchTerm,
-            onChange: setSearchTerm,
-            placeholder: config.searchPlaceholder,
-          }}
-        />
-      }
+      searchRow={{
+        badge: {
+          icon: (
+            <MotoDuotoneIcon
+              icon={concept.icon}
+              tone={concept.tone}
+              size={20}
+            />
+          ),
+          count: visible.length,
+          label: config.title,
+        },
+        search: {
+          value: searchTerm,
+          onChange: setSearchTerm,
+          placeholder: config.searchPlaceholder,
+        },
+      }}
       overlays={
         <>
           {createOpen && items !== undefined && (

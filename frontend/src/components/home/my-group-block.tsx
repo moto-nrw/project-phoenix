@@ -21,11 +21,11 @@ import {
 } from "~/lib/hooks/use-home-group";
 import { useSwrLoadError } from "~/lib/hooks/use-swr-load-error";
 import {
-  countedDayStatus,
   isAtSchoolLocation,
   isInClassLocation,
   LOCATION_COLORS,
 } from "~/lib/location-helper";
+import { countedDayStatus } from "~/lib/presence-status";
 import type { OgsLiveWireStudent } from "~/lib/ogs-group-live-api";
 import { ONLY_IF_LESSON_CANCELLED_LABEL } from "~/lib/student-time-status";
 import { useTenantAwarePath } from "~/lib/tenant-path";

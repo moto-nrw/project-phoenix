@@ -1,65 +1,59 @@
 "use client";
 
-import { NavLink } from "~/components/ui/nav-link";
-import {
-  NotificationBadge,
-  type NotificationBadgeTone,
-} from "~/components/ui/notification-badge";
-import { SIDEBAR_SUB_ITEM_CLASSES } from "~/components/ui/sidebar-geometry";
+import NavigationLink from "~/components/ui/navigation-link";
 import { ModuleLockMark } from "~/components/ui/module-lock-mark";
+import { NotificationBadge } from "~/components/ui/notification-badge";
+import { sidebarSubItemClasses } from "~/components/ui/sidebar-geometry";
+import {
+  SidebarRowContent,
+  type SidebarRowBadge,
+} from "~/components/ui/sidebar-row";
 
 interface SidebarSubItemProps {
   readonly href: string;
   readonly label: string;
   readonly isActive: boolean;
+  // Die graue Anwesenheit einer Gruppe („12/20“), kein Zähler.
   readonly count?: number | string;
-  // Domain-colored pill for unread messages or pending requests. Distinct from
-  // `count`, which is the muted gray attendance count.
-  readonly badgeCount?: number;
-  readonly badgeTone?: NotificationBadgeTone;
-  readonly badgeNoun?: string;
+  // Zähler für ungelesene Nachrichten oder offene Anfragen; er ersetzt die
+  // graue Anwesenheit.
+  readonly badge?: SidebarRowBadge | null;
   // Ziel der geführten Tour der ersten Schritte (#2832).
   readonly tourId?: string;
   // Modul nicht gebucht (#4894): Schloss statt Zähler.
   readonly locked?: boolean;
 }
 
+/** Ein Unterpunkt unter einem Akkordeon-Bereich: Text ohne Icon. */
 export function SidebarSubItem({
   href,
   label,
   isActive,
   count,
-  badgeCount = 0,
-  badgeTone = "parents",
-  badgeNoun = "ungelesene Nachrichten",
+  badge,
   tourId,
   locked = false,
 }: SidebarSubItemProps) {
+  // Ein Unterpunkt steht nie im Streifen und blendet nicht: sein Zähler ist
+  // Beiwerk der Zeile, kein wandernder Zähler mit Punkt.
+  const trailing = locked ? (
+    <ModuleLockMark />
+  ) : badge != null && badge.count > 0 ? (
+    <NotificationBadge
+      count={badge.count}
+      tone={badge.tone}
+      ariaLabel={badge.ariaLabel}
+    />
+  ) : count === undefined ? null : (
+    <span className="text-xs text-gray-400">{count}</span>
+  );
   return (
-    <NavLink
+    <NavigationLink
       href={href}
       data-setup-tour={tourId}
-      className={`${SIDEBAR_SUB_ITEM_CLASSES} ${
-        isActive
-          ? "bg-gray-100 font-semibold text-gray-900"
-          : "font-medium text-gray-500 hover:bg-gray-50 hover:text-gray-700"
-      }`}
+      className={sidebarSubItemClasses(isActive)}
     >
-      <span className="truncate">{label}</span>
-      {locked ? (
-        <ModuleLockMark className="ml-2" />
-      ) : badgeCount > 0 ? (
-        <NotificationBadge
-          count={badgeCount}
-          tone={badgeTone}
-          ariaLabel={`${badgeCount} ${badgeNoun}`}
-          className="ml-2"
-        />
-      ) : (
-        count !== undefined && (
-          <span className="ml-2 shrink-0 text-xs text-gray-400">{count}</span>
-        )
-      )}
-    </NavLink>
+      <SidebarRowContent label={label} trailing={trailing} />
+    </NavigationLink>
   );
 }

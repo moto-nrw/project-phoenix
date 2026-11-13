@@ -245,10 +245,11 @@ func TestStudentStatusDayRepository_CountEffectiveDashboardAbsences(t *testing.T
 
 	report(ctxA, create("ClassTrip", "Dashboard"), absencerecords.StudentStatusDayClassTrip)
 
-	sickWins := create("SickWins", "Dashboard")
-	report(ctxA, sickWins, absencerecords.StudentStatusDaySick)
-	report(ctxA, sickWins, absencerecords.StudentStatusDayExcused)
-	report(ctxA, sickWins, absencerecords.StudentStatusDayClassTrip)
+	// The latest report replaces the earlier ones of the day (#6958).
+	latestWins := create("LatestWins", "Dashboard")
+	report(ctxA, latestWins, absencerecords.StudentStatusDayExcused)
+	report(ctxA, latestWins, absencerecords.StudentStatusDayClassTrip)
+	report(ctxA, latestWins, absencerecords.StudentStatusDaySick)
 
 	cleared := create("Cleared", "Dashboard")
 	report(ctxA, cleared, absencerecords.StudentStatusDayExcused)

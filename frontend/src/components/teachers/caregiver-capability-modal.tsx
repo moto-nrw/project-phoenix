@@ -410,7 +410,6 @@ export function CaregiverCapabilityModal({
                 size={18}
               />
             }
-            accentColor={state.isActiveCaregiver ? "green" : "gray"}
           >
             <DataGrid>
               <DataField label="Status">{getRoleSummary(state)}</DataField>
@@ -434,7 +433,6 @@ export function CaregiverCapabilityModal({
                   size={18}
                 />
               }
-              accentColor="orange"
             >
               <p className="mb-3 text-xs text-gray-600">
                 Für dieses Konto existiert noch kein Personalprofil. Bitte Name
@@ -481,7 +479,6 @@ export function CaregiverCapabilityModal({
                   size={18}
                 />
               }
-              accentColor="amber"
             >
               <p className="mb-2 text-xs text-gray-600">
                 Die Betreuung kann erst deaktiviert werden, wenn folgende

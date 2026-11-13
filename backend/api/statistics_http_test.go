@@ -314,10 +314,9 @@ func TestStatisticsReport_ComputesQuotasAndRooms(t *testing.T) {
 	insertAttendance(t, tc.db, tenantID, anna.ID, device.ID, calendar.NewDate(2026, 6, 8))
 	insertAttendance(t, tc.db, tenantID, anna.ID, device.ID, calendar.NewDate(2026, 6, 9))
 	insertAttendance(t, tc.db, tenantID, anna.ID, device.ID, calendar.NewDate(2026, 6, 10))
-	// Bert: sick Mon (sick beats an excused row on the same day), class trip
+	// Bert: sick Mon (one standing status per day, #6958), class trip
 	// Wed (counts as excused even though archived by end-of-day), present Thu.
 	insertStatusDay(t, tc.db, tenantID, bert.ID, calendar.NewDate(2026, 6, 8), careplan.StudentStatusDaySick)
-	insertStatusDay(t, tc.db, tenantID, bert.ID, calendar.NewDate(2026, 6, 8), careplan.StudentStatusDayExcused)
 	insertEndOfDayStatusDay(t, tc.db, tenantID, bert.ID, calendar.NewDate(2026, 6, 10), careplan.StudentStatusDayClassTrip)
 	insertAttendance(t, tc.db, tenantID, bert.ID, device.ID, calendar.NewDate(2026, 6, 11))
 

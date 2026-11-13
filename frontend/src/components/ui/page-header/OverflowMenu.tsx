@@ -1,5 +1,6 @@
 "use client";
 
+import { CONTROL_HEIGHT_CLASS, iconOnlyMarker } from "../control-geometry";
 import { Z_LAYER } from "../overlay-styles";
 import {
   useEffect,
@@ -18,83 +19,17 @@ import { buttonClassName } from "~/components/ui/button";
 import type { ButtonSize, ButtonVariant } from "~/components/ui/button-styles";
 import Link from "~/components/ui/navigation-link";
 import { Check, MoreVertical } from "lucide-react";
+import { SHEET_SCOPE_SELECTOR, useOverlay } from "../overlay-stack";
+import type {
+  OverflowMenuCheckboxItem,
+  OverflowMenuEntry,
+  OverflowMenuItem,
+  OverflowMenuRadioItem,
+} from "./types";
 
-export interface OverflowMenuItem {
-  /** Visible label. */
-  readonly label: string;
-  /** One short line under the label that says what the entry does. */
-  readonly description?: string;
-  /** Optional left icon. */
-  readonly icon?: ReactNode;
-  /** Click handler. The menu closes automatically before this fires. */
-  readonly onClick: () => void;
-  /** Optional right-side hint, typically a count (e.g. "3"). */
-  readonly badge?: string | number;
-  /** Renders the item with a destructive (red) text colour. */
-  readonly destructive?: boolean;
-  /** When true, the item renders disabled and its onClick is suppressed. */
-  readonly disabled?: boolean;
-  /**
-   * When set, the item renders as a link (next/link, or a plain anchor with
-   * `target="_blank"` when `external` is true) instead of a button, keeping
-   * native link semantics (middle-click, cmd-click). `onClick` still fires
-   * after the menu closes — pass a no-op when only navigation is needed.
-   */
-  readonly href?: string;
-  /** With `href`: open in a new tab via a plain anchor (noopener noreferrer). */
-  readonly external?: boolean;
-  /** Marks the current item in a navigational overflow menu, with a checkmark. */
-  readonly selected?: boolean;
-  /** Target of a guided tour (`data-setup-tour`), for an entry a tour points at. */
-  readonly tourTarget?: string;
-}
-
-/** Non-interactive thin divider between item groups. */
-interface OverflowMenuSeparator {
-  readonly kind: "separator";
-}
-
-/** Non-interactive uppercase label grouping the entries below it. */
-interface OverflowMenuHeader {
-  readonly kind: "header";
-  readonly label: string;
-}
-
-/** Single-select row with a checkmark shown when active (role="menuitemradio"). */
-interface OverflowMenuRadioItem {
-  readonly kind: "radio";
-  readonly label: string;
-  /** One short line under the label that says what the choice means. */
-  readonly description?: string;
-  readonly checked: boolean;
-  readonly onClick: () => void;
-  readonly disabled?: boolean;
-}
-
-/**
- * On/off row with a checkmark shown while on (role="menuitemcheckbox"), for a
- * personal switch that belongs to the page, e.g. an e-mail on new entries.
- */
-interface OverflowMenuCheckboxItem {
-  readonly kind: "checkbox";
-  readonly label: string;
-  readonly checked: boolean;
-  readonly onClick: () => void;
-  readonly disabled?: boolean;
-  /**
-   * Leaves the menu open after the toggle. For a list of switches that are
-   * set together (which table columns to show): closing after every row
-   * would make the user reopen the menu once per column.
-   */
-  readonly keepOpen?: boolean;
-}
-
-export type OverflowMenuEntry =
-  | OverflowMenuItem
-  | OverflowMenuHeader
-  | OverflowMenuRadioItem
-  | OverflowMenuCheckboxItem
-  | OverflowMenuSeparator;
+// Die Typen stehen in `./types`; der Re-Export erspart Aufrufern, die das Menü
+// rendern, einen zweiten Import.
+export type { OverflowMenuEntry, OverflowMenuItem } from "./types";
 
 interface OverflowMenuProps {
   /** Menu items to render. Empty array → renders nothing. */
@@ -143,6 +78,11 @@ interface OverflowMenuProps {
   };
   /** Layout of the box around the trigger (width, flex); default `inline-block`. */
   readonly wrapperClassName?: string;
+  /**
+   * Stop of a guided tour (`data-setup-tour`) on the box around the trigger,
+   * like `tourTarget` of an entry. Spares the caller a wrapper of its own.
+   */
+  readonly tourTarget?: string;
   /**
    * Optional CSS selector for an ancestor of the trigger. When set, the menu
    * stretches to that ancestor's width and sits inside it (8px inset), instead
@@ -195,6 +135,7 @@ export function OverflowMenu({
   triggerTooltip,
   triggerButton,
   wrapperClassName = "inline-block",
+  tourTarget,
   matchContainerSelector,
   portalOwnerId,
   portalZIndex,
@@ -207,14 +148,14 @@ export function OverflowMenu({
   // coarse), 16px icon, and a muted gray-400 (splitting color from the string
   // avoids a Tailwind text-* conflict that class-string order would not resolve).
   const triggerSizeClass =
-    // Default-Kebab: Breite folgt der Höhe (`aspect-square`), damit der
-    // runde Hover-Kreis rund bleibt, wenn die Kopfkarte ihre Bedienhöhe
-    // (40/44 px) per Nachfahren-Selektor erzwingt.
+    // Default-Kebab: Höhe `dense` (control-geometry.ts). Die Breite folgt der
+    // Höhe (`aspect-square`), damit der runde Hover-Kreis rund bleibt, wenn
+    // die Kopfkarte ihre Bedienhöhe (`HEAD_CONTROL_HEIGHT`) erzwingt.
     triggerContent != null
       ? ""
       : triggerSize === "sm"
         ? "size-6 pointer-coarse:size-11"
-        : "aspect-square h-9";
+        : `aspect-square ${CONTROL_HEIGHT_CLASS.dense}`;
   const triggerColorClass =
     triggerSize === "sm" ? "text-gray-400" : "text-gray-600";
   const iconSizeClass = triggerSize === "sm" ? "size-4" : "size-5";
@@ -226,6 +167,10 @@ export function OverflowMenu({
   const [menuStyle, setMenuStyle] = useState<CSSProperties>({});
   const triggerRef = useRef<HTMLButtonElement>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+  // On the overlay stack, so the panel the menu opened from (an
+  // `AnchoredPopover`) counts a press in it as its own. Escape stays with the
+  // menu's own handler.
+  useOverlay(isOpen, "popover", { takesEscape: false, elementRef: menuRef });
   const focusOnOpenRef = useRef(false);
   const openAnchorRef = useRef<{ top: number; left: number } | null>(null);
   const menuId = useId();
@@ -310,7 +255,7 @@ export function OverflowMenu({
       const scope = portalOwnerId
         ? null
         : trigger.closest(
-            '[data-overflow-menu-scope="true"], [data-date-picker-focus-trap="true"]',
+            `[data-overflow-menu-scope="true"], ${SHEET_SCOPE_SELECTOR}`,
           );
       const nextPortalContainer =
         scope instanceof HTMLElement ? scope : document.body;
@@ -518,7 +463,8 @@ export function OverflowMenu({
       className={`relative ${wrapperClassName}`}
       // Das Gerüst der Kopfkarte streckt auf dem Telefon Textknöpfe über die
       // Zeile; ein reines Symbol behält sein Maß.
-      data-icon-only={triggerContent == null ? "" : undefined}
+      {...iconOnlyMarker(triggerContent == null)}
+      data-setup-tour={tourTarget}
     >
       {triggerHint ? (
         <ActionHint text={triggerHint}>{trigger}</ActionHint>

@@ -5,7 +5,7 @@ import { ActionHint } from "~/components/ui/action-hint";
 import { Button, buttonClassName } from "~/components/ui/button";
 import { useKitDefault } from "~/components/ui/kit-locale";
 import { FileTypeIcon } from "~/components/ui/file-type-icon";
-import { formatBytes, isViewableInBrowser } from "~/lib/files-api";
+import { formatBytes, isViewableInBrowser } from "~/lib/file-format";
 import { cn } from "~/lib/utils";
 
 /**

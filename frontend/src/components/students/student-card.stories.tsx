@@ -1,4 +1,5 @@
 import type { Meta, StoryObj } from "@storybook/nextjs-vite";
+import { expect, userEvent, within } from "storybook/test";
 
 import {
   StudentCard,
@@ -12,7 +13,7 @@ import {
   StudentAbsenceRow,
   ArrivalTimeRow,
 } from "./student-card";
-import { LocationBadge } from "~/components/ui/location-badge";
+import { LocationBadge } from "~/components/students/presence/location-badge";
 
 const meta = {
   title: "students/StudentCard",
@@ -48,6 +49,14 @@ export default meta;
 type Story = StoryObj<typeof meta>;
 
 export const Default: Story = {};
+
+/** Tastaturfokus: dieselbe Fläche und derselbe Ring wie `TileCard`. */
+export const Focused: Story = {
+  play: async ({ canvasElement }) => {
+    await userEvent.tab();
+    await expect(within(canvasElement).getByRole("button")).toHaveFocus();
+  },
+};
 
 export const WithPhoto: Story = {
   args: {

@@ -3,8 +3,9 @@
 import { LayoutGrid, List } from "lucide-react";
 
 import { Button } from "~/components/ui/button";
+import { ICON_ONLY } from "~/components/ui/control-geometry";
 import { SegmentedControl } from "~/components/ui/segmented-control";
-import type { OverflowMenuEntry } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuEntry } from "~/components/ui/page-header/types";
 import type { CollectionView } from "~/lib/hooks/use-collection-view";
 
 const VIEW_ITEMS = [
@@ -27,8 +28,8 @@ const VIEW_ITEMS = [
  *
  * Below `sm` the head row has no room for the pair next to the title and the
  * ⋮ menu, so a phone gets ONE symbol button that shows the other view (list
- * symbol while tiles show, and back). The caller marks its wrapper
- * `data-icon-only`, so either form stays beside the title.
+ * symbol while tiles show, and back). Both forms are pure symbols, so the
+ * root carries `ICON_ONLY` and the head keeps either beside the title.
  */
 export function CollectionViewSwitch({
   value,
@@ -43,7 +44,7 @@ export function CollectionViewSwitch({
   const nextLabel =
     value === "tiles" ? "Als Liste zeigen" : "Als Kacheln zeigen";
   return (
-    <>
+    <div {...ICON_ONLY}>
       <SegmentedControl
         ariaLabel="Ansicht"
         iconOnly
@@ -71,7 +72,7 @@ export function CollectionViewSwitch({
           <LayoutGrid className="h-5 w-5" aria-hidden />
         )}
       </Button>
-    </>
+    </div>
   );
 }
 

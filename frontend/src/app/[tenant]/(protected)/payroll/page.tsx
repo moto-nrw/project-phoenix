@@ -61,7 +61,10 @@ import { hasPermission } from "~/lib/auth-utils";
 import { notBookedModuleOf } from "~/lib/module-not-booked";
 import { MISSING_TARGET_OWNER } from "~/components/staff/missing-target-notice";
 import { ProgressBar } from "~/components/ui/progress-bar";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { fetchSFTPStatus, type SFTPStatus } from "~/lib/sftp-export-api";
 import {
   archiveSurchargeRule,
@@ -613,7 +616,7 @@ function targetItem({
 function ReadinessRow({ item }: { readonly item: ReadinessItem }) {
   const { icon: Icon, className, sr } = READINESS_STATE[item.state];
   return (
-    <li className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center">
+    <ResponsiveActionRow>
       <div className="flex min-w-0 items-start gap-3">
         <Icon
           className={`mt-0.5 size-5 shrink-0 ${className}`}
@@ -634,7 +637,7 @@ function ReadinessRow({ item }: { readonly item: ReadinessItem }) {
           {item.action}
         </div>
       ) : null}
-    </li>
+    </ResponsiveActionRow>
   );
 }
 
@@ -701,7 +704,7 @@ function lohnartColumns(
                 void onSave(cat.unitSettingKey, next);
               }
             }}
-            controlSize="compact"
+            controlSize="dense"
             className="md:w-auto md:min-w-[10rem]"
           />
         ) : (
@@ -1318,7 +1321,7 @@ function WageTypesCard({
               saveWageType(wageType, { unit: next as WageTypeUnit });
             }
           }}
-          controlSize="compact"
+          controlSize="dense"
           className="md:w-auto md:min-w-[10rem]"
         />
       ),
@@ -1522,7 +1525,7 @@ function SurchargeRulesCard({
                 saveSurchargeRule(rule, { wageTypeId: next });
               }
             }}
-            controlSize="compact"
+            controlSize="dense"
             className="md:w-auto md:min-w-[10rem]"
           />
         );
@@ -1745,7 +1748,7 @@ function AbsenceTypeWageTypesCard({
               );
             }
           }}
-          controlSize="compact"
+          controlSize="dense"
           className="md:w-auto md:min-w-[12rem]"
         />
       ),

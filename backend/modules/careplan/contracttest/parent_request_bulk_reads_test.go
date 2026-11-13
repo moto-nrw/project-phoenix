@@ -97,7 +97,10 @@ func TestBulkApprovalReadPhaseStatements(t *testing.T) {
 	// the pass stops at the first request the caller cannot decide. The lock
 	// and decision phases are unchanged (136 and 361). The fixture binds no
 	// guardian-access check, which adds one read per absence in production.
-	want := map[int]struct{ beforeLock, total int }{3: {beforeLock: 13, total: 149}, 8: {beforeLock: 23, total: 384}}
+	// Each status write replaces the day's standing status itself (#6958),
+	// so the separate clears of the competing statuses are gone (149/384
+	// before).
+	want := map[int]struct{ beforeLock, total int }{3: {beforeLock: 13, total: 128}, 8: {beforeLock: 23, total: 328}}
 	for _, children := range []int{3, 8} {
 		t.Run(fmt.Sprintf("children=%d", children), func(t *testing.T) {
 			f := newBulkReadFixture(t, db, children)

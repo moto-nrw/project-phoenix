@@ -3,7 +3,7 @@
 
 "use client";
 
-import { NavLink } from "~/components/ui/nav-link";
+import NavigationLink from "~/components/ui/navigation-link";
 import Image from "next/image";
 
 /**
@@ -91,7 +91,7 @@ export function BrandLink({
   const usesTenantLabel = Boolean(label?.trim());
 
   return (
-    <NavLink
+    <NavigationLink
       href={href}
       className="group flex max-w-[180px] min-w-0 items-center gap-2.5 sm:max-w-[240px] lg:max-w-[280px]"
     >
@@ -105,7 +105,7 @@ export function BrandLink({
         <span className={brandLabelClass(usesTenantLabel)}>{displayLabel}</span>
         <BrandTraegerLine traegerName={traegerName} />
       </div>
-    </NavLink>
+    </NavigationLink>
   );
 }
 
