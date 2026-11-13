@@ -32,6 +32,7 @@ type RateLimiter struct {
 	bucketFunc     func(*http.Request) string
 	rejectObserver func(bucket string)
 	exemptPrefixes []string
+	exemptRequests []func(*http.Request) bool
 	exemptLoopback bool
 }
 
@@ -97,9 +98,20 @@ func (rl *RateLimiter) ExemptPathPrefix(prefix string) {
 	rl.exemptPrefixes = append(rl.exemptPrefixes, prefix)
 }
 
+// ExemptRequest lets the requests match selects bypass this limiter, for
+// routes with their own limiter that no path prefix describes.
+func (rl *RateLimiter) ExemptRequest(match func(*http.Request) bool) {
+	rl.exemptRequests = append(rl.exemptRequests, match)
+}
+
 func (rl *RateLimiter) exemptPath(r *http.Request) bool {
 	for _, prefix := range rl.exemptPrefixes {
 		if strings.HasPrefix(r.URL.Path, prefix) {
+			return true
+		}
+	}
+	for _, match := range rl.exemptRequests {
+		if match(r) {
 			return true
 		}
 	}

@@ -11,6 +11,7 @@ import (
 	"github.com/go-chi/chi/v5/middleware"
 	"github.com/go-chi/cors"
 	customMiddleware "github.com/moto-ogs/project-phoenix/middleware"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
 	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/moto-ogs/project-phoenix/observability"
 	slogchi "github.com/samber/slog-chi"
@@ -218,6 +219,7 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 	generalRateLimiter.ExemptPathPrefix(emailWebhookPath + "/")
 	generalRateLimiter.ExemptPathPrefix(holidayRegistrationPath + "/")
 	generalRateLimiter.ExemptPathPrefix(holidayQuoteMount + "/")
+	generalRateLimiter.ExemptRequest(isPublicEnrollmentRequest)
 	generalRateLimiter.SetBucketFunc(func(r *http.Request) string {
 		switch r.Method {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
@@ -234,7 +236,38 @@ func setupRateLimiting(router chi.Router, securityLogger *customMiddleware.Secur
 	if securityLogger != nil {
 		generalRateLimiter.SetLogger(securityLogger)
 	}
+	router.Use(limitOnly(isPublicEnrollmentRequest, publicLinkRateLimit("enrollment-link", exemptLoopback)))
 	router.Use(generalRateLimiter.Middleware())
+}
+
+// limitOnly applies limit to the requests match selects and passes every
+// other request through untouched.
+func limitOnly(match func(*http.Request) bool, limit func(http.Handler) http.Handler) func(http.Handler) http.Handler {
+	return func(next http.Handler) http.Handler {
+		limited := limit(next)
+		return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			if match(r) {
+				limited.ServeHTTP(w, r)
+				return
+			}
+			next.ServeHTTP(w, r)
+		})
+	}
+}
+
+// enrollmentPublicRoutes are the parent-facing routes of the school's online
+// enrollment below /api/enrollment.
+var enrollmentPublicRoutes = enrollmentAPI.PublicRoutes()
+
+// isPublicEnrollmentRequest reports whether r reaches a parent-facing route
+// of the school's online enrollment. The rate limiters run before routing,
+// so they match the path against the enrollment's own route table.
+func isPublicEnrollmentRequest(r *http.Request) bool {
+	path, ok := strings.CutPrefix(r.URL.Path, "/api"+enrollmentMount)
+	if !ok || !strings.HasPrefix(path, "/") {
+		return false
+	}
+	return enrollmentPublicRoutes.Match(chi.NewRouteContext(), r.Method, path)
 }
 
 // generalRateLimitFromEnv is the configured budget of one caller of the
@@ -337,40 +370,39 @@ const (
 	dataReturnBurst             = 10
 )
 
-// The public holiday registration is opened by many families from one
-// address at once: the school network, a parents' evening, a mobile carrier
-// (#6726). One family needs an offer, a quote, its proofs and the
+// A public link of a school or a Träger, the holiday registration (#6726)
+// and the school's online enrollment (#6739), is opened by many families
+// from one address at once: the school network, a parents' evening, a mobile
+// carrier. One family needs a form, its texts, its proofs and the
 // registration; the limit of one person would refuse the families behind it.
-// The link has its own limit for that, per address and split into reads and
+// Each link has its own limit for that, per address and split into reads and
 // writes like the general one. Turnstile and the stored-registration limits
 // of Enrollment stay in front of every write.
 //
-// These values are a floor. The link is exempt from the general limiter, so
-// its own limit must never be tighter than the general one an environment
-// configures: holidayRegistrationLimits takes the larger of both.
+// These values are a floor. The links are exempt from the general limiter,
+// so their own limit must never be tighter than the general one an
+// environment configures: publicLinkLimits takes the larger of both.
 const (
-	holidayRegistrationRequestsPerMinute = 1200
-	holidayRegistrationBurst             = 300
+	publicLinkRequestsPerMinute = 1200
+	publicLinkBurst             = 300
 )
 
-// holidayRegistrationLimits is the budget of the public holiday link beside
-// a general limiter of generalLimit and generalBurst.
-func holidayRegistrationLimits(generalLimit, generalBurst int) (requestsPerMinute, burst int) {
-	return max(holidayRegistrationRequestsPerMinute, generalLimit), max(holidayRegistrationBurst, generalBurst)
+// publicLinkLimits is the budget of a public link beside a general limiter
+// of generalLimit and generalBurst.
+func publicLinkLimits(generalLimit, generalBurst int) (requestsPerMinute, burst int) {
+	return max(publicLinkRequestsPerMinute, generalLimit), max(publicLinkBurst, generalBurst)
 }
 
-// holidayRegistrationRateLimit is nil when rate limiting is disabled.
-func holidayRegistrationRateLimit(enabled, exemptLoopback bool) func(http.Handler) http.Handler {
-	if !enabled {
-		return nil
-	}
-	limiter := customMiddleware.NewRateLimiter(holidayRegistrationLimits(generalRateLimitFromEnv()))
+// publicLinkRateLimit is the limiter of one public link; link names its
+// buckets in the rejection metric.
+func publicLinkRateLimit(link string, exemptLoopback bool) func(http.Handler) http.Handler {
+	limiter := customMiddleware.NewRateLimiter(publicLinkLimits(generalRateLimitFromEnv()))
 	limiter.SetBucketFunc(func(r *http.Request) string {
 		switch r.Method {
 		case http.MethodGet, http.MethodHead, http.MethodOptions:
-			return "holiday-link-read"
+			return link + "-read"
 		default:
-			return "holiday-link-write"
+			return link + "-write"
 		}
 	})
 	limiter.SetRejectObserver(observability.RecordRateLimitRejection)
@@ -381,6 +413,14 @@ func holidayRegistrationRateLimit(enabled, exemptLoopback bool) func(http.Handle
 		limiter.SetLogger(securityLogger)
 	}
 	return limiter.Middleware()
+}
+
+// holidayRegistrationRateLimit is nil when rate limiting is disabled.
+func holidayRegistrationRateLimit(enabled, exemptLoopback bool) func(http.Handler) http.Handler {
+	if !enabled {
+		return nil
+	}
+	return publicLinkRateLimit("holiday-link", exemptLoopback)
 }
 
 // dataReturnRateLimit is nil when rate limiting is disabled.
