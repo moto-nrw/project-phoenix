@@ -1,0 +1,30 @@
+package behaviortest_test
+
+import (
+	"testing"
+
+	"github.com/moto-ogs/project-phoenix/api"
+
+	"github.com/stretchr/testify/require"
+
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+)
+
+func TestGroupRoomProjectionPreservesOpenRoomFlag(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	ctx := testpkg.Ctx(t)
+	group := testpkg.CreateTestActiveGroupForTenant(t, db, testpkg.Tenant(t))
+	repos := api.NewPresenceSuiteRepositories(testpkg.NewDatabase(t, db))
+	for _, open := range []bool{true, false} {
+		_, err := db.NewUpdate().Table("facilities.rooms").
+			Set("is_open_room = ?", open).
+			Where("id = ? AND tenant_id = ?", group.RoomID, testpkg.Tenant(t)).Exec(ctx)
+		require.NoError(t, err)
+		groups, err := sessionGroups(repos.ActiveGroup).FindByIDs(ctx, []int64{group.ID})
+		require.NoError(t, err)
+		require.NotNil(t, groups[group.ID])
+		require.NotNil(t, groups[group.ID].Room)
+		require.Equal(t, open, groups[group.ID].Room.IsOpenRoom)
+	}
+}
