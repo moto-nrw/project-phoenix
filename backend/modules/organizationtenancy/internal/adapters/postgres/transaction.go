@@ -3,7 +3,7 @@ package postgres
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // Transaction binds the owner's commands to the ambient tenant runtime.

@@ -77,6 +77,7 @@ export const codes = [
   "workforce.vacation_quota_reason_required",
   "workforce.vacation_request_in_past",
   "workforce.work_session_overlap",
+  "workforce.work_time_model_archived",
 ] as const;
 
 export const classes = {
@@ -157,6 +158,7 @@ export const classes = {
   "workforce.vacation_quota_reason_required": "input",
   "workforce.vacation_request_in_past": "input",
   "workforce.work_session_overlap": "business_rejection",
+  "workforce.work_time_model_archived": "business_rejection",
 } as const;
 
 export const parameters = {
@@ -237,4 +239,5 @@ export const parameters = {
   "workforce.vacation_quota_reason_required": [],
   "workforce.vacation_request_in_past": [],
   "workforce.work_session_overlap": [],
+  "workforce.work_time_model_archived": [],
 } as const;

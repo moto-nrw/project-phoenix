@@ -1,6 +1,6 @@
 package api
 
-import owners "github.com/moto-nrw/project-phoenix/roots/owners"
+import owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
 // newDeclarationReports binds the report documents of the Erklärung proofs
 // (#3430), Care Plan's proofs and the weekly protocol (#4769) to Document

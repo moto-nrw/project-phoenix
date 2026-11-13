@@ -525,6 +525,7 @@ export function CatererShellProvider({
 export function TraegerShellProvider({
   children,
   organizationName,
+  memberName,
 }: {
   readonly children: React.ReactNode;
   /**
@@ -533,6 +534,12 @@ export function TraegerShellProvider({
    * dort nur das Logo.
    */
   readonly organizationName?: string;
+  /**
+   * Der Name der Person in diesem Träger-Büro (#6870), aus dem eigenen
+   * Profil. Das Token trägt nur die E-Mail-Adresse; solange der Name lädt
+   * oder fehlt, steht sie in der Kopfzeile.
+   */
+  readonly memberName?: string;
 }) {
   const { data: session, status: sessionStatus } = useSession();
   const { show: showLogoutError } = useApiErrorDisplay();
@@ -541,7 +548,8 @@ export function TraegerShellProvider({
     const user: ShellUser | null = session?.user
       ? {
           ...(session.user.id ? { id: session.user.id } : {}),
-          name: session.user.name?.trim() || "Träger-Büro",
+          name:
+            memberName?.trim() || session.user.name?.trim() || "Träger-Büro",
           email: session.user.email ?? "",
           roles: session.user.roles ?? [],
         }
@@ -579,11 +587,12 @@ export function TraegerShellProvider({
       ),
       mode: "traeger" as const,
       homeUrl: traegerPath("/traeger"),
-      // Kein eigenes Profil: Passwort und Code gehören zum moto-Konto.
-      profileUrl: null,
+      // Die Konto-Seite mit dem eigenen Namen (#4693). Passwort und Code
+      // gehören zum moto-Konto und haben dort keine Karte.
+      profileUrl: traegerPath("/traeger/konto"),
       ...(organizationName ? { brandLabel: organizationName } : {}),
     };
-  }, [organizationName, session, sessionStatus, showLogoutError]);
+  }, [memberName, organizationName, session, sessionStatus, showLogoutError]);
 
   return (
     <ShellAuthContext.Provider value={value}>

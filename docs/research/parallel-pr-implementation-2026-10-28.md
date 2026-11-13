@@ -148,8 +148,8 @@ No merge queue, blind union merge, automatic snapshot approval or budget growth.
 
 ### GitHub and Quorum
 
-- Phoenix PR: https://github.com/moto-nrw/project-phoenix/pull/5243.
-- Consumer PR: https://github.com/moto-nrw/PyrePortal/pull/490. Four Quorum
+- Phoenix PR: https://github.com/moto-ogs/project-phoenix/pull/5243.
+- Consumer PR: https://github.com/moto-ogs/PyrePortal/pull/490. Four Quorum
   reviewers found no issues before and after the direct-filesystem-operation
   correction. CodeQL initially caught stat-then-read classification; removed
   stat/exists probes, preserved strict fallback behavior, ten contracts pass.

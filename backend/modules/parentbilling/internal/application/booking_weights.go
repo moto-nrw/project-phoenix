@@ -3,7 +3,7 @@ package application
 import (
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // bookingPartsAfterFunding reconstructs the family's part of each service

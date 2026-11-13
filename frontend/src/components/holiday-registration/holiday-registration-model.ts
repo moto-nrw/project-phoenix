@@ -43,12 +43,59 @@ export const MAX_CHILDREN = 3;
 // Mirrors HolidayRegistrationMaxEmergencyContacts / MaxPickupPersons in
 // backend/modules/enrollment/internal/application/holiday_registrations.go.
 // The offer does not expose these limits.
-const MAX_EMERGENCY_CONTACTS = 3;
-const MAX_PICKUP_PERSONS = 5;
+export const MAX_EMERGENCY_CONTACTS = 3;
+export const MAX_PICKUP_PERSONS = 5;
 export const MAX_CONTACTS = MAX_EMERGENCY_CONTACTS + MAX_PICKUP_PERSONS;
 
 /** The school choice of a child who attends no school of the Träger. */
 export const OTHER_SCHOOL = "other";
+
+/** A parent's answer to a required health field (#6686). */
+export type HolidayHealthChoice = "none" | "some";
+
+/**
+ * What a required health field stores when the child has none (#6686). The
+ * Träger-Büro and the hosting OGS read German, so it stays German in every
+ * language of the form.
+ */
+export const HOLIDAY_HEALTH_NONE = "Keine";
+
+/** Whether the form requires allergies and medication (#6686). */
+export function requiresHealth(form: HolidayFormVersion): boolean {
+  return form.healthRequirement === "required";
+}
+
+/** The fixed health fields a required form asks with a choice. */
+const REQUIRED_HEALTH_FIELDS = ["allergies", "medication"] as const;
+export type RequiredHealthField = (typeof REQUIRED_HEALTH_FIELDS)[number];
+
+function healthChoice(
+  child: ChildDraft,
+  field: RequiredHealthField,
+): HolidayHealthChoice | undefined {
+  return field === "allergies" ? child.allergiesChoice : child.medicationChoice;
+}
+
+/**
+ * The fixed health fields of a child as the backend reads them: trimmed,
+ * and for a required form „Keine“ or the text after the parent's choice.
+ */
+export function childHealthValues(
+  child: ChildDraft,
+  form: HolidayFormVersion,
+): { allergies: string; medication: string; healthNotes: string } {
+  const value = (field: RequiredHealthField) => {
+    if (!requiresHealth(form)) return child[field].trim();
+    const choice = healthChoice(child, field);
+    if (choice === "none") return HOLIDAY_HEALTH_NONE;
+    return choice === "some" ? child[field].trim() : "";
+  };
+  return {
+    allergies: value("allergies"),
+    medication: value("medication"),
+    healthNotes: child.healthNotes.trim(),
+  };
+}
 
 export interface ChildDraft {
   readonly key: string;
@@ -61,6 +108,13 @@ export interface ChildDraft {
   readonly allergies: string;
   readonly medication: string;
   readonly healthNotes: string;
+  /**
+   * The answer to the required question „Allergien“ or „Medikamente“
+   * (#6686): none sends „Keine“, some sends the text. Undefined before a
+   * choice; an optional form ignores it and sends the text.
+   */
+  readonly allergiesChoice?: HolidayHealthChoice;
+  readonly medicationChoice?: HolidayHealthChoice;
   /** Week ID → time model ID; a missing week is not booked. */
   readonly bookings: Readonly<Record<string, string>>;
   /**
@@ -89,6 +143,18 @@ export interface ContactDraft {
   readonly name: string;
   readonly phone: string;
   readonly relationship: string;
+  /** The guardian of a known child this contact came from (#6682). */
+  readonly knownGuardianId?: string;
+  /**
+   * All school records of that person: siblings at two schools bring one
+   * person under two records (#6682).
+   */
+  readonly knownPersonIds?: readonly string[];
+  /** What the prefill wrote, to keep the parent's own changes (#6682). */
+  readonly prefilled?: Pick<
+    ContactDraft,
+    "name" | "phone" | "relationship" | "emergency" | "pickup"
+  >;
 }
 
 export interface AddressDraft {
@@ -107,8 +173,21 @@ export interface RegistrationDraft {
   /** Postal address of the parent, when the form asks for it (#5625). */
   readonly guardianAddress: AddressDraft;
   readonly secondGuardian: RegistrationDraft["guardian"];
+  /**
+   * The custodian the prefill wrote into the second guardian (#6682); gone
+   * once nothing of the prefill is left there.
+   */
+  readonly secondGuardianPrefill?: {
+    readonly guardianId: string;
+    readonly values: RegistrationDraft["guardian"];
+  };
   readonly children: readonly ChildDraft[];
   readonly contacts: readonly ContactDraft[];
+  /**
+   * School records of the persons from the account the parent removed from
+   * the contacts (#6682).
+   */
+  readonly dismissedContacts?: readonly string[];
   readonly legalAcceptances?: Readonly<Record<string, boolean>>;
   readonly privacyConsent: boolean;
   readonly healthConsent: boolean;
@@ -155,6 +234,7 @@ export type FieldErrorKey =
   | "dayLimit"
   | "privacy"
   | "health"
+  | "healthRequired"
   | "binding"
   | "custody"
   | "declarationName"
@@ -216,17 +296,20 @@ export function emptyRegistration(): RegistrationDraft {
 }
 
 /**
- * A registration of a parent with an account (#4662): the parent fields come
- * from what the school knows. Without a family the registration starts empty.
+ * A registration of a parent with an account (#4662): the parent fields and
+ * the postal address (#6682) come from what the school knows. Without a
+ * family the registration starts empty.
  */
 export function registrationFromFamily(
   family: HolidayKnownFamily | null,
 ): RegistrationDraft {
   const draft = emptyRegistration();
   if (!family) return draft;
+  const { address, ...guardian } = family.guardian;
   return {
     ...draft,
-    guardian: { ...family.guardian },
+    guardian,
+    ...(address ? { guardianAddress: { ...address } } : {}),
     ...(family.accountProof ? { parentAccountProof: family.accountProof } : {}),
   };
 }
@@ -271,6 +354,8 @@ function isUntouched(child: ChildDraft): boolean {
     child.allergies === blank.allergies &&
     child.medication === blank.medication &&
     child.healthNotes === blank.healthNotes &&
+    child.allergiesChoice === undefined &&
+    child.medicationChoice === undefined &&
     Object.keys(child.bookings).length === 0 &&
     Object.keys(child.answers).length === 0
   );
@@ -368,8 +453,8 @@ function childHasHealthInfo(
   form: HolidayFormVersion,
 ): boolean {
   return (
-    [child.allergies, child.medication, child.healthNotes].some(
-      (value) => value.trim() !== "",
+    Object.values(childHealthValues(child, form)).some(
+      (value) => value !== "",
     ) ||
     answersHealth(form, true, child.answers, childContext(draft, child, form))
   );
@@ -555,6 +640,11 @@ export function bookedDayCount(
 const SECOND_EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$/;
 const PHONE = /^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$/;
 
+/** Whether the form takes this as the second custodian's phone. */
+export function looksLikePhone(phone: string): boolean {
+  return PHONE.test(phone.trim());
+}
+
 export function hasSecondGuardian(draft: RegistrationDraft): boolean {
   return Object.values(draft.secondGuardian).some(
     (value) => value.trim() !== "",
@@ -686,6 +776,15 @@ export function validateRegistration(
     ) {
       errors[`${prefix}.bookings`] = "dayLimit";
     }
+    if (requiresHealth(offer.form)) {
+      for (const field of REQUIRED_HEALTH_FIELDS) {
+        const choice = healthChoice(child, field);
+        if (choice === undefined) errors[`${prefix}.${field}`] = "yesNo";
+        else if (choice === "some") {
+          requireText(errors, `${prefix}.${field}`, child[field]);
+        }
+      }
+    }
     requireAnswers(
       errors,
       `${prefix}.`,
@@ -712,7 +811,7 @@ export function validateRegistration(
     if (second.email.trim() && !SECOND_EMAIL.test(second.email.trim())) {
       errors["second_guardian.email"] = "email";
     }
-    if (second.phone.trim() && !PHONE.test(second.phone.trim())) {
+    if (second.phone.trim() && !looksLikePhone(second.phone)) {
       errors["second_guardian.phone"] = "phone";
     }
   }
@@ -742,7 +841,10 @@ export function validateRegistration(
   validateContacts(errors, draft.contacts);
   if (!draft.privacyConsent) errors.privacy_consent = "privacy";
   if (hasHealthInfo(draft, offer.form) && !draft.healthConsent) {
-    errors.health_consent = "health";
+    // A required form gives no way out by deleting the answers (#6686).
+    errors.health_consent = requiresHealth(offer.form)
+      ? "healthRequired"
+      : "health";
   }
   if (offer.binding && !draft.bindingConfirmed) {
     errors.binding_confirmed = "binding";
@@ -755,6 +857,14 @@ export function validateRegistration(
   if (draft.declarationName.trim() === "")
     errors.declaration_name = "declarationName";
   return errors;
+}
+
+function healthPayload(values: ReturnType<typeof childHealthValues>) {
+  return {
+    allergies: values.allergies,
+    medication: values.medication,
+    health_notes: values.healthNotes,
+  };
 }
 
 function contactPayload(contact: ContactDraft): HolidayContactPayload {
@@ -830,9 +940,7 @@ export function payloadFromDraft(
         birth_date: child.birthDate,
         home_school_id: guest ? 0 : Number(child.school),
         guest_school_name: guest ? child.guestSchoolName.trim() : "",
-        allergies: child.allergies.trim(),
-        medication: child.medication.trim(),
-        health_notes: child.healthNotes.trim(),
+        ...healthPayload(childHealthValues(child, offer.form)),
         bookings: quoteBookings(child, offer),
         custom_data: childAnswersToSend(draft, child, offer.form),
         ...(child.wishProof && !guest ? { wish_proof: child.wishProof } : {}),

@@ -4,20 +4,15 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/application"
 	"github.com/uptrace/bun"
 )
 
-// CompanionRecords is the "läuft mit" slice of this owner, narrow enough to be
-// constructed before the rest of the module.
-//
-// People Directory needs exactly these three when a departure plan changes:
-// narrowing a plan has to drop the links it no longer allows, and refusing that
-// write depends on who else still walks with the far child. Keeping it separate
-// means the directory does not have to wait for a full Care Plan — which needs
-// the directory itself, and could not be built first.
+// CompanionRecords is the "läuft mit" slice, built before the rest of Care Plan:
+// People Directory needs it when a departure plan changes (dropping links it no
+// longer allows depends on who else walks with the child), and Care Plan needs the directory.
 type CompanionRecords interface {
 	ListCompanionEdges(context.Context, int64) ([]careplan.CompanionEdge, error)
 	CompanionDaysCoveredExcluding(context.Context, []int64, int64) (map[int64]map[string]bool, error)

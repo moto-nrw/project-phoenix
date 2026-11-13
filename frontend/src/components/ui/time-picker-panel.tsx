@@ -127,7 +127,7 @@ function TimeColumn({
                 if (!disabled) onPick(option);
               }}
               className={cn(
-                "flex h-9 items-center justify-center rounded-lg text-sm tabular-nums focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none focus-visible:ring-inset pointer-coarse:h-11",
+                "flex h-9 items-center justify-center rounded-lg text-sm tabular-nums focus-visible:ring-2 focus-visible:ring-gray-600 focus-visible:outline-none focus-visible:ring-inset pointer-coarse:h-11",
                 isSelected && "bg-gray-900 text-white",
                 !isSelected && disabled && "text-gray-400",
                 !isSelected && !disabled && "text-gray-700 hover:bg-gray-50",

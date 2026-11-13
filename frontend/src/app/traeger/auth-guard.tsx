@@ -5,6 +5,11 @@ import { useSession } from "next-auth/react";
 import { ShellIntlProvider } from "~/components/dashboard/shell-intl-provider";
 import { Loading } from "~/components/ui/loading";
 import { TraegerShell } from "~/components/traeger/traeger-shell";
+import {
+  TraegerOwnNamePublisher,
+  useTraegerOwnName,
+  type TraegerMembershipKey,
+} from "~/components/traeger/traeger-own-name";
 import { useTraegerOrganization } from "~/components/traeger/use-traeger-organization";
 import { BreadcrumbProvider } from "~/lib/breadcrumb-context";
 import { hasSessionAccess } from "~/lib/session-access";
@@ -66,25 +71,45 @@ export function TraegerAuthGuard({
     );
   }
 
-  return <TraegerPortal>{children}</TraegerPortal>;
+  const user = session?.user;
+  return (
+    <TraegerPortal
+      membership={user?.id ? `${user.id}:${user.orgId ?? ""}` : null}
+    >
+      {children}
+    </TraegerPortal>
+  );
 }
 
 /**
  * The signed-in portal: the shared shell providers nested like the caterer
  * portal's (#5145). The Träger is read once here, for its name next to the
- * logo and the test-system strip.
+ * logo and the test-system strip, and the own profile for the person's name
+ * in the header (#6870).
  */
-function TraegerPortal({ children }: { readonly children: React.ReactNode }) {
+function TraegerPortal({
+  children,
+  membership,
+}: {
+  readonly children: React.ReactNode;
+  readonly membership: TraegerMembershipKey | null;
+}) {
   const organization = useTraegerOrganization();
+  const ownName = useTraegerOwnName(membership);
   return (
-    <TraegerShellProvider organizationName={organization?.name}>
-      <BreadcrumbProvider>
-        <ShellIntlProvider>
-          <TraegerShell testSystem={organization?.testSystem === true}>
-            {children}
-          </TraegerShell>
-        </ShellIntlProvider>
-      </BreadcrumbProvider>
+    <TraegerShellProvider
+      organizationName={organization?.name}
+      memberName={ownName.name}
+    >
+      <TraegerOwnNamePublisher publish={ownName.publish}>
+        <BreadcrumbProvider>
+          <ShellIntlProvider>
+            <TraegerShell testSystem={organization?.testSystem === true}>
+              {children}
+            </TraegerShell>
+          </ShellIntlProvider>
+        </BreadcrumbProvider>
+      </TraegerOwnNamePublisher>
     </TraegerShellProvider>
   );
 }

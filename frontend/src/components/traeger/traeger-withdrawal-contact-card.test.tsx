@@ -63,7 +63,7 @@ describe("TraegerWithdrawalContactCard", () => {
     );
     expect(
       screen.getByText(
-        "Leer lassen: Dann steht hier 0211 123 45 vom Ansprechpartner.",
+        "Leer lassen: Dann steht hier 0211 123 45 von der Ansprechperson.",
       ),
     ).toBeInTheDocument();
     expect(
@@ -71,7 +71,7 @@ describe("TraegerWithdrawalContactCard", () => {
         "Ganztag im Quartier e.V., Am Markt 4, 40210 Düsseldorf, Telefon: 0211 123 45, E-Mail: p.lindner@traeger.example",
       ),
     ).toBeInTheDocument();
-    expect(preview().getAllByText("Vom Ansprechpartner")).toHaveLength(2);
+    expect(preview().getAllByText("Von der Ansprechperson")).toHaveLength(2);
     expect(
       screen.queryByRole("button", { name: "Speichern" }),
     ).not.toBeInTheDocument();

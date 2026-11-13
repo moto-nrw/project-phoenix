@@ -1,7 +1,7 @@
 package timetracking
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // ScheduleEntryRequest represents a single day in the schedule

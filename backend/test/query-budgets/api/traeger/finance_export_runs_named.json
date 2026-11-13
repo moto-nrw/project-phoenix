@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.finance_export_runs_named",
+  "max": 3,
+  "exact": true,
+  "description": "modules/parentbilling — GET /traeger/finance-exports/runs (#4693) when a colleague made the last export:\nthe selects of api.traeger.finance_export_runs and the names of the colleagues at the Träger of the session\n(Organisation & Tenancy, platform.traeger_member_names) in one statement. Flat in the number of colleagues.",
+  "route": "GET /traeger/finance-exports/runs"
+}

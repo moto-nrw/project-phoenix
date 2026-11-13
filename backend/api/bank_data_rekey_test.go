@@ -9,15 +9,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	parentBillingCompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
-	securityRuntimeCompose "github.com/moto-nrw/project-phoenix/modules/securityruntime/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	parentBillingCompose "github.com/moto-ogs/project-phoenix/modules/parentbilling/compose"
+	securityRuntimeCompose "github.com/moto-ogs/project-phoenix/modules/securityruntime/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func TestBankDataRekeyKeepsHistoryAndTraegerAndResumes(t *testing.T) {

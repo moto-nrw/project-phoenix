@@ -11,8 +11,8 @@ import (
 	"maps"
 	"slices"
 
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
-	"github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/ports"
+	reminder "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery"
+	"github.com/moto-ogs/project-phoenix/workflows/reminderdelivery/ports"
 )
 
 func (s *service) pickupScopeStudentIDs(ctx context.Context, scope reminder.Scope, today string) ([]int64, error) {

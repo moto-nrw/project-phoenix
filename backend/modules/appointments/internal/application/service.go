@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/appointments"
-	"github.com/moto-nrw/project-phoenix/modules/appointments/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/appointments/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/appointments"
+	"github.com/moto-ogs/project-phoenix/modules/appointments/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/appointments/internal/ports"
 )
 
 // Service is the Appointments owner. It validates every input at the owner

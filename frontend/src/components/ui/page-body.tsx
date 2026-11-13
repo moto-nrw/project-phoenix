@@ -78,12 +78,22 @@ export function PageBody({
       : error && !("action" in error || "keepContent" in error)
         ? { message: error.message, action: errorAlertActions(error) }
         : (error ?? undefined);
+  // An error with a request id stays stacked, as in LoadErrorAlert: the
+  // long id beside the message would squeeze it into a narrow column.
+  const errorLayout =
+    typeof error === "object" &&
+    error !== null &&
+    "requestId" in error &&
+    error.requestId
+      ? "stacked"
+      : undefined;
   if (errorParts && !errorParts.keepContent) {
     return (
       <Alert
         type="error"
         message={errorParts.message}
         action={errorParts.action}
+        actionLayout={errorLayout}
       />
     );
   }
@@ -92,6 +102,7 @@ export function PageBody({
       type="error"
       message={errorParts.message}
       action={errorParts.action}
+      actionLayout={errorLayout}
     />
   ) : null;
   if (loading) {

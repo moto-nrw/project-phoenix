@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // StatusDayRow is Care Plan's status-day record the port reads and writes.
@@ -34,10 +34,11 @@ type StudentStatusDayRepository interface {
 	// MarkCleared / MarkClearedByID / MarkClearedForDates clear status days
 	// AND release the cascade: slot absences owned by the cleared status day
 	// revert to the latest remaining active status for that date, or back to
-	// expected (absent when the instance already completed).
-	MarkCleared(ctx context.Context, studentID int64, status string, date calendar.Date, clearedAt time.Time, source string) error
-	MarkClearedByID(ctx context.Context, id int64, clearedAt time.Time, source string) error
-	MarkClearedForDates(ctx context.Context, studentID int64, status string, dates []calendar.Date, clearedAt time.Time, source string) error
+	// expected (absent when the instance already completed). accountID is
+	// the clearing account, nil for a device or an automatic run (#6842).
+	MarkCleared(ctx context.Context, studentID int64, status string, date calendar.Date, clearedAt time.Time, source string, accountID *int64) error
+	MarkClearedByID(ctx context.Context, id int64, clearedAt time.Time, source string, accountID *int64) error
+	MarkClearedForDates(ctx context.Context, studentID int64, status string, dates []calendar.Date, clearedAt time.Time, source string, accountID *int64) error
 	FindActiveByID(ctx context.Context, id int64) (*absencerecords.StudentStatusDay, error)
 	FindActiveByStudentAndDateRange(ctx context.Context, studentID int64, startDate, endDate calendar.Date) ([]*absencerecords.StudentStatusDay, error)
 	FindActiveByStudentIDsAndDate(ctx context.Context, studentIDs []int64, date calendar.Date) ([]*absencerecords.StudentStatusDay, error)

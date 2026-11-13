@@ -6,12 +6,12 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer"
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/adapters/sftp"
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/adapters/sftp"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 

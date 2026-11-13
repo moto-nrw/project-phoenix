@@ -4,7 +4,7 @@ status: accepted
 
 # Reconcile callable evidence and workflow debt without a reusable gate exemption
 
-Decision of 2026-10-23 for [#4836](https://github.com/moto-nrw/project-phoenix/issues/4836).
+Decision of 2026-10-23 for [#4836](https://github.com/moto-ogs/project-phoenix/issues/4836).
 The [ADR 0083 gap-closure addendum](0083-ratchets-protect-invariants-and-expose-command-effects.md#gate-gap-closure-2026-10-23-4836)
 records the scanner changes, exact register delta, evidence and limitations.
 

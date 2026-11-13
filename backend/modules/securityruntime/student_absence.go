@@ -3,9 +3,9 @@ package securityruntime
 import (
 	"context"
 
-	securitycontract "github.com/moto-nrw/project-phoenix/modules/securityruntime/ports"
+	securitycontract "github.com/moto-ogs/project-phoenix/modules/securityruntime/ports"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime/internal/application/authorize"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime/internal/application/authorize"
 )
 
 // ErrAbsenceReadRequired refuses a caller who holds users:absence without

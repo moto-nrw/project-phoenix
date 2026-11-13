@@ -41,7 +41,12 @@ func CreateTestOperatorWithEmail(tb testing.TB, db *bun.DB, email, displayName s
 	return op
 }
 
-// CreateTestOrganization inserts an organization fixture and registers exact-ID cleanup.
+// CreateTestOrganization inserts an organization fixture. Leave the ID to the
+// sequence: the template lifts it above the test-tenant band, so the
+// organization, its schools and every row of the Träger belong to the test and
+// die with the clone. The leftover gate tells them from shared state by the
+// ID alone (testdb.sharedRowPredicate); a cleanup sweep per organization cost
+// about 330,000 DELETE statements per suite (#6962).
 func CreateTestOrganization(tb testing.TB, db *bun.DB, organization *Organization) *Organization {
 	tb.Helper()
 	require.NotNil(tb, organization)
@@ -51,31 +56,6 @@ func CreateTestOrganization(tb testing.TB, db *bun.DB, organization *Organizatio
 		Returning("*").
 		Exec(context.Background())
 	require.NoError(tb, err, "Failed to create test organization")
-	tb.Cleanup(func() {
-		ctx := context.Background()
-		var tenantIDs []int64
-		cleanupErr := db.NewSelect().
-			TableExpr("platform.schools").
-			Column("id").
-			Where("organization_id = ?", organization.ID).
-			Scan(ctx, &tenantIDs)
-		require.NoError(tb, cleanupErr, "Failed to find test organization schools")
-		// The Träger's own rows (ADR 0086) carry no school; the tenant
-		// cleanup below deletes the organization with foreign-key triggers
-		// suspended, so they go first and by their Träger.
-		// The pushes of the Träger (ADR 0126) are among them.
-		for _, table := range []string{"config.traeger_setting_audit", "config.traeger_setting_values", "platform.push_outbox"} {
-			_, cleanupErr = db.NewDelete().TableExpr(table).Where("organization_id = ?", organization.ID).Exec(ctx)
-			require.NoError(tb, cleanupErr, "Failed to clean up the Träger rows of %s", table)
-		}
-		cleanupTenantTestData(tb, db, tenantIDs...)
-		_, cleanupErr = db.NewDelete().
-			Model((*Organization)(nil)).
-			ModelTableExpr("platform.organizations").
-			Where("id = ?", organization.ID).
-			Exec(ctx)
-		require.NoError(tb, cleanupErr, "Failed to clean up test organization")
-	})
 	return organization
 }
 
@@ -157,8 +137,7 @@ func CreateTestOperatorWithPassword(tb testing.TB, db *bun.DB, email, password s
 }
 
 // CreateTestSchoolInOrganization inserts a live school of the organization
-// and returns its ID (= tenant ID). The organization fixture's cleanup removes
-// it with the organization's other schools.
+// and returns its ID (= tenant ID), a test-band ID that dies with the clone.
 func CreateTestSchoolInOrganization(tb testing.TB, db *bun.DB, organizationID int64, name string) int64 {
 	tb.Helper()
 	schoolID := uniqueJWTSafeTenantID()
@@ -319,6 +298,20 @@ func SoftDeleteTestSchool(tb testing.TB, db *bun.DB, schoolID int64) {
 	tb.Helper()
 	_, err := db.ExecContext(context.Background(), `UPDATE platform.schools SET deleted_at = NOW() WHERE id = ?`, schoolID)
 	require.NoError(tb, err, "Failed to soft-delete test school")
+}
+
+// OwnTraegerCatalog removes the Träger phases and care offerings a test
+// creates for the Träger (#4704, ADR 0195), with their versions and school
+// selections, when the test ends. Like the holiday periods they carry no
+// tenant, so they need their own exact-key teardown.
+func OwnTraegerCatalog(tb testing.TB, db *bun.DB, organizationID int64) {
+	tb.Helper()
+	tb.Cleanup(func() {
+		_, err := db.ExecContext(context.Background(), `DELETE FROM enrollment.traeger_care_offerings WHERE organization_id = ?`, organizationID)
+		require.NoError(tb, err, "Failed to clean up test Träger care offerings")
+		_, err = db.ExecContext(context.Background(), `DELETE FROM enrollment.traeger_phases WHERE organization_id = ?`, organizationID)
+		require.NoError(tb, err, "Failed to clean up test Träger phases")
+	})
 }
 
 // HolidayRegistrationFixture is a holiday registration a test wrote: its

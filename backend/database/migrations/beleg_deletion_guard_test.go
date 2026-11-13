@@ -11,7 +11,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The deletion guard of the Belege of a Träger (#4720 slice 1, legal
@@ -54,7 +54,9 @@ var retentionControlTables = map[string]string{
 
 // belegErasureFunctions are the only database functions allowed to delete
 // rows of a Beleg table by name:
-//   - the erasure of a retired demo school, whose Träger keeps no books;
+//   - the erasure of a retired demo school, whose Träger keeps no books,
+//     with the debtor numbers of the visitor's families it performs
+//     (platform.erase_demo_visitor_families, #6812);
 //   - the Beleg retention (#4720 slice 2, ADR 0184), which deletes a Beleg
 //     only after the period its Träger instructed, under the current
 //     Weisung, without an active suspension, after locking the Träger and
@@ -67,6 +69,12 @@ var retentionControlTables = map[string]string{
 //     retention), an unsubmitted download with any member, when a later
 //     download supersedes it and 30 days after the download. No Beleg
 //     besides the file itself is deleted by them.
+//   - the release of the DATEV bookings of a handover that failed (#6824,
+//     ADR 0218 section 6): parent_billing.datev_booked_documents only marks
+//     which booking went to DATEV first. When the handover of that DATEV
+//     file fails, the file never arrived and its markers go, so the next
+//     file holds those bookings again. Invoices, Stornos, documents and the
+//     export file with its protocol entry stay.
 //
 // The erasure of a whole Träger after its export (#4657) deletes the
 // organization and reaches the Belege through its cascade.
@@ -75,7 +83,9 @@ var belegErasureFunctions = []string{
 	"parent_billing.delete_expired_sepa_debit_downloads",
 	"parent_billing.drop_sepa_debit_files_with_their_members",
 	"parent_billing.drop_superseded_sepa_debit_files",
+	"parent_billing.release_failed_handover_bookings",
 	"platform.erase_closed_demo_visitors",
+	"platform.erase_demo_visitor_families",
 }
 
 type belegForeignKey struct {

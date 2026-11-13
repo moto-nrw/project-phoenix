@@ -107,7 +107,7 @@ export function CareMealPriceModal({
           error: err instanceof Error ? err.message : String(err),
         });
         if (!op.isCurrent()) return;
-        void formErrors.show(err, { object: "den Mensa-Preis" });
+        void formErrors.show(err, { object: "die Preisangabe für die Mensa" });
       }
     });
   };
@@ -146,7 +146,7 @@ export function CareMealPriceModal({
           value={month}
           options={[...months].reverse().map((value) => ({
             value,
-            label: `1. ${formatMonth(value)}`,
+            label: formatMonth(value),
           }))}
           onChange={setMonth}
           error={formErrors.fieldError("valid_from")}
@@ -166,6 +166,7 @@ export function CareMealPriceModal({
           <p className="text-sm text-gray-600">{MODE_HINTS[mode]}</p>
         </div>
         <Input
+          controlSize="touch"
           id="care-meal-amount"
           name="amount_cents"
           label={

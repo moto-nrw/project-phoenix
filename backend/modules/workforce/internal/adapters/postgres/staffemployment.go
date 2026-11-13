@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/driver/pgdriver"
 )
@@ -134,6 +134,12 @@ func (s *Store) SaveStaffEmployment(ctx context.Context, value workforce.StaffEm
 		Set(`birthday_display_opt_out = EXCLUDED.birthday_display_opt_out`).
 		Where(`"profile".tenant_id = EXCLUDED.tenant_id`).
 		Exec(ctx)
+	// The new row carries the caller's school and passes the policy, so row
+	// security refuses only a profile another school holds under this ID.
+	// PostgreSQL reports that since 17.12; older servers skip the row below.
+	if pgErr, ok := errors.AsType[pgdriver.Error](err); ok && pgErr.Field('C') == rowSecurityViolation {
+		return workforce.ErrStaffEmploymentNotFound
+	}
 	if err != nil {
 		return staffEmploymentWriteError("save", err)
 	}
@@ -217,6 +223,9 @@ func (s *Store) updateStaffEmployment(ctx context.Context, operation string, mem
 	}
 	return nil
 }
+
+// rowSecurityViolation is the SQLSTATE of a row a policy keeps out of reach.
+const rowSecurityViolation = "42501"
 
 func staffEmploymentWriteError(operation string, err error) error {
 	if pgErr, ok := errors.AsType[pgdriver.Error](err); ok && pgErr.IntegrityViolation() && pgErr.Field('n') == staffPersonnelNumberConstraint {

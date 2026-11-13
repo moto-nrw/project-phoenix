@@ -1,9 +1,9 @@
 package parentstore
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/communication"
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/parentpostgres"
-	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/adapters/parentpostgres"
+	recordports "github.com/moto-ogs/project-phoenix/modules/communication/ports"
 	"github.com/uptrace/bun"
 )
 

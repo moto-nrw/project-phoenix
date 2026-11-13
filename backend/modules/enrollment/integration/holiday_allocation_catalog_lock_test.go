@@ -8,9 +8,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func TestHolidayAllocationHoldsTheCatalogUntilCommit(t *testing.T) {
@@ -25,7 +25,7 @@ func TestHolidayAllocationHoldsTheCatalogUntilCommit(t *testing.T) {
 	var bookingID int64
 	require.NoError(t, db.NewRaw(`SELECT min(id) FROM enrollment.holiday_registration_bookings WHERE organization_id = ? AND holiday_period_id = ?`, w.organization, w.period).Scan(t.Context(), &bookingID))
 	// This fixture has no sealed health fields. Any cipher call must fail.
-	_, _, allocation, _ := compose.NewHolidayRegistrationReview(struct{ enrollment.HolidayHealthCipher }{}, &capturedMails{}, closureTraeger{}, nil)
+	_, _, allocation, _ := compose.NewHolidayRegistrationReview(struct{ enrollment.HolidayHealthCipher }{}, &capturedMails{}, closureTraeger{}, nil, nil)
 	reviewer := enrollment.HolidayReviewer{OrganizationID: w.organization, AccountID: account.ID}
 	// Both a decision and a replacement must hold the same organization lock,
 	// including before any criteria exist. A second transaction cannot save

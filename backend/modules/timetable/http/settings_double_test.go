@@ -3,7 +3,7 @@ package timetablehttp
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/settings"
+	"github.com/moto-ogs/project-phoenix/modules/settings"
 )
 
 // settingsDouble is a func-field double for the settings ports this

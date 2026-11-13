@@ -6,11 +6,11 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // GuardianAbsences writes a guardian's full-day status in the caller's
@@ -99,16 +99,17 @@ func (s *GuardianAbsences) refuseSchoolStatus(ctx context.Context, studentID int
 }
 
 func (s *GuardianAbsences) write(ctx context.Context, report careplan.GuardianAbsenceReport) error {
+	guardianAccountID := report.GuardianAccountID
 	for _, other := range careplan.StudentStatusDayStatusesExcept(report.Status) {
-		if err := s.Records.ClearStudentStatusDays(ctx, report.StudentID, other, report.Dates, report.ReportedAt, careplan.StudentStatusSourceParent); err != nil {
+		if err := s.Records.ClearStudentStatusDays(ctx, report.StudentID, other, report.Dates, report.ReportedAt, careplan.StudentStatusSourceParent, &guardianAccountID); err != nil {
 			return err
 		}
 	}
 	for _, date := range report.Dates {
-		guardianAccountID := report.GuardianAccountID
 		if _, err := s.Records.UpsertStudentStatusDay(ctx, careplan.StudentStatusDay{
 			StudentID: report.StudentID, Date: date, Status: report.Status, ReportedAt: report.ReportedAt,
 			Source: careplan.StudentStatusSourceParent, GuardianAccountID: &guardianAccountID, Note: report.Note,
+			ReportedByAccountID: &guardianAccountID,
 		}); err != nil {
 			return err
 		}

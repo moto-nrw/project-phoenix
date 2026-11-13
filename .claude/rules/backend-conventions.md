@@ -34,7 +34,7 @@ type Resource struct {
 staff, err := rs.UsersService.StaffRepository().FindByPersonID(ctx, personID)
 
 // FORBIDDEN — direct import of repositories from api/ files (except base.go + testutil)
-import "github.com/moto-nrw/project-phoenix/database/repositories/..."
+import "github.com/moto-ogs/project-phoenix/database/repositories/..."
 ```
 
 ### Required
@@ -165,7 +165,7 @@ All 308 such wrappers were deleted in the 2026-07 audit B3 batch; tests drive th
 **RULE: Use `api/common/errors.go` for HTTP error responses.** Do not redeclare `ErrorInvalidRequest`, `ErrorNotFound`, `ErrorInternalServer`, `ErrorForbidden`, or similar helpers in domain-specific `errors.go` files.
 
 ```go
-import "github.com/moto-nrw/project-phoenix/api/common"
+import "github.com/moto-ogs/project-phoenix/api/common"
 // helpers return a render.Renderer — wrap with RenderError:
 common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid student ID")))
 ```

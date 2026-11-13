@@ -3659,6 +3659,9 @@ function SearchPageContent() {
                             supervisedRooms={mySupervisedRooms}
                             variant="modern"
                             size="md"
+                            showLocationSince={isInClassLocation(
+                              student.current_location,
+                            )}
                           />
                         ) : (
                           // Non-today dates show the planned expectation, never the

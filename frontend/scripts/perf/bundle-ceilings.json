@@ -1,15 +1,15 @@
 {
   "format": "moto-bundle-ceilings/v1",
-  "_doc": "Absolute Obergrenzen (komprimiertes Client-JS in Bytes) nur für viel genutzte Routen: /_not-found steht für Framework und Root-Layout, das jede Seite lädt; dazu Login und Startseiten der Portale und die täglichen Tenant-Seiten. Gesetzt auf development 018788e14b plus max(10 %, 50 KiB), auf 10 KiB aufgerundet; /_not-found mit derselben Regel neu auf development 505ef89831 (564324 Bytes in CI, posthog-js 1.444.0 aus #6286 und gewachsener Fehlerkatalog). /parents und /parents/login mit derselben Regel neu auf PR #6485 (896182 bzw. 873333 Bytes in CI, next 16.4.4 und posthog-js 1.444.4). /[tenant]/home um 10 KiB angehoben in PR #6803 (1198892 Bytes in CI, 812 Bytes über der alten Grenze durch geteilten Kit-Code des PRs in TenantPage und DataTable, klickbare Statuszahl). Sie greifen nur bei echten Ausreißern. Wachstum einzelner PRs prüft der Delta-Check gegen die Merge-Basis (docs/agents/frontend-performance.md).",
+  "_doc": "Absolute Obergrenzen (komprimiertes Client-JS in Bytes) nur für viel genutzte Routen: /_not-found steht für Framework und Root-Layout, das jede Seite lädt; dazu Login und Startseiten der Portale und die täglichen Tenant-Seiten. Gesetzt auf development 018788e14b plus max(10 %, 50 KiB), auf 10 KiB aufgerundet; /_not-found mit derselben Regel neu auf development 505ef89831 (564324 Bytes in CI, posthog-js 1.444.0 aus #6286 und gewachsener Fehlerkatalog). /parents und /parents/login mit derselben Regel neu auf PR #6485 (896182 bzw. 873333 Bytes in CI, next 16.4.4 und posthog-js 1.444.4). /[tenant]/home um 10 KiB angehoben in PR #6803 (1198892 Bytes in CI, 812 Bytes über der alten Grenze durch geteilten Kit-Code des PRs in TenantPage und DataTable, klickbare Statuszahl). /[tenant], /[tenant]/dashboard und /school/login mit derselben Regel neu auf dem Release-PR #6816 (745990, 1002805 bzw. 836545 Bytes in CI, Wachstum über 167 PRs des Release-Zyklus). /[tenant]/active-supervisions um 4 KiB angehoben in PR #6884 (1168425 Bytes in CI; die geteilten Kindernotizen ergänzen Header und mobiles Menü, lokal 3586 Bytes bzw. 0,31 % über der Merge-Basis). Getrennte API-Exporte sparten lokal nur 12 Bytes; Nachladen der Notizliste erhöhte die gemessene Summe um 229 Bytes, da die Analyse auch nachgeladene Chunks erfasst. Beide Umbauten wurden verworfen. /[tenant]/active-supervisions, /[tenant]/home und /[tenant]/students/search mit derselben Regel neu auf dem Release-PR #6926 (1172999, 1209167 bzw. 1228836 Bytes in CI, Wachstum über den Release-Zyklus nach 1.8.0). Sie greifen nur bei echten Ausreißern. Wachstum einzelner PRs prüft der Delta-Check gegen die Merge-Basis (docs/agents/frontend-performance.md).",
   "routes": {
     "/_not-found": 624640,
-    "/[tenant]": 716800,
-    "/[tenant]/home": 1208320,
-    "/[tenant]/dashboard": 993280,
-    "/[tenant]/active-supervisions": 1167360,
-    "/[tenant]/students/search": 1228800,
+    "/[tenant]": 829440,
+    "/[tenant]/home": 1331200,
+    "/[tenant]/dashboard": 1105920,
+    "/[tenant]/active-supervisions": 1300480,
+    "/[tenant]/students/search": 1361920,
     "/parents": 952320,
     "/parents/login": 931840,
-    "/school/login": 808960
+    "/school/login": 921600
   }
 }

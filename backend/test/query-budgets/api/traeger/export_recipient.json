@@ -1,0 +1,7 @@
+{
+  "scenario": "api.traeger.export_recipient",
+  "max": 3,
+  "exact": true,
+  "description": "modules/exporttransfer — GET /traeger/export-recipient (#6824, ADR 0218; #6911, ADR 0222):\nthe selects: the Träger binding of the Träger transaction, the recipients of the Träger with their formats and newest handover, and the newest handovers of its journal. Flat in the number of recipients and handovers.",
+  "route": "GET /traeger/export-recipient/"
+}

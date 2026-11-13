@@ -4,7 +4,7 @@
 
 services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17.12-alpine3.24@sha256:34261f594522cf41dfcb76aefd42b9d201098b0e6b23c9c68733f169e4218b6f
     restart: unless-stopped
     # Loopback only: read-only developer access via SSH tunnel (see /root/README.md on the server).
     ports:
@@ -58,7 +58,7 @@ services:
       - production
 
   server:
-    image: ghcr.io/moto-nrw/phoenix-server:main
+    image: ghcr.io/moto-ogs/phoenix-server:main
     restart: unless-stopped
     depends_on:
       postgres:
@@ -151,7 +151,7 @@ services:
       - production
 
   frontend:
-    image: ghcr.io/moto-nrw/phoenix-frontend:main
+    image: ghcr.io/moto-ogs/phoenix-frontend:main
     restart: unless-stopped
     depends_on:
       - server
@@ -199,7 +199,7 @@ services:
 
   # Explicit one-shot job, excluded from normal service startup.
   migrate:
-    image: ghcr.io/moto-nrw/phoenix-server:main
+    image: ghcr.io/moto-ogs/phoenix-server:main
     profiles: ["maintenance"]
     depends_on:
       postgres:
@@ -226,7 +226,7 @@ services:
 
   # Explicit maintenance only: privileged DSN, bank rings, no health/HTTP secrets.
   bank-data-rekey:
-    image: ghcr.io/moto-nrw/phoenix-server:main
+    image: ghcr.io/moto-ogs/phoenix-server:main
     profiles: ["maintenance"]
     command: ["./main", "bank-data-rekey"]
     environment:

@@ -1,8 +1,8 @@
 package compose
 
 import (
-	config "github.com/moto-nrw/project-phoenix/modules/settings/internal/application"
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/internal/application"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 func NewTenantSnapshots(service configModel.SettingsService) (configModel.TenantSnapshots, error) {

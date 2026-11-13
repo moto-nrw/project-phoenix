@@ -10,11 +10,11 @@ import (
 	strings "strings"
 	time "time"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	absencerecords "github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	absencerecords "github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Absence overview (#2288): one forward-looking list of every entered

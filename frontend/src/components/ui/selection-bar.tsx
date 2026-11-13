@@ -101,7 +101,7 @@ export const SelectionBar = forwardRef<HTMLDivElement, SelectionBarProps>(
                 {label ?? `${count} ausgewählt`}
               </p>
               {description ? (
-                <p className="text-xs text-gray-600">{description}</p>
+                <p className="text-sm text-gray-600">{description}</p>
               ) : null}
             </div>
           </div>

@@ -3,9 +3,9 @@
 package api
 
 import (
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
-	portalCompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	parentportal "github.com/moto-ogs/project-phoenix/workflows/parentportal"
+	portalCompose "github.com/moto-ogs/project-phoenix/workflows/parentportal/compose"
 )
 
 // WithParentEnrollmentBudgetReads binds the same typed Enrollment reads as the

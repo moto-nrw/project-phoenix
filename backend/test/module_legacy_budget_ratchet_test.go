@@ -127,7 +127,7 @@ const moduleLegacyBudgetTotal = 0
 // moduleLegacyFileBudgetTotal is the sum of moduleLegacyFileBudgets.
 // Shrink-only, like every entry.
 // ADR 0082: retained Workforce translation renamed into the legacy register.
-const moduleLegacyFileBudgetTotal = 246
+const moduleLegacyFileBudgetTotal = 243
 
 // moduleLegacyFileBudgets maps every legacy_*.go file outside a legacy tree
 // to its LOC, first measured on 2026-10-15 on top of development c49b81c3a9:
@@ -142,7 +142,7 @@ const moduleLegacyFileBudgetTotal = 246
 // counting, and their sum stays below the old entry.
 // ADR 0082: newly covered sources, measured at 722c5aa147; no headroom.
 var moduleLegacyFileBudgets = map[string]int{
-	"roots/owners/legacy_workforce_schedule_adapter.go": 246,
+	"roots/owners/legacy_workforce_schedule_adapter.go": 243,
 }
 
 // moduleComposeBudgetTotal is the sum of moduleComposeBudgets. Shrink-only,
@@ -289,10 +289,21 @@ var moduleLegacyFileBudgets = map[string]int{
 // ADR 0196: the holiday closure notices (-1).
 // ADR 0216: the holiday account adds 10 LOC to enrollment/compose and
 // 2 to parentportal/compose.
-const moduleComposeBudgetTotal = 13338
+// ADR 0215: workflows/traegercatalog (+38) and modules/enrollment/compose
+// (+2: NewTraegerPhases and NewOfferingSelectionReferences, less shortened
+// comments); modules/careplan/compose stays.
+// ADR 0218: the Träger scope of modules/exporttransfer/compose with its
+// recipient rekey (+33) and the handovers of modules/parentbilling/compose (+5).
+// ADR 0220: the pickup change team constructor of modules/careplan/compose
+// adds exactly 13 LOC.
+// ADR 0224: the cohort rosters constructor (+5) and the grade transition's
+// class follow-up port (+2).
+// ADR 0225: the Stammdaten decision's class follow-up port of
+// modules/careplan/compose (+3).
+const moduleComposeBudgetTotal = 13439
 
 // moduleComposeBudgets maps every owner composition package to its production
-// LOC, raised by ADR 0159 for withdrawal and termination (#4682), first
+// LOC (ADR 0220 adds 13 to modules/careplan/compose), raised by ADR 0159 for withdrawal and termination (#4682), first
 // measured on 2026-10-15 on top of development c49b81c3a9: 61 packages,
 // 90627 LOC. #4084 carries the reduction to construction only;
 // modules/timetable/compose is the largest by far. Shrink-only — a new owner
@@ -313,7 +324,10 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0151: the school figure constructor (+13).
 	// ADR 0153: the contract offerings constructor (+9).
 	// ADR 0154: the booked care offering constructor (+13).
-	"modules/careplan/compose":             1675,
+	// #4704 (ADR 0215): the Träger offering constructors fit in shortened
+	// comments (±0).
+	// ADR 0225: the Stammdaten decision's class follow-up port (+3).
+	"modules/careplan/compose":             1691, // ADR 0220: +13, the pickup change team constructor
 	"modules/careplan/requestfeed/compose": 53,
 	// Raised by ADR 0102: the class-trip status-day seam (#4799).
 	"modules/classday/compose": 210,
@@ -346,8 +360,11 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0207: the constructor of the announced holiday periods (+5).
 	// ADR 0214: the registered children and known child trail (+10).
 	// ADR 0216: account proofs and the account's holiday registrations (+10).
-	"modules/enrollment/compose":                   633,
-	"modules/exporttransfer/compose":               149,
+	// ADR 0215: NewTraegerPhases (+4) and NewOfferingSelectionReferences (+4),
+	// less shortened comments and a merged file (-6).
+	"modules/enrollment/compose": 635,
+	// ADR 0218: the Träger scope and the recipient rekey (+33).
+	"modules/exporttransfer/compose":               182,
 	"modules/facilities/compose":                   184,
 	"modules/facilities/compose/repositoryadapter": 11,
 	"modules/feedback/compose":                     61,
@@ -397,7 +414,8 @@ var moduleComposeBudgets = map[string]int{
 	// the unsubmitted PAIN.008 downloads (+5).
 	// ADR 0191: the constructor of the stored originals of the
 	// Jahresbescheide (+5).
-	"modules/parentbilling/compose":               124,
+	// ADR 0218: the handovers of the finance exports (+5).
+	"modules/parentbilling/compose":               129,
 	"modules/parentrequestfeedprojection/compose": 11,
 	// Raised by ADR 0076: the restricted administrative repair constructor.
 	// ADR 0188: the guardian bank backfill/rekey constructor (+6).
@@ -432,9 +450,10 @@ var moduleComposeBudgets = map[string]int{
 	"modules/studentpresence/compose":                 266,
 	"modules/studentpresence/compose/presenceservice": 110,
 	"modules/supervisiondashboard/compose":            11,
-	// Raised by ADR 0128: the student template days constructor (+5) and by
-	// ADR 0144: the vacation hint constructor (+6).
-	"modules/timetable/compose":                     1151,
+	// Raised by ADR 0128: the student template days constructor (+5), by
+	// ADR 0144: the vacation hint constructor (+6) and by ADR 0224: the cohort
+	// rosters constructor (+5).
+	"modules/timetable/compose":                     1156,
 	"modules/timetableblockdisplay/compose":         9,
 	"modules/timetableenrollmentprovenance/compose": 10,
 	"modules/timetableprojection/compose":           7,
@@ -445,9 +464,10 @@ var moduleComposeBudgets = map[string]int{
 	// ADR 0151: the school figure constructor (+13).
 	// ADR 0188: the bank cipher dependency and backfill/rekey constructor (+7).
 	// ADR 0197: the export opener of the sealed staff bank and tax data (+5).
-	"modules/workforce/compose":         918,
-	"workflows/catererportal/compose":   37, // added by ADR 0077
-	"workflows/gradetransition/compose": 49,
+	"modules/workforce/compose":       918,
+	"workflows/catererportal/compose": 37, // added by ADR 0077
+	// Raised by ADR 0224: the class follow-up port (+2).
+	"workflows/gradetransition/compose": 51,
 	// Added by ADR 0209: the holiday allocation workflow and its joining
 	// Träger transaction (ADR 0206).
 	"workflows/holidayallocation/compose": 13,
@@ -471,7 +491,9 @@ var moduleComposeBudgets = map[string]int{
 	"modules/traegerview/compose": 20,
 	// Added by ADR 0076: construction and the ambient transaction guard.
 	"workflows/staffpersonmerge/compose": 31,
-	"workflows/studentdeletion/compose":  74,
+	// Added by ADR 0215: the Träger catalog rollout and its runtime (ADR 0195).
+	"workflows/traegercatalog/compose":  38,
+	"workflows/studentdeletion/compose": 74,
 }
 
 // moduleLegacyBudgets maps a legacy tree to its production LOC on 2026-09-18.

@@ -120,5 +120,11 @@
   "online_mandate_disabled": "Ihr Träger nimmt das Lastschrift-Mandat gerade nicht in der App an.",
   "sepa_mandate_text_changed": "Der Text des Mandats hat sich geändert. Bitte lesen und bestätigen Sie ihn noch einmal.",
   "cost_center_date_taken": "Ab diesem Tag gibt es schon eine Kostenstelle. Wählen Sie einen anderen Tag oder löschen Sie die alte.",
-  "sollstellung_revenue_account_missing": "Bei {count} Rechnungen fehlt das Erlöskonto. Tragen Sie in den DATEV-Werten ein Standard-Erlöskonto ein."
+  "sollstellung_revenue_account_missing": "Bei {count} Rechnungen fehlt das Erlöskonto. Tragen Sie in den DATEV-Werten ein Standard-Erlöskonto ein.",
+  "export_recipient_not_ready": "Diese Datei hat keinen bereiten Empfänger. Bitte ordnen Sie ihr unter „Empfänger der Exporte“ einen zu. Es wurde keine Datei erstellt.",
+  "export_already_handed_over": "Diese Datei ist schon beim Empfänger oder noch unterwegs. Es wurde keine neue Datei erstellt.",
+  "export_recipient_invalid": "Der Empfänger wurde nicht gespeichert. Bitte prüfen Sie die markierten Angaben.",
+  "export_recipient_not_found": "Diesen Empfänger gibt es nicht mehr. Bitte laden Sie die Seite neu.",
+  "export_recipient_name_taken": "Einen Empfänger mit diesem Namen gibt es schon. Bitte wählen Sie einen anderen Namen.",
+  "export_formats_invalid": "Die Zuordnung wurde nicht gespeichert. Bitte laden Sie die Seite neu und versuchen Sie es noch einmal."
 }

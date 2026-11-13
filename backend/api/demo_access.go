@@ -7,7 +7,7 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	authAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/account"
+	authAPI "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/account"
 )
 
 // mountDemoAccess adds the public demo routes (#3462); they exist under

@@ -11,6 +11,7 @@ import (
 	"sync"
 	"time"
 
+	chimiddleware "github.com/go-chi/chi/v5/middleware"
 	"golang.org/x/time/rate"
 )
 
@@ -32,13 +33,19 @@ type RateLimiter struct {
 	bucketFunc     func(*http.Request) string
 	rejectObserver func(bucket string)
 	exemptPrefixes []string
+	exemptRequests []func(*http.Request) bool
 	exemptLoopback bool
+	refusalsOnly   bool
+	alwaysSpends   func(*http.Request) bool
 }
 
-// visitor tracks rate limiting for a single request key.
+// visitor tracks rate limiting for a single request key. pending counts the
+// requests of a failures-only limiter that hold a token while their handler
+// runs.
 type visitor struct {
 	limiter  *rate.Limiter
 	lastSeen time.Time
+	pending  int
 }
 
 // NewRateLimiter creates a new RateLimiter
@@ -92,14 +99,41 @@ func (rl *RateLimiter) ExemptLoopback() {
 	rl.exemptLoopback = true
 }
 
+// SpendOnRefusals makes the limiter spend a token only on a refused request
+// (a 4xx answer of the handler) and on a request alwaysSpends reports, such
+// as one that sends a mail; nil reports none. An accepted or failed (5xx)
+// request gives its token back.
+//
+// A request needs a free token to enter and holds it while its handler runs,
+// so parallel requests cannot pass together beyond the burst: at most burst
+// requests of one key run at once, however many of them succeed.
+//
+// The login limiter uses it (#6738); docs/agents/contracts.md, "Client IP and
+// rate limits", explains why.
+func (rl *RateLimiter) SpendOnRefusals(alwaysSpends func(*http.Request) bool) {
+	rl.refusalsOnly = true
+	rl.alwaysSpends = alwaysSpends
+}
+
 // ExemptPathPrefix lets a route that has its own limiter bypass this one.
 func (rl *RateLimiter) ExemptPathPrefix(prefix string) {
 	rl.exemptPrefixes = append(rl.exemptPrefixes, prefix)
 }
 
+// ExemptRequest lets the requests match selects bypass this limiter, for
+// routes with their own limiter that no path prefix describes.
+func (rl *RateLimiter) ExemptRequest(match func(*http.Request) bool) {
+	rl.exemptRequests = append(rl.exemptRequests, match)
+}
+
 func (rl *RateLimiter) exemptPath(r *http.Request) bool {
 	for _, prefix := range rl.exemptPrefixes {
 		if strings.HasPrefix(r.URL.Path, prefix) {
+			return true
+		}
+	}
+	for _, match := range rl.exemptRequests {
+		if match(r) {
 			return true
 		}
 	}
@@ -197,21 +231,63 @@ type rateLimitProblem struct {
 	Code   string `json:"code"`
 }
 
+// visitorLocked returns the visitor of the request key and marks it seen.
+// The caller holds rl.mu.
+func (rl *RateLimiter) visitorLocked(key string) *visitor {
+	v, exists := rl.visitors[key]
+	if !exists {
+		v = &visitor{limiter: rate.NewLimiter(rl.r, rl.b)}
+		rl.visitors[key] = v
+	}
+	v.lastSeen = time.Now()
+	return v
+}
+
 // getVisitor returns the rate limiter for the given request key.
 func (rl *RateLimiter) getVisitor(key string) *rate.Limiter {
 	rl.mu.Lock()
 	defer rl.mu.Unlock()
+	return rl.visitorLocked(key).limiter
+}
 
-	v, exists := rl.visitors[key]
-	if !exists {
-		limiter := rate.NewLimiter(rl.r, rl.b)
-		rl.visitors[key] = &visitor{limiter: limiter, lastSeen: time.Now()}
-		return limiter
+// admitPending lets a request of a failures-only limiter in while a token is
+// free beside the ones running requests hold, and holds one for it.
+func (rl *RateLimiter) admitPending(key string) (*visitor, bool) {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	v := rl.visitorLocked(key)
+	if v.limiter.Tokens() < float64(v.pending+1) {
+		return nil, false
 	}
+	v.pending++
+	return v, true
+}
 
-	// Update last seen time
+// settlePending releases the token a request held, or spends it.
+func (rl *RateLimiter) settlePending(v *visitor, spend bool) {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+	v.pending--
 	v.lastSeen = time.Now()
-	return v.limiter
+	if spend {
+		v.limiter.Allow()
+	}
+}
+
+// serveCountingFailures runs a request through a failures-only limiter.
+func (rl *RateLimiter) serveCountingFailures(w http.ResponseWriter, r *http.Request, next http.Handler, bucket string) {
+	v, ok := rl.admitPending(rl.requestKeyForBucket(r, bucket))
+	if !ok {
+		rl.reject(w, r, bucket)
+		return
+	}
+	alwaysSpends := rl.alwaysSpends != nil && rl.alwaysSpends(r)
+	ww := chimiddleware.NewWrapResponseWriter(w, r.ProtoMajor)
+	defer func() {
+		status := ww.Status()
+		rl.settlePending(v, alwaysSpends || (status >= http.StatusBadRequest && status < http.StatusInternalServerError))
+	}()
+	next.ServeHTTP(ww, r)
 }
 
 // cleanupVisitors removes old entries from the visitors map
@@ -221,7 +297,7 @@ func (rl *RateLimiter) cleanupVisitors() {
 
 		rl.mu.Lock()
 		for ip, v := range rl.visitors {
-			if time.Since(v.lastSeen) > rl.ttl {
+			if v.pending == 0 && time.Since(v.lastSeen) > rl.ttl {
 				delete(rl.visitors, ip)
 			}
 		}
@@ -238,6 +314,10 @@ func (rl *RateLimiter) Middleware() func(http.Handler) http.Handler {
 				return
 			}
 			bucket := rl.requestBucket(r)
+			if rl.refusalsOnly {
+				rl.serveCountingFailures(w, r, next, bucket)
+				return
+			}
 			limiter := rl.getVisitor(rl.requestKeyForBucket(r, bucket))
 			if !limiter.Allow() {
 				rl.reject(w, r, bucket)

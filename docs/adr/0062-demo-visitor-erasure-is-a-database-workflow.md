@@ -4,8 +4,8 @@ status: accepted
 
 # Demo visitor erasure is a database workflow
 
-Decision for [#4048](https://github.com/moto-nrw/project-phoenix/issues/4048)
-under [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580). It
+Decision for [#4048](https://github.com/moto-ogs/project-phoenix/issues/4048)
+under [#2580](https://github.com/moto-ogs/project-phoenix/issues/2580). It
 applies only to the public-demo environment of ADR 0029.
 
 ## Context
@@ -57,7 +57,7 @@ runtime authorization.
 ## Addendum 2026-11-09: the retirement ends the school's sessions (#6305)
 
 Vorgeschlagen am 09.11.2026 für
-[#6305](https://github.com/moto-nrw/project-phoenix/issues/6305).
+[#6305](https://github.com/moto-ogs/project-phoenix/issues/6305).
 
 Every request checks the session family its access token names, not the
 school (#5194). A session the hourly run left behind therefore kept a hidden

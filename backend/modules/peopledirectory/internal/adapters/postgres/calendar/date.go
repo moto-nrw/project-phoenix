@@ -1,6 +1,6 @@
 package calendar
 
-import "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+import "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
 type Date = calendar.Date
 

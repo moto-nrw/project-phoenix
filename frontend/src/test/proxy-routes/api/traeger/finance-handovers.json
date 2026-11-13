@@ -1,0 +1,11 @@
+{
+  "api/traeger/finance-handovers/runs/[kind]/[id]/datev": [
+    "POST traeger /traeger/finance-handovers/runs/kind%2F1/id%2F1/datev"
+  ],
+  "api/traeger/finance-handovers/runs/[kind]/[id]/pain008": [
+    "POST traeger /traeger/finance-handovers/runs/kind%2F1/id%2F1/pain008"
+  ],
+  "api/traeger/finance-handovers/runs/[kind]/[id]/sollstellung": [
+    "POST traeger /traeger/finance-handovers/runs/kind%2F1/id%2F1/sollstellung"
+  ]
+}

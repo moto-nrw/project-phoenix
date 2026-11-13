@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
 )
 
 // errBoom is the injected failure used across the error-path tests.
@@ -112,7 +112,7 @@ func (f *fakeCarePlan) ListStudentStatusDays(ctx context.Context, filter carepla
 	return f.listStatusDays(ctx, filter)
 }
 
-func (f *fakeCarePlan) ClearStudentStatusDays(ctx context.Context, studentID int64, status string, dates []careplan.Date, at time.Time, source string) error {
+func (f *fakeCarePlan) ClearStudentStatusDays(ctx context.Context, studentID int64, status string, dates []careplan.Date, at time.Time, source string, _ *int64) error {
 	if f.clearDays == nil {
 		return nil
 	}

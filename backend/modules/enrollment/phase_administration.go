@@ -7,7 +7,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Phase administration errors. The HTTP layer maps these to status codes;
@@ -21,6 +21,11 @@ var (
 	// offering bookings still apply today or later (#6505): the delete would
 	// remove a child's care without the care-end or booking process.
 	ErrPhaseHasEffectiveBookings = errors.New("phase still has effective care offering bookings")
+	// ErrPhaseHasRequests rejects deleting a phase that holds enrollment
+	// requests (#6836): they are the evidence of application, decision and
+	// consent and leave only through the audited request deletion or
+	// retention. Deactivating the phase hides it instead.
+	ErrPhaseHasRequests = errors.New("phase still has enrollment requests")
 	// ErrPhasePendingChildWindowConflict rejects a service-window edit that
 	// would end a pending child's window before it starts (#6505).
 	ErrPhasePendingChildWindowConflict = errors.New("phase change would end a pending child's window before it starts")
@@ -41,11 +46,11 @@ var (
 	ErrPhaseReferenceMissing = errors.New("enrollment phase reference does not exist")
 )
 
-// PhaseDeleteImpact summarizes what a phase delete will remove vs keep.
-// The admin confirmation modal renders these counts before the
-// destructive action: Requests + CareOfferings are permanently deleted,
-// StudentsKept survive (their request_children back-link is cleared via
-// ON DELETE SET NULL, but the users.students rows are untouched).
+// PhaseDeleteImpact summarizes what a phase delete would touch. The admin
+// confirmation modal renders these counts before the destructive action:
+// Requests block the delete (#6836), CareOfferings are permanently deleted
+// with the phase, StudentsKept counts the students created from its
+// requests.
 type PhaseDeleteImpact struct {
 	Requests      int `json:"requests"`
 	CareOfferings int `json:"care_offerings"`
@@ -74,17 +79,16 @@ type PhaseAdministration interface {
 	// past a shortened end (#6598, ADR 0211).
 	UpdatePhase(ctx context.Context, phase *Phase) (PhaseUpdateReport, error)
 
-	// DeleteImpact reports how many enrollment requests + care offerings a
-	// delete would remove, and how many created students would be kept.
-	// Backs the admin confirmation modal.
+	// DeleteImpact reports how many enrollment requests block a delete, how
+	// many care offerings it would remove, and how many students were
+	// created from the phase. Backs the admin confirmation modal.
 	DeleteImpact(ctx context.Context, id int64) (*PhaseDeleteImpact, error)
 
-	// Delete permanently removes the phase and all of its enrollment
-	// records (requests, request children, child-offering selections, and
-	// care offerings) in one transaction. Students created from the phase
-	// are preserved. There is no reference guard — admins may delete a
-	// phase at any point in its lifecycle (before, during, or after the
-	// service period); use UpdatePhase(is_active=false) to merely hide it.
+	// DeletePhase permanently removes a phase without enrollment requests,
+	// together with its care offerings. A phase with requests is refused
+	// with ErrPhaseHasRequests (#6836), one with bookings that still apply
+	// with ErrPhaseHasEffectiveBookings (#6505); retire such a phase with
+	// UpdatePhase(is_active=false).
 	DeletePhase(ctx context.Context, id int64) error
 }
 

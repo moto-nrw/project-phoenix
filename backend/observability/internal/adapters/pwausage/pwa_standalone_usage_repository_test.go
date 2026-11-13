@@ -6,8 +6,8 @@ import (
 	"testing"
 	"time"
 
-	pwausage "github.com/moto-nrw/project-phoenix/observability/internal/adapters/pwausage"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	pwausage "github.com/moto-ogs/project-phoenix/observability/internal/adapters/pwausage"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"

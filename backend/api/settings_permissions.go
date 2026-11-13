@@ -3,10 +3,10 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	mealplanAPI "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	settingsHTTP "github.com/moto-nrw/project-phoenix/modules/settings/http"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	mealplanAPI "github.com/moto-ogs/project-phoenix/modules/mealplan/http"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	settingsHTTP "github.com/moto-ogs/project-phoenix/modules/settings/http"
 )
 
 // The settings and meal plan routes take their permission sets from Security

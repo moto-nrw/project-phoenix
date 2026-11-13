@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 )
 
 // pickupExceptionDirectory serves the Care Plan pickup exceptions and status
@@ -28,7 +28,7 @@ func (d pickupExceptionDirectory) FindPickupException(ctx context.Context, id in
 }
 
 func (d pickupExceptionDirectory) ListPickupExceptions(ctx context.Context, filter timetablePorts.PickupExceptionFilter) ([]timetablePorts.PickupExceptionProjection, error) {
-	ownerFilter := careplan.StudentScheduleFilter{IDs: filter.IDs, StudentIDs: filter.StudentIDs}
+	ownerFilter := careplan.StudentScheduleFilter{IDs: filter.IDs, StudentIDs: filter.StudentIDs, To: careplan.Date(filter.To)}
 	if filter.Date != "" {
 		ownerFilter.Date = careplan.Date(filter.Date)
 	}
@@ -60,7 +60,7 @@ func (d pickupExceptionDirectory) FindStudentStatusDay(ctx context.Context, id i
 func (d pickupExceptionDirectory) ListStudentStatusDays(ctx context.Context, filter timetablePorts.StudentStatusDayFilter) ([]timetablePorts.StudentStatusDayProjection, error) {
 	values, err := d.query.ListStudentStatusDays(ctx, careplan.StudentStatusDayFilter{
 		IDs: filter.IDs, StudentIDs: filter.StudentIDs, Date: careplan.Date(filter.Date),
-		From: careplan.Date(filter.From), ActiveOnly: filter.ActiveOnly, LatestOnly: filter.LatestOnly,
+		From: careplan.Date(filter.From), To: careplan.Date(filter.To), ActiveOnly: filter.ActiveOnly, LatestOnly: filter.LatestOnly,
 	})
 	if err != nil {
 		return nil, err

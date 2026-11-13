@@ -23,6 +23,10 @@ All paths below are relative to the repository root.
 - Continue authorized, reversible work without asking again. Ask when a missing
   business decision changes the result or an action exceeds the agreed scope.
   Explain the concrete conflict; do not invent an approval gate from a guideline.
+- Fix related defects you find in the affected area in the same PR, including
+  ones that would otherwise become a follow-up issue; name them in the PR body.
+  Leave out speculative guards and extras. Open a separate issue only for a
+  large change of its own or one that needs a business decision.
 - Preserve unrelated work. State unverified assumptions and blocked checks.
   Keep user-facing explanations concise, concrete, and technically precise.
 - Review findings need a code location, failing scenario, and consequence.

@@ -19,8 +19,8 @@ package shiftplansync
 import (
 	"context"
 
-	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/contract"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	education "github.com/moto-ogs/project-phoenix/modules/schoolstructure/contract"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // ScheduleSubstitution is the Terminvertretung entry of /api/substitutions in

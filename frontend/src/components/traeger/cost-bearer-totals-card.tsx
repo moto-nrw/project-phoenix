@@ -81,6 +81,7 @@ export function CostBearerTotalsCard({
         <span className="tabular-nums">{formatEuro(total.cents)}</span>
       ),
       stacked: "meta",
+      stackedTone: "figure",
     },
   ];
   if (list) {
@@ -93,7 +94,6 @@ export function CostBearerTotalsCard({
       render: (total) => (
         <OverflowMenu
           ariaLabel={list.ariaLabel(total)}
-          triggerSize="sm"
           items={exportMenuItems({
             header: list.header,
             options: FORMATS,

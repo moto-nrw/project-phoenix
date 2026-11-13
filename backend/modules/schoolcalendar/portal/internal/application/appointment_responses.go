@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
+	appointmentcap "github.com/moto-ogs/project-phoenix/modules/appointments"
 )
 
 func (s *service) RespondToStaffInvitation(ctx context.Context, recipientID int64, status string) error {

@@ -7,7 +7,10 @@ import { runInNewContext } from "node:vm";
 import { parse } from "yaml";
 
 import { readBaseComparison } from "./perf/bundle-measurement.mjs";
-import { compareBundles, GROWTH_APPROVAL_LABEL } from "./perf/bundle-policy.mjs";
+import {
+  compareBundles,
+  GROWTH_APPROVAL_LABEL,
+} from "./perf/bundle-policy.mjs";
 
 function workflow(name) {
   return parse(
@@ -114,9 +117,34 @@ test("feature and stacked PRs retain delta checks; nightly has only absolute bud
   }
 });
 
-test("regular merge build precedes the head-only analysis without buying another Next build", () => {
-  const steps = workflow("lint.yml").jobs["frontend-build"].steps;
-  const build = steps.findIndex((step) => step.run === "pnpm run build");
+test("one regular build of the synthetic merge runs beside the head-only analysis, not before it", () => {
+  const jobs = workflow("lint.yml").jobs;
+  const isBuild = (step) => step.run === "pnpm run build";
+  const mergeBuild = jobs["frontend-merge-build"];
+  assert.equal(mergeBuild.steps.filter(isBuild).length, 1);
+  assert.equal(mergeBuild.if, jobs["frontend-build"].if);
+  const mergeCheckout = mergeBuild.steps.find((step) =>
+    step.uses?.startsWith("actions/checkout@"),
+  );
+  assert.equal(
+    mergeCheckout.with?.ref,
+    undefined,
+    "the regular build must retain GitHub's synthetic merge",
+  );
+  assert.ok(
+    mergeBuild.steps.findIndex(isBuild) >
+      mergeBuild.steps.findIndex((step) => step.run?.includes("pnpm install")),
+  );
+  // Both builds see the same public build environment.
+  const buildEnv = mergeBuild.steps.find(isBuild).env;
+  for (const [key, value] of Object.entries(jobs["frontend-build"].env))
+    assert.equal(buildEnv[key], value, key);
+  for (const [name, job] of Object.entries(jobs)) {
+    if (name !== "frontend-merge-build")
+      assert.equal(job.steps.filter(isBuild).length, 0, name);
+  }
+
+  const steps = jobs["frontend-build"].steps;
   const selectHead = steps.findIndex(
     (step) =>
       step.name === "Select feature PR head for bundle delta measurements",
@@ -125,18 +153,55 @@ test("regular merge build precedes the head-only analysis without buying another
   const analyze = steps.findIndex(
     (step) => step.run === "pnpm run perf:bundle-ratchet",
   );
-  assert.ok(
-    build >= 0 &&
-      build < selectHead &&
-      selectHead < identify &&
-      identify < analyze,
-  );
-  assert.equal(steps.filter((step) => step.run === "pnpm run build").length, 1);
+  assert.ok(selectHead >= 0 && selectHead < identify && identify < analyze);
   assert.match(
     steps[selectHead].run,
     /git checkout --detach "\$HEAD_REVISION"/,
   );
   assert.match(steps[selectHead].run, /pnpm install --frozen-lockfile/);
+});
+
+test("a merge-base measurement is restored by its identity before the build and saved only after a cold build", () => {
+  const steps = workflow("lint.yml").jobs["frontend-build"].steps;
+  const index = (predicate) => steps.findIndex(predicate);
+  const identify = index((step) => step.id === "bundle-key");
+  const restore = index((step) => step.id === "bundle-base-cache");
+  const build = index(
+    (step) =>
+      step.run === "node scripts/perf/bundle-measurement.mjs --build-base",
+  );
+  const save = index((step) => step.uses?.startsWith("actions/cache/save@"));
+  const ratchet = index((step) => step.run === "pnpm run perf:bundle-ratchet");
+  assert.ok(
+    identify >= 0 &&
+      identify < restore &&
+      restore < build &&
+      build < save &&
+      save < ratchet,
+  );
+  assert.match(steps[restore].uses, /^actions\/cache\/restore@/);
+  const key = "${{ steps.bundle-key.outputs.base-measurement-key }}";
+  for (const step of [steps[restore], steps[save]]) {
+    assert.equal(step.with.key, key);
+    assert.equal(step.with.path, "frontend/perf-results/bundle-base.json");
+    assert.equal(step.with["restore-keys"], undefined, "exact identity only");
+  }
+  // The script decides whether a restored file counts, so the build step
+  // never skips on a cache hit; only the save does.
+  assert.equal(steps[build].if, steps[restore].if);
+  assert.equal(
+    steps[save].if,
+    `${steps[restore].if} && steps.bundle-base-cache.outputs.cache-hit != 'true'`,
+  );
+  for (const baseRef of ["development", "feature/stack-base"])
+    assert.equal(
+      expression(steps[restore].if, bundleContext("pull_request", baseRef)),
+      true,
+    );
+  assert.equal(
+    expression(steps[restore].if, bundleContext("pull_request", "main")),
+    false,
+  );
 });
 
 test("a lint.yml-only PR selects frontend checks and the reusable frontend build", () => {
@@ -206,7 +271,7 @@ test("bundle builds need no artifact-read token and do not persist checkout cred
   assert.equal(
     checkout.with.ref,
     undefined,
-    "the regular build must retain GitHub's synthetic merge",
+    "the contract tests run on GitHub's synthetic merge",
   );
   assert.equal(checkout.with["fetch-depth"], 0);
   assert.ok(
@@ -274,7 +339,10 @@ test("the approval label is read fresh on feature PRs only and reaches the ratch
     (step) => step.run === "pnpm run perf:bundle-ratchet",
   );
   assert.ok(approval.run.includes(`'${GROWTH_APPROVAL_LABEL}'`));
-  assert.match(approval.run, /gh api "repos\/\$REPOSITORY\/issues\/\$PR_NUMBER\/labels"/);
+  assert.match(
+    approval.run,
+    /gh api "repos\/\$REPOSITORY\/issues\/\$PR_NUMBER\/labels"/,
+  );
   for (const baseRef of ["development", "feature/stack-base"])
     assert.equal(
       expression(approval.if, bundleContext("pull_request", baseRef)),

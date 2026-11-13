@@ -3,9 +3,9 @@ package ports
 import (
 	"context"
 
-	careplanNative "github.com/moto-nrw/project-phoenix/modules/careplan"
+	careplanNative "github.com/moto-ogs/project-phoenix/modules/careplan"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
 )
 
 // CareRequestRows reads the care request a decision reloads.

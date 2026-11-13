@@ -1,9 +1,9 @@
 package owners
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	careplancompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	parentportal "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	careplancompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	parentportal "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 func NewParentCarePlanCommands(source careplan.Capability, excusal careplan.PickupAutoExcusal) parentportal.CarePlanCommands {

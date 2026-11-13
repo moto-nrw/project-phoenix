@@ -3,9 +3,9 @@ package owners
 import (
 	"context"
 
-	recordports "github.com/moto-nrw/project-phoenix/modules/communication/ports"
+	recordports "github.com/moto-ogs/project-phoenix/modules/communication/ports"
 
-	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCapability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // AnnouncementEnrollmentQueries is the Enrollment capability the parent

@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 )
 
 // classListEntryRosterReader adapts the owner capability to the narrow reader

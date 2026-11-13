@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 )
 
 // The intake's refusals as the HTTP adapters classify them (#3565). Handlers

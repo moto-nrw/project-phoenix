@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // The admin side of account MFA (#3331): disabling a user's second factor
@@ -31,7 +31,9 @@ const (
 )
 
 // AdminDisable wipes the target's enrollment and trusted devices from the
-// school admin surface.
+// school admin surface. The wipe holds for the whole account, at every
+// school it signs in to, so the school must hold the account alone (#6862);
+// for an account it shares, the school-scoped override stays open to it.
 func (f *AccountMFAFlows) AdminDisable(ctx context.Context, actorID, actorTenantID, targetAccountID int64, reason string, actorPermissions []string) error {
 	if err := f.requireAdminPermission(ctx, actorPermissions, adminOverrideFailure{
 		ActorType: actorTypeAccount, ActorID: actorID, TargetAccountID: targetAccountID,
@@ -141,7 +143,7 @@ func (f *AccountMFAFlows) setTenantOverride(ctx context.Context, actorType strin
 	}
 
 	previous := domain.MFAAdminOverrideNone
-	txErr := f.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
+	txErr := f.runtime.WithAdminTx(f.adminUnit(ctx), func(txCtx context.Context) error {
 		if err := f.writeTenantOverride(txCtx, actorType, actorID, targetTenantID, targetAccountID, override, reason, &previous); err != nil {
 			return err
 		}

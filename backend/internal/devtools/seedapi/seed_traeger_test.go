@@ -14,8 +14,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 type seedTraegerRequest struct {
@@ -30,7 +30,11 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 	requests := map[string]seedTraegerRequest{}
 	var invitations, assignments, operatorInvitations []map[string]any
 	srv := newSeedHTTPTestServer(func(w seedHTTPResponseWriter, r *seedHTTPRequest) {
-		assert.Equal(t, http.MethodPost, r.Method)
+		if r.URL.Path == "/traeger/profile/name" {
+			assert.Equal(t, http.MethodPut, r.Method)
+		} else {
+			assert.Equal(t, http.MethodPost, r.Method)
+		}
 		raw, err := io.ReadAll(r.Body)
 		assert.NoError(t, err)
 		var body map[string]any
@@ -82,6 +86,9 @@ func TestSeedTraegerBueroStepAssignsTheSchoolAdminThroughTheOperatorRoute(t *tes
 	login := requests["/traeger/auth/login"]
 	assert.Empty(t, login.authorization, "the Träger sign-in carries no session")
 	assert.Equal(t, map[string]any{"email": "admin@example.test", "password": "Geheim1234%", "organization_id": float64(12)}, login.body)
+	name := requests["/traeger/profile/name"]
+	assert.Equal(t, "Bearer traeger-token", name.authorization, "the admin names themselves with the Träger session")
+	assert.Equal(t, map[string]any{"name": "Sabine Hartmann"}, name.body)
 	invite := requests["/traeger/accounts/invitations"]
 	assert.Equal(t, "Bearer traeger-token", invite.authorization, "the invitation uses the Träger session")
 	assert.Equal(t, []map[string]any{
@@ -110,6 +117,8 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 			_, _ = w.Write([]byte(`{"status":"authenticated","access_token":"traeger-token","refresh_token":"r"}`))
 		case "/traeger/schools/":
 			_, _ = w.Write([]byte(`{"status":"success","data":[{"id":31},{"id":32}]}`))
+		case "/traeger/catalog/phases/9/preview":
+			_, _ = w.Write([]byte(`{"status":"success","data":{"traeger_phase_id":9,"fingerprint":"preview-key","schools":[]}}`))
 		case "/traeger/holiday-periods/":
 			raw, err := io.ReadAll(r.Body)
 			assert.NoError(t, err)
@@ -198,6 +207,10 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		"POST /traeger/auth/login ",
 		"GET /traeger/schools/ Bearer traeger-token",
 		"POST /traeger/holiday-periods/ Bearer traeger-token",
+		"POST /traeger/catalog/phases Bearer traeger-token",
+		"POST /traeger/catalog/phases/9/offerings Bearer traeger-token",
+		"POST /traeger/catalog/phases/9/preview Bearer traeger-token",
+		"POST /traeger/catalog/phases/9/rollout Bearer traeger-token",
 		"POST /traeger/holiday-periods/ Bearer traeger-token",
 		"POST /traeger/holiday-periods/5/publish Bearer traeger-token",
 		"POST /traeger/contribution-rules/ Bearer traeger-token",
@@ -260,6 +273,13 @@ func TestSeedTraegerHolidayPeriodStepPublishesAPeriodAtTheTraegerSchools(t *test
 		// The Abrechnung maps and downloads the Sollstellung (#4693).
 		"PUT /traeger/finance-exports/settings/sollstellung Bearer traeger-token",
 		"GET /traeger/finance-exports/runs/holiday-runs/9/sollstellung Bearer traeger-token",
+		// It enters two recipients, sends each format to one of them and
+		// hands the Sollstellung over (ADR 0218, ADR 0222).
+		"GET /traeger/export-recipient/ Bearer traeger-token",
+		"POST /traeger/export-recipient/ Bearer traeger-token",
+		"POST /traeger/export-recipient/ Bearer traeger-token",
+		"PUT /traeger/export-recipient/formats Bearer traeger-token",
+		"POST /traeger/finance-handovers/runs/holiday-runs/9/sollstellung Bearer traeger-token",
 	}, calls, "the registrations go through the public link without a session; the Träger-Büro reviews them with its session")
 	assert.Equal(t, map[string]any{"registration_id": float64(9), "child_id": float64(91), "total_cents": float64(3500),
 		"reason": "Am ersten Ferientag krank, Tag wird erstattet."}, correction, "the Abrechnung lowers one child with a reason")

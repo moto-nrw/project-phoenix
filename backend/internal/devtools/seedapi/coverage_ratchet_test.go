@@ -7,7 +7,7 @@ import (
 	"strings"
 	"testing"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // TestSeedCoverageRatchet keeps the demo seeder honest about which tables it
@@ -93,9 +93,6 @@ var seedCoverageExemptions = map[string]string{
 
 	"calendar.appointment_occurrence_overrides":     "empty in prod too",
 	"calendar.appointment_reminder_push_deliveries": "empty in prod too",
-
-	"config.work_time_model_entries": "empty in prod too",
-	"config.work_time_models":        "empty in prod too",
 
 	"display.displays": "empty in prod too",
 

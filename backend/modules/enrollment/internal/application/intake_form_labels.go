@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // FormLabels loads the labels of a request of the school in context (#6142).

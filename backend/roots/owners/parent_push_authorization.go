@@ -3,19 +3,19 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	contractcompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
-	delivery "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identitycompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	organizationcompose "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/compose"
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	billingcompose "github.com/moto-nrw/project-phoenix/modules/parentbilling/compose"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
-	portalcompose "github.com/moto-nrw/project-phoenix/workflows/parentportal/compose"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	contractcompose "github.com/moto-ogs/project-phoenix/modules/carecontract/compose"
+	delivery "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identitycompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	organizationcompose "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/compose"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	billingcompose "github.com/moto-ogs/project-phoenix/modules/parentbilling/compose"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
+	portalcompose "github.com/moto-ogs/project-phoenix/workflows/parentportal/compose"
 )
 
 func parentPushAccounts(identity identityaccess.AccountBatchQuery) parentportal.DocumentPushAccounts {

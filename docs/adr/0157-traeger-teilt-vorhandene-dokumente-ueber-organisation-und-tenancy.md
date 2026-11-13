@@ -6,8 +6,8 @@ status: accepted
 
 Freigegeben von Yannick Wenger am 07.11.2026
 
-Vorschlag vom 06.11.2026 zu [#4692](https://github.com/moto-nrw/project-phoenix/issues/4692),
-Etappe 2 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Vorschlag vom 06.11.2026 zu [#4692](https://github.com/moto-ogs/project-phoenix/issues/4692),
+Etappe 2 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 98 und 99. Er hält fest, wo die geteilten Dokumente eines Trägers
 liegen, wer sie liest und was er in den Registern ändert (ADR 0057 Punkt 5,
 ADR 0070).

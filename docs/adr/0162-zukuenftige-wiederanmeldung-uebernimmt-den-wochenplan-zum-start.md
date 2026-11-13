@@ -4,7 +4,7 @@ status: proposed
 
 # Zukünftige Wiederanmeldung übernimmt den Wochenplan zum Start
 
-Vorschlag vom 07.11.2026 zu [#6043](https://github.com/moto-nrw/project-phoenix/issues/6043).
+Vorschlag vom 07.11.2026 zu [#6043](https://github.com/moto-ogs/project-phoenix/issues/6043).
 
 ## Kontext
 

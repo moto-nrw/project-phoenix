@@ -331,7 +331,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (p ExcusedParentRequests) WriteStaffValue(ctx context.Context, write ports.StaffValueWrite) error {\n\tstatus, ok := write.Value[\"value\"].(string)\n\tif !ok {\n\t\treturn careplan.ErrAbsenceRequestInvalidStatus\n\t}\n\treturn ExcusedParentRequestError(p.Requests.WriteStaffValue(ctx, careplan.ExcusedStaffValueWrite{StudentID: write.StudentID, RequestIDs: write.RequestIDs, Reason: write.Reason, Status: status}))\n}",
+      "evidence": "func (p ExcusedParentRequests) WriteStaffValue(ctx context.Context, write ports.StaffValueWrite) error {\n\tstatus, ok := write.Value[\"value\"].(string)\n\tif !ok {\n\t\treturn careplan.ErrAbsenceRequestInvalidStatus\n\t}\n\treturn ExcusedParentRequestError(p.Requests.WriteStaffValue(ctx, careplan.ExcusedStaffValueWrite{StudentID: write.StudentID, RequestIDs: write.RequestIDs, Reason: write.Reason, Status: status, ReviewerID: write.ReviewerID}))\n}",
       "form": "unclassified-evidence",
       "id": "modules/careplan/internal/application/ExcusedParentRequests.WriteStaffValue",
       "owner": "modules/careplan"
@@ -401,14 +401,14 @@
     },
     {
       "build": "production",
-      "evidence": "func (s *Service) ClearStudentStatusDayByID(ctx context.Context, id int64, clearedAt time.Time, source string) error {\n\treturn requestCommand(s, ctx, \"clear_student_status_day_by_id\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.statusDays.ClearStudentStatusDayByID(txCtx, id, clearedAt, source)\n\t})\n}",
+      "evidence": "func (s *Service) ClearStudentStatusDayByID(ctx context.Context, id int64, clearedAt time.Time, source string, accountID *int64) error {\n\treturn requestCommand(s, ctx, \"clear_student_status_day_by_id\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.statusDays.ClearStudentStatusDayByID(txCtx, id, clearedAt, source, accountID)\n\t})\n}",
       "form": "unclassified-evidence",
       "id": "modules/careplan/internal/application/Service.ClearStudentStatusDayByID",
       "owner": "modules/careplan"
     },
     {
       "build": "production",
-      "evidence": "func (s *Service) ClearStudentStatusDays(ctx context.Context, studentID int64, status string, dates []careplan.Date, clearedAt time.Time, source string) error {\n\treturn requestCommand(s, ctx, \"clear_student_status_days\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.statusDays.ClearStudentStatusDays(txCtx, studentID, status, dates, clearedAt, source)\n\t})\n}",
+      "evidence": "func (s *Service) ClearStudentStatusDays(ctx context.Context, studentID int64, status string, dates []careplan.Date, clearedAt time.Time, source string, accountID *int64) error {\n\treturn requestCommand(s, ctx, \"clear_student_status_days\", func(txCtx context.Context) (domain.OperationStats, error) {\n\t\treturn s.statusDays.ClearStudentStatusDays(txCtx, studentID, status, dates, clearedAt, source, accountID)\n\t})\n}",
       "form": "unclassified-evidence",
       "id": "modules/careplan/internal/application/Service.ClearStudentStatusDays",
       "owner": "modules/careplan"

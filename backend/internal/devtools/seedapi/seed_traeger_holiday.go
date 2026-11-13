@@ -6,7 +6,7 @@ import (
 	"maps"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // seedTraegerHolidaySchools verifies that the Träger hosts the published
@@ -20,6 +20,9 @@ func seedTraegerHolidaySchools(rt *Runtime, auth AuthRef) ([]int64, error) {
 		return nil, fmt.Errorf("the Träger does not list school %d to host the holiday weeks", rt.Bootstrap.SchoolID)
 	}
 	if err := seedParallelHolidayDraft(rt.Client, auth, calendar.TodayDate(), schools); err != nil {
+		return nil, err
+	}
+	if err := seedTraegerCatalog(rt.Client, auth, calendar.TodayDate(), schools); err != nil {
 		return nil, err
 	}
 	return schools, nil

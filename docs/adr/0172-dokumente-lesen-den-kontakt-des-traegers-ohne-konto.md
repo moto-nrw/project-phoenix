@@ -5,7 +5,7 @@ status: accepted
 # Dokumente lesen den Kontakt des Trägers ohne Konto
 
 Entscheidung vom 08.11.2026 für
-[#6200](https://github.com/moto-nrw/project-phoenix/issues/6200). Sie gibt den
+[#6200](https://github.com/moto-ogs/project-phoenix/issues/6200). Sie gibt den
 Stammdaten des Trägers ([ADR 0112](0112-stammdaten-des-traegers-liegen-bei-organisation-und-tenancy.md))
 einen Kontakt für Widerrufe und Organisation & Tenancy eine Leseoperation ohne
 Konto. Kein neuer Owner, keine neue Tabelle, keine Policy-Regel.
@@ -13,7 +13,7 @@ Konto. Kein neuer Owner, keine neue Tabelle, keine Policy-Regel.
 ## Kontext
 
 Die Widerrufsbelehrung des Betreuungsvertrags folgt dem Muster der Anlage 1 zu
-Art. 246a EGBGB ([#6105](https://github.com/moto-nrw/project-phoenix/issues/6105)).
+Art. 246a EGBGB ([#6105](https://github.com/moto-ogs/project-phoenix/issues/6105)).
 Gestaltungshinweis 2 verlangt beim Adressaten Name, Anschrift, Telefonnummer
 und E-Mail-Adresse. Das PDF und das Anmeldeformular nennen Telefon und E-Mail
 der Ansprechperson. Die Unterschriftsseite und die Bestätigungsmail kannten

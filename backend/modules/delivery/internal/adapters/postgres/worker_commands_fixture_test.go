@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	postgresadapter "github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
+	postgresadapter "github.com/moto-ogs/project-phoenix/modules/delivery/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/domain"
 )
 
 // The fixture supplies the committed command boundaries formerly opened by

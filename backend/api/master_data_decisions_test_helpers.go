@@ -6,18 +6,18 @@ import (
 	"errors"
 	"log/slog"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
-	owner0 "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	owner0 "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/realtime"
 
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // MasterDataDecisionTestOptions are the Care Plan inputs of the Stammdaten
@@ -29,6 +29,9 @@ type MasterDataDecisionTestOptions struct {
 	Shares   carePlanCompose.ShareVisibility
 	Logger   *slog.Logger
 	Today    func() timezone.Date
+	// ClassChanges follows an approved Klasse into the Regeltermine; the
+	// zero value skips it.
+	ClassChanges carePlanCompose.MasterDataClassChanges
 }
 
 // MasterDataDecisionTestPeople are the People Directory rows and recorders
@@ -57,6 +60,6 @@ func NewTestMasterDataDecisions(
 	}
 	return owners.NewMasterDataDecisions(
 		options.CarePlan, people.People, people.Students, people.Persons, people.Audit, scope,
-		emitter, broadcaster, people.Events, options.Shares, options.Logger, options.Today,
+		emitter, broadcaster, people.Events, options.Shares, options.Logger, options.Today, options.ClassChanges,
 	)
 }

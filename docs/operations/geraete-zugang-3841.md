@@ -38,8 +38,8 @@ Diese Anleitung ersetzt weder den PIN- noch den MFA-Slice.
    PyrePortal stellt dafür keine eigene Einstellungsseite bereit. Die genaue
    Menübezeichnung der GKT-Verwaltung bzw. des Kiosk-Modus ist in der
    PyrePortal-Doku nicht festgelegt; die zuständige Geräteverwaltung prüft sie
-   am jeweiligen Gerät. Siehe [Kiosk-Deployment](https://github.com/moto-nrw/PyrePortal/blob/development/docs/kiosk-deployment.md#credential-rollout-3841-slice-3841-a)
-   und [Wedge-Einrichtung](https://github.com/moto-nrw/PyrePortal/blob/development/docs/wedge-reader-setup.md#production-deployment).
+   am jeweiligen Gerät. Siehe [Kiosk-Deployment](https://github.com/moto-ogs/PyrePortal/blob/development/docs/kiosk-deployment.md#credential-rollout-3841-slice-3841-a)
+   und [Wedge-Einrichtung](https://github.com/moto-ogs/PyrePortal/blob/development/docs/wedge-reader-setup.md#production-deployment).
    Nur lokal am Gerät oder im zugriffsbeschränkten Geräte-Verwaltungskanal
    arbeiten. Keine Startadresse in gemeinsam sichtbaren Protokollen ablegen.
    Weitere Parameter bleiben vor dem Fragment. Neu laden, Anmeldung und

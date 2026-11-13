@@ -10,11 +10,11 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-	activitiesHTTP "github.com/moto-nrw/project-phoenix/modules/timetable/http/activities"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
+	activitiesHTTP "github.com/moto-ogs/project-phoenix/modules/timetable/http/activities"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 

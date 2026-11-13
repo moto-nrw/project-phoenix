@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"strings"
 
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // PickupChangeTerms contains the stored ask, never today's plan. PickupTime

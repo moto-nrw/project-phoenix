@@ -2,7 +2,7 @@
 name: ci-cost
 description: Use when changing CI workflows, runners, job splits or shards, CI caches or checkouts, or when the CI bill or a slow pull request run needs investigating. Measures billed vCPU-minutes before and after and applies the cost patterns proven in moto's and t3code's CI.
 metadata:
-  author: moto-nrw
+  author: moto-ogs
   version: "1.0.0"
 ---
 
@@ -65,6 +65,11 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
 - **Cache what downloads, not what links.** Cache toolchains and browsers by
   version. t3code measured a pnpm store on a sticky disk slower than a cache
   tarball (pnpm copies across filesystems instead of hard-linking).
+- **Bound a cache that restores by prefix and saves again.** Go keeps an
+  entry five unused days, so such a cache keeps every older build: the
+  backend build cache grew from 2.2 to 9.65 GB in twelve hours and its
+  restore from 15 to 75 s (#6784). `scripts/go-cache-sweep.sh` keeps the
+  entries one run uses.
 - **Cached test results need verification.** t3code caches per test file and
   reruns one hit per shard uncached. Here `go test -count=1` stays: database
   tests depend on state outside Go's cache key.
@@ -91,13 +96,36 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   gained nothing (305 s against 311 s) and slowed them, because they then ran
   at the same time; `scripts/backend-package-budgets.json` holds each
   package's budget.
+- "Backend tests" writes a "CPU seconds" table into its job summary (build,
+  vet, link, Postgres, test binaries). Compare shares of the busy seconds, not
+  job durations: the same full suite took 1431 to 2183 busy CPU seconds and
+  193 to 295 s on six runners of one size (13.11.).
+- In a full suite with a warm build cache Postgres takes about half of the
+  busy CPU seconds, the test binaries a third, linking a seventh. Cloning
+  and dropping databases is a few seconds of that; the rest is fixture work,
+  about 920,000 SELECT and 313,000 INSERT statements. The local server's
+  `fsync=off`, `full_page_writes=off` and `wal_level=minimal` changed nothing
+  on the job's tmpfs.
+- A typical feature pull request compiles more than it tests: `api` 21 times
+  and `roots/owners` 7 times, 60 % of its compile CPU (#6914). `GOGC=400`
+  for the toolchain alone saved 13 % of the build CPU locally; `-exec "env -u
+  GOGC"` keeps it away from the test binaries.
+- A job in front of the job that sets the wall-clock time costs its duration
+  plus a runner start: "Select backend tests" took 40–67 s plus 6–15 s. The
+  long job selects for itself, as t3code's does.
+- Two cold Next.js builds started side by side on four cores took as long as
+  one after the other (207 s against 210 s).
+- The script suite "restore" took 303–313 s on a hosted runner, 232 s of it
+  the encrypted daily backup restore test; a change to
+  `scripts/posthog-dashboards.mjs` alone waited for it. Pull requests now
+  start it only for its own inputs (`restore-suite` filter, #6962).
 - A pull request run with the full suites cost about $0.18–0.27 after #5770
   (check "CI cost"); the backend tests alone, warm, about $0.05.
 
 ## Commands
 
 ```bash
-R=moto-nrw/project-phoenix
+R=moto-ogs/project-phoenix
 # Runs of one workflow in a window
 gh api "repos/$R/actions/workflows/main.yml/runs?created=2026-11-01..2026-11-05&per_page=100" \
   --paginate -q '.workflow_runs[]|select(.conclusion=="success")|.id'

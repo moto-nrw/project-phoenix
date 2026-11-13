@@ -73,6 +73,7 @@ const CodeStudentsOfferingChangeDateOutOfRange = "students.offering_change_date_
 const CodeStudentsOfferingChangesNoEnrollment = "students.offering_changes_no_enrollment"
 const CodeStudentsPartialAbsenceConflict = "students.partial_absence_conflict"
 const CodeStudentsPartialAbsenceRequiresDedicatedAction = "students.partial_absence_requires_dedicated_action"
+const CodeStudentsPersonHasActiveProfile = "students.person_has_active_profile"
 const CodeStudentsPhotoConsentRequired = "students.photo_consent_required"
 const CodeStudentsPhotoConsentWithdrawn = "students.photo_consent_withdrawn"
 const CodeStudentsPhotosDisabled = "students.photos_disabled"
@@ -93,6 +94,7 @@ const CodeStudentsStaffProfileRequired = "students.staff_profile_required"
 const CodeStudentsStaffValueInvalid = "students.staff_value_invalid"
 const CodeStudentsStaffValueUnsupported = "students.staff_value_unsupported"
 const CodeStudentsStatusDayConflict = "students.status_day_conflict"
+const CodeStudentsStatusDayOccupied = "students.status_day_occupied"
 
 var errorCodeClassesStudents = []errorCodeClass{
 	{CodeStudentsAbsenceReadRequired, "permission"},
@@ -167,6 +169,7 @@ var errorCodeClassesStudents = []errorCodeClass{
 	{CodeStudentsOfferingChangesNoEnrollment, "permission"},
 	{CodeStudentsPartialAbsenceConflict, "business_rejection"},
 	{CodeStudentsPartialAbsenceRequiresDedicatedAction, "business_rejection"},
+	{CodeStudentsPersonHasActiveProfile, "business_rejection"},
 	{CodeStudentsPhotoConsentRequired, "input"},
 	{CodeStudentsPhotoConsentWithdrawn, "business_rejection"},
 	{CodeStudentsPhotosDisabled, "permission"},
@@ -187,6 +190,7 @@ var errorCodeClassesStudents = []errorCodeClass{
 	{CodeStudentsStaffValueInvalid, "input"},
 	{CodeStudentsStaffValueUnsupported, "input"},
 	{CodeStudentsStatusDayConflict, "business_rejection"},
+	{CodeStudentsStatusDayOccupied, "business_rejection"},
 }
 
 func init() {

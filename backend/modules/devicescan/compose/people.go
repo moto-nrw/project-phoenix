@@ -4,11 +4,11 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan/internal/application"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan/ports"
 )
 
 // PersonDirectory is the People Directory slice the kiosk flows use: card

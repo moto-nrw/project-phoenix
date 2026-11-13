@@ -1,12 +1,8 @@
 // app/api/users/[id]/route.ts
 import type { NextRequest } from "next/server";
-import { apiGet, apiPut, apiDelete } from "~/lib/api-helpers.server";
+import { apiGet, apiPut } from "~/lib/api-helpers.server";
 import { ApiResponseError } from "~/lib/api-response-error.server";
-import {
-  createGetHandler,
-  createPutHandler,
-  createDeleteHandler,
-} from "~/lib/route-wrapper.server";
+import { createGetHandler, createPutHandler } from "~/lib/route-wrapper.server";
 import { createLogger } from "~/lib/logger";
 
 const logger = createLogger({ component: "UserDetailRoute" });
@@ -114,29 +110,5 @@ export const PUT = createPutHandler<BackendPersonResponse, PersonUpdateRequest>(
       token,
       body,
     );
-  },
-);
-
-/**
- * Handler for DELETE /api/users/[id]
- * Deletes a person
- */
-export const DELETE = createDeleteHandler(
-  async (
-    _request: NextRequest,
-    token: string,
-    params: Record<string, unknown>,
-  ) => {
-    const id = params.id as string;
-
-    if (!id) {
-      throw new Error("Person ID is required");
-    }
-
-    // A backend failure (403, 404) keeps its envelope and status.
-    await apiDelete(`/api/users/${encodeURIComponent(id)}`, token);
-
-    // Return null to indicate success with no content
-    return null;
   },
 );

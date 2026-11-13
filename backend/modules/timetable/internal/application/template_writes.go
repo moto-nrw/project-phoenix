@@ -7,11 +7,11 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	scheduleModel "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	scheduleModel "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // The template writes of the Timetable owner (#3424 slice S2) behind
@@ -211,7 +211,9 @@ type TemplateServiceDependencies struct {
 	SickReports          ports.SickReportReader // nil: a series roster change marks nobody sick (#6292)
 	// Deviations take the day locks a series roster change holds before it
 	// reads the sick reports (#6232); required with SickReports.
-	Deviations    ports.SeriesDeviations
+	Deviations ports.SeriesDeviations
+	// Periods bound the re-plan an update requests (#6838).
+	Periods       ports.TemplatePeriods
 	SchoolClasses ports.SchoolClassRules
 	Staffing      ports.StaffingAnnouncer
 	Logger        *slog.Logger

@@ -3,7 +3,7 @@ package presenceprojectionhttp
 import (
 	time "time"
 
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // studentVisitResponse preserves the current-visit and deprecated visit-history HTTP shape.

@@ -8,8 +8,8 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/internal/domain"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )
@@ -63,7 +63,14 @@ type studentStatusDayRow struct {
 	Source            string       `bun:"source,notnull"`
 	GuardianAccountID *int64       `bun:"guardian_account_id"`
 	Note              *string      `bun:"note"`
+	ReportedBy        *int64       `bun:"reported_by_account_id"`
+	ClearedSource     *string      `bun:"cleared_source"`
+	ClearedBy         *int64       `bun:"cleared_by_account_id"`
 }
+
+// standingStatusDaySQL is the status days that stand for their day: active,
+// or archived at its end and not withdrawn since (#6291, #6842).
+const standingStatusDaySQL = `("student_status_day".cleared_at IS NULL OR ("student_status_day".source = '` + statusSourceEndDay + `' AND "student_status_day".cleared_source IS NULL))`
 
 const (
 	statusSick          = "sick"
@@ -147,7 +154,7 @@ func filterStatusDays(query *bun.SelectQuery, filter careplan.StudentStatusDayFi
 	if filter.ActiveOnly {
 		query = query.Where(`"student_status_day".cleared_at IS NULL`)
 	} else if filter.IncludeEndOfDay {
-		query = query.Where(`("student_status_day".cleared_at IS NULL OR "student_status_day".source = ?)`, statusSourceEndDay)
+		query = query.Where(standingStatusDaySQL)
 	}
 	if filter.LatestOnly {
 		query = query.DistinctOn(`"student_status_day".student_id, "student_status_day".date`)
@@ -326,6 +333,7 @@ func (s *statusDayStore) UpsertStudentStatusDay(ctx context.Context, value carep
 	query := db.NewInsert().Model(row).ModelTableExpr("active.student_status_days").
 		On("CONFLICT (tenant_id, student_id, date, status) DO UPDATE").
 		Set("reported_at = EXCLUDED.reported_at").Set("cleared_at = NULL").Set("source = EXCLUDED.source").
+		Set("reported_by_account_id = EXCLUDED.reported_by_account_id").Set("cleared_source = NULL").Set("cleared_by_account_id = NULL").
 		Set(`note = CASE WHEN student_status_days.cleared_at IS NULL THEN COALESCE(EXCLUDED.note, student_status_days.note) ELSE EXCLUDED.note END`).
 		Set(`guardian_account_id = CASE WHEN student_status_days.cleared_at IS NULL AND EXCLUDED.note IS NULL THEN student_status_days.guardian_account_id ELSE EXCLUDED.guardian_account_id END`).
 		Returning("*")
@@ -356,7 +364,7 @@ func attendanceSubstatus(status string) string {
 	}
 }
 
-func (s *statusDayStore) ClearStudentStatusDays(ctx context.Context, studentID int64, status string, dates []careplan.Date, clearedAt time.Time, source string) (carePlanCompose.RequestStoreStats, error) {
+func (s *statusDayStore) ClearStudentStatusDays(ctx context.Context, studentID int64, status string, dates []careplan.Date, clearedAt time.Time, source string, accountID *int64) (carePlanCompose.RequestStoreStats, error) {
 	if len(dates) == 0 {
 		return carePlanCompose.RequestStoreStats{}, nil
 	}
@@ -380,14 +388,14 @@ func (s *statusDayStore) ClearStudentStatusDays(ctx context.Context, studentID i
 	if err != nil {
 		return stats, err
 	}
-	// An end-of-day archive still stands for its day. Withdrawing it replaces
-	// that source so the day's readers no longer show it; an explicit prior
-	// withdrawal stays untouched. The same rows release their timetable slots.
-	query := withTenant(db.NewUpdate().Model((*studentStatusDayRow)(nil)).
-		ModelTableExpr(`active.student_status_days AS "student_status_day"`).Set("cleared_at = ?", clearedAt).Set("source = ?", source).
+	// An end-of-day archive still stands for its day. Withdrawing it records
+	// the clearing so the day's readers no longer show it; an explicit prior
+	// withdrawal stays untouched. Source stays the report's (#6842). The same
+	// rows release their timetable slots.
+	query := withTenant(clearStatusDays(db, clearedAt, source, accountID).
 		Where(`"student_status_day".student_id = ?`, studentID).Where(`"student_status_day".status = ?`, status).
 		Where(`"student_status_day".date IN (?)`, bun.List(rowDates)).
-		Where(`("student_status_day".cleared_at IS NULL OR "student_status_day".source = ?)`, statusSourceEndDay), "student_status_day", tenantID)
+		Where(standingStatusDaySQL), "student_status_day", tenantID)
 	writeStats, err := execRequest(ctx, query, "mark student status days cleared", errors.New("student status day was already cleared"))
 	stats.Queries += writeStats.Queries
 	stats.Rows += writeStats.Rows
@@ -416,7 +424,7 @@ func (s *statusDayStore) standingStatusDayIDs(ctx context.Context, studentID int
 	query := withTenant(db.NewSelect().TableExpr(`active.student_status_days AS "student_status_day"`).
 		ColumnExpr(`"student_status_day".id`).Where(`"student_status_day".student_id = ?`, studentID).
 		Where(`"student_status_day".status = ?`, status).Where(`"student_status_day".date IN (?)`, bun.List(dates)).
-		Where(`("student_status_day".cleared_at IS NULL OR "student_status_day".source = ?)`, statusSourceEndDay), "student_status_day", tenantID)
+		Where(standingStatusDaySQL), "student_status_day", tenantID)
 	started := time.Now()
 	err = query.Scan(ctx, &ids)
 	stats := requestStats(started, int64(len(ids)))
@@ -426,7 +434,7 @@ func (s *statusDayStore) standingStatusDayIDs(ctx context.Context, studentID int
 	return ids, stats, nil
 }
 
-func (s *statusDayStore) ClearStudentStatusDayByID(ctx context.Context, id int64, clearedAt time.Time, source string) (carePlanCompose.RequestStoreStats, error) {
+func (s *statusDayStore) ClearStudentStatusDayByID(ctx context.Context, id int64, clearedAt time.Time, source string, accountID *int64) (carePlanCompose.RequestStoreStats, error) {
 	row, found, stats, err := s.FindStudentStatusDay(ctx, id, false)
 	if err != nil || !found {
 		return stats, err
@@ -438,8 +446,7 @@ func (s *statusDayStore) ClearStudentStatusDayByID(ctx context.Context, id int64
 	if err := s.lockStudentDates(ctx, db, tenantID, row.StudentID, []calendarDate{calendarDate(row.Date)}); err != nil {
 		return stats, err
 	}
-	query := withTenant(db.NewUpdate().Model((*studentStatusDayRow)(nil)).
-		ModelTableExpr(`active.student_status_days AS "student_status_day"`).Set("cleared_at = ?", clearedAt).Set("source = ?", source).
+	query := withTenant(clearStatusDays(db, clearedAt, source, accountID).
 		Where(`"student_status_day".id = ?`, id).Where(`"student_status_day".cleared_at IS NULL`), "student_status_day", tenantID)
 	started := time.Now()
 	result, err := query.Exec(ctx)
@@ -460,6 +467,14 @@ func (s *statusDayStore) ClearStudentStatusDayByID(ctx context.Context, id int64
 	return stats, nil
 }
 
+// clearStatusDays marks status days cleared by source and account. It leaves
+// source to the report, so clearing never hides who reported the day (#6842).
+func clearStatusDays(db bun.IDB, clearedAt time.Time, source string, accountID *int64) *bun.UpdateQuery {
+	return db.NewUpdate().Model((*studentStatusDayRow)(nil)).
+		ModelTableExpr(`active.student_status_days AS "student_status_day"`).
+		Set("cleared_at = ?", clearedAt).Set("cleared_source = ?", source).Set("cleared_by_account_id = ?", accountID)
+}
+
 func (s *statusDayStore) lockStudentDates(ctx context.Context, db bun.IDB, tenantID, studentID int64, dates []calendarDate) error {
 	if err := s.students.LockStudent(ctx, studentID); err != nil {
 		return err
@@ -475,13 +490,13 @@ func (s *statusDayStore) lockStudentDates(ctx context.Context, db bun.IDB, tenan
 }
 
 func statusDayFromPublic(value careplan.StudentStatusDay) *studentStatusDayRow {
-	row := &studentStatusDayRow{StudentID: value.StudentID, Date: calendarDate(value.Date), Status: value.Status, ReportedAt: value.ReportedAt, ClearedAt: value.ClearedAt, Source: value.Source, GuardianAccountID: value.GuardianAccountID, Note: value.Note}
+	row := &studentStatusDayRow{StudentID: value.StudentID, Date: calendarDate(value.Date), Status: value.Status, ReportedAt: value.ReportedAt, ClearedAt: value.ClearedAt, Source: value.Source, GuardianAccountID: value.GuardianAccountID, Note: value.Note, ReportedBy: value.ReportedByAccountID, ClearedSource: value.ClearedSource, ClearedBy: value.ClearedByAccountID}
 	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 	return row
 }
 
 func statusDayToPublic(row *studentStatusDayRow) careplan.StudentStatusDay {
-	return careplan.StudentStatusDay{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, StudentID: row.StudentID, Date: careplan.Date(row.Date), Status: row.Status, ReportedAt: row.ReportedAt, ClearedAt: row.ClearedAt, Source: row.Source, GuardianAccountID: row.GuardianAccountID, Note: row.Note}
+	return careplan.StudentStatusDay{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, StudentID: row.StudentID, Date: careplan.Date(row.Date), Status: row.Status, ReportedAt: row.ReportedAt, ClearedAt: row.ClearedAt, Source: row.Source, GuardianAccountID: row.GuardianAccountID, Note: row.Note, ReportedByAccountID: row.ReportedBy, ClearedSource: row.ClearedSource, ClearedByAccountID: row.ClearedBy}
 }
 
 func statusDaysToPublic(rows []studentStatusDayRow) []careplan.StudentStatusDay {

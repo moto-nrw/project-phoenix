@@ -3,7 +3,7 @@ package common
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 )
 
 func TestCanExportInternalPlanRequiresScheduleManagement(t *testing.T) {

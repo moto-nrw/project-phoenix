@@ -58,4 +58,51 @@ describe("EditActions", () => {
     fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
     expect(onSubmit).toHaveBeenCalledTimes(1);
   });
+
+  it("offers a second way to save between Abbrechen and Speichern", () => {
+    const onSave = vi.fn();
+    const alsoSave = vi.fn();
+    const { rerender } = render(
+      <EditActions
+        onCancel={vi.fn()}
+        onSave={onSave}
+        alsoSave={{
+          label: "Speichern und Team informieren",
+          onClick: alsoSave,
+          tooltip: "Speichert und informiert.",
+        }}
+      />,
+    );
+    const buttons = screen.getAllByRole("button");
+    const position = (name: string) =>
+      buttons.indexOf(screen.getByRole("button", { name }));
+    expect(position("Abbrechen")).toBe(0);
+    expect(position("Speichern und Team informieren")).toBe(1);
+    expect(position("Speichern")).toBe(2);
+    fireEvent.click(
+      screen.getByRole("button", { name: "Speichern und Team informieren" }),
+    );
+    expect(alsoSave).toHaveBeenCalledTimes(1);
+    expect(onSave).not.toHaveBeenCalled();
+
+    rerender(
+      <EditActions
+        onCancel={vi.fn()}
+        onSave={onSave}
+        alsoSave={{
+          label: "Speichern und Team informieren",
+          onClick: alsoSave,
+          tooltip: "Speichert und informiert.",
+          disabledReason: "Erst etwas anderes wählen.",
+        }}
+      />,
+    );
+    const blocked = screen.getByRole("button", {
+      name: "Speichern und Team informieren",
+    });
+    expect(blocked).toHaveAttribute("aria-disabled", "true");
+    fireEvent.click(blocked);
+    expect(alsoSave).toHaveBeenCalledTimes(1);
+    expect(screen.getByRole("button", { name: "Speichern" })).toBeEnabled();
+  });
 });

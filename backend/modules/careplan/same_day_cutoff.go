@@ -1,6 +1,6 @@
 package careplan
 
-import "github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+import "github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
 
 // ErrPickupChangeCutoffPassed means a guardian tried to set, edit or remove
 // today's one-day pickup change after the school's same-day cutoff (#3163).

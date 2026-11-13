@@ -184,10 +184,20 @@ export function Dropzone({
           aria-hidden="true"
         />
       )}
-      <p className="text-sm font-medium text-gray-900" aria-live="polite">
+      {/* A finger cannot drag a file here: on a touch screen the frame
+          offers only the button, unless it reports progress. */}
+      <p
+        className={cn(
+          "text-sm font-medium text-gray-900",
+          line === label && "pointer-coarse:sr-only",
+        )}
+        aria-live="polite"
+      >
         {line}
       </p>
-      {loading ? null : <p className="text-xs text-gray-500">oder</p>}
+      {loading ? null : (
+        <p className="text-xs text-gray-500 pointer-coarse:hidden">oder</p>
+      )}
       <Button
         type="button"
         variant="outline"
@@ -202,7 +212,7 @@ export function Dropzone({
       >
         {buttonLabel}
       </Button>
-      {hint ? <p className="text-xs text-gray-500">{hint}</p> : null}
+      {hint ? <p className="text-sm text-gray-500">{hint}</p> : null}
       <input
         ref={inputRef}
         type="file"

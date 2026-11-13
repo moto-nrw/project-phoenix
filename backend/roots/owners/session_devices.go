@@ -5,10 +5,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	devicefleetCompose "github.com/moto-ogs/project-phoenix/modules/devicefleet/compose"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/compose/presenceservice"
 )
 
 type sessionDevices struct {

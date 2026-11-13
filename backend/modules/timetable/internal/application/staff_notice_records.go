@@ -4,10 +4,10 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	internalports "github.com/moto-nrw/project-phoenix/modules/timetable/internal/ports"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	internalports "github.com/moto-ogs/project-phoenix/modules/timetable/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // staffNoticeRecords owns the unit of work for a single-owner notice command.

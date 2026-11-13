@@ -60,6 +60,7 @@
   "offering_changes_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
   "payer_guardian_protected": "Für {object} fehlt Ihnen die Berechtigung. Bitte fragen Sie die Schule.",
   "photo_consent_not_withdrawn": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
+  "pickup_change_care_day_ended": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
   "pickup_change_cutoff_passed": "{object} konnte nicht geändert werden. Bitte prüfen Sie den aktuellen Stand.",
   "pickup_change_disabled": "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
   "pickup_permission_request_required": "Eine neue Abholerlaubnis braucht Ihre Unterschrift. Die OGS bestätigt sie dann.",

@@ -199,7 +199,7 @@ preserve IoT statuses/codes; they do not add a new device permission.
 Scenario: child is still in running session A. The caller is planned for
 running block B but supervises neither A nor B. The attendance scope is `own`.
 Timetable currently permits check-in to B; ordinary Presence refuses it.
-[#2386](https://github.com/moto-nrw/project-phoenix/issues/2386) requires the
+[#2386](https://github.com/moto-ogs/project-phoenix/issues/2386) requires the
 automatic move when checking into another block, but does not decide whether
 planned assignment suffices for this case. ADR 0083 explicitly leaves that
 permission contract undecided. CONTEXT.md supplies no stricter move rule.
@@ -237,7 +237,7 @@ these protocols and Provisioning's explicit split units.
 
 | Exception | Current order and invariants | Existing executable coverage |
 |---|---|---|
-| E1 | `EN/decide.go:116`: parent request → sibling children in stable sort order, then inspect terminal/idempotent status. Existing-student tail `EN/approval_existing_student.go:40,102`: shared class gate → recurrence → student state; `:56` ensures account attachment precedes roster/instance FK locks. `CP/booking_materialization.go:126` applies class gate → recurrence before booking-derived changes. Decision mail and the invitation `DecideAndInvite` creates (#6093, ADR 0174; formerly handler-created) are in the outer unit, not losable after-commit work. | `modules/enrollment/http/decision_approval_rollback_test.go`: `TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization`, `TestExistingStudentApprovalGrantsAccountBeforeClassRosterResync`; sibling digest serialization in `decision_service_test.go`. |
+| E1 | `EN/decide.go:116`: parent request → sibling children in stable sort order, then inspect terminal/idempotent status. Existing-student tail `EN/approval_existing_student.go:40,102`: shared class gate → recurrence → student state; `:56` ensures account attachment precedes roster/instance FK locks. `CP/booking_materialization.go:126` applies class gate → recurrence before booking-derived changes. Decision mail and the invitation `DecideAndInvite` creates (#6093, ADR 0174; formerly handler-created) are in the outer unit, not losable after-commit work. | `modules/enrollment/http/behaviortest/decision_approval_rollback_test.go`: `TestDecisionService_ApprovalRollsBackEveryOwnerAfterMaterialization`, `TestExistingStudentApprovalGrantsAccountBeforeClassRosterResync`; sibling digest serialization in `decision_service_test.go`. |
 | E2 | `CP/care_lifecycle.go`, `lockCareExitWrites`: shared class gate → booking-write/recurrence gate → locked child read → open requests → planned roster → activity bookings → own source bookings → weekly plans → quoted offering/person/presence rows. Confirm (including withdrawal completion), cancel, booking-expiry reconciliation and due-effect pages use the same gate helper (#4636). Rebuild the confirmation token before mutations; mismatch/blocked preview rejects all. Cancel restores the ledger before rewriting last care day. Due effects remain in this exception, not resumption. | `api/care_exit_lock_order_test.go`: real two-connection interleavings against grade-transition Apply for confirm, cancel and due effects with and without an ambient unit. Existing lifecycle, storage-cutover and booking-authority contract suites retain the preview/rollback and ledger coverage. |
 | E3 | Identity upgrade: foreign relationship `FOR UPDATE` → role recheck → promote (`IA/guardian_relative_access.go:145`). People student edits: class gate → subject/companion locks, sorted far ends → compare plan → profile/membership/care writes inside savepoint (`PD/student_write.go:33,234,251,307`; enrollment patch `student_enrollment.go:42`). Staff identity: account-state guard before writes (`PD/staff_directory.go:114`); caregiver creation failure stays non-fatal. Workforce: lock foreign staff → derive diff → Audit → apply person/employment command (`WF/staffadmin.go:66,272`). The data import's batch forms of child creation and student update follow the [2026-11-08 addendum](../adr/0067-principle-owners-meet-through-contracts-and-write-together-in-workflows.md#addendum-2026-11-08-datenimport-schreibt-je-chunk-gebündelt-5552-5827-5887). | `modules/peopledirectory/compose/guardian_lifecycle_commands_test.go`; `guardian_link_owners_test.go` (`TestGuardianPortalLinkRollsBackAfterEveryOwnerCommand`); People student/staff behavioral suites; `modules/schoolmembership/compose/student_enrollment_test.go` and staff-employment savepoint tests. These protect named scenarios, not every interleaving. |
 | E4 | Offering adjustment: `CP/offering_adjustment.go`, `loadOfferingAdjustmentSubject`, reads request/child, takes class(shared) → recurrence then locks the student before deriving new intervals/roster (#4638); template resync requires its caller's recurrence lock (`sourced_roster_resync.go:60`). Master-data: request lock → child lock/current authorization → apply → decision/history (`master_data_decisions.go:128,151,188`). HTTP child create opens its unit at `student_create_handlers.go:292`; person → student/owner halves → guardians → attachments. Business-error rollback and cleanup order stay unchanged. | Care Plan contract suites for template roster maintenance, offering changes, master-data review and HTTP student creation. `TestFullProductionRouterGolden` pins route/middleware/error shape, not transactional semantics. |
@@ -466,12 +466,12 @@ after-commit durability. No such checker is implemented by #4538.
 
 ## Historical corrections and measurement limits
 
-- [#4076](https://github.com/moto-nrw/project-phoenix/issues/4076) and comments
-  describe an import-debt carrier. [PR #4338](https://github.com/moto-nrw/project-phoenix/pull/4338)
+- [#4076](https://github.com/moto-ogs/project-phoenix/issues/4076) and comments
+  describe an import-debt carrier. [PR #4338](https://github.com/moto-ogs/project-phoenix/pull/4338)
   (`b033bd74ff7f0c0c9d3377800818ecf49818f1ee`) removed its last four keys and
   closed it. That is not evidence of a complete care-exit workflow cut.
-- [#4531](https://github.com/moto-nrw/project-phoenix/issues/4531) has no comments.
-  [PR #4619](https://github.com/moto-nrw/project-phoenix/pull/4619)
+- [#4531](https://github.com/moto-ogs/project-phoenix/issues/4531) has no comments.
+  [PR #4619](https://github.com/moto-ogs/project-phoenix/pull/4619)
   (`c206d2d91ef826e74b0cc96ea2b2761de46be1db`) implements ADR 0075 option A:
   own source-booking lock/end no longer make the Enrollment/root/workflow
   round trip. Snapshot/restore still live in `workflows/careexit/bookings.go`.

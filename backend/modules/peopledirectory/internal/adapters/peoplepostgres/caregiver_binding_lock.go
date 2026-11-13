@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	ports "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	ports "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // CaregiverBindingOwners is the consumer-owned port over the four owners whose

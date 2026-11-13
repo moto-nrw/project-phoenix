@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/demoprofile"
+	"github.com/moto-ogs/project-phoenix/demoprofile"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

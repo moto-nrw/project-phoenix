@@ -11,10 +11,10 @@ import (
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/internal/domain"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/internal/domain"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // Proposals and commands of the notices after a school closing day changed
@@ -137,8 +137,10 @@ const (
 			AND ((proposal.state = 'open' AND proposal.span_to < ?)
 				OR (proposal.state = 'confirmed' AND EXISTS (SELECT 1 FROM calendar.holiday_closure_events AS event
 					WHERE event.proposal_id = proposal.id AND event.organization_id = ?
-						AND event.state IN ('completed', 'no_mail')
-						AND COALESCE(event.completed_at, event.processed_at) < CURRENT_TIMESTAMP - interval '30 days')))`
+						AND ((event.state IN ('completed', 'no_mail')
+							AND COALESCE(event.completed_at, event.processed_at) < CURRENT_TIMESTAMP - interval '30 days')
+							-- Nobody can renew the approval of long past days (#6806).
+							OR (event.state = 'needs_confirmation' AND event.span_to < ?)))))`
 	dueHolidayClosureTraegerSQL = `SELECT id FROM calendar.holiday_closure_due_traeger_ids() AS id`
 )
 
@@ -257,6 +259,11 @@ func RecordHolidayClosureChange(ctx context.Context, db bun.IDB, schoolID int64,
 	if change.Previous == nil && change.Current == nil {
 		_, err = db.NewRaw(withdrawUnpreparedHolidayClosureSQL, schoolID, change.SourceKind, change.SourceID).Exec(ctx)
 		return wrapProposal(err)
+	}
+	// Past days tell nobody: no new proposal once the predecessor is
+	// reconciled and the widened span still ends before today (#6806).
+	if to.Before(change.Today) {
+		return nil
 	}
 	_, err = db.NewRaw(insertHolidayClosureProposalSQL, schoolID, change.SourceKind, change.SourceID, change.Reason,
 		startOf(change.Previous), endOf(change.Previous), startOf(change.Current), endOf(change.Current), from, to,
@@ -673,14 +680,14 @@ func (s *HolidayClosureEventStore) SettleHolidayClosureEvents(ctx context.Contex
 }
 
 // RetireHolidayClosureEvents removes finished commands after 30 days with
-// their proposals, and proposals nobody confirmed 30 days after their last
-// day. A failed command stays until it is taken up.
+// their proposals, and proposals nobody confirmed or renewed 30 days after
+// their last day. A failed command stays until it is taken up.
 func (s *HolidayClosureEventStore) RetireHolidayClosureEvents(ctx context.Context, organizationID int64) (int64, error) {
 	db, err := traegerDB(ctx, organizationID)
 	if err != nil {
 		return 0, err
 	}
-	result, err := db.NewRaw(retireHolidayClosureEventsSQL, organizationID, s.today().AddDays(-30), organizationID).Exec(ctx)
+	result, err := db.NewRaw(retireHolidayClosureEventsSQL, organizationID, s.today().AddDays(-30), organizationID, s.today().AddDays(-30)).Exec(ctx)
 	if err != nil {
 		return 0, fmt.Errorf("school calendar postgres: retire holiday closure events: %w", err)
 	}

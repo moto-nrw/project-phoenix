@@ -1,13 +1,13 @@
 package api
 
 import (
-	"github.com/moto-nrw/project-phoenix/api/common"
-	classdayHTTP "github.com/moto-nrw/project-phoenix/modules/classday/http"
-	notificationsHTTP "github.com/moto-nrw/project-phoenix/modules/delivery/http/notifications"
-	calendarHTTP "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/http"
-	"github.com/moto-nrw/project-phoenix/modules/schoolportal"
-	timetableHTTP "github.com/moto-nrw/project-phoenix/modules/timetable/http"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	classdayHTTP "github.com/moto-ogs/project-phoenix/modules/classday/http"
+	notificationsHTTP "github.com/moto-ogs/project-phoenix/modules/delivery/http/notifications"
+	calendarHTTP "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/http"
+	"github.com/moto-ogs/project-phoenix/modules/schoolportal"
+	timetableHTTP "github.com/moto-ogs/project-phoenix/modules/timetable/http"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // NewSchoolPortalHTTP binds native HTTP resources to the portal's route ports.

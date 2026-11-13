@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func (s *workTimeMonthService) getOpeningBalanceOnDate(
@@ -171,22 +171,27 @@ func (s *workTimeMonthService) carryChainStart(ctx context.Context, staffID int6
 // carry into it.
 func newMonthSummary(staffID int64, key monthKey, carry int, agg *monthAggregates) *MonthSummary {
 	summary := &MonthSummary{
-		StaffID:                 staffID,
-		Year:                    key.Year,
-		Month:                   key.Month,
-		CarryInMinutes:          carry,
-		TargetMinutes:           agg.target,
-		TargetMinutesToDate:     agg.targetToDate,
-		ActualMinutes:           agg.actual,
-		CreditedSickMinutes:     agg.creditedSick,
-		CreditedVacationMinutes: agg.creditedVacation,
-		CreditedTrainingMinutes: agg.creditedTraining,
-		CreditedOtherMinutes:    agg.creditedOther,
-		SickDays:                agg.sickDays,
-		VacationDays:            agg.vacationDays,
-		TrainingDays:            agg.trainingDays,
-		CreditedByAbsenceType:   agg.creditedByType,
-		BalanceMinutes:          agg.balance(),
+		StaffID:                   staffID,
+		Year:                      key.Year,
+		Month:                     key.Month,
+		CarryInMinutes:            carry,
+		TargetMinutes:             agg.target,
+		TargetMinutesToDate:       agg.targetToDate,
+		HasTarget:                 agg.hasTarget,
+		ActualMinutes:             agg.actual,
+		CreditedSickMinutes:       agg.creditedSick,
+		CreditedVacationMinutes:   agg.creditedVacation,
+		CreditedTrainingMinutes:   agg.creditedTraining,
+		CreditedOtherMinutes:      agg.creditedOther,
+		SickDays:                  agg.sickDays,
+		VacationDays:              agg.vacationDays,
+		TrainingDays:              agg.trainingDays,
+		SickDaysWithoutTarget:     agg.daysWithoutTarget.sick,
+		VacationDaysWithoutTarget: agg.daysWithoutTarget.vacation,
+		TrainingDaysWithoutTarget: agg.daysWithoutTarget.training,
+		OtherDaysWithoutTarget:    agg.daysWithoutTarget.other,
+		CreditedByAbsenceType:     agg.creditedByType,
+		BalanceMinutes:            agg.balance(),
 	}
 	if agg.hasShifts {
 		planned := agg.plannedShift

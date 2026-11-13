@@ -3,7 +3,7 @@ package domain
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 )
 
 // The weekday plans of a child, re-exported so the persistence adapter reads

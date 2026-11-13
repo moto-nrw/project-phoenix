@@ -70,8 +70,8 @@ type ControlSize = "sm" | "md" | "lg";
 // uses a real 1px border. Matching py-3 would leave it 2px taller than the
 // input next to it.
 const TRIGGER_SIZE_CLASS: Record<ControlSize, string> = {
-  sm: "px-3 py-2 text-sm",
-  md: "h-10 px-3 py-2 text-sm",
+  sm: "px-3 py-2 text-sm pointer-coarse:min-h-11 pointer-coarse:text-base",
+  md: "h-10 px-3 py-2 text-sm pointer-coarse:h-11 pointer-coarse:text-base",
   lg: "px-4 py-[11px] text-base",
 };
 
@@ -479,7 +479,7 @@ export function DatePicker({
           className={cn(
             "flex items-center rounded-lg border transition-all",
             iconOnly
-              ? "h-10 w-10 shrink-0 justify-center"
+              ? "h-10 w-10 shrink-0 justify-center pointer-coarse:size-11"
               : `min-w-0 flex-1 justify-between ${
                   TRIGGER_SIZE_CLASS[
                     (isMultiple ? undefined : props.controlSize) ?? "sm"
@@ -552,7 +552,7 @@ export function DatePicker({
         )}
       </div>
       {hint && (
-        <p id={hintId} className="mt-1 text-xs text-gray-600">
+        <p id={hintId} className="mt-1 text-sm text-gray-600">
           {hint}
         </p>
       )}
@@ -835,12 +835,12 @@ export function ISODatePicker({
       )}
       {picker}
       {hint && (
-        <p id={hintId} className="mt-1 text-xs text-gray-600">
+        <p id={hintId} className="mt-1 text-sm text-gray-600">
           {hint}
         </p>
       )}
       {error && (
-        <p id={errorId} role="alert" className="text-moto-red mt-1 text-xs">
+        <p id={errorId} role="alert" className="text-moto-red mt-1 text-sm">
           {error}
         </p>
       )}
@@ -860,12 +860,19 @@ interface ISODateInputProps {
   readonly minDateError?: string;
   readonly maxDateError?: string;
   readonly disabled?: boolean;
+  /** Marks the field as required: star at the label, `aria-required`. */
+  readonly required?: boolean;
   /**
    * A check of the surrounding form on the stored value (missing date, date
    * range, overlap). It is shown and wired like the field's own check, which
    * wins while the typed text is no valid date.
    */
   readonly error?: string | null;
+  /**
+   * The browser's autofill hint. Off by default: a due date or the start of
+   * a period is no birthday; a birth date field passes "bday".
+   */
+  readonly autoComplete?: string;
 }
 
 export function ISODateInput({
@@ -880,7 +887,9 @@ export function ISODateInput({
   minDateError = "Das Datum liegt vor dem zulässigen Zeitraum.",
   maxDateError = "Das Datum liegt nach dem zulässigen Zeitraum.",
   disabled,
+  required = false,
   error,
+  autoComplete = "off",
 }: ISODateInputProps) {
   const [inputValue, setInputValue] = useState(() =>
     formatISODateInputValue(value),
@@ -949,16 +958,23 @@ export function ISODateInput({
 
   return (
     <div>
-      <FieldLabel htmlFor={id}>{label}</FieldLabel>
+      <FieldLabel
+        htmlFor={id}
+        required={required}
+        invalid={Boolean(shownError)}
+      >
+        {label}
+      </FieldLabel>
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <Input
             id={id}
             name={id}
+            aria-required={required || undefined}
             type="text"
-            controlSize="compact"
+            controlSize="touch"
             inputMode="numeric"
-            autoComplete="bday"
+            autoComplete={autoComplete}
             placeholder="TT.MM.JJJJ"
             maxLength={10}
             value={inputValue}
@@ -994,11 +1010,11 @@ export function ISODateInput({
         />
       </div>
       {inputError ? (
-        <p id={errorId} role="alert" className="text-moto-red mt-1 text-xs">
+        <p id={errorId} role="alert" className="text-moto-red mt-1 text-sm">
           {inputError}
         </p>
       ) : error ? (
-        <p id={errorId} className="text-moto-red mt-1 text-xs">
+        <p id={errorId} className="text-moto-red mt-1 text-sm">
           {error}
         </p>
       ) : null}
@@ -1126,7 +1142,8 @@ function CalendarNavHeader({
           type="button"
           aria-label={labels.previousMonth}
           onClick={() => onMonthChange(subMonths(month, 1))}
-          className="shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
+          // By finger the hit area grows to 44 px without moving the arrow.
+          className="relative shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
         >
           <svg
             className="h-5 w-5"
@@ -1196,7 +1213,8 @@ function CalendarNavHeader({
           type="button"
           aria-label={labels.nextMonth}
           onClick={() => onMonthChange(addMonths(month, 1))}
-          className="shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100"
+          // By finger the hit area grows to 44 px without moving the arrow.
+          className="relative shrink-0 rounded-lg p-1.5 text-gray-600 hover:bg-gray-100 pointer-coarse:after:absolute pointer-coarse:after:-inset-1.5 pointer-coarse:after:content-['']"
         >
           <svg
             className="h-5 w-5"

@@ -72,6 +72,7 @@ export const codes = [
   "students.offering_changes_no_enrollment",
   "students.partial_absence_conflict",
   "students.partial_absence_requires_dedicated_action",
+  "students.person_has_active_profile",
   "students.photo_consent_required",
   "students.photo_consent_withdrawn",
   "students.photos_disabled",
@@ -92,6 +93,7 @@ export const codes = [
   "students.staff_value_invalid",
   "students.staff_value_unsupported",
   "students.status_day_conflict",
+  "students.status_day_occupied",
 ] as const;
 
 export const classes = {
@@ -167,6 +169,7 @@ export const classes = {
   "students.offering_changes_no_enrollment": "permission",
   "students.partial_absence_conflict": "business_rejection",
   "students.partial_absence_requires_dedicated_action": "business_rejection",
+  "students.person_has_active_profile": "business_rejection",
   "students.photo_consent_required": "input",
   "students.photo_consent_withdrawn": "business_rejection",
   "students.photos_disabled": "permission",
@@ -187,6 +190,7 @@ export const classes = {
   "students.staff_value_invalid": "input",
   "students.staff_value_unsupported": "input",
   "students.status_day_conflict": "business_rejection",
+  "students.status_day_occupied": "business_rejection",
 } as const;
 
 export const parameters = {
@@ -266,6 +270,7 @@ export const parameters = {
   "students.offering_changes_no_enrollment": [],
   "students.partial_absence_conflict": [],
   "students.partial_absence_requires_dedicated_action": [],
+  "students.person_has_active_profile": [],
   "students.photo_consent_required": [],
   "students.photo_consent_withdrawn": [],
   "students.photos_disabled": [],
@@ -286,4 +291,5 @@ export const parameters = {
   "students.staff_value_invalid": [],
   "students.staff_value_unsupported": [],
   "students.status_day_conflict": [],
+  "students.status_day_occupied": [],
 } as const;

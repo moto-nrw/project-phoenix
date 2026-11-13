@@ -5,10 +5,10 @@ status: accepted
 # Anmeldungswerte reisen dekodiert als Formularwerte im Vertrag
 
 Entscheidung vom 08.11.2026 für
-[#6092](https://github.com/moto-nrw/project-phoenix/issues/6092). Sie ersetzt
+[#6092](https://github.com/moto-ogs/project-phoenix/issues/6092). Sie ersetzt
 für die Anmeldung (`enrollment.Request`, `enrollment.RequestChild`) und die
 Eingaben der Anmeldestrecke die Festlegung E4 aus
-[#3565](https://github.com/moto-nrw/project-phoenix/issues/3565), die Antworten,
+[#3565](https://github.com/moto-ogs/project-phoenix/issues/3565), die Antworten,
 Zustimmungen und Herkunftsdaten der Familie als rohes JSON
 (`json.RawMessage`) im öffentlichen Vertrag zu führen. Kein neuer Owner, kein
 neues Datenobjekt, keine Policy-Regel, keine Migration;
@@ -86,7 +86,7 @@ Formularschema der Schule und haben keinen festen Go-Typ.
   Freigabe liest dort `null` für Antworten und Zustimmungen als `{}`, wie
   schon ein fehlendes `target_school_class`; sonst meldete jeder ältere
   Änderungswunsch einen Konflikt
-  (`modules/enrollment/http/change_request_null_base_snapshot_test.go`).
+  (`modules/enrollment/http/behaviortest/change_request_null_base_snapshot_test.go`).
   Antworten in Änderungswünschen erscheinen in den Antworten der Routen
   ebenfalls als `{}`.
 - Zwei HTTP-Dienstmethoden (`CreateManualApprovedEnrollment`,
@@ -98,5 +98,5 @@ Formularschema der Schule und haben keinen festen Go-Typ.
 - Ein Dekodierfehler einer gespeicherten Spalte nennt Anmeldung oder Kind und
   Spalte.
 - Ein Regressionstest
-  (`modules/enrollment/http/rollover_empty_form_values_test.go`) hält die
+  (`modules/enrollment/http/behaviortest/rollover_empty_form_values_test.go`) hält die
   leere Form am Speicherpfad fest.

@@ -3,7 +3,7 @@ package notifications
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/devices"
 )
 
 // Notifier is the full surface the concrete service provides. It is assignable

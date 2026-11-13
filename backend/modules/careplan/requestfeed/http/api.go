@@ -9,7 +9,7 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/requestfeed"
 )
 
 type Middleware = func(http.Handler) http.Handler

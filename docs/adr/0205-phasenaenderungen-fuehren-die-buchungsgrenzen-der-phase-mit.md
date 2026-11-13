@@ -5,9 +5,9 @@ status: proposed
 # Phasenänderungen führen die Buchungsgrenzen der Phase mit
 
 **Status: Vorgeschlagen.** Vorschlag vom 11.11.2026 zu
-[#6597](https://github.com/moto-nrw/project-phoenix/issues/6597). Grundlage
+[#6597](https://github.com/moto-ogs/project-phoenix/issues/6597). Grundlage
 sind die Akzeptanzkriterien des Issues und die in
-[#6549](https://github.com/moto-nrw/project-phoenix/pull/6549#issuecomment-6780433342)
+[#6549](https://github.com/moto-ogs/project-phoenix/pull/6549#issuecomment-6780433342)
 zurückgestellte Quorum-Variante. Ergänzt
 [ADR 0202](0202-phasenaenderungen-verschieben-offene-plaene-und-schuetzen-wirksame-buchungen.md)
 um die Buchungen.

@@ -7,11 +7,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -205,15 +205,15 @@ func (r *StatusDayRepositoryStub) UpsertReported(_ context.Context, _ *absencere
 	return r.upsertErr
 }
 
-func (r *StatusDayRepositoryStub) MarkCleared(_ context.Context, _ int64, _ string, _ calendar.Date, _ time.Time, _ string) error {
+func (r *StatusDayRepositoryStub) MarkCleared(_ context.Context, _ int64, _ string, _ calendar.Date, _ time.Time, _ string, _ *int64) error {
 	return nil
 }
 
-func (r *StatusDayRepositoryStub) MarkClearedByID(_ context.Context, _ int64, _ time.Time, _ string) error {
+func (r *StatusDayRepositoryStub) MarkClearedByID(_ context.Context, _ int64, _ time.Time, _ string, _ *int64) error {
 	return r.clearByIDErr
 }
 
-func (r *StatusDayRepositoryStub) MarkClearedForDates(_ context.Context, _ int64, _ string, _ []calendar.Date, _ time.Time, _ string) error {
+func (r *StatusDayRepositoryStub) MarkClearedForDates(_ context.Context, _ int64, _ string, _ []calendar.Date, _ time.Time, _ string, _ *int64) error {
 	return r.clearForDatesErr
 }
 

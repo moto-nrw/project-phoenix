@@ -3,19 +3,23 @@ package testdb
 import (
 	"context"
 	"fmt"
+	"maps"
 	"strings"
 )
 
 // The leftover gate compares a clone's END state against its START state
-// (#2419 goal 2). The start state is captured here, in the test binary,
-// right after the clone is bootstrapped and before the first test runs; the
-// sweep reads it back after the run.
+// (#2419 goal 2). The start state is captured once, in the template, right
+// after its bootstrap (prepareTemplate); every clone inherits it as a copy of
+// the very database it was copied from, so a package binary no longer counts
+// the whole schema at its start (#6962). EnsureSharedBaseline checks that the
+// inherited snapshot was taken with the current rules and takes one in the
+// clone otherwise; the gate reads it back after the run.
 //
-// Taking the snapshot inside the clone rather than diffing against the
-// template is what makes the gate exact: whatever the bootstrap puts into a
-// fresh clone — today a tenant, a room and a system staff row — is part of
-// "start" by construction, so the gate needs no special case for it and does
-// not change when those fixtures finally disappear.
+// The snapshot is part of the database it describes, so the gate stays exact:
+// whatever the bootstrap puts into a fresh clone — today a tenant, a room and
+// a system staff row — is part of "start" by construction, so the gate needs
+// no special case for it and does not change when those fixtures finally
+// disappear.
 //
 // What the snapshot counts is SHARED state only: rows outside the test-tenant
 // band (see TenantIDBase). A row a test writes into its own tenant is not a
@@ -38,7 +42,9 @@ type sharedTableState struct {
 }
 
 // SnapshotSharedBaseline records the clone's shared-row state as the state
-// every test run must return to. Called once per clone, after bootstrap.
+// every test run must return to. Called once per template, after its
+// bootstrap, and on a clone by the per-test gate mode and the tests of this
+// package.
 func SnapshotSharedBaseline(ctx context.Context, dsn string) error {
 	// One pool for all three steps. This sits on the startup path of every
 	// test binary, so the three separate pools it used to open cost more
@@ -58,6 +64,36 @@ func SnapshotSharedBaseline(ctx context.Context, dsn string) error {
 		return err
 	}
 	return insertSharedBaseline(ctx, db, states, predicates)
+}
+
+// EnsureSharedBaseline makes sure the clone behind dsn carries a start
+// snapshot taken with the current shared-row predicates. A clone inherits the
+// template's snapshot; only a missing one or one recorded under other rules is
+// taken again, here, before the first test runs. The gate never reads a stale
+// or absent start state as "nothing changed".
+func EnsureSharedBaseline(ctx context.Context, dsn string) error {
+	db := openSQL(dsn)
+	defer func() { _ = db.Close() }()
+
+	_, recorded, ok, err := readSharedBaseline(ctx, db)
+	if err != nil {
+		return fmt.Errorf("read inherited baseline: %w", err)
+	}
+	current, err := tableSharedPredicates(ctx, db)
+	if err != nil {
+		return fmt.Errorf("resolve shared-row predicates for baseline check: %w", err)
+	}
+	if ok && maps.Equal(recorded, current) {
+		return nil
+	}
+	states, err := sharedTableStatesDB(ctx, db, current)
+	if err != nil {
+		return fmt.Errorf("snapshot baseline rows: %w", err)
+	}
+	if err := prepareBaselineTable(ctx, db); err != nil {
+		return err
+	}
+	return insertSharedBaseline(ctx, db, states, current)
 }
 
 func prepareBaselineTable(ctx context.Context, db sqlExecutor) error {

@@ -4,7 +4,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // The debtor numbers of a mandate import (#4693, decision E-c of 09.11.):

@@ -1,6 +1,6 @@
 package ports
 
-import "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+import "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
 // MapRelationshipType converts the German relationship label of an imported
 // guardian to its stored type through People Directory's relationship

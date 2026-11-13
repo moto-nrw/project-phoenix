@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func ReadScheduleAssignment(ctx context.Context, staffID int64, source interface {

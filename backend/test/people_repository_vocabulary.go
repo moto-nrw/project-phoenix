@@ -1,6 +1,6 @@
 package test
 
-import "github.com/moto-nrw/project-phoenix/modules/securityruntime"
+import "github.com/moto-ogs/project-phoenix/modules/securityruntime"
 
 // Suites that may import neither the retained People Directory models nor
 // the authorization runtime name the rows, values and errors they arrange and

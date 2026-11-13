@@ -5,7 +5,10 @@ import { cn } from "~/lib/utils";
 
 /**
  * Der Fuß eines Bearbeiten-Zustands (Bauart 2, Regel 4): genau ein
- * „Speichern“ und ein „Abbrechen“, unten, in dieser Reihenfolge. Jede Fläche,
+ * „Speichern“ und ein „Abbrechen“, unten, in dieser Reihenfolge. Eine Fläche
+ * darf daneben eine zweite Art zu speichern anbieten (`alsoSave`), etwa
+ * „Speichern und Team informieren“ (#6854); „Speichern“ bleibt der
+ * Hauptknopf und tut weiterhin nur das. Jede Fläche,
  * die am Objekt bearbeitet (Stammdaten, Klassen-Zuweisung, Zahlungskonto),
  * schließt mit diesem Bauteil ab, damit das Speichern überall gleich aussieht
  * und gleich heißt. Ohne Bearbeiten-Zustand gibt es außerhalb der
@@ -24,6 +27,7 @@ export function EditActions({
   cancelLabel = "Abbrechen",
   saveType,
   stretchOnPhone = false,
+  alsoSave,
   className,
 }: Readonly<{
   onCancel: () => void;
@@ -55,6 +59,17 @@ export function EditActions({
    * mit einem vollbreiten Knopf darüber oder darunter fluchten (#5758).
    */
   stretchOnPhone?: boolean;
+  /**
+   * Eine zweite Art zu speichern, zwischen Abbrechen und Speichern. Sie sagt
+   * im `tooltip`, was sie zusätzlich tut, und im `disabledReason`, warum sie
+   * gerade nicht geht.
+   */
+  alsoSave?: {
+    label: string;
+    onClick: () => void;
+    tooltip: string;
+    disabledReason?: string;
+  };
   className?: string;
 }>) {
   const buttonWidth = stretchOnPhone ? "flex-1 sm:flex-none" : undefined;
@@ -77,6 +92,22 @@ export function EditActions({
       >
         {cancelLabel}
       </Button>
+      {alsoSave ? (
+        <Button
+          type="button"
+          variant="outline"
+          size="md"
+          onClick={alsoSave.onClick}
+          disabled={saving || disabled || alsoSave.disabledReason !== undefined}
+          disabledReason={
+            saving || disabled ? undefined : alsoSave.disabledReason
+          }
+          tooltip={alsoSave.tooltip}
+          className={buttonWidth}
+        >
+          {alsoSave.label}
+        </Button>
+      ) : null}
       <Button
         type={saveType ?? (onSave ? "button" : "submit")}
         variant="primary"

@@ -12,11 +12,11 @@ import (
 
  "github.com/stretchr/testify/require"
  "github.com/uptrace/bun"
- usersRepo "github.com/moto-nrw/project-phoenix/database/repositories/users"
- facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
- presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
- "github.com/moto-nrw/project-phoenix/services/listexport"
- testpkg "github.com/moto-nrw/project-phoenix/test"
+ usersRepo "github.com/moto-ogs/project-phoenix/database/repositories/users"
+ facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+ presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+ "github.com/moto-ogs/project-phoenix/services/listexport"
+ testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Measures owner reads with fixed settings, independently of HTTP and settings

@@ -15,6 +15,7 @@ import { useFormError, type FormErrorDetail } from "~/components/ui/form-error";
 import { Toast } from "~/components/ui/toast";
 import { clientEnv } from "~/env.client";
 import { normalizeLocale, type AppLocale } from "~/i18n/locales";
+import { useErrorContact } from "~/lib/error-contact";
 import { useModulePortal } from "~/lib/module-portal-context";
 import { portalNotBookedExplanation } from "~/lib/portal-not-booked";
 import { ApiError } from "~/lib/api-error";
@@ -533,6 +534,7 @@ function useApiErrorCore(
   surface: ErrorSurface,
 ) {
   const markFields = surface !== "load";
+  const contact = useErrorContact();
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
   // A catalog import can finish after the caller has cleared the error, shown
   // another one, or unmounted. Only the latest request may update its state.
@@ -644,7 +646,7 @@ function useApiErrorCore(
       }
       if (showVersion.current !== version) return;
       const { presentError, errorDisplayLabels } = presenter;
-      const presentation = presentError(error, options.object, locale);
+      const presentation = presentError(error, options.object, locale, contact);
       if (presentation.requiresLogin) {
         window.location.assign(
           loginUrl(window.location.host, window.location.pathname),
@@ -698,7 +700,7 @@ function useApiErrorCore(
       );
       return presentation;
     },
-    [deliver, logShown, markFields],
+    [contact, deliver, logShown, markFields],
   );
 
   const clearFieldErrors = useCallback(() => setFieldErrors({}), []);

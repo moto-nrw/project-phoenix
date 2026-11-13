@@ -20,8 +20,8 @@ import (
 	"errors"
 	"fmt"
 
-	listexport "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	listexport "github.com/moto-ogs/project-phoenix/modules/documentrendering/records"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // File is a rendered plan document.
