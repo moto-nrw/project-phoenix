@@ -97,10 +97,15 @@ func TestReadImportTableReadsTheOGSConnectMasterData(t *testing.T) {
 	assert.Equal(t, "Lastschriftart", mapping.Columns.Sequence)
 
 	columns := importColumnIndex{fields: map[string]int{parentbilling.ImportFieldIBAN: 5, parentbilling.ImportFieldReference: 6}}
-	kept, without := dropRowsWithoutMandate(table, columns)
+	check := newImportCheck(columns, importCreditor, importPayers{}, nil, importToday, nil)
+	candidates := make([]importCandidate, len(table.rows))
+	for i, cells := range table.rows {
+		candidates[i] = check.candidate(cells, table.lines[i])
+	}
+	kept, without := dropRowsWithoutMandate(candidates)
 	assert.Equal(t, 1, without, "the child whose family pays without a mandate is no mistake")
-	require.Len(t, kept.rows, 1)
-	assert.Equal(t, []int{2}, kept.lines)
+	require.Len(t, kept, 1)
+	assert.Equal(t, 2, kept[0].row.Line)
 	assert.Len(t, table.rows, 2, "the file itself stays as read")
 }
 

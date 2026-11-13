@@ -83,11 +83,11 @@ func (m *SEPAMandates) ImportSEPAMandates(ctx context.Context, reviewer parentbi
 		}
 		return result, nil
 	}
-	table, withoutMandate := dropRowsWithoutMandate(table, columns)
 	candidates, err := m.evaluateImport(ctx, reviewer, table, columns, creditor.CreditorID, request.Sequences)
 	if err != nil {
 		return parentbilling.SEPAMandateImport{}, err
 	}
+	candidates, withoutMandate := dropRowsWithoutMandate(candidates)
 	result.Fingerprint = importFingerprint(result.Mapping, creditor.CreditorID, candidates)
 	if request.Apply {
 		if err := m.applyConfirmed(ctx, reviewer, request, result.Fingerprint, candidates); err != nil {
@@ -105,20 +105,13 @@ func (m *SEPAMandates) ImportSEPAMandates(ctx context.Context, reviewer parentbi
 }
 
 // dropRowsWithoutMandate leaves out the rows with neither an IBAN nor a
-// reference and counts them (#7009): a file with a row per child names
-// every child, also one whose family pays without a mandate. Such a row is
-// no mistake; a row with only one of the two still is.
-func dropRowsWithoutMandate(table importTable, columns importColumnIndex) (importTable, int) {
-	check := importCheck{columns: columns}
-	kept := table
-	kept.rows, kept.lines = make([][]string, 0, len(table.rows)), make([]int, 0, len(table.lines))
-	for i, cells := range table.rows {
-		if check.cell(cells, parentbilling.ImportFieldIBAN) == "" && check.cell(cells, parentbilling.ImportFieldReference) == "" {
-			continue
-		}
-		kept.rows, kept.lines = append(kept.rows, cells), append(kept.lines, table.lines[i])
-	}
-	return kept, len(table.rows) - len(kept.rows)
+// reference and counts them (#7009). Their empty mandate status keeps them
+// out of validation, but their family and debtor number must take part in
+// reconciliation before they leave the preview and the apply candidates.
+func dropRowsWithoutMandate(candidates []importCandidate) ([]importCandidate, int) {
+	total := len(candidates)
+	kept := slices.DeleteFunc(candidates, func(candidate importCandidate) bool { return candidate.row.Status == "" })
+	return kept, total - len(kept)
 }
 
 // bindCreditorChoice keeps the office's choice that the file holds the
@@ -228,7 +221,7 @@ func (m *SEPAMandates) evaluateImport(ctx context.Context, reviewer parentbillin
 	check.accounts = accounts
 	candidates := make([]importCandidate, len(table.rows))
 	for i, cells := range table.rows {
-		candidates[i] = check.row(cells, table.lines[i])
+		candidates[i] = check.candidate(cells, table.lines[i])
 	}
 	if _, mapped := columns.fields[parentbilling.ImportFieldDebtorNumber]; mapped {
 		known, err := m.store.FamilyDebtorNumbers(ctx, reviewer.OrganizationID)

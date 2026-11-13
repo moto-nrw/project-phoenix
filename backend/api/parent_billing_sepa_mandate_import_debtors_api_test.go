@@ -22,6 +22,7 @@ func TestSEPAMandateImportTakesOverDebtorNumbersPerFamily(t *testing.T) {
 	mia := careContract(t, f.db, f.office.organization, school, "Mia", careMonth, sjrServices()...)
 	noah := careContract(t, f.db, f.office.organization, school, "Noah", careMonth, sjrServices()...)
 	lia := careContract(t, f.db, f.office.organization, school, "Lia", careMonth, sjrServices()...)
+	ben := careContract(t, f.db, f.office.organization, school, "Ben", careMonth, sjrServices()...)
 	saveCreditor(t, f, map[string]any{"creditor_id": sepaCreditorID, "prenotification_days": 14, "missing_mandate": "transfer"})
 	rec := traegerJSON(t, f.traeger, f.office.token, http.MethodPut, familyBillingPath,
 		map[string]any{"contract_id": lia, "recipient_kind": "applicant", "debtor_number": "30 0001"})
@@ -33,6 +34,8 @@ func TestSEPAMandateImportTakesOverDebtorNumbersPerFamily(t *testing.T) {
 		fmt.Sprintf("OGS-D2;15.08.2024;%s;Eva Beispiel;%s;FRST;20 0001", sepaIBAN, partyEmail(t, f, noah)),
 		fmt.Sprintf("OGS-D3;15.08.2024;%s;Eva Beispiel;%s;FRST;20 0002", sepaIBAN, partyEmail(t, f, noah)),
 		fmt.Sprintf("OGS-D4;15.08.2024;%s;Eva Beispiel;%s;FRST;30 0002", sepaIBAN, partyEmail(t, f, lia)),
+		fmt.Sprintf(";;;;%s;;70002", partyEmail(t, f, ben)),
+		fmt.Sprintf("OGS-D5;15.08.2024;%s;Eva Beispiel;%s;FRST;70001", sepaIBAN, partyEmail(t, f, ben)),
 	}, "\r\n") + "\r\n"
 	fields := map[string]string{"mapping": `{"columns":{"reference":"Mandatsreferenz","signed_on":"Unterschriftsdatum","iban":"IBAN",` +
 		`"account_holder":"Kontoinhaber","payer":"E-Mail","sequence":"Lastschriftart","debtor_number":"kinder-Debitorennummer"},` +
@@ -44,7 +47,12 @@ func TestSEPAMandateImportTakesOverDebtorNumbersPerFamily(t *testing.T) {
 	assert.Contains(t, rec.Body.String(), `"debtor_number_status":"differs"`)
 	preview := decodeSchoolPortalData[sepaImportBody](t, rec.Body.Bytes())
 	assert.Equal(t, 1, preview.Counts["debtor_numbers"])
-	assert.Equal(t, 3, preview.Counts["debtor_conflicts"])
+	assert.Equal(t, 4, preview.Counts["debtor_conflicts"], "a sibling without a mandate still contributes its debtor number")
+	assert.Equal(t, 1, preview.Counts["without_mandate"])
+	assert.Zero(t, preview.Counts["invalid"])
+	assert.Equal(t, 4, preview.Counts["ready"], "a sibling without a mandate does not reserve the payer")
+	require.Len(t, preview.Rows, 5, "the mandate-free sibling stays out of the mandate preview")
+	assert.Equal(t, 7, preview.Rows[4].Line, "the original file line is preserved")
 
 	rec = applyImport(t, f.traeger, f.office.token, "ogs.csv", []byte(csv), fields)
 	require.Equal(t, http.StatusCreated, rec.Code, rec.Body.String())
