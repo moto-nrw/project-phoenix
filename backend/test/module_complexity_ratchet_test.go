@@ -132,8 +132,6 @@ var moduleComplexityAllowlist = map[string]int{
 	// ADR 0087.
 	"database/migrations/guardian_owner_contract.go:contractGuardianOwnerStorageChecked": 19,
 	// ADR 0087.
-	"database/migrations/presence_backfill_metrics.go:monitorBackfillLocks": 19,
-	// ADR 0087.
 	"database/migrations/presence_contract.go:contractPresenceStorageChecked": 18,
 	// ADR 0087.
 	"database/migrations/request_child_storage_backfill.go:(*tenantBackfillRun).reconcile": 22,
