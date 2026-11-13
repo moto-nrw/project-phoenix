@@ -68,12 +68,20 @@ test('warm job and ratchet build in the same environment', () => {
   assert.equal(goflags(main, ratchet), '', 'the check adds -trimpath and the policy tags itself');
   const toolchain = source => source.match(/^env:\n(?: {2,}.*\n)*? {2}GOTOOLCHAIN: (.*)$/m)?.[1];
   assert.equal(toolchain(warmSource), toolchain(main), 'GOTOOLCHAIN');
-  assert.equal(
-    section(step(warmSteps, 'Setup Go with cache'), 'with'),
-    section(step(ratchetSteps, 'Setup Go with cache'), 'with'),
-    'Go version and module cache',
-  );
+  const setup = section(step(ratchetSteps, 'Setup Go'), 'with');
+  assert.equal(section(step(warmSteps, 'Setup Go'), 'with'), setup, 'Go version and setup-go cache');
+  // setup-go's own cache would restore a second build cache beside this one;
+  // the modules come from the architecture cache (#6962).
+  assert.equal(field(setup, 'cache', 10), 'false', 'no setup-go cache');
 });
+
+// The cached paths of a `with:` section: a single `path:` or a block of them.
+function paths(withSection) {
+  const block = withSection.match(/^ {10}path: \|\n((?: {12}.*\n?)*)/m)?.[1];
+  if (block !== undefined) return block.split('\n').map(line => line.trim()).filter(Boolean);
+  const single = field(withSection, 'path', 10);
+  return single === undefined ? [] : [single];
+}
 
 test('warm job saves the key the ratchet restores', () => {
   const keyStep = 'Compute architecture build cache key';
@@ -89,8 +97,12 @@ test('warm job saves the key the ratchet restores', () => {
   const save = step(warmSteps, 'Save architecture build cache');
   assert.match(field(save, 'uses', 8), /^actions\/cache\/save@/);
   const restored = section(step(ratchetSteps, restore), 'with');
-  assert.equal(field(save, 'path', 10), field(restored, 'path', 10), 'saved path');
+  assert.deepEqual(paths(section(save, 'with')), paths(restored), 'saved paths');
+  assert.deepEqual(paths(restored), ['~/.cache/go-build', '~/go/pkg/mod'], 'build and module cache');
   assert.equal(field(save, 'key', 10), field(restored, 'key', 10), 'saved key');
+  // The module cache carries no old versions forward only while go.sum of
+  // both modules is part of the prefix it is restored by.
+  assert.match(section(step(ratchetSteps, keyStep), 'env'), /ARCH_CACHE_PREFIX: .*hashFiles\('backend\/go\.sum', 'scripts\/backend-architecture\/go\.sum'\) \}\}-$/m);
 });
 
 test('pull requests only restore the architecture build cache', () => {
