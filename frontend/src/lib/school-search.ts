@@ -108,36 +108,29 @@ export function searchSchool(
 
 /** Fewest digits a phone query keeps after its prefixes go. */
 const MIN_PHONE_DIGITS = 4;
-/** From this length a leading 49 without + or 00 is the country code. */
-const MIN_FULL_GERMAN_DIGITS = 11;
 
 // Separators between the digits of a number, as the backend's
 // isPhoneSeparator: every Unicode space, every dash, the minus sign and
 // + / . ( ).
 const PHONE_QUERY = /^[0-9\p{White_Space}\p{Pd}\u2212+/.()]+$/u;
-const TRUNK_ZERO_MARKER = /\( *0 *\)/g;
 
 /**
  * The digits a phone query is compared with, or "" when the query is no
  * phone number: the backend's schoolsearchview.PhoneSearchKey, with the same
- * cases in both tests. The key drops the bracketed trunk zero, the
- * international 00, the German country code 49 and the German trunk zero; a
- * foreign number keeps its country code. A leading 49 without + or 00 goes
- * only from eleven digits on. The key needs at least four digits.
+ * cases in both tests. The text is compacted to digits, plus and brackets
+ * without the bracketed trunk zero "(0)"; the key drops the international 00,
+ * the German country code 49 of an international number and the German trunk
+ * zero. A 49 without + or 00 stays (it may be an area code without its 0); a
+ * foreign number keeps its country code. The key needs at least four digits.
  */
 export function phoneSearchKey(query: string): string {
   if (!PHONE_QUERY.test(query)) return "";
-  const text = query.replace(TRUNK_ZERO_MARKER, "");
-  const marks = text.replace(/[^0-9+]/g, "");
-  let key = text.replace(/[^0-9]/g, "");
-  const international = marks.startsWith("+") || key.startsWith("00");
+  const compact = query.replace(/[^0-9+()]/g, "").replaceAll("(0)", "");
+  let key = compact.replace(/[^0-9]/g, "");
+  const international =
+    compact.replace(/^[()]+/, "").startsWith("+") || key.startsWith("00");
   if (key.startsWith("00")) key = key.slice(2);
-  if (
-    key.startsWith("49") &&
-    (international || key.length >= MIN_FULL_GERMAN_DIGITS)
-  ) {
-    key = key.slice(2);
-  }
+  if (international && key.startsWith("49")) key = key.slice(2);
   if (!international || key.startsWith("0")) key = key.replace(/^0+/, "");
   return key.length >= MIN_PHONE_DIGITS ? key : "";
 }

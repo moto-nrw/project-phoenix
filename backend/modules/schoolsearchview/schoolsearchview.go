@@ -13,7 +13,6 @@ package schoolsearchview
 import (
 	"context"
 	"fmt"
-	"regexp"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -32,14 +31,15 @@ const (
 	// MinPhoneDigits is the fewest digits a phone query needs. Fewer digits
 	// would match nearly every number.
 	MinPhoneDigits = 4
-	// MinFullGermanDigits is the length from which digits starting with 49
-	// but typed without + or 00 read as a German number with its country
-	// code: 49 and a number of at least nine digits.
+	// MinFullGermanDigits is the length from which a query whose digits
+	// start with 49, typed without + or 00, is also searched as a German
+	// number with its country code (PhoneSearchAlternativeKey).
 	MinFullGermanDigits = 11
-	// MinStoredPhoneDigits and MaxExtensionDigits bound the extension rule:
-	// a query that is a stored number of at least MinStoredPhoneDigits key
-	// digits plus up to MaxExtensionDigits more ("0221 5550001-12") finds
-	// that number. contactsByPhoneSQL spells both numbers out.
+	// MinStoredPhoneDigits and MaxExtensionDigits bound the extension
+	// fallback: when no stored number matches a query directly, a query that
+	// is a stored number of at least MinStoredPhoneDigits key digits plus up
+	// to MaxExtensionDigits more ("0221 5550001-12") finds that number.
+	// contactsByPhoneSQL spells both numbers out.
 	MinStoredPhoneDigits = 7
 	MaxExtensionDigits   = 5
 	// ChildLimit and ContactLimit bound the person lists; OtherLimit the
@@ -48,8 +48,8 @@ const (
 	ContactLimit = 8
 	OtherLimit   = 5
 	// MaxMatchTextRunes bounds the text a hit shows for its reason: a long
-	// parent note comes as the part around the match, with "…" where it was
-	// cut.
+	// parent note or registration answer comes as the part around the
+	// match, with "…" where it was cut.
 	MaxMatchTextRunes = 120
 )
 
@@ -99,8 +99,9 @@ const (
 )
 
 // Match is the reason of a hit. Label names the field (a registration
-// question), Text the matched value as stored; a parent note comes as the
-// part around the match, at most MaxMatchTextRunes characters.
+// question), Text the matched value as stored; a parent note and a
+// registration answer come as the part around the match, at most
+// MaxMatchTextRunes characters.
 type Match struct {
 	Field MatchField `json:"field"`
 	Label string     `json:"label,omitempty"`
@@ -195,23 +196,56 @@ func ValidateQueryText(text string) (string, error) {
 // MinPhoneDigits digits once the prefixes are gone: "0170" is the area code
 // 170, too short to search by.
 //
-// The key is PhoneNumberKey, the number without its trunk or country prefix,
-// so every way of writing the same German number meets: "+49 170 1234567",
+// The key is PhoneNumberKey, the same reading as for a stored number, so
+// every way of writing the same German number meets: "+49 170 1234567",
 // "0049 170 1234567", "0170/1234567" and "0170-123 45 67" all become
 // "1701234567". A partial number such as the last digits matches as a part of
-// a stored key; a number typed with an extension matches the stored number
-// without it (contactsByPhoneSQL).
+// a stored key. PhoneSearchAlternativeKey adds a second reading for a typed
+// 49; contactsByPhoneSQL reads a longer query as a stored number with an
+// extension only when nothing matches directly.
 func PhoneSearchKey(text string) string {
-	for _, r := range text {
-		if (r < '0' || r > '9') && !isPhoneSeparator(r) {
-			return ""
-		}
+	if !isPhoneQuery(text) {
+		return ""
 	}
 	key := PhoneNumberKey(text)
 	if len(key) < MinPhoneDigits {
 		return ""
 	}
 	return key
+}
+
+// PhoneSearchAlternativeKey is a second key for a query whose digits start
+// with 49 without + or 00 and run to MinFullGermanDigits or more: the 49 may
+// be the German country code ("49 221 5550001"). It is "" for every other
+// query. The query searches both keys, so whatever the plain key finds stays
+// found. A stored number never gets this reading: "4921 1234567" is Emden's
+// 04921 without its 0 as often as a country code.
+func PhoneSearchAlternativeKey(text string) string {
+	if PhoneSearchKey(text) == "" {
+		return ""
+	}
+	compact := strings.TrimLeft(compactPhone(text), "()")
+	if strings.HasPrefix(compact, "+") || !strings.HasPrefix(compact, "49") {
+		return ""
+	}
+	digits := phoneDigits(compact)
+	if len(digits) < MinFullGermanDigits {
+		return ""
+	}
+	alternative := strings.TrimLeft(digits[2:], "0")
+	if len(alternative) < MinPhoneDigits {
+		return ""
+	}
+	return alternative
+}
+
+func isPhoneQuery(text string) bool {
+	for _, r := range text {
+		if (r < '0' || r > '9') && !isPhoneSeparator(r) {
+			return false
+		}
+	}
+	return true
 }
 
 // isPhoneSeparator reports the characters people put between the digits of a
@@ -223,39 +257,47 @@ func isPhoneSeparator(r rune) bool {
 		strings.ContainsRune("+/.()", r)
 }
 
-// trunkZeroMarker is the bracketed trunk zero of an international number,
-// "+49 (0)170 …" or "+43 (0)1 …": it is not dialled from abroad.
-var trunkZeroMarker = regexp.MustCompile(`\( *0 *\)`)
+// compactPhone keeps the digits, the plus and the brackets of a text and
+// drops the bracketed trunk zero "(0)" of an international number ("+49
+// (0)170 …", "+43 ( 0)1 …"), whatever separators stood inside the brackets.
+// The SQL and the frontend compact the same way.
+func compactPhone(text string) string {
+	var compact strings.Builder
+	for _, r := range text {
+		if (r >= '0' && r <= '9') || r == '+' || r == '(' || r == ')' {
+			compact.WriteRune(r)
+		}
+	}
+	return strings.ReplaceAll(compact.String(), "(0)", "")
+}
 
-// PhoneNumberKey is the key of any text that holds a phone number: its ASCII
-// digits without the bracketed trunk zero, the international 00, the German
-// country code 49 and the German trunk zero. A number of another country keeps
-// its country code ("+43 1 234" becomes "431234"), which still finds itself.
+func phoneDigits(compact string) string {
+	return strings.Map(func(r rune) rune {
+		if r >= '0' && r <= '9' {
+			return r
+		}
+		return -1
+	}, compact)
+}
+
+// PhoneNumberKey is the key of any text that holds a phone number, stored or
+// typed: its ASCII digits without the bracketed trunk zero, the international
+// 00, the German country code 49 of an international number and the German
+// trunk zero. A number of another country keeps its country code ("+43 1 234"
+// becomes "431234"), which still finds itself. A 49 without + or 00 stays: it
+// may be an area code without its 0.
 //
-// A text counts as international when its first digit or plus is a plus, or
-// its digits start with 00. Without either, a leading 49 is dropped only from
-// a number of MinFullGermanDigits digits or more ("49 221 5550001"): a shorter
-// one may be the end of a number and stays as typed.
+// A text counts as international when its first digit or plus is a plus
+// ("(+49) 170 …" too), or its digits start with 00.
 //
 // phoneKeyOfStoredNumber in the Postgres adapter computes the same key for
 // stored numbers; TestPhoneSearchKeySQLMatchesGo holds both to the same cases.
 func PhoneNumberKey(text string) string {
-	text = trunkZeroMarker.ReplaceAllString(text, "")
-	var digits strings.Builder
-	plusFirst, decided := false, false
-	for _, r := range text {
-		switch {
-		case r >= '0' && r <= '9':
-			digits.WriteRune(r)
-			decided = true
-		case r == '+' && !decided:
-			plusFirst, decided = true, true
-		}
-	}
-	key := digits.String()
-	international := plusFirst || strings.HasPrefix(key, "00")
+	compact := compactPhone(text)
+	key := phoneDigits(compact)
+	international := strings.HasPrefix(strings.TrimLeft(compact, "()"), "+") || strings.HasPrefix(key, "00")
 	key = strings.TrimPrefix(key, "00")
-	if strings.HasPrefix(key, "49") && (international || len(key) >= MinFullGermanDigits) {
+	if international && strings.HasPrefix(key, "49") {
 		key = key[2:]
 	}
 	if !international || strings.HasPrefix(key, "0") {

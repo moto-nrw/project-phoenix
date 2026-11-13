@@ -67,24 +67,33 @@ Drei Fragen waren offen:
    Quelle schaffen, die bei Korrekturen und Löschungen mitgepflegt werden
    müsste.
 3. **Die Telefonnummer wird beim Lesen normalisiert.** Gespeicherte Nummern
-   sind Freitext. Suche und Speicher werden auf dieselbe Ziffernfolge ohne
-   eingeklammerte Null, Verkehrsausscheidungs- und Ländervorwahl gebracht
-   (`schoolsearchview.PhoneNumberKey`, die gleichlautende SQL-Konstante und
-   `phoneSearchKey` im Frontend). Jedes Unicode-Leerzeichen und jeder
-   Gedankenstrich trennt wie Leerzeichen und Bindestrich, weil kopierte
-   Nummern aus Signaturen und Telefon-Apps sie enthalten. Eine Suche braucht
-   nach dem Entfernen der Vorwahlen mindestens vier Ziffern. Eine führende
-   49 ohne + oder 00 gilt erst ab elf Ziffern als Ländervorwahl, weil eine
-   kürzere Folge das Ende einer Nummer sein kann. Teilnummern treffen als
-   Teil der gespeicherten Folge. Eine Durchwahl in der Suche („0221 5550001-12“)
-   trifft die gespeicherte Nummer ohne sie, wenn diese mindestens sieben
-   Ziffern hat und höchstens fünf Ziffern folgen: Eine Durchwahl lässt sich an
-   der Schreibweise nicht sicher erkennen, diese Regel trifft nur eine
-   vollständige gespeicherte Nummer. Nur Kontaktpersonen werden über diese
-   Folge gesucht; alle anderen Felder vergleichen den Text wie eingegeben,
-   damit Ziffern auch einen Raum „1012“ finden. Eine generierte Spalte oder
-   ein Funktionsindex bräuchte eine Migration im Owner People Directory und
-   lohnt erst bei Schulen jenseits der gemessenen zehnfachen Größe.
+   sind Freitext. Suche und Speicher werden auf dieselbe Ziffernfolge
+   gebracht (`schoolsearchview.PhoneNumberKey`, die gleichlautende
+   SQL-Konstante und `phoneSearchKey` im Frontend, mit denselben
+   Testfällen): Der Text wird auf Ziffern, Plus und Klammern verdichtet,
+   eine eingeklammerte Null fällt weg, gleich welche Trenner in der Klammer
+   standen; dann fallen 00, die 49 einer internationalen Nummer und die
+   deutsche Verkehrsausscheidungsziffer weg. Jedes Unicode-Leerzeichen und
+   jeder Strich trennt, weil kopierte Nummern aus Signaturen und Telefon-Apps
+   sie enthalten. Eine Suche braucht danach mindestens vier Ziffern.
+   Teilnummern treffen als Teil der gespeicherten Folge.
+   - **Eine 49 ohne + oder 00 bleibt stehen**, bei gespeicherten Nummern
+     immer: „4921 1234567“ ist ebenso oft Emdens 04921 ohne 0 wie eine
+     Ländervorwahl. Nur eine Suche, deren Ziffern so mit 49 beginnen und
+     mindestens elf Ziffern haben, sucht zusätzlich mit der Folge ohne 49
+     (`PhoneSearchAlternativeKey`). Was die unveränderte Folge findet, bleibt
+     gefunden.
+   - **Durchwahl nur als Rückfall:** Findet keine Nummer eines Kontakts eines
+     Kindes der Schule die Suche direkt, liest die Abfrage die Suche als
+     gespeicherte Nummer mit Durchwahl (mindestens sieben gespeicherte
+     Ziffern, ein bis fünf mehr) und nimmt nur die längste passende
+     gespeicherte Nummer. Eine exakte Nummer bringt so keine kürzere Nachbarin
+     mit.
+   Nur Kontaktpersonen werden über diese Folge gesucht; alle anderen Felder
+   vergleichen den Text wie eingegeben, damit Ziffern auch einen Raum „1012“
+   finden. Eine generierte Spalte oder ein Funktionsindex bräuchte eine
+   Migration im Owner People Directory und lohnt erst bei Schulen jenseits der
+   gemessenen zehnfachen Größe.
 4. **Die Suche zeigt nur, was das Konto ohne Suche lesen darf.** Die Route
    leitet aus den Rechten einen Scope ab und sucht nur in den Arten und
    Feldern, die er öffnet: Kinder mit `users:read` oder `students:read`;
@@ -99,8 +108,9 @@ Drei Fragen waren offen:
    vom Konto ab, nicht von den Treffern. Der Filter nach Anmeldeangaben, seine
    Auswahl und der gefilterte Export verlangen dasselbe wie die Angaben auf
    der Kinderakte: `users:read` und einen Personaleintrag der Schule, oder
-   Admin. Archivierte Räume fehlen wie in der Raumliste. Eine Elternnotiz
-   kommt als Ausschnitt um den Treffer, höchstens 120 Zeichen.
+   Admin. Archivierte Räume fehlen wie in der Raumliste. Eine Elternnotiz und
+   eine lange Anmeldeantwort kommen als Ausschnitt um den Treffer,
+   höchstens 120 Zeichen.
 5. **Der Suchbegriff bleibt aus URLs und Protokollen.** Er reist im Body
    eines `POST`, nie als Query-Parameter. Fehler nennen die gescheiterte
    Lesung, nie den Text. bun schreibt gebundene Werte in das SQL, das das

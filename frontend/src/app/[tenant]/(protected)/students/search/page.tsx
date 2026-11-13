@@ -1587,26 +1587,41 @@ function SearchPageContent() {
   // attendance included) — without the mode in the key SWR would keep
   // serving the stale future-planning response under live controls (#1939).
   //
-  // The registration answer filter (#6954) needs users:read, like the answers
-  // on the child's page; the backend refuses it otherwise.
-  const canUseEnrollmentAnswerFilter = hasPermission(session, "users:read");
-  const effectiveEnrollmentAnswer = canUseEnrollmentAnswerFilter
-    ? enrollmentAnswerFilter
-    : "";
+  // The registration answer filter (#6954) has the gate of the answers on the
+  // child's page: users:read and a staff record of the school, or an
+  // administrator. Only the server knows the staff record, so its answer to
+  // the options decides: the list and the export carry the filter only after
+  // the server granted it, and a refused (403) account loses a filter from a
+  // saved link or state instead of a whole list refused for it.
+  const mayAskEnrollmentAnswers = hasPermission(session, "users:read");
+  const [enrollmentAnswerAccess, setEnrollmentAnswerAccess] = useState<
+    "pending" | "granted" | "denied"
+  >("pending");
   const [enrollmentAnswerQuestions, setEnrollmentAnswerQuestions] = useState<
     readonly EnrollmentAnswerFilter[]
   >([]);
   useEffect(() => {
-    if (!canUseEnrollmentAnswerFilter) return;
+    if (!mayAskEnrollmentAnswers) {
+      setEnrollmentAnswerAccess("denied");
+      return;
+    }
     let cancelled = false;
     fetchEnrollmentAnswerFilters()
       .then((questions) => {
-        if (!cancelled) setEnrollmentAnswerQuestions(questions);
+        if (cancelled) return;
+        setEnrollmentAnswerQuestions(questions);
+        setEnrollmentAnswerAccess("granted");
       })
       .catch((error: unknown) => {
-        // The filter is an extra choice: without its questions the list
-        // still works and an active filter keeps its chip. The log names no
-        // child and no answer.
+        if (cancelled) return;
+        if (error instanceof ApiError && error.status === 403) {
+          setEnrollmentAnswerAccess("denied");
+          return;
+        }
+        // Any other failure says nothing about the access: an active filter
+        // keeps working and its chip; only the choice lacks its questions.
+        // The log names no child and no answer.
+        setEnrollmentAnswerAccess("granted");
         studentSearchLogger.warn("enrollment_answer_filters_load_failed", {
           error: error instanceof Error ? error.message : String(error),
         });
@@ -1614,7 +1629,9 @@ function SearchPageContent() {
     return () => {
       cancelled = true;
     };
-  }, [canUseEnrollmentAnswerFilter]);
+  }, [mayAskEnrollmentAnswers]);
+  const effectiveEnrollmentAnswer =
+    enrollmentAnswerAccess === "granted" ? enrollmentAnswerFilter : "";
 
   // The group filter leads the key as a fixed `g{id}`/`gall` scope segment
   // (#2097) so the SSE flush can read it back and skip a refetch when a
@@ -1787,6 +1804,17 @@ function SearchPageContent() {
     },
     [updateUrlParams],
   );
+
+  // A filter the server refused leaves the address and the saved state.
+  useEffect(() => {
+    if (enrollmentAnswerAccess === "denied" && enrollmentAnswerFilter) {
+      updateEnrollmentAnswerFilter("");
+    }
+  }, [
+    enrollmentAnswerAccess,
+    enrollmentAnswerFilter,
+    updateEnrollmentAnswerFilter,
+  ]);
 
   const updatePickupStatusFilter = useCallback(
     (value: PickupStatusFilter) => {

@@ -18,6 +18,7 @@
  * helpers, the real header), so they stay separate, as does page.test.tsx.
  */
 import {
+  act,
   cleanup,
   fireEvent,
   render,
@@ -35,10 +36,12 @@ import {
   vi,
 } from "vitest";
 import type { FilterConfig } from "~/components/ui/page-header/types";
+import { ApiError } from "~/lib/api-error";
 import { berlinTodayISO, parseISODate, toISODate } from "~/lib/date-helpers";
 
 const {
   mockGetStudents,
+  mockFetchAnswerFilters,
   mockUseSWRAuth,
   mockUseImmutableSWR,
   mockPush,
@@ -56,6 +59,7 @@ const {
   mockUseOptionalSupervision: vi.fn(),
   mockUseUserContext: vi.fn(),
   mockPageHeader: vi.fn(),
+  mockFetchAnswerFilters: vi.fn(),
   flags: { childSearchOnly: false },
 }));
 
@@ -208,15 +212,7 @@ vi.mock("~/lib/student-api", async (importOriginal) => ({
   ...(await importOriginal<typeof import("~/lib/student-api")>()),
   fetchStudents: (...args: unknown[]) => mockGetStudents(...args),
   fetchSchoolClasses: vi.fn(() => Promise.resolve([])),
-  fetchEnrollmentAnswerFilters: vi.fn(() =>
-    Promise.resolve([
-      {
-        key: "seepferdchen",
-        label: "Seepferdchen vorhanden?",
-        options: [{ value: "true", label: "Ja", count: 3 }],
-      },
-    ]),
-  ),
+  fetchEnrollmentAnswerFilters: () => mockFetchAnswerFilters(),
 }));
 
 vi.mock("~/lib/api", () => ({
@@ -297,6 +293,14 @@ beforeEach(() => {
   currentSearch = new URLSearchParams();
   clockNow = null;
   flags.childSearchOnly = false;
+  mockFetchAnswerFilters.mockReset();
+  mockFetchAnswerFilters.mockResolvedValue([
+    {
+      key: "seepferdchen",
+      label: "Seepferdchen vorhanden?",
+      options: [{ value: "true", label: "Ja", count: 3 }],
+    },
+  ]);
   mockUseSession.mockImplementation(() => ({
     data: { user: { token: "t" } },
     status: "authenticated",
@@ -452,6 +456,44 @@ describe("StudentSearchPage — room_id deep-link (#1323)", () => {
           (call[0] as Record<string, unknown>).enrollmentAnswer === undefined,
       ),
     ).toBe(true);
+  });
+
+  it("drops a stale registration answer the server refuses and still lists the children (#6954)", async () => {
+    // users:read without a staff record: the server refuses the answers, as
+    // on the child's page. A saved link with the filter must not empty the
+    // whole list with a 403.
+    mockUseSession.mockImplementation(() => ({
+      data: { user: { token: "t", permissions: ["users:read"] } },
+      status: "authenticated",
+    }));
+    mockFetchAnswerFilters.mockRejectedValue(
+      new ApiError(
+        "GET /api/students/enrollment-answer-filters failed (403)",
+        403,
+      ),
+    );
+    currentSearch = new URLSearchParams({
+      enrollment_answer: "seepferdchen=true",
+    });
+
+    render(<StudentSearchPage />);
+
+    await waitFor(() => {
+      expect(mockFetchAnswerFilters).toHaveBeenCalled();
+      expect(mockGetStudents).toHaveBeenCalled();
+    });
+    await act(async () => {
+      await Promise.resolve();
+    });
+    expect(
+      mockGetStudents.mock.calls.every(
+        (call) =>
+          (call[0] as Record<string, unknown>).enrollmentAnswer === undefined,
+      ),
+    ).toBe(true);
+    // Anker: die ungefilterte Kinderliste ist geladen.
+    expect(await screen.findByTestId("student-card-7")).toBeInTheDocument();
+    expect(screen.queryByText(/Seepferdchen/)).not.toBeInTheDocument();
   });
 
   it("does not forward roomId when no room_id query param is present", async () => {

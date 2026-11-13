@@ -35,16 +35,46 @@ func TestPhoneSearchKeyMeetsEveryWayOfWritingTheSameNumber(t *testing.T) {
 		"\u00a0+49\u00a0170\u00a01234567": "1701234567",
 		// A foreign number keeps its country code; its bracketed trunk zero
 		// goes like the German one.
-		"+43 (0)1 2345678":   "4312345678",
-		"0043 (0) 1 2345678": "4312345678",
-		// A full German number typed with its country code but without + or
-		// 00 (eleven digits or more) loses the 49; a shorter one may be the
-		// end of a number and stays as typed.
-		"49 221 5550001": "2215550001",
-		"49 170 1234567": "1701234567",
-		"4930 1234":      "49301234",
+		"+43 (0)1 2345678":         "4312345678",
+		"0043 (0) 1 2345678":       "4312345678",
+		"+43 (\u00a00)1 2345678":   "4312345678",
+		"+43 (\u20020\t)1 2345678": "4312345678",
+		// Digits typed without + or 00 keep a leading 49: it may be the area
+		// code 049x without its 0 (Emden: 04921). PhoneSearchAlternativeKey
+		// adds the reading as a country code.
+		"49 221 5550001":    "492215550001",
+		"4930 1234":         "49301234",
+		"04921 1234567":     "49211234567",
+		"(+49) 170 1234567": "1701234567",
+		"4921 1234567":      "49211234567",
 	} {
 		require.Equal(t, key, PhoneSearchKey(text), text)
+	}
+}
+
+// TestPhoneSearchAlternativeKeyReadsATyped49AsCountryCode adds a second key
+// for a query only: digits typed with a leading 49, without + or 00, of
+// eleven digits or more may be a German number with its country code. The
+// query searches both keys, so what the plain key finds stays found.
+func TestPhoneSearchAlternativeKeyReadsATyped49AsCountryCode(t *testing.T) {
+	t.Parallel()
+	for text, alternative := range map[string]string{
+		"49 221 5550001": "2215550001",
+		"49 170 1234567": "1701234567",
+		"4921 1234567":   "211234567",
+	} {
+		require.Equal(t, alternative, PhoneSearchAlternativeKey(text), text)
+	}
+	for _, text := range []string{
+		"04921 1234567",   // typed with its trunk zero: an Emden number, nothing else
+		"+49 221 5550001", // already international
+		"0049 221 5550001",
+		"4930 1234",    // too short for a full number
+		"0221 5550001", // no 49
+		"Müller",
+		"49 12",
+	} {
+		require.Empty(t, PhoneSearchAlternativeKey(text), text)
 	}
 }
 

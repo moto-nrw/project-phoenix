@@ -22,8 +22,9 @@ type Reader interface {
 	// still at the school, in the order of ids.
 	ChildrenByID(ctx context.Context, ids []int64, limit int) ([]schoolsearchview.Child, error)
 	// Contacts finds contact persons of a child at the school by name or
-	// e-mail address, or by the phone key when phoneKey is not empty.
-	Contacts(ctx context.Context, text, phoneKey string, limit int) ([]schoolsearchview.Contact, error)
+	// e-mail address, or by the phone key and its alternative reading when
+	// phoneKey is not empty.
+	Contacts(ctx context.Context, text, phoneKey, alternativeKey string, limit int) ([]schoolsearchview.Contact, error)
 	Staff(ctx context.Context, text string, limit int) ([]schoolsearchview.Staff, error)
 	Rooms(ctx context.Context, text string, limit int) ([]schoolsearchview.Room, error)
 	Groups(ctx context.Context, text string, limit int) ([]schoolsearchview.Group, error)
@@ -81,7 +82,7 @@ func (s *Search) searchPeople(ctx context.Context, text, phoneKey string, scope 
 		result.Children = children
 	}
 	if scope.Contacts {
-		contacts, err := s.reader.Contacts(ctx, text, phoneKey, schoolsearchview.ContactLimit)
+		contacts, err := s.reader.Contacts(ctx, text, phoneKey, schoolsearchview.PhoneSearchAlternativeKey(text), schoolsearchview.ContactLimit)
 		if err != nil {
 			return fmt.Errorf("school search: contacts: %w", err)
 		}
@@ -130,7 +131,7 @@ func (s *Search) withAnswerHits(ctx context.Context, text string, children []sch
 	}
 	for _, row := range rows {
 		hit := byStudent[row.ID]
-		row.Match = schoolsearchview.Match{Field: schoolsearchview.MatchEnrollmentAnswer, Label: hit.Label, Text: hit.Answer}
+		row.Match = schoolsearchview.Match{Field: schoolsearchview.MatchEnrollmentAnswer, Label: hit.Label, Text: matchSnippet(hit.Answer, text)}
 		children = append(children, row)
 	}
 	return children, nil

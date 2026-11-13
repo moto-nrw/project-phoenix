@@ -36,17 +36,17 @@ func New(database Database) *Reader { return &Reader{database: database} }
 const patternJoin = ` CROSS JOIN (SELECT '%' || ` + collation.UnaccentLikePatternSQL + ` || '%' AS p) AS q `
 
 // phoneKeyOfStoredNumber is schoolsearchview.PhoneNumberKey for
-// phone.phone_number: its digits without the bracketed trunk zero, the
-// international 00, the German country code and trunk zero. Every character
-// but a digit (and the plus that marks an international number) is a
-// separator, Unicode spaces and dashes included.
-// TestPhoneSearchKeySQLMatchesGo holds both to the same cases.
+// phone.phone_number: the text compacted to digits, plus and brackets without
+// the bracketed trunk zero, then its digits without the international 00, the
+// country code 49 of an international number and the German trunk zero. A 49
+// without + or 00 stays. TestPhoneSearchKeySQLMatchesGo holds both to the
+// same cases.
 const phoneKeyOfStoredNumber = `(SELECT CASE WHEN NOT k.intl OR k.d2 LIKE '0%' THEN ltrim(k.d2, '0') ELSE k.d2 END
-	FROM (SELECT j.intl, CASE WHEN j.d1 LIKE '49%' AND (j.intl OR length(j.d1) >= 11) THEN substr(j.d1, 3) ELSE j.d1 END AS d2
+	FROM (SELECT j.intl, CASE WHEN j.intl AND j.d1 LIKE '49%' THEN substr(j.d1, 3) ELSE j.d1 END AS d2
 		FROM (SELECT i.intl, regexp_replace(i.digits, '^00', '') AS d1
-			FROM (SELECT regexp_replace(t.s, '[^0-9+]', '', 'g') LIKE '+%' OR regexp_replace(t.s, '[^0-9]', '', 'g') LIKE '00%' AS intl,
-				regexp_replace(t.s, '[^0-9]', '', 'g') AS digits
-				FROM (SELECT regexp_replace(phone.phone_number, '\( *0 *\)', '', 'g') AS s) AS t) AS i) AS j) AS k)`
+			FROM (SELECT ltrim(c.compact, '()') LIKE '+%' OR regexp_replace(c.compact, '[^0-9]', '', 'g') LIKE '00%' AS intl,
+				regexp_replace(c.compact, '[^0-9]', '', 'g') AS digits
+				FROM (SELECT replace(regexp_replace(phone.phone_number, '[^0-9+()]', '', 'g'), '(0)', '') AS compact) AS c) AS i) AS j) AS k)`
 
 // liveChildJoins narrow a child profile to a child still at the school: a
 // live person and a live, non-graduated membership, with its OGS group.
@@ -148,24 +148,46 @@ const contactHasLiveChild = `EXISTS (SELECT 1 FROM users.student_guardian_relati
 	JOIN users.student_profiles AS student ON student.id = rel.student_id AND student.tenant_id = rel.tenant_id ` + liveChildJoins + `
 	WHERE rel.guardian_profile_id = guardian.id AND rel.tenant_id = guardian.tenant_id)`
 
-// contactsByPhoneSQL: phone key, school, limit. A stored number matches when
-// the query key is a part of its key (a partial number, the last digits), or
-// when the query is the whole stored number of at least 7 key digits plus an
-// extension of 1 to 5 digits ("0221 5550001-12" finds "0221 5550001";
-// schoolsearchview.MinStoredPhoneDigits and MaxExtensionDigits). It reports
-// the number that matched, the primary one first.
-const contactsByPhoneSQL = protocol.RedactLiteralsInLog + `SELECT * FROM (
-		SELECT DISTINCT ON (guardian.id) guardian.id, guardian.first_name, guardian.last_name,
-			'phone' AS match_field, phone.phone_number AS match_text
-		FROM users.guardian_phone_numbers AS phone
-		JOIN users.guardian_profiles AS guardian ON guardian.id = phone.guardian_profile_id AND guardian.tenant_id = phone.tenant_id
-		CROSS JOIN (SELECT CAST(? AS text) AS key) AS q
-		CROSS JOIN LATERAL (SELECT ` + phoneKeyOfStoredNumber + ` AS key) AS stored
-		WHERE phone.tenant_id = ? AND (strpos(stored.key, q.key) > 0
-				OR (length(stored.key) >= 7 AND length(q.key) - length(stored.key) BETWEEN 1 AND 5
-					AND left(q.key, length(stored.key)) = stored.key))
-			AND ` + contactHasLiveChild + `
-		ORDER BY guardian.id, phone.is_primary DESC, phone.priority, phone.id) AS hit
+// phoneDirectMatch: a stored key holds the query key or its alternative
+// reading (schoolsearchview.PhoneSearchAlternativeKey) as a part: the whole
+// number or a partial one such as the last digits.
+const phoneDirectMatch = `(strpos(candidate.key, q.key) > 0 OR (q.alt <> '' AND strpos(candidate.key, q.alt) > 0))`
+
+// phoneExtensionMatch: the query is a whole stored number of at least 7 key
+// digits plus an extension of 1 to 5 digits ("0221 5550001-12" and "0221
+// 5550001"; schoolsearchview.MinStoredPhoneDigits and MaxExtensionDigits).
+const phoneExtensionMatch = `(length(candidate.key) >= 7 AND (
+		(length(q.key) - length(candidate.key) BETWEEN 1 AND 5 AND left(q.key, length(candidate.key)) = candidate.key)
+		OR (q.alt <> '' AND length(q.alt) - length(candidate.key) BETWEEN 1 AND 5 AND left(q.alt, length(candidate.key)) = candidate.key)))`
+
+// contactsByPhoneSQL: phone key, alternative key, school, limit. It finds the
+// contact persons of a child at the school by a stored number that matches
+// the query directly. Only when no number matches directly does it read the
+// query as a stored number with an extension, and then only as the longest
+// stored number that fits: an exact number never brings a shorter neighbour
+// ("0221 555000" next to "0221 5550001") along. It reports the number that
+// matched, the primary one first.
+const contactsByPhoneSQL = protocol.RedactLiteralsInLog + `WITH q AS (SELECT CAST(? AS text) AS key, CAST(? AS text) AS alt),
+	matched AS (
+		SELECT candidate.*, ` + phoneDirectMatch + ` AS direct
+		FROM (SELECT phone.id, phone.guardian_profile_id, phone.tenant_id, phone.phone_number, phone.is_primary, phone.priority,
+				` + phoneKeyOfStoredNumber + ` AS key
+			FROM users.guardian_phone_numbers AS phone
+			WHERE phone.tenant_id = ?) AS candidate
+		CROSS JOIN q
+		WHERE ` + phoneDirectMatch + ` OR ` + phoneExtensionMatch + `),
+	live AS (
+		SELECT matched.*, guardian.first_name, guardian.last_name
+		FROM matched
+		JOIN users.guardian_profiles AS guardian ON guardian.id = matched.guardian_profile_id AND guardian.tenant_id = matched.tenant_id
+		WHERE ` + contactHasLiveChild + `)
+	SELECT * FROM (
+		SELECT DISTINCT ON (live.guardian_profile_id) live.guardian_profile_id AS id, live.first_name, live.last_name,
+			'phone' AS match_field, live.phone_number AS match_text
+		FROM live
+		WHERE live.direct OR (NOT EXISTS (SELECT 1 FROM live AS other WHERE other.direct)
+			AND length(live.key) = (SELECT max(length(other.key)) FROM live AS other))
+		ORDER BY live.guardian_profile_id, live.direct DESC, live.is_primary DESC, live.priority, live.id) AS hit
 	ORDER BY hit.last_name, hit.first_name, hit.id
 	LIMIT ?`
 
@@ -209,16 +231,17 @@ type contactChildRow struct {
 	RelationshipType string `bun:"relationship_type"`
 }
 
-// Contacts finds contact persons by phone key, or by name and e-mail, each
-// with every child still at the school: two statements for the whole list.
-func (r *Reader) Contacts(ctx context.Context, text, phoneKey string, limit int) ([]schoolsearchview.Contact, error) {
+// Contacts finds contact persons by phone key (and its alternative reading),
+// or by name and e-mail, each with every child still at the school: two
+// statements for the whole list.
+func (r *Reader) Contacts(ctx context.Context, text, phoneKey, alternativeKey string, limit int) ([]schoolsearchview.Contact, error) {
 	db, schoolID, err := r.database(ctx)
 	if err != nil {
 		return nil, err
 	}
 	var rows []contactRow
 	if phoneKey != "" {
-		err = db.NewRaw(contactsByPhoneSQL, phoneKey, schoolID, limit).Scan(ctx, &rows)
+		err = db.NewRaw(contactsByPhoneSQL, phoneKey, alternativeKey, schoolID, limit).Scan(ctx, &rows)
 	} else {
 		err = db.NewRaw(contactsByTextSQL, text, schoolID, limit).Scan(ctx, &rows)
 	}

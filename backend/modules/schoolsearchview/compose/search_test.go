@@ -116,6 +116,61 @@ func TestPhoneQueryFindsPastedAndExtendedNumbers(t *testing.T) {
 	require.Empty(t, found("0221 5559"), "a stored number shorter than seven key digits takes no extension")
 }
 
+// TestPhoneQueryKeepsStoredNumbersAsTyped never reads a stored 49 typed
+// without + or 00 as a country code: "4921 1234567" is Emden's 04921 without
+// its 0, and its own number keeps finding it.
+func TestPhoneQueryKeepsStoredNumbersAsTyped(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	child := testpkg.CreateTestStudent(t, db, "Enno", "Friese", "1b")
+	emden := testpkg.CreateTestGuardianProfileNamed(t, db, "Hauke", "Friese", "hauke")
+	testpkg.CreateTestStudentGuardianLink(t, db, child.ID, emden.ID, "other")
+	addPhone(t, db, tenantID, emden.ID, "4921 1234567")
+
+	for _, query := range []string{"04921 1234567", "4921 1234567", "04921/1234567"} {
+		result := search(t, db, tenantID, nil, query, fullScope)
+		require.Len(t, result.Contacts, 1, query)
+		require.Equal(t, emden.ID, result.Contacts[0].ID, query)
+	}
+}
+
+// TestPhoneExtensionIsOnlyAFallback reads a longer query as a stored number
+// with an extension only when no stored number matches the query directly:
+// an exact number never brings a shorter neighbour along.
+func TestPhoneExtensionIsOnlyAFallback(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	child := testpkg.CreateTestStudent(t, db, "Pia", "Dorn", "3b")
+	link := func(first string) int64 {
+		guardian := testpkg.CreateTestGuardianProfileNamed(t, db, first, "Dorn", strings.ToLower(first))
+		testpkg.CreateTestStudentGuardianLink(t, db, child.ID, guardian.ID, "other")
+		return guardian.ID
+	}
+	exact := link("Rita")
+	shorter := link("Bert")
+	mobile := link("Lena")
+	truncated := link("Udo")
+	addPhone(t, db, tenantID, exact, "0221 5550001")
+	addPhone(t, db, tenantID, shorter, "0221 555000")
+	addPhone(t, db, tenantID, mobile, "0170 1234567")
+	addPhone(t, db, tenantID, truncated, "0170 123456")
+
+	found := func(query string) []int64 {
+		ids := []int64{}
+		for _, contact := range search(t, db, tenantID, nil, query, fullScope).Contacts {
+			ids = append(ids, contact.ID)
+		}
+		return ids
+	}
+	require.Equal(t, []int64{exact}, found("0221 5550001"), "the exact number brings no shorter neighbour")
+	require.Equal(t, []int64{mobile}, found("0170 1234567"), "a truncated number is no match next to the full one")
+	// Without any direct match the extension reading finds the stored number.
+	require.Equal(t, []int64{exact}, found("0221 5550001-12"))
+	require.ElementsMatch(t, []int64{mobile}, found("0170 1234567 89"))
+}
+
 func TestWithoutContactAccessTheSearchFindsNoContactData(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupTestDB(t)
@@ -184,6 +239,25 @@ func TestAnswerHitsFillUpPastFormerPupils(t *testing.T) {
 	result := search(t, db, tenantID, &answerSearch{matches: matches}, "theater", fullScope)
 	require.Len(t, result.Children, 1)
 	require.Equal(t, live.ID, result.Children[0].ID)
+}
+
+// TestAnswerHitShowsTheMatchedPart bounds a long free-text registration
+// answer like a parent note.
+func TestAnswerHitShowsTheMatchedPart(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	tenantID := testpkg.Tenant(t)
+	child := testpkg.CreateTestStudent(t, db, "Mats", "Lang", "2c")
+	answer := strings.Repeat("Bitte an Sonnencreme denken. ", 8) + "Allergie gegen Erdnüsse. " + strings.Repeat("Abholung meist um vier. ", 8)
+	answers := &answerSearch{matches: []enrollment.StudentAnswerMatch{{StudentID: child.ID, Label: "Hinweise", Answer: answer}}}
+
+	result := search(t, db, tenantID, answers, "erdnüsse", fullScope)
+	require.Len(t, result.Children, 1)
+	match := result.Children[0].Match
+	require.Equal(t, schoolsearchview.MatchEnrollmentAnswer, match.Field)
+	require.Equal(t, "Hinweise", match.Label)
+	require.Contains(t, match.Text, "Allergie gegen Erdnüsse.")
+	require.LessOrEqual(t, len([]rune(match.Text)), schoolsearchview.MaxMatchTextRunes)
 }
 
 // TestParentNoteHitShowsTheMatchedPart returns a bounded part of a long
