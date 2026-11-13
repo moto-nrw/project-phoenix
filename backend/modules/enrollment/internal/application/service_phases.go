@@ -1,6 +1,8 @@
 package application
 
 import (
+	"fmt"
+
 	"context"
 	"time"
 
@@ -35,9 +37,20 @@ func (m *Service) UpdatePhase(ctx context.Context, phase *enrollment.Phase) erro
 	return m.store.UpdatePhase(ctx, phase)
 }
 
+// DeletePhase deletes a phase without enrollment requests; its cascade drops
+// the phase's care offerings. A phase with requests is refused (#6836): the
+// requests are evidence and leave only through the audited request deletion
+// or retention, never with their phase.
 func (m *Service) DeletePhase(ctx context.Context, id int64) error {
 	if err := m.transactions.RequireTransaction(ctx); err != nil {
 		return err
+	}
+	requests, err := m.store.CountPhaseRequests(ctx, id)
+	if err != nil {
+		return fmt.Errorf("phase delete: count requests: %w", err)
+	}
+	if requests > 0 {
+		return fmt.Errorf("%w: %d requests", enrollment.ErrPhaseHasRequests, requests)
 	}
 	return m.store.DeletePhase(ctx, id)
 }

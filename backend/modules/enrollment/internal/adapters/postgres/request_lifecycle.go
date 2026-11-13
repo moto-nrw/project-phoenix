@@ -46,22 +46,6 @@ func (r *Store) CountPhaseRequests(ctx context.Context, id int64) (int, error) {
 	}
 	return int(count), nil
 }
-func (r *Store) DeletePhaseRequests(ctx context.Context, id int64) (int, error) {
-	tenantID, err := r.tenantID(ctx)
-	if err != nil {
-		return 0, err
-	}
-	db, err := r.resolve(ctx)
-	if err != nil {
-		return 0, err
-	}
-	result, err := db.NewDelete().TableExpr("enrollment.requests").Where("tenant_id = ? AND phase_id = ?", tenantID, id).Exec(ctx)
-	if err != nil {
-		return 0, fmt.Errorf("failed to delete phase requests: %w", err)
-	}
-	count, err := result.RowsAffected()
-	return int(count), err
-}
 func (r *Store) DeleteRequest(ctx context.Context, id int64) error {
 	tenantID, err := r.tenantID(ctx)
 	if err != nil {

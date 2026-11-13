@@ -63,6 +63,7 @@ var (
 	ErrCompleteWithdrawalConfirmationRequired = enrollment.ErrCompleteWithdrawalConfirmationRequired
 	ErrOfferingAdjustmentInvalid              = enrollment.ErrOfferingAdjustmentInvalid
 	ErrPhaseBookingBoundsConflict             = enrollment.ErrPhaseBookingBoundsConflict
+	ErrPhaseHasRequests                       = enrollment.ErrPhaseHasRequests
 	ErrTraegerCopyDelete                      = enrollment.ErrTraegerCopyDelete
 )
 

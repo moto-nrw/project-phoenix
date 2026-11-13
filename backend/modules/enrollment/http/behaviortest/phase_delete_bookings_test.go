@@ -32,7 +32,8 @@ func assertPhaseKept(t *testing.T, env *decisionTestEnv, requests int) {
 // delete would end the children's care without the care-end or booking
 // process and leave them without a booking and without a completion task
 // (#6505, EC-6). The refusal comes before any write. A phase whose bookings
-// have ended, or that has ended itself, can still be deleted.
+// have ended, or that has ended itself, is still refused for its requests
+// (#6836): they stay as evidence.
 func TestPhaseService_Delete_RefusesEffectiveBookings(t *testing.T) {
 	t.Parallel()
 
@@ -53,8 +54,9 @@ func TestPhaseService_Delete_RefusesEffectiveBookings(t *testing.T) {
 		offering := createAdjustmentCareOffering(t, env, uniqueSchemaName("Betreuung Offen"))
 		submitWithOffering(t, env, offering, "Offen")
 
-		require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), env.db, followingPhases(t, env, decisionTestToday).DeletePhase, env.sourcePhase.ID),
-			"an open application is no care yet")
+		err := testpkg.TenantCommand1(t, testpkg.Ctx(t), env.db, followingPhases(t, env, decisionTestToday).DeletePhase, env.sourcePhase.ID)
+		require.ErrorIs(t, err, enrollmentNative.ErrPhaseHasRequests, "an open application is no care yet, but evidence")
+		assertPhaseKept(t, env, 1)
 	})
 
 	t.Run("ended phase", func(t *testing.T) {
@@ -64,9 +66,9 @@ func TestPhaseService_Delete_RefusesEffectiveBookings(t *testing.T) {
 		submitApprovedAdjustmentChild(t, env, "vorbei@example.com", "Vorbei", []*offeringContract.CareOfferingRecord{offering})
 		afterEnd := calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(1)
 
-		require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), env.db, followingPhases(t, env, afterEnd).DeletePhase, env.sourcePhase.ID))
-		_, err := testpkg.TenantQuery1(t, testpkg.Ctx(t), env.db, env.repos.Enrollment().Phase, env.sourcePhase.ID)
-		require.Error(t, err, "an ended phase is deleted")
+		err := testpkg.TenantCommand1(t, testpkg.Ctx(t), env.db, followingPhases(t, env, afterEnd).DeletePhase, env.sourcePhase.ID)
+		require.ErrorIs(t, err, enrollmentNative.ErrPhaseHasRequests, "an ended phase keeps its requests")
+		assertPhaseKept(t, env, 1)
 	})
 
 	t.Run("ended bookings", func(t *testing.T) {
@@ -77,8 +79,9 @@ func TestPhaseService_Delete_RefusesEffectiveBookings(t *testing.T) {
 		_, err := testpkg.TenantQuery2(t, testpkg.Ctx(t), env.db, env.reposCare.CarePlan.EndCareOfferingBookings, []int64{childID}, careplan.Date(decisionTestToday))
 		require.NoError(t, err)
 
-		require.NoError(t, testpkg.TenantCommand1(t, testpkg.Ctx(t), env.db, followingPhases(t, env, decisionTestToday).DeletePhase, env.sourcePhase.ID),
-			"a booking ending today no longer applies")
+		err = testpkg.TenantCommand1(t, testpkg.Ctx(t), env.db, followingPhases(t, env, decisionTestToday).DeletePhase, env.sourcePhase.ID)
+		require.ErrorIs(t, err, enrollmentNative.ErrPhaseHasRequests, "a booking ending today no longer applies, the request stays")
+		assertPhaseKept(t, env, 1)
 	})
 }
 

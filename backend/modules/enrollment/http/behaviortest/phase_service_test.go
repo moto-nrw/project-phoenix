@@ -449,11 +449,12 @@ func TestPhaseService_Delete_RemovesPhaseWithOfferings(t *testing.T) {
 	assert.Equal(t, 0, remaining, "care offerings must cascade away with the phase")
 }
 
-// Business rule (changed): a phase with enrollment requests is now
-// deletable. Requests + their children cascade away, but students that
-// were created from those requests are PRESERVED (created_student_id is
-// ON DELETE SET NULL; the student is the parent in that relationship).
-func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T) {
+// A phase with enrollment requests is not deleted (#6836). The requests are
+// the school's evidence of application, decision and consent; deleting the
+// phase used to cascade them, their guardians, offering choices and the
+// offering adjustment audit away without a deletion protocol. The refusal
+// comes before any write; deactivating the phase hides it instead.
+func TestPhaseService_Delete_KeepsPhaseWithRequests(t *testing.T) {
 	t.Parallel()
 
 	svc, repoFactory, _, _, db := setupPhaseTest(t)
@@ -486,24 +487,16 @@ func TestPhaseService_Delete_RemovesRequestsAndKeepsCreatedStudents(t *testing.T
 	child.TenantID = testpkg.Tenant(t)
 	require.NoError(t, InsertOwnerChildForTest(ctx, repoFactory.Enrollment(), child))
 
-	require.NoError(t, testpkg.TenantCommand1(t, ctx, db, svc.DeletePhase, phase.ID),
-		"phase with enrollment requests must be deletable")
+	err = testpkg.TenantCommand1(t, ctx, db, svc.DeletePhase, phase.ID)
+	require.ErrorIs(t, err, enrollmentNative.ErrPhaseHasRequests)
 
 	_, err = testpkg.TenantQuery1(t, ctx, db, svc.PhaseByID, phase.ID)
-	assert.True(t, errors.Is(err, enrollmentNative.ErrPhaseNotFound))
+	require.NoError(t, err, "the phase stays")
 	reqCount, err := testpkg.TenantQuery1(t, ctx, db, repoFactory.Enrollment().CountPhaseRequests, phase.ID)
 	require.NoError(t, err)
-	assert.Equal(t, 0, reqCount, "requests must cascade away with the phase")
-
-	// The student must survive — deleting the request child never deletes
-	// the student it points to.
-	studentCount, err := db.NewSelect().
-		TableExpr("users.student_profiles").
-		Where("id = ?", student.ID).
-		Count(ctx)
-	require.NoError(t, err)
-	assert.Equal(t, 1, int(studentCount),
-		"student created from the phase must survive phase deletion")
+	assert.Equal(t, 1, reqCount, "the request stays")
+	_, err = testpkg.TenantQuery1(t, ctx, db, repoFactory.Enrollment().ChildByID, child.ID)
+	require.NoError(t, err, "the request child stays")
 }
 
 func TestPhaseService_DeleteImpact_ReportsCounts(t *testing.T) {
