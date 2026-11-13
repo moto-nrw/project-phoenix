@@ -9,6 +9,7 @@ import (
 
 	"github.com/go-chi/render"
 	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 	timetableModule "github.com/moto-ogs/project-phoenix/modules/timetable"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/moto-ogs/project-phoenix/tenant"
@@ -98,6 +99,11 @@ type updateTemplateRequest struct {
 	// Presence-aware: omitted keeps the stored end, null removes it. Not
 	// supported on a split ("Ab jetzt"); the split rejects it.
 	EndDate nullableStr `json:"end_date"`
+	// ReplanFuture rebuilds the series' planned occurrences from today
+	// through the end of its planning period in this request's transaction
+	// (#6838). Omitted keeps the occurrences, as a Wochennotiz-only save or
+	// a pulled-forward start needs.
+	ReplanFuture bool `json:"replan_future,omitempty"`
 }
 
 func (req *updateTemplateRequest) Bind(_ *http.Request) error {
@@ -373,7 +379,9 @@ func (rs *Resource) updateTemplate(w http.ResponseWriter, r *http.Request) {
 		common.RenderError(w, r, common.ErrorInternalServerWrap("resolve timeframe failed", err))
 		return
 	}
-	updateErr := rs.Templates.UpdateTemplate(ctx, buildUpdateTemplateInput(id, parsed, timeframeID, gradeLevelMax, rosterValidFrom))
+	command := buildUpdateTemplateInput(id, parsed, timeframeID, gradeLevelMax, rosterValidFrom)
+	command.ActorAccountID = sessiontoken.ActorAccountIDFromCtx(ctx)
+	updateErr := rs.Templates.UpdateTemplate(ctx, command)
 	if updateErr != nil {
 		// findOrCreateTimeframe runs before the recurrence service. Tenant
 		// middleware commits 4xx responses unless explicitly marked, so every
@@ -592,6 +600,7 @@ func buildUpdateTemplateInput(
 		SeriesRosterScopeWeekdays:    req.SeriesRosterScopeWeekdays,
 		SeriesRosterPrimaryChanged:   req.SeriesRosterPrimaryChanged,
 		PropagateNotesToPredecessors: req.PropagateNotesToPredecessors,
+		ReplanFuture:                 req.ReplanFuture,
 	}
 }
 

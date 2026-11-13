@@ -289,6 +289,8 @@ func templateUpdateInput(cmd timetable.UpdateTemplateCommand) TemplateUpdateInpu
 		SeriesRosterPrimaryChanged:   cmd.SeriesRosterPrimaryChanged,
 		PropagateNotesToPredecessors: cmd.PropagateNotesToPredecessors,
 		StartDate:                    cmd.StartDate,
+		ReplanFuture:                 cmd.ReplanFuture,
+		ActorAccountID:               cmd.ActorAccountID,
 	}
 }
 
@@ -361,6 +363,7 @@ func newTemplateAdministrationService(deps ports.TemplateAdministrationDependenc
 		RecurrenceLock:         deps.RecurrenceLock,
 		SickReports:            deps.SickReports,
 		Deviations:             deps.Deviations,
+		Periods:                deps.Periods,
 		SchoolClasses:          deps.SchoolClasses,
 		Staffing:               deps.Staffing,
 		Logger:                 deps.Logger,

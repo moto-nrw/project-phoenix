@@ -47,6 +47,7 @@ func TimetableTemplateDependencies(
 		EducationGroups:      rows.EducationGroups,
 		Materialization:      materialization,
 		Deviations:           deviations,
+		Periods:              rows.CalendarPeriods,
 		CareOfferings:        timetableCareOfferingChecks(careOfferings),
 		ResyncOfferingRoster: resyncOfferingRoster,
 		RecurrenceLock:       recurrenceLock,

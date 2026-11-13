@@ -81,6 +81,10 @@ type TemplateUpdateInput struct {
 	// the stored start is an idempotent no-op. Nil keeps the stored envelope
 	// untouched, exactly as before.
 	StartDate *calendar.Date
+	// ReplanFuture rebuilds the planned occurrences from today on in the
+	// same transaction (#6838); ActorAccountID attributes dropped deviations.
+	ReplanFuture   bool
+	ActorAccountID *int64
 }
 
 // UpdateTemplate replaces a template's editable fields, schedules, and roster
@@ -171,12 +175,21 @@ func (s *TemplateService) updateTemplateLocked(
 	if err != nil {
 		return err
 	}
-	// Predecessor reconciliation can wait on days. Take them before roster
-	// writes lock staff or participant rows that a cancellation also needs.
-	if err := s.lockSeriesPredecessorDays(ctx, in, state.validFrom); err != nil {
+	replan, err := s.planTemplateReplan(ctx, in, state.previousCalendarPeriodID)
+	if err != nil {
 		return err
 	}
-	if err := s.lockTemplateUpdateStaff(ctx, in); err != nil {
+	// Predecessor reconciliation and the re-plan wait on days. Take them
+	// before roster writes lock staff or participant rows that a
+	// cancellation also needs.
+	if err := s.lockSeriesPredecessorDays(ctx, in, state.validFrom, replan.days()); err != nil {
+		return err
+	}
+	replanStaff, err := s.replanStaff(ctx, replan)
+	if err != nil {
+		return err
+	}
+	if err := s.lockTemplateUpdateStaff(ctx, in, replanStaff); err != nil {
 		return err
 	}
 	if err := s.writeTemplateFields(ctx, in, state, targetsProvided); err != nil {
@@ -185,7 +198,10 @@ func (s *TemplateService) updateTemplateLocked(
 	if err := s.propagateNotesToPredecessors(ctx, in); err != nil {
 		return err
 	}
-	return s.writeTemplateRecurrenceAndRoster(ctx, in, tenantID, state)
+	if err := s.writeTemplateRecurrenceAndRoster(ctx, in, tenantID, state); err != nil {
+		return err
+	}
+	return s.replanTemplateOccurrences(ctx, in, replan)
 }
 
 // loadUpdateTarget loads the edited segment and validates the references the
