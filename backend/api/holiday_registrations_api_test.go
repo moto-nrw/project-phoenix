@@ -325,7 +325,9 @@ func assertHolidayRegistrationStatus(t *testing.T, f holidayRegistrationFixture,
 	t.Helper()
 	rec := publicJSON(t, f.public, http.MethodGet, holidayStatusPath(token), nil)
 	require.Equal(t, http.StatusOK, rec.Code, rec.Body.String())
-	for _, hidden := range []string{"Muster", "Erdnüsse", "2018-03-01", "0151", "Melle", "Oma", "example.org"} {
+	// The guardian's full phone number: its prefix alone also occurs in the
+	// microseconds of submitted_at (#6974).
+	for _, hidden := range []string{"Muster", "Erdnüsse", "2018-03-01", "0151 2345678", "Melle", "Oma", "example.org"} {
 		assert.NotContains(t, rec.Body.String(), hidden, "the status page shows no personal data beyond first names")
 	}
 	type week struct {
