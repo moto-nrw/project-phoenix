@@ -1193,6 +1193,8 @@ export const calendarPeriodsTopic = function calendarPeriodsTopic(): HelpTopic {
       "Im Betreuungsplan plant moto an Schließtagen und gesetzlichen Feiertagen keine Termine. Abgesagte Termine verschwinden aus dem Plan. Eltern bekommen keine Nachricht.",
     notes: [
       "Ein Zeitraum, den noch nichts benutzt, trägt `Nicht verwendet`.",
+      // #6845: Schichtserien halten ihren Zeitraum fest.
+      "Einen Zeitraum mit Schichtserien im Dienstplan können Sie nicht löschen, auch wenn die Serien beendet sind. Nehmen Sie stattdessen den Haken bei `Zeitraum im Plan verwenden` heraus.",
       "Ferienbetreuung an Schließtagen: Wählen Sie beim Speichern der Serie `Auch an Schließtagen planen`. Tragen Sie bei `Letzter Tag` den letzten Ferientag ein. Dann endet die Serie mit den Ferien.",
       "Schicht-Serien im Dienstplan lassen Ferien und Schließtage aus.",
       "Ein Schließtag mit `Vom Träger` hat Ihr Träger geplant. Er gilt wie Ihre eigenen Schließtage. Ändern kann ihn nur das Träger-Büro.",
@@ -2088,6 +2090,8 @@ export const dutyRosterTopic = function dutyRosterTopic(): HelpTopic {
     notes: [
       "Jede Schicht kann eine Dienstart tragen. Die Farbe kommt von der Dienstart.",
       "Über `Dienstarten verwalten` pflegen Sie die Arten.",
+      // #6845: eine genutzte Dienstart wird archiviert statt gelöscht.
+      "Löschen Sie eine Dienstart, die geplante Dienste tragen, behalten diese Dienste sie. Sie verschwindet nur aus der Auswahl für neue Dienste.",
       // ADR 0116: die ausgerichtete Ferienwoche im Dienstplan.
       "Richtet Ihre OGS eine Ferienwoche für den Träger aus, steht im Kopf jedes Tages `Ferienbetreuung`. Darunter stehen die Zahl der Kinder und die Betreuungszeit. Planen Sie dafür Schichten. In der Ansicht `Halbjahr` zeigt eine Sonne die Woche.",
       "Unter dem Plan steht `Stunden der Woche`. Dort sehen Sie je Person die Stunden je Dienstart und das Soll.",
@@ -7660,10 +7664,13 @@ export const roomsCatalogTopic = function roomsCatalogTopic(
       },
       {
         title: "Einen Raum löschen",
+        description:
+          "moto zeigt vorher, wo der Raum noch genutzt wird. Hat der Raum schon Termine oder Anwesenheiten, archiviert moto ihn. Der Verlauf behält dann den Raum.",
         steps: [
           "Öffnen Sie `Räume` und wählen Sie den Raum aus der Liste.",
           "Wählen Sie oben rechts `Löschen`.",
-          "Bestätigen Sie mit `Ja, löschen`.",
+          "Lesen Sie, was mit dem Raum passiert.",
+          "Bestätigen Sie mit `Ja, löschen` oder `Ja, archivieren`.",
         ],
       },
     ],
@@ -7688,7 +7695,7 @@ export const roomsCatalogTopic = function roomsCatalogTopic(
     ],
     troubleshootingDetails: [
       "Fehlt `Datenverwaltung` in der Seitenleiste? Dann fehlen Ihnen die Leitungsrechte. Fragen Sie Ihre Leitung.",
-      "Lässt sich ein Raum nicht löschen? Dann ist er gerade belegt. Oder ein Betreuungsangebot braucht ihn.",
+      "Lässt sich ein Raum nicht löschen? Dann wird er noch genutzt. Der Dialog nennt Aktivitäten, Termine, Gruppen und Geräte. Wählen Sie dort zuerst einen anderen Raum.",
       ...(tracksRooms
         ? [
             "Meldet moto oder das Tablet, der Raum ist voll? Dann ist `Maximale Belegung` erreicht. Erhöhen Sie die Zahl hier. Ist dagegen die Aktivität voll, ändern Sie `Maximale Teilnehmer` unter `Aktivitäten`.",

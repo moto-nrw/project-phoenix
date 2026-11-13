@@ -397,6 +397,12 @@
       "legacy": "workforce.shift_series_week_cycle_missing"
     },
     {
+      "code": "workforce.shift_type_archived",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "workforce.shift_type_archived"
+    },
+    {
       "code": "workforce.shift_type_inactive",
       "class": "business_rejection",
       "parameters": [],

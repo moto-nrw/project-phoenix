@@ -647,7 +647,7 @@ func (s *Store) CreateShiftTypeIfAbsent(ctx context.Context, value domain.ShiftT
 	result, err := db.NewInsert().
 		Model(row).
 		ModelTableExpr(tableShiftTypes).
-		On("CONFLICT (tenant_id, LOWER(name)) DO NOTHING").
+		On("CONFLICT (tenant_id, LOWER(name)) WHERE archived_at IS NULL DO NOTHING").
 		Exec(ctx)
 	stats.StatementDuration = time.Since(started)
 	if err != nil {
@@ -673,6 +673,7 @@ func (s *Store) UpdateShiftType(ctx context.Context, value domain.ShiftType) (do
 		Column("name", "color", "description", "is_active").
 		Set("updated_at = NOW()").
 		WherePK().
+		Where(`"shift_type".archived_at IS NULL`).
 		Returning("*")
 	query = scopeQuery(scope, query, `"shift_type".tenant_id = ?`)
 	stats := domain.OperationStats{Queries: 1}

@@ -39,6 +39,7 @@ import {
   PERIOD_TYPE_LABELS,
   type PeriodType,
   formatPeriodUsage,
+  formatShiftSeriesCount,
 } from "~/lib/calendar-period-helpers";
 import { createLogger } from "~/lib/logger";
 import { FormFieldset } from "~/components/ui/form-fieldset";
@@ -65,9 +66,10 @@ interface CalendarPeriodModalProps {
   /** Optional defaults used when creating from a visible planner week. */
   createDefaults?: Partial<FormState>;
   /**
-   * Advisory reference counts for the edited period. When provided, the
-   * delete confirmation names the concrete usage instead of a generic
-   * warning. Deleting never blocks — all FKs are ON DELETE SET NULL.
+   * Reference counts for the edited period. When provided, the delete
+   * confirmation names the concrete usage instead of a generic warning.
+   * Most links are unlinked on delete; Dienstplan series are not: while one
+   * exists the period cannot be deleted (#6845).
    */
   usage?: {
     enrollmentPhaseCount: number;
@@ -76,6 +78,7 @@ interface CalendarPeriodModalProps {
     studentEnrollmentCount: number;
     supervisorCount: number;
     activityInstanceCount: number;
+    staffShiftSeriesCount?: number;
   };
   /**
    * Enables the "Verknüpfte Anmeldephasen" section (edit mode only) so the
@@ -204,6 +207,10 @@ export function CalendarPeriodModal({
   const deleteWarning = usageText
     ? `Dieser Zeitraum wird von ${usageText} verwendet. Beim Löschen werden diese Verknüpfungen entfernt.${groupDeleteImpact} Die Anmeldephasen, Vorlagen und Termine selbst bleiben erhalten.`
     : "Beim Löschen werden bestehende Verknüpfungen zu Anmeldephasen, Aktivitätsvorlagen und Regelterminen entfernt.";
+  // Schichtserien halten ihren Zeitraum fest, auch beendete (#6845). Der
+  // Zeitraum bleibt dann stehen; ausschalten geht weiterhin.
+  const shiftSeriesCount = usage?.staffShiftSeriesCount ?? 0;
+  const deleteBlocked = shiftSeriesCount > 0;
   const deleteConflictHint =
     "Der Server verweigert das Löschen, wenn dadurch eine Betreuungsangebot-Verknüpfung ungültig würde. Auch doppelte aktive Kinder- oder Personalzuordnungen ohne Zeitraum können das Löschen verhindern.";
 
@@ -676,17 +683,35 @@ export function CalendarPeriodModal({
           isOpen={deleteConfirmOpen}
           title="Kalenderzeitraum löschen"
           description={
-            <p>
-              Der Kalenderzeitraum{" "}
-              <span className="font-medium text-gray-900">
-                „{initial.name}“
-              </span>{" "}
-              wird gelöscht. {deleteWarning}
-            </p>
+            deleteBlocked ? (
+              <p>
+                Der Kalenderzeitraum{" "}
+                <span className="font-medium text-gray-900">
+                  „{initial.name}“
+                </span>{" "}
+                lässt sich nicht löschen. Im Dienstplan nutzen ihn{" "}
+                {formatShiftSeriesCount(shiftSeriesCount)}.
+              </p>
+            ) : (
+              <p>
+                Der Kalenderzeitraum{" "}
+                <span className="font-medium text-gray-900">
+                  „{initial.name}“
+                </span>{" "}
+                wird gelöscht. {deleteWarning}
+              </p>
+            )
           }
           warningSlot={
-            <Alert type="warning" announce="off" message={deleteConflictHint} />
+            <Alert
+              type="warning"
+              announce="off"
+              message={
+                deleteBlocked ? SHIFT_SERIES_BLOCK_HINT : deleteConflictHint
+              }
+            />
           }
+          confirmDisabled={deleteBlocked}
           gate={{ mode: "twoStep", firstStepLabel: "Löschen" }}
           onConfirm={handleDelete}
           onClose={() => {
@@ -707,6 +732,11 @@ interface FieldProps {
   required?: boolean;
   children: React.ReactNode;
 }
+
+// #6845: Schichtserien bleiben mit ihrem Zeitraum verbunden, auch wenn sie
+// beendet sind. Ausschalten ist der Weg, der dann bleibt.
+const SHIFT_SERIES_BLOCK_HINT =
+  "Schichtserien bleiben mit ihrem Zeitraum verbunden, auch beendete. Gilt der Zeitraum nicht mehr? Dann nehmen Sie den Haken bei „Zeitraum im Plan verwenden“ heraus und speichern.";
 
 // #3594: Hinweis bei der Art „Ferien“. Der Zeitraum sagt keine Termine ab
 // und setzt kein Soll auf null; das tut nur ein Schließtag.

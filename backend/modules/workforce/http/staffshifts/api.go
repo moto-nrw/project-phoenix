@@ -410,6 +410,7 @@ var failureRules = []failureRule{
 	{Target: workforce.ErrInvalidStaffShift, Kind: FailureInvalid},
 	{Target: workforce.ErrShiftTypeNotFound, Kind: FailureInvalid},
 	{Target: workforce.ErrShiftTypeInactive, Kind: FailureInvalid},
+	{Target: workforce.ErrShiftTypeArchived, Kind: FailureConflict},
 	{Target: workforce.ErrShiftSeriesNotFound, Kind: FailureNotFound},
 	{Target: workforce.ErrInvalidShiftSeries, Kind: FailureInvalid},
 	{Target: workforce.ErrPlanExportInvalid, Kind: FailureInvalid},

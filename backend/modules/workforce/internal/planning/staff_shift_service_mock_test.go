@@ -176,7 +176,9 @@ func (s *stubShiftTypeService) UpdateShiftType(_ context.Context, t *workforce.S
 	return t, nil
 }
 
-func (s *stubShiftTypeService) DeleteShiftType(context.Context, int64) error { return nil }
+func (s *stubShiftTypeService) DeleteShiftType(context.Context, int64) (workforce.ShiftTypeRemoval, error) {
+	return workforce.ShiftTypeRemovalDeleted, nil
+}
 
 func (s *stubShiftTypeService) CreateDefaultShiftTypes(context.Context) ([]*workforce.ShiftTypeRecord, error) {
 	return nil, nil

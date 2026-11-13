@@ -27,6 +27,11 @@ func (r EducationRooms) FindRoom(ctx context.Context, id int64) (*educationRepo.
 	if err != nil {
 		return nil, err
 	}
+	// An archived room only keeps its history; no group may move into it
+	// (#6845).
+	if room.ArchivedAt != nil {
+		return nil, facilities.ErrRoomNotFound
+	}
 	return &educationRepo.RoomProjection{
 		ID: room.ID, CreatedAt: room.CreatedAt, UpdatedAt: room.UpdatedAt,
 		Name: room.Name, Building: room.Building, Floor: room.Floor,

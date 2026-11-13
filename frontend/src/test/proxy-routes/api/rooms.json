@@ -1,4 +1,7 @@
 {
+  "api/rooms/[id]/removal-impact": [
+    "GET tenant /api/rooms/id%2F1/removal-impact"
+  ],
   "api/rooms/by-category": [
     "GET tenant /api/rooms/by-category raw"
   ]

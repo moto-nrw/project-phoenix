@@ -28,6 +28,8 @@ func composeRooms(t *testing.T) (*bun.DB, RoomsComposition, func(chi.Router, fun
 	svcPeople := api.NewActiveTestPeople(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	svcEducation := api.NewActiveTestEducation(testpkg.NewDatabase(t, db), testpkg.TenantRuntime(t, db))
 	prefetch, constraintViolation := api.RoomsHTTPBindingsForTest()
+	references, err := api.NewRoomReferencesForTest(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
 	return db, RoomsComposition{
 		Dependencies: httpadapter.Dependencies{
 			Facilities:          svcFacilities.Facilities,
@@ -35,7 +37,8 @@ func composeRooms(t *testing.T) (*bun.DB, RoomsComposition, func(chi.Router, fun
 			UserContext:         svcCaller, Active: svcPresence.Active, Users: api.NewRoomSnapshotPeople(svcPeople.Users), Education: svcEducation.Education,
 			ListExport: listExport,
 		},
-		Settings: svcSettings.Settings,
-		Usage:    svcFacilities.RoomUsage,
+		Settings:   svcSettings.Settings,
+		Usage:      svcFacilities.RoomUsage,
+		References: references,
 	}, api.ProtectedTenantRoutes, constraintViolation
 }

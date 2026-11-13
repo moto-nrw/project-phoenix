@@ -179,7 +179,8 @@ export function useDienstplanData(
     isLoading: shiftTypesLoading,
     mutate: mutateShiftTypes,
   } = useSWRAuth<ShiftType[]>("dienstplan-shift-types", () =>
-    shiftTypeService.getShiftTypes(),
+    // Auch entfernte Dienstarten: geplante Dienste tragen sie weiter (#6845).
+    shiftTypeService.getShiftTypes({ includeArchived: true }),
   );
 
   const typesById = useMemo(
