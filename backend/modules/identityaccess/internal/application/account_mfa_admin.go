@@ -153,7 +153,7 @@ func (f *AccountMFAFlows) setTenantOverride(ctx context.Context, actorType strin
 			}
 		}
 		// The school's ledger row commits with the override or not at all.
-		return f.appendAuthEvent(txCtx, domain.AuthEvent{
+		return f.recordAuthEvent(txCtx, domain.AuthEvent{
 			AccountID: targetAccountID, TenantID: targetTenantID, Type: domain.AuthEventMFAAdminOverride,
 			Success: true, IPAddress: domain.MFAAuditFallbackIP,
 			MFA: &domain.MFAEvidence{Admin: &domain.MFAAdminEvidence{
@@ -317,7 +317,7 @@ type adminOverrideFailure struct {
 }
 
 func (f *AccountMFAFlows) recordAdminFailure(ctx context.Context, failure adminOverrideFailure) {
-	f.recordAuthEvent(ctx, domain.AuthEvent{
+	f.observeAuthEvent(ctx, domain.AuthEvent{
 		AccountID: failure.TargetAccountID, TenantID: failure.TargetTenantID,
 		Type: domain.AuthEventMFAAdminOverride, IPAddress: domain.MFAAuditFallbackIP,
 		ErrorMessage: failure.ErrMsg,

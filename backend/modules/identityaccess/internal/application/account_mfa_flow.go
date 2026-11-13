@@ -271,7 +271,7 @@ func (f *AccountMFAFlows) Disable(ctx context.Context, accountID int64, record .
 				return err
 			}
 		}
-		return f.appendAuthEvent(txCtx, disabled)
+		return f.recordAuthEvent(txCtx, disabled)
 	})
 }
 
@@ -416,7 +416,7 @@ func (f *AccountMFAFlows) IssueTrustedDevice(ctx context.Context, accountID, ten
 		if err != nil {
 			return fmt.Errorf("persist trusted device: %w", err)
 		}
-		if err := f.appendAuthEvent(txCtx, domain.AuthEvent{
+		if err := f.recordAuthEvent(txCtx, domain.AuthEvent{
 			AccountID: accountID, TenantID: tenantID, Type: domain.AuthEventMFATrustedDeviceAdded,
 			Success: true, IPAddress: domain.MFAAuditIP(ip), MFA: &domain.MFAEvidence{DeviceID: stored.ID},
 		}); err != nil {
@@ -503,26 +503,26 @@ func (f *AccountMFAFlows) notifyTrustedDeviceAdded(ctx context.Context, accountI
 // ===== Audit =====
 
 func (f *AccountMFAFlows) recordFailure(ctx context.Context, accountID, tenantID int64, reason string) {
-	f.recordAuthEvent(ctx, domain.AuthEvent{
+	f.observeAuthEvent(ctx, domain.AuthEvent{
 		AccountID: accountID, TenantID: tenantID, Type: domain.AuthEventMFAFailed,
 		IPAddress: domain.MFAAuditFallbackIP, ErrorMessage: reason,
 	})
 }
 
-// recordAuthEvent files an attempt the flow refused or observed: a wrong
+// observeAuthEvent files an attempt the flow refused or observed: a wrong
 // code, a lockout, a refused admin action, a verified code. The refusal or
 // the verification stands whether or not the row is written, so a failed
 // append is logged, not returned (#6989). A sent code belongs here too.
-// Changes to what protects an account use appendAuthEvent instead.
-func (f *AccountMFAFlows) recordAuthEvent(ctx context.Context, event domain.AuthEvent) {
-	if err := f.appendAuthEvent(ctx, event); err != nil {
+// Changes to what protects an account use recordAuthEvent instead.
+func (f *AccountMFAFlows) observeAuthEvent(ctx context.Context, event domain.AuthEvent) {
+	if err := f.recordAuthEvent(ctx, event); err != nil {
 		f.logger.Error("failed to audit mfa event",
 			slog.String("event_type", event.Type),
 			slog.String("error", err.Error()))
 	}
 }
 
-// appendAuthEvent appends to the authentication ledger and reports a failed
+// recordAuthEvent appends to the authentication ledger and reports a failed
 // append. A change to an account's second factor writes it in the
 // transaction of the change and fails with it (#6989): disabling the factor,
 // an administrator's override and a remembered device never commit without
@@ -531,7 +531,7 @@ func (f *AccountMFAFlows) recordAuthEvent(ctx context.Context, event domain.Auth
 // flow runs outside the tenant middleware and its events would be dropped
 // without an explicit school. A portal without a school has no ledger to
 // write to (see schoolLedgerKey).
-func (f *AccountMFAFlows) appendAuthEvent(ctx context.Context, event domain.AuthEvent) error {
+func (f *AccountMFAFlows) recordAuthEvent(ctx context.Context, event domain.AuthEvent) error {
 	if event.TenantID == 0 {
 		event.TenantID = f.runtime.TenantID(ctx)
 	}
@@ -620,7 +620,7 @@ func (f *AccountMFAFlows) activateDeliveredChallenge(ctx context.Context, challe
 		}
 		// A sent code changes no protection of the account; the session it
 		// leads to is audited when it is minted (#6844).
-		f.recordAuthEvent(txCtx, domain.AuthEvent{AccountID: challenge.AccountID, TenantID: challenge.TenantID, Type: domain.AuthEventMFAEmailSent, Success: true, IPAddress: domain.MFAAuditIP(challenge.IPAddress), MFA: &domain.MFAEvidence{ChallengeID: challenge.ID}})
+		f.observeAuthEvent(txCtx, domain.AuthEvent{AccountID: challenge.AccountID, TenantID: challenge.TenantID, Type: domain.AuthEventMFAEmailSent, Success: true, IPAddress: domain.MFAAuditIP(challenge.IPAddress), MFA: &domain.MFAEvidence{ChallengeID: challenge.ID}})
 		return nil
 	})
 }
@@ -681,7 +681,7 @@ func (f *AccountMFAFlows) completeChallengeVerification(ctx context.Context, cla
 	if credential, credFound, credErr := f.records.FindCredential(ctx, claims.AccountID); credErr == nil && credFound && credential.ID > 0 {
 		_ = f.records.TouchCredential(ctx, credential.ID, now)
 	}
-	f.recordAuthEvent(ctx, domain.AuthEvent{
+	f.observeAuthEvent(ctx, domain.AuthEvent{
 		AccountID: claims.AccountID, TenantID: claims.TenantID, Type: domain.AuthEventMFAVerified,
 		Success: true, IPAddress: domain.MFAAuditFallbackIP,
 	})

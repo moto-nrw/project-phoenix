@@ -27,7 +27,7 @@ func (f *AccountMFAFlows) disableForAdmin(ctx context.Context, actorType string,
 		} else if err := f.requireSchoolHoldsAccount(txCtx, schoolID, accountID); err != nil {
 			return err
 		}
-		if err := f.appendAuthEvent(txCtx, overridden); err != nil {
+		if err := f.recordAuthEvent(txCtx, overridden); err != nil {
 			return err
 		}
 		return f.notifyAdminReset(txCtx, accountID, byOperator, resetAt)

@@ -226,10 +226,7 @@ func (p *OperatorProvisioning) RevokeOperatorInvitationByActor(ctx context.Conte
 		return errOperatorProvisioningUnavailable
 	}
 	ctx = bindRuntime(p.attach, ctx)
-	return operatorProvisioningError(p.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-		if err := p.tokens.RevokeInvitation(txCtx, invitationID); err != nil {
-			return err
-		}
+	return operatorProvisioningError(p.tokens.RevokeInvitation(ctx, invitationID, func(txCtx context.Context) error {
 		return p.record(txCtx, domain.OperatorAuditEntry{
 			OperatorID: actorID, Action: domain.OperatorAuditActionInvitationRevoked,
 			ResourceType: domain.OperatorAuditResourceInvitation, ResourceID: &invitationID, IPAddress: ipAddress,
@@ -313,27 +310,34 @@ func (p *OperatorProvisioning) InitiateOperatorEmailChange(ctx context.Context, 
 		if newEmail == operator.Email {
 			return identityaccess.ErrOperatorEmailChangeSameEmail
 		}
-		maskedNewEmail := domain.MaskEmail(newEmail)
 
 		return p.runtime.WithAdminTx(ctx, func(txCtx context.Context) error {
-			var change domain.OperatorEmailChange
-			addressTaken, err := p.prepareOperatorEmailChange(txCtx, request, operator, provenHash, newEmail, maskedNewEmail, &change)
-			if err != nil {
-				return err
-			}
-			if addressTaken {
-				p.logger.Debug("email change skipped: address already in use",
-					slog.Int64("operator_id", request.OperatorID),
-					slog.String("new_email", maskedNewEmail),
-				)
-				return nil
-			}
-			return p.record(txCtx, domain.OperatorAuditEntry{
-				OperatorID: request.OperatorID, Action: domain.OperatorAuditActionEmailChangeStarted,
-				ResourceType: domain.OperatorAuditResourceOperator, ResourceID: &request.OperatorID, IPAddress: request.IPAddress,
-				EmailChange: &domain.OperatorEmailChangeEvidence{MaskedNewEmail: maskedNewEmail},
-			})
+			return p.initiateEmailChangeInAdmin(txCtx, request, operator, provenHash, newEmail)
 		})
+	})
+}
+
+// initiateEmailChangeInAdmin creates and mails the link and files the ledger
+// entry inside the administrative transaction. A taken address ends here
+// without a link, a mail or an entry.
+func (p *OperatorProvisioning) initiateEmailChangeInAdmin(txCtx context.Context, request identityaccess.OperatorEmailChangeRequest, operator domain.Operator, provenHash, newEmail string) error {
+	maskedNewEmail := domain.MaskEmail(newEmail)
+	var change domain.OperatorEmailChange
+	addressTaken, err := p.prepareOperatorEmailChange(txCtx, request, operator, provenHash, newEmail, maskedNewEmail, &change)
+	if err != nil {
+		return err
+	}
+	if addressTaken {
+		p.logger.Debug("email change skipped: address already in use",
+			slog.Int64("operator_id", request.OperatorID),
+			slog.String("new_email", maskedNewEmail),
+		)
+		return nil
+	}
+	return p.record(txCtx, domain.OperatorAuditEntry{
+		OperatorID: request.OperatorID, Action: domain.OperatorAuditActionEmailChangeStarted,
+		ResourceType: domain.OperatorAuditResourceOperator, ResourceID: &request.OperatorID, IPAddress: request.IPAddress,
+		EmailChange: &domain.OperatorEmailChangeEvidence{MaskedNewEmail: maskedNewEmail},
 	})
 }
 

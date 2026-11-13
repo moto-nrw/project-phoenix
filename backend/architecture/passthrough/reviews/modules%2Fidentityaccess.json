@@ -891,6 +891,11 @@
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
+      "decision": "0090",
+      "id": "modules/identityaccess/internal/application/OperatorProvisioning.RevokeOperatorInvitationByActor",
+      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
+    },
+    {
       "decision": "0177",
       "id": "modules/identityaccess/internal/application/OperatorProvisioning.ValidateOperatorInvitation",
       "reason": "ADR 0177: the flow helper takes over nil guard, runtime binding and translation; ADR 0075 eligibility unchanged."
@@ -968,11 +973,6 @@
     {
       "decision": "0090",
       "id": "modules/identityaccess/internal/application/OperatorTokens.RevokeExpiredEmailChanges",
-      "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
-    },
-    {
-      "decision": "0090",
-      "id": "modules/identityaccess/internal/application/OperatorTokens.RevokeInvitation",
       "reason": "Exact evidence; ADR 0075 eligibility unchanged; semantic form review pending."
     },
     {
