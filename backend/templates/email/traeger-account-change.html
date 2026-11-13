@@ -31,7 +31,11 @@
         <p>Jetzt: <strong>{{.RolesAfter}}</strong></p>
     </div>
 
+    {{if .Withdrawn}}
+    <p>Sie wurden deshalb im Träger-Portal abgemeldet. Melden Sie sich neu an.</p>
+    {{else}}
     <p>Die neuen Rollen gelten nach wenigen Minuten.</p>
+    {{end}}
     {{end}}
 
     {{if not .Self}}

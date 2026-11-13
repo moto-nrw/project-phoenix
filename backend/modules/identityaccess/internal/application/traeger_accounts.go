@@ -468,7 +468,7 @@ func (t *TraegerAccounts) replaceTraegerRoles(ctx context.Context, organizationI
 	if _, err := t.store.ReplaceTraegerRoles(ctx, organizationID, accountID, after); err != nil {
 		return err
 	}
-	if !slices.ContainsFunc(before, func(role string) bool { return !slices.Contains(after, role) }) {
+	if !identityaccess.TraegerRolesWithdrawn(before, after) {
 		return nil
 	}
 	_, err := t.store.DeleteTraegerAccountSessions(ctx, organizationID, accountID)
