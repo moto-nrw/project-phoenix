@@ -137,7 +137,7 @@ export type HolidayRegistrationMailKind =
  * What became of a mail that did not reach the parents (#6737): moto gave it
  * up or it came back, the address is blocked, or the outcome is unknown.
  */
-export type HolidayRegistrationMailState = "failed" | "blocked" | "unknown";
+type HolidayRegistrationMailState = "failed" | "blocked" | "unknown";
 
 export interface HolidayRegistrationMailProblem {
   readonly kind: HolidayRegistrationMailKind;

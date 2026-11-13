@@ -66,7 +66,7 @@ const MAIL_NAMES: Record<HolidayRegistrationMailKind, string> = {
 };
 
 /** One sentence per mail: which mail and what became of it. */
-export function holidayMailProblemText(
+function holidayMailProblemText(
   problem: HolidayRegistrationMailProblem,
 ): string {
   const mail = MAIL_NAMES[problem.kind];
