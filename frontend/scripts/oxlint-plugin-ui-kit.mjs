@@ -6134,6 +6134,21 @@ const TOOLTIP_SCOPE = [
   "src/components/timetable/betreuungsplan-view.tsx",
   "src/components/timetable/booking-leftover-hints.tsx",
   "src/components/timetable/bulk-substitution-modal.tsx",
+  // Kommunikation: Nachrichten, Ankündigungen, Umfragen (#6754).
+  "src/app/[tenant]/(protected)/messages/",
+  "src/app/[tenant]/(protected)/parent-announcements/",
+  "src/app/[tenant]/(protected)/umfragen/",
+  "src/components/announcements/announcement-detail.tsx",
+  "src/components/announcements/announcement-lifecycle-dialogs.tsx",
+  "src/components/announcements/announcement-reminder-dialog.tsx",
+  "src/components/announcements/declaration-status-panel.tsx",
+  "src/components/announcements/letter-status-panel.tsx",
+  "src/components/announcements/parent-target-picker.tsx",
+  "src/components/messaging/chat-bubble.tsx",
+  "src/components/messaging/message-composer.tsx",
+  "src/components/messaging/new-group-message-modal.tsx",
+  "src/components/messaging/new-message-modal.tsx",
+  "src/components/messaging/pickup-request-detail-modal.tsx",
 ];
 
 function inTooltipScope(key, scope = TOOLTIP_SCOPE) {

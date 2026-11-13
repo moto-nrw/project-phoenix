@@ -77,6 +77,7 @@ function GroupMessagesContent() {
       variant="primary"
       size="md"
       onClick={() => setComposeOpen(true)}
+      tooltip="Öffnet ein Fenster für eine Nachricht an eine ganze Gruppe."
     >
       Neue Gruppennachricht
     </Button>

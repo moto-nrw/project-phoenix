@@ -104,7 +104,7 @@ describe("LetterStatusPanel mail state (#5934)", () => {
     await waitFor(() =>
       expect(
         screen.getByRole("button", { name: "Fehlgeschlagene erneut senden" }),
-      ).toBeDisabled(),
+      ).toHaveAttribute("aria-disabled", "true"),
     );
   });
 
@@ -169,7 +169,7 @@ describe("LetterStatusPanel mail state (#5934)", () => {
     await waitFor(() =>
       expect(
         screen.getByRole("button", { name: "Fehlgeschlagene erneut senden" }),
-      ).toBeDisabled(),
+      ).toHaveAttribute("aria-disabled", "true"),
     );
   });
 
@@ -227,7 +227,7 @@ describe("LetterStatusPanel mail state (#5934)", () => {
     await waitFor(() =>
       expect(
         screen.getByRole("button", { name: "Fehlgeschlagene erneut senden" }),
-      ).toBeDisabled(),
+      ).toHaveAttribute("aria-disabled", "true"),
     );
   });
 
