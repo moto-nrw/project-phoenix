@@ -79,6 +79,7 @@ import {
   answerDiffersFromSeries,
   applyAnswer,
   defaultAnswerScope,
+  seriesAnswerReplacesDates,
   type AnswerScope,
 } from "~/lib/calendar-answers";
 import { AnswerScopeChoice } from "~/components/calendar/answer-scope-choice";
@@ -559,6 +560,13 @@ function CalendarListEvent({
         ? t("answeredDeclined")
         : null;
   const pending = state === "needsResponse";
+  // Die Knöpfe der Zeile beantworten die ganze Reihe, solange sie noch keine
+  // Antwort für einen einzelnen Termin hat. Sonst nur diesen Termin, damit
+  // sie keine Einzelantwort überschreiben (#6987).
+  const rowAnswersSeries =
+    event.recurring === true && defaultAnswerScope(event) === "series";
+  const rowOccurrenceDate =
+    event.recurring && !rowAnswersSeries ? event.occurrence_date : undefined;
 
   return (
     <article
@@ -612,7 +620,7 @@ function CalendarListEvent({
       {pending ? (
         <div className="flex flex-wrap items-center justify-between gap-2 px-3 pb-3">
           <span className="text-moto-orange-strong text-xs leading-5 font-medium">
-            {event.recurring
+            {rowAnswersSeries
               ? t("responseRequiredSeries")
               : t("responseRequired")}
           </span>
@@ -622,7 +630,7 @@ function CalendarListEvent({
               variant="primary"
               size="md"
               isLoading={responding}
-              onClick={() => void respondInRow("accepted")}
+              onClick={() => void respondInRow("accepted", rowOccurrenceDate)}
             >
               {t("accept")}
             </Button>
@@ -631,7 +639,7 @@ function CalendarListEvent({
               variant="outline_danger"
               size="md"
               disabled={responding}
-              onClick={() => void respondInRow("declined")}
+              onClick={() => void respondInRow("declined", rowOccurrenceDate)}
             >
               {t("decline")}
             </Button>
@@ -1159,10 +1167,9 @@ function CalendarEventRespond({
           seriesLabel={t("answerScope.series")}
           occurrenceHint={occurrenceScopeHint(event, t)}
           seriesHint={
-            defaultAnswerScope(event) === "series" &&
-            !answerDiffersFromSeries(event)
-              ? t("answerScope.seriesHint")
-              : t("answerScope.seriesHintReplaces")
+            seriesAnswerReplacesDates(event)
+              ? t("answerScope.seriesHintReplaces")
+              : t("answerScope.seriesHint")
           }
         />
       ) : null}
@@ -1196,7 +1203,7 @@ function occurrenceScopeHint(
   t: ReturnType<typeof useCareTermTranslations>,
 ): string {
   const series = event.series_response_status;
-  if (answerDiffersFromSeries(event) || series === undefined) {
+  if (seriesAnswerReplacesDates(event) || series === undefined) {
     return t("answerScope.occurrenceHintOthers");
   }
   if (series === "accepted" || series === "declined") {

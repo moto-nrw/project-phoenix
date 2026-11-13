@@ -40,9 +40,9 @@
     "occurrenceHintOpen": "Datat e tjera të serisë mbeten pa përgjigje.",
     "occurrenceHintKeeps": "Për datat e tjera vlen ende: {answer}.",
     "seriesHint": "Përgjigjja juaj vlen për të gjitha datat e kësaj serie.",
-    "seriesHintReplaces": "Vlen për çdo datë të serisë, edhe për ato me përgjigje."
+    "seriesHintReplaces": "Atëherë përgjigjja vlen për të gjitha datat, edhe për ato me përgjigje më vete."
   },
-  "onlyThisDate": "Vetëm kjo datë",
+  "onlyThisDate": "Vetëm për këtë datë",
   "changeAnswer": "Ndrysho përgjigjen",
   "acceptedOn": "U pranua për {date}.",
   "declinedOn": "U refuzua për {date}.",

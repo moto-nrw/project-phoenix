@@ -39,13 +39,18 @@ func (s *service) GetStaffAppointmentOverview(ctx context.Context, appointmentID
 	if !canStaffViewOverview(appointment, staff.ID, isRecipient) {
 		return nil, ErrForbidden
 	}
+	occurrenceDate, err = s.answeredOccurrence(ctx, appointment, occurrenceDate)
+	if err != nil {
+		return nil, err
+	}
 	return s.buildAppointmentOverview(ctx, appointment, occurrenceDate, recipients, recipients)
 }
 
 // buildAppointmentOverview counts the answers of all recipients and names only
 // the listed ones, so names of unlisted recipients are never loaded. With an
 // occurrence date it shows the answers for that date of a series (#6987),
-// without one the answers for the whole series.
+// without one the answers for the whole series. The time of an answer is
+// kept for the whole series only: a row stores one time for all its answers.
 func (s *service) buildAppointmentOverview(ctx context.Context, appointment *appointmentcap.Appointment, occurrenceDate appointmentcap.Date, recipients, listed []*appointmentcap.AppointmentRecipient) (*AppointmentOverview, error) {
 	staffIDs, guardianIDs := recipientPersonIDs(listed)
 	staffByID, err := s.cfg.StaffRepo.FindWithPersonByIDs(ctx, staffIDs)
@@ -59,13 +64,16 @@ func (s *service) buildAppointmentOverview(ctx context.Context, appointment *app
 
 	attendees := make([]AppointmentAttendee, 0, len(listed))
 	for _, recipient := range listed {
-		attendees = append(attendees, AppointmentAttendee{
+		attendee := AppointmentAttendee{
 			RecipientID:   formatID(recipient.ID),
 			RecipientType: recipient.RecipientType,
 			Name:          attendeeName(recipient, staffByID, guardiansByID),
-			Status:        answerOn(recipient, occurrenceDate),
-			RespondedAt:   recipient.RespondedAt,
-		})
+			Status:        recipient.StatusOn(occurrenceDate),
+		}
+		if occurrenceDate.IsZero() {
+			attendee.RespondedAt = recipient.RespondedAt
+		}
+		attendees = append(attendees, attendee)
 	}
 	sort.SliceStable(attendees, func(i, j int) bool {
 		if attendees[i].RecipientType != attendees[j].RecipientType {
@@ -84,19 +92,10 @@ func (s *service) buildAppointmentOverview(ctx context.Context, appointment *app
 	}, nil
 }
 
-// answerOn is the recipient's answer for the occurrence date, or for the
-// whole series without one.
-func answerOn(recipient *appointmentcap.AppointmentRecipient, occurrenceDate appointmentcap.Date) string {
-	if occurrenceDate.IsZero() {
-		return recipient.Status
-	}
-	return recipient.StatusOn(occurrenceDate)
-}
-
 func countResponses(recipients []*appointmentcap.AppointmentRecipient, occurrenceDate appointmentcap.Date) AppointmentResponseCounts {
 	var counts AppointmentResponseCounts
 	for _, recipient := range recipients {
-		switch answerOn(recipient, occurrenceDate) {
+		switch recipient.StatusOn(occurrenceDate) {
 		case appointmentcap.ResponseStatusAccepted:
 			counts.Accepted++
 		case appointmentcap.ResponseStatusDeclined:

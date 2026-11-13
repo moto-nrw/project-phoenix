@@ -40,9 +40,9 @@
     "occurrenceHintOpen": "Pozostałe terminy serii pozostają otwarte.",
     "occurrenceHintKeeps": "Dla pozostałych terminów nadal obowiązuje: {answer}.",
     "seriesHint": "Twoja odpowiedź dotyczy wszystkich terminów z tej serii.",
-    "seriesHintReplaces": "Dotyczy każdego terminu serii, także tych już z odpowiedzią."
+    "seriesHintReplaces": "Odpowiedź będzie wtedy dotyczyć wszystkich terminów, także tych z osobną odpowiedzią."
   },
-  "onlyThisDate": "Tylko ten termin",
+  "onlyThisDate": "Tylko na ten termin",
   "changeAnswer": "Zmień odpowiedź",
   "acceptedOn": "Przyjęto na {date}.",
   "declinedOn": "Odrzucono na {date}.",

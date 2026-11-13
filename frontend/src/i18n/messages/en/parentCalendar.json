@@ -40,9 +40,9 @@
     "occurrenceHintOpen": "The other dates of the series stay open.",
     "occurrenceHintKeeps": "The other dates still have: {answer}.",
     "seriesHint": "Your reply applies to every date in this series.",
-    "seriesHintReplaces": "Applies to every date of the series, also those you already answered."
+    "seriesHintReplaces": "Your reply then applies to every date, also those answered one by one."
   },
-  "onlyThisDate": "Only this date",
+  "onlyThisDate": "Only for this date",
   "changeAnswer": "Change reply",
   "acceptedOn": "Accepted for {date}.",
   "declinedOn": "Declined for {date}.",

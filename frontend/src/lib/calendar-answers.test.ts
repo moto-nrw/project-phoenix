@@ -4,6 +4,7 @@ import {
   answerSavedMessage,
   applyAnswer,
   defaultAnswerScope,
+  seriesAnswerReplacesDates,
 } from "./calendar-answers";
 import type { CalendarEvent } from "./personal-calendar-api";
 
@@ -118,7 +119,8 @@ describe("applyAnswer", () => {
     });
     expect(a?.response_status).toBe("declined");
     expect(a?.series_response_status).toBe("accepted");
-    expect(b).toBe(second);
+    expect(b?.response_status).toBe("declined");
+    expect(b?.has_occurrence_answers).toBe(true);
     expect(c).toBe(other);
   });
 
@@ -140,5 +142,32 @@ describe("answerSavedMessage", () => {
       "Ihre Absage für Mittwoch, 25.11. ist gespeichert.",
     );
     expect(answerSavedMessage("accepted")).toBe("Ihre Zusage ist gespeichert.");
+  });
+});
+
+// #6987 review: a series without an answer, but with an answer for one
+// date, must not offer to overwrite that date by default.
+describe("dates answered on their own", () => {
+  const open = cafe({ has_occurrence_answers: true });
+
+  it("answers only this date by default", () => {
+    expect(defaultAnswerScope(open)).toBe("occurrence");
+    expect(seriesAnswerReplacesDates(open)).toBe(true);
+    expect(seriesAnswerReplacesDates(cafe())).toBe(false);
+  });
+
+  it("tracks whether a series answer would replace answers for dates", () => {
+    const [afterDate] = applyAnswer([cafe()], {
+      recipientId: "81",
+      occurrenceDate: "2026-11-25",
+      status: "declined",
+    });
+    expect(afterDate?.has_occurrence_answers).toBe(true);
+    expect(afterDate?.response_status).toBe("pending");
+    const [afterSeries] = applyAnswer([open], {
+      recipientId: "81",
+      status: "accepted",
+    });
+    expect(afterSeries?.has_occurrence_answers).toBe(false);
   });
 });

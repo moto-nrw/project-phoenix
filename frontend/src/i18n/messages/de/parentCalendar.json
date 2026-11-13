@@ -40,9 +40,9 @@
     "occurrenceHintOpen": "Die anderen Termine der Reihe bleiben offen.",
     "occurrenceHintKeeps": "Für die anderen Termine gilt weiter: {answer}.",
     "seriesHint": "Ihre Antwort gilt für alle Termine dieser Reihe.",
-    "seriesHintReplaces": "Gilt für jeden Termin der Reihe, auch für schon beantwortete."
+    "seriesHintReplaces": "Ihre Antwort gilt dann für alle Termine, auch für einzeln beantwortete."
   },
-  "onlyThisDate": "Nur dieser Termin",
+  "onlyThisDate": "Nur für diesen Termin",
   "changeAnswer": "Antwort ändern",
   "acceptedOn": "Für {date} zugesagt.",
   "declinedOn": "Für {date} abgesagt.",

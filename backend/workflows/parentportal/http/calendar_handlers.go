@@ -186,6 +186,8 @@ func renderParentCalendarError(w http.ResponseWriter, r *http.Request, err error
 		common.RenderError(w, r, common.ErrorNotFound(err))
 	case errors.Is(err, calendarService.ErrConflict):
 		common.RenderError(w, r, common.ErrorConflict(err))
+	case errors.Is(err, calendarService.ErrOccurrenceUnavailable):
+		common.RenderError(w, r, common.ErrorConflictWithCode(err, common.CodeCalendarOccurrenceUnavailable))
 	default:
 		common.RenderError(w, r, common.ErrorInternalServerWrap("calendar operation failed", err))
 	}

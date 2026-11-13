@@ -56,6 +56,8 @@ import { AnswerScopeChoice } from "~/components/calendar/answer-scope-choice";
 import {
   answerDiffersFromSeries,
   defaultAnswerScope,
+  formatOccurrenceShortDay,
+  seriesAnswerReplacesDates,
   type AnswerScope,
 } from "~/lib/calendar-answers";
 
@@ -270,21 +272,12 @@ const responseTone: Record<CalendarResponseStatus, StatusBadgeTone> = {
 /** Was eine Antwort nur für diesen Termin mit den anderen Terminen macht. */
 function occurrenceScopeHint(event: CalendarEvent): string {
   const series = event.series_response_status;
-  if (answerDiffersFromSeries(event) || series === undefined) {
+  if (seriesAnswerReplacesDates(event) || series === undefined) {
     return "Die anderen Termine der Reihe behalten ihre Antwort.";
   }
   if (series === "pending")
     return "Die anderen Termine der Reihe bleiben offen.";
   return `Für die anderen Termine gilt weiter: ${responseLabel[series] ?? series}.`;
-}
-
-/** „Mi., 25.11.“ für die Wahl „Nur am …“. */
-function shortDayLabel(dateISO: string): string {
-  return parseISODate(dateISO).toLocaleDateString("de-DE", {
-    weekday: "short",
-    day: "2-digit",
-    month: "2-digit",
-  });
 }
 
 function eventTime(event: CalendarEvent): string {
@@ -1372,7 +1365,7 @@ function CalendarEventDetail({
           />
         ) : null}
         {!cancelled && ownDateAnswer ? (
-          <StatusBadge label="Nur dieser Termin" tone="gray" compact />
+          <StatusBadge label="Nur für diesen Termin" tone="gray" compact />
         ) : null}
       </div>
 
@@ -1438,13 +1431,13 @@ function CalendarEventDetail({
               value={answerScope}
               onChange={setAnswerScope}
               legend="Ihre Antwort gilt für"
-              occurrenceLabel={`Nur am ${shortDayLabel(occurrenceDate)}`}
+              occurrenceLabel={`Nur am ${formatOccurrenceShortDay(occurrenceDate)}`}
               seriesLabel="Alle Termine"
               occurrenceHint={occurrenceScopeHint(event)}
               seriesHint={
-                defaultAnswerScope(event) === "series" && !ownDateAnswer
-                  ? "Ihre Antwort gilt für alle Termine dieser Reihe."
-                  : "Gilt für jeden Termin der Reihe, auch für schon beantwortete."
+                seriesAnswerReplacesDates(event)
+                  ? "Ihre Antwort gilt dann für alle Termine, auch für einzeln beantwortete."
+                  : "Ihre Antwort gilt für alle Termine dieser Reihe."
               }
             />
           ) : null}

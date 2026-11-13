@@ -506,7 +506,43 @@ describe("ParentCalendarPage", () => {
     });
     expect(within(first!).getByText("Zugesagt")).toBeInTheDocument();
     expect(within(second!).getByText("Abgesagt")).toBeInTheDocument();
-    expect(within(second!).getByText(/Nur dieser Termin/)).toBeInTheDocument();
+    expect(
+      within(second!).getByText(/nur für diesen Termin/i),
+    ).toBeInTheDocument();
+  });
+
+  // #6987 Review: Hat die Reihe noch keine Antwort, aber ein Termin schon
+  // eine eigene, beantworten die Knöpfe der Zeile nur ihren Termin. Sonst
+  // löschte ein Klick die Absage für den anderen Tag.
+  it("überschreibt mit der Zeile keine Antwort für einen anderen Termin", async () => {
+    mockedCalendar.mockResolvedValue(
+      calendarResponse([
+        event({
+          can_respond: true,
+          recurring: true,
+          occurrence_date: "2026-08-19",
+          response_status: "pending",
+          series_response_status: "pending",
+          has_occurrence_answers: true,
+          recipient_id: "77",
+        }),
+      ]),
+    );
+    renderPage();
+
+    const row = await screen.findByRole("article", { name: "Elternabend" });
+    expect(within(row).getByText("Antwort erforderlich")).toBeInTheDocument();
+    expect(
+      within(row).queryByText("Antwort für alle Termine der Reihe"),
+    ).not.toBeInTheDocument();
+    fireEvent.click(within(row).getByRole("button", { name: "Zusagen" }));
+    await waitFor(() =>
+      expect(mockedRespond).toHaveBeenCalledWith(
+        "77",
+        "accepted",
+        "2026-08-19",
+      ),
+    );
   });
 
   it("speichert eine Rückmeldung direkt in der Terminzeile", async () => {

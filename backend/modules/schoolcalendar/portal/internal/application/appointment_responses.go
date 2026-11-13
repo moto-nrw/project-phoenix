@@ -76,10 +76,10 @@ func (s *service) answeredOccurrence(ctx context.Context, appointment *appointme
 		if date == appointment.StartDate {
 			return "", nil
 		}
-		return "", fmt.Errorf("%w: the appointment does not take place on %s", ErrInvalidRequest, date)
+		return "", fmt.Errorf("%w: the appointment does not take place on %s", ErrOccurrenceUnavailable, date)
 	}
 	if !occurrenceExists(appointment, recurrence, date) {
-		return "", fmt.Errorf("%w: the series has no date %s", ErrInvalidRequest, date)
+		return "", fmt.Errorf("%w: the series has no date %s", ErrOccurrenceUnavailable, date)
 	}
 	overrides, err := s.cfg.Appointments.FindOccurrenceOverrides(ctx, []int64{appointment.ID}, []appointmentcap.Date{date})
 	if err != nil {
@@ -87,7 +87,7 @@ func (s *service) answeredOccurrence(ctx context.Context, appointment *appointme
 	}
 	for _, override := range overrides {
 		if override.OccurrenceDate == date && override.Cancelled {
-			return "", fmt.Errorf("%w: the date %s is cancelled", ErrInvalidRequest, date)
+			return "", fmt.Errorf("%w: the date %s is cancelled", ErrOccurrenceUnavailable, date)
 		}
 	}
 	return date, nil

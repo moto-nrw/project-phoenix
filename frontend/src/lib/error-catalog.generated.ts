@@ -34,6 +34,8 @@ export const ERROR_CATALOG = {
         "{object} ist hier zurzeit nicht verfügbar. Bitte fragen Sie Ihre Ansprechperson.",
       "billing.invalid_key_day":
         "Der Stichtag muss zwischen dem 1. und dem 28. des Monats liegen. Bitte wählen Sie einen dieser Tage.",
+      "calendar.occurrence_unavailable":
+        "Diesen Termin gibt es nicht mehr, er wurde vielleicht abgesagt. Bitte laden Sie den Kalender neu.",
       "care_contract.application_not_found":
         "Diese Anmeldung gibt es nicht mehr oder sie ist nicht angenommen. Bitte laden Sie die Seite neu.",
       "care_contract.change_contract_not_active":
@@ -2000,6 +2002,8 @@ export const ERROR_CATALOG = {
       fieldCheck: "Please check this field.",
     },
     codes: {
+      "calendar.occurrence_unavailable":
+        "This date no longer exists. It may have been cancelled. Please reload the calendar.",
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
       "care_contract.change_contract_not_active":
@@ -2726,6 +2730,8 @@ export const ERROR_CATALOG = {
       fieldCheck: "Проверьте это поле.",
     },
     codes: {
+      "calendar.occurrence_unavailable":
+        "Этой даты больше нет. Возможно, её отменили. Пожалуйста, обновите календарь.",
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
       "care_contract.change_contract_not_active":
@@ -3325,6 +3331,8 @@ export const ERROR_CATALOG = {
       fieldCheck: "Kontrolloni këtë fushë.",
     },
     codes: {
+      "calendar.occurrence_unavailable":
+        "Kjo datë nuk ekziston më. Mund të jetë anuluar. Ju lutemi rifreskoni kalendarin.",
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
       "care_contract.change_contract_not_active":
@@ -3939,6 +3947,8 @@ export const ERROR_CATALOG = {
       fieldCheck: "Sprawdź to pole.",
     },
     codes: {
+      "calendar.occurrence_unavailable":
+        "Tego terminu już nie ma. Mógł zostać odwołany. Proszę odświeżyć kalendarz.",
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
       "care_contract.change_contract_not_active":
@@ -4539,6 +4549,8 @@ export const ERROR_CATALOG = {
       fieldCheck: "Bu alanı kontrol edin.",
     },
     codes: {
+      "calendar.occurrence_unavailable":
+        "Bu tarih artık yok. İptal edilmiş olabilir. Lütfen takvimi yeniden yükleyin.",
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
       "care_contract.change_contract_not_active":
@@ -5146,6 +5158,8 @@ export const ERROR_CATALOG = {
       fieldCheck: "Перевірте це поле.",
     },
     codes: {
+      "calendar.occurrence_unavailable":
+        "Цієї дати більше немає. Можливо, її скасували. Будь ласка, оновіть календар.",
       "care_contract.application_not_found":
         "This application no longer exists or is not accepted. Please reload the page.",
       "care_contract.change_contract_not_active":

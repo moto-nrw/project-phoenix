@@ -29,7 +29,7 @@ export function parentCalendarTopic(): HelpTopic {
     ],
     differences: [
       "Ein Termin trägt `Antwort erforderlich`? Dann wartet die OGS auf Ihre Antwort.",
-      "Steht am Termin `Nur dieser Termin`? Dann gilt dort eine andere Antwort als für die übrigen Termine der Reihe.",
+      "Steht am Termin `Nur für diesen Termin`? Dann gilt dort eine andere Antwort als für die übrigen Termine der Reihe.",
       "Hat die OGS abgesagt, steht dort `Von der OGS abgesagt`.",
       "Sie sehen keine `Rückmeldungen`? Dann zeigt die OGS sie bei diesem Termin nicht.",
       "Der Kalender zeigt die nächsten 3 Monate.",

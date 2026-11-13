@@ -581,6 +581,18 @@ func TestRespondAndOverviewPassTheOccurrenceDate(t *testing.T) {
 	assert.Equal(t, calendarSvc.Date("2026-11-25"), service.gotOverviewDate)
 	assert.Contains(t, w.Body.String(), `"occurrence_date":"2026-11-25"`)
 
+	// A date that does not take place answers with its own code.
+	service.respondErr = calendarSvc.ErrOccurrenceUnavailable
+	cancelled := requestWithURLParam(
+		httptest.NewRequest(http.MethodPost, "/recipients/42/response", strings.NewReader(`{"status":"declined","occurrence_date":"2026-12-02"}`)),
+		"recipientId",
+		"42",
+	)
+	w = httptest.NewRecorder()
+	rs.respond(w, cancelled)
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"calendar.occurrence_unavailable"`)
+
 	badOverview := requestWithURLParam(
 		httptest.NewRequest(http.MethodGet, "/appointments/7/overview?occurrence_date=morgen", nil),
 		"appointmentId",

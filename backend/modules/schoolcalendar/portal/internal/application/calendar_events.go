@@ -208,6 +208,7 @@ func answeredAppointmentEvent(appointment *appointmentcap.Appointment, occurrenc
 	event := appointmentEvent(appointment, occurrenceDate, &status, &recipientID, staffID)
 	seriesStatus := recipient.Status
 	event.SeriesResponseStatus = &seriesStatus
+	event.HasOccurrenceAnswers = len(recipient.OccurrenceResponses) > 0
 	return event
 }
 

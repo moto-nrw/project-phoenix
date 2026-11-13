@@ -1222,7 +1222,7 @@ function StaffCalendarPageInner() {
                         hint={
                           deliveryMode === "rsvp_required" &&
                           frequency !== "none"
-                            ? "Eine Zusage oder Absage gilt für alle Termine der Reihe."
+                            ? "Eingeladene sagen für alle Termine oder für einzelne Termine zu oder ab."
                             : undefined
                         }
                         options={[

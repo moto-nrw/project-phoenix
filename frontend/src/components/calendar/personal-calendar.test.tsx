@@ -305,9 +305,7 @@ describe("PersonalCalendar", () => {
     openEvent("Staff meeting");
     fireEvent.click(screen.getByRole("button", { name: "Alle Termine" }));
     expect(
-      screen.getByText(
-        "Gilt für jeden Termin der Reihe, auch für schon beantwortete.",
-      ),
+      screen.getByText("Ihre Antwort gilt für alle Termine dieser Reihe."),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Zusagen" }));
     expect(onRespond).toHaveBeenLastCalledWith("42", "accepted", undefined);
@@ -335,9 +333,15 @@ describe("PersonalCalendar", () => {
     );
 
     openEvent("Staff meeting");
-    expect(screen.getByText("Nur dieser Termin")).toBeInTheDocument();
+    expect(screen.getByText("Nur für diesen Termin")).toBeInTheDocument();
     expect(
       screen.getByText("Die anderen Termine der Reihe behalten ihre Antwort."),
+    ).toBeInTheDocument(); // Switching to the whole series warns that it replaces this date.
+    fireEvent.click(screen.getByRole("button", { name: "Alle Termine" }));
+    expect(
+      screen.getByText(
+        "Ihre Antwort gilt dann für alle Termine, auch für einzeln beantwortete.",
+      ),
     ).toBeInTheDocument();
   });
 

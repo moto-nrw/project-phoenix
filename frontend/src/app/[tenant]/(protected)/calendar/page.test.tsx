@@ -751,7 +751,7 @@ describe("StaffCalendarPage", () => {
     fireEvent.click(within(picker).getByLabelText(/Alle Eingeladenen/));
 
     const seriesHint =
-      "Eine Zusage oder Absage gilt für alle Termine der Reihe.";
+      "Eingeladene sagen für alle Termine oder für einzelne Termine zu oder ab.";
     expect(screen.queryByText(seriesHint)).not.toBeInTheDocument();
     fireEvent.click(screen.getByLabelText("Wiederholung"));
     fireEvent.click(screen.getByRole("option", { name: "Wöchentlich" }));

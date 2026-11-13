@@ -38,6 +38,10 @@ var (
 	// raced the current operation — e.g. an edit that began before the appointment
 	// was cancelled. Rendered as HTTP 409.
 	ErrConflict = errors.New("calendar item changed concurrently")
+	// ErrOccurrenceUnavailable rejects an answer or overview for a date the
+	// appointment does not take place on: not a date of the series, or a
+	// cancelled one (#6987). Rendered as HTTP 409.
+	ErrOccurrenceUnavailable = errors.New("calendar occurrence unavailable")
 )
 
 // Service is the whole calendar portal surface: the staff and parent
@@ -266,6 +270,10 @@ type Event struct {
 	// this date on its own (#6987).
 	ResponseStatus       *string `json:"response_status,omitempty"`
 	SeriesResponseStatus *string `json:"series_response_status,omitempty"`
+	// HasOccurrenceAnswers reports that the recipient answered at least one
+	// date of the series on its own, so a new series answer would replace
+	// those answers (#6987).
+	HasOccurrenceAnswers bool    `json:"has_occurrence_answers,omitempty"`
 	RecipientID          *string `json:"recipient_id,omitempty"`
 	OrganizerStaffID     *string `json:"organizer_staff_id,omitempty"`
 	CanRespond           bool    `json:"can_respond"`

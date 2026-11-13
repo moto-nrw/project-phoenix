@@ -40,9 +40,9 @@
     "occurrenceHintOpen": "Serideki diğer tarihler yanıtsız kalır.",
     "occurrenceHintKeeps": "Diğer tarihler için geçerli olan: {answer}.",
     "seriesHint": "Yanıtınız bu serideki tüm tarihler için geçerlidir.",
-    "seriesHintReplaces": "Serideki her tarih için geçerlidir, yanıtlanmış olanlar dahil."
+    "seriesHintReplaces": "Yanıtınız o zaman tek tek yanıtlananlar dahil tüm tarihler için geçerli olur."
   },
-  "onlyThisDate": "Sadece bu tarih",
+  "onlyThisDate": "Sadece bu tarih için",
   "changeAnswer": "Yanıtı değiştir",
   "acceptedOn": "{date} için katılım onaylandı.",
   "declinedOn": "{date} için katılım reddedildi.",

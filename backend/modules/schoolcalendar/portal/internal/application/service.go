@@ -27,6 +27,9 @@ var (
 	ErrForbidden      = portal.ErrForbidden
 	ErrNotFound       = portal.ErrNotFound
 	ErrConflict       = portal.ErrConflict
+	// ErrOccurrenceUnavailable: the answered or counted date is not one the
+	// appointment takes place on (#6987).
+	ErrOccurrenceUnavailable = portal.ErrOccurrenceUnavailable
 )
 
 type Service = portal.Service
@@ -332,6 +335,10 @@ func (s *service) parentTenantAppointmentOverview(ctx context.Context, appointme
 	}
 	if !canParentViewOverview(appointment, true) {
 		return nil, true, nil
+	}
+	occurrenceDate, err = s.answeredOccurrence(ctx, appointment, occurrenceDate)
+	if err != nil {
+		return nil, false, err
 	}
 	listed := parentListedRecipients(recipients, distinctGuardianProfileIDs(tenantChildren), distinctChildStudentIDs(tenantChildren))
 	overview, err := s.buildAppointmentOverview(ctx, appointment, occurrenceDate, recipients, listed)

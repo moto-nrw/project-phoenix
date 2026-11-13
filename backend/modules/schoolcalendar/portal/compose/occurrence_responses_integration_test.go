@@ -69,6 +69,7 @@ func TestCalendarServiceIntegration_AnswersForSingleDatesOfASeries(t *testing.T)
 		require.NotNil(t, event.SeriesResponseStatus)
 		assert.Equal(t, accepted, *event.SeriesResponseStatus, "every date carries the series answer")
 		assert.True(t, event.CanRespond, "a date with its own answer can be answered again")
+		assert.True(t, event.HasOccurrenceAnswers, "every date knows a series answer would replace an answer for one date")
 	}
 	staffEvents, err := testpkg.TenantQuery2(t, staffCtx, db, service.ListMyStaffEvents, portalDate(2026, 11, 18), portalDate(2026, 12, 2))
 	require.NoError(t, err)
@@ -91,16 +92,21 @@ func TestCalendarServiceIntegration_AnswersForSingleDatesOfASeries(t *testing.T)
 
 	// A date the series does not have, or a cancelled one, takes no answer.
 	err = service.RespondToParentInvitation(parentCtx, parentChain.AccountID, guardianRecipientID, calendarSvc.InvitationAnswer{Status: accepted, OccurrenceDate: portalDate(2026, 11, 19)})
-	assert.ErrorIs(t, err, calendarSvc.ErrInvalidRequest)
+	assert.ErrorIs(t, err, calendarSvc.ErrOccurrenceUnavailable)
+	_, err = service.GetParentAppointmentOverview(parentCtx, parentChain.AccountID, appointmentID, portalDate(2026, 11, 19))
+	assert.ErrorIs(t, err, calendarSvc.ErrOccurrenceUnavailable, "the overview counts only dates of the series")
 	require.NoError(t, testpkg.TenantCommand2(t, calendarContext(t, organizerAccount.ID), db, service.CancelStaffAppointmentOccurrence, appointmentID, portalDate(2026, 12, 2)))
 	err = testpkg.TenantCommand2(t, staffCtx, db, service.RespondToStaffInvitation, staffRecipientID, calendarSvc.InvitationAnswer{Status: declined, OccurrenceDate: portalDate(2026, 12, 2)})
-	assert.ErrorIs(t, err, calendarSvc.ErrInvalidRequest)
+	assert.ErrorIs(t, err, calendarSvc.ErrOccurrenceUnavailable)
 
 	// A new answer for the whole series holds for every date again.
 	require.NoError(t, service.RespondToParentInvitation(parentCtx, parentChain.AccountID, guardianRecipientID, calendarSvc.InvitationAnswer{Status: declined}))
 	parentEvents, err = service.ListMyParentEvents(parentCtx, parentChain.AccountID, portalDate(2026, 11, 18), portalDate(2026, 11, 25))
 	require.NoError(t, err)
 	assert.Equal(t, map[string]string{"2026-11-18": declined, "2026-11-25": declined}, eventStatuses(parentEvents))
+	for _, event := range parentEvents {
+		assert.False(t, event.HasOccurrenceAnswers)
+	}
 }
 
 // An appointment that does not recur takes its own date as an answer for the
@@ -127,7 +133,7 @@ func TestCalendarServiceIntegration_SingleAppointmentAnswersWithItsDate(t *testi
 	staffCtx := calendarContext(t, invitedAccount.ID)
 
 	err = testpkg.TenantCommand2(t, staffCtx, db, service.RespondToStaffInvitation, recipientID, calendarSvc.InvitationAnswer{Status: appointments.ResponseStatusDeclined, OccurrenceDate: portalDate(2026, 11, 25)})
-	assert.ErrorIs(t, err, calendarSvc.ErrInvalidRequest)
+	assert.ErrorIs(t, err, calendarSvc.ErrOccurrenceUnavailable)
 	require.NoError(t, testpkg.TenantCommand2(t, staffCtx, db, service.RespondToStaffInvitation, recipientID, calendarSvc.InvitationAnswer{Status: appointments.ResponseStatusDeclined, OccurrenceDate: portalDate(2026, 11, 18)}))
 
 	events, err := testpkg.TenantQuery2(t, staffCtx, db, service.ListMyStaffEvents, portalDate(2026, 11, 18), portalDate(2026, 11, 18))

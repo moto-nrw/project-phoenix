@@ -85,6 +85,11 @@ export interface CalendarEvent {
    * wenn für diesen Termin eine eigene Antwort gilt (#6987).
    */
   readonly series_response_status?: CalendarResponseStatus;
+  /**
+   * Ob für mindestens einen Termin der Reihe eine eigene Antwort gilt. Eine
+   * neue Antwort für die Reihe ersetzt sie dann (#6987).
+   */
+  readonly has_occurrence_answers?: boolean;
   readonly recipient_id?: string;
   readonly organizer_staff_id?: string;
   readonly can_respond: boolean;
