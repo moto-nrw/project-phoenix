@@ -482,6 +482,10 @@ func TestCreateVisit_DoesNotClearExcused_WhenDefaultMode(t *testing.T) {
 	assert.NotNil(t, reloaded.ExcusedSince)
 }
 
+// TestCreateVisit_ClearsPlannedStatusForToday covers both planned statuses
+// that carry a live flag. A child has one standing status per day (#6958),
+// so each status gets its own child: the planned row stands with its flag,
+// and the check-in clears both.
 func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 	t.Parallel()
 
@@ -494,64 +498,60 @@ func TestCreateVisit_ClearsPlannedStatusForToday(t *testing.T) {
 	activity := testpkg.CreateTestActivityGroup(t, db, "planned-clear-test")
 	room := testpkg.CreateTestRoom(t, db, "Planned Clear Room")
 	activeGroup := testpkg.CreateTestActiveGroup(t, db, activity.ID, room.ID)
-	student := testpkg.CreateTestStudent(t, db, "Planned", "Clear", "4d")
 	staff := testpkg.CreateTestStaff(t, db, "Planned", "Staff")
 	rfidDevice := testpkg.CreateTestDevice(t, db, "RFID-PCS-001")
+	staffCtx := api.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
+	deviceCtx := api.WithAttendanceDevice(staffCtx, rfidDevice.ID, rfidDevice.TenantID)
 
 	trueVal := true
 	now := time.Date(2026, 8, 24, 12, 0, 0, 0, time.UTC)
-	student.Sick = &trueVal
-	student.SickSince = &now
-	student.Excused = &trueVal
-	student.ExcusedSince = &now
-	_, err := db.NewUpdate().Model(student).ModelTableExpr("users.student_care_profiles").Column("sick", "sick_since", "excused", "excused_since").Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID).Exec(ctx)
-	require.NoError(t, err)
-
 	today := calendar.DateFromTime(now)
-	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &absencerecords.StudentStatusDay{
-		StudentID:  student.ID,
-		Date:       today,
-		Status:     absencerecords.StudentStatusDaySick,
-		ReportedAt: now,
-		Source:     absencerecords.StudentStatusSourcePlanned,
-	}))
-	require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &absencerecords.StudentStatusDay{
-		StudentID:  student.ID,
-		Date:       today,
-		Status:     absencerecords.StudentStatusDayExcused,
-		ReportedAt: now,
-		Source:     absencerecords.StudentStatusSourcePlanned,
-	}))
+	for _, status := range []string{absencerecords.StudentStatusDaySick, absencerecords.StudentStatusDayExcused} {
+		student := testpkg.CreateTestStudent(t, db, "Planned", "Clear"+status, "4d")
+		column := status
+		if status == absencerecords.StudentStatusDaySick {
+			student.Sick, student.SickSince = &trueVal, &now
+		} else {
+			student.Excused, student.ExcusedSince = &trueVal, &now
+		}
+		_, err := db.NewUpdate().Model(student).ModelTableExpr("users.student_care_profiles").Column(column, column+"_since").Where("membership_id IN (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID).Exec(ctx)
+		require.NoError(t, err)
+		require.NoError(t, repoFactory.StudentStatusDay.UpsertReported(ctx, &absencerecords.StudentStatusDay{
+			StudentID:  student.ID,
+			Date:       today,
+			Status:     status,
+			ReportedAt: now,
+			Source:     absencerecords.StudentStatusSourcePlanned,
+		}))
 
-	staffCtx := api.WithAttendanceStaff(ctx, staff.ID, staff.TenantID)
-	deviceCtx := api.WithAttendanceDevice(staffCtx, rfidDevice.ID, rfidDevice.TenantID)
-	visit := &studentpresence.Visit{
-		StudentID:     student.ID,
-		ActiveGroupID: activeGroup.ID,
-		EntryTime:     now,
+		visit := &studentpresence.Visit{
+			StudentID:     student.ID,
+			ActiveGroupID: activeGroup.ID,
+			EntryTime:     now,
+		}
+		require.NoError(t, service.CreateVisit(deviceCtx, visit), status)
+
+		activeRows, err := repoFactory.StudentStatusDay.FindActiveByStudentAndDateRange(ctx, student.ID, today, today)
+		require.NoError(t, err)
+		assert.Empty(t, activeRows, status)
+
+		var reloaded struct {
+			Sick         bool       `bun:"sick"`
+			SickSince    *time.Time `bun:"sick_since"`
+			Excused      bool       `bun:"excused"`
+			ExcusedSince *time.Time `bun:"excused_since"`
+		}
+		err = db.NewSelect().
+			Table("users.student_care_profiles").
+			Column("sick", "sick_since", "excused", "excused_since").
+			Where("membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID).
+			Scan(ctx, &reloaded)
+		require.NoError(t, err)
+		assert.False(t, reloaded.Sick, status)
+		assert.Nil(t, reloaded.SickSince, status)
+		assert.False(t, reloaded.Excused, status)
+		assert.Nil(t, reloaded.ExcusedSince, status)
 	}
-	require.NoError(t, service.CreateVisit(deviceCtx, visit))
-
-	activeRows, err := repoFactory.StudentStatusDay.FindActiveByStudentAndDateRange(ctx, student.ID, today, today)
-	require.NoError(t, err)
-	assert.Empty(t, activeRows)
-
-	var reloaded struct {
-		Sick         bool       `bun:"sick"`
-		SickSince    *time.Time `bun:"sick_since"`
-		Excused      bool       `bun:"excused"`
-		ExcusedSince *time.Time `bun:"excused_since"`
-	}
-	err = db.NewSelect().
-		Table("users.student_care_profiles").
-		Column("sick", "sick_since", "excused", "excused_since").
-		Where("membership_id = (SELECT id FROM users.student_school_memberships WHERE student_profile_id = ? AND deleted_at IS NULL)", student.ID).
-		Scan(ctx, &reloaded)
-	require.NoError(t, err)
-	assert.False(t, reloaded.Sick)
-	assert.Nil(t, reloaded.SickSince)
-	assert.False(t, reloaded.Excused)
-	assert.Nil(t, reloaded.ExcusedSince)
 }
 
 // TestCreateVisit_ClearsParentStatusForToday covers the parent sick-note

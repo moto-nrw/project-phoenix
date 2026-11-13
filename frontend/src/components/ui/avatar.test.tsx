@@ -64,21 +64,14 @@ describe("Avatar", () => {
     expect(screen.getByText("AB")).toBeTruthy();
   });
 
-  it("can render a decorative rounded initials avatar", () => {
+  it("can render a decorative initials avatar", () => {
     render(
-      <Avatar
-        name="Alice Bee"
-        size="md"
-        shape="rounded"
-        decorative
-        className="h-10 w-10"
-      />,
+      <Avatar name="Alice Bee" size="md" decorative className="h-10 w-10" />,
     );
 
     const avatar = screen.getByText("AB");
     expect(avatar).toHaveAttribute("aria-hidden", "true");
     expect(avatar).not.toHaveAttribute("aria-label");
-    expect(avatar.className).toContain("rounded-xl");
     expect(avatar.className).toContain("h-10");
     expect(avatar.className).not.toContain("h-11");
   });

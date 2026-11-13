@@ -15,7 +15,10 @@ import {
 } from "~/components/traeger/care-contract-format";
 import { Button } from "~/components/ui/button";
 import { DataField, DataGrid } from "~/components/ui/data-field";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   StatusBadge,
@@ -234,9 +237,10 @@ export function CareContractVersions({
               .find((earlier) => earlier.status !== "ersetzt"),
           );
           return (
-            <li
+            <ResponsiveActionRow
               key={version.number}
-              className="py-4 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-start"
+              align="start"
+              className="block gap-[normal] py-4"
             >
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -297,7 +301,7 @@ export function CareContractVersions({
                   {loading === version.number ? "Wird geladen …" : "PDF"}
                 </Button>
               </div>
-            </li>
+            </ResponsiveActionRow>
           );
         })}
       </ResponsiveActionList>

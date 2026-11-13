@@ -748,14 +748,18 @@ jobs:
       # server keeps attendance, shifts and blocks per Berlin day. A run that
       # crossed Berlin midnight checked a child in on one day and failed to
       # pick it up on the next (runs 41359665512, 42422930038, 42532710545;
-      # #5511). The job therefore starts at the next 07:20 Berlin, before the
-      # first wave of the simulated day, and the simulation moves the clock
-      # through the day with --clock-command up to 12:50. Seed and simulation
-      # then share one Berlin day whenever the job starts. The clock only moves
-      # forward, after every download: TLS certificates stay valid. set-clock
-      # records the shift; "Restore the runner clock" undoes it before the
-      # cache upload.
-      - name: Move the runner clock to the next 07:20 Berlin
+      # #5511). The job therefore starts at 07:20 Berlin, before the first wave
+      # of the simulated day, and the simulation moves the clock through the
+      # day with --clock-command up to 12:50. Seed and simulation then share
+      # one Berlin day whenever the job starts. It is the next 07:20 of a care
+      # day, a weekday that is no NRW holiday (scripts/seed-smoke-clock.mjs):
+      # from Friday morning to Sunday the next 07:20 was a weekend day, and
+      # every run checked a day without shifts or staff at work (#6962). The
+      # clock only moves forward, after every download, at most five days (a
+      # Maundy Thursday to the Tuesday after Easter): TLS certificates stay
+      # valid. set-clock records the shift; "Restore the runner clock" undoes
+      # it before the cache upload.
+      - name: Move the runner clock to the next 07:20 Berlin of a care day
         run: |
           cat > "${RUNNER_TEMP}/set-clock" <<'SCRIPT'
           #!/usr/bin/env bash
@@ -770,14 +774,7 @@ jobs:
           mv "${shift_file}.new" "${shift_file}"
           SCRIPT
           chmod +x "${RUNNER_TEMP}/set-clock"
-          # Count in calendar days, not seconds: a day of the clock change
-          # has 23 or 25 hours.
-          now=$(date +%s)
-          today=$(TZ=Europe/Berlin date -d "@${now}" +%F)
-          target=$(TZ=Europe/Berlin date -d "${today} 07:20" +%s)
-          if [ "${target}" -le "${now}" ]; then
-            target=$(TZ=Europe/Berlin date -d "$(TZ=Europe/Berlin date -d "${today} +1 day" +%F) 07:20" +%s)
-          fi
+          target=$(node scripts/seed-smoke-clock.mjs "$(date +%s)")
           # Without time synchronisation, which would set the clock back.
           sudo timedatectl set-ntp false
           sudo systemctl stop chrony.service systemd-timesyncd.service 2>/dev/null || true

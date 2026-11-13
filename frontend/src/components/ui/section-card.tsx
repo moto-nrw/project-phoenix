@@ -7,12 +7,11 @@ import type { LucideIcon } from "lucide-react";
 import { Button } from "~/components/ui/button";
 import { IconTile } from "~/components/ui/icon-tile";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import {
-  SECTION_CARD_PADDING,
-  SectionCardSurface,
-} from "~/components/ui/section-card-surface";
+import { CARD_SURFACE_PADDING } from "~/components/ui/card-surface";
+import { SectionCardSurface } from "~/components/ui/section-card-surface";
+import { Z_LAYER } from "~/components/ui/overlay-styles";
 import type { MotoConcept } from "~/lib/moto-concepts";
-import type { MotoDuotoneTone } from "~/lib/location-helper";
+import type { MotoDuotoneTone } from "~/lib/kit-palette";
 import { cn } from "~/lib/utils";
 
 // Mit `flush` oder `footer` liegt das Polster auf den Zonen statt auf der
@@ -390,7 +389,7 @@ export function SectionCard({
   // Zonen tragen das Polster, wenn ein Teil bis an den Rand laufen soll.
   const zoned = !bare && padding === "default" && (flush || footer != null);
   let surfacePadding = "";
-  if (padding === "default" && !zoned) surfacePadding = SECTION_CARD_PADDING;
+  if (padding === "default" && !zoned) surfacePadding = CARD_SURFACE_PADDING;
   const bodySpacing =
     hasHeader && !bare ? (bodyClassName ?? "compact:mt-3 mt-4") : bodyClassName;
   const bodyClasses = zoned
@@ -537,7 +536,7 @@ export function SectionCard({
             "border-t border-gray-100 bg-gray-50/70 py-3",
             ZONE_PADDING_X,
             stickyFooter &&
-              `${STICKY_FOOTER} z-10 rounded-b-2xl bg-gray-50/95 backdrop-blur-sm`,
+              `${STICKY_FOOTER} ${Z_LAYER.raised} rounded-b-2xl bg-gray-50/95 backdrop-blur-sm`,
           )}
         >
           {footer}

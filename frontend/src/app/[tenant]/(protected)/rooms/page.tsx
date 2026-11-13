@@ -508,7 +508,7 @@ function RoomsPageContent() {
   );
 
   // Auth-loading joins the data-loading condition below instead of an early
-  // return before the header, so the real PageHeaderWithSearch (title,
+  // return before the header, so the real TenantPage head (title,
   // search field, static tabs) renders immediately and only the room-card
   // grid skeletonizes. The `useSession({ required: true })` callback
   // redirects on unauthenticated.

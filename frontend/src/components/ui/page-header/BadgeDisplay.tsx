@@ -1,4 +1,4 @@
-// BadgeDisplay component - extracted to reduce complexity in PageHeaderWithSearch
+// Zähler-Plakette der Such- und Filterzeile von TenantPage
 "use client";
 
 import type React from "react";

@@ -5,6 +5,7 @@
 import type { ReactNode } from "react";
 
 import { PlanAddAffordance } from "~/components/ui/planning/plan-add-affordance";
+import { Z_LAYER } from "../overlay-styles";
 
 /**
  * ResourceGrid is the generic rows-by-columns planning grid. It carries no
@@ -222,7 +223,7 @@ export function ResourceGrid<TRow>({
             <tr className="bg-gray-50 text-left">
               <th
                 scope="col"
-                className="sticky left-0 z-10 bg-gray-50 px-2 py-1.5 text-xs font-medium text-gray-500"
+                className={`sticky left-0 ${Z_LAYER.raised} bg-gray-50 px-2 py-1.5 text-xs font-medium text-gray-500`}
               >
                 {cornerHeader}
               </th>
@@ -257,7 +258,7 @@ export function ResourceGrid<TRow>({
                 <tr key={getRowKey(row)} className="border-t border-gray-100">
                   <th
                     scope="row"
-                    className="sticky left-0 z-10 bg-white px-2 py-1.5 text-left align-top font-normal"
+                    className={`sticky left-0 ${Z_LAYER.raised} bg-white px-2 py-1.5 text-left align-top font-normal`}
                   >
                     {renderRowHeader(row)}
                   </th>

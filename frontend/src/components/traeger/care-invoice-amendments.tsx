@@ -10,7 +10,10 @@ import type { ReactNode } from "react";
 import { Button } from "~/components/ui/button";
 import { InsetPanel } from "~/components/ui/inset-panel";
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
-import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
+import {
+  ResponsiveActionList,
+  ResponsiveActionRow,
+} from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
 import { StatusBadge } from "~/components/ui/status-badge";
 import { formatBerlinDate, formatBerlinTime } from "~/lib/date-helpers";
@@ -378,9 +381,8 @@ export function CareAmendmentHistoryCard({
           {entries.map((amendment) => {
             const active = amendment.revocation === null;
             return (
-              <li
+              <ResponsiveActionRow
                 key={`${amendment.carriedFromNumber === null ? "run" : "carried"}-${amendment.id}`}
-                className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
               >
                 <div className="min-w-0 space-y-1">
                   <p className="flex flex-wrap items-center gap-1.5 text-sm">
@@ -445,7 +447,7 @@ export function CareAmendmentHistoryCard({
                     </Button>
                   </div>
                 ) : null}
-              </li>
+              </ResponsiveActionRow>
             );
           })}
         </ResponsiveActionList>

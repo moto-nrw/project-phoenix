@@ -14,7 +14,7 @@ import { ConfirmDeleteModal } from "~/components/ui/confirm-delete-modal";
 import { FormErrorAlert } from "~/components/ui/form-error-alert";
 import { ConfirmationModal } from "~/components/ui/modal";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuItem } from "~/components/ui/page-header/types";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { createLogger } from "~/lib/logger";
 import {

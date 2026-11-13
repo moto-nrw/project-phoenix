@@ -436,14 +436,14 @@ describe("DienstplanResourceGrid weekly summary", () => {
     );
   });
 
-  it("colors an over-contract summary amber", () => {
+  it("colors an over-contract summary dark amber", () => {
     renderGrid({
       summaryByStaff: new Map([
         [member.id, summary({ plannedMinutes: 1350, deltaMinutes: 135 })],
       ]),
     });
 
-    expect(screen.getByText("22,5/20,25 h")).toHaveStyle({ color: "#EAB308" });
+    expect(screen.getByText("22,5/20,25 h")).toHaveStyle({ color: "#92400E" });
   });
 
   it("leaves an exact-match summary neutral (no inline color)", () => {

@@ -141,9 +141,6 @@ export default function TraegerLastschriftPage() {
             ]
       }
       onClearAllFilters={() => setShow("all")}
-      // The selected segment already shows the filter on a wide screen; a
-      // chip row would show it twice. A phone shows the count on its button.
-      activeFilterDisplay="count"
     >
       {mandates ? (
         <SepaMandatesCard

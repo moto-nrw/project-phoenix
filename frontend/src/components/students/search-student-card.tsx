@@ -21,7 +21,7 @@ import {
 import React from "react";
 
 import { DataTableStatusBadge } from "~/components/ui/data-table";
-import { StudentPresenceBadge } from "~/components/ui/student-presence-badge";
+import { StudentPresenceBadge } from "~/components/students/presence/student-presence-badge";
 import { TrackingIndicators } from "~/components/students/tracking-indicators";
 import {
   StudentCard,
@@ -41,10 +41,7 @@ import {
   getStudentAbsence,
   getStudentDayTimes,
 } from "~/lib/student-time-status";
-import {
-  getDayPlanningNotComingLabel,
-  getStudentPresenceBadgePlanning,
-} from "~/lib/day-planning-helper";
+import { getDayPlanningNotComingLabel } from "~/lib/day-planning-helper";
 import { deriveCheckinState } from "~/lib/hooks/use-school-checkin-mode";
 import { isInClassLocation } from "~/lib/location-helper";
 import {
@@ -89,14 +86,7 @@ export function SearchStudentStatusBadge({
 }>) {
   return isToday ? (
     <StudentPresenceBadge
-      student={(() => {
-        const badgePlanning = getStudentPresenceBadgePlanning(student);
-        return {
-          ...student,
-          not_arrival_today: badgePlanning.notArrivalToday,
-          not_arrival_reason: badgePlanning.notArrivalReason,
-        };
-      })()}
+      student={student}
       displayMode="contextAware"
       userGroups={userGroups}
       groupRooms={groupRooms}

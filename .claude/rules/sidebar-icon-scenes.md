@@ -21,7 +21,7 @@ Each glyph gets its own *action*: the calendar tears off a sheet, the coin flips
 
 ## When you touch a sidebar
 
-1. Render the icon through `MotoNavIcon` with `scene` (a concept) or `NavSceneIcon` (a Phosphor glyph). A hand-drawn path icon goes inside `NavSceneFallback`.
+1. Render the icon through `MotoNavIcon` with `scene` (a concept) or `NavSceneIcon` (a Phosphor glyph). No hand-drawn path icons.
 2. A glyph without an entry in `NAV_SCENES` needs a scene: build it per the README, as a redrawn SVG in `nav-scenes.tsx` plus its motion in `styles/nav-scenes.css`, every selector scoped with `[data-nav-scene="<Glyph>Icon"]`. Changing a concept's icon counts as a new glyph.
 3. A new row type sets `--nav-row-bg` for idle, hover and active, like `ROW_BG_IDLE` / `ROW_BG_ACTIVE` in `sidebar-geometry.ts`. Masks paint with that color.
 4. Done when `pnpm exec vitest run src/components/ui/nav-scene-icon` is green and, in the running portal, hovering the row on an idle and on an active row plays the scene from the first frame to the rest state without a jump. The PR carries a hover recording per the screenshot rules.

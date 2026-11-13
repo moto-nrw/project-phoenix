@@ -17,7 +17,7 @@ import { clearSessionCache, DELIBERATE_LOGOUT_KEY } from "~/lib/session-cache";
 import { clearPersonalStorage } from "~/lib/personal-storage";
 import { createLogger } from "~/lib/logger";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
-import { apiErrorFromResponse } from "~/lib/api-error";
+import { apiErrorFromResponse, transportFetch } from "~/lib/api-error";
 import { unsubscribePushSilently } from "~/lib/push-api";
 import { hasPermission } from "~/lib/auth-utils";
 import { getSmartRedirectPath } from "~/lib/redirect-utils";
@@ -100,7 +100,7 @@ async function revokeSessionFamily(
   path: string,
   signal?: AbortSignal,
 ): Promise<void> {
-  const response = await fetch(path, {
+  const response = await transportFetch(path, {
     method: "POST",
     signal: signal
       ? AbortSignal.any([signal, AbortSignal.timeout(5000)])

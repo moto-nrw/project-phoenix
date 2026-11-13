@@ -6,6 +6,7 @@ import { Alert, type AlertType } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { RequestIdButton } from "~/components/ui/request-id-button";
 import { cn } from "~/lib/utils";
+import { TOAST_FADE_CLASS } from "./motion";
 
 interface ToastAction {
   readonly label: string;
@@ -114,7 +115,7 @@ export function Toast({
       onMouseLeave={onMouseLeave}
       className={cn(
         "pointer-events-auto w-full transition-[opacity,transform]",
-        reducedMotion ? "" : "duration-300 ease-out",
+        reducedMotion ? "" : `${TOAST_FADE_CLASS} ease-out`,
         visible ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0",
       )}
     >

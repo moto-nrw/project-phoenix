@@ -3,63 +3,72 @@
 import React, {
   createContext,
   useContext,
-  useState,
-  useCallback,
+  useEffect,
   useMemo,
+  useRef,
 } from "react";
 
+import { pushOverlay, useIsModalOpen } from "./overlay-stack";
+
+/**
+ * Read access to "is a dialog open" for surfaces below the dialogs (the
+ * mobile master/detail drawer must not dismiss itself under one). The state
+ * lives in the overlay stack; `Modal` registers there itself.
+ *
+ * `openModal`/`closeModal` put a dialog on the stack by hand for a surface
+ * that is not a kit `Modal`. Outside `ModalProvider` they do nothing.
+ */
 interface ModalContextType {
   isModalOpen: boolean;
   openModal: () => void;
   closeModal: () => void;
 }
 
-const ModalContext = createContext<ModalContextType | undefined>(undefined);
+interface ManualModals {
+  open: () => void;
+  close: () => void;
+  releaseAll: () => void;
+}
+
+const ModalContext = createContext<ManualModals | undefined>(undefined);
 
 export function ModalProvider({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
-  // Counter rather than boolean so that stacked modals (e.g. an edit modal
-  // opening a confirmation modal on top) only report `isModalOpen=false` once
-  // every modal has unmounted. Otherwise the inner modal's cleanup would flip
-  // the flag while the outer modal is still open, which would let the mobile
-  // master/detail drawer dismiss itself out from under it.
-  const [openCount, setOpenCount] = useState(0);
-
-  const openModal = useCallback(() => {
-    setOpenCount((count) => count + 1);
-  }, []);
-
-  const closeModal = useCallback(() => {
-    setOpenCount((count) => (count > 0 ? count - 1 : 0));
-  }, []);
-
-  const contextValue = useMemo(
-    () => ({ isModalOpen: openCount > 0, openModal, closeModal }),
-    [openCount, openModal, closeModal],
+  // One release per `openModal`, so stacked calls only report the dialog
+  // closed once every one of them is closed again.
+  const releases = useRef<Array<() => void>>([]);
+  const manual = useMemo<ManualModals>(
+    () => ({
+      open: () => {
+        releases.current.push(pushOverlay("modal"));
+      },
+      close: () => {
+        releases.current.pop()?.();
+      },
+      releaseAll: () => {
+        for (const release of releases.current.splice(0)) release();
+      },
+    }),
+    [],
   );
 
+  useEffect(() => manual.releaseAll, [manual]);
+
   return (
-    <ModalContext.Provider value={contextValue}>
-      {children}
-    </ModalContext.Provider>
+    <ModalContext.Provider value={manual}>{children}</ModalContext.Provider>
   );
 }
 
-// Stable fallback object to prevent re-renders when context is unavailable
-const FALLBACK_CONTEXT: ModalContextType = {
-  isModalOpen: false,
+const noop = () => {};
 
-  openModal: () => {},
-
-  closeModal: () => {},
-};
-
-export function useModal() {
-  const context = useContext(ModalContext);
-  if (context === undefined) {
-    // Return stable no-op implementation if not within provider
-    return FALLBACK_CONTEXT;
-  }
-  return context;
+export function useModal(): ModalContextType {
+  const manual = useContext(ModalContext);
+  const isModalOpen = useIsModalOpen();
+  const openModal = manual?.open ?? noop;
+  const closeModal = manual?.close ?? noop;
+  return useMemo(
+    () => ({ isModalOpen, openModal, closeModal }),
+    [isModalOpen, openModal, closeModal],
+  );
 }

@@ -17,13 +17,13 @@ import (
 type StudentStatusDayRepository struct{ Capability careplan.Capability }
 
 func statusDayFromPublic(value careplan.StudentStatusDay) *absencerecords.StudentStatusDay {
-	row := &absencerecords.StudentStatusDay{StudentID: value.StudentID, Date: absencerecords.Date(value.Date), Status: value.Status, ReportedAt: value.ReportedAt, ClearedAt: value.ClearedAt, Source: value.Source, GuardianAccountID: value.GuardianAccountID, Note: value.Note, ReportedByAccountID: value.ReportedByAccountID, ClearedSource: value.ClearedSource}
+	row := &absencerecords.StudentStatusDay{StudentID: value.StudentID, Date: absencerecords.Date(value.Date), Status: value.Status, ReportedAt: value.ReportedAt, ClearedAt: value.ClearedAt, Source: value.Source, GuardianAccountID: value.GuardianAccountID, Note: value.Note, ReportedByAccountID: value.ReportedByAccountID, ClearedSource: value.ClearedSource, ClearedByAccountID: value.ClearedByAccountID}
 	row.ID, row.TenantID, row.CreatedAt, row.UpdatedAt = value.ID, value.TenantID, value.CreatedAt, value.UpdatedAt
 	return row
 }
 
 func statusDayToPublic(row *absencerecords.StudentStatusDay) careplan.StudentStatusDay {
-	return careplan.StudentStatusDay{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, StudentID: row.StudentID, Date: careplan.Date(row.Date), Status: row.Status, ReportedAt: row.ReportedAt, ClearedAt: row.ClearedAt, Source: row.Source, GuardianAccountID: row.GuardianAccountID, Note: row.Note, ReportedByAccountID: row.ReportedByAccountID, ClearedSource: row.ClearedSource}
+	return careplan.StudentStatusDay{ID: row.ID, TenantID: row.TenantID, CreatedAt: row.CreatedAt, UpdatedAt: row.UpdatedAt, StudentID: row.StudentID, Date: careplan.Date(row.Date), Status: row.Status, ReportedAt: row.ReportedAt, ClearedAt: row.ClearedAt, Source: row.Source, GuardianAccountID: row.GuardianAccountID, Note: row.Note, ReportedByAccountID: row.ReportedByAccountID, ClearedSource: row.ClearedSource, ClearedByAccountID: row.ClearedByAccountID}
 }
 
 func NewStudentStatusDayRepository(capability careplan.Capability) *StudentStatusDayRepository {

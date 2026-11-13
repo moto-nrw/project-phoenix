@@ -88,6 +88,7 @@
   "staff_value_invalid": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "staff_value_unsupported": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "status_day_conflict": "На некоторые дни уже есть запись. Эти дни не изменены.",
+  "status_day_occupied": "На сегодня внесена классная поездка. Сначала отмените классную поездку.",
   "guardian_email_block_needs_review": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "guardian_email_block_lift_failed": "Не удалось сохранить: {object}. Проверьте введённые данные.",
   "guardian_email_block_stays": "Не удалось сохранить: {object}. Проверьте введённые данные.",

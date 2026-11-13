@@ -3,7 +3,7 @@
 
 import { useDataPrefetchIntent } from "~/components/ui/data-prefetch-intent";
 import type { ReactNode } from "react";
-import { TILE_CARD_SURFACE } from "~/components/ui/tile-card";
+import { tileCardSurface } from "~/components/ui/tile-card";
 import {
   Clock,
   AlertTriangle,
@@ -28,11 +28,8 @@ import {
   type StudentDayTimes,
   type StudentTimeStatus,
 } from "~/lib/student-time-status";
-import {
-  GROUP_ROOM_SHADES,
-  LOCATION_COLORS,
-  MOTO_COLOR_PALETTE,
-} from "~/lib/location-helper";
+import { GROUP_ROOM_SHADES, LOCATION_COLORS } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import type { StudentCheckinState } from "~/lib/hooks/use-school-checkin-mode";
 import { Avatar } from "~/components/ui/avatar";
 import { useStudentPhotosEnabled } from "~/lib/hooks/use-student-photos-enabled";
@@ -273,7 +270,7 @@ export function StudentCard({
       data-checkin-selected={isSelectedCard || undefined}
       data-day-home-change={dayChangeKind}
       style={selectedRingStyle}
-      className={`${TILE_CARD_SURFACE} flex cursor-pointer flex-col disabled:cursor-wait disabled:opacity-70`}
+      className={`${tileCardSurface({ padding: "none" })} flex cursor-pointer flex-col disabled:cursor-wait disabled:opacity-70`}
     >
       <div
         className={`relative ${hasTapStrip || dayChangeLabel ? "p-3 pb-0 sm:p-5 sm:pb-0" : "p-3 sm:p-5"}`}

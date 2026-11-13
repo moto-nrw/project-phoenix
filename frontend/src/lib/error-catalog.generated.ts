@@ -1457,6 +1457,8 @@ export const ERROR_CATALOG = {
         "Ein eigener Wert ist hier nicht möglich. Bitte wählen Sie einen Wunsch oder „Keine Änderung“.",
       "students.status_day_conflict":
         "An einigen Tagen gibt es schon einen Eintrag. Diese Tage wurden nicht geändert.",
+      "students.status_day_occupied":
+        "Für heute ist eine Klassenfahrt eingetragen. Heben Sie zuerst die Klassenfahrt auf.",
       "substitutions.invalid_period":
         "{object} enthält ungültige Angaben. Bitte prüfen Sie Ihre Eingaben.",
       "substitutions.invalid_target":
@@ -2610,6 +2612,8 @@ export const ERROR_CATALOG = {
         "The parents set this time. Only someone with a staff profile can change it.",
       "students.status_day_conflict":
         "Some days already have an entry. These days were not changed.",
+      "students.status_day_occupied":
+        "A class trip is entered for today. Remove the class trip first.",
       "substitutions.last_supervisor":
         "You are the only supervisor. Hand the supervision over to someone or end the activity.",
       "timetable.closing_day_notice_changed":
@@ -3258,6 +3262,8 @@ export const ERROR_CATALOG = {
         "Это время установили родители. Изменить его может только сотрудник с профилем персонала.",
       "students.status_day_conflict":
         "На некоторые дни уже есть запись. Эти дни не изменены.",
+      "students.status_day_occupied":
+        "На сегодня внесена классная поездка. Сначала отмените классную поездку.",
       "substitutions.last_supervisor":
         "Вы единственный, кто ведёт присмотр. Передайте присмотр другому человеку или завершите занятие.",
       "timetable.closing_day_notice_not_found":
@@ -3868,6 +3874,8 @@ export const ERROR_CATALOG = {
         "Këtë orë e kanë vendosur prindërit. Vetëm dikush me profil stafi mund ta ndryshojë.",
       "students.status_day_conflict":
         "Disa ditë kanë tashmë një regjistrim. Këto ditë nuk u ndryshuan.",
+      "students.status_day_occupied":
+        "Për sot është regjistruar një ekskursion klase. Hiqni fillimisht ekskursionin e klasës.",
       "substitutions.last_supervisor":
         "Jeni i vetmi mbikëqyrës. Ia dorëzoni mbikëqyrjen dikujt tjetër ose përfundoni aktivitetin.",
       "timetable.closing_day_notice_not_found":
@@ -4464,6 +4472,8 @@ export const ERROR_CATALOG = {
         "Ten czas ustawili rodzice. Zmienić go może tylko osoba z profilem pracownika.",
       "students.status_day_conflict":
         "Niektóre dni mają już wpis. Tych dni nie zmieniono.",
+      "students.status_day_occupied":
+        "Na dziś wpisana jest wycieczka klasowa. Najpierw usuń wycieczkę klasową.",
       "substitutions.last_supervisor":
         "Jesteś jedyną osobą sprawującą opiekę. Przekaż opiekę innej osobie lub zakończ zajęcia.",
       "timetable.closing_day_notice_not_found":
@@ -5067,6 +5077,8 @@ export const ERROR_CATALOG = {
         "Bu saati veliler belirledi. Yalnızca personel profili olan biri değiştirebilir.",
       "students.status_day_conflict":
         "Bazı günlerde zaten bir kayıt var. Bu günler değiştirilmedi.",
+      "students.status_day_occupied":
+        "Bugün için bir sınıf gezisi girilmiş. Önce sınıf gezisini kaldırın.",
       "substitutions.last_supervisor":
         "Gözetimi yapan tek kişi sizsiniz. Gözetimi başka birine devredin veya etkinliği bitirin.",
       "timetable.closing_day_notice_not_found":
@@ -5661,6 +5673,8 @@ export const ERROR_CATALOG = {
         "Цей час встановили батьки. Змінити його може лише працівник із профілем персоналу.",
       "students.status_day_conflict":
         "На деякі дні вже є запис. Ці дні не змінено.",
+      "students.status_day_occupied":
+        "На сьогодні внесено класну поїздку. Спочатку скасуйте класну поїздку.",
       "substitutions.last_supervisor":
         "Ви єдина особа, що здійснює нагляд. Передайте нагляд іншій особі або завершіть заняття.",
       "timetable.closing_day_notice_not_found":

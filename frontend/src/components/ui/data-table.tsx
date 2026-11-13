@@ -18,7 +18,7 @@ import {
   AT_LEAST_MD,
   useResolvedMediaQuery,
 } from "~/lib/hooks/use-media-query";
-import { LOCATION_COLORS } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import { Button } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { Skeleton } from "~/components/ui/skeleton";
@@ -1494,13 +1494,13 @@ export function DataTableStatusBadge({
   const label = unknown ? unknownLabel : active ? activeLabel : inactiveLabel;
   // The three states must stay visually distinct — pointing "inactive" at
   // UNKNOWN made it identical to the unknown branch, leaving the label text as
-  // the only difference. DANGER keeps the red this badge carried before the
-  // palette move, when inactive was LOCATION_COLORS.HOME (#FF3130).
+  // the only difference. Inactive keeps the red this badge carried before the
+  // palette move.
   const color = unknown
-    ? LOCATION_COLORS.UNKNOWN
+    ? MOTO_COLOR_PALETTE.stone.base
     : active
-      ? LOCATION_COLORS.GROUP_ROOM
-      : LOCATION_COLORS.DANGER;
+      ? MOTO_COLOR_PALETTE.green.base
+      : MOTO_COLOR_PALETTE.red.base;
   // Same pill as StatusBadge and StatusColorBadge (#5584): the tint of the
   // state's colour with its accessible text shade.
   return <StatusColorBadge label={label} color={color} />;

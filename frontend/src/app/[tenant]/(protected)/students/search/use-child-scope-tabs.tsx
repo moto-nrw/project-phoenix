@@ -1,7 +1,7 @@
 import { useMemo } from "react";
 import { useSession } from "next-auth/react";
 import { MotoConceptIcon } from "~/components/ui/moto-concept-icon";
-import type { OverflowMenuItem } from "~/components/ui/page-header/OverflowMenu";
+import type { OverflowMenuItem } from "~/components/ui/page-header/types";
 import type { TenantPageProps } from "~/components/ui/tenant-page";
 import { hasEffectiveAdminScope, isCaregiver } from "~/lib/auth-utils";
 import { useUserContext } from "~/lib/hooks/use-user-context";
