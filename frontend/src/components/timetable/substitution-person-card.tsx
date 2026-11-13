@@ -221,7 +221,9 @@ function appointmentState(appointment: EnrichedInstance, person: PersonForm) {
   const status = !editable
     ? ` · ${getStatusLabel(appointment.status)}`
     : sickLocked
-      ? " · Krankgemeldet"
+      ? person.lockedByOtherAbsence
+        ? " · Abwesend gemeldet"
+        : " · Krankgemeldet"
       : "";
   return { selectable, status };
 }
@@ -430,7 +432,11 @@ function AbsentDetails(props: PersonCardProps) {
       {props.person.sickLocked && (
         <Alert
           type="warning"
-          message="Diese Abwesenheit kommt aus einer Krankmeldung. Sie können hier nur die Vertretung ändern."
+          message={
+            props.person.lockedByOtherAbsence
+              ? "Diese Abwesenheit ist in der Zeiterfassung eingetragen. Sie können hier nur die Vertretung ändern."
+              : "Diese Abwesenheit kommt aus einer Krankmeldung. Sie können hier nur die Vertretung ändern."
+          }
         />
       )}
       <PersonScope {...props} />

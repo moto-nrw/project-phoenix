@@ -29,6 +29,8 @@ export function ownAbsenceTopic(): HelpTopic {
       "Freizeitausgleich trägt nur ein, wer die Zeiten des Teams verwalten darf.",
     ],
     notes: [
+      "An ganzen Abwesenheitstagen fallen Ihre Schichten aus. Im Betreuungsplan stehen Sie als abwesend. Das Team sieht dort nur `Krankheit` oder `Abwesenheit`, nie die Art oder Ihre Bemerkung.",
+      "Einen halben Tag plant Ihre Leitung selbst. Ihre Schichten bleiben dann stehen.",
       "Ihre Abwesenheit steht danach in der Tabelle `Zeiterfassung` unter `Status`. Über das Stift-Symbol am Ende der Zeile öffnen Sie den Tag.",
       "Hat eine Art Ihrer OGS feste Tage, sehen Sie den Stand in der Karte `Kontingente`. Den Anspruch trägt Ihre Leitung ein.",
     ],

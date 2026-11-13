@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"slices"
 	"time"
 
 	"github.com/moto-ogs/project-phoenix/modules/workforce"
@@ -52,7 +53,7 @@ func (s *staffAbsenceService) UpdateAbsence(ctx context.Context, staffID int64, 
 		return nil, fmt.Errorf("failed to update absence: %w", err)
 	}
 
-	if err := s.reconcileUpdatedSickAbsence(ctx, &before, absence, staffID, actorAccountID); err != nil {
+	if err := s.reconcileUpdatedAbsence(ctx, &before, absence, staffID, actorAccountID); err != nil {
 		return nil, err
 	}
 
@@ -199,29 +200,39 @@ func validateAbsenceUpdate(absence *StaffAbsence, req UpdateAbsenceRequest) erro
 	return nil
 }
 
-func (s *staffAbsenceService) reconcileUpdatedSickAbsence(ctx context.Context, before, after *StaffAbsence, actorStaffID int64, actorAccountID *int64) error {
-	if before.AbsenceType == AbsenceTypeSick && !before.HalfDay &&
-		(before.DateStart != after.DateStart || before.DateEnd != after.DateEnd) {
-		if err := s.shiftPlanSyncer.ReconcileSickRange(
-			ctx,
-			sickCascadeInput(before, actorStaffID, actorAccountID),
-			sickCascadeInput(after, actorStaffID, actorAccountID),
-		); err != nil {
-			return fmt.Errorf("absence update saved nothing — plan cascade reconciliation failed: %w", err)
-		}
+// reconcileUpdatedAbsence applies the plan-day difference of an edited
+// absence in force: a moved bound or a flipped half day adds or releases
+// full days (#1843, #6847). The cascade compares the full days of both
+// versions, so an edit that keeps them asks for nothing.
+func (s *staffAbsenceService) reconcileUpdatedAbsence(ctx context.Context, before, after *StaffAbsence, actorStaffID int64, actorAccountID *int64) error {
+	if !slices.Contains(workforce.PlanEffectiveAbsenceStatuses(), before.Status) {
+		return nil
+	}
+	beforeInput := sickCascadeInput(before, actorStaffID, actorAccountID)
+	afterInput := sickCascadeInput(after, actorStaffID, actorAccountID)
+	if beforeInput == afterInput {
+		return nil
+	}
+	if err := s.shiftPlanSyncer.ReconcileSickRange(ctx, beforeInput, afterInput); err != nil {
+		return fmt.Errorf("absence update saved nothing — plan cascade reconciliation failed: %w", err)
 	}
 	return nil
 }
 
-// sickCascadeInput is the cascade's view of one sick report. The public
-// contract carries the range as DateLayout strings.
+// sickCascadeInput is the cascade's view of one absence. The public contract
+// carries the range as DateLayout strings. The skipped boundary days are the
+// effective half days the Stundenkonto credits as half: a legacy half_day
+// entry without boundary flags is half on both ends, so a single half day
+// covers no full day.
 func sickCascadeInput(absence *StaffAbsence, actorStaffID int64, actorAccountID *int64) SickCascadeInput {
+	startHalf, endHalf := effectiveBoundaryHalfDays(absence)
 	return SickCascadeInput{
 		SubjectStaffID: absence.StaffID,
+		AbsenceType:    absence.AbsenceType,
 		DateStart:      absence.DateStart.String(),
 		DateEnd:        absence.DateEnd.String(),
-		SkipStartDay:   absence.StartHalfDay,
-		SkipEndDay:     absence.EndHalfDay,
+		SkipStartDay:   startHalf,
+		SkipEndDay:     endHalf,
 		AbsenceID:      absence.ID,
 		ActorStaffID:   actorStaffID,
 		ActorAccountID: actorAccountID,
@@ -314,7 +325,8 @@ func (s *staffAbsenceService) deleteAbsenceFor(ctx context.Context, subjectStaff
 	}
 
 	// The reversal runs UNCONDITIONALLY: it is keyed purely by provenance
-	// stamps (sick_absence_id == this id), so an absence that never cascaded
+	// stamps (sick_absence_id == this id, any absence type since #6847), so an
+	// absence that never cascaded
 	// is a cheap no-op, while gating on type/half_day would let a mutated row
 	// (e.g. half_day flipped after the cascade ran) orphan its stamps forever.
 	if err := s.shiftPlanSyncer.ClearSickForRange(ctx, sickCascadeInput(absence, actorStaffID, actorAccountID)); err != nil {

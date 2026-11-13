@@ -37,6 +37,16 @@ type sickReportCalls struct {
 	cascadeErr error
 }
 
+func (c *sickReportCalls) ApproveAbsence(context.Context, int64, int64, int64, string) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
+	c.calls = append(c.calls, "approve")
+	return c.absence()
+}
+
+func (c *sickReportCalls) CancelAbsence(context.Context, int64, int64, int64) (workforce.SickCascadePlan, error) {
+	c.calls = append(c.calls, "cancel")
+	return c.plan, c.writeErr
+}
+
 func (c *sickReportCalls) CreateOwnAbsence(context.Context, int64, *int64, workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
 	c.calls = append(c.calls, "create own")
 	return c.absence()
@@ -129,6 +139,29 @@ func TestSickReportsApplyThePlanInOrderAfterTheWrite(t *testing.T) {
 	}, calls.calls)
 }
 
+// An approval and a withdrawal take plan effect since #6847: both run with
+// their plan in one unit of work behind the locks. A manager's approval names
+// no subject; the lock reads it from the stored absence (staff 0).
+func TestSickReportsApplyTheApprovalAndTheWithdrawalPlans(t *testing.T) {
+	t.Parallel()
+	calls := &sickReportCalls{plan: workforce.SickCascadePlan{
+		{Kind: workforce.SickCascadeMark, Report: workforce.SickCascadeInput{DateStart: "2026-03-02"}},
+	}}
+	reports := newSickReports(t, calls)
+
+	approved, err := reports.ApproveAbsence(inSickReportTx(), 42, 7, 12, "ok")
+	require.NoError(t, err)
+	assert.Equal(t, int64(42), approved.ID)
+
+	calls.plan = workforce.SickCascadePlan{{Kind: workforce.SickCascadeClear, Report: workforce.SickCascadeInput{DateStart: "2026-03-02"}}}
+	require.NoError(t, reports.CancelAbsence(inSickReportTx(), 11, 7, 42))
+
+	assert.Equal(t, []string{
+		"tx", "lock", "0/42 ..", "approve", "mark", "2026-03-02",
+		"tx", "lock", "11/42 ..", "cancel", "clear", "2026-03-02",
+	}, calls.calls)
+}
+
 func TestSickReportsFailClosed(t *testing.T) {
 	t.Parallel()
 	refused := errors.New("absence refused")
@@ -151,7 +184,7 @@ func TestSickReportsFailClosed(t *testing.T) {
 		kind    workforce.SickCascadeStepKind
 		message string
 	}{
-		{workforce.SickCascadeMark, "sick report saved nothing — plan cascade failed: plan write failed"},
+		{workforce.SickCascadeMark, "absence saved nothing — plan cascade failed: plan write failed"},
 		{workforce.SickCascadeClear, "absence not deleted — plan cascade reversal failed: plan write failed"},
 		{workforce.SickCascadeReconcile, "absence update saved nothing — plan cascade reconciliation failed: plan write failed"},
 		{workforce.SickCascadeReassign, "failed to merge absence — plan stamp reassignment failed: plan write failed"},

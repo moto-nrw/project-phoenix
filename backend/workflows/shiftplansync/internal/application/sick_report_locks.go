@@ -169,7 +169,8 @@ func (s *sickCascade) sickReportWriteScope(ctx context.Context, subject, absence
 	}
 	// Workforce validates sick ranges before writing. Leave invalid or oversized
 	// ranges to that validation without expanding or locking them here. Other
-	// absence types may legitimately span longer and have no sick cascade.
+	// absence types may legitimately span longer; their cascade takes each
+	// day lock itself, ascending, as it writes.
 	if !addDateRange(days, dateStart, dateEnd) {
 		return days, nil, nil
 	}
@@ -198,7 +199,8 @@ func (s *sickCascade) sickReportWriteScope(ctx context.Context, subject, absence
 
 // lockedSubject takes the absence gate of the write's subject and returns
 // the subject; 0 when an edited or deleted absence does not exist or belongs
-// to another staff member.
+// to another staff member. A write that names no staff member (staffID 0, a
+// manager's decision on a request) takes the stored absence's subject.
 func (s *sickCascade) lockedSubject(ctx context.Context, staffID, absenceID int64) (int64, error) {
 	subject := staffID
 	if absenceID > 0 {
@@ -209,6 +211,9 @@ func (s *sickCascade) lockedSubject(ctx context.Context, staffID, absenceID int6
 		}
 		if err != nil {
 			return 0, fmt.Errorf("sick report lock: load absence: %w", err)
+		}
+		if staffID == 0 {
+			staffID = stored.StaffID
 		}
 		if stored.StaffID != staffID {
 			// Workforce reports the ownership error. Taking the other subject's
@@ -226,15 +231,16 @@ func (s *sickCascade) lockedSubject(ctx context.Context, staffID, absenceID int6
 	return subject, nil
 }
 
-// overlappingSickReports lists the subject's sick reports that overlap the
-// days, the reports a new or edited range merges.
+// overlappingSickReports lists the subject's absences that overlap the days,
+// the absences a new or edited range merges. Every type stamps plans since
+// #6847, so every type counts.
 func (s *sickCascade) overlappingSickReports(ctx context.Context, subject int64, days map[calendar.Date]bool) ([]workforce.StaffAbsence, error) {
 	if len(days) == 0 {
 		return nil, nil
 	}
 	sorted := sortedDateSet(days)
 	reports, err := s.absences.ListStaffAbsences(ctx, workforce.StaffAbsenceFilter{
-		StaffID: subject, Types: []string{workforce.AbsenceTypeSick},
+		StaffID:     subject,
 		OverlapFrom: sorted[0].String(), OverlapTo: sorted[len(sorted)-1].String(),
 	})
 	if err != nil {

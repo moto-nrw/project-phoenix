@@ -378,6 +378,6 @@ func bulkDayError(date calendar.Date, err error) error {
 // the existing "absent on that day" code: a sick person is absent.
 func substituteSickOnDate(date calendar.Date) error {
 	return timetable.DeviationBadRequest(fmt.Sprintf(
-		"die Ersatzperson ist am %s krankgemeldet", date.Format("02.01.2006"))).
+		"die Ersatzperson ist am %s ganztägig abwesend", date.Format("02.01.2006"))).
 		WithCode(timetable.CodeSubstituteAbsentOnDate).OnField("substitute_staff_id").WithValues(timetable.RefusalValues{Date: date.Format(timetable.RefusalDateLayout)})
 }

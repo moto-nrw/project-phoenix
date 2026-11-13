@@ -8,8 +8,9 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
-// SickReports is the entry of the absence writes that may cascade a sick
-// report (#1843, #4825). Each write runs Workforce's absence command and the
+// SickReports is the entry of the absence writes that may cascade an absence
+// into the plans (#1843, #4825); since #6847 every absence type in force
+// cascades, a sick report as well as an approved vacation. Each write runs Workforce's absence command and the
 // plan it returns in one tenant transaction, and a failed plan step aborts
 // the absence write, so a half-cascaded sick report never commits. Before
 // the write the entry takes every lock the write and its cascade need, in
@@ -29,6 +30,23 @@ func NewSickReports(absences workforce.SickReportWrites, cascade SickCascade, ru
 		return nil, errors.New("shift plan sync: sick reports need the absence writes, the cascade and the unit of work")
 	}
 	return &SickReports{absences: absences, cascade: cascade, runInTx: runInTx}, nil
+}
+
+// ApproveAbsence approves a request; the approved absence cascades into the
+// plans (#6847). The request names no subject, so the lock reads it from the
+// stored absence.
+func (r *SickReports) ApproveAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, note string) (*workforce.StaffAbsenceResponse, error) {
+	return r.absence(ctx, r.lockFor(0, absenceID, "", ""), func(ctx context.Context) (*workforce.StaffAbsenceResponse, workforce.SickCascadePlan, error) {
+		return r.absences.ApproveAbsence(ctx, absenceID, actorAccountID, decidedByStaffID, note)
+	})
+}
+
+// CancelAbsence withdraws the staff member's request; withdrawing an approved
+// one reverses its plan cascade (#6847).
+func (r *SickReports) CancelAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64) error {
+	return r.deletion(ctx, r.lockFor(staffID, absenceID, "", ""), func(ctx context.Context) (workforce.SickCascadePlan, error) {
+		return r.absences.CancelAbsence(ctx, staffID, actorAccountID, absenceID)
+	})
 }
 
 // CreateOwnAbsence files the staff member's own absence.
@@ -134,7 +152,7 @@ func (r *SickReports) applyStep(ctx context.Context, step workforce.SickCascadeS
 	switch step.Kind {
 	case workforce.SickCascadeMark:
 		if err := r.cascade.MarkSickForRange(ctx, step.Report); err != nil {
-			return fmt.Errorf("sick report saved nothing — plan cascade failed: %w", err)
+			return fmt.Errorf("absence saved nothing — plan cascade failed: %w", err)
 		}
 	case workforce.SickCascadeClear:
 		if err := r.cascade.ClearSickForRange(ctx, step.Report); err != nil {

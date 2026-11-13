@@ -201,7 +201,7 @@ type materializationWorld struct {
 	timeframeByID map[int64]*schedule.Timeframe
 	// sickDays names the report behind every full sick day of a staff member
 	// in the window (#6292).
-	sickDays map[staffDay]int64
+	sickDays map[staffDay]absenceStamp
 	// weekendFollowsFriday materializes Saturday and Sunday from Friday's
 	// schedules (#3921).
 	weekendFollowsFriday bool
@@ -750,7 +750,7 @@ func (s *materializationService) copySupervisors(
 	date calendar.Date,
 	periodID int64,
 	planWeekday int,
-	sickDays map[staffDay]int64,
+	sickDays map[staffDay]absenceStamp,
 	result *timetable.MaterializationResult,
 ) error {
 	primaryStaffID, hasPrimary := effectivePrimarySupervisor(supervisors, date, periodID, planWeekday)

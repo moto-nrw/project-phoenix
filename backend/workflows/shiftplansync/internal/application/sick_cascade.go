@@ -1,8 +1,9 @@
 // Package application holds the shift-plan-sync workflow's behaviour: the
-// #1843 sick cascade, where one sick report fans out into shift cancellations
+// #1843 sick cascade, where one absence fans out into shift cancellations
 // (Dienstplan) and per-day block absences (Betreuungsplan) and deleting the
-// report reverses exactly the rows it stamped, and the schedule substitution
-// moves.
+// absence reverses exactly the rows it stamped, and the schedule substitution
+// moves. Since #6847 every absence type in force cascades, not only a sick
+// report; the type decides the neutral labels the plans show.
 //
 // The cascade applies the workforce.SickCascadePlan Workforce's absence
 // writes return; SickReports runs both in one tenant transaction (#4825). Both
@@ -24,15 +25,14 @@ import (
 	"github.com/moto-ogs/project-phoenix/workflows/shiftplansync/ports"
 )
 
-// sickShiftChangeReason / sickBlockAbsenceReason are the neutral machine
-// labels the cascade writes. The absence note is deliberately NOT propagated:
-// plan surfaces (Dienstplan cells, block badges) are visible to the whole
-// team, while the note may carry private medical detail. Each label is its
-// plan owner's, which that owner's materializer writes as well (#6292, #6302).
-const (
-	sickShiftChangeReason  = workforce.SickShiftChangeReason
-	sickBlockAbsenceReason = timetable.SickBlockAbsenceReason
-)
+// The cascade writes neutral machine labels: workforce.ShiftChangeReasonFor
+// on shifts and timetable.BlockAbsenceReason on blocks, "Krankheit" and
+// "Krankmeldung" for a sick report, "Abwesenheit" for every other absence
+// (#6847). The absence note and a school's own art name are deliberately NOT
+// propagated: plan surfaces (Dienstplan cells, block badges) are visible to
+// the whole team, while the note may carry private medical detail. Each label
+// is its plan owner's, which that owner's materializer writes as well (#6292,
+// #6302).
 
 // TimetableRows are the Betreuungsplan rows the cascade selects for the
 // Timetable owner's deviation writes, and the Timetable owner's day lock of every day-wide
@@ -197,7 +197,7 @@ func (s *sickCascade) cancelShiftsForSickDays(ctx context.Context, report sickRe
 	for _, d := range days {
 		daySet[d] = true
 	}
-	reason := sickShiftChangeReason
+	reason := workforce.ShiftChangeReasonFor(report.absenceType)
 	today := s.todayDate()
 	for _, shift := range shifts {
 		cascades, err := s.shiftTakesSickCancellation(shift, daySet, today)
@@ -253,7 +253,7 @@ func (s *sickCascade) markBlocksForSickDays(ctx context.Context, report sickRepo
 	// Past days are never touched: a completed/historical instance records
 	// what actually happened (mirrors the deviations endpoints' past guard).
 	today := s.todayDate()
-	reason := sickBlockAbsenceReason
+	reason := timetable.BlockAbsenceReason(report.sick())
 	for _, d := range days {
 		if d.Before(today) {
 			continue
@@ -289,7 +289,7 @@ func (s *sickCascade) markBlocksForSickDay(ctx context.Context, report sickRepor
 			continue
 		}
 		if err := s.deviations.MarkSickAbsence(ctx, timetable.SickAbsenceMark{
-			AssignmentID: row.ID, Reason: reason, SickAbsenceID: report.absenceID, ActorAccountID: report.actorAccountID,
+			AssignmentID: row.ID, Reason: reason, SickAbsenceID: report.absenceID, Sick: report.sick(), ActorAccountID: report.actorAccountID,
 		}, activeTouched); err != nil {
 			return fmt.Errorf("sick cascade: mark block %d: %w", row.InstanceID, err)
 		}
@@ -596,7 +596,7 @@ func (s *sickCascade) clearStampedBlocksForDay(ctx context.Context, report sickR
 		// The owner clears the block's understaffed acknowledgement when the
 		// restore leaves it fully staffed again.
 		if err := s.deviations.ClearSickAbsence(ctx, timetable.SickAbsenceClear{
-			AssignmentID: entry.row.ID, SickAbsenceID: report.absenceID, ActorAccountID: report.actorAccountID,
+			AssignmentID: entry.row.ID, SickAbsenceID: report.absenceID, Sick: report.sick(), ActorAccountID: report.actorAccountID,
 		}, activeTouched); err != nil {
 			return fmt.Errorf("sick clear: clear block %d: %w", entry.row.InstanceID, err)
 		}
@@ -648,6 +648,7 @@ func (s *sickCascade) instanceHasActiveSubstitute(ctx context.Context, instanceI
 // range once and every comparison below works on timezone.Date.
 type sickReport struct {
 	subjectStaffID int64
+	absenceType    string
 	absenceID      int64
 	actorStaffID   int64
 	actorAccountID *int64
@@ -676,12 +677,19 @@ func parseSickReport(in workforce.SickCascadeInput) (sickReport, error) {
 func stampScope(in workforce.SickCascadeInput) sickReport {
 	return sickReport{
 		subjectStaffID: in.SubjectStaffID,
+		absenceType:    in.AbsenceType,
 		absenceID:      in.AbsenceID,
 		actorStaffID:   in.ActorStaffID,
 		actorAccountID: in.ActorAccountID,
 		skipStartDay:   in.SkipStartDay,
 		skipEndDay:     in.SkipEndDay,
 	}
+}
+
+// sick reports whether the absence is a sick report, which names itself on
+// the plans; every other absence stays neutral.
+func (r sickReport) sick() bool {
+	return r.absenceType == workforce.AbsenceTypeSick
 }
 
 // shiftDate reads a stored shift's calendar day. A row the database returns is
@@ -701,7 +709,7 @@ func shiftDate(shift workforce.StaffShift) (calendar.Date, error) {
 // materializer applies to blocks planned after the report (#6292).
 func sickCascadeDays(report sickReport) []calendar.Date {
 	plan := timetable.SickReport{
-		AbsenceID: report.absenceID, StaffID: report.subjectStaffID,
+		AbsenceID: report.absenceID, StaffID: report.subjectStaffID, Sick: report.sick(),
 		DateStart: report.dateStart, DateEnd: report.dateEnd,
 		SkipStartDay: report.skipStartDay, SkipEndDay: report.skipEndDay,
 	}
