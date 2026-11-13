@@ -236,12 +236,13 @@ describe("CareWeeklyPlanEditForm", () => {
       const button = await screen.findByRole("button", {
         name: "Als dauerhafte Ausnahme speichern",
       });
-      expect(button).toBeDisabled();
+      expect(button).toHaveAttribute("aria-disabled", "true");
       await act(async () => {
         setTestClock("2026-05-25T22:01:00Z");
         vi.advanceTimersByTime(60_000);
       });
       expect(button).toBeEnabled();
+      expect(button).not.toHaveAttribute("aria-disabled");
     },
   );
 
@@ -523,7 +524,7 @@ describe("CareWeeklyPlanEditForm", () => {
       screen.getByRole("button", {
         name: "Als dauerhafte Ausnahme speichern",
       }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(onSubmitWeekly).toHaveBeenCalledTimes(3);
     releaseFakeTimers();
   });
@@ -668,7 +669,7 @@ describe("CareWeeklyPlanEditForm", () => {
       screen.getByRole("button", {
         name: "Auf „Flexibel bis 14:30“ umbuchen",
       }),
-    ).toBeDisabled();
+    ).toHaveAttribute("aria-disabled", "true");
     expect(
       screen.getByText("Dieses Angebot hat keinen freien Platz."),
     ).toBeInTheDocument();
@@ -682,9 +683,10 @@ describe("CareWeeklyPlanEditForm", () => {
     const saveOffering = await screen.findByRole("button", {
       name: "Angebot ändern und speichern",
     });
-    expect(saveOffering).toBeDisabled();
+    expect(saveOffering).toHaveAttribute("aria-disabled", "true");
     fireEvent.click(screen.getByText(/Ich bestätige: Das Angebot gilt ab/));
     expect(saveOffering).toBeEnabled();
+    expect(saveOffering).not.toHaveAttribute("aria-disabled");
     fireEvent.click(saveOffering);
 
     await waitFor(() => {

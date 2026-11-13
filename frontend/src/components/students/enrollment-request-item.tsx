@@ -90,6 +90,11 @@ export function EnrollmentRequestItem({
           )}
           variant="ghost"
           size="compact"
+          tooltip={
+            view === "open"
+              ? "Öffnet die Änderung, dort nehmen Sie sie an oder lehnen sie ab."
+              : "Öffnet die entschiedene Änderung der Anmeldung."
+          }
         >
           {view === "open" ? "Prüfen" : "Ansehen"}
           <ArrowRight className="h-4 w-4" aria-hidden="true" />
