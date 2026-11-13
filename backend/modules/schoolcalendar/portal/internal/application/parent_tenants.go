@@ -73,8 +73,7 @@ func (s *service) parentVisibleAppointment(ctx context.Context, appointmentID in
 	}
 	guardianProfileIDs := distinctGuardianProfileIDs(tenantChildren)
 	studentIDs := distinctChildStudentIDs(tenantChildren)
-	_, recipientID := guardianRecipientStatusForStudents(recipients, guardianProfileIDs, studentIDs)
-	if recipientID == nil {
+	if guardianRecipientForStudents(recipients, guardianProfileIDs, studentIDs) == nil {
 		return nil, nil, nil
 	}
 	return appointment, recipients, nil
