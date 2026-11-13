@@ -285,7 +285,7 @@ function sampleValue(
 }
 
 /** Whether the mapping writes Stornos and credits in a column of their own. */
-export function sollHasCreditColumn(mapping: SollMapping): boolean {
+function sollHasCreditColumn(mapping: SollMapping): boolean {
   return mapping.columns.some((column) => column.field === "credit_amount");
 }
 

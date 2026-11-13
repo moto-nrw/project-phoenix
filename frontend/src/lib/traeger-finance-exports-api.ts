@@ -52,7 +52,7 @@ export const SOLL_BOOKING_TEXT_PLACEHOLDERS = [
 ] as const;
 
 /** Whether a column of the field carries a value: a constant or a pattern. */
-export function sollColumnKeepsValue(field: SollField): boolean {
+function sollColumnKeepsValue(field: SollField): boolean {
   return field === "constant" || field === "booking_text";
 }
 

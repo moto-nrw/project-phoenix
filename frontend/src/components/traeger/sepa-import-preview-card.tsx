@@ -105,7 +105,7 @@ function NotesCell({ row }: Readonly<{ row: ImportRow }>) {
  * Rows without IBAN and reference are children whose family pays without
  * a mandate (#7009): the import leaves them out and says so once.
  */
-export function withoutMandateText(count: number): string {
+function withoutMandateText(count: number): string {
   return count === 1
     ? "1 Zeile ohne Mandat: Sie hat keine IBAN und keine Mandatsreferenz. moto übernimmt sie nicht. Das ist kein Fehler."
     : `${count} Zeilen ohne Mandat: Sie haben keine IBAN und keine Mandatsreferenz. moto übernimmt sie nicht. Das ist kein Fehler.`;
