@@ -141,6 +141,19 @@ type StudentMoves interface {
 	EnsureOpenRoomSession(ctx context.Context, roomID, activityID int64) (*SessionDetail, error)
 }
 
+// SessionCheckIns checks children in to the school and places them in a
+// session in one unit (#6953): the app path that equals a scan at the room's
+// terminal. It is a capability of its own beside Presence, whose method set
+// is frozen (ADR 0178).
+type SessionCheckIns interface {
+	// CheckInStudentsToSessionAuthorized places the children in a running
+	// session with supervision.
+	CheckInStudentsToSessionAuthorized(ctx context.Context, studentIDs []int64, activeGroupID, staffID int64, auth StudentMoveAuthorization) (*StudentMoveResult, error)
+	// CheckInStudentsToOpenRoomSessionAuthorized places them in the room
+	// session of a released room; the open-room workflow resolves it.
+	CheckInStudentsToOpenRoomSessionAuthorized(ctx context.Context, studentIDs []int64, roomSessionID, staffID int64, auth StudentMoveAuthorization) (*StudentMoveResult, error)
+}
+
 // AttendanceCommands checks students in to and out of school.
 type AttendanceCommands interface {
 	// ToggleStudentAttendance flips state based on the current row — used by

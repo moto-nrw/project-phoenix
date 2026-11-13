@@ -68,3 +68,32 @@ func (rs *Resource) moveStudentsToTransit(w http.ResponseWriter, r *http.Request
 
 	common.Respond(w, r, http.StatusOK, result, "Students moved to transit successfully")
 }
+
+// checkInStudentsToSession checks children in to the school and places them
+// in a running session in one unit (#6953), so the app equals a scan at the
+// room's terminal. The request shape is the ordinary move's.
+func (rs *Resource) checkInStudentsToSession(w http.ResponseWriter, r *http.Request) {
+	var req moveStudentsToActiveGroupRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
+		return
+	}
+	if len(req.StudentIDs) == 0 || req.TargetActiveGroupID <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("student_ids and target_active_group_id are required")))
+		return
+	}
+
+	staffID, auth, ok := rs.CheckInMoveActor(w, r)
+	if !ok {
+		return
+	}
+
+	result, err := rs.Operations.CheckInStudentsToSessionAuthorized(r.Context(), req.StudentIDs, req.TargetActiveGroupID, staffID, *auth)
+	if err != nil {
+		rs.runtime.MarkRollback(r.Context())
+		common.RenderError(w, r, ErrorRenderer(err))
+		return
+	}
+
+	common.Respond(w, r, http.StatusOK, result, "Students checked in successfully")
+}

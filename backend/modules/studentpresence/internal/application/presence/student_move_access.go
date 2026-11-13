@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
 	"github.com/moto-ogs/project-phoenix/tenant"
 )
@@ -38,18 +37,18 @@ func (s *service) loadMoveSupervisedGroupIDs(ctx context.Context, staffID int64,
 // current group of every present child in the batch (push). On the push path
 // the target must additionally be the only running session in its room and
 // carry at least one running supervision, so no child is handed to a room
-// without a responsible adult and the assignment stays unambiguous. Admin
+// without a responsible adult and the assignment stays unambiguous. Children
+// the same unit just checked in (opts.arrivals, #6953) have no current place
+// to authorize; only the target rule applies to them. Admin
 // callers never reach this function (BypassResourceChecks).
 func (s *service) authorizeStudentMove(
 	ctx context.Context,
 	auth StudentMoveAuthorization,
-	targetGroup *ports.ActiveGroup,
-	studentIDs []int64,
-	openAttendance map[int64]studentpresence.Attendance,
-	currentVisits map[int64]*studentpresence.Visit,
+	plan *studentMovePlan,
 	op string,
-	openRoomTarget bool,
+	opts moveOptions,
 ) error {
+	targetGroup, openAttendance, currentVisits := plan.target, plan.openAttendance, plan.currentVisits
 	allowed, supervisedGroups, err := s.moveTargetAccess(ctx, auth, targetGroup.ID, op)
 	if err != nil {
 		return err
@@ -58,8 +57,11 @@ func (s *service) authorizeStudentMove(
 		return nil
 	}
 
-	for _, studentID := range studentIDs {
+	for _, studentID := range plan.studentIDs {
 		if !studentHasOpenAttendance(openAttendance, studentID) {
+			continue
+		}
+		if _, arrived := opts.arrivals[studentID]; arrived {
 			continue
 		}
 		currentVisit := currentVisits[studentID]
@@ -73,7 +75,7 @@ func (s *service) authorizeStudentMove(
 			return studentMoveForbidden(op)
 		}
 	}
-	if openRoomTarget {
+	if opts.openRoomTarget {
 		// A released room is a shared destination (#3066): taking supervision
 		// there is not a prerequisite, and its room session legitimately runs
 		// beside activity sessions, so the push rule's "one supervised session"

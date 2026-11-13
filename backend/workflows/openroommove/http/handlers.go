@@ -15,8 +15,11 @@ import (
 
 // Resource serves the workflow while the host binds the existing presence authorization.
 type Resource struct {
-	OpenRoomMove        openroommove.Command
-	Authorize           func(http.ResponseWriter, *http.Request) (*studentpresence.StudentMoveAuthorization, bool)
+	OpenRoomMove openroommove.Command
+	Authorize    func(http.ResponseWriter, *http.Request) (*studentpresence.StudentMoveAuthorization, bool)
+	// CheckInActor resolves the staff member a check-in names and the move
+	// rights the placement revalidates (#6953).
+	CheckInActor        func(http.ResponseWriter, *http.Request) (int64, *studentpresence.StudentMoveAuthorization, bool)
 	MarkRollback        func(context.Context)
 	RenderPresenceError func(error) render.Renderer
 	WebAttendance       func(context.Context) (bool, error)
@@ -24,6 +27,7 @@ type Resource struct {
 
 func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
 	r.With(common.RequireVisitUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.WebAttendance)).Post("/visits/move-to-room", rs.moveStudentsToOpenRoom)
+	r.With(common.RequireSchoolCheckin(), common.RequireVisitUpdate(), withTx, common.RequireWebAttendanceEnabled(rs.WebAttendance)).Post("/visits/check-in-to-room", rs.checkInStudentsToOpenRoom)
 }
 
 type moveStudentsToOpenRoomRequest struct {
@@ -66,19 +70,61 @@ func (rs *Resource) moveStudentsToOpenRoom(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// The same wire shape as the ordinary bulk move, so clients handle both
-	// results alike.
+	common.Respond(w, r, http.StatusOK, moveResponse(result), "Students moved successfully")
+}
+
+// checkInStudentsToOpenRoom checks children in to the school and places them
+// in a released room in one unit (#6953). Children already present move with
+// every source-side right of moveStudentsToOpenRoom.
+func (rs *Resource) checkInStudentsToOpenRoom(w http.ResponseWriter, r *http.Request) {
+	var req moveStudentsToOpenRoomRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("invalid request body")))
+		return
+	}
+	if len(req.StudentIDs) == 0 || req.TargetRoomID <= 0 {
+		common.RenderError(w, r, common.ErrorInvalidRequest(openroommove.ErrInvalidMove))
+		return
+	}
+
+	staffID, auth, ok := rs.CheckInActor(w, r)
+	if !ok {
+		return
+	}
+
+	result, err := rs.OpenRoomMove.CheckInToOpenRoom(r.Context(), openroommove.CheckIn{
+		StudentIDs:  req.StudentIDs,
+		RoomID:      req.TargetRoomID,
+		CheckedInBy: staffID,
+		Actor: openroommove.Actor{
+			StaffID:                      auth.StaffID,
+			BypassResourceChecks:         auth.BypassResourceChecks,
+			SchoolWideAttendanceEligible: auth.SchoolWideAttendanceEligible,
+		},
+	})
+	if err != nil {
+		rs.MarkRollback(r.Context())
+		common.RenderError(w, r, rs.openRoomMoveErrorRenderer(err))
+		return
+	}
+	common.Respond(w, r, http.StatusOK, moveResponse(result), "Students checked in successfully")
+}
+
+// moveResponse keeps the wire shape of the ordinary bulk move, so clients
+// handle every result alike.
+func moveResponse(result openroommove.Result) *studentpresence.StudentMoveResult {
 	response := &studentpresence.StudentMoveResult{
 		Moved:         nonNilIDs(result.Moved),
 		Unchanged:     nonNilIDs(result.Unchanged),
 		Skipped:       make([]studentpresence.StudentMoveSkipped, 0, len(result.Skipped)),
 		ActiveGroupID: &result.RoomSessionID,
 		RoomID:        &result.RoomID,
+		CheckedIn:     result.CheckedIn,
 	}
 	for _, skipped := range result.Skipped {
 		response.Skipped = append(response.Skipped, studentpresence.StudentMoveSkipped{StudentID: skipped.StudentID, Reason: skipped.Reason})
 	}
-	common.Respond(w, r, http.StatusOK, response, "Students moved successfully")
+	return response
 }
 
 // openRoomMoveErrorRenderer maps the workflow's own rejections and hands every

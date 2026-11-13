@@ -41,6 +41,7 @@ type MoveOutcome struct {
 	Moved     []int64
 	Unchanged []int64
 	Skipped   []openroommove.Skipped
+	CheckedIn []int64
 }
 
 // Moves transfers children into a room session with every source-side right
@@ -48,6 +49,9 @@ type MoveOutcome struct {
 type Moves interface {
 	PrepareOpenRoomMove(ctx context.Context, studentIDs []int64, roomID int64) error
 	MoveIntoRoomSession(ctx context.Context, roomSessionID int64, studentIDs []int64, actor openroommove.Actor) (MoveOutcome, error)
+	// CheckInIntoRoomSession checks the absent children in to the school and
+	// places every child in the room session, in the caller's unit (#6953).
+	CheckInIntoRoomSession(ctx context.Context, roomSessionID int64, studentIDs []int64, staffID int64, actor openroommove.Actor) (MoveOutcome, error)
 }
 
 // Runtime binds the workflow to the tenant UnitOfWork.

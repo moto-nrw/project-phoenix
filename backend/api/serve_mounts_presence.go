@@ -84,7 +84,7 @@ func mountPresenceRoutes(
 		return err
 	}
 	move := &openRoomMoveHTTP.Resource{
-		OpenRoomMove: openRoomMove, Authorize: activeResource.BulkStudentMoveAuthorization,
+		OpenRoomMove: openRoomMove, Authorize: activeResource.BulkStudentMoveAuthorization, CheckInActor: activeResource.CheckInMoveActor,
 		MarkRollback: activeRequestRuntime().MarkRollback, RenderPresenceError: presenceAPI.ErrorRenderer,
 		WebAttendance: settingsFacts.NewDisplaySettings(settings).WebAttendanceEnabledReader(),
 	}
