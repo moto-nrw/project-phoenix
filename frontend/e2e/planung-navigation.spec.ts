@@ -5,6 +5,7 @@ import {
   MISSING_SEED_ACCESS,
   seedAccess as access,
   tenantBase as base,
+  warmPages,
 } from "./tenant-session";
 import {
   berlinTodayISO,
@@ -57,6 +58,22 @@ test.describe("Planung server redirects", () => {
 });
 
 test.describe("Planung navigation", () => {
+  // Der Seitenleisten-Test besucht drei Seiten nacheinander. Auf dem kalten
+  // Server eines CI-Shards (#6937) ist er der erste Test mit Oberfläche; die
+  // ersten Bauten dieser Seiten fraßen sein Zeitbudget, ein Klick wartete dann
+  // vergeblich auf einen ruhigen Browser. Die Bauten laufen deshalb vorher.
+  test.beforeAll(async ({ browser }) => {
+    if (!access) return;
+    test.setTimeout(240_000);
+    const page = await browser.newPage({ baseURL: base });
+    try {
+      await loginToTenant(page, access);
+      await warmPages(page, ["/betreuungsplan", "/dienstplan", "/vertretung"]);
+    } finally {
+      await page.close();
+    }
+  });
+
   test.beforeEach(async ({ page }) => {
     test.skip(access === null, MISSING_SEED_ACCESS);
     if (!access) return;

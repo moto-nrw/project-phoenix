@@ -14,6 +14,12 @@
   "api/active/tracking-indicators": [
     "POST tenant /api/active/tracking-indicators"
   ],
+  "api/active/visits/check-in-to-group": [
+    "POST tenant /api/active/visits/check-in-to-group"
+  ],
+  "api/active/visits/check-in-to-room": [
+    "POST tenant /api/active/visits/check-in-to-room"
+  ],
   "api/active/visits/move-to-group": [
     "POST tenant /api/active/visits/move-to-group"
   ],

@@ -106,6 +106,11 @@ interface StudentCardProps {
   readonly checkinMode?: boolean;
   /** Required when checkinMode is true — drives the tap-strip colour + copy. */
   readonly checkinState?: StudentCheckinState;
+  /**
+   * The room a tap checks the child into (#6953). Names it on the strip of an
+   * absent child, so the target is visible where the tap happens.
+   */
+  readonly checkinTargetName?: string | null;
   /** Render spinner inside the tap-strip and disable the button while the API call is in flight. */
   readonly isCheckinPending?: boolean;
   /** Click handler for check-in mode. Ignored when checkinMode is false. */
@@ -184,6 +189,7 @@ export function StudentCard({
   trackingIndicators,
   checkinMode = false,
   checkinState = "unknown",
+  checkinTargetName = null,
   isCheckinPending = false,
   onCheckinClick,
   checkinSelectMode = false,
@@ -205,7 +211,11 @@ export function StudentCard({
 
   // Pull a Tap-Strip preset for the bottom action area in checkinMode.
   // The strip carries the colour signal; the card body stays neutral white.
-  const tapStrip = checkinMode ? TAP_STRIP_STYLES[checkinState] : null;
+  const baseTapStrip = checkinMode ? TAP_STRIP_STYLES[checkinState] : null;
+  const tapStrip =
+    baseTapStrip?.action === "anmelden" && checkinTargetName
+      ? { ...baseTapStrip, copy: `In ${checkinTargetName} anmelden` }
+      : baseTapStrip;
   // The button's label replaces its content for screen readers, so the
   // one-day change must be part of it (#3946).
   const dayChange = dayHomeChange
