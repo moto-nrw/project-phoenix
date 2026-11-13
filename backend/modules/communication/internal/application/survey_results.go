@@ -6,7 +6,7 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // maxSurveyHighlights is how many scale questions the overall strengths and

@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Prefill of the holiday registration (#4662, spec #4611 user story 27): a
@@ -52,6 +52,8 @@ type HolidayRegistrationChild struct {
 	BirthDate        *calendar.Date
 	HolidayWish      string
 	HolidayWishProof string
+	// Contacts are the child's other guardians the form may offer (#6682).
+	Contacts []HolidayRegistrationContact
 }
 
 // HolidayRegistrationScope is what the link of a holiday period names: the
@@ -86,12 +88,14 @@ type HolidayWishStatements interface {
 }
 
 // HolidayRegistrationGuardian is the contact data of the calling guardian at
-// the school of the first offered child.
+// the school of the first offered child. Address is nil when the school
+// knows none (#6682).
 type HolidayRegistrationGuardian struct {
 	FirstName string
 	LastName  string
 	Email     string
 	Phone     string
+	Address   *HolidayRegistrationAddress
 }
 
 // HolidayRegistrationFamily is the prefill of a holiday registration.
@@ -175,19 +179,20 @@ func (s *Service) holidayRegistrationChildren(children []*ChildSummary, schoolID
 // loadHolidayRegistrationFamily reads the children of one school inside its
 // tenant transaction and records each read there.
 func (s *Service) loadHolidayRegistrationFamily(ctx context.Context, accountID int64, scope HolidayRegistrationScope, tenantID int64, children []*ChildSummary, family *HolidayRegistrationFamily) error {
+	offered := make([]*HolidayRegistrationChild, 0, len(children))
 	for _, child := range children {
 		person, err := s.PersonRepo.FindByID(ctx, child.PersonID)
 		if err != nil {
 			return err
 		}
-		offered := HolidayRegistrationChild{
+		offeredChild := HolidayRegistrationChild{
 			StudentID: child.StudentID, SchoolID: tenantID,
 			FirstName: person.FirstName, LastName: person.LastName, BirthDate: person.Birthday,
 		}
-		if err := s.stateHolidayWish(ctx, scope, &offered); err != nil {
+		if err := s.stateHolidayWish(ctx, scope, &offeredChild); err != nil {
 			return err
 		}
-		family.Children = append(family.Children, offered)
+		offered = append(offered, &offeredChild)
 		if err := s.ChildDataAccess.RecordHolidayRegistrationPrefill(ctx, ChildDataAccess{
 			StudentID: child.StudentID, ActorAccountID: accountID, OrganizationID: scope.OrganizationID, AccessedAt: s.now(),
 			HolidayWish: scope.HolidayWishRule && person.Birthday != nil,
@@ -202,17 +207,23 @@ func (s *Service) loadHolidayRegistrationFamily(ctx context.Context, accountID i
 			family.Guardian = guardian
 		}
 	}
+	if err := s.attachHolidayRegistrationContacts(ctx, accountID, offered); err != nil {
+		return err
+	}
+	for _, child := range offered {
+		family.Children = append(family.Children, *child)
+	}
 	return nil
 }
 
-// holidayRegistrationGuardian reads the calling guardian's own profile and
-// primary phone at the school in context.
+// holidayRegistrationGuardian reads the calling guardian's own profile,
+// postal address and primary phone at the school in context.
 func (s *Service) holidayRegistrationGuardian(ctx context.Context, guardianProfileID int64) (*HolidayRegistrationGuardian, error) {
 	profile, err := s.GuardianProfileRepo.FindByID(ctx, guardianProfileID)
 	if err != nil {
 		return nil, err
 	}
-	guardian := &HolidayRegistrationGuardian{FirstName: profile.FirstName, LastName: profile.LastName, Email: deref(profile.Email)}
+	guardian := &HolidayRegistrationGuardian{FirstName: profile.FirstName, LastName: profile.LastName, Email: deref(profile.Email), Address: holidayRegistrationAddress(profile)}
 	phones, err := s.GuardianPhoneRepo.FindByGuardianID(ctx, profile.ID)
 	if err != nil {
 		return nil, err

@@ -4,8 +4,8 @@ status: accepted
 
 # Ferienanmeldungen gehen nach drei Monaten mit Eintrag im Löschprotokoll des Trägers
 
-Entscheidung vom 26.10.2026 zu [#4667](https://github.com/moto-nrw/project-phoenix/issues/4667),
-Etappe 1 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung vom 26.10.2026 zu [#4667](https://github.com/moto-ogs/project-phoenix/issues/4667),
+Etappe 1 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Story 121. Sie wendet
 [ADR 0073](0073-inhalte-der-schule-folgen-der-frist-ihrer-datenart.md) auf die
 Ferien-Daten des Trägers an und baut auf
@@ -85,7 +85,7 @@ Träger. Ob die Löschung an den unveränderlichen Rechnungen aus #4668 und
 ## Nachtrag 2026-11-11: Frist je Anmeldung, Gesundheitsangaben nach 92 Tagen, PDF (#6691)
 
 Entscheidung vom 11.11.2026 zu
-[#6691](https://github.com/moto-nrw/project-phoenix/issues/6691), aus dem
+[#6691](https://github.com/moto-ogs/project-phoenix/issues/6691), aus dem
 Termin mit der Gemeinde Bissendorf. Das Träger-Büro konnte eine Anmeldung
 nicht ablegen und hatte nach drei Monaten keinen Nachweis mehr, was die
 Eltern erklärt haben. Der Nachtrag ersetzt in Punkt 1 „Die Frist ist fest“

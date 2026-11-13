@@ -4,15 +4,15 @@ import (
 	"context"
 	"errors"
 
-	reviewbindings "github.com/moto-nrw/project-phoenix/roots/requestreviewbinding"
+	reviewbindings "github.com/moto-ogs/project-phoenix/roots/requestreviewbinding"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carecompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	enrollmentcompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carecompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	enrollmentcompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	timetablecompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	timetablecompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // NewRequestReviewMasterData builds the owner query and binds its directory port.

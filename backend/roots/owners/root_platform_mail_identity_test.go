@@ -5,9 +5,9 @@ import (
 	"log/slog"
 	"testing"
 
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )

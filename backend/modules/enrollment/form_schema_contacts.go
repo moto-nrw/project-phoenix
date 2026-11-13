@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // Validate enforces guardian_profiles.CHECK (email OR ≥1 phone) plus

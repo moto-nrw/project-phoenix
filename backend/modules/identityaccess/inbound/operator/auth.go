@@ -7,10 +7,10 @@ import (
 
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // LoginRequest represents the login request body

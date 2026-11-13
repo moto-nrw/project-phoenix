@@ -4,8 +4,8 @@ import (
 	"context"
 	"database/sql"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/application/timetracking"
 )
 
 type retainedStaffScheduleAssignments struct {

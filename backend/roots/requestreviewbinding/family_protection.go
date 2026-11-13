@@ -1,8 +1,8 @@
 package requestreviewbinding
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/requestreview"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/requestreview"
 )
 
 // NewFamilyProtection keeps this decoration optional at the composition edge:

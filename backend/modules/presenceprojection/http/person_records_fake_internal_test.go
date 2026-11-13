@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // personRecordsFake is a func-field PersonRecords double for the handler unit

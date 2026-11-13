@@ -3,8 +3,8 @@ package contracttest_test
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // offeringChangesFixtureRoot supplies the HTTP root unit around direct application calls.

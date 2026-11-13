@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	api "github.com/moto-nrw/project-phoenix/roots/owners"
+	api "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	iotModels "github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	iot "github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application/deviceservice"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	iotModels "github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	iot "github.com/moto-ogs/project-phoenix/modules/devicefleet/internal/application/deviceservice"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"

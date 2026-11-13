@@ -4,9 +4,9 @@ import (
 	"context"
 	"net"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	schoolPortal "github.com/moto-nrw/project-phoenix/modules/schoolportal"
-	parentAPI "github.com/moto-nrw/project-phoenix/workflows/parentportal/http"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	schoolPortal "github.com/moto-ogs/project-phoenix/modules/schoolportal"
+	parentAPI "github.com/moto-ogs/project-phoenix/workflows/parentportal/http"
 )
 
 // The root binds the portals' sign-in runtimes to Identity & Access and fixes

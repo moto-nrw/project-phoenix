@@ -12,10 +12,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 // Soll und Ist je Kind (#4774) through the production router: the care plan

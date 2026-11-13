@@ -430,7 +430,7 @@ export const HOME_BLOCKS: readonly HomeBlockDefinition[] = [
       "Wie viele Kinder gerade da, in der Schule, im Unterricht, zuhause, krank oder entschuldigt sind.",
     concept: childrenConcept,
     spans: SECTION_SPANS,
-    // Fünf Zeilen passen erst in drei Rasterzeilen ganz hinein.
+    // Sechs Zeilen (mit „Im Unterricht“) passen erst in drei Rasterzeilen ganz hinein.
     height: 3,
     // Die Zahlen kommen aus den Betriebszahlen (groups:read), und jede Zeile
     // führt nach „Alle Kinder" (users:read). Ohne den Weg dorthin wäre die

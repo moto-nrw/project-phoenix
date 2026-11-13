@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // caregiverCapabilityAudit records People Directory's caregiver capability

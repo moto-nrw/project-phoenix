@@ -33,7 +33,7 @@ export function Checkbox({ className, ...props }: CheckboxProps) {
           BOX_UNCHECKED_CLASS,
           "peer-checked:border-gray-900 peer-checked:bg-gray-900",
           "peer-checked:[&>svg]:opacity-100",
-          "peer-focus-visible:ring-2 peer-focus-visible:ring-gray-300 peer-focus-visible:outline-none",
+          "peer-focus-visible:ring-2 peer-focus-visible:ring-gray-600 peer-focus-visible:outline-none",
           "peer-disabled:opacity-50",
           className,
         )}

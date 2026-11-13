@@ -6,13 +6,13 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	careContractCompose "github.com/moto-ogs/project-phoenix/modules/carecontract/compose"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	deliveryRuntime "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // CareContractNoticeSettings reads Träger-level texts in the caller's

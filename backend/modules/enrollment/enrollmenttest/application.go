@@ -4,8 +4,8 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
 )
 
 // Enrollment's application services, composed the way production composes
@@ -27,6 +27,10 @@ type (
 	// about children in care past a shortened end (#6598).
 	PhaseUpdateReport  = enrollment.PhaseUpdateReport
 	CareBeyondPhaseEnd = enrollment.CareBeyondPhaseEnd
+	// TraegerPhaseCopy and TraegerPhaseFields bring a Träger phase into a
+	// school's copy (ADR 0195, #6813).
+	TraegerPhaseCopy   = enrollment.TraegerPhaseCopy
+	TraegerPhaseFields = enrollment.TraegerPhaseFields
 )
 
 // NewApprovedOfferingProjection composes the approved-offering projection.

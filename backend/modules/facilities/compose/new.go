@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/facilities/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/facilities/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/facilities/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/facilities/internal/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 
@@ -21,9 +21,10 @@ type RoomUsage = ports.RoomUsage
 type Dependencies struct {
 	DB           *bun.DB
 	DeletionLock func(context.Context) error
-	// Usage decides whether a room may be deleted.
-	Usage   RoomUsage
-	Observe func(Observation)
+	// Usage and References (what other owners still point at, #6845) decide whether a room may be deleted.
+	Usage      RoomUsage
+	References func(context.Context, int64) (facilities.RoomReferences, error)
+	Observe    func(Observation)
 }
 
 // NewRooms composes the Facilities Catalog without the room deletion over
@@ -41,13 +42,11 @@ func NewRooms(dependencies Dependencies) (facilities.Catalog, error) {
 // New composes the Facilities module. Every operation requires the caller's
 // tenant, which the store also applies as a defense-in-depth predicate.
 func New(dependencies Dependencies) (facilities.Capability, error) {
-	if dependencies.DB == nil || dependencies.DeletionLock == nil || dependencies.Usage == nil || dependencies.Observe == nil {
+	if dependencies.DB == nil || dependencies.DeletionLock == nil || dependencies.Usage == nil || dependencies.References == nil || dependencies.Observe == nil {
 		return nil, errors.New("facilities compose: all dependencies are required")
 	}
 	store := postgres.New(postgres.DatabaseRuntime(dependencies.DB))
-	observe := ports.Observer(dependencies.Observe)
-	service := application.New(store, transaction{}, dependencies.DeletionLock, dependencies.Usage, observe)
-	return service, nil
+	return application.New(store, transaction{}, dependencies.DeletionLock, dependencies.Usage, dependencies.References, ports.Observer(dependencies.Observe)), nil
 }
 
 type transaction struct{}

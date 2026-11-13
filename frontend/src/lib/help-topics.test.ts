@@ -611,7 +611,7 @@ describe("getParentHelpTopicForPath", () => {
     // 100 seit #4769: das geteilte Wochenprotokoll.
     // 101 seit #4808: Nachweise wie Erste Hilfe im Blick behalten.
     // 103 seit #4692: Dokumente vom Träger finden.
-    expect(leadTopics).toHaveLength(104);
+    expect(leadTopics).toHaveLength(106);
     expect(
       leadTopics.every(
         (topic) =>
@@ -727,6 +727,7 @@ describe("getParentHelpTopicForPath", () => {
     expect(traegerTopics.map((topic) => topic.id)).toEqual([
       HELP_TOPICS.traegerInvitation,
       HELP_TOPICS.traegerLogin,
+      HELP_TOPICS.traegerProfile,
       HELP_TOPICS.traegerDashboard,
       HELP_TOPICS.traegerKeyDateCounts,
       HELP_TOPICS.traegerOccupancy,
@@ -743,6 +744,7 @@ describe("getParentHelpTopicForPath", () => {
       HELP_TOPICS.traegerHolidayWish,
       HELP_TOPICS.traegerHolidayAllocation,
       HELP_TOPICS.traegerHolidayContribution,
+      HELP_TOPICS.traegerCatalogPhases,
       HELP_TOPICS.traegerCareContracts,
       HELP_TOPICS.traegerBillingRun,
       HELP_TOPICS.traegerCareMonths,
@@ -754,6 +756,7 @@ describe("getParentHelpTopicForPath", () => {
       HELP_TOPICS.traegerSepaMandates,
       HELP_TOPICS.traegerSepaDebitFile,
       HELP_TOPICS.traegerFinanceExports,
+      HELP_TOPICS.traegerExportHandover,
       HELP_TOPICS.traegerDatevExport,
       HELP_TOPICS.traegerSharedDocuments,
       HELP_TOPICS.traegerCareTimeOverruns,

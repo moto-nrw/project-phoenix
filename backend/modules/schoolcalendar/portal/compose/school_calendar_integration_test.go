@@ -9,11 +9,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/appointments"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	calendarSvc "github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/appointments"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	calendarSvc "github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // setupSchoolCalendarService composes the calendar with the School
@@ -234,7 +234,7 @@ func TestSchoolCalendarIntegration_OGSChoosesLehrkraefte(t *testing.T) {
 	assert.False(t, invited.CanEdit)
 	assert.Nil(t, findAppointmentEvent(view.Events, staffOnly.Appointment.ID), "all_staff does not reach the Lehrkräfte")
 
-	require.NoError(t, testpkg.TenantCommand2(t, calendarContext(t, lehrkraftAccount.ID), db, service.RespondToSchoolInvitation, recipientID, appointments.ResponseStatusAccepted))
+	require.NoError(t, testpkg.TenantCommand2(t, calendarContext(t, lehrkraftAccount.ID), db, service.RespondToSchoolInvitation, recipientID, calendarSvc.InvitationAnswer{Status: appointments.ResponseStatusAccepted}))
 
 	colleagueEvents, err := testpkg.TenantQuery2(t, calendarContext(t, colleagueAccount.ID), db, service.ListMyStaffEvents, portalDate(2026, 3, 2), portalDate(2026, 3, 8))
 	require.NoError(t, err)

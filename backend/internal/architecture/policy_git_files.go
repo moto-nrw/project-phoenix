@@ -4,7 +4,7 @@ import (
 	"path"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
+	"github.com/moto-ogs/project-phoenix/architecture/artifacts"
 )
 
 func readBasePolicyDocument(root, project, sha, filename string) ([]byte, error) {

@@ -63,6 +63,7 @@ const CodeCareOfferingChangeInvalid = "care.offering_change_invalid"
 const CodeCareOfferingChangesDisabled = "care.offering_changes_disabled"
 const CodeCarePayerGuardianProtected = "care.payer_guardian_protected"
 const CodeCarePhotoConsentNotWithdrawn = "care.photo_consent_not_withdrawn"
+const CodeCarePickupChangeCareDayEnded = "care.pickup_change_care_day_ended"
 const CodeCarePickupChangeCutoffPassed = "care.pickup_change_cutoff_passed"
 const CodeCarePickupChangeDisabled = "care.pickup_change_disabled"
 const CodeCarePickupPermissionRequestRequired = "care.pickup_permission_request_required"
@@ -144,6 +145,7 @@ var errorCodeClassesCare = []errorCodeClass{
 	{CodeCareOfferingChangesDisabled, "permission"},
 	{CodeCarePayerGuardianProtected, "permission"},
 	{CodeCarePhotoConsentNotWithdrawn, "business_rejection"},
+	{CodeCarePickupChangeCareDayEnded, "business_rejection"},
 	{CodeCarePickupChangeCutoffPassed, "business_rejection"},
 	{CodeCarePickupChangeDisabled, "permission"},
 	{CodeCarePickupPermissionRequestRequired, "business_rejection"},

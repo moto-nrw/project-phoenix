@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan/internal/domain"
 )
 
 // ConfirmOrder records the caterer's confirmation of a fixed order once and

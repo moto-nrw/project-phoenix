@@ -1,7 +1,10 @@
-package careplanhttp
+package careplanhttp_test
 
-import "github.com/go-chi/render"
+import (
+	"github.com/go-chi/render"
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
+)
 
 func updateStudentTxErrorRenderer(err error) render.Renderer {
-	return testResource(ResourceConfig{}).updateStudentTxErrorRenderer(err)
+	return testResource(careplanhttp.ResourceConfig{}).UpdateStudentTxErrorRendererForTest(err)
 }

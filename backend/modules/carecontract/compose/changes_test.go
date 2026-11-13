@@ -10,11 +10,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // changeSchool is the school of a contract with a child that has an open

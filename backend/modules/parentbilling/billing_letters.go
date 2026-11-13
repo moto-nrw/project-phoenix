@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The confirmation letter of a holiday registration that is its invoice

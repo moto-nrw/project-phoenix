@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 func (s *Store) FindInvitedPersonIDs(ctx context.Context, email string, tenantID int64) ([]int64, domain.OperationStats, error) {

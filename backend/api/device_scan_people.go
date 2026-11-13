@@ -4,12 +4,12 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	devicescanCompose "github.com/moto-nrw/project-phoenix/modules/devicescan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	devicescanCompose "github.com/moto-ogs/project-phoenix/modules/devicescan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 )
 
 // deviceScanUserRows is the slice of the retained people service the kiosk

@@ -4,8 +4,8 @@ status: accepted
 
 # Übersicht je Lauf für die Kämmerei wird aus den ausgestellten Rechnungen gerendert
 
-Entscheidung vom 26.10.2026 zu [#4672](https://github.com/moto-nrw/project-phoenix/issues/4672),
-Etappe 1 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung vom 26.10.2026 zu [#4672](https://github.com/moto-ogs/project-phoenix/issues/4672),
+Etappe 1 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 79 und 80. Sie baut auf dem Abrechnungslauf aus
 [ADR 0119](0119-abrechnungslauf-stellt-unveraenderliche-rechnungen-aus-einem-nummernkreis-aus.md)
 auf, führt keinen Owner ein und hält fest, was die Übersicht in den Registern

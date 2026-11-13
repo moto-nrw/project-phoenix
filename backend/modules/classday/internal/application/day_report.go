@@ -7,9 +7,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/classday"
-	"github.com/moto-nrw/project-phoenix/modules/classday/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/classday"
+	"github.com/moto-ogs/project-phoenix/modules/classday/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // studentStatusDayCancelled is the class-day-only marker for a pickup

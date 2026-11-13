@@ -69,9 +69,9 @@ vi.mock("~/lib/breadcrumb-context", () => ({
   ),
 }));
 
-// Mock PageHeaderSearchLayout (vi.fn wrapper enables mockImplementation in enhanced tests)
-vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
-  PageHeaderSearchLayout: vi.fn(
+// Mock TenantPageSearchRow (vi.fn wrapper enables mockImplementation in enhanced tests)
+vi.mock("~/components/ui/tenant-page-search-row", () => ({
+  TenantPageSearchRow: vi.fn(
     ({ title, badge }: { title: string; badge?: { count: number } }) => (
       <div data-testid="page-header" data-count={badge?.count}>
         {title}
@@ -168,12 +168,12 @@ vi.mock("~/components/rooms/transit-students-section", () => ({
 }));
 
 // Mock LocationBadge
-vi.mock("@/components/ui/location-badge", () => ({
+vi.mock("@/components/students/presence/location-badge", () => ({
   LocationBadge: () => <div data-testid="location-badge">Location</div>,
 }));
 
 // Mock EmptyStudentResults
-vi.mock("~/components/ui/empty-student-results", () => ({
+vi.mock("~/components/students/empty-student-results", () => ({
   EmptyStudentResults: () => <div data-testid="empty-results">No results</div>,
 }));
 
@@ -290,7 +290,7 @@ vi.mock("~/lib/swr", () => ({
 }));
 
 import { useSWRAuth } from "~/lib/swr";
-import { PageHeaderSearchLayout } from "~/components/ui/page-header/PageHeaderSearchLayout";
+import { TenantPageSearchRow } from "~/components/ui/tenant-page-search-row";
 import {
   useAttendanceWebEnabled,
   useShowTimetableCounts,
@@ -298,7 +298,7 @@ import {
 import MeinRaumPage from "./page";
 
 const defaultPageHeader = vi
-  .mocked(PageHeaderSearchLayout)
+  .mocked(TenantPageSearchRow)
   .getMockImplementation()!;
 
 vi.mock("~/lib/student-api", async (importOriginal) => {
@@ -356,7 +356,7 @@ function render(ui: Parameters<typeof rtlRender>[0]) {
 }
 
 beforeEach(() => {
-  vi.mocked(PageHeaderSearchLayout)
+  vi.mocked(TenantPageSearchRow)
     .mockReset()
     .mockImplementation(defaultPageHeader);
   vi.mocked(useSWRAuth)

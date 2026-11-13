@@ -4,8 +4,8 @@ import (
 	"context"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
 func (s *GuardianService) ListPortalContacts(ctx context.Context, guardianIDs, studentIDs []int64) (result []peopledirectory.GuardianPortalContact, err error) {

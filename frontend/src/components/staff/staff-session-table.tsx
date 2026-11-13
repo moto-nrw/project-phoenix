@@ -19,7 +19,7 @@ import {
   type StatusBadgeTone,
 } from "~/components/ui/status-badge";
 import { StatusColorBadge } from "~/components/ui/status-color-badge";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import { ABSENCE_TYPE_HEX, ABSENCE_TYPE_LABEL } from "~/lib/absence-helpers";
 import {
   berlinClockFromISO,
@@ -78,10 +78,9 @@ const dayLabels = ["Mo", "Di", "Mi", "Do", "Fr", "Sa", "So"];
 // stale. Beyond the sessions, absences and month aggregates: the daily
 // projection, which since #2443 no longer carries the day's Soll alone but the
 // server-computed Ist, Gutschrift and Saldo — exactly the numbers this save
-// just moved. The account-range chart key
-// ("staff-schedule-targets-account-<id>-…") is deliberately NOT matched: it is
-// fetched with target_only=true and holds pure Soll, which no session edit can
-// change. The id-less "time-tracking-schedule-targets-" / month-summary keys
+// just moved. The Übersicht charts' account-range key
+// ("staff-schedule-targets-<id>-account-…") matches too: the charts sum that
+// projection's Ist and Saldo (#6847). The id-less "time-tracking-schedule-targets-" / month-summary keys
 // belong to the self-service portal and matter when the manager is editing
 // their OWN days. useSWRAuth prefixes keys with the tenant slug
 // ("phoenix:staff-history-…"), so a plain startsWith match would never fire —
@@ -152,6 +151,8 @@ function splitSessionByBerlinDate(
     createdAt: "",
     updatedAt: "",
     netMinutes: session.net_minutes,
+    packUpMinutes: session.pack_up_minutes,
+    roundingMinutes: session.rounding_minutes,
     isOvertime: false,
     isBreakCompliant: true,
     restPeriodWarning: null,
@@ -188,9 +189,10 @@ function splitSessionByBerlinDate(
     now,
   );
 
-  return [...valuesByDate.entries()].map(([date, values], index) => {
+  const dayEntries = [...valuesByDate.entries()];
+  return dayEntries.map(([date, values], index) => {
     const isFirstDay = date === berlinTodayISO(start);
-    const isLastDay = date === berlinTodayISO(end);
+    const isLastDay = index === dayEntries.length - 1;
     const previousDay = parseISODate(date);
     previousDay.setDate(previousDay.getDate() - 1);
     const segmentStart = isFirstDay
@@ -218,6 +220,10 @@ function splitSessionByBerlinDate(
       // `edit_count`, damit auch dort erkennbar bleibt, dass die gezeigten
       // Minuten aus einem korrigierten Block stammen.
       audit_count: index === 0 ? session.audit_count : 0,
+      // Die Gutschrift (#6851, #6852) bucht der Server auf den Tag des
+      // Ausstempelns; nur dessen Segment zeigt ihre Hinweise.
+      pack_up_minutes: isLastDay ? session.pack_up_minutes : 0,
+      rounding_minutes: isLastDay ? session.rounding_minutes : 0,
     };
   });
 }
@@ -1425,7 +1431,7 @@ function computeRowStatus(
 function RowStatusBadge({ status }: { readonly status: RowStatus }) {
   if (status.kind === "home-office") {
     // Not StatusBadge tone="blue": that resolves to the same blue.soft/base/
-    // strong triple getLocationBadgeTone returns for ABSENCE_TYPE_HEX.vacation
+    // strong triple getPillTone returns for ABSENCE_TYPE_HEX.vacation
     // (#5080D8), so "Homeoffice" and "Urlaub" rendered as identical pills in
     // this very column. #0EA5E9 is the hue staff-helpers already uses for
     // Homeoffice.
@@ -1494,6 +1500,43 @@ function SourceBadges({
 
 const NO_LABOR_HINTS: readonly LaborHint[] = [];
 
+// Die Gutschrift steckt schon in der Ist-Zeit (#6851, #6852). Die Pills
+// zeigen, woher die Abweichung von den gestempelten Zeiten kommt.
+function creditPills(
+  sessions: readonly StaffHistorySession[],
+): { key: string; label: string; title: string; tone: StatusBadgeTone }[] {
+  const packUp = sessions.reduce((sum, s) => sum + (s.pack_up_minutes ?? 0), 0);
+  const rounding = sessions.reduce(
+    (sum, s) => sum + (s.rounding_minutes ?? 0),
+    0,
+  );
+  const pills: {
+    key: string;
+    label: string;
+    title: string;
+    tone: StatusBadgeTone;
+  }[] = [];
+  if (packUp > 0) {
+    pills.push({
+      key: "pack-up",
+      label: `+${packUp} Min. Wegpackzeit`,
+      title:
+        "Beim Ausstempeln zählt moto die Wegpackzeit zur Arbeitszeit dazu. Die gestempelten Zeiten bleiben gleich.",
+      tone: "gray",
+    });
+  }
+  if (rounding !== 0) {
+    pills.push({
+      key: "rounding",
+      label: `Gerundet ${rounding > 0 ? "+" : "-"}${Math.abs(rounding)} Min.`,
+      title:
+        "moto rundet die Dauer jedes Arbeitsblocks. Die gestempelten Zeiten bleiben gleich.",
+      tone: "gray",
+    });
+  }
+  return pills;
+}
+
 // Hinweis-Spalte für orthogonale System- und Korrektur-Hinweise. Mehrere
 // Pills können gleichzeitig sichtbar sein (z.B. NFC-Session mit Auto-Checkout
 // UND nachträglicher Korrektur).
@@ -1536,6 +1579,7 @@ function HintBadges({
       tone: "warning",
     });
   }
+  pills.push(...creditPills(sessions));
   if (pills.length === 0 && laborHints.length === 0) {
     return <span className="text-xs text-gray-300">–</span>;
   }

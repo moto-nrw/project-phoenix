@@ -5,15 +5,15 @@ import (
 	"encoding/json"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	careContractCompose "github.com/moto-nrw/project-phoenix/modules/carecontract/compose"
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	deliveryRuntime "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	schedulerPorts "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	careContractCompose "github.com/moto-ogs/project-phoenix/modules/carecontract/compose"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	deliveryRuntime "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	schedulerPorts "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // The Betreuungsvertrag's ports both roots bind (ADR 0153, #4679): the

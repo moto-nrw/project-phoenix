@@ -4,10 +4,10 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableAPI "github.com/moto-ogs/project-phoenix/modules/timetable/http"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // listTeacherHints reads People Directory's day hints of the Lehrkraft

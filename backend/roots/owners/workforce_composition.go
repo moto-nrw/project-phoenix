@@ -3,7 +3,7 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 )
 
 // WorkforceLiveStaffIDs answers Workforce's one question to School

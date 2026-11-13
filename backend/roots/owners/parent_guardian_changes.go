@@ -1,8 +1,8 @@
 package owners
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/auditlog"
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
+	"github.com/moto-ogs/project-phoenix/modules/auditlog"
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
 )
 
 // ParentGuardianChanges is the Audit Platform's guardian change trail the

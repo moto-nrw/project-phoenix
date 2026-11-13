@@ -181,6 +181,12 @@
       "class": "business_rejection",
       "parameters": [],
       "legacy": "provisioning.traeger_erasure_records_recorded"
+    },
+    {
+      "code": "provisioning.person_has_active_profile",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "provisioning.person_has_active_profile"
     }
   ]
 }

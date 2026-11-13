@@ -4,6 +4,7 @@ import { usePathname } from "next/navigation";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
 import { LogoutModal } from "~/components/auth/logout-modal";
+import { COUNTER_TONE } from "~/lib/counter-tones";
 import { parentPath } from "~/lib/parent-url";
 import { isParentNavActive, isParentSettingsPath } from "./parent-nav-active";
 import { ParentSettingsSidebarEntries } from "./parent-settings-nav";
@@ -85,7 +86,7 @@ export function ParentSidebar({
         data-parent-nav-item={item.key}
         badge={{
           count,
-          tone: "parents",
+          tone: COUNTER_TONE.parents,
           ariaLabel: t(item.badge === "news" ? "openCount" : "unreadCount", {
             count,
           }),

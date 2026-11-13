@@ -54,7 +54,7 @@ export function FormFieldset({
         {legend}
       </SectionLabel>
       {hint ? (
-        <p id={hintId} className="mb-2 text-xs leading-5 text-gray-500">
+        <p id={hintId} className="mb-2 text-sm leading-5 text-gray-500">
           {hint}
         </p>
       ) : null}

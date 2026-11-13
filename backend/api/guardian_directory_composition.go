@@ -7,13 +7,13 @@ import (
 	"net/http"
 	"time"
 
-	usersAPI "github.com/moto-nrw/project-phoenix/modules/peopledirectory/http"
+	usersAPI "github.com/moto-ogs/project-phoenix/modules/peopledirectory/http"
 
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // The guardian HTTP adapter's runtime (#2663): the identity, invitation and

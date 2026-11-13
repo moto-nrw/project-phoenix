@@ -12,9 +12,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 // Soll und Ist with a confirmed holiday booking (#5994, ADR 0156 addendum):

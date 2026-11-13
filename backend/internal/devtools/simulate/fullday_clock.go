@@ -184,6 +184,7 @@ func fullDayScenario(close bool) Scenario {
 		clockStep{lateShiftCheck}, staffClockInAction{}, teamChatAction{lateShiftCheck},
 		clockStep{sessionsStart}, startMiddayAction{},
 		seedStaffFeedTombstoneAction{},
+		appCheckInAction{},
 		arrivalsAction{name: "record attendance and checkins", until: middayMovesAt, unregisteredOK: true},
 		clockStep{middayMovesAt}, teamChatAction{middayMovesAt}, middayActivityAction{},
 		independentRoomStaysAction{},

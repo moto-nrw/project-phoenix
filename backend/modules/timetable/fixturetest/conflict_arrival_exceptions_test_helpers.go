@@ -5,9 +5,9 @@ package fixturetest
 import (
 	context "context"
 
-	records "github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain/schedulerecords"
-	ports "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	records "github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	ports "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type ConflictArrivalExceptions interface {

@@ -1,4 +1,4 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"context"
@@ -8,12 +8,13 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 // lifecycleExcusedFake records the arguments the route forwards and returns a
@@ -55,16 +56,11 @@ const (
 	correctTestRequestID  int64 = 7
 )
 
-// lifecycleRequest builds a POST carrying the {kind}/{requestId} path params
-// the chi router would have bound.
-func lifecycleRequest(t *testing.T, kind, requestID, body string) *http.Request {
+// lifecycleRequest builds a POST to the {kind}/{requestId} route of action.
+func lifecycleRequest(t *testing.T, action, kind, requestID, body string) *http.Request {
 	t.Helper()
-	req := httptest.NewRequest("POST", "/change-requests/"+kind+"/"+requestID, strings.NewReader(body))
-	routeCtx := chi.NewRouteContext()
-	routeCtx.URLParams.Add("kind", kind)
-	routeCtx.URLParams.Add("requestId", requestID)
-	ctx := context.WithValue(req.Context(), chi.RouteCtxKey, routeCtx)
-	ctx = context.WithValue(ctx, sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 55})
+	req := httptest.NewRequest("POST", "/students/change-requests/"+kind+"/"+requestID+"/"+action, strings.NewReader(body))
+	ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 55})
 	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, aggUpdatePerms)
 	return req.WithContext(ctx)
 }
@@ -82,10 +78,10 @@ func TestMarkParentRequestDone_ForwardsVersionAndReviewer(t *testing.T) {
 	t.Parallel()
 
 	fake := &lifecycleExcusedFake{}
-	rs := testResource(ResourceConfig{
+	rs := testResource(careplanhttp.ResourceConfig{
 		ExcusedRequestService: fake})
 	rr := httptest.NewRecorder()
-	rs.markParentRequestDone(rr, lifecycleRequest(t, "excused", "42",
+	serveRoute(t, rs, rr, lifecycleRequest(t, "mark-done", "excused", "42",
 		`{"expected_version":"v1","reason":"Tage sind vorbei"}`))
 
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
@@ -104,10 +100,10 @@ func TestMarkParentRequestDone_MasterDataIsNeverPast(t *testing.T) {
 	t.Parallel()
 
 	fake := &lifecycleExcusedFake{}
-	rs := testResource(ResourceConfig{
+	rs := testResource(careplanhttp.ResourceConfig{
 		ExcusedRequestService: fake})
 	rr := httptest.NewRecorder()
-	rs.markParentRequestDone(rr, lifecycleRequest(t, "master_data", "42", `{}`))
+	serveRoute(t, rs, rr, lifecycleRequest(t, "mark-done", "master_data", "42", `{}`))
 
 	assert.Equal(t, http.StatusConflict, rr.Code)
 	assert.Equal(t, "students.request_not_past", decodeErrorCode(t, rr))
@@ -117,10 +113,10 @@ func TestMarkParentRequestDone_MasterDataIsNeverPast(t *testing.T) {
 func TestMarkParentRequestDone_RejectsUnknownKind(t *testing.T) {
 	t.Parallel()
 
-	rs := testResource(ResourceConfig{
+	rs := testResource(careplanhttp.ResourceConfig{
 		ExcusedRequestService: &lifecycleExcusedFake{}})
 	rr := httptest.NewRecorder()
-	rs.markParentRequestDone(rr, lifecycleRequest(t, "invented", "42", `{}`))
+	serveRoute(t, rs, rr, lifecycleRequest(t, "mark-done", "invented", "42", `{}`))
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 }
@@ -140,10 +136,10 @@ func TestMarkParentRequestDone_MapsLifecycleSentinels(t *testing.T) {
 		t.Run(tc.name, func(t *testing.T) {
 			t.Parallel()
 			fake := &lifecycleExcusedFake{markDoneErr: tc.err}
-			rs := testResource(ResourceConfig{
+			rs := testResource(careplanhttp.ResourceConfig{
 				ExcusedRequestService: fake})
 			rr := httptest.NewRecorder()
-			rs.markParentRequestDone(rr, lifecycleRequest(t, "excused", "42", `{}`))
+			serveRoute(t, rs, rr, lifecycleRequest(t, "mark-done", "excused", "42", `{}`))
 			assert.Equal(t, tc.want, rr.Code)
 			assert.Equal(t, tc.code, decodeErrorCode(t, rr))
 		})
@@ -154,10 +150,10 @@ func TestCorrectParentRequestDecision_ForwardsTheVerdict(t *testing.T) {
 	t.Parallel()
 
 	fake := &lifecycleExcusedFake{}
-	rs := testResource(ResourceConfig{
+	rs := testResource(careplanhttp.ResourceConfig{
 		ExcusedRequestService: fake})
 	rr := httptest.NewRecorder()
-	rs.correctParentRequestDecision(rr, lifecycleRequest(t, "excused", "7",
+	serveRoute(t, rs, rr, lifecycleRequest(t, "correct", "excused", "7",
 		`{"approve":false,"reason":"Falsch entschieden","expected_version":"v2"}`))
 
 	require.Equal(t, http.StatusOK, rr.Code, rr.Body.String())
@@ -172,10 +168,10 @@ func TestCorrectParentRequestDecision_RequiresAVerdict(t *testing.T) {
 	t.Parallel()
 
 	fake := &lifecycleExcusedFake{}
-	rs := testResource(ResourceConfig{
+	rs := testResource(careplanhttp.ResourceConfig{
 		ExcusedRequestService: fake})
 	rr := httptest.NewRecorder()
-	rs.correctParentRequestDecision(rr, lifecycleRequest(t, "excused", "7", `{"reason":"x"}`))
+	serveRoute(t, rs, rr, lifecycleRequest(t, "correct", "excused", "7", `{"reason":"x"}`))
 
 	assert.Equal(t, http.StatusBadRequest, rr.Code)
 	assert.Zero(t, fake.correctCalls)
@@ -189,10 +185,10 @@ func TestCorrectParentRequestDecision_UnsupportedKindsNameTheReason(t *testing.T
 	for _, kind := range []string{"offering"} {
 		t.Run(kind, func(t *testing.T) {
 			t.Parallel()
-			rs := testResource(ResourceConfig{
+			rs := testResource(careplanhttp.ResourceConfig{
 				ExcusedRequestService: &lifecycleExcusedFake{}})
 			rr := httptest.NewRecorder()
-			rs.correctParentRequestDecision(rr, lifecycleRequest(t, kind, "7", `{"approve":true}`))
+			serveRoute(t, rs, rr, lifecycleRequest(t, "correct", kind, "7", `{"approve":true}`))
 
 			assert.Equal(t, http.StatusConflict, rr.Code)
 			assert.Equal(t, "students.correction_unsupported", decodeErrorCode(t, rr))
@@ -209,10 +205,10 @@ func TestCorrectParentRequestDecision_MapsNotDecided(t *testing.T) {
 	t.Parallel()
 
 	fake := &lifecycleExcusedFake{correctErr: parentrequests.ErrNotDecided}
-	rs := testResource(ResourceConfig{
+	rs := testResource(careplanhttp.ResourceConfig{
 		ExcusedRequestService: fake})
 	rr := httptest.NewRecorder()
-	rs.correctParentRequestDecision(rr, lifecycleRequest(t, "excused", "7", `{"approve":true}`))
+	serveRoute(t, rs, rr, lifecycleRequest(t, "correct", "excused", "7", `{"approve":true}`))
 
 	assert.Equal(t, http.StatusConflict, rr.Code)
 	assert.Equal(t, "students.request_not_decided", decodeErrorCode(t, rr))

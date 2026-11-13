@@ -8,9 +8,9 @@ import (
 	"strings"
 	"time"
 
-	listexport "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
+	listexport "github.com/moto-ogs/project-phoenix/modules/documentrendering/records"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
 )
 
 type roomSnapshotLocation struct {

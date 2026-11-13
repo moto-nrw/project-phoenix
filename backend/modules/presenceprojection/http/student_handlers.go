@@ -5,13 +5,13 @@ import (
 	errors "errors"
 	http "net/http"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	permissions "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	sessiontoken "github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	securityruntime "github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	permissions "github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	sessiontoken "github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	securityruntime "github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // parseAndGetStudent parses the student ID from the URL and fetches the student

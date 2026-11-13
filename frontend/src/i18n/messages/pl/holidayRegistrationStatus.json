@@ -1,0 +1,41 @@
+{
+  "loading": "Wczytywanie stanu",
+  "errorObject": "Stan Twojego zgłoszenia na ferie",
+  "kicker": "Zgłoszenie na ferie",
+  "title": {
+    "received": "Twoje zgłoszenie dotarło",
+    "confirmed": "Twoje zgłoszenie jest potwierdzone",
+    "cancelled": "To zgłoszenie jest już nieważne"
+  },
+  "lead": {
+    "received": "To jeszcze nie jest potwierdzenie. {traeger} sprawdza Twoje zgłoszenie i wyśle Ci e-mail.",
+    "confirmed": "{traeger} potwierdził Twoje zgłoszenie. Potwierdzenie przyszło e-mailem.",
+    "cancelled": "{traeger} anulował zgłoszenie. Poniższe tygodnie są już nieaktualne."
+  },
+  "periodLabel": "Okres",
+  "submittedLabel": "Wpłynęło dnia",
+  "stepsTitle": "Co dalej",
+  "stepsCancelled": "Nie ma kolejnego kroku. W razie pytań skontaktuj się z organizatorem.",
+  "stepReceived": "Zgłoszenie wpłynęło",
+  "stepReceivedDetail": "Dnia {date}",
+  "stepReview": "Organizator sprawdza",
+  "stepReviewRunning": "Sprawdzanie trwa.",
+  "stepReviewAfter": "Zgłoszenia są przyjmowane do {date}. Potem organizator decyduje.",
+  "stepReviewDone": "Sprawdzanie zakończone.",
+  "stepDecision": "Potwierdzenie e-mailem",
+  "stepDecisionNext": "Dostaniesz e-mail, gdy organizator podejmie decyzję.",
+  "stepDecisionDone": "Potwierdzenie dotarło.",
+  "stepState": {
+    "done": "zrobione",
+    "current": "w toku",
+    "next": "jeszcze przed nami"
+  },
+  "weeksTitle": "Tygodnie i miejsca",
+  "weeksDescription": "Tylko do wglądu. Zmiany uzgodnij bezpośrednio z organizatorem.",
+  "weekCount": "{count, plural, one {# tydzień} few {# tygodnie} many {# tygodni} other {# tygodnia}}",
+  "noWeeks": "Nie zarezerwowano żadnego tygodnia.",
+  "hostSchool": "w: {school}",
+  "privacyNote": "Ten link pokazuje tylko stan Twojego zgłoszenia. Nie przekazuj go dalej. Po feriach organizator usuwa zgłoszenie. Wtedy link przestaje działać.",
+  "notFoundTitle": "Nie możemy znaleźć tego zgłoszenia",
+  "notFoundText": "Być może link jest niepełny. Otwórz go ponownie z e-maila. Po feriach zgłoszenie jest usuwane. Wtedy link przestaje działać."
+}

@@ -8,10 +8,10 @@ import (
 	"strings"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/grouplive"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/grouplive"
 )
 
 // getOGSGroupLive handles GET /students/ogs-group-live?group_id={id}. The

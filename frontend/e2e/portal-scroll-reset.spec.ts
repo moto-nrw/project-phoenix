@@ -24,7 +24,16 @@ const scrollY = (page: Page) => page.evaluate(() => window.scrollY);
 // Die Aktivitätenliste lädt wenig nach. Auf einer datenreichen Seite wie `/home`
 // hinge das Ergebnis von „Zurück“ an der Antwortzeit des Entwicklungsservers.
 async function openLoadedSourceAt(page: Page, top: number) {
-  await page.goto("/activities", { waitUntil: "domcontentloaded" });
+  // Die Seite lädt Liste, Kategorien und Personalprofil gemeinsam. Auf dem
+  // Entwicklungsserver kann deren erste Übersetzung länger als die
+  // Sichtbarkeitsprüfung dauern. Antworten vor der Navigation beobachten,
+  // erst danach prüfen, ob die echte Kachel gerendert ist.
+  await Promise.all([
+    page.waitForResponse("**/api/activities"),
+    page.waitForResponse("**/api/activities/categories"),
+    page.waitForResponse("**/api/me/staff"),
+    page.goto("/activities", { waitUntil: "domcontentloaded" }),
+  ]);
   await expect(
     page.getByRole("heading", { level: 1, name: "Aktivitäten" }),
   ).toBeVisible();

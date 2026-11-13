@@ -1,9 +1,8 @@
 import type { Icon as PhosphorIcon, IconProps } from "@phosphor-icons/react";
 import type { CSSProperties } from "react";
-import type { MotoDuotoneTone } from "~/lib/location-helper";
-import { MOTO_DUOTONE_TONES } from "~/components/ui/moto-duotone-tones";
+import type { MotoDuotoneTone } from "~/lib/kit-palette";
+import { MOTO_DUOTONE_PALETTE } from "~/lib/kit-palette";
 import { cn } from "~/lib/utils";
-export { MOTO_DUOTONE_TONES } from "~/components/ui/moto-duotone-tones";
 
 export interface MotoDuotoneIconProps {
   readonly icon: PhosphorIcon;
@@ -28,7 +27,7 @@ export function MotoDuotoneIcon({
   className,
   label,
 }: MotoDuotoneIconProps) {
-  const colors = MOTO_DUOTONE_TONES[tone];
+  const colors = MOTO_DUOTONE_PALETTE[tone];
   const iconStyle =
     colorMode === "inherit"
       ? ({ "--moto-icon-secondary": "currentColor" } satisfies CSSProperties & {

@@ -3,8 +3,8 @@ package application
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership/internal/domain"
 )
 
 func (s *Service) UpdateEmploymentDetails(ctx context.Context, input schoolmembership.UpdateEmploymentDetails) (schoolmembership.Staff, error) {

@@ -4,10 +4,10 @@ import (
 	"context"
 	"encoding/json"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-	internalports "github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application"
+	internalports "github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 type retainedGuardianStudentAccess struct {

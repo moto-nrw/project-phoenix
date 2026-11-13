@@ -13,7 +13,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/architecture/artifacts"
+	"github.com/moto-ogs/project-phoenix/architecture/artifacts"
 )
 
 type transactionSite struct {
@@ -166,7 +166,7 @@ func transactionSites(root string) ([]transactionSite, error) {
 
 func transactionOperation(name string) (start, admin bool) {
 	switch name {
-	case "WithinSystem", "WithinAdmin", "WithinAdminRetry", "WithinAdminThenTenant", "withinAdminThenTenant", "WithAdminTx", "RunAdminRetry", "WithAdminTxOrDirect", "AdminTx", "RunAdmin", "RunAdminRead", "AdminScope", "withinAdmin", "withinAdminRetry", "withAdminTx", "adminTx", "inAdmin":
+	case "WithinSystem", "WithinAdmin", "WithinAdminRetry", "WithinAdminThenTenant", "withinAdminThenTenant", "WithAdminTx", "RunAdminRetry", "RunAdminDetached", "WithAdminTxOrDirect", "AdminTx", "RunAdmin", "RunAdminRead", "AdminScope", "withinAdmin", "withinAdminRetry", "withAdminTx", "adminTx", "inAdmin":
 		return true, true
 	case "WithinTraeger", "withinTraeger", "WithinDemo", "WithinTenant", "WithinTenantRetry", "WithinCurrentTenant", "WithTenantTx", "TenantTx", "RunTenant", "RunInTx", "RunInTxWithRetry", "RunInTransaction", "Begin", "BeginTx", "RunWrite", "RunRead", "RunPlatform", "withinTenant", "withinTenantRetry", "runInTx", "InTenantTx", "inTenantTx", "inTenant", "runInTenantTx", "runInSessionTx":
 		return true, false

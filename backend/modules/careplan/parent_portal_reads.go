@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ParentPortalStudent is the People Directory student fact the guardian portal

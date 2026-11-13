@@ -4,11 +4,11 @@ import (
 	"encoding/json"
 	"testing"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 

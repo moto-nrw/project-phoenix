@@ -4,7 +4,7 @@ import (
 	"database/sql"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain"
 )
 
 // TranslateNotFound joins the persistence-neutral not-found sentinel to a

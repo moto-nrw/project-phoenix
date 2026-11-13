@@ -4,11 +4,11 @@ import (
 	"log/slog"
 	"time"
 
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	filestorageCompose "github.com/moto-nrw/project-phoenix/modules/filestorage/compose"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	communicationCompose "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	filestorageCompose "github.com/moto-ogs/project-phoenix/modules/filestorage/compose"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // RootEnvironment is the process configuration every typed root builds its

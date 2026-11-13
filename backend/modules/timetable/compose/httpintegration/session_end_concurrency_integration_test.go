@@ -5,12 +5,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	fixtures "github.com/moto-ogs/project-phoenix/modules/timetable/fixturetest"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )

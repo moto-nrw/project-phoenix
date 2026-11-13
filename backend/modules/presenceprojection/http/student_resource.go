@@ -6,13 +6,13 @@ import (
 	time "time"
 
 	chi "github.com/go-chi/chi/v5"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	permissions "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
-	excusedrequests "github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	lists "github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	permissions "github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	careplan "github.com/moto-ogs/project-phoenix/modules/careplan"
+	excusedrequests "github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
+	lists "github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // PrivacyConsentReader is the projection's tenant-scoped read port. The root

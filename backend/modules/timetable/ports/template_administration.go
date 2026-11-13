@@ -4,9 +4,17 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/domain/schedulerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
+
+// TemplatePeriods reads the planning periods a series edit re-plans its
+// planned occurrences through (#6838).
+type TemplatePeriods interface {
+	FindByID(context.Context, int64) (*schedulerecords.CalendarPeriod, error)
+	FindActiveByTenantID(ctx context.Context) ([]*schedulerecords.CalendarPeriod, error)
+}
 
 // TemplateAdministrationDependencies wires timetable.TemplateAdministration:
 // the retained template rows, the owner's materialization and recurrence
@@ -24,15 +32,17 @@ type TemplateAdministrationDependencies struct {
 	Supervisors timetable.PlannedSupervisorCapability
 	// Directories name the enrolled children with their alumni state and
 	// the planned supervisors' persons.
-	Directories          RepositoryDirectories
-	Instances            InstanceRows
-	InstanceStaff        timetable.InstanceStaffCapability
-	Participants         ParticipantRows
-	Timeframes           timetable.TimeframeCapability
-	PlanningTracks       PlanningTrackAssignments
-	EducationGroups      EducationGroupDirectory
-	Materialization      timetable.MaterializationCapability
-	Deviations           SeriesDeviations
+	Directories     RepositoryDirectories
+	Instances       InstanceRows
+	InstanceStaff   timetable.InstanceStaffCapability
+	Participants    ParticipantRows
+	Timeframes      timetable.TimeframeCapability
+	PlanningTracks  PlanningTrackAssignments
+	EducationGroups EducationGroupDirectory
+	Materialization timetable.MaterializationCapability
+	Deviations      SeriesDeviations
+	// Periods bound the re-plan an update requests (#6838).
+	Periods              TemplatePeriods
 	CareOfferings        CareOfferingChecks
 	ResyncOfferingRoster func(context.Context, timetable.OfferingRosterResyncInput) error
 	RecurrenceLock       timetable.RecurrenceWriteLock

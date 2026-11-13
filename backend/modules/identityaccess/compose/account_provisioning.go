@@ -3,9 +3,9 @@ package compose
 import (
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/application"
-	identityBindingPorts "github.com/moto-nrw/project-phoenix/modules/identityaccess/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/application"
+	identityBindingPorts "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports"
 )
 
 // newAccountProvisioning composes the registration and link flows (#3332).

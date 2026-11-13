@@ -1,6 +1,6 @@
 package timetracking
 
-import "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+import "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
 // WorkTimeTargetModel exposes the target calculation without a writable model.
 type WorkTimeTargetModel struct {

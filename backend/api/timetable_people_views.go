@@ -3,11 +3,11 @@ package api
 import (
 	"context"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
 )
 
 // The adapters below serve the timetable's people ports from the People

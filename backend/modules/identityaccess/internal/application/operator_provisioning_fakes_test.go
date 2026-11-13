@@ -12,8 +12,8 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // The doubles the operator invitation and e-mail change flows (#3332) run

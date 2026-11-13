@@ -3,7 +3,7 @@ package postgres
 import (
 	context "context"
 
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
 	bun "github.com/uptrace/bun"
 )
 

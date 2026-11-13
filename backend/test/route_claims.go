@@ -6,9 +6,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // The claims, token and identity-context helpers of route tests. They live

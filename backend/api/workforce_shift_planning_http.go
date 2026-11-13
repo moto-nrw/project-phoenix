@@ -15,13 +15,13 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	shifttypesHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/shifttypes"
-	staffshiftsHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/staffshifts"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	shifttypesHTTP "github.com/moto-ogs/project-phoenix/modules/workforce/http/shifttypes"
+	staffshiftsHTTP "github.com/moto-ogs/project-phoenix/modules/workforce/http/staffshifts"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // staffShiftsDependencies are the collaborators the staff-shift route
@@ -89,6 +89,7 @@ var staffShiftErrorCodes = []struct {
 	{workforce.ErrStaffShiftConflict, common.CodeWorkforceShiftChanged},
 	{workforce.ErrStaffShiftDuplicate, common.CodeWorkforceShiftDuplicate},
 	{workforce.ErrShiftTypeInactive, common.CodeWorkforceShiftTypeInactive},
+	{workforce.ErrShiftTypeArchived, common.CodeWorkforceShiftTypeArchived},
 }
 
 func staffShiftErrorCode(err error) string {
@@ -118,7 +119,9 @@ func renderStaffShiftsFailure(w http.ResponseWriter, r *http.Request, kind staff
 	case staffshiftsHTTP.FailureConflict:
 		// A duplicate is a unique violation that already aborted the
 		// transaction; it was a 500 before and must still roll back.
-		if errors.Is(err, workforce.ErrStaffShiftDuplicate) {
+		// An archived type can be refused while a cover set is rebuilt,
+		// after its old covers were deleted; nothing of it may commit.
+		if errors.Is(err, workforce.ErrStaffShiftDuplicate) || errors.Is(err, workforce.ErrShiftTypeArchived) {
 			tenant.MarkRollback(r.Context())
 		}
 		if code != "" {
@@ -142,11 +145,11 @@ func renderStaffShiftsFailure(w http.ResponseWriter, r *http.Request, kind staff
 
 // newShiftTypesResource wires /api/shift-types over the shift-type
 // administration capability.
-func newShiftTypesResource(types workforce.ShiftTypeAdministration) *shifttypesHTTP.Resource {
-	if types == nil {
+func newShiftTypesResource(types workforce.ShiftTypeAdministration, references workforce.ShiftPlanReferenceQuery) *shifttypesHTTP.Resource {
+	if types == nil || references == nil {
 		panic("shift-types HTTP composition: all dependencies are required")
 	}
-	return shifttypesHTTP.NewResource(types, shiftTypesRuntime())
+	return shifttypesHTTP.NewResource(types, references, shiftTypesRuntime())
 }
 
 func shiftTypesRuntime() shifttypesHTTP.Runtime {

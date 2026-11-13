@@ -3,9 +3,9 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/deviceauth"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // DeviceScanPrincipal binds the workflow's reader to the authenticated device.

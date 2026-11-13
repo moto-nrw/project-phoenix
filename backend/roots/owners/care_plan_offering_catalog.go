@@ -7,13 +7,13 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	careplanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // careOfferingPhaseGuard binds the catalog's phase-window check to the phase
@@ -60,7 +60,10 @@ type CareOfferingBookingReads interface {
 	MaterializableOfferingCount(context.Context, int64, enrollmentOwner.Date) (int, error)
 }
 
-type CareOfferingCatalogBookings struct{ Bookings CareOfferingBookingReads }
+type CareOfferingCatalogBookings struct {
+	Bookings CareOfferingBookingReads
+	enrollmentOwner.OfferingSelectionReferences
+}
 
 func (b CareOfferingCatalogBookings) OfferingGradeCounts(ctx context.Context, offeringIDs []int64, from, until calendar.Date) ([]careplanCompose.OfferingGradeCount, error) {
 	rows, err := b.Bookings.OfferingGradeCounts(ctx, offeringIDs, enrollmentOwner.Date(from), enrollmentOwner.Date(until))
@@ -121,7 +124,7 @@ func (t CareOfferingCatalogTimetable) TemplateSeries(ctx context.Context, groupI
 
 func linkedGroup(group timetable.Group) careplan.LinkedGroup {
 	return careplan.LinkedGroup{
-		ID: group.ID, IsTemplate: group.IsTemplate, Archived: group.ArchivedAt != nil,
+		ID: group.ID, SeriesRootID: group.SeriesRootID, IsTemplate: group.IsTemplate, Archived: group.ArchivedAt != nil,
 		CalendarPeriodID: group.CalendarPeriodID, PlannedRoomID: group.PlannedRoomID,
 	}
 }
@@ -306,4 +309,72 @@ func (CareOfferingSourceRules) RejectWith(refusal careplanCompose.OfferingSource
 
 func (CareOfferingSourceRules) IsRejection(err error) bool {
 	return errors.Is(err, timetable.ErrOfferingSourceInvalid)
+}
+
+// CatalogSnapshot reads the full validation input in four owner calls.
+func (t CareOfferingCatalogTimetable) CatalogSnapshot(ctx context.Context) (careplan.CatalogTimetableSnapshot, error) {
+	groups, err := t.Timetable.ListGroups(ctx, timetable.GroupFilter{OrderByID: true})
+	if err != nil {
+		return careplan.CatalogTimetableSnapshot{}, err
+	}
+	result := careplan.CatalogTimetableSnapshot{Groups: make([]careplan.LinkedGroup, 0, len(groups))}
+	ids := make([]int64, 0, len(groups))
+	for _, group := range groups {
+		result.Groups = append(result.Groups, linkedGroup(group))
+		ids = append(ids, group.ID)
+	}
+	if result.Schedules, err = t.GroupSchedules(ctx, ids); err != nil {
+		return result, err
+	}
+	if result.Timeframes, err = t.Timeframes(ctx); err != nil {
+		return result, err
+	}
+	result.Exceptions, err = t.exceptions(ctx, timetable.ActivityExceptionFilter{OrderByDate: true})
+	return result, err
+}
+
+func (c CareOfferingCatalogCalendar) CatalogPeriods(ctx context.Context) ([]careplan.LinkedPeriod, error) {
+	query, ok := c.Calendar.(interface {
+		ListCalendarPeriods(context.Context, schoolcalendar.CalendarPeriodFilter) ([]schoolcalendar.CalendarPeriod, error)
+	})
+	if !ok {
+		return nil, errors.New("catalog batch requires the School Calendar period query")
+	}
+	rows, err := query.ListCalendarPeriods(ctx, schoolcalendar.CalendarPeriodFilter{})
+	if err != nil {
+		return nil, err
+	}
+	result := make([]careplan.LinkedPeriod, 0, len(rows))
+	for _, period := range rows {
+		result = append(result, careplan.LinkedPeriod{ID: period.ID, StartDate: calendar.Date(period.StartDate), EndDate: calendar.Date(period.EndDate), IsActive: period.IsActive, WeekCycleLength: period.WeekCycleLength, WeekCycleAnchor: period.WeekCycleAnchor})
+	}
+	return result, nil
+}
+
+func (p CareOfferingCatalogPhases) CatalogPhases(ctx context.Context, ids []int64) ([]careplan.OfferingPhase, error) {
+	query, ok := p.Phases.(interface {
+		PhasesByID(context.Context, []int64) ([]*enrollmentOwner.Phase, error)
+	})
+	if !ok {
+		return nil, errors.New("catalog batch requires the Enrollment phase query")
+	}
+	rows, err := query.PhasesByID(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	result := make([]careplan.OfferingPhase, 0, len(rows))
+	for _, phase := range rows {
+		result = append(result, careplan.OfferingPhase{ID: phase.ID, Name: phase.Name, ServiceStart: calendar.Date(phase.ServiceStartDate), ServiceEnd: calendar.Date(phase.ServiceEndDate)})
+	}
+	return result, nil
+}
+
+func (b CareOfferingCatalogBookings) CatalogMaterializable(ctx context.Context, ids []int64, today calendar.Date) (map[int64]int, error) {
+	query, ok := b.Bookings.(interface {
+		MaterializableOfferingCounts(context.Context, []int64, enrollmentOwner.Date) (map[int64]int, error)
+	})
+	if !ok {
+		return nil, errors.New("catalog batch requires the Enrollment booking projection")
+	}
+	return query.MaterializableOfferingCounts(ctx, ids, enrollmentOwner.Date(today))
 }

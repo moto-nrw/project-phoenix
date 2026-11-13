@@ -4,9 +4,9 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment/internal/adapters/postgres"
-	applicationBindings "github.com/moto-nrw/project-phoenix/modules/enrollment/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment/internal/adapters/postgres"
+	applicationBindings "github.com/moto-ogs/project-phoenix/modules/enrollment/internal/application"
 )
 
 // DeletionOwner is the owner slice the admin deletion and the retention cleanup read, lock and delete through.
@@ -18,8 +18,7 @@ type DeletionOwner interface {
 	UsedLateInviteCleaner
 }
 
-// DeletionModuleDependencies are the owner and the ports the admin deletion and the retention cleanup share.
-// A nil Audit leaves both unaudited; a nil Retention fails the cleanup's retention lookup.
+// DeletionModuleDependencies are the owner and ports of deletion and cleanup; a nil Audit leaves both unaudited, a nil Retention fails the retention lookup.
 type DeletionModuleDependencies struct {
 	Owner     DeletionOwner
 	Guardians GuardianDirectory
@@ -53,8 +52,7 @@ func NewDeletionModule(deps DeletionModuleDependencies) DeletionModule {
 		Requests: deps.Owner, Children: deps.Owner, Preview: preview, Audit: deps.Audit,
 		Delivery: deps.Delivery, Logger: applicationBindings.WithService(deps.Logger, "enrollment-deletion"),
 	})
-	// The cleanup audits through the shared preview only with an audit trail
-	// bound; without one (focused suites) it runs its unaudited path.
+	// The cleanup audits through the shared preview only with an audit trail bound (not in focused suites).
 	var cleanupPreview *DeletionPreview
 	if deps.Audit != nil {
 		cleanupPreview = preview

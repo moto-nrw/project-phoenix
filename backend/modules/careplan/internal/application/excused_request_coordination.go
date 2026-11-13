@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 )
 
 // GetExcusedBulkCandidate reads the named requests of a bulk approval
@@ -126,22 +126,22 @@ func (w *ExcusedRequests) WriteStaffValue(ctx context.Context, write careplan.Ex
 		return careplan.ErrStaffValueUnsupported
 	}
 	now := time.Now()
-	// Clear every status the staff verdict is not, then write the one it is.
-	// Clearing first keeps a day from carrying two active statuses for the
-	// instant between the two writes.
-	for _, other := range careplan.StudentStatusDayStatusesExcept(status) {
-		if err := w.carePlan.ClearStudentStatusDays(ctx, write.StudentID, other, dates, now, careplan.StudentStatusSourceManual); err != nil {
-			return fmt.Errorf("care plan: clear status days for staff value: %w", err)
-		}
-	}
+	reviewer := write.ReviewerID
+	// "Present" lifts every status of the days; any other verdict replaces
+	// the status standing for each day as it is written (#6958).
 	if status == careplan.StudentStatusDayPresent {
+		for _, other := range careplan.StudentStatusDayStatusesExcept(status) {
+			if err := w.carePlan.ClearStudentStatusDays(ctx, write.StudentID, other, dates, now, careplan.StudentStatusSourceManual, &reviewer); err != nil {
+				return fmt.Errorf("care plan: clear status days for staff value: %w", err)
+			}
+		}
 		return nil
 	}
 	reason := write.Reason
 	for _, date := range dates {
 		if _, err := w.carePlan.UpsertStudentStatusDay(ctx, careplan.StudentStatusDay{
 			StudentID: write.StudentID, Date: date, Status: status, ReportedAt: now,
-			Source: careplan.StudentStatusSourceManual, Note: &reason,
+			Source: careplan.StudentStatusSourceManual, Note: &reason, ReportedByAccountID: &reviewer,
 		}); err != nil {
 			return fmt.Errorf("care plan: write status day for staff value: %w", err)
 		}

@@ -6,6 +6,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -108,6 +109,8 @@ type wtmMockScheduleReader struct {
 func (m *wtmMockScheduleReader) TargetsForStaff(_ context.Context, _ int64, _, _ Date) (WorkScheduleTargets, error) {
 	return WorkScheduleTargets{HasEntries: len(m.entries) > 0, DailyTarget: func(anchor *Date, date Date) (int, bool) {
 		return DailyTargetFromSchedule(m.entries, anchor, date)
+	}, Covers: func(date Date) bool {
+		return workforce.ScheduleCoversDate(m.entries, date)
 	}}, nil
 }
 

@@ -7,8 +7,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/traegerview"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/traegerview"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func keyDateRow(school int64, month time.Month, students, terminals int) traegerview.SchoolKeyDateCount {

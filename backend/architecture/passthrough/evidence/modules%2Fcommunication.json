@@ -324,7 +324,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (r *announcementRepository) Stats(ctx context.Context, tenantID, announcementID int64) (*communication.PortalAnnouncementStats, error) {\n\tvalue, err := r.AnnouncementAudienceReads.Stats(ctx, tenantID, announcementID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026communication.PortalAnnouncementStats{TargetCount: value.TargetCount, ReadCount: value.ReadCount, AcknowledgedCount: value.AcknowledgedCount}, nil\n}",
+      "evidence": "func (r *announcementRepository) Stats(ctx context.Context, tenantID, announcementID int64) (*communication.PortalAnnouncementStats, error) {\n\tvalue, err := r.AnnouncementAudienceReads.Stats(ctx, tenantID, announcementID)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\treturn \u0026communication.PortalAnnouncementStats{TargetCount: value.TargetCount, ReadCount: value.ReadCount, AcknowledgedCount: value.AcknowledgedCount, Recorded: value.Recorded}, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/internal/adapters/parentpostgres/announcementRepository.Stats",
       "owner": "modules/communication"
@@ -639,7 +639,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (p *parentAnnouncements) ParentAnnouncementStats(ctx context.Context, id int64) (*communication.ParentAnnouncementStats, error) {\n\tstats, err := p.service.Stats(ctx, id)\n\tif stats == nil {\n\t\treturn nil, mapParentAnnouncementError(err)\n\t}\n\treturn \u0026communication.ParentAnnouncementStats{TargetCount: stats.TargetCount, ReadCount: stats.ReadCount, AcknowledgedCount: stats.AcknowledgedCount}, mapParentAnnouncementError(err)\n}",
+      "evidence": "func (p *parentAnnouncements) ParentAnnouncementStats(ctx context.Context, id int64) (*communication.ParentAnnouncementStats, error) {\n\tstats, err := p.service.Stats(ctx, id)\n\tif stats == nil {\n\t\treturn nil, mapParentAnnouncementError(err)\n\t}\n\treturn \u0026communication.ParentAnnouncementStats{TargetCount: stats.TargetCount, ReadCount: stats.ReadCount, AcknowledgedCount: stats.AcknowledgedCount, Recorded: stats.Recorded}, mapParentAnnouncementError(err)\n}",
       "form": "unclassified-evidence",
       "id": "modules/communication/internal/application/parentAnnouncements.ParentAnnouncementStats",
       "owner": "modules/communication"
@@ -1258,6 +1258,13 @@
       "evidence": "func (r *nativeAnnouncementRepository) PublishIfDraft(ctx context.Context, id int64, publishedAt time.Time) (bool, error) {\n\trows, err := r.source.AnnouncementPublishIfDraft(ctx, id, publishedAt)\n\treturn rows, err\n}",
       "form": "unchanged-forward-evidence",
       "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.PublishIfDraft",
+      "owner": "modules/communication"
+    },
+    {
+      "build": "production",
+      "evidence": "func (r *nativeAnnouncementRepository) RecordRecipients(ctx context.Context, tenantID, id int64) error {\n\treturn r.source.AnnouncementRecordRecipients(ctx, tenantID, id)\n}",
+      "form": "unchanged-forward-evidence",
+      "id": "modules/communication/internal/staffannouncements/nativeAnnouncementRepository.RecordRecipients",
       "owner": "modules/communication"
     },
     {

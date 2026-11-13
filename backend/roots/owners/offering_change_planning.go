@@ -3,14 +3,14 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	presenceProjection "github.com/moto-nrw/project-phoenix/modules/presenceprojection/compose"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetableProjection "github.com/moto-nrw/project-phoenix/modules/timetableprojection/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	presenceProjection "github.com/moto-ogs/project-phoenix/modules/presenceprojection/compose"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetableProjection "github.com/moto-ogs/project-phoenix/modules/timetableprojection/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // ManualPlanningReader serves Care Plan's offering-change planning port: the

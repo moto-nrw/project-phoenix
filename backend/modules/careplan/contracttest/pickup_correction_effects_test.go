@@ -8,14 +8,14 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
@@ -39,7 +39,7 @@ func pickupCorrectionFixture(t *testing.T) (*careFixture, calendar.Date, int64) 
 		owners.NewParentGuardianProfileReads(f.reposPeople.GuardianProfile),
 		owners.NewParentStudentGuardianReads(f.reposPeople.StudentGuardian),
 		owners.NewParentGuardianPolicy(), nil)
-	f.svc = owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(
+	f.svc = owners.NewCareScheduleRequestServiceWithPickupChangesAndPolicy(nil,
 		f.reposCare.CarePlan(), f.persons, f.schedules.Arrivals, f.schedules.Pickups,
 		newPickupChangePresence(t, f.db), f.autoExcusal, f.reposCare.CarePlan(), f.caller,
 		f.emitter(t, messagingOnSettings{}, nil), nil, testpkg.RequestReviewPolicy[*peopledirectory.StudentState]{UserContext: f.caller},

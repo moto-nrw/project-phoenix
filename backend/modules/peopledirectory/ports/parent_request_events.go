@@ -1,7 +1,7 @@
 package ports
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // ParentRequestEventRecords advertises the native owner facet alongside the

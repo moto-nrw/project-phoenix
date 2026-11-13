@@ -3,9 +3,9 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/compose/presenceservice"
 )
 
 type StudentDisplayProjection struct {

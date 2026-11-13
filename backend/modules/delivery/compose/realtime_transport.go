@@ -5,11 +5,11 @@ import (
 	"io"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/notifications"
-	"github.com/moto-nrw/project-phoenix/observability"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/notifications"
+	"github.com/moto-ogs/project-phoenix/observability"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 

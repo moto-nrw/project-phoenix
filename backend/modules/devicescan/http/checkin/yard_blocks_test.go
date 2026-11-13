@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Yard scans while blocks run (ADR 0019, #3282): a child joins the running

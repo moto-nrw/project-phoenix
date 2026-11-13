@@ -37,8 +37,8 @@ permissions: {}
 
 env:
   REGISTRY: ghcr.io
-  BACKEND_IMAGE: ghcr.io/moto-nrw/phoenix-server
-  FRONTEND_IMAGE: ghcr.io/moto-nrw/phoenix-frontend
+  BACKEND_IMAGE: ghcr.io/moto-ogs/phoenix-server
+  FRONTEND_IMAGE: ghcr.io/moto-ogs/phoenix-frontend
   GOTOOLCHAIN: local
 
 jobs:

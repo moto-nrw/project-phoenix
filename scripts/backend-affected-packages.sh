@@ -39,7 +39,7 @@ shared_fixture_dirs=$(
     done | sed -e 's|^backend/||' -e 's|/[^/]*$||' -e 's|^|test |'
 )
 
-changed_dirs=$({ printf '%s\n' "$shared_fixture_dirs"; printf '%s\n' "$backend_changes" | awk '
+changed_dirs=$({ printf '%s\n' "$shared_fixture_dirs"; printf '%s\n' "$backend_changes" | awk -v direct="$direct" '
   /^backend\/.*\/testdata\// {
     path = $0
     sub(/^backend\//, "", path)
@@ -55,6 +55,8 @@ changed_dirs=$({ printf '%s\n' "$shared_fixture_dirs"; printf '%s\n' "$backend_c
   /^backend\/auth\/authorize\/permissions\/catalog\.json$/ { print "test modules/identityaccess/internal/domain"; next }
   /^backend\/architecture\/(command-effects|passthrough)(\.json|\/)/ { print "test internal/architecture"; print "test internal/passthrough"; print "test test"; next }
   /^backend\/test\/query-budgets\// { print "production test/query-budgets"; print "test internal/architecture"; next }
+  # CI needs the audit readers; --direct uses the source-test inventory instead.
+  /^backend\/database\/audits\/[^\/]+\.sql$/ { if (direct != "true") print "test test"; next }
   /\.go$/ {
     path = $0
     kind = path ~ /_test\.go$/ ? "test" : "production"

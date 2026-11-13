@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport"
 )
 
 func ImportTransactionPresent(ctx context.Context, current func(context.Context) (any, bool)) bool {

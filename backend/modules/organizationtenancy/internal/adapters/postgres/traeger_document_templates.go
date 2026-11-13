@@ -5,8 +5,8 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/templates"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/templates"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 )
 
 // Document templates of a Träger (#4677, ADR 0152) in

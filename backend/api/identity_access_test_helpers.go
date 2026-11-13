@@ -3,9 +3,9 @@
 package api
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // NewIdentityAccessForTests binds the native owner with a no-op observation

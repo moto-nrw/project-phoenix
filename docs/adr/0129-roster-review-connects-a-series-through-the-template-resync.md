@@ -4,7 +4,7 @@ status: accepted
 
 # Roster review connects a series through the template resync
 
-Issue [#5103](https://github.com/moto-nrw/project-phoenix/issues/5103) lets a
+Issue [#5103](https://github.com/moto-ogs/project-phoenix/issues/5103) lets a
 school switch a hand-kept Regeltermin to a Betreuungsangebot as source with
 "Mit Angebot verbinden". The switch must reach every segment of a split series
 that still has days on or after the chosen date: Schule am Berg had series

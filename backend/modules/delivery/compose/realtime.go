@@ -4,8 +4,8 @@ import (
 	"context"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/application/realtimeevents"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/application/realtimeevents"
+	"github.com/moto-ogs/project-phoenix/realtime"
 )
 
 // QueueStaffTimeTrackingChanged emits the tenant-wide time-tracking invalidation

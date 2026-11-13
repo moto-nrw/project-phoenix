@@ -6,7 +6,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan/internal/domain"
 )
 
 // prepareOrderRegistrations replaces the per-day participation reads in the

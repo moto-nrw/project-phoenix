@@ -4,13 +4,13 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // NewEnrollmentBookings is Enrollment's booking projection over Care Plan's

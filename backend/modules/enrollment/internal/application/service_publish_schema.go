@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // PublishSchema appends a version and advances phases of the same lineage.

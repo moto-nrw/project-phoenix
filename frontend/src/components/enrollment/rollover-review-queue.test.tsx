@@ -52,6 +52,10 @@ function RolloverReviewQueue(props: { phaseID: string }) {
   );
 }
 import type { ReviewQueueItem } from "~/lib/enrollment-phase-api";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 // ============================================================================
 // Test data
@@ -336,29 +340,19 @@ describe("RolloverReviewQueue", () => {
           ])
           .mockRejectedValueOnce(new ApiError("failed", status));
         mockDecideReview.mockResolvedValue(undefined);
+        resetPageReloads();
         render(<RolloverReviewQueue phaseID="77" />);
         fireEvent.click(
           (await screen.findAllByRole("button", { name: /Behalten/ }))[0]!,
         );
-        const message = `${catalogText(status === 403 ? "general.permission" : "general.unavailable", "die Anzeige der Prüfliste")} ${SAVED_BUT_STALE_SUFFIX}`;
-        expect(await screen.findByText(message)).toBeVisible();
         if (status === 403) {
-          expect(screen.queryByText("Ben Beispiel")).not.toBeInTheDocument();
-          expect(
-            screen.queryByText("ben-parent@example.test"),
-          ).not.toBeInTheDocument();
-          expect(
-            screen.queryByRole("button", { name: /Behalten/ }),
-          ).not.toBeInTheDocument();
-          expect(
-            screen.queryByText(/Keine offenen Einträge/),
-          ).not.toBeInTheDocument();
-        } else {
-          expect(screen.getByText("Ben Beispiel")).toBeVisible();
-          expect(
-            screen.getByRole("button", { name: /Behalten/ }),
-          ).toBeEnabled();
+          // #6801: the page loads anew; its first load shows the refusal.
+          await expectPageReloadedAfterRefusal();
+          return;
         }
+        expect(await screen.findByText(reloadText)).toBeVisible();
+        expect(screen.getByText("Ben Beispiel")).toBeVisible();
+        expect(screen.getByRole("button", { name: /Behalten/ })).toBeEnabled();
       },
     );
 

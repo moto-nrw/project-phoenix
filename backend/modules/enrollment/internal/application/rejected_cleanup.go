@@ -7,7 +7,7 @@ import (
 	"log/slog"
 	"time"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // RejectedRequestCleaner finds and deletes fully rejected requests.

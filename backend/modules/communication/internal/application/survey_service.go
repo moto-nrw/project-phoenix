@@ -9,7 +9,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // SurveyStore is the persistence of the surveys (#4781).

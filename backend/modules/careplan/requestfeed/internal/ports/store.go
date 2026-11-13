@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/requestfeed/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/requestfeed/internal/domain"
 )
 
 type Store interface {

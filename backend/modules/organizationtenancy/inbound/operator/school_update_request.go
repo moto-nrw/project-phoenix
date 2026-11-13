@@ -7,7 +7,7 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 )
 
 type updateSchoolRequest struct {

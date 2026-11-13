@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 const lockedUpdateStudentID int64 = 4711

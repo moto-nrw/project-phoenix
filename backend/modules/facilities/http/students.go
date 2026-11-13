@@ -3,7 +3,7 @@ package httpadapter
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // Students is the People Directory read port owned by this consumer: the

@@ -3,8 +3,8 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
 )
 
 // SessionRooms returns the room rows the composed session records project onto

@@ -5,9 +5,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 const shiftWallClockLayout = "15:04:05"
@@ -125,7 +125,7 @@ func applySeriesToRow(series *StaffShiftSeries, value workforce.StaffShiftSeries
 func shiftTypeRowToCapability(shiftType *workforce.ShiftTypeRecord) workforce.ShiftType {
 	return workforce.ShiftType{
 		ID: shiftType.ID, TenantID: shiftType.TenantID, Name: shiftType.Name, Color: shiftType.Color,
-		Description: shiftType.Description, IsActive: shiftType.IsActive, CreatedAt: shiftType.CreatedAt, UpdatedAt: shiftType.UpdatedAt,
+		Description: shiftType.Description, IsActive: shiftType.IsActive, ArchivedAt: shiftType.ArchivedAt, CreatedAt: shiftType.CreatedAt, UpdatedAt: shiftType.UpdatedAt,
 	}
 }
 
@@ -144,6 +144,7 @@ func applyShiftTypeToRow(shiftType *workforce.ShiftTypeRecord, value workforce.S
 	shiftType.Color = value.Color
 	shiftType.Description = value.Description
 	shiftType.IsActive = value.IsActive
+	shiftType.ArchivedAt = value.ArchivedAt
 }
 
 // shiftWallClock reads only the time-of-day components; the year anchor and

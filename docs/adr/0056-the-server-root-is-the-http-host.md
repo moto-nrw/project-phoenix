@@ -9,8 +9,8 @@ status: accepted
 > `cmd` no longer starts `seed`, `simulate` and `demo`, and the production
 > image no longer ships them.
 
-Decision for [#4063](https://github.com/moto-nrw/project-phoenix/issues/4063)
-under [#2580](https://github.com/moto-nrw/project-phoenix/issues/2580). It
+Decision for [#4063](https://github.com/moto-ogs/project-phoenix/issues/4063)
+under [#2580](https://github.com/moto-ogs/project-phoenix/issues/2580). It
 completes the root reach of
 [ADR 0053](0053-owners-compose-themselves-and-the-roots-compose-the-owners.md)
 for the HTTP and process runtime the typed roots assemble. The policy change
@@ -62,7 +62,7 @@ with behaviour belongs to its owner's `http` role. Glue that binds an owner's
 failure kinds to the shared renderer is binding, not a resource, and stays in
 the root (ADR 0053 point 1). The two resources still in `api`,
 `reportPWAUsage` and `serveStaffAvatar`, move to their owners under
-[#4068](https://github.com/moto-nrw/project-phoenix/issues/4068).
+[#4068](https://github.com/moto-ogs/project-phoenix/issues/4068).
 
 ### 2. Standing reaches of the host
 
@@ -100,7 +100,7 @@ The contract the root fills becomes defined types in a
 `scheduler-runtime`/`contract` package, which the standing
 `root-composition.reach.platform.contract` covers. Neither a grant into
 `application` nor a `public` reclassification of the implementation is
-acceptable. [#4067](https://github.com/moto-nrw/project-phoenix/issues/4067)
+acceptable. [#4067](https://github.com/moto-ogs/project-phoenix/issues/4067)
 makes the move and removes `api -> services/scheduler`. The key keeps its
 carrier #2750, because the baseline comparison rejects a changed issue on a
 key; #4067 blocks #2750 instead.
@@ -147,7 +147,7 @@ adds no rule; the reclassified packages fall under the existing reach.
 
 ## Amendment of 2026-10-16
 
-Point 4 named a `scheduler-runtime`/`contract` package. [#4067](https://github.com/moto-nrw/project-phoenix/issues/4067)
+Point 4 named a `scheduler-runtime`/`contract` package. [#4067](https://github.com/moto-ogs/project-phoenix/issues/4067)
 places the Worker's contract in `modules/schedulerruntime/ports` with the
 `port` role instead. The package holds exactly what a port role is for: the
 consumer-owned ports the Worker declares onto the owners

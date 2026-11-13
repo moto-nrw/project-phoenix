@@ -9,10 +9,10 @@ import (
 	"strings"
 	"time"
 
-	enrollmentCapability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentCapability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
-	"github.com/moto-nrw/project-phoenix/modules/documentrendering/lists"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/documentrendering/lists"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // This file holds the leaf value-formatters for the phase export: the

@@ -53,7 +53,7 @@
 # `anwesenheit-ueberblick` bleibt aus dem Tracer (#3761), weil eine ID die
 # Dateinamen in Drive bestimmt.
 #
-# Ergänzung: Motive, die die Website (moto-nrw/website) zeigt und die die
+# Ergänzung: Motive, die die Website (moto-ogs/website) zeigt und die die
 # Shot-Liste nicht hatte. Ihre Zeile nennt das Motiv der Website.
 shots:
   # --- Tagesbetrieb ---------------------------------------------------------

@@ -1,5 +1,5 @@
 import Image from "next/image";
-import type { ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import type { TraegerBankAccount, TraegerContact } from "~/lib/traeger-api";
 import { formatIBAN } from "./traeger-bank-account-format";
 
@@ -59,9 +59,12 @@ export function TraegerLetterheadPreview({
   const accent = COLOR_PATTERN.test(color) ? color : undefined;
   const sender = lines(letterheadText);
   const footer = lines(footerText);
-  const contactLine = [contact.name, contact.phone, contact.email]
-    .filter((value) => value !== "")
-    .join(" · ");
+  // A phone number stays on one line: split, it is misdialled.
+  const contactParts = [
+    { key: "name", value: contact.name, whole: false },
+    { key: "phone", value: contact.phone, whole: true },
+    { key: "email", value: contact.email, whole: false },
+  ].filter((part) => part.value !== "");
   const letterFacts = facts
     ? [
         ...facts,
@@ -126,33 +129,49 @@ export function TraegerLetterheadPreview({
       {letterFacts ? (
         // Wie im PDF: links das Anschriftfeld, rechts Nummern, Daten und die
         // Ansprechperson des Trägers.
-        <div className="mt-6 grid gap-6 sm:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
-          <address
-            aria-label="Anschrift"
-            role="group"
-            className="min-w-0 wrap-anywhere text-gray-900 not-italic"
-          >
-            {(recipient ?? []).map((line, index) => (
-              <p key={`${index}-${line}`}>{line}</p>
-            ))}
-          </address>
-          {/* Eine Druckansicht, kein Feldgitter: jede Zeile Bezeichnung
+        // The preview's own width decides the columns: beside the editor it
+        // is half the page wide even on a laptop.
+        <div className="@container mt-6">
+          <div className="grid gap-6 @lg:grid-cols-[minmax(0,1fr)_minmax(0,2fr)]">
+            <address
+              aria-label="Anschrift"
+              role="group"
+              className="min-w-0 wrap-anywhere text-gray-900 not-italic"
+            >
+              {(recipient ?? []).map((line, index) => (
+                // Postcode and town stay on one line.
+                <p key={`${index}-${line}`}>
+                  {line.replace(/^(\d{4,5}) /, "$1\u00A0")}
+                </p>
+              ))}
+            </address>
+            {/* Eine Druckansicht, kein Feldgitter: jede Zeile Bezeichnung
               und Wert wie im Infoblock des PDFs. */}
-          <div
-            role="group"
-            aria-label="Angaben zum Schreiben"
-            className="min-w-0 space-y-0.5 text-sm"
-          >
-            {letterFacts.map((fact) => (
-              <p key={fact.label} className="flex justify-between gap-4">
-                <span className="shrink-0 whitespace-nowrap text-gray-500">
-                  {fact.label}
-                </span>
-                <span className="min-w-0 text-right wrap-break-word text-gray-900 tabular-nums">
-                  {fact.value}
-                </span>
-              </p>
-            ))}
+            <div
+              role="group"
+              aria-label="Angaben zum Schreiben"
+              className="min-w-0 space-y-0.5 text-sm"
+            >
+              {letterFacts.map((fact) => (
+                // The label stays whole; a value that does not fit beside it
+                // moves to its own line instead of overprinting it.
+                <p
+                  key={fact.label}
+                  className="flex flex-wrap justify-between gap-x-4"
+                >
+                  <span className="shrink-0 text-gray-500">{fact.label}</span>
+                  <span
+                    className={`ml-auto min-w-0 text-right text-gray-900 tabular-nums ${
+                      fact.label === "Telefon"
+                        ? "whitespace-nowrap"
+                        : "wrap-anywhere"
+                    }`}
+                  >
+                    {fact.value}
+                  </span>
+                </p>
+              ))}
+            </div>
           </div>
         </div>
       ) : (
@@ -161,9 +180,18 @@ export function TraegerLetterheadPreview({
             className="font-medium text-gray-900"
             style={accent ? { color: accent } : undefined}
           >
-            Ansprechpartner:
+            Ansprechperson:
           </span>{" "}
-          {contactLine || (
+          {contactParts.length > 0 ? (
+            contactParts.map((part, index) => (
+              <Fragment key={part.key}>
+                {index > 0 ? " · " : null}
+                <span className={part.whole ? "whitespace-nowrap" : undefined}>
+                  {part.value}
+                </span>
+              </Fragment>
+            ))
+          ) : (
             <span className="text-gray-400">noch nicht eingetragen</span>
           )}
         </p>
@@ -172,7 +200,7 @@ export function TraegerLetterheadPreview({
       {body ? (
         <div className="mt-8">{body}</div>
       ) : (
-        <p className="mt-8 text-gray-400">Hier steht der Text des Briefs.</p>
+        <p className="mt-8 text-gray-500">Hier steht der Text des Briefs.</p>
       )}
       <figcaption className="mt-10 border-t border-gray-200 pt-3 text-sm wrap-anywhere text-gray-600">
         {footer.map((line, index) => (
@@ -180,9 +208,19 @@ export function TraegerLetterheadPreview({
         ))}
         {defaultAccount ? (
           <p className={footer.length > 0 ? "mt-1" : undefined}>
-            Bankverbindung: {defaultAccount.accountHolder} · IBAN{" "}
-            {formatIBAN(defaultAccount.iban)}
-            {defaultAccount.bic ? ` · BIC ${defaultAccount.bic}` : ""}
+            {/* IBAN and BIC stay whole, each with its label. */}
+            Bankverbindung: {defaultAccount.accountHolder} ·{" "}
+            <span className="whitespace-nowrap">
+              IBAN {formatIBAN(defaultAccount.iban)}
+            </span>
+            {defaultAccount.bic ? (
+              <>
+                {" · "}
+                <span className="whitespace-nowrap">
+                  BIC {defaultAccount.bic}
+                </span>
+              </>
+            ) : null}
             {defaultAccount.bankName ? ` · ${defaultAccount.bankName}` : ""}
           </p>
         ) : null}

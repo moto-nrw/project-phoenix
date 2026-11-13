@@ -11,11 +11,11 @@ import (
 	"strings"
 	"unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/modules/mealplan"
-	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/mealplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
 )
 
 // billingMonthsBack is how many months back the Mensa-Monatsfreigabe goes:

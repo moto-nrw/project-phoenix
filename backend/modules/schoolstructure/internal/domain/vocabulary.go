@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The values the group service's and the substitution module's ports

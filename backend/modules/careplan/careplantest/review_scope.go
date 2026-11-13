@@ -3,7 +3,7 @@ package careplantest
 import (
 	"context"
 
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
 )
 
 // SchoolWideReviewScope is the review scope of a caller who may decide every

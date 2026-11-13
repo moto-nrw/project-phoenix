@@ -1192,7 +1192,7 @@ function CareOfferingToolbar({
             ariaLabel="Anmeldephase"
             value={selectedPhaseId}
             onChange={onPhaseChange}
-            controlSize="compact"
+            controlSize="dense"
             className="min-w-0 sm:w-auto sm:max-w-md"
             options={phases.map((phase) => ({
               value: phase.id,

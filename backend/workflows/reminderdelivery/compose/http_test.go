@@ -7,15 +7,15 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
-	remindersHTTP "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/http"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	reminder "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery"
+	remindersHTTP "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery/http"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

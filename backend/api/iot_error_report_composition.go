@@ -4,8 +4,8 @@ import (
 	"errors"
 	"fmt"
 
-	iotAPI "github.com/moto-nrw/project-phoenix/api/iot"
-	"github.com/moto-nrw/project-phoenix/observability"
+	iotAPI "github.com/moto-ogs/project-phoenix/api/iot"
+	"github.com/moto-ogs/project-phoenix/observability"
 )
 
 // NewIoTErrorReportRelay binds parsing/tagging; the HTTP adapter retains all network I/O.

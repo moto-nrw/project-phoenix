@@ -7,9 +7,9 @@ import (
 	"strconv"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
 )
 
@@ -78,7 +78,10 @@ func TestCalendarReadPositiveGrowthQueryBudget(t *testing.T) {
 				var overview struct {
 					Data struct {
 						AppointmentID string `json:"appointment_id"`
-						Attendees     []struct {
+						Counts        struct {
+							Pending int `json:"pending"`
+						} `json:"counts"`
+						Attendees []struct {
 							Name        string `json:"name"`
 							Status      string `json:"status"`
 							RecipientID string `json:"recipient_id"`
@@ -87,7 +90,14 @@ func TestCalendarReadPositiveGrowthQueryBudget(t *testing.T) {
 				}
 				require.NoError(t, json.Unmarshal(read(surface.path, surface.token, surface.mount), &overview))
 				require.Equal(t, strconv.FormatInt(appointmentID, 10), overview.Data.AppointmentID)
-				require.Len(t, overview.Data.Attendees, n)
+				require.Equal(t, n, overview.Data.Counts.Pending)
+				// Staff see every invited parent by name; a parent sees only
+				// their own entry, the others stay in the counts (#6846).
+				wantListed := n
+				if surface.name == "parent_overview" {
+					wantListed = 1
+				}
+				require.Len(t, overview.Data.Attendees, wantListed)
 				for _, attendee := range overview.Data.Attendees {
 					require.Equal(t, "Sabine Schneider", attendee.Name)
 					require.Equal(t, "pending", attendee.Status)

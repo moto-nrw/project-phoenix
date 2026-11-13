@@ -20,8 +20,10 @@ import { closingDaysConcept } from "~/lib/concepts/closingDays";
 import { contributionsConcept } from "~/lib/concepts/contributions";
 import { dashboardConcept } from "~/lib/concepts/dashboard";
 import { documentsConcept } from "~/lib/concepts/documents";
+import { enrollmentsConcept } from "~/lib/concepts/enrollments";
 import { helpConcept } from "~/lib/concepts/help";
 import { holidayWeeksConcept } from "~/lib/concepts/holidayWeeks";
+import { parentsConcept } from "~/lib/concepts/parents";
 import { peopleConcept } from "~/lib/concepts/people";
 import { reportsConcept } from "~/lib/concepts/reports";
 import { schoolsConcept } from "~/lib/concepts/schools";
@@ -30,7 +32,7 @@ import { utilizationConcept } from "~/lib/concepts/utilization";
 
 /** Das Recht, das „Mitglieder und Rollen" öffnet (ADR 0084, #4650). */
 const ACCOUNTS_RIGHT = "traeger_accounts:manage";
-/** Das Recht, das die Ferienzeiträume öffnet (#4659). */
+/** Das Recht, das die Ferienzeiträume (#4659) und die Anmeldephasen (#4704) öffnet. */
 const ENROLLMENT_RIGHT = "traeger_enrollment:manage";
 /** Das Recht, das die Betreuungsverträge öffnet (#4678). */
 const CONTRACTS_RIGHT = "traeger_contracts:manage";
@@ -55,6 +57,8 @@ export interface TraegerNavItem {
   /** Pfad mit /traeger-Präfix; die Leisten schreiben ihn per `traegerPath` um. */
   readonly href: string;
   readonly label: string;
+  /** Kurzer Name für die mobile Leiste, wo der aktive Name wenig Platz hat. */
+  readonly shortLabel?: string;
   readonly concept: MotoConcept;
   /** Das Recht, ohne das der Eintrag fehlt; `null` für jede Person. */
   readonly right: string | null;
@@ -91,6 +95,7 @@ const TRAEGER_NAV_GROUPS: readonly TraegerNavGroup[] = [
         key: "stichtagszahlen",
         href: "/traeger/stichtagszahlen",
         label: "Stichtagszahlen",
+        shortLabel: "Stichtage",
         concept: reportsConcept,
         right: OVERVIEW_RIGHT,
       },
@@ -112,7 +117,18 @@ const TRAEGER_NAV_GROUPS: readonly TraegerNavGroup[] = [
         key: "ferien",
         href: "/traeger/ferien",
         label: "Ferienbetreuung",
+        // The bottom bar shows the short word; the full name stays the
+        // link's name.
+        shortLabel: "Ferien",
         concept: holidayWeeksConcept,
+        right: ENROLLMENT_RIGHT,
+      },
+      {
+        // Anmeldephasen und Betreuungsangebote für mehrere Schulen (#4704).
+        key: "anmeldephasen",
+        href: "/traeger/anmeldephasen",
+        label: "Anmeldephasen",
+        concept: enrollmentsConcept,
         right: ENROLLMENT_RIGHT,
       },
       {
@@ -136,6 +152,7 @@ const TRAEGER_NAV_GROUPS: readonly TraegerNavGroup[] = [
         key: "zeitvergleich",
         href: "/traeger/zeitvergleich",
         label: "Länger als gebucht",
+        shortLabel: "Länger da",
         concept: careTimesConcept,
         right: REPORTS_RIGHT,
       },
@@ -150,14 +167,34 @@ const TRAEGER_NAV_GROUPS: readonly TraegerNavGroup[] = [
     ],
   },
   {
+    // Drei Bereiche statt einer Seite mit zehn Reitern: die Läufe, die
+    // Familien mit dem, was sie zahlen, und die Preise mit ihren
+    // Ermäßigungen. Die Adressen bleiben; jeder Bereich zeigt nur seine Reiter.
     key: "finanzen",
     label: "Finanzen",
     items: [
       {
         key: "abrechnung",
         href: "/traeger/abrechnung",
-        label: "Abrechnung",
+        label: "Abrechnungsläufe",
+        shortLabel: "Abrechnung",
         concept: billingConcept,
+        right: BILLING_RIGHT,
+      },
+      {
+        key: "familien",
+        href: "/traeger/abrechnung/familien",
+        label: "Familien und Zahlung",
+        shortLabel: "Familien",
+        concept: parentsConcept,
+        right: BILLING_RIGHT,
+      },
+      {
+        key: "preise",
+        href: "/traeger/abrechnung/preise",
+        label: "Preise und Ermäßigungen",
+        shortLabel: "Preise",
+        concept: contributionsConcept,
         right: BILLING_RIGHT,
       },
     ],
@@ -190,6 +227,7 @@ const TRAEGER_SETTINGS_NAV_ITEMS: readonly TraegerNavItem[] = [
     key: "mitglieder",
     href: "/traeger/einstellungen/mitglieder",
     label: "Mitglieder und Rollen",
+    shortLabel: "Mitglieder",
     concept: peopleConcept,
     right: ACCOUNTS_RIGHT,
   },
@@ -197,6 +235,7 @@ const TRAEGER_SETTINGS_NAV_ITEMS: readonly TraegerNavItem[] = [
     key: "briefkopf",
     href: "/traeger/einstellungen/briefkopf",
     label: "Briefkopf und Vorlagen",
+    shortLabel: "Briefkopf",
     concept: documentsConcept,
     right: OVERVIEW_RIGHT,
   },
@@ -204,6 +243,7 @@ const TRAEGER_SETTINGS_NAV_ITEMS: readonly TraegerNavItem[] = [
     key: "abrechnungsvorgaben",
     href: "/traeger/einstellungen/abrechnung",
     label: "Abrechnungsvorgaben",
+    shortLabel: "Vorgaben",
     concept: contributionsConcept,
     right: OVERVIEW_RIGHT,
   },
@@ -211,6 +251,7 @@ const TRAEGER_SETTINGS_NAV_ITEMS: readonly TraegerNavItem[] = [
     key: "dokumentarten",
     href: "/traeger/einstellungen/dokumentarten",
     label: "Dokumentarten",
+    shortLabel: "Dokumentart",
     concept: billingConcept,
     right: BILLING_RIGHT,
   },
@@ -218,6 +259,7 @@ const TRAEGER_SETTINGS_NAV_ITEMS: readonly TraegerNavItem[] = [
     key: "zugriffsprotokoll",
     href: "/traeger/einstellungen/zugriffsprotokoll",
     label: "Zugriffsprotokoll",
+    shortLabel: "Protokoll",
     concept: changeHistoryConcept,
     right: ACCESS_LOG_RIGHT,
   },

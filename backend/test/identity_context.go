@@ -3,7 +3,7 @@ package test
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
 )
 
 // IdentityContext supplies authenticated identity facts to application tests

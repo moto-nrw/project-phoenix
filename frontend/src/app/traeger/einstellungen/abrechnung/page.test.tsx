@@ -218,7 +218,7 @@ describe("TraegerAbrechnungsvorgabenPage", () => {
     await screen.findAllByText("ab 01.08.2026");
 
     fireEvent.click(
-      screen.getByRole("button", { name: "Geschwisterregel hinzufügen" }),
+      screen.getByRole("button", { name: "Geschwisterregel anlegen" }),
     );
     fireEvent.click(
       await screen.findByRole("button", { name: "ab dem 3. Kind" }),
@@ -259,11 +259,11 @@ describe("TraegerAbrechnungsvorgabenPage", () => {
       )[0],
     ).toBeInTheDocument();
     fireEvent.click(
-      screen.getByRole("button", { name: "Befreiungsregel hinzufügen" }),
+      screen.getByRole("button", { name: "Befreiungsregel anlegen" }),
     );
     expect(
       await screen.findByRole("heading", {
-        name: "Befreiungsregel hinzufügen",
+        name: "Befreiungsregel anlegen",
       }),
     ).toBeInTheDocument();
     expect(
@@ -546,7 +546,10 @@ describe("TraegerAbrechnungsvorgabenPage", () => {
 
     expect(
       await screen.findByText(
-        catalogText("general.unavailable", "die Abrechnungsvorgaben"),
+        catalogText(
+          "general.unavailable",
+          "die Übersicht der Abrechnungsvorgaben",
+        ),
       ),
     ).toBeInTheDocument();
     fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));

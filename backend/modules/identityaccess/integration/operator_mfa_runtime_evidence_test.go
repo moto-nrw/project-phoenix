@@ -10,10 +10,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	identityCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	identityCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // TestOperatorMFARuntimeEvidence records the runtime evidence for the

@@ -863,12 +863,10 @@ function MeinRaumPageContent() {
         hasHeadActions || tableApplies ? (
           <>
             {tableApplies ? (
-              <div data-icon-only="">
-                <CollectionViewSwitch
-                  value={collectionView.view}
-                  onChange={changeView}
-                />
-              </div>
+              <CollectionViewSwitch
+                value={collectionView.view}
+                onChange={changeView}
+              />
             ) : null}
             {/* Die Abzeichen sind eine Zeile: das Gerüst gibt unter sm jedem
                 Kopf-Element eine eigene volle Zeile, zwei gestreckte Pillen

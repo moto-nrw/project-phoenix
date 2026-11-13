@@ -3,7 +3,7 @@ package groups
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/domain"
 )
 
 // Group reads adapt the private store directly. Lifecycle orchestration stays

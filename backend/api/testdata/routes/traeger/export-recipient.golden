@@ -1,0 +1,6 @@
+DELETE /traeger/export-recipient/{id}
+GET /traeger/export-recipient/
+GET /traeger/export-recipient/{id}
+POST /traeger/export-recipient/
+PUT /traeger/export-recipient/formats
+PUT /traeger/export-recipient/{id}

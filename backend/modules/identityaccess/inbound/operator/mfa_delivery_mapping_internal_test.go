@@ -7,7 +7,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 func TestMapOperatorMFAErrorDeliveryUnavailableWireContract(t *testing.T) {

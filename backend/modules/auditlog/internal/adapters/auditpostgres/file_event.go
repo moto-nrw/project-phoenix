@@ -3,7 +3,7 @@ package audit
 import (
 	"context"
 
-	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	audit "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 )
 
 const fileEventTableExpr = `audit.file_event_ledger AS "file_event"`

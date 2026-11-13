@@ -19,7 +19,13 @@ import (
 // of the Träger instead of the fixed three months and says when the health
 // information goes (#6691). It is at least HolidayConsentVersionHostHealth,
 // so the hosting OGS sees the health information of a registration under it.
-const HolidayConsentVersionCurrent = HolidayConsentVersionRetention
+// Version 5 adds that the Träger keeps the customer number of the Gemeinde
+// for later registrations and when it goes (#6692).
+const HolidayConsentVersionCurrent = HolidayConsentVersionDebtorNumber
+
+// HolidayConsentVersionDebtorNumber is the first version whose privacy text
+// says that the Träger keeps the debtor number of the family (#6692).
+const HolidayConsentVersionDebtorNumber = 5
 
 // HolidayConsentVersionRetention is the first version whose privacy text
 // names the retention of the registration in days (#6691). The wording of a
@@ -89,6 +95,14 @@ const (
 		"Die OGS sieht das schon vor der Ferienwoche. So kann sie sich vorbereiten. " +
 		"Die Liste der Kinder sieht sie bis zum letzten Tag der Woche. " +
 		"Name, Telefon und Antworten kann sie danach höchstens 7 Tage lesen. Dann werden sie gelöscht."
+	// holidayDebtorNumberConsentText follows the privacy text from
+	// HolidayConsentVersionDebtorNumber on: the number the family keeps at
+	// the Träger goes on 1 January of the fourth year after it was last
+	// needed (parentbilling.FamilyDebtorNumberRetentionYears), or after the
+	// invoices of the family the Träger must keep.
+	holidayDebtorNumberConsentText = "Bekommt meine Rechnung eine Kundennummer der Gemeinde (Debitorennummer), " +
+		"behält der Träger sie für spätere Anmeldungen. Er löscht sie am Ende des dritten Jahres nach der letzten Anmeldung. " +
+		"Muss er Rechnungen länger aufbewahren, löscht er sie danach."
 	holidayHealthConsentText = "Ich bin einverstanden: Der Träger und die OGS sehen die Gesundheitsangaben meiner Kinder. " +
 		"Es geht um die OGS, die ein Kind in einer Ferienwoche betreut. " +
 		"Sie sieht die Angaben ab der Bestätigung bis zum letzten Tag der Woche."
@@ -122,10 +136,13 @@ const holidayConsentVersionDeclaration = 3
 // before HolidayConsentVersionRetention have one wording and ignore
 // retentionDays.
 func HolidayConsentTextsOf(version, retentionDays int) (HolidayConsentTexts, bool) {
-	if version == HolidayConsentVersionRetention {
+	if version == HolidayConsentVersionRetention || version == HolidayConsentVersionDebtorNumber {
 		texts := holidayConsentTexts[holidayConsentVersionDeclaration]
 		texts.Version, texts.RetentionDays = version, retentionDays
 		texts.PrivacyConsent = fmt.Sprintf(holidayRetentionPrivacyConsentText, retentionDays, HolidayHealthRetentionDays)
+		if version == HolidayConsentVersionDebtorNumber {
+			texts.PrivacyConsent += " " + holidayDebtorNumberConsentText
+		}
 		return texts, true
 	}
 	texts, ok := holidayConsentTexts[version]

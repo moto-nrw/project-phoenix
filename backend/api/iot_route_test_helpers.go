@@ -5,7 +5,7 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
 )
 
 type routerStaffClock struct{}

@@ -3,8 +3,8 @@ package postgres
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 

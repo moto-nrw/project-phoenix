@@ -3,10 +3,10 @@
 package api
 
 import (
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 )
 
 // NewAuthTestParentPortal supplies the parent enrollment requests the auth

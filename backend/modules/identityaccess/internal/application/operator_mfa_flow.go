@@ -8,9 +8,9 @@ import (
 	"net"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/ports"
 )
 
 // OperatorMFAFlows is the operator's second factor (#3331): the e-mail

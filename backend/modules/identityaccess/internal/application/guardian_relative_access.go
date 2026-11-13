@@ -8,10 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // Guardian relative access: invite a further guardian to a child, approve or

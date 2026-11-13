@@ -35,8 +35,8 @@ import {
   HOMEWORK_NOTE_MAX_LENGTH,
   homeworkLine,
 } from "~/lib/homework-feedback";
-import { EmptyStudentResults } from "~/components/ui/empty-student-results";
-import { OccupancyBadges } from "~/components/ui/planning/occupancy-badges";
+import { EmptyStudentResults } from "~/components/students/empty-student-results";
+import { OccupancyBadges } from "~/components/activities/occupancy-badges";
 import type { AddUnplannedStudentModalProps } from "~/components/active-supervisions/add-unplanned-student-modal";
 import type { PresentChildrenPickerProps } from "~/components/active-supervisions/present-children-picker";
 import {

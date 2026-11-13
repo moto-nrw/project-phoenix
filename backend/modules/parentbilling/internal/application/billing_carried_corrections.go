@@ -8,7 +8,7 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
 // The corrections a reissued invoice carries over (#5663, ADR 0119 addendum).

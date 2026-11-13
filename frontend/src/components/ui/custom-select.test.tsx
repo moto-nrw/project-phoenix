@@ -1005,6 +1005,32 @@ describe("CustomSelect", () => {
       expect(onChange).toHaveBeenCalledWith("second");
     });
 
+    it("finds an accented label from a search without accents", () => {
+      // Wie `SuggestInput` (#4949): „gomez“ findet „Gómez“.
+      render(
+        <CustomSelect
+          ariaLabel="Auswahl"
+          searchable
+          value=""
+          options={[
+            { value: "gomez", label: "Lucía Gómez" },
+            { value: "meyer", label: "Jan Meyer" },
+          ]}
+          onChange={vi.fn()}
+        />,
+      );
+
+      fireEvent.click(screen.getByRole("combobox", { name: "Auswahl" }));
+      fireEvent.change(screen.getByRole("textbox", { name: "Suchen" }), {
+        target: { value: "gomez" },
+      });
+
+      expect(
+        screen.getByRole("option", { name: "Lucía Gómez" }),
+      ).toBeInTheDocument();
+      expect(screen.queryByRole("option", { name: "Jan Meyer" })).toBeNull();
+    });
+
     it("says so when the search finds nothing", () => {
       render(
         <CustomSelect

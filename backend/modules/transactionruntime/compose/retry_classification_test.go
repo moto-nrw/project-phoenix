@@ -13,9 +13,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // #6316: the runtime decides a retry on the operation's own error only. A
@@ -244,6 +244,10 @@ func TestRetryAfterConnectionLossOrContextEnd(t *testing.T) {
 			t.Logf("CELL B3 %s %s", unit.name, got)
 			require.Equal(t, failedOnce, got, "error: %v", err)
 			require.ErrorIs(t, err, context.Canceled)
+			// A cancelled unit rolled back: its outcome is known.
+			var outcome interface{ CommitOutcomeUnknown() }
+			require.False(t, errors.As(err, &outcome), "commit outcome unknown: %v", err)
+			require.Equal(t, tenant.UnitOfWorkRolledBack, tenant.TransactionResult(err))
 		})
 		t.Run(unit.name+"/B4_request_deadline_in_savepoint", func(t *testing.T) {
 			ctx, cancel := context.WithTimeout(rig.ctx, 300*time.Millisecond)

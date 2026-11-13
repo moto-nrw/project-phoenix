@@ -9,11 +9,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 )
 
 // TestFlowE_StudentDayWithUnplannedVisit validates the student-day aggregation:
@@ -28,7 +27,7 @@ func TestFlowE_StudentDayWithUnplannedVisit(t *testing.T) {
 	s := setupTimetableScenarioModule(t)
 
 	// Pick a weekday >= 7 days out (materialize today-or-future rule).
-	target := nextWeekday(calendar.TodayDate(), 5, 7) // Friday
+	target := s.plannableWeekday(5, 7) // Friday
 	fromS := target.String()
 
 	s.createActivePeriod(fmt.Sprintf("E2E-Flow-E-%d", time.Now().UnixNano()), target)

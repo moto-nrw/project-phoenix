@@ -6,8 +6,8 @@ import (
 	strconv "strconv"
 	time "time"
 
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	careplan "github.com/moto-ogs/project-phoenix/modules/careplan"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // PickupScheduleResponse represents a pickup schedule in API responses

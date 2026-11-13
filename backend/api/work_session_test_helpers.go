@@ -6,15 +6,15 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/realtime"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
 
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // NewWorkSessionTestModule composes the stamp side of the Workforce

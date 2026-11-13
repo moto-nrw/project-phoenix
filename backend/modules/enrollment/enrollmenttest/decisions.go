@@ -1,6 +1,6 @@
 package enrollmenttest
 
-import "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+import "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
 
 // The ports of Enrollment's decision flow, rollover and deletions (#3564) a
 // behavior test binds its doubles to.

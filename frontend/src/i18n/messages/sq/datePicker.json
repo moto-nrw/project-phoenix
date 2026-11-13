@@ -9,6 +9,10 @@
     "selectTime": "Zgjidhni orën",
     "hour": "Ora",
     "minute": "Minuta",
-    "minimum": "Jo më herët se {time}"
-  }
+    "minimum": "Jo më herët se {time}",
+    "selectTimeHint": "Hap zgjedhjen e orës."
+  },
+  "clearHint": "Pastron fushën, pastaj asnjë ditë nuk është zgjedhur.",
+  "previousMonthHint": "Kthen kalendarin një muaj prapa.",
+  "nextMonthHint": "Çon kalendarin një muaj përpara."
 }

@@ -3,7 +3,7 @@ package careplan
 import (
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ParseOfferingStaffValue reads the offerings a staff member chose from the

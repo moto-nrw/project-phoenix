@@ -8,7 +8,7 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // presenceHistoryDays is how far the presence history reaches back: the

@@ -5,8 +5,8 @@ import (
 	"strings"
 	"unicode"
 
-	listrecords "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	listrecords "github.com/moto-ogs/project-phoenix/modules/documentrendering/records"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 // RendererService renders list/record documents to PDF, XLSX, DOCX, and CSV files.

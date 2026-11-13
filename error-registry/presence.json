@@ -31,6 +31,16 @@
       "class": "input",
       "parameters": [],
       "legacy": "presence.statistics_range_invalid"
+    },
+    {
+      "code": "presence.visit_overlap",
+      "class": "business_rejection",
+      "parameters": [
+        "conflicting_visit_id",
+        "conflicting_from",
+        "conflicting_until"
+      ],
+      "legacy": "presence.visit_overlap"
     }
   ]
 }

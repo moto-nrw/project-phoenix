@@ -3,8 +3,8 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
 )
 
 // activeDeviceDirectory hands the device owner to the session repository that

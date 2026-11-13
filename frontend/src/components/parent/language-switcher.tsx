@@ -54,7 +54,7 @@ export function LanguageSwitcher({
       ariaLabel={t("label")}
       containerClassName="relative inline-block align-middle"
       containerStyle={{ visibility: hydrated ? "visible" : "hidden" }}
-      size="compact"
+      size="dense"
       className={compact ? "max-w-[11rem]" : undefined}
       menuAlign="end"
       renderTrigger={({ selectedLabel, open }) => (

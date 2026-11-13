@@ -3,7 +3,7 @@ package ports
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/subscriptions"
 )
 
 // PushSubscriptionRepository defines operations for Web Push subscriptions.

@@ -4,8 +4,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

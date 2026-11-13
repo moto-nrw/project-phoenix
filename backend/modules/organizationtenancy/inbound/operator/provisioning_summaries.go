@@ -3,7 +3,7 @@ package operator
 import (
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // GetProvisioningStats returns platform-wide aggregate counts for the operator

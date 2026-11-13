@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func TransactionRunWriteBinding(ctx context.Context, callback func(context.Context) error, execute0 func(ctx context.Context, id tenant.TenantID, fn func(context.Context) error) error) error {

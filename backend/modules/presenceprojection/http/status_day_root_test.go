@@ -1,9 +1,9 @@
 package presenceprojectionhttp_test
 
 import (
-	"github.com/moto-nrw/project-phoenix/api"
-	subject "github.com/moto-nrw/project-phoenix/modules/presenceprojection/http"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/api"
+	subject "github.com/moto-ogs/project-phoenix/modules/presenceprojection/http"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 func init() {

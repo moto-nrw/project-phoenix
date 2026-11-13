@@ -1,6 +1,6 @@
 package compose
 
-import "github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/domain"
+import "github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/domain"
 
 // The School Structure values the group service's and the substitution
 // module's ports exchange. The legacy composition root binds those ports over

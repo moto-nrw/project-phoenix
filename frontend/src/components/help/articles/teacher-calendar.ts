@@ -28,6 +28,7 @@ export function teacherCalendarTopic(): HelpTopic {
         title: "Auf eine Einladung der OGS antworten",
         steps: [
           "Wählen Sie den Termin im Kalender.",
+          "Bei einer Reihe: Wählen Sie unter `Ihre Antwort gilt für`, ob die Antwort nur für diesen Termin oder für `Alle Termine` gilt.",
           "Wählen Sie `Zusagen` oder `Absagen`.",
         ],
       },

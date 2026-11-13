@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/internal/ports"
 )
 
 func (s *Store) ListOpenVisitStudentIDs(ctx context.Context, hostingTenantID int64) ([]int64, ports.Stats, error) {

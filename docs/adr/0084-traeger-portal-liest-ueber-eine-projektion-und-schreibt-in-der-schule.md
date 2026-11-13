@@ -4,13 +4,13 @@ status: accepted
 
 # Träger-Portal liest über eine Projektion und schreibt in der Schule
 
-Entscheidung vom 23.10.2026 zu [#4645](https://github.com/moto-nrw/project-phoenix/issues/4645),
-Etappe 0 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611).
-Sie beantwortet [#2809](https://github.com/moto-nrw/project-phoenix/issues/2809),
-[#2810](https://github.com/moto-nrw/project-phoenix/issues/2810),
-[#2811](https://github.com/moto-nrw/project-phoenix/issues/2811),
-[#2821](https://github.com/moto-nrw/project-phoenix/issues/2821) und
-[#2822](https://github.com/moto-nrw/project-phoenix/issues/2822).
+Entscheidung vom 23.10.2026 zu [#4645](https://github.com/moto-ogs/project-phoenix/issues/4645),
+Etappe 0 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611).
+Sie beantwortet [#2809](https://github.com/moto-ogs/project-phoenix/issues/2809),
+[#2810](https://github.com/moto-ogs/project-phoenix/issues/2810),
+[#2811](https://github.com/moto-ogs/project-phoenix/issues/2811),
+[#2821](https://github.com/moto-ogs/project-phoenix/issues/2821) und
+[#2822](https://github.com/moto-ogs/project-phoenix/issues/2822).
 Der Product Owner hat sie am 23.10.2026 angenommen
 ([ADR 0081](0081-owner-granularity-follows-invariants-not-source-size.md)).
 Sie führt einen neuen Owner ein und erweitert
@@ -318,7 +318,7 @@ Die Rollennamen sind `leadership` und `school_access`. Regeln:
 ## Nachtrag 2026-11-07: Rolle Dokumente mit Recht „Dokumente verwalten“ (#5992)
 
 Status: Akzeptiert. Freigegeben von Yannick Wenger am 07.11.2026 (Option A
-aus [#5992](https://github.com/moto-nrw/project-phoenix/issues/5992)).
+aus [#5992](https://github.com/moto-ogs/project-phoenix/issues/5992)).
 
 Hochladen, Freigeben, Zurücknehmen und Löschen der Träger-Dokumente
 ([ADR 0157](0157-traeger-teilt-vorhandene-dokumente-ueber-organisation-und-tenancy.md))

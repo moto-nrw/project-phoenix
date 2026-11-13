@@ -39,6 +39,8 @@ vi.mock("~/lib/traeger-sibling-groups-api", () => ({
 }));
 vi.mock("~/lib/traeger-contributions-api", () => ({
   fetchHolidayContribution: () => Promise.resolve(HOLIDAY_CONTRIBUTION),
+  // The page also reads the number the family has (#6692).
+  fetchHolidayFamilyDebtorNumber: () => Promise.resolve(""),
 }));
 vi.mock("next-auth/react", () => ({
   useSession: () => ({
@@ -104,7 +106,10 @@ describe.each([
       fireEvent.click(screen.getByRole("button", { name: "Refresh metadata" }));
       expect(
         await screen.findByText(
-          catalogText("general.unavailable", "den Ferienzeitraum"),
+          catalogText(
+            "general.unavailable",
+            "die Übersicht des Ferienzeitraums",
+          ),
         ),
       ).toBeInTheDocument();
       await waitFor(() => expect(schools).toHaveBeenCalledTimes(2));

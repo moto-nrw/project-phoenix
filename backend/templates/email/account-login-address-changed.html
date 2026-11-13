@@ -1,0 +1,20 @@
+{{define "account-login-address-changed.html"}}
+{{template "header" .}}
+
+<div class="email-body">
+    {{template "moto-brand" .}}
+    <h1>Die E-Mail-Adresse Ihres moto-Kontos wurde geändert</h1>
+    <p>Hallo,</p>
+    <p>{{.Actor}} hat am {{.ChangedAt}} die E-Mail-Adresse Ihres moto-Kontos geändert. Sie melden sich jetzt mit der neuen Adresse an.</p>
+    <p>An diese Adresse hier schickt moto keine Mails zur Anmeldung mehr.</p>
+
+    <p class="security-note"><strong>Haben Sie das nicht beauftragt?</strong></p>
+    {{if .ByOperator}}
+    <p>Dann melden Sie sich bitte sofort beim moto-Team.</p>
+    {{else}}
+    <p>Dann melden Sie sich bitte sofort bei der Verwaltung Ihrer Schule.</p>
+    {{end}}
+</div>
+
+{{template "footer" .}}
+{{end}}

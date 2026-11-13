@@ -3,7 +3,7 @@ package owners
 import (
 	"context"
 
-	notificationPorts "github.com/moto-nrw/project-phoenix/workflows/holidayclosurenotification/ports"
+	notificationPorts "github.com/moto-ogs/project-phoenix/workflows/holidayclosurenotification/ports"
 )
 
 // HolidayClosureMailRecovery maps durable Delivery outcomes to the workflow's recovery contract.
