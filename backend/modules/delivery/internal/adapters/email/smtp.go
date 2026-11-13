@@ -3,7 +3,6 @@ package email
 import (
 	"bytes"
 	"context"
-	"errors"
 	"fmt"
 	"html/template"
 	"log/slog"
@@ -179,19 +178,13 @@ func (m *SMTPMailer) SendWithReceipt(ctx context.Context, email mailcontract.Mes
 		slog.String("template", email.Template))
 	err = m.sendMessageContext(ctx, msg)
 	if err != nil {
-		err = classifySendError(redactAddresses(err, recipientAddresses...))
-		// Throttling is expected under load and has its own alarm on the
-		// waiting queue (#6737); it would otherwise flood the error alarm.
-		level := slog.LevelError
-		if errors.Is(err, mailcontract.ErrThrottled) {
-			level = slog.LevelWarn
-		}
-		m.logger.Log(ctx, level, "email send failed",
+		err = redactAddresses(err, recipientAddresses...)
+		m.logger.Error("email send failed",
 			slog.String("message_id", messageID),
 			slog.String("template", email.Template),
 			slog.Any("error", err),
 		)
-		return mailcontract.Receipt{}, err
+		return mailcontract.Receipt{}, classifySendError(err)
 	}
 	m.logger.Info("email sent successfully",
 		slog.String("message_id", messageID),

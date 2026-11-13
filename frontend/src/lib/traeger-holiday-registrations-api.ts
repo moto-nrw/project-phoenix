@@ -759,6 +759,35 @@ export async function fetchHolidayKnownChildren(
 }
 
 /**
+ * The registrations of a period whose receipt or acceptance mail did not reach
+ * the parents (#6737): registration ID to its mail problems. A registration
+ * without a problem has no key.
+ */
+export async function fetchHolidayRegistrationMailProblems(
+  periodId: string,
+): Promise<ReadonlyMap<string, readonly HolidayRegistrationMailProblem[]>> {
+  const answer = await traegerRequest<{
+    registrations?:
+      | {
+          registration_id: number;
+          mail_problems?: HolidayRegistrationMailProblem[] | null;
+        }[]
+      | null;
+  } | null>(
+    `/api/traeger/holiday-periods/${encodeURIComponent(periodId)}/registrations/mail-problems`,
+  );
+  return new Map(
+    (answer?.registrations ?? []).map((registration) => [
+      String(registration.registration_id),
+      (registration.mail_problems ?? []).map((problem) => ({
+        kind: problem.kind,
+        state: problem.state,
+      })),
+    ]),
+  );
+}
+
+/**
  * The health information of a registration (#4722). The backend answers 403
  * without the right „Gesundheitsangaben sehen“ and records every read.
  */

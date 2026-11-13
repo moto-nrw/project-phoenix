@@ -82,6 +82,9 @@ type HolidayReviewStore interface {
 	// wish of a child of a school of the Träger and reports whether the
 	// registration has such a child (#4703).
 	SetHolidayChildWish(ctx context.Context, organizationID, registrationID, childID int64, wish, source string) (bool, error)
+	// ReadHolidayRegistrationIDs reads the IDs of the registrations of a
+	// period, for the state of their mails (#6737).
+	ReadHolidayRegistrationIDs(ctx context.Context, organizationID, periodID int64) ([]int64, error)
 	// AppendHolidayAudit writes one entry; details travel as JSON.
 	AppendHolidayAudit(ctx context.Context, organizationID, periodID, registrationID int64, action string, details any, actorAccountID int64) error
 }
@@ -96,9 +99,7 @@ type HolidayRegistrationReview struct {
 	placement holidayPlacement
 	// calendar names the host schools' days without care (#4702); a
 	// rebooking is refused without it.
-	calendar enrollment.HolidaySchoolCalendar
-	// mailStates names the receipt and acceptance mails that did not reach
-	// the parents (#6737); without it the review names none.
+	calendar   enrollment.HolidaySchoolCalendar
 	mailStates enrollment.HolidayMailStates
 }
 
@@ -127,72 +128,6 @@ func NewHolidayRegistrationReview(store HolidayReviewStore, periods HolidayPerio
 		placement: holidayPlacement{store: store, traeger: traeger, mail: mail}, calendar: schoolCalendar, mailStates: mailStates,
 	}
 	return review, NewHolidayPlaces(store, periods, traeger, mail), NewHolidayAllocation(review), &HolidayRegistrationRecords{review: review, store: store}
-}
-
-// ListHolidayRegistrations lists the registrations of the filter with the
-// status counts of the whole period, and records the read. The list names
-// no postal address (#5625).
-func (h *HolidayRegistrationReview) ListHolidayRegistrations(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID int64, filter enrollment.HolidayRegistrationFilter) (enrollment.HolidayRegistrationList, error) {
-	all, matching, err := h.listPeriod(ctx, reviewer, periodID, filter)
-	if err != nil {
-		return enrollment.HolidayRegistrationList{}, err
-	}
-	list := enrollment.HolidayRegistrationList{
-		Registrations: make([]enrollment.HolidayRegistrationSummary, 0, len(matching)), Total: len(all), StatusCounts: map[string]int{},
-	}
-	for _, registration := range all {
-		list.StatusCounts[registration.Status]++
-	}
-	for _, registration := range matching {
-		list.Registrations = append(list.Registrations, registration.HolidayRegistrationSummary)
-	}
-	summaries := make([]*enrollment.HolidayRegistrationSummary, len(list.Registrations))
-	for i := range list.Registrations {
-		summaries[i] = &list.Registrations[i]
-	}
-	if err := h.addMailProblems(ctx, reviewer.OrganizationID, summaries); err != nil {
-		return enrollment.HolidayRegistrationList{}, err
-	}
-	return list, nil
-}
-
-// ListHolidayRegistrationRecipients lists the registrations of the filter
-// with the postal address of the parent who registered, for the invoices of
-// the Elternabrechnung (#5625), and records the read like the list.
-func (h *HolidayRegistrationReview) ListHolidayRegistrationRecipients(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID int64, filter enrollment.HolidayRegistrationFilter) ([]enrollment.HolidayRegistrationRecipient, error) {
-	_, matching, err := h.listPeriod(ctx, reviewer, periodID, filter)
-	if err != nil {
-		return nil, err
-	}
-	recipients := make([]enrollment.HolidayRegistrationRecipient, len(matching))
-	for i, registration := range matching {
-		recipients[i] = enrollment.HolidayRegistrationRecipient{
-			HolidayRegistrationSummary: registration.HolidayRegistrationSummary, GuardianAddress: registration.GuardianAddress,
-			HasBenefitsProof: registration.BenefitsProofAttached,
-		}
-	}
-	return recipients, nil
-}
-
-// listPeriod reads every registration of the period and those of the
-// filter, and records the read in the trail.
-func (h *HolidayRegistrationReview) listPeriod(ctx context.Context, reviewer enrollment.HolidayReviewer, periodID int64, filter enrollment.HolidayRegistrationFilter) ([]enrollment.HolidayRegistrationDetail, []enrollment.HolidayRegistrationDetail, error) {
-	period, all, err := h.readPeriod(ctx, reviewer, periodID, filter)
-	if err != nil {
-		return nil, nil, err
-	}
-	matching := []enrollment.HolidayRegistrationDetail{}
-	for _, registration := range all {
-		if holidayRegistrationMatches(registration.HolidayRegistrationSummary, filter) {
-			matching = append(matching, registration)
-		}
-	}
-	if err := h.audit(ctx, reviewer, period.ID, 0, enrollment.HolidayAuditList, map[string]any{
-		"filter": holidayFilterDetails(filter), "registrations": len(matching),
-	}); err != nil {
-		return nil, nil, err
-	}
-	return all, matching, nil
 }
 
 // ExportHolidayRegistrations lists one row per booking of the filter with

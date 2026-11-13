@@ -603,7 +603,7 @@ describe("TraegerHolidayRegistrationPage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByText(
-        "Die Annahme-Mail wurde nicht gesendet. Die E-Mail-Adresse ist gesperrt.",
+        "Die Annahme-Mail wurde nicht gesendet. An diese Adresse gehen zurzeit keine Mails.",
       ),
     ).toBeInTheDocument();
   });

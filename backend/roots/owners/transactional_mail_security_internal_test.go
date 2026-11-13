@@ -60,7 +60,7 @@ func TestTransactionalMailMarksSecurityMail(t *testing.T) {
 // because Delivery postpones the mail instead of giving it up.
 func TestTransactionalSendFinalLeavesAThrottledSendOpen(t *testing.T) {
 	t.Parallel()
-	throttled := fmt.Errorf("%w: 421 4.7.0 rate limit", deliveryCompose.ErrSendThrottled)
+	throttled := fmt.Errorf("%w: 421 4.7.0 rate limit", email.ErrSendPostponed)
 	if transactionalSendFinal(3, 3, throttled) {
 		t.Fatal("a throttled send must not end the mail")
 	}

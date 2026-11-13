@@ -49,8 +49,10 @@ Lettermint ansehen.
 ## Drosselung durch den Anbieter
 
 Antwortet der Mailserver mit einem SMTP-4xx-Code (zum Beispiel `421 4.7.0`
-oder `450 4.7.1`), drosselt er oder das Kontingent ist aufgebraucht. moto
-verschiebt die Mail dann, ohne einen Versuch zu verbrauchen (#6737). Die
+oder `450 4.7.1`), soll moto später erneut senden. Bei Lettermint heißt das
+meist: Drosselung oder aufgebrauchtes Kontingent. moto behandelt jeden 4xx so,
+auch einen vorübergehenden Fehler oder ein volles Postfach. moto verschiebt die
+Mail dann, ohne einen Versuch zu verbrauchen (#6737). Die
 Wartezeit wächst mit dem Alter der Mail: eine Minute bei einer neuen Mail,
 höchstens eine Stunde. So schickt moto bei einem leeren Tageskontingent nicht
 jede Minute alle Mails erneut los.
@@ -61,8 +63,17 @@ Versuchen (etwa 15 Stunden). Eine Mail scheitert also spätestens etwa 63
 Stunden nach dem Einreihen.
 
 Gedrosselte Sendungen zählt `phoenix_delivery_operations_total` mit
-`operation="throttled"`. Die Logzeile `email send failed` nennt den Code im
-Feld `error`, nie die Adresse.
+`operation="throttled"`. Die Logzeile `email send failed` (ERROR) nennt den
+Code im Feld `error`, nie die Adresse. Eine Drosselung kann deshalb auch
+„Server error spike“ auslösen.
+
+Die 48 Stunden zählen ab dem ersten Einreihen. Wiederholt der Träger eine
+gescheiterte Mail, die älter ist, zählt jede Drosselung sofort als Versuch. Das
+Alter dieser Mail löst „Outbox mail waiting too long“ aus, bis sie raus ist.
+
+Sign-in-Codes gehen sofort raus, nicht über die Warteschlange. Bei ihnen zählt
+jede Drosselung als Versuch; nach drei Versuchen ist der Code gescheitert, und
+die ERROR-Zeile meldet es.
 
 ## Alarm „Outbox mail waiting too long“
 
@@ -95,7 +106,7 @@ Feld `error` Art, Vorlage, ID und Grund, nie die Adresse.
    Zertifikat, `5.7.x`): Konfiguration oder Anbieter prüfen.
 2. Betroffene Personen erfahren es dort, wo die Mail entstanden ist:
    Schulen in ihren Ansichten, der Träger bei der Ferienanmeldung
-   („Mail nicht angekommen“), bei Briefen der Abrechnung und bei Verträgen.
+   („E-Mail prüfen“), bei Briefen der Abrechnung und bei Verträgen.
 3. Mails mit unbekanntem Ausgang nie blind erneut senden: Sie können schon
    angekommen sein.
 

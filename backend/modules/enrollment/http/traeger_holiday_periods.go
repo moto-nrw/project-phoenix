@@ -32,6 +32,7 @@ type HolidayPeriodResource struct {
 	schoolNames   capability.HolidaySchoolNames
 	known         capability.HolidayKnownChildren
 	knownTrail    capability.HolidayKnownChildTrail
+	mails         capability.HolidayRegistrationMailReview
 	requireManage common.Middleware
 	requireHealth common.Middleware
 }
@@ -52,7 +53,12 @@ func NewHolidayPeriodResource(periods capability.HolidayPeriods, review capabili
 	if periods == nil || review == nil || records == nil || wishes == nil || places == nil || allocation == nil || decide == nil || schoolNames == nil || known == nil || knownTrail == nil || requireManage == nil || requireHealth == nil {
 		panic("enrollment http: the holiday periods, the registration review, the registration records, the wish review, the places, the allocation, the decision, the school names, the known children with their trail and the right checks are required")
 	}
-	return &HolidayPeriodResource{periods: periods, review: review, records: records, wishes: wishes, places: places, allocation: allocation, decide: decide, schoolNames: schoolNames, known: known, knownTrail: knownTrail, requireManage: requireManage, requireHealth: requireHealth}
+	// The review also names the undelivered mails of the list (#6737).
+	mails, ok := review.(capability.HolidayRegistrationMailReview)
+	if !ok {
+		panic("enrollment http: the registration review does not name the undelivered mails")
+	}
+	return &HolidayPeriodResource{periods: periods, review: review, records: records, wishes: wishes, places: places, allocation: allocation, decide: decide, schoolNames: schoolNames, known: known, knownTrail: knownTrail, mails: mails, requireManage: requireManage, requireHealth: requireHealth}
 }
 
 // HolidayAllocationReads names the Träger's criteria, shows the proposal of

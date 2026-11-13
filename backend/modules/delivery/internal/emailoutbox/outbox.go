@@ -68,7 +68,7 @@ var ErrRenderDeferred = errors.New("render deferred")
 // 4xx) while the mail is younger than ThrottleWindow: the attempt does not
 // count, and Delivery postpones the mail (#6737). An older mail counts each
 // throttled send as an attempt again, so it still ends after its attempts.
-var ErrSendThrottled = errors.New("send throttled by the mail server")
+var ErrSendThrottled = email.ErrSendPostponed
 
 // ThrottleWindow is how long throttling postpones a mail without using up
 // its attempts. It covers a provider's daily quota running out right after

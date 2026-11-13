@@ -191,7 +191,8 @@ type HolidayRegistrationSummary struct {
 
 	// MailProblems are the receipt and acceptance mails that did not reach
 	// the parent who registered (#6737); empty while they are on their way
-	// or arrived. Only the list and the detail of the review name them.
+	// or arrived. Only the detail names them; the list reads them through
+	// HolidayRegistrationMailReview.
 	MailProblems []HolidayRegistrationMailProblem `json:"mail_problems,omitempty"`
 }
 
@@ -211,6 +212,21 @@ const (
 type HolidayRegistrationMailProblem struct {
 	Kind  string `json:"kind"`
 	State string `json:"state"`
+}
+
+// HolidayRegistrationMails names the mails of one registration that did not
+// reach the parents.
+type HolidayRegistrationMails struct {
+	RegistrationID int64                            `json:"registration_id"`
+	MailProblems   []HolidayRegistrationMailProblem `json:"mail_problems"`
+}
+
+// HolidayRegistrationMailReview lists, for the list of a period, the
+// registrations whose receipt or acceptance mail did not reach the parents
+// (#6737), in the Träger transaction of the reviewer's Träger. A period of
+// another Träger is ErrHolidayPeriodNotFound. It reads no personal data.
+type HolidayRegistrationMailReview interface {
+	HolidayRegistrationMailProblems(ctx context.Context, reviewer HolidayReviewer, periodID int64) ([]HolidayRegistrationMails, error)
 }
 
 // HolidayMailStates reads, in the caller's Träger transaction, what became of

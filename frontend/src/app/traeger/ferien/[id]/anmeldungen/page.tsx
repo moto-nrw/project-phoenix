@@ -59,7 +59,10 @@ import type {
   FilterConfig,
 } from "~/components/ui/page-header/types";
 import { StatusBadge } from "~/components/ui/status-badge";
-import { HolidayRegistrationMailProblemBadge } from "~/components/traeger/holiday-registration-mail-problems";
+import {
+  HolidayRegistrationMailProblemBadge,
+  useHolidayRegistrationMailProblems,
+} from "~/components/traeger/holiday-registration-mail-problems";
 import { holidayPlacementStatus } from "~/components/traeger/holiday-placement";
 import { HOLIDAY_PDF_HEALTH_KEY } from "~/components/traeger/use-holiday-registration-pdf";
 import { holidayDeletionNotice } from "~/components/traeger/holiday-registration-retention";
@@ -102,6 +105,7 @@ import {
   type HolidayRegistrationList,
   type HolidayWishFilter,
   type HolidayRegistrationStatus,
+  type HolidayRegistrationMailProblem,
   type HolidayRegistrationSummary,
   TRAEGER_HEALTH_RIGHT,
 } from "~/lib/traeger-holiday-registrations-api";
@@ -223,6 +227,7 @@ function columns(
   siblings: SiblingView,
   wishRule: boolean,
   known: ReadonlyMap<string, string>,
+  mails: ReadonlyMap<string, readonly HolidayRegistrationMailProblem[]>,
 ): DataTableColumn<HolidayRegistrationSummary>[] {
   return [
     {
@@ -379,7 +384,7 @@ function columns(
             <StatusBadge tone="gray" label="Eingefroren" />
           ) : null}
           <HolidayRegistrationMailProblemBadge
-            problems={registration.mailProblems}
+            problems={mails.get(registration.id) ?? []}
           />
         </div>
       ),
@@ -685,6 +690,14 @@ export default function TraegerHolidayRegistrationsPage() {
     ),
   );
 
+  // A confirmation sends the acceptance mail: the states ask again.
+  const mails = useHolidayRegistrationMailProblems(
+    periodId,
+    loadedRegistrations
+      .map((registration) => `${registration.id}:${registration.status}`)
+      .join("|"),
+  );
+
   const openBulkConfirmation = () => {
     if (merging || loading || selected.size === 0) return;
     setBulkPlan(
@@ -938,6 +951,7 @@ export default function TraegerHolidayRegistrationsPage() {
           siblings,
           wishRule,
           known,
+          mails,
         )}
         rows={[...registrationsShown]}
         getRowKey={(registration) => registration.id}

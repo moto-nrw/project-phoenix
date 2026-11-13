@@ -10,6 +10,7 @@ import {
   fetchHolidayRegistrationHealth,
   withHolidayHealthAnswers,
   fetchHolidayRegistrations,
+  fetchHolidayRegistrationMailProblems,
   editHolidayRegistration,
   rebookHolidayChild,
 } from "./traeger-holiday-registrations-api";
@@ -586,6 +587,33 @@ describe("traeger-holiday-registrations-api", () => {
       { kind: "holiday_registration_received", state: "failed" },
     ]);
     expect(list.registrations[1]?.mailProblems).toEqual([]);
+  });
+
+  it("reads the mail problems of a period by registration (#6737)", async () => {
+    fetchMock.mockResolvedValue(
+      jsonResponse(200, {
+        data: {
+          registrations: [
+            {
+              registration_id: 7,
+              mail_problems: [
+                { kind: "holiday_registration_accepted", state: "blocked" },
+              ],
+            },
+          ],
+        },
+      }),
+    );
+
+    const mails = await fetchHolidayRegistrationMailProblems("5");
+
+    expect(fetchMock.mock.calls[0]?.[0]).toBe(
+      "/api/traeger/holiday-periods/5/registrations/mail-problems",
+    );
+    expect(mails.get("7")).toEqual([
+      { kind: "holiday_registration_accepted", state: "blocked" },
+    ]);
+    expect(mails.has("8")).toBe(false);
   });
 
   it("keeps the code of a refused export", async () => {

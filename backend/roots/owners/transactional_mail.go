@@ -174,7 +174,7 @@ func transactionalSendFinal(attempt, maxAttempts int, sendErr error) bool {
 	if sendErr == nil || errors.Is(sendErr, email.ErrPermanentRejection) {
 		return true
 	}
-	return attempt >= maxAttempts && !errors.Is(sendErr, deliveryCompose.ErrSendThrottled)
+	return attempt >= maxAttempts && !errors.Is(sendErr, email.ErrSendPostponed)
 }
 
 func (r TransactionalMailRenderer) RecordDelivery(ctx context.Context, intent *deliveryCompose.MailIntent, sendErr error) error {
