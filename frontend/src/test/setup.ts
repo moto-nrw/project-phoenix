@@ -209,6 +209,22 @@ const tenantProviderMock = vi.hoisted(() => ({
 // Tests that need the real context must unmock this module path.
 vi.mock("~/lib/tenant-context", () => tenantProviderMock);
 
+// Page tests render a page without its layout. Like the tenant context above,
+// they run in the tenant area: the kit resolves app paths (the scaffold's back
+// link) for the test school, as `TenantPagePathProvider` does in the
+// `(protected)` layout (#6577). Tests of the kit's own resolution, with or
+// without a provider, must unmock this module path.
+vi.mock("~/components/ui/page-path", async (importOriginal) => {
+  const actual =
+    await importOriginal<typeof import("~/components/ui/page-path")>();
+  const { useTenantAwarePath } = await import("~/lib/tenant-path");
+  return { ...actual, usePagePath: useTenantAwarePath };
+});
+
+// The DOM environment cannot load a page anew; tests assert the call instead
+// (useRefreshAfterWrite after a refused reload, #6801).
+vi.mock("~/lib/reload-document", () => ({ reloadDocument: vi.fn() }));
+
 // Mock SWR globally - individual tests can override with vi.mocked()
 vi.mock("swr", () => ({
   default: vi.fn(() => ({

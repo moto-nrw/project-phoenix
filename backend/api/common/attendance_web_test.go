@@ -8,7 +8,7 @@ import (
 	"strings"
 	"testing"
 
-	configModel "github.com/moto-nrw/project-phoenix/modules/settings"
+	configModel "github.com/moto-ogs/project-phoenix/modules/settings"
 	"github.com/stretchr/testify/assert"
 )
 

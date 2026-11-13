@@ -6,8 +6,8 @@ import (
 
 	"github.com/uptrace/bun/dialect/pgdialect"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/domain"
 )
 
 // The mails of a Träger (ADR 0110) as the Träger reads them back (#4670):

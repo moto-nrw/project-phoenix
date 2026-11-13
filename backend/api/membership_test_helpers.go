@@ -3,13 +3,13 @@
 package api
 
 import (
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	educationRepo "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // authTestIdentityChain is the identity chain rows (persons, staff, teachers,

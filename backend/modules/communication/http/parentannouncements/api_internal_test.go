@@ -5,7 +5,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	announcementService "github.com/moto-nrw/project-phoenix/modules/communication"
+	announcementService "github.com/moto-ogs/project-phoenix/modules/communication"
 	"github.com/stretchr/testify/assert"
 )
 

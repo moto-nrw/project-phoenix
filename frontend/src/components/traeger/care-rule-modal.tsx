@@ -29,6 +29,14 @@ import { addMonths, formatMonth, monthsFromTo } from "./care-billing-format";
 import { CARE_RULE_KIND_LABELS } from "./care-reduction-format";
 import { centsToEuroInput, euroInputToCents } from "./holiday-period-model";
 
+/** The title of a new rule names what the head button created. */
+const NEW_RULE_TITLES: Record<CareRuleKind, string> = {
+  income_level: "Neue Einkommensstufe",
+  sibling: "Neue Geschwisterregel",
+  single_parent: "Neue Regel für Alleinerziehende",
+  cap: "Neuer Höchstbetrag",
+};
+
 const logger = createLogger({ component: "CareRuleModal" });
 
 type Effect = "share" | "amount" | "price" | "tariff";
@@ -309,7 +317,7 @@ export function CareRuleModal({
       title={
         open?.rule
           ? `${CARE_RULE_KIND_LABELS[kind]}: ${open.rule.name}`
-          : `Neue Regel: ${CARE_RULE_KIND_LABELS[kind]}`
+          : NEW_RULE_TITLES[kind]
       }
       size="lg"
       error={formErrors.error}
@@ -332,6 +340,7 @@ export function CareRuleModal({
         }}
       >
         <Input
+          controlSize="touch"
           id="care-rule-name"
           name="name"
           label="Name auf der Rechnung"
@@ -351,7 +360,7 @@ export function CareRuleModal({
             value={draft.validFrom}
             options={months.map((value) => ({
               value,
-              label: `1. ${formatMonth(value)}`,
+              label: formatMonth(value),
             }))}
             error={formErrors.fieldError("valid_from")}
             onChange={(value) => set({ validFrom: value })}
@@ -403,7 +412,11 @@ export function CareRuleModal({
             onChange={(values) => set({ moduleIds: values })}
           />
           <p className="mt-1 text-sm text-gray-600">
-            Leer lassen, dann gilt die Regel für alle Module.
+            {draft.schoolIds.length === 0
+              ? "Wählen Sie zuerst die Schulen. Lassen Sie die Module danach leer, gilt die Regel für alle."
+              : moduleOptions.length === 0
+                ? "Die gewählten Schulen haben noch keine Module."
+                : "Leer lassen, dann gilt die Regel für alle Module."}
           </p>
         </div>
         {kind === "sibling" ? (
@@ -481,6 +494,7 @@ export function CareRuleModal({
           </p>
         ) : (
           <Input
+            controlSize="touch"
             id="care-rule-value"
             name={valueField}
             label={valueLabel}

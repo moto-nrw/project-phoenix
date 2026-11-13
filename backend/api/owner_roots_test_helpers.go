@@ -6,19 +6,19 @@ import (
 	"context"
 	"time"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	reminder "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery"
-	reminderCompose "github.com/moto-nrw/project-phoenix/workflows/reminderdelivery/compose"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	reminder "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery"
+	reminderCompose "github.com/moto-ogs/project-phoenix/workflows/reminderdelivery/compose"
 
-	shiftplansyncCompose "github.com/moto-nrw/project-phoenix/workflows/shiftplansync/compose"
+	shiftplansyncCompose "github.com/moto-ogs/project-phoenix/workflows/shiftplansync/compose"
 )
 
 // NewCalendarReminderCommand binds the existing notification adapters to the

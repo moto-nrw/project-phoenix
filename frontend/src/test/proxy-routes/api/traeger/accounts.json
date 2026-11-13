@@ -5,6 +5,9 @@
   "api/traeger/accounts/[accountId]": [
     "DELETE traeger /traeger/accounts/accountId%2F1"
   ],
+  "api/traeger/accounts/[accountId]/name": [
+    "PUT traeger /traeger/accounts/accountId%2F1/name"
+  ],
   "api/traeger/accounts/[accountId]/roles": [
     "PUT traeger /traeger/accounts/accountId%2F1/roles"
   ],

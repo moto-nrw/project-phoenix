@@ -3,9 +3,9 @@
 package owners
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	schoolStructureCompose "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	schoolStructureCompose "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // NewSchoolStructure composes the group owner for test graphs that do not record observations. Production roots

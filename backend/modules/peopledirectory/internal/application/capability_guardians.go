@@ -4,7 +4,7 @@ import (
 	"context"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 func (s *Service) FindGuardian(ctx context.Context, id int64) (peopledirectory.Guardian, error) {

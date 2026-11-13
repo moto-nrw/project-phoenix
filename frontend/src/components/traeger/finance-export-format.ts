@@ -78,10 +78,19 @@ export function exportedAtLabel(iso: string): string {
   return `${formatBerlinDate(iso)}, ${formatBerlinTime(iso)}`;
 }
 
-/** Who downloaded a file or did a step. */
-export function byLabel(byYou: boolean, byAccount: boolean): string {
+/**
+ * Who downloaded a file or did a step: by name, never by e-mail address
+ * (#4693). `byAccount` is false once the account is deleted.
+ */
+export function byLabel(
+  byYou: boolean,
+  byAccount: boolean,
+  name: string,
+): string {
   if (byYou) return "von Ihnen";
-  return byAccount ? "von einem anderen Konto" : "von einem gelöschten Konto";
+  if (!byAccount) return "von einem gelöschten Konto";
+  const trimmed = name.trim();
+  return trimmed ? `von ${trimmed}` : "von einem Konto ohne Namen";
 }
 
 /** The file name the pattern gives a file number. */

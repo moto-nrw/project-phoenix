@@ -3,9 +3,9 @@
 package owners
 
 import (
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
 )
 
 // NewTimetableRoomNames names and locks the Facilities rooms for the

@@ -6,12 +6,12 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/careplantest"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 )
@@ -48,7 +48,7 @@ func TestNativeRequestSubmissionRollsBackEffectsAndRejectsDuplicates(t *testing.
 	student := testpkg.CreateTestStudent(t, db, "Request", "Submission", "1a")
 	account := testpkg.CreateTestAccount(t, db, "parent")
 	effects := &submissionEffects{failure: errors.New("submission effect failed")}
-	service, err := compose.NewRequestSubmissions(owner, nil, effects, func() calendar.Date { return "2026-09-20" })
+	service, err := compose.NewRequestSubmissions(owner, nil, effects, unseenBaseline{}, func() calendar.Date { return "2026-09-20" })
 	require.NoError(t, err)
 	payload := json.RawMessage(`{"weekdays":[{"weekday":1,"pickup":"16:00","ignored":true}]}`)
 	create := func() error {
@@ -78,4 +78,12 @@ func TestNativeRequestSubmissionRollsBackEffectsAndRejectsDuplicates(t *testing.
 	effects.calls = nil
 	require.ErrorIs(t, create(), carerequests.ErrAlreadyPending)
 	require.Empty(t, effects.calls)
+}
+
+// unseenBaseline is a weekly plan read that has nothing to report, so these
+// contracts store no baseline (#6990 is covered by the HTTP test).
+type unseenBaseline struct{}
+
+func (unseenBaseline) Weekly(context.Context, int64, json.RawMessage) ([]carerequests.DiffEntry, error) {
+	return nil, nil
 }

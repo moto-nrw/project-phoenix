@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

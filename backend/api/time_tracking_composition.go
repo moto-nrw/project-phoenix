@@ -4,22 +4,22 @@ import (
 	"context"
 	"log/slog"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	nativeUploads "github.com/moto-nrw/project-phoenix/modules/delivery/objects"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	staffShiftsHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/staffshifts"
+	nativeUploads "github.com/moto-ogs/project-phoenix/modules/delivery/objects"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	staffShiftsHTTP "github.com/moto-ogs/project-phoenix/modules/workforce/http/staffshifts"
 
-	exportTransferModule "github.com/moto-nrw/project-phoenix/modules/exporttransfer"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
-	workforceCompose "github.com/moto-nrw/project-phoenix/modules/workforce/compose"
-	absencetypesHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/absencetypes"
-	timeTrackingHTTP "github.com/moto-nrw/project-phoenix/modules/workforce/http/timetracking"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	exportTransferModule "github.com/moto-ogs/project-phoenix/modules/exporttransfer"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	workforceModule "github.com/moto-ogs/project-phoenix/modules/workforce"
+	workforceCompose "github.com/moto-ogs/project-phoenix/modules/workforce/compose"
+	absencetypesHTTP "github.com/moto-ogs/project-phoenix/modules/workforce/http/absencetypes"
+	timeTrackingHTTP "github.com/moto-ogs/project-phoenix/modules/workforce/http/timetracking"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // The time-tracking and staff administration resources live in the Workforce

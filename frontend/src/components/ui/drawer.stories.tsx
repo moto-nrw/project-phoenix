@@ -44,26 +44,17 @@ export const BottomSheet: Story = {
   ),
 };
 
-export const RightSidePanel: Story = {
+export const LeftSidePanel: Story = {
   render: () => (
-    <Drawer direction="right">
+    <Drawer direction="left">
       <DrawerPrimitive.Trigger asChild>
-        <Button type="button">Seitenpanel öffnen</Button>
+        <Button type="button">Seitenleiste öffnen</Button>
       </DrawerPrimitive.Trigger>
       <DrawerContent>
         <DrawerHeader>
-          <DrawerTitle>Filter</DrawerTitle>
-          <DrawerDescription>
-            Seitliches Panel ohne Ziehgriff.
-          </DrawerDescription>
+          <DrawerTitle>Inhalt</DrawerTitle>
+          <DrawerDescription>Seitliches Panel von links.</DrawerDescription>
         </DrawerHeader>
-        <div className="p-4">
-          <DrawerClose asChild>
-            <Button type="button" variant="outline">
-              Schließen
-            </Button>
-          </DrawerClose>
-        </div>
       </DrawerContent>
     </Drawer>
   ),

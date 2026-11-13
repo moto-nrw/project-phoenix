@@ -5,8 +5,8 @@ import (
 	"encoding/json"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/domain"
 )
 
 type Store interface {
@@ -48,6 +48,7 @@ type Store interface {
 	RedactWithdrawalsForDeletedStudent(ctx context.Context, studentID, actorAccountID int64, at time.Time) (int, domain.OperationStats, error)
 	WithdrawalStore
 
+	SaveTraegerOfferingRows(context.Context, []careplan.TraegerOfferingWrite, []int64) ([]careplan.CareOffering, domain.OperationStats, error)
 	FindCareOffering(context.Context, int64) (careplan.CareOffering, bool, domain.OperationStats, error)
 	ListCareOfferings(context.Context, careplan.CareOfferingFilter) ([]careplan.CareOffering, domain.OperationStats, error)
 	CountCareOfferingsByPhase(context.Context, int64) (int, domain.OperationStats, error)

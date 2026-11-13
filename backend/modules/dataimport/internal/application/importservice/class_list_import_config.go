@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"strings"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/classlist"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/classlist"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
 )
 
 // The two duplicate guards keep the German wording of the class-list

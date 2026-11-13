@@ -6,7 +6,7 @@ status: accepted
 
 **Status: Angenommen.** Freigegeben von Yannick Wenger am 11.11.2026.
 Vorschlag vom 11.11.2026 zu
-[#6555](https://github.com/moto-nrw/project-phoenix/issues/6555), nach Yannicks
+[#6555](https://github.com/moto-ogs/project-phoenix/issues/6555), nach Yannicks
 Entscheidung im Issue vom selben Tag. Der Doku-PR #6645 nahm die ADR noch
 nicht an; der umsetzende PR setzt den Status und registriert den Owner.
 
@@ -15,14 +15,14 @@ nicht an; der umsetzende PR setzt den Status und registriert den Owner.
 Drei Wege ändern Ferienplätze in Enrollment und berechnen danach die
 festgehaltenen Beiträge in Parent Billing neu: Umbuchen und Kapazität ändern
 (#4699, PR #6367) sowie die Büroentscheidung nach Kriterien (#4700,
-[PR #6448](https://github.com/moto-nrw/project-phoenix/pull/6448), Commit
+[PR #6448](https://github.com/moto-ogs/project-phoenix/pull/6448), Commit
 `4bdf9779b8`). Alle drei brauchen eine gemeinsame Sperrreihenfolge und
 Transaktion. Das ist Koordination nach
 [ADR 0067, Addendum #4538](0067-principle-owners-meet-through-contracts-and-write-together-in-workflows.md#addendum-2026-10-23-command-participation-and-coordination-4538),
 keine bloße Teilnahme eines fremden Leaf-Commands.
 
 Ausgangspunkt ist der
-[Bot-Entwurf 48b2877dcf](https://github.com/moto-nrw/project-phoenix/commit/48b2877dcfd4caf3e2ae8d739bb4d93c8ec1f358)
+[Bot-Entwurf 48b2877dcf](https://github.com/moto-ogs/project-phoenix/commit/48b2877dcfd4caf3e2ae8d739bb4d93c8ec1f358)
 auf `holiday-allocation-billing-workflow`. Übernommen werden der datenlose
 Workflow, explizite Ports für Rechnungssperre und Neueinfrieren sowie der
 Wegfall des Entscheidungs-Callbacks. Ergänzt werden Umbuchung und
@@ -40,7 +40,7 @@ Rechnung-vor-Zeitraum-Reihenfolge bleibt verbindlich.
 ## Heutiger Ablauf als Sperrbeleg
 
 Gelesener Stand ist
-[`development` 292e3ef72d](https://github.com/moto-nrw/project-phoenix/tree/292e3ef72d25377668eb08b72c9b829950eed1b3).
+[`development` 292e3ef72d](https://github.com/moto-ogs/project-phoenix/tree/292e3ef72d25377668eb08b72c9b829950eed1b3).
 Die folgenden Pfade sind relativ zu `backend/`; die Links halten diesen Stand fest.
 
 | Weg | Heutiger Koordinator und Reihenfolge innerhalb derselben Träger-Transaktion |
@@ -49,11 +49,11 @@ Die folgenden Pfade sind relativ zu `backend/`; die Links halten diesen Stand fe
 | Kapazität ändern | Parent Billings `SetHolidayWeekCapacity` nimmt dasselbe Präfix. Enrollment hält den Zeitraum und die Woche, schreibt Kapazität und Verlauf, vergibt freie Plätze und schreibt Nachrück-Mails; Parent Billing berechnet die Gruppen der nachgerückten Anmeldungen neu. |
 | Büroentscheidung | `enrollment/http.NewBilledHolidayAllocation` ruft Parent Billings `AllocateHolidayPlaces` auf. Dieser nimmt dasselbe Präfix und ruft den Enrollment-Callback auf. Enrollment hält Zeitraum → Kriterienkatalog → gewählte Wochen aufsteigend, prüft den aktuellen Vorschlag und schreibt Entscheidungen, Plätze, Verlauf und Outbox. `PlacedRegistrations` enthält direkte Zuteilungen **und** Nachrücker. Danach folgt `refreezeMovedUp`. |
 
-Belege: [heutige Parent-Billing-Koordination](https://github.com/moto-nrw/project-phoenix/blob/292e3ef72d25377668eb08b72c9b829950eed1b3/backend/modules/parentbilling/internal/application/holiday_places.go#L150),
-[`lockSiblings`](https://github.com/moto-nrw/project-phoenix/blob/292e3ef72d25377668eb08b72c9b829950eed1b3/backend/modules/parentbilling/internal/application/holiday_siblings.go#L223),
-[Umbuchung und Anmeldungslock](https://github.com/moto-nrw/project-phoenix/blob/292e3ef72d25377668eb08b72c9b829950eed1b3/backend/modules/enrollment/internal/application/holiday_registration_review.go#L386),
-[Kapazitätsänderung](https://github.com/moto-nrw/project-phoenix/blob/292e3ef72d25377668eb08b72c9b829950eed1b3/backend/modules/enrollment/internal/application/holiday_places.go#L370)
-und [Büroentscheidung](https://github.com/moto-nrw/project-phoenix/blob/292e3ef72d25377668eb08b72c9b829950eed1b3/backend/modules/enrollment/internal/application/holiday_allocation_decide.go#L18).
+Belege: [heutige Parent-Billing-Koordination](https://github.com/moto-ogs/project-phoenix/blob/292e3ef72d25377668eb08b72c9b829950eed1b3/backend/modules/parentbilling/internal/application/holiday_places.go#L150),
+[`lockSiblings`](https://github.com/moto-ogs/project-phoenix/blob/292e3ef72d25377668eb08b72c9b829950eed1b3/backend/modules/parentbilling/internal/application/holiday_siblings.go#L223),
+[Umbuchung und Anmeldungslock](https://github.com/moto-ogs/project-phoenix/blob/292e3ef72d25377668eb08b72c9b829950eed1b3/backend/modules/enrollment/internal/application/holiday_registration_review.go#L386),
+[Kapazitätsänderung](https://github.com/moto-ogs/project-phoenix/blob/292e3ef72d25377668eb08b72c9b829950eed1b3/backend/modules/enrollment/internal/application/holiday_places.go#L370)
+und [Büroentscheidung](https://github.com/moto-ogs/project-phoenix/blob/292e3ef72d25377668eb08b72c9b829950eed1b3/backend/modules/enrollment/internal/application/holiday_allocation_decide.go#L18).
 
 ## Entscheidung
 
@@ -139,10 +139,10 @@ aus den heutigen Sperrpfaden abgeleitete Aussage, kein ausgeführter
 Nebenläufigkeitstest und kein Beweis globaler Deadlock-Freiheit. Neue
 Teilnehmer oder mehrere Zeiträume pro Einheit brauchen einen neuen Abgleich.
 
-Zusätzliche Belege: [Abrechnungssperre](https://github.com/moto-nrw/project-phoenix/blob/292e3ef72d25377668eb08b72c9b829950eed1b3/backend/modules/parentbilling/internal/adapters/postgres/billing_runs.go#L332),
-[Freigabe](https://github.com/moto-nrw/project-phoenix/blob/292e3ef72d25377668eb08b72c9b829950eed1b3/backend/modules/parentbilling/internal/application/billing_runs.go#L267),
-[sortierte Wochensperren](https://github.com/moto-nrw/project-phoenix/blob/292e3ef72d25377668eb08b72c9b829950eed1b3/backend/modules/enrollment/internal/adapters/postgres/holiday_week_places.go#L40)
-und [Kriterienkatalog-Schreiber](https://github.com/moto-nrw/project-phoenix/blob/292e3ef72d25377668eb08b72c9b829950eed1b3/backend/modules/enrollment/internal/adapters/postgres/holiday_criteria.go#L164).
+Zusätzliche Belege: [Abrechnungssperre](https://github.com/moto-ogs/project-phoenix/blob/292e3ef72d25377668eb08b72c9b829950eed1b3/backend/modules/parentbilling/internal/adapters/postgres/billing_runs.go#L332),
+[Freigabe](https://github.com/moto-ogs/project-phoenix/blob/292e3ef72d25377668eb08b72c9b829950eed1b3/backend/modules/parentbilling/internal/application/billing_runs.go#L267),
+[sortierte Wochensperren](https://github.com/moto-ogs/project-phoenix/blob/292e3ef72d25377668eb08b72c9b829950eed1b3/backend/modules/enrollment/internal/adapters/postgres/holiday_week_places.go#L40)
+und [Kriterienkatalog-Schreiber](https://github.com/moto-ogs/project-phoenix/blob/292e3ef72d25377668eb08b72c9b829950eed1b3/backend/modules/enrollment/internal/adapters/postgres/holiday_criteria.go#L164).
 
 ### Was bei den Fachmodulen bleibt
 

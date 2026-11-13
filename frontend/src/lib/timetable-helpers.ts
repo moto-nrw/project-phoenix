@@ -14,7 +14,8 @@ import {
   parseISODate,
   toISODate,
 } from "./date-helpers";
-import { LOCATION_COLORS, MOTO_COLOR_PALETTE } from "./location-helper";
+import { LOCATION_COLORS } from "./location-helper";
+import { MOTO_COLOR_PALETTE } from "~/lib/kit-palette";
 import {
   shouldMaterializeWeekPattern,
   type CalendarPeriod,

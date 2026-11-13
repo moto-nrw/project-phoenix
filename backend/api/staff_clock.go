@@ -6,15 +6,15 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	clockCompose "github.com/moto-nrw/project-phoenix/workflows/staffclock/compose"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	clockCompose "github.com/moto-ogs/project-phoenix/workflows/staffclock/compose"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	workforceModule "github.com/moto-nrw/project-phoenix/modules/workforce"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	staffclock "github.com/moto-nrw/project-phoenix/workflows/staffclock"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	workforceModule "github.com/moto-ogs/project-phoenix/modules/workforce"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	staffclock "github.com/moto-ogs/project-phoenix/workflows/staffclock"
 )
 
 // The staff-clock workflow (the kiosk's check-in and check-out) is bound here

@@ -7,13 +7,13 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 
 	"github.com/go-chi/render"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	activitiesAPI "github.com/moto-nrw/project-phoenix/modules/timetable/http/activities"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	activitiesAPI "github.com/moto-ogs/project-phoenix/modules/timetable/http/activities"
 	"github.com/stretchr/testify/assert"
 )
 

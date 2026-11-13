@@ -6,12 +6,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func TestMFAService_EnrollDisableLifecycle(t *testing.T) {
@@ -33,7 +33,9 @@ func TestMFAService_EnrollDisableLifecycle(t *testing.T) {
 
 	require.ErrorIs(t, enrollMFA(ctx, t, db, svc, acc.ID), identityaccess.ErrMFAAlreadyEnrolled)
 
-	require.NoError(t, svc.DisableMFA(ctx, acc.ID))
+	// Disable runs from an authenticated school request, whose ledger
+	// files the event (#6989).
+	require.NoError(t, svc.DisableMFA(testpkg.Ctx(t), acc.ID))
 	enrolled, err = svc.HasMFAEnrollment(ctx, acc.ID)
 	require.NoError(t, err)
 	assert.False(t, enrolled)
@@ -104,12 +106,12 @@ func TestMFAService_AdminOverride_PermissionGate(t *testing.T) {
 	svc, _, db := newTestMFAService(t)
 
 	target := testpkg.CreateTestAccount(t, db, "mfa-svc-admin-target")
+	testpkg.OwnAccountSecurityNotices(t, db, target.ID)
 
-	// Map target to a tenant so the new cross-tenant guard (#1430 Item #2)
-	// doesn't reject this permission-gate test before the permission check
-	// has a chance to fire.
-	actorTenantID := testpkg.UniqueTestTenantID(t)
-	testpkg.EnsureAccountTenant(t, db, target.ID, actorTenantID)
+	// The fixture maps the target to the test's school, and to no other:
+	// the cross-tenant guard (#1430 Item #2) passes, and the school holds
+	// the account alone, as the account-wide reset requires (#6862).
+	actorTenantID := testpkg.Tenant(t)
 
 	const actorID int64 = 9999
 

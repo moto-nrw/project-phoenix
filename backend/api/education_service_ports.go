@@ -3,9 +3,9 @@ package api
 import (
 	"context"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 
-	educationRepo "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
+	educationRepo "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
 )
 
 // The ports of the retained School Structure services the root's service

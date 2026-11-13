@@ -3,7 +3,7 @@ package departure_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 	"github.com/stretchr/testify/assert"
 )
 

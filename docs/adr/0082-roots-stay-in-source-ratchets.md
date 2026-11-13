@@ -4,7 +4,7 @@ status: accepted
 
 # Roots stay in the source ratchets
 
-Decision of 2026-10-23 for [#4542](https://github.com/moto-nrw/project-phoenix/issues/4542).
+Decision of 2026-10-23 for [#4542](https://github.com/moto-ogs/project-phoenix/issues/4542).
 Rule 16 and [ADR 0064](0064-moved-code-stays-in-the-pass-through-scan.md)
 require a move to retain its gate. This decision extends the measured surface,
 not the thresholds or the permitted architecture.
@@ -161,7 +161,7 @@ python3 docs/architecture/4542-root-passthroughs.py
 python3 docs/architecture/4542-root-passthroughs.py --sites > /tmp/root-passthrough-sites.json
 ```
 
-The [historical measurement script](https://github.com/moto-nrw/project-phoenix/blob/e417e90b4377d3b1cfe73b168bb8d6b45e145d7c/docs/architecture/4542-root-passthroughs.py) extracts
+The [historical measurement script](https://github.com/moto-ogs/project-phoenix/blob/e417e90b4377d3b1cfe73b168bb8d6b45e145d7c/docs/architecture/4542-root-passthroughs.py) extracts
 `modulePassthroughIsDelegation` and its helpers unchanged from the ratchet:
 exported receiver method, body at most 14 lines, exactly one receiver-field
 call. It prints every matched body for review. Shape classification is a

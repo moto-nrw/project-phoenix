@@ -70,8 +70,19 @@ export const CLARIFICATION_REASON_LABELS: Record<string, string> = {
   no_trigger_date: "Kein Datum für das Ereignis",
 };
 
+/**
+ * Types the deletion log counts beside the Belege: the debtor numbers of
+ * families without a care contract (#6692), which follow the instruction
+ * for the holiday documents.
+ */
+const DELETION_ONLY_LABELS: Record<string, string> = {
+  family_debtor_number: "Debitorennummern von Familien ohne Vertrag",
+};
+
 export function belegTypeLabel(type: string): string {
-  return BELEG_TYPE_LABELS[type as BelegType] ?? type;
+  return (
+    BELEG_TYPE_LABELS[type as BelegType] ?? DELETION_ONLY_LABELS[type] ?? type
+  );
 }
 
 /** Ein SEPA-Mandat zählt Monate, alle anderen Belegarten Jahre. */

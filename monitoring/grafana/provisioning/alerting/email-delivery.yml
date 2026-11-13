@@ -1,7 +1,9 @@
 apiVersion: 1
 
-# Mail delivery over the provider (#5933). Both lines exist only with
-# EMAIL_PROVIDER=lettermint; on plain SMTP the rules stay silent.
+# Mail delivery over the provider (#5933). The provider lines exist only with
+# EMAIL_PROVIDER=lettermint; on plain SMTP those rules stay silent. The outbox
+# rules (#6737) watch every transport: mails that failed for good and a queue
+# whose oldest mail waits too long, for example while the provider throttles.
 
 groups:
   - orgId: 1
@@ -65,7 +67,7 @@ groups:
         annotations:
           summary: Der Abgleich meldet einen deaktivierten Webhook oder fehlende Zustellereignisse.
           description: Webhook bei Lettermint prüfen und das Feld error der Logzeile lesen.
-          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/email-delivery.md
+          runbook_url: https://github.com/moto-ogs/project-phoenix/blob/main/monitoring/runbooks/email-delivery.md
         labels:
           env: prod
           issue: "5933"
@@ -128,7 +130,7 @@ groups:
         annotations:
           summary: Sicherheitsmails laufen über den Notweg.
           description: Status von Lettermint und Blocklisten prüfen. Das Postfach ist nur für wenige Mails gedacht.
-          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/email-delivery.md
+          runbook_url: https://github.com/moto-ogs/project-phoenix/blob/main/monitoring/runbooks/email-delivery.md
         labels:
           env: prod
           issue: "5933"
@@ -191,10 +193,134 @@ groups:
         annotations:
           summary: Eine Sicherheitsmail wartete auf den Notweg, der nicht mehr eingerichtet ist.
           description: Die Mail ist endgültig fehlgeschlagen. EMAIL_FALLBACK_* prüfen. Die Person muss den Vorgang neu starten.
-          runbook_url: https://github.com/moto-nrw/project-phoenix/blob/main/monitoring/runbooks/email-delivery.md
+          runbook_url: https://github.com/moto-ogs/project-phoenix/blob/main/monitoring/runbooks/email-delivery.md
         labels:
           env: prod
           issue: "5957"
           service: email-delivery
           severity: critical
+        isPaused: false
+      - uid: email-delivery-failed-for-good
+        title: Outbox mails failed for good
+        condition: C
+        data:
+          - refId: A
+            queryType: ""
+            relativeTimeRange:
+              from: 900
+              to: 0
+            datasourceUid: P8E80F9AEF21F6940
+            model:
+              expr: 'sum(count_over_time({env="prod",service="server"} |= "failed for good" | json | msg="outbox worker tick failed" [15m])) or vector(0)'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [0]
+                    type: gt
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 0s
+        annotations:
+          summary: Mails oder Pushes sind endgültig gescheitert oder haben einen unbekannten Ausgang.
+          description: Das Feld error der Logzeile nennt Art, Vorlage und Grund. Betroffene Mails sieht die Schule oder der Träger am Vorgang.
+          runbook_url: https://github.com/moto-ogs/project-phoenix/blob/main/monitoring/runbooks/email-delivery.md
+        labels:
+          env: prod
+          issue: "6737"
+          service: email-delivery
+          severity: warning
+        isPaused: false
+      - uid: email-delivery-oldest-pending
+        title: Outbox mail waiting too long
+        condition: C
+        data:
+          - refId: A
+            queryType: ""
+            relativeTimeRange:
+              from: 300
+              to: 0
+            datasourceUid: prometheus
+            model:
+              expr: 'max(phoenix_delivery_oldest_pending_age_seconds{env="prod",service="server"}) or vector(0)'
+              instant: true
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: A
+          - refId: B
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              expression: A
+              intervalMs: 1000
+              maxDataPoints: 43200
+              reducer: last
+              refId: B
+              type: reduce
+          - refId: C
+            queryType: ""
+            relativeTimeRange:
+              from: 0
+              to: 0
+            datasourceUid: __expr__
+            model:
+              conditions:
+                - evaluator:
+                    params: [3600]
+                    type: gt
+                  operator:
+                    type: and
+                  reducer:
+                    type: last
+              expression: B
+              intervalMs: 1000
+              maxDataPoints: 43200
+              refId: C
+              type: threshold
+        noDataState: OK
+        execErrState: Alerting
+        for: 5m
+        annotations:
+          summary: Die älteste wartende Mail oder Push wartet seit über einer Stunde.
+          description: phoenix_delivery_operations_total mit operation throttled oder retry prüfen. Drosselt der Anbieter, Kontingent bei Lettermint prüfen.
+          runbook_url: https://github.com/moto-ogs/project-phoenix/blob/main/monitoring/runbooks/email-delivery.md
+        labels:
+          env: prod
+          issue: "6737"
+          service: email-delivery
+          severity: warning
         isPaused: false

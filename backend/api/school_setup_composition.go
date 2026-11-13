@@ -5,12 +5,12 @@ import (
 	"net/http"
 
 	"github.com/go-chi/chi/v5"
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/schoolsetup"
-	schoolSetupCompose "github.com/moto-nrw/project-phoenix/modules/schoolsetup/compose"
-	schoolSetupHTTP "github.com/moto-nrw/project-phoenix/modules/schoolsetup/http"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/schoolsetup"
+	schoolSetupCompose "github.com/moto-ogs/project-phoenix/modules/schoolsetup/compose"
+	schoolSetupHTTP "github.com/moto-ogs/project-phoenix/modules/schoolsetup/http"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
 )
 
 // moduleRoute is a tenant route group a module serves itself. The root mounts

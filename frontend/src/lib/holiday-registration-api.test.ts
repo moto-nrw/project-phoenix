@@ -25,6 +25,11 @@ describe("fetchHolidayRegistrationFamily (#4662)", () => {
             last_name: "Schneider",
             email: "s@example.org",
             phone: "0151",
+            address: {
+              street: "Lindenweg 4",
+              postal_code: "49143",
+              city: "Bissendorf",
+            },
           },
           children: [
             {
@@ -33,6 +38,18 @@ describe("fetchHolidayRegistrationFamily (#4662)", () => {
               first_name: "Felix",
               last_name: "Schneider",
               birth_date: "2018-03-01",
+              contacts: [
+                {
+                  guardian_profile_id: "51",
+                  first_name: "Erika",
+                  last_name: "Brandt",
+                  phone: "0170 1",
+                  relationship_type: "relative",
+                  full_guardian: false,
+                  emergency: true,
+                  pickup: true,
+                },
+              ],
             },
             {
               student_id: "42",
@@ -58,6 +75,11 @@ describe("fetchHolidayRegistrationFamily (#4662)", () => {
         lastName: "Schneider",
         email: "s@example.org",
         phone: "0151",
+        address: {
+          street: "Lindenweg 4",
+          postalCode: "49143",
+          city: "Bissendorf",
+        },
       },
       children: [
         {
@@ -68,6 +90,19 @@ describe("fetchHolidayRegistrationFamily (#4662)", () => {
           birthDate: "2018-03-01",
           holidayWish: "",
           holidayWishProof: "",
+          contacts: [
+            {
+              guardianProfileId: "51",
+              firstName: "Erika",
+              lastName: "Brandt",
+              email: "",
+              phone: "0170 1",
+              relationshipType: "relative",
+              fullGuardian: false,
+              emergency: true,
+              pickup: true,
+            },
+          ],
         },
         {
           studentId: "42",
@@ -77,6 +112,7 @@ describe("fetchHolidayRegistrationFamily (#4662)", () => {
           birthDate: "",
           holidayWish: "",
           holidayWishProof: "",
+          contacts: [],
         },
       ],
       accountProof: "",

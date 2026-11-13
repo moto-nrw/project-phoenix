@@ -4,8 +4,8 @@ status: accepted
 
 # Feriengast ist ein befristetes Kind der ausrichtenden OGS
 
-Entscheidung vom 26.10.2026 zu [#4666](https://github.com/moto-nrw/project-phoenix/issues/4666),
-Etappe 1 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung vom 26.10.2026 zu [#4666](https://github.com/moto-ogs/project-phoenix/issues/4666),
+Etappe 1 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 43 und 44. Sie setzt
 [ADR 0084](0084-traeger-portal-liest-ueber-eine-projektion-und-schreibt-in-der-schule.md)
 Abschnitt 6 für den Betreuungsalltag um und beantwortet die dort offene
@@ -150,7 +150,7 @@ die `tenant_id` der ausrichtenden Schule (D4).
 ## Nachtrag 2026-10-28: Zweite sorgeberechtigte Person und freigegebene Antworten (#5202)
 
 Mit der Entscheidung des Nutzers vom 28.10.2026 für Option B
-([#5202](https://github.com/moto-nrw/project-phoenix/issues/5202), Nachtrag
+([#5202](https://github.com/moto-ogs/project-phoenix/issues/5202), Nachtrag
 zu ADR 0116) gilt Punkt 4 mit dieser Erweiterung:
 
 - **Zweite Person als Notfallkontakt.** `enrollment.holiday_host_guest_contacts`
@@ -188,7 +188,7 @@ Angaben aus der Ferienanmeldung sollen dem berechtigten Team am Feriengast
 im Betreuungsalltag zur Verfügung stehen, statt nur beim Träger zu bleiben.
 
 Die Umsetzung läuft mit
-[#4722](https://github.com/moto-nrw/project-phoenix/issues/4722). Die dort
+[#4722](https://github.com/moto-ogs/project-phoenix/issues/4722). Die dort
 unterschiedenen Fälle Feriengast und eigenes Kind der ausrichtenden OGS
 bleiben getrennt: Angaben für eine Ferienbetreuung überschreiben nicht
 stillschweigend die Stammdaten eines eigenen Kindes. Rechtsgrundlage,
@@ -232,7 +232,7 @@ dieser Änderung:
 ## Nachtrag 2026-11-03: Heimatschule im Alltag, Gast erst ab der Ferienwoche (#5630)
 
 Entscheidung des Product Owners nach der Rückmeldung der Gemeinde vom
-03.11.2026 ([#5630](https://github.com/moto-nrw/project-phoenix/issues/5630)):
+03.11.2026 ([#5630](https://github.com/moto-ogs/project-phoenix/issues/5630)):
 Das Team der ausrichtenden OGS arbeitet mit Ferienkindern wie mit eigenen
 Kindern, ein Hinweis nennt die Heimatschule, und die Kinder sind nur in der
 Ferienzeit da. Punkt 2 und Punkt 4 gelten mit diesen Änderungen:
@@ -285,7 +285,7 @@ Ferienzeit da. Punkt 2 und Punkt 4 gelten mit diesen Änderungen:
 ## Nachtrag 2026-11-07: Vorgemerkte eigene Kinder erst ab Betreuungsbeginn (#6041)
 
 Rückmeldung der Grundschule Barnstorf vom 06.11.2026
-([#6041](https://github.com/moto-nrw/project-phoenix/issues/6041)): Eltern
+([#6041](https://github.com/moto-ogs/project-phoenix/issues/6041)): Eltern
 melden im Dezember für die Betreuung ab Februar an, und bestätigte Kinder
 standen sofort in den laufenden Listen. Für die Teilnahme von Care Plan gilt
 der Satz „Eigene Kinder mit späterem Start bleiben, wie sie sind“ aus dem
@@ -314,7 +314,7 @@ Nachtrag vom 03.11.2026 nicht mehr:
 - Die Live-Listen des People Directory, die ohne Teilnahme von Care Plan
   lesen (`currentCare`), ändert dieser Nachtrag nicht; ob vorgemerkte
   Kinder dort fehlen sollen, klärt
-  [#6050](https://github.com/moto-nrw/project-phoenix/issues/6050); die
+  [#6050](https://github.com/moto-ogs/project-phoenix/issues/6050); die
   Antwort steht im Nachtrag vom 08.11.2026.
 
 ### Vergangene Tage: neues und zurückkehrendes Kind (#6041, Review)
@@ -356,13 +356,13 @@ Kind an einem Tag mit, an dem Student Presence eine Anwesenheit oder einen
 Raumbesuch gespeichert hat, wie die laufenden Listen ein tatsächlich
 anwesendes Kind behalten. Die Lücke zwischen früherem Ende und
 Wiederaufnahme eines zurückkehrenden Kindes hält Care Plan seit
-[#6073](https://github.com/moto-nrw/project-phoenix/issues/6073) ebenso
+[#6073](https://github.com/moto-ogs/project-phoenix/issues/6073) ebenso
 zurück ([ADR 0180](0180-mitgliedschaft-merkt-sich-die-betreuungsluecke-eines-zurueckkehrenden-kindes.md)).
 
 ## Nachtrag 2026-11-08: Live-Listen des People Directory behalten vorgemerkte eigene Kinder (#6050)
 
 Entscheidung zu
-[#6050](https://github.com/moto-nrw/project-phoenix/issues/6050): Die
+[#6050](https://github.com/moto-ogs/project-phoenix/issues/6050): Die
 Live-Listen des People Directory, die ohne Teilnahme von Care Plan lesen
 (`currentCare`), zeigen ein vorgemerktes eigenes Kind (Status `pending`,
 `enrolled_from` in der Zukunft) weiter vor seinem Beginn. Der Satz „Eigene
@@ -396,8 +396,8 @@ das ändert den Kiosk-Vertrag mit PyrePortal und braucht ein eigenes Issue.
 ## Nachtrag 2026-11-11: Eigene Kinder der ausrichtenden OGS in der Ferienwoche (#6678, #6680)
 
 Entscheidung zu
-[#6678](https://github.com/moto-nrw/project-phoenix/issues/6678) (Option A)
-und [#6680](https://github.com/moto-nrw/project-phoenix/issues/6680)
+[#6678](https://github.com/moto-ogs/project-phoenix/issues/6678) (Option A)
+und [#6680](https://github.com/moto-ogs/project-phoenix/issues/6680)
 (Option A). Anlass war der Termin mit der Gemeinde Bissendorf am 11.11.2026:
 Für Feriengäste entfällt das Abtippen der Anmeldebögen, für die eigenen
 Kinder der ausrichtenden Schule bisher nicht.

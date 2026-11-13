@@ -4,7 +4,7 @@ import (
 	errors "errors"
 	http "net/http"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
+	common "github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // pendingChangeRequestCount returns the combined number of pending parent

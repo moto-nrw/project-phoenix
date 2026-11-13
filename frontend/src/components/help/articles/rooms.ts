@@ -90,6 +90,19 @@ export function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
           "Für einen Aushang öffnen Sie oben rechts das Menü mit den drei Punkten. Wählen Sie `Raumplan als PDF`. Sie erhalten die angezeigte Woche als PDF.",
         ],
       },
+      // #6953: Kinder direkt in diesen Raum anmelden.
+      {
+        title: "Kinder in diesen Raum anmelden",
+        description:
+          "Abwesende Kinder werden angemeldet und sind sofort in diesem Raum. Beaufsichtigen Sie den Raum selbst, holen Sie auch anwesende Kinder aus anderen Räumen dazu.",
+        steps: [
+          "Öffnen Sie `Räume` und wählen Sie den Raum aus.",
+          "Wählen Sie bei `Kinder im Raum` den Knopf `Kinder anmelden`.",
+          "Suchen Sie die Kinder über Name, Klasse oder Gruppe.",
+          "Kreuzen Sie die Kinder an. Rechts steht, wo das Kind gerade ist.",
+          "Wählen Sie unten den Knopf mit der Zahl der Kinder, zum Beispiel `2 Kinder anmelden`.",
+        ],
+      },
       {
         title: "Kinder ohne Raum in einen Raum setzen",
         description:
@@ -105,6 +118,7 @@ export function roomsTopic(presenceMode: HelpPresenceMode): HelpTopic {
     result:
       "Sie sehen die aktuelle Belegung des Raums. Unter `Unterwegs` stehen anwesende Kinder, die noch keinem Raum zugeordnet sind. Die Anzeige ändert sich, sobald Kinder den Raum wechseln.",
     troubleshootingDetails: [
+      "Ist `Kinder anmelden` ausgegraut? Dann läuft im Raum gerade keine Aufsicht und er ist nicht freigegeben. Sobald dort eine Aufsicht läuft, können Sie Kinder anmelden.",
       "Steht unter `Zielraum` `Keine aktiven Räume`? Dann läuft gerade keine Aufsicht, in die Sie Kinder setzen können.",
       "Fehlt unter `Unterwegs` die Auswahl der Kinder? Dann erfasst Ihre OGS die Anwesenheit nicht über die App. Fragen Sie Ihre Leitung.",
       "Fehlt der Reiter `Plan` oder `Raumplan als PDF`? Bitten Sie Ihre Leitung, Ihren Zugang zu prüfen.",

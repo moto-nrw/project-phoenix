@@ -5,10 +5,10 @@ import (
 	"log/slog"
 	"time"
 
-	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/internal/adapters/auditpostgres"
-	auditService "github.com/moto-nrw/project-phoenix/modules/auditlog/internal/application"
-	auditModel "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	audit "github.com/moto-ogs/project-phoenix/modules/auditlog/internal/adapters/auditpostgres"
+	auditService "github.com/moto-ogs/project-phoenix/modules/auditlog/internal/application"
+	auditModel "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 

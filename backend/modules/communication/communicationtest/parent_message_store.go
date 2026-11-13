@@ -3,7 +3,7 @@
 // production code never imports it.
 package communicationtest
 
-import parentStore "github.com/moto-nrw/project-phoenix/modules/communication/parentstore"
+import parentStore "github.com/moto-ogs/project-phoenix/modules/communication/parentstore"
 
 // NewParentMessageRepository is the parent message store Communication's
 // composition binds, for suites that drive parent requests over the test

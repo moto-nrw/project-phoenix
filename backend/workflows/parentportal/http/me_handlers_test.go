@@ -15,12 +15,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // fakeParentService implements PortalService. Only the profile methods
@@ -855,6 +855,43 @@ func TestSubmitCareException_MapsCutoffPassedToConflictCode(t *testing.T) {
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 	assert.Contains(t, w.Body.String(), `"code":"care.pickup_change_cutoff_passed"`)
+}
+
+// #5710: after the school's care day end the submit answers 409 with its own
+// code, so the portal can say why today's pickup is closed.
+func TestSubmitCareException_MapsCareDayEndedToConflictCode(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentService{careExceptionErr: parentService.ErrPickupChangeCareDayEnded}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+
+	rs.submitCareException(w, careExceptionRequest(`{"date":"2026-08-18","pickup_time":"18:30","reason":"Arzttermin"}`))
+
+	assert.Equal(t, http.StatusConflict, w.Code)
+	assert.Contains(t, w.Body.String(), `"code":"care.pickup_change_care_day_ended"`)
+}
+
+// The features response says when the care day has ended, so the portal
+// closes today's pickup before anyone types (#5710).
+func TestGetChildFeatures_ReportsCareDayEnded(t *testing.T) {
+	t.Parallel()
+
+	service := &fakeParentService{childFeatures: parentService.ChildFeatureFlags{
+		PickupChangeEnabled:      true,
+		PickupChangeCareDayEnded: true,
+	}}
+	rs := &Resource{ParentService: service}
+	w := httptest.NewRecorder()
+	req := withClaims(httptest.NewRequest(http.MethodGet, "/me/children/77/features", nil), 1234)
+	route := chi.NewRouteContext()
+	route.URLParams.Add("studentId", "77")
+	req = req.WithContext(context.WithValue(req.Context(), chi.RouteCtxKey, route))
+
+	rs.getChildFeatures(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.Contains(t, w.Body.String(), `"pickup_change_care_day_ended":true`)
 }
 
 // The features response carries the cutoff and today's lock state to the

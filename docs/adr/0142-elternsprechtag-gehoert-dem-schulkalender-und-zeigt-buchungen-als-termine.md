@@ -5,7 +5,7 @@ status: accepted
 # Der Elternsprechtag gehört dem Schulkalender und zeigt Buchungen als Termine
 
 Entscheidung vom 2026-10-27 für
-[#4801](https://github.com/moto-nrw/project-phoenix/issues/4801). Sie fügt
+[#4801](https://github.com/moto-ogs/project-phoenix/issues/4801). Sie fügt
 keinen Owner, keine Policy-Regel und keine neue Ausnahme im
 Command-Effects-Inventar hinzu. Sie weist zwei Tabellen dem bestehenden Owner
 `school-calendar` zu und hebt das Compose-Budget von

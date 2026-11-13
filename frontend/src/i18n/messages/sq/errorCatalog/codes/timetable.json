@@ -13,6 +13,7 @@
   "calendar_period_not_found": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "calendar_period_overlap_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "calendar_period_roster_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
+  "calendar_period_shift_series_conflict": "Nuk u ndryshua: {object}. Kontrolloni gjendjen aktuale.",
   "calendar_period_week_cycle_anchor_missing": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "closing_day_end_before_start": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",
   "closing_day_invalid": "Nuk u ruajt: {object}. Kontrolloni të dhënat.",

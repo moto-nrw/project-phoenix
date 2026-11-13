@@ -5,6 +5,7 @@ import {
   PortalSidebar,
   PortalSidebarLink,
 } from "~/components/ui/portal-sidebar";
+import { COUNTER_TONE } from "~/lib/counter-tones";
 import type { SchoolStaffNoticesPending } from "~/lib/hooks/use-school-staff-notices-pending";
 import type { SchoolTeamChatUnread } from "~/lib/hooks/use-school-team-chat-unread";
 import { schoolPath } from "~/lib/school-url";
@@ -60,7 +61,7 @@ export function SchoolSidebar({
         badge={
           badge && {
             count: badge.count,
-            tone: "staff",
+            tone: COUNTER_TONE.staff,
             ariaLabel: badge.ariaLabel,
           }
         }

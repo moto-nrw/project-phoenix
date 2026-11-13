@@ -3,8 +3,8 @@
 import { useMemo } from "react";
 
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
+import { COVERAGE_DELTA_TEXT_COLOR } from "~/components/ui/planning/planning-colors";
 import { SectionCard } from "~/components/ui/section-card";
-import { MOTO_COLOR_PALETTE } from "~/lib/location-helper";
 import {
   formatDeltaHours,
   formatPlannedHours,
@@ -23,11 +23,6 @@ const UNTYPED_KEY = "untyped";
 const UNTYPED_LABEL = "Ohne Dienstart";
 const UNKNOWN_TYPE_LABEL = "Unbekannte Dienstart";
 const EMPTY_VALUE = "–";
-
-const DELTA_COLOR = {
-  under: MOTO_COLOR_PALETTE.red.base,
-  over: MOTO_COLOR_PALETTE.amber.base,
-} as const;
 
 interface HoursRow {
   readonly member: StaffScheduleStaff;
@@ -82,7 +77,11 @@ function DeltaValue({ summary }: { readonly summary: StaffWeeklySummary }) {
   return (
     <span
       className="font-medium"
-      style={tone === "neutral" ? undefined : { color: DELTA_COLOR[tone] }}
+      style={
+        tone === "neutral"
+          ? undefined
+          : { color: COVERAGE_DELTA_TEXT_COLOR[tone] }
+      }
     >
       {formatDeltaHours(summary.deltaMinutes)}
     </span>

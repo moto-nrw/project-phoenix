@@ -1,7 +1,7 @@
 package application
 
 import (
-	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
+	appointmentcap "github.com/moto-ogs/project-phoenix/modules/appointments"
 )
 
 // Calendar views adapt their legacy transport shape to the owner's recurrence engine.

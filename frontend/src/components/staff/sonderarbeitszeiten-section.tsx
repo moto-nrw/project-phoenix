@@ -435,7 +435,7 @@ export function SonderarbeitszeitenSection({
                 id="target-override-start"
                 label="Erster Tag"
                 error={formErrors.fieldError("start_date")}
-                controlSize="lg"
+                controlSize="large"
                 value={draft.startDate}
                 onChange={(value) => setDraft({ ...draft, startDate: value })}
                 calendarLayout="popover"
@@ -444,7 +444,7 @@ export function SonderarbeitszeitenSection({
                 id="target-override-end"
                 label="Letzter Tag"
                 error={formErrors.fieldError("end_date")}
-                controlSize="lg"
+                controlSize="large"
                 value={draft.endDate}
                 min={draft.startDate || undefined}
                 // An empty last day opens in the month of the first day.

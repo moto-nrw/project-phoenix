@@ -17,12 +17,12 @@ export function LetterSendCell({
   return (
     <div className="flex min-w-0 flex-col items-start gap-1">
       <StatusBadge {...mailBadge(letter)} />
-      {detail ? <p className="text-xs text-gray-600">{detail}</p> : null}
+      {detail ? <p className="text-sm text-gray-600">{detail}</p> : null}
       {!letter.recipientEmail.trim() ? (
-        <p className="text-xs text-gray-600">{printInstruction}</p>
+        <p className="text-sm text-gray-600">{printInstruction}</p>
       ) : null}
       {!letter.inInbox ? (
-        <p className="text-xs text-gray-600">
+        <p className="text-sm text-gray-600">
           Nicht in der Eltern-App: Das Kind hat noch keinen Schülerdatensatz.
         </p>
       ) : null}

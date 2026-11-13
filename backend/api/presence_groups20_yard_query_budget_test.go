@@ -8,13 +8,13 @@ import (
 	"time"
 
 	"github.com/go-chi/chi/v5"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	yardHTTP "github.com/moto-nrw/project-phoenix/modules/supervisiondashboard/http"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
+	yardHTTP "github.com/moto-ogs/project-phoenix/modules/supervisiondashboard/http"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
 )
 

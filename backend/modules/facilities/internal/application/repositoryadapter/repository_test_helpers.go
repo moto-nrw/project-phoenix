@@ -6,7 +6,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
 )
 
 func (r *Repository) Create(ctx context.Context, room *facilities.Room) error {
@@ -48,5 +48,6 @@ func (r *Repository) Delete(ctx context.Context, rawID any) error {
 	if err != nil {
 		return err
 	}
-	return r.DeleteRoom(ctx, id)
+	_, err = r.DeleteRoom(ctx, id)
+	return err
 }

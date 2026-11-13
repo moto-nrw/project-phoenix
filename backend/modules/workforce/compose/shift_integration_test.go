@@ -6,9 +6,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -367,21 +367,23 @@ func TestShiftTypesAreTenantIsolatedAndNormalized(t *testing.T) {
 	foreignType.Name = "Umbenannt"
 	_, err = capability.UpdateShiftType(ctx, foreignType)
 	require.ErrorIs(t, err, workforce.ErrShiftTypeNotFound)
-	require.NoError(t, capability.DeleteShiftType(ctx, foreignType.ID))
+	require.ErrorIs(t, capability.DeleteShiftType(ctx, foreignType.ID), workforce.ErrShiftTypeNotFound)
 	unchanged, err := capability.FindShiftType(foreignCtx, foreignType.ID)
 	require.NoError(t, err)
 	assert.Equal(t, "Zebra", unchanged.Name)
 
-	// Deleting a type keeps the shifts that carried it and clears the label.
+	// Deleting a type that shifts carry archives it: the shifts keep their
+	// label (#6845).
 	staff := testpkg.CreateTestStaff(t, db, "Type", "Bearer")
 	shift := testShift(staff.ID, calendar.NewDate(2026, 7, 6), "08:00:00", "12:00:00")
 	shift.ShiftTypeID = &alpha.ID
 	labelled, err := capability.CreateStaffShift(ctx, shift)
 	require.NoError(t, err)
 	require.NoError(t, capability.DeleteShiftType(ctx, alpha.ID))
-	unlabelled, err := capability.FindStaffShift(ctx, labelled.ID)
+	kept, err := capability.FindStaffShift(ctx, labelled.ID)
 	require.NoError(t, err)
-	assert.Nil(t, unlabelled.ShiftTypeID)
+	require.NotNil(t, kept.ShiftTypeID)
+	assert.Equal(t, alpha.ID, *kept.ShiftTypeID)
 }
 
 // A plan change composed by a caller is one unit of work: when the caller's

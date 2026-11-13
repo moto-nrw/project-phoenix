@@ -1,8 +1,16 @@
 import { cn } from "~/lib/utils";
 
+import { CONTROL_HEIGHT_CLASS, type ControlSize } from "./control-geometry";
+
 const TRIGGER_BASE_CLASS =
   "flex items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-gray-400 disabled:cursor-not-allowed disabled:bg-gray-100! disabled:text-gray-500 disabled:opacity-80";
-const TRIGGER_HEIGHT_CLASS = { default: "h-10", compact: "h-9" } as const;
+// Heights from the kit's one size vocabulary (control-geometry.ts). By
+// finger the compact select reaches 44 px and 16-px text, like the kit's
+// fields and buttons; the dense one stays for dense toolbars.
+const TRIGGER_HEIGHT_CLASS = {
+  compact: `${CONTROL_HEIGHT_CLASS.touch} pointer-coarse:text-base`,
+  dense: CONTROL_HEIGHT_CLASS.dense,
+} as const satisfies Partial<Record<ControlSize, string>>;
 // `moto-content-surface` is unlayered: it beats the red invalid tint and the
 // grey disabled fill, so it sits on the neutral, enabled branch only.
 const TRIGGER_SURFACE_CLASS = "moto-content-surface moto-hover-elevated";
@@ -17,7 +25,7 @@ export type SelectTriggerSize = keyof typeof TRIGGER_HEIGHT_CLASS;
  * picker can use the look without loading the listbox.
  */
 export function selectTriggerClassName({
-  size = "default",
+  size = "compact",
   invalid = false,
   disabled = false,
   className,

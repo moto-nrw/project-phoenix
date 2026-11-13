@@ -3,14 +3,14 @@ package api
 import (
 	"context"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 
-	peopleRouteValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	presenceprojectionOwnerHTTP "github.com/moto-nrw/project-phoenix/modules/presenceprojection/http"
+	peopleRouteValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	presenceprojectionOwnerHTTP "github.com/moto-ogs/project-phoenix/modules/presenceprojection/http"
 
-	educationSvc "github.com/moto-nrw/project-phoenix/modules/schoolstructure"
+	educationSvc "github.com/moto-ogs/project-phoenix/modules/schoolstructure"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The students routes declare their own ports to School Structure and

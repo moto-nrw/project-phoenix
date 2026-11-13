@@ -15,10 +15,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // completeMFAExchangeStub is a narrow AuthService stub for the verify

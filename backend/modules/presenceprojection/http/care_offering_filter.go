@@ -6,7 +6,7 @@ import (
 	http "net/http"
 	strconv "strconv"
 
-	common "github.com/moto-nrw/project-phoenix/api/common"
+	common "github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // errCareOfferingFilter refuses a care_offering_id that is no positive id or

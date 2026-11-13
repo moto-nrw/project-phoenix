@@ -22,6 +22,9 @@ type RequestChildOffering struct {
 	ManualSelectedDays    []string  `json:"manual_selected_days,omitempty"`
 	AutomaticSelectedDays []string  `json:"automatic_selected_days,omitempty"`
 	Notes                 *string   `json:"notes,omitempty"`
+	// SubmittedTerms are the catalog terms of the parents' submitted choice
+	// of this offering (#6837); nil without one. Not part of any wire shape.
+	SubmittedTerms *OfferingTerms `json:"-"`
 	// ValidFrom / ValidUntil make an approved offering switch effective on its
 	// requested date. ValidUntil is exclusive, matching student enrollments.
 	ValidFrom  *Date `json:"valid_from,omitempty"`

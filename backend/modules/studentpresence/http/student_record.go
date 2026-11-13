@@ -1,8 +1,8 @@
 package studentpresencehttp
 
 import (
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 const (

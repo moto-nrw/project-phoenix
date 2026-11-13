@@ -10,8 +10,8 @@ import (
 
 	validation "github.com/go-ozzo/ozzo-validation"
 
-	"github.com/moto-nrw/project-phoenix/modules/parentbilling"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The finance exports of a Träger (#4693): settings, runs, protocol,
@@ -61,20 +61,22 @@ type FinanceExportStore interface {
 type FinanceExports struct {
 	store FinanceExportStore
 	post  parentbilling.InvoiceHistoryPost
+	names parentbilling.ExportActorNames
 	datev *datevExport
 }
 
 var _ parentbilling.FinanceExports = (*FinanceExports)(nil)
 
 // NewFinanceExports builds the finance exports over the DATEV settings of
-// the Träger, which the DATEV booking batch (#4694) and its check read.
-func NewFinanceExports(store FinanceExportStore, post parentbilling.InvoiceHistoryPost, datev parentbilling.DatevBillingSettings,
-	today func() calendar.Date, now func() time.Time,
+// the Träger, which the DATEV booking batch (#4694) and its check read, and
+// the names of the Träger-Büro the protocol and the history show (#4693).
+func NewFinanceExports(store FinanceExportStore, post parentbilling.InvoiceHistoryPost, names parentbilling.ExportActorNames,
+	datev parentbilling.DatevBillingSettings, today func() calendar.Date, now func() time.Time,
 ) *FinanceExports {
-	if store == nil || post == nil {
-		panic("parent billing: the export store and mail states are required")
+	if store == nil || post == nil || names == nil {
+		panic("parent billing: the export store, mail states and names are required")
 	}
-	return &FinanceExports{store: store, post: post, datev: newDatevExport(datev, today, now)}
+	return &FinanceExports{store: store, post: post, names: names, datev: newDatevExport(datev, today, now)}
 }
 
 // exportFile is a file about to leave moto: its content and the invoices.
@@ -264,12 +266,16 @@ func (f *FinanceExports) ExportRuns(ctx context.Context, reviewer parentbilling.
 	if err != nil {
 		return parentbilling.ExportRunPage{}, err
 	}
+	var entries []*parentbilling.ExportProtocolEntry
 	for i := range runs.Runs {
 		for _, last := range []*parentbilling.ExportProtocolEntry{runs.Runs[i].LastSollstellung, runs.Runs[i].LastDatev} {
 			if last != nil {
-				last.ExportedByYou = byAccount(last.ExportedBy, reviewer.AccountID)
+				entries = append(entries, last)
 			}
 		}
+	}
+	if err := f.nameExporters(ctx, reviewer, entries); err != nil {
+		return parentbilling.ExportRunPage{}, err
 	}
 	runs.NextOffset = nextOffset(offset, len(runs.Runs), runs.Total)
 	return runs, nil
@@ -327,8 +333,12 @@ func (f *FinanceExports) ExportProtocol(ctx context.Context, reviewer parentbill
 	if err != nil {
 		return parentbilling.ExportProtocolPage{}, err
 	}
+	entries := make([]*parentbilling.ExportProtocolEntry, 0, len(files.Files))
 	for i := range files.Files {
-		files.Files[i].ExportedByYou = byAccount(files.Files[i].ExportedBy, reviewer.AccountID)
+		entries = append(entries, &files.Files[i])
+	}
+	if err := f.nameExporters(ctx, reviewer, entries); err != nil {
+		return parentbilling.ExportProtocolPage{}, err
 	}
 	files.NextOffset = nextOffset(offset, len(files.Files), files.Total)
 	return files, nil
@@ -369,12 +379,28 @@ func (f *FinanceExports) SollstellungFile(ctx context.Context, reviewer parentbi
 	if err != nil {
 		return parentbilling.ExportedFile{}, err
 	}
+	file, err := sollExportFile(runKind, runID, soll.Mapping, rows, resolved, content.Invoices)
+	if err != nil {
+		return parentbilling.ExportedFile{}, err
+	}
+	entry, data, err := recordExportFile(ctx, f.store, reviewer, file)
+	if err != nil {
+		return parentbilling.ExportedFile{}, err
+	}
+	entry.RunLabel = content.Run.Label
+	return parentbilling.ExportedFile{Entry: entry, ContentType: sollContentType(soll.Mapping.Encoding), Data: data}, nil
+}
+
+// sollExportFile assembles the Sollstellung of a run for the protocol.
+func sollExportFile(runKind string, runID int64, mapping parentbilling.SollstellungMapping, rows []sollRow, resolved int,
+	invoices []parentbilling.ExportInvoice,
+) (exportFile, error) {
 	file := exportFile{format: parentbilling.ExportFormatSollstellung, runKind: runKind, runID: runID, resolvedPositions: resolved,
-		fileName: func(number int64) string { return sollFileName(soll.Mapping.FileNamePattern, number) },
+		fileName: func(number int64) string { return sollFileName(mapping.FileNamePattern, number) },
 		render: func(number int64) ([]byte, error) {
-			return renderSollRows(soll.Mapping, rows, number)
+			return renderSollRows(mapping, rows, number)
 		}}
-	for _, invoice := range content.Invoices {
+	for _, invoice := range invoices {
 		file.totalCents += invoice.TotalCents
 		if invoice.CareInvoiceID > 0 && !slices.Contains(file.careInvoices, invoice.CareInvoiceID) {
 			file.careInvoices = append(file.careInvoices, invoice.CareInvoiceID)
@@ -383,14 +409,15 @@ func (f *FinanceExports) SollstellungFile(ctx context.Context, reviewer parentbi
 			file.documents = append(file.documents, invoice.DocumentID)
 		}
 	}
-	file.documentCount = len(content.Invoices)
-	file.costCenterFallbacks = sollCostCenterFallbacks(soll.Mapping, rows)
-	entry, data, err := recordExportFile(ctx, f.store, reviewer, file)
-	if err != nil {
-		return parentbilling.ExportedFile{}, err
+	file.documentCount = len(invoices)
+	file.costCenterFallbacks = sollCostCenterFallbacks(mapping, rows)
+	// The rows without the file number: a mapping that writes the number
+	// into every row still repeats the same content (ADR 0218 section 6).
+	var err error
+	if file.bookingContent, err = renderSollRows(mapping, rows, 0); err != nil {
+		return exportFile{}, err
 	}
-	entry.RunLabel = content.Run.Label
-	return parentbilling.ExportedFile{Entry: entry, ContentType: sollContentType(soll.Mapping.Encoding), Data: data}, nil
+	return file, nil
 }
 
 // sollCostCenterFallbacks names the holiday positions on the KOST1 of the
@@ -464,12 +491,11 @@ func (f *FinanceExports) InvoiceHistory(ctx context.Context, reviewer parentbill
 	}
 	for i := range files {
 		file := files[i]
-		file.ExportedByYou = byAccount(file.ExportedBy, reviewer.AccountID)
 		steps = append(steps, parentbilling.InvoiceHistoryEntry{Kind: parentbilling.HistoryExported, At: file.ExportedAt,
 			AccountID: file.ExportedBy, File: &file})
 	}
-	for i := range steps {
-		steps[i].ByYou = byAccount(steps[i].AccountID, reviewer.AccountID)
+	if err := f.nameHistorySteps(ctx, reviewer, steps); err != nil {
+		return parentbilling.InvoiceHistory{}, err
 	}
 	slices.SortStableFunc(steps, func(a, b parentbilling.InvoiceHistoryEntry) int { return a.At.Compare(b.At) })
 	return parentbilling.InvoiceHistory{Kind: kind, ID: id, Number: number, Entries: steps}, nil

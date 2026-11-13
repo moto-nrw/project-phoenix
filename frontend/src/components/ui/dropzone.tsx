@@ -1,5 +1,6 @@
 "use client";
 
+import { useKitDefault } from "~/components/ui/kit-locale";
 import { useRef, useState, type DragEvent } from "react";
 import { Upload } from "lucide-react";
 import { Button } from "~/components/ui/button";
@@ -17,6 +18,8 @@ interface DropzoneBaseProps {
   readonly dragLabel: string;
   /** Text of the button that opens the file dialog. */
   readonly buttonLabel: string;
+  /** What the button does (#6744); defaults to „Öffnet die Dateiauswahl Ihres Geräts.“ */
+  readonly buttonTooltip?: string;
   /** Names the hidden file input. Defaults to `buttonLabel`. */
   readonly inputLabel?: string;
   /** Limits worth knowing up front: file types, size. */
@@ -103,6 +106,7 @@ export function Dropzone({
   label,
   dragLabel,
   buttonLabel,
+  buttonTooltip,
   inputLabel = buttonLabel,
   hint,
   loading = false,
@@ -112,6 +116,7 @@ export function Dropzone({
   onFile,
   onFiles,
 }: DropzoneProps) {
+  const kitDefault = useKitDefault();
   const inputRef = useRef<HTMLInputElement>(null);
   const [dragging, setDragging] = useState(false);
   const inactive = disabled || loading;
@@ -179,22 +184,35 @@ export function Dropzone({
           aria-hidden="true"
         />
       )}
-      <p className="text-sm font-medium text-gray-900" aria-live="polite">
+      {/* A finger cannot drag a file here: on a touch screen the frame
+          offers only the button, unless it reports progress. */}
+      <p
+        className={cn(
+          "text-sm font-medium text-gray-900",
+          line === label && "pointer-coarse:sr-only",
+        )}
+        aria-live="polite"
+      >
         {line}
       </p>
-      {loading ? null : <p className="text-xs text-gray-500">oder</p>}
+      {loading ? null : (
+        <p className="text-xs text-gray-500 pointer-coarse:hidden">oder</p>
+      )}
       <Button
         type="button"
         variant="outline"
         size="md"
         disabled={inactive}
+        tooltip={
+          buttonTooltip ?? kitDefault("Öffnet die Dateiauswahl Ihres Geräts.")
+        }
         onClick={() => inputRef.current?.click()}
         // A disabled button swallows drag events: let them through to the frame.
         className="after:absolute after:inset-0 disabled:pointer-events-none"
       >
         {buttonLabel}
       </Button>
-      {hint ? <p className="text-xs text-gray-500">{hint}</p> : null}
+      {hint ? <p className="text-sm text-gray-500">{hint}</p> : null}
       <input
         ref={inputRef}
         type="file"

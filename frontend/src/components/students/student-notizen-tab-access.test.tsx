@@ -17,6 +17,10 @@ import { SWRConfig } from "~/lib/swr/testing";
 import { SWRScopeBoundary } from "~/lib/swr/scope-boundary";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { StudentNotizenTab } from "./student-notizen-tab";
+import {
+  expectPageReloadedAfterRefusal,
+  resetPageReloads,
+} from "~/test/helpers/refused-refresh";
 
 vi.unmock("swr");
 vi.mock("next-auth/react", () => ({
@@ -96,17 +100,20 @@ describe("student note access", () => {
           ? Promise.reject(new ApiError("failed", status))
           : Promise.resolve([note]),
       );
+      resetPageReloads();
       fireEvent.click(screen.getByRole("button", { name: "Speichern" }));
-      const code =
-        status === 403
-          ? "general.permission"
-          : status === 404
-            ? "general.input"
-            : "general.unavailable";
+      if (status === 403) {
+        // #6801: the page loads anew; its first load shows the refusal.
+        await expectPageReloadedAfterRefusal();
+        expect(create).toHaveBeenCalledTimes(1);
+        view.unmount();
+        return;
+      }
+      const code = status === 404 ? "general.input" : "general.unavailable";
       // Anker: ein erfolgreicher Schreibaufruf mit gescheitertem GET nennt den gespeicherten Stand.
       const alertText = `${catalogText(code, "die Anzeige der Notizen")} ${SAVED_BUT_STALE_SUFFIX}`;
       expect(await screen.findByText(alertText)).toBeVisible();
-      if (status === 403 || status === 404) {
+      if (status === 404) {
         expect(screen.queryByText(note.body)).not.toBeInTheDocument();
         expect(
           screen.queryByRole("button", { name: "Neue Notiz" }),

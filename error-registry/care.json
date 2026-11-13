@@ -403,6 +403,12 @@
       "legacy": "photo_consent_not_withdrawn"
     },
     {
+      "code": "care.pickup_change_care_day_ended",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "care.pickup_change_care_day_ended"
+    },
+    {
       "code": "care.pickup_change_cutoff_passed",
       "class": "business_rejection",
       "parameters": [],

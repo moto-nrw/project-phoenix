@@ -5,7 +5,7 @@ package parentstore
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // The announcement construction values live in this already tagged store

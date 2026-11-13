@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	listrecords "github.com/moto-nrw/project-phoenix/modules/documentrendering/records"
+	listrecords "github.com/moto-ogs/project-phoenix/modules/documentrendering/records"
 )
 
 // The business rules in this file are ported from the hand-rolled PDF

@@ -6,7 +6,7 @@ status: accepted
 
 Freigegeben von Yannick Wenger am 07.11.2026
 
-Vorschlag vom 06.11.2026 zu [#4676](https://github.com/moto-nrw/project-phoenix/issues/4676).
+Vorschlag vom 06.11.2026 zu [#4676](https://github.com/moto-ogs/project-phoenix/issues/4676).
 Er folgt [ADR 0151](0151-schulansicht-des-traegers-liest-ihre-zahlen-ueber-die-fach-owner.md)
 und ändert [ADR 0084](0084-traeger-portal-liest-ueber-eine-projektion-und-schreibt-in-der-schule.md)
 Abschnitt 1 für diese Fläche. Er führt keinen neuen Owner ein.

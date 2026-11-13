@@ -8,7 +8,7 @@ export function traegerKeyDateCountsTopic(): HelpTopic {
     title: "Stichtagszahlen der Schulen",
     question: "Nach welchen Zahlen berechnet moto meine Schulen?",
     summary:
-      "Die Stichtagszahlen zeigen je Monat die aktiven Kinder und Terminals jeder Schule am Stichtag.",
+      "Die Stichtagszahlen zeigen je Monat die aktiven Kinder und Geräte jeder Schule am Stichtag.",
     group: "einstieg",
     audience: "traeger",
     icon: "CalendarCheck",
@@ -20,7 +20,7 @@ export function traegerKeyDateCountsTopic(): HelpTopic {
       "Wählen Sie unter `Alle Monate` einen Monat, um seine Zahlen zu sehen.",
     ],
     result:
-      "Sie sehen für jede Schule, wie viele aktive Kinder und aktive Terminals moto am Stichtag gezählt hat.",
+      "Sie sehen für jede Schule, wie viele aktive Kinder und aktive Geräte moto am Stichtag gezählt hat.",
     notes: [
       "Suchen Sie oben nach einer Schule oder einem Ort.",
       "moto hält die Zahlen am Stichtag einmal fest. Danach ändern sie sich nicht mehr.",

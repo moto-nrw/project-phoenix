@@ -51,6 +51,10 @@ type Room struct {
 	// nothing about who supervises the room and grants no home-checkout
 	// rights — those stay separate decisions.
 	IsOpenRoom bool `json:"is_open_room"`
+	// ArchivedAt is set once a removed room was kept for its history
+	// (#6845). Archived rooms leave every list and selection; lookups by ID
+	// still resolve them so past blocks and sessions keep their room name.
+	ArchivedAt *time.Time `json:"archived_at,omitempty"`
 }
 
 type Query interface {
@@ -64,11 +68,14 @@ type Query interface {
 	LockRoomsByID(context.Context, []int64) ([]Room, error)
 }
 
-// Command owns room lifecycle writes.
+// Command owns room lifecycle writes. DeleteRoom deletes a room nothing
+// references and archives one that history names; RoomRemovalImpact
+// previews which of the two happens, or what still blocks it.
 type Command interface {
 	CreateRoom(context.Context, CreateRoom) (Room, error)
 	UpdateRoom(context.Context, UpdateRoom) (Room, error)
-	DeleteRoom(context.Context, int64) error
+	DeleteRoom(context.Context, int64) (RoomRemoval, error)
+	RoomRemovalImpact(context.Context, int64) (RoomRemovalImpact, error)
 }
 
 type Capability interface {
@@ -113,6 +120,10 @@ func ErrorCode(err error) string {
 		return "system_room_protected"
 	case errors.Is(err, ErrToiletRoomNotReleasable):
 		return "toilet_room_not_releasable"
+	case errors.Is(err, ErrRoomStillPlanned):
+		return "room_still_planned"
+	case errors.Is(err, ErrRoomArchived):
+		return "room_archived"
 	default:
 		return "internal_error"
 	}

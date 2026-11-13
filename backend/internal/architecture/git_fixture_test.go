@@ -6,7 +6,7 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/internal/gitfixture"
+	"github.com/moto-ogs/project-phoenix/internal/gitfixture"
 )
 
 func TestFixtureIgnoresInheritedGitState(t *testing.T) {

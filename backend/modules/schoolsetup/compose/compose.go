@@ -8,11 +8,11 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolsetup"
-	"github.com/moto-nrw/project-phoenix/modules/schoolsetup/internal/adapters/schoolsetupview"
-	"github.com/moto-nrw/project-phoenix/modules/schoolsetup/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/schoolsetup"
+	"github.com/moto-ogs/project-phoenix/modules/schoolsetup/internal/adapters/schoolsetupview"
+	"github.com/moto-ogs/project-phoenix/modules/schoolsetup/internal/application"
 	"github.com/uptrace/bun"
 )
 

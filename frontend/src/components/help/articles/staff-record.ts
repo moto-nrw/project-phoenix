@@ -30,11 +30,11 @@ export function staffRecordTopic(): HelpTopic {
       {
         title: "Das Arbeitszeitmodell eintragen",
         description:
-          "Ohne Modell hat die Person kein Wochensoll. Stundenkonto und Saldo haben dann nichts, womit sie vergleichen könnten.",
+          "Ohne Modell und ohne Sonderarbeitszeit hat die Person kein Soll. Dann zählen Krankheit, Urlaub und Fortbildung 0 Stunden. Gearbeitete Zeit zählt ganz als Plus.",
         steps: [
           "Wählen Sie oben `Arbeitszeitmodell`.",
           "Wählen Sie rechts `Bearbeiten`.",
-          "Wählen Sie `Vorlage zuweisen` für ein Modell, das mehrere Personen teilen.",
+          "Wählen Sie `Vorlage zuweisen` für ein Modell, das mehrere Personen teilen. Vorlagen legen Sie unter `Datenverwaltung` › `Arbeitszeitmodelle` an.",
           "Oder wählen Sie `Eigenes Modell` nur für diese Person.",
           "Wählen Sie bei `Rotation` zum Beispiel `Standard (1 Woche)` oder `A/B-Wochen (2 Wochen)`.",
           "Tragen Sie je Wochentag die Stunden ein, zum Beispiel `4,45`.",
@@ -60,6 +60,7 @@ export function staffRecordTopic(): HelpTopic {
       "Qualifikationen sind Nachweise wie Erste Hilfe am Kind, Rettungsfähigkeit oder erweitertes Führungszeugnis, jeweils mit Ablaufdatum. Wie moto daran erinnert, steht unter `Nachweise`.",
       "Die Personalnummer braucht die spätere Abrechnung. Ohne sie fehlt die Person dort.",
       "In der `Übersicht` buchen Sie unter `Stundenkonto-Verwaltung` Auszahlung, Freizeitausgleich oder einen Eröffnungssaldo.",
+      "Ein Soll gilt ab seinem Startdatum. Beginnt es rückwirkend, rechnet moto auch frühere Tage gegen das Soll. Das Stundenkonto kann dann ins Minus rutschen. Legen Sie das Startdatum deshalb bewusst fest.",
     ],
     differences: [
       "Ändern Sie eine Vorlage, wirkt das künftig auf alle Personen mit dieser Zuordnung.",
@@ -67,10 +68,12 @@ export function staffRecordTopic(): HelpTopic {
       "Bankverbindung und Steuernummer sind verborgen. Jeder Abruf wird festgehalten.",
     ],
     troubleshootingDetails: [
+      "Ein Krankheitstag zählt 0 Stunden? Dann fehlt das Soll. Tragen Sie es unter `Arbeitszeitmodell` ein.",
       "Ein Saldo stimmt nicht? Prüfen Sie zuerst das `Arbeitszeitmodell`.",
       "Ein Bereich fehlt Ihnen? Dann fehlt Ihrer Rolle das Recht dafür.",
     ],
     related: [
+      HELP_TOPICS.leadWorkTimeTemplates,
       HELP_TOPICS.leadTargetOverride,
       HELP_TOPICS.leadWorkTimeReview,
       HELP_TOPICS.leadInviteStaff,

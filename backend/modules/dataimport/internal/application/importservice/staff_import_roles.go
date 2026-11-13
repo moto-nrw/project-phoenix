@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"strings"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
 )
 
 // Role resolution of the staff validation (#5887, ADR 0067 addendum of

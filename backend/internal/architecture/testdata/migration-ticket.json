@@ -35,7 +35,7 @@
   "exit_criterion": "All callers use one provider and the listed ratchet keys are absent.",
   "ticket_kind": "checkpoint",
   "checkpoint": {
-    "issue": "https://github.com/moto-nrw/project-phoenix/issues/3019",
+    "issue": "https://github.com/moto-ogs/project-phoenix/issues/3019",
     "commit": "0123456789abcdef0123456789abcdef01234567",
     "environment": "Record PostgreSQL 17 and production composition setup.",
     "toolchain": "Record exact toolchain versions.",

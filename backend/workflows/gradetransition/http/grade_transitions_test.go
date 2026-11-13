@@ -12,18 +12,18 @@ import (
 	"testing"
 	"time"
 
-	rootAPI "github.com/moto-nrw/project-phoenix/api"
+	rootAPI "github.com/moto-ogs/project-phoenix/api"
 
 	"github.com/gofrs/uuid"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	gradetransitionhttp "github.com/moto-nrw/project-phoenix/workflows/gradetransition/http"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	gradetransitionhttp "github.com/moto-ogs/project-phoenix/workflows/gradetransition/http"
 )
 
 func init() {

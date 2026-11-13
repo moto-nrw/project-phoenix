@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // berlinClock baut einen Zeitpunkt an einem festen Tag in Europe/Berlin. Der

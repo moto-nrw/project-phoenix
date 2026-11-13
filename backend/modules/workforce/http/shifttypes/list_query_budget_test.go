@@ -8,20 +8,20 @@ import (
 	"net/http"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
-	querybudgets "github.com/moto-nrw/project-phoenix/test/query-budgets"
+	"github.com/moto-ogs/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	querybudgets "github.com/moto-ogs/project-phoenix/test/query-budgets"
 	"github.com/stretchr/testify/require"
 )
 
 func TestShiftTypesListQueryBudgetIsFlat(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
-	types, _, err := api.NewShiftTypeTestModule(testpkg.NewDatabase(t, db))
+	types, references, _, err := api.NewShiftTypeTestModule(testpkg.NewDatabase(t, db))
 	require.NoError(t, err)
-	router := api.NewShiftTypesRouterForBudgetTest(types)
+	router := api.NewShiftTypesRouterForBudgetTest(types, references)
 	claims := testutil.DefaultTestClaims()
 	claims.TenantID = testpkg.Tenant(t)
 	claims.Permissions = []string{"time_tracking:manage"}
@@ -78,5 +78,59 @@ func TestShiftTypesListQueryBudgetIsFlat(t *testing.T) {
 		}
 		querybudgets.AssertQueryBudget(t, "api.workforce.shift_types.list", queries)
 		previousCount = len(queries.Statements)
+	}
+}
+
+// TestShiftTypesListWithUsageQueryBudgetIsFlat: the removal dialog's counts
+// (#6845) cost one grouped read however many types and shifts exist.
+func TestShiftTypesListWithUsageQueryBudgetIsFlat(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupIsolatedTestDB(t)
+	types, references, _, err := api.NewShiftTypeTestModule(testpkg.NewDatabase(t, db))
+	require.NoError(t, err)
+	router := testpkg.MountedQueryBudgetRouter("/api/shift-types", api.NewShiftTypesRouterForBudgetTest(types, references))
+	claims := testutil.DefaultTestClaims()
+	claims.TenantID = testpkg.Tenant(t)
+	claims.Permissions = []string{"time_tracking:manage"}
+	claims.IsAdmin = false
+	token := testutil.MintTestJWT(t, claims)
+	staff := testpkg.CreateTestStaff(t, db, "Budget", "Usage")
+	foreign := testpkg.NewTenantScope(t, db)
+	_, err = types.CreateShiftType(foreign.Context(), workforce.ShiftTypeInput{Name: "Foreign shift type", Color: "#5080D8"})
+	require.NoError(t, err)
+
+	counter := testpkg.CaptureQueries(t, db)
+	created := 0
+	for _, size := range []int{1, 4} {
+		for created < size {
+			shiftType, createErr := types.CreateShiftType(testpkg.Ctx(t), workforce.ShiftTypeInput{Name: fmt.Sprintf("Usage shift %02d", created), Color: "#5080D8"})
+			require.NoError(t, createErr)
+			_, insertErr := db.NewRaw(`
+				INSERT INTO schedule.staff_shifts (tenant_id, staff_id, date, start_time, end_time, break_minutes, shift_type_id, created_by)
+				VALUES (?, ?, '2026-07-06', ?, ?, 0, ?, ?)
+			`, testpkg.Tenant(t), staff.ID, fmt.Sprintf("%02d:00", 6+created), fmt.Sprintf("%02d:30", 6+created), shiftType.ID, staff.ID).Exec(testpkg.Ctx(t))
+			require.NoError(t, insertErr)
+			created++
+		}
+		counter.Reset()
+		request := testutil.NewAuthenticatedRequest(t, http.MethodGet, "/?with_usage=true", nil, testutil.WithJWTBearer(token))
+		response := testutil.ExecuteRequestForTest(t, router, request)
+		queries := counter.Measurement(counter.Queries())
+		require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+		var envelope struct {
+			Data []struct {
+				Usage *struct {
+					Shifts int `json:"shifts"`
+				} `json:"usage"`
+			} `json:"data"`
+		}
+		require.NoError(t, json.Unmarshal(response.Body.Bytes(), &envelope))
+		require.Len(t, envelope.Data, size)
+		for _, row := range envelope.Data {
+			require.NotNil(t, row.Usage)
+			require.Equal(t, 1, row.Usage.Shifts)
+		}
+		require.Zero(t, counter.WriteRows(), "list request must not mutate rows")
+		querybudgets.AssertQueryBudget(t, "api.workforce.shift_types.list.with_usage", queries)
 	}
 }

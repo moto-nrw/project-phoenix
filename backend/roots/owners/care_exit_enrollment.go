@@ -3,10 +3,10 @@ package owners
 import (
 	"context"
 
-	owner0 "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	owner0 "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // careExitEnrollment serves the care lifecycle's Enrollment port: the

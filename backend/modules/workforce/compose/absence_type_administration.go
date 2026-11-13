@@ -3,8 +3,8 @@ package compose
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/application/timetracking"
 )
 
 // NewAbsenceTypeAdministration binds Workforce to /api/absence-types.

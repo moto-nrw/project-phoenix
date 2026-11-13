@@ -1,9 +1,9 @@
 package httpintegration_test
 
 import (
-	fixtures "github.com/moto-nrw/project-phoenix/modules/timetable/fixturetest"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	fixtures "github.com/moto-ogs/project-phoenix/modules/timetable/fixturetest"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The shared fixtures return their own row mappings (#2748). These carry a

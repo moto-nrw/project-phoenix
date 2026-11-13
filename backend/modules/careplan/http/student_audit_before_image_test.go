@@ -1,11 +1,13 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"testing"
 
-	peopleState "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	peopleState "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 	"github.com/stretchr/testify/assert"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 // TestApplyStudentFieldUpdates_BeforeImageStable pins the invariant the
@@ -30,12 +32,12 @@ func TestApplyStudentFieldUpdates_BeforeImageStable(t *testing.T) {
 	// Shallow copy — exactly what updateStudent captures before applying the patch.
 	before := *fresh
 
-	req := &UpdateStudentRequest{
+	req := &careplanhttp.UpdateStudentRequest{
 		DepartureDays: &departure.DepartureDays{"tue": departure.DeparturePickup},
 		HealthInfo:    strPtr("geänderte Notiz"),
 	}
 
-	applyStudentFieldUpdates(req, fresh)
+	careplanhttp.ApplyStudentFieldUpdatesForTest(req, fresh)
 
 	// The before-image must still reflect the original values, proving the patch
 	// did not mutate shared backing storage.

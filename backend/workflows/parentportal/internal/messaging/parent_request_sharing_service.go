@@ -8,8 +8,8 @@ import (
 	"sort"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/collation"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal/internal/care"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/collation"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal/internal/care"
 )
 
 const (

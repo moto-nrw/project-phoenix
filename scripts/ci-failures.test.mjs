@@ -82,7 +82,7 @@ test('repeated failures compare jobs, not matrix shards', () => {
 });
 
 test('every reproduction is one shell command that stops at the first failure', () => {
-  for (const job of ['Backend quality', 'Backend lint', 'Frontend quality', 'Frontend React Doctor', 'Frontend build',
+  for (const job of ['Backend quality', 'Backend lint', 'Frontend quality', 'Frontend React Doctor', 'Frontend build', 'Frontend merge build',
     'Frontend tests', 'Backend tests', 'Seed and simulate smoke', 'Env sync check', 'Backend architecture ratchet']) {
     const command = localCommand(`CI / ${job}`);
     assert.ok(command, job);

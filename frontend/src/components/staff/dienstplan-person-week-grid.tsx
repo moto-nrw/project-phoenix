@@ -336,7 +336,7 @@ export function DienstplanPersonWeekGrid({
   const legendEntries: PlanLegendEntry[] = useMemo(
     () => [
       ...shiftTypes
-        .filter((type) => type.isActive)
+        .filter((type) => type.isActive && !type.archivedAt)
         .map((type) => ({
           key: `type-${type.id}`,
           label: type.name,

@@ -19,7 +19,7 @@ func TestRowLockScannerRefusesBypasses(t *testing.T) {
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 `
 	for _, tc := range []struct {
@@ -119,7 +119,7 @@ func TestRowLockAdmitterMustAdmitBeforeItsCall(t *testing.T) {
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 func (a store) Before(ctx context.Context) error {

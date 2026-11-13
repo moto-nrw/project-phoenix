@@ -4,9 +4,9 @@ import (
 	context "context"
 	time "time"
 
-	settings "github.com/moto-nrw/project-phoenix/modules/settings"
-	configRepo "github.com/moto-nrw/project-phoenix/modules/settings/internal/adapters/configpostgres"
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
+	settings "github.com/moto-ogs/project-phoenix/modules/settings"
+	configRepo "github.com/moto-ogs/project-phoenix/modules/settings/internal/adapters/configpostgres"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
 )
 
 type retainedAuditRetention struct{ Now func() time.Time }

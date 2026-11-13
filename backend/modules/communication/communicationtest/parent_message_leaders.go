@@ -3,7 +3,7 @@ package communicationtest
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // Leaders is a fixed leadership directory (#5200): the persons who read the

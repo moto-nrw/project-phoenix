@@ -7,7 +7,7 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
+	mealplanModule "github.com/moto-ogs/project-phoenix/modules/mealplan"
 )
 
 // AccessBillingRelease reads and releases the Mensa months (#4686): the

@@ -5,8 +5,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // StudentStatusDayService owns status-day persistence and the absence-overview
@@ -61,7 +61,8 @@ func (s *StudentStatusDayService) lockStatusDate(ctx context.Context, studentID 
 }
 
 // ValidateProfileStatusChange preserves the explicit-switch contract even
-// when a parent/planned/school report has no corresponding live flag.
+// when a parent/planned/school report has no corresponding live flag, and
+// refuses a status on a day a class trip holds.
 func (s *StudentStatusDayService) ValidateProfileStatusChange(ctx context.Context, studentID int64, day calendar.Date, sick, excused *bool) error {
 	setsSick := sick != nil && *sick
 	setsExcused := excused != nil && *excused
@@ -75,11 +76,28 @@ func (s *StudentStatusDayService) ValidateProfileStatusChange(ctx context.Contex
 	if err != nil {
 		return err
 	}
+	standing := make(map[string]bool, len(rows))
 	for _, row := range rows {
 		if (setsSick && row.Status == absencerecords.StudentStatusDayExcused && (excused == nil || *excused)) ||
 			(setsExcused && row.Status == absencerecords.StudentStatusDaySick && (sick == nil || *sick)) {
 			return absencerecords.ErrSickExcusedConflict
 		}
+		standing[row.Status] = true
+	}
+	if reportsOverClassTrip(standing, setsSick, setsExcused) {
+		return absencerecords.ErrStatusDayOccupied
 	}
 	return nil
+}
+
+// reportsOverClassTrip reports whether the profile change newly reports a
+// status on a day a class trip holds. The profile has no switch for a class
+// trip, so that is refused, as the status-day write refuses it (#6959). A
+// status that already stands beside it stays a no-op.
+func reportsOverClassTrip(standing map[string]bool, setsSick, setsExcused bool) bool {
+	if !standing[absencerecords.StudentStatusDayClassTrip] {
+		return false
+	}
+	return (setsSick && !standing[absencerecords.StudentStatusDaySick]) ||
+		(setsExcused && !standing[absencerecords.StudentStatusDayExcused])
 }

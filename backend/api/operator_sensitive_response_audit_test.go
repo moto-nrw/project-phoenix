@@ -13,11 +13,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	identityAPI "github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/operator"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	provisioningAPI "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/inbound/operator"
-	settingsAPI "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	identityAPI "github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/operator"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	provisioningAPI "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/inbound/operator"
+	settingsAPI "github.com/moto-ogs/project-phoenix/modules/settings/inbound/operator"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 func TestOperatorAuditSensitiveResponseRoutesFailClosed(t *testing.T) {

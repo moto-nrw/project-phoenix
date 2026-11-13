@@ -3,7 +3,7 @@ package parent
 import (
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // TodayStatusResponse ist die vollstaendige Elternsicht auf den Betreuungstag.

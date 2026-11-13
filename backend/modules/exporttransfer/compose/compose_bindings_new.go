@@ -3,10 +3,10 @@ package compose
 import (
 	context "context"
 
-	postgres "github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/adapters/postgres"
-	sftp "github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/adapters/sftp"
-	domain "github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/domain"
-	tenant "github.com/moto-nrw/project-phoenix/tenant"
+	postgres "github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/adapters/postgres"
+	sftp "github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/adapters/sftp"
+	domain "github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/domain"
+	tenant "github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // database yields the caller's tenant transaction for the journal. The entry

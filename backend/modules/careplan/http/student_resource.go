@@ -7,16 +7,16 @@ import (
 	time "time"
 
 	chi "github.com/go-chi/chi/v5"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	permissions "github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
-	carerequests "github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	excusedrequests "github.com/moto-nrw/project-phoenix/modules/careplan/excusedrequests"
-	masterdatarequests "github.com/moto-nrw/project-phoenix/modules/careplan/masterdatarequests"
-	parentrequests "github.com/moto-nrw/project-phoenix/modules/careplan/parentrequests"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	realtime "github.com/moto-nrw/project-phoenix/realtime"
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	permissions "github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	careplan "github.com/moto-ogs/project-phoenix/modules/careplan"
+	carerequests "github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	excusedrequests "github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
+	masterdatarequests "github.com/moto-ogs/project-phoenix/modules/careplan/masterdatarequests"
+	parentrequests "github.com/moto-ogs/project-phoenix/modules/careplan/parentrequests"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	realtime "github.com/moto-ogs/project-phoenix/realtime"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 type ResourceConfig struct {
@@ -27,6 +27,7 @@ type ResourceConfig struct {
 	CareLifecycleService         careplan.CareLifecycle
 	CareRequestReviews           careplan.CareScheduleReviewQuery
 	CareRequestService           carerequests.Decisions
+	FollowCohortChanges          FollowCohortChanges
 	CompanionService             careplan.StudentCompanions
 	DocumentStorage              StudentDocumentStorage
 	ExcusedRequestService        excusedrequests.Service
@@ -44,28 +45,31 @@ type ResourceConfig struct {
 	PeopleDirectory              peopleModule.Capability
 	Persons                      PersonRecords
 	PickupAdjustmentService      careplan.PickupAdjustments
-	PickupScheduleService        careplan.PickupScheduleService
-	PickupSignatureProofs        PickupSignatureProofs
-	Reports                      ReportRenderer
-	Schools                      SchoolIdentity
-	SettingsService              TenantSettings
-	StudentAuditService          StudentChangeHistory
-	StudentAccidentReports       careplan.StudentAccidentReports
-	StudentConsents              StudentConsentCapability
-	StudentDocumentService       careplan.StudentDocuments
-	StudentPhotos                StudentPhotoLifecycle
-	UserContextService           CallerContext
-	WeekdayPickupNotes           WeekdayPickupNoteReplacer
-	RespondCreatedStudent        func(http.ResponseWriter, *http.Request, *peopleModule.StudentState, *peopleModule.Person)
-	RespondUpdatedStudent        func(http.ResponseWriter, *http.Request, int64, *peopleModule.Person, bool, bool, time.Time)
-	PersistStudentStatusHistory  func(context.Context, *peopleModule.StudentState, *bool, *bool, bool, bool, time.Time, *string) error
-	NotifyAbsenceReported        func(context.Context, int64, []int64, string, []calendar.Date, bool, int64) error
-	IsPartialAbsenceConflict     func(error) bool
-	WriteCareDecision            func(http.ResponseWriter, *http.Request, *careplan.CareScheduleReviewItem)
-	WriteCareDetail              func(http.ResponseWriter, *http.Request, *carerequests.HistoryItem)
-	WriteMasterDataDecision      func(http.ResponseWriter, *http.Request, *masterdatarequests.ReviewItem)
-	WriteExcusedDecision         func(http.ResponseWriter, *http.Request, *excusedrequests.ReviewItem)
-	OfferingDiffLabel            func(string, []string) string
+	// PickupChangeNotices serves the reader's unread markers of changed
+	// pickup times (#6855).
+	PickupChangeNotices      careplan.PickupChangeTeamNotices
+	PickupScheduleService    careplan.PickupScheduleService
+	PickupSignatureProofs    PickupSignatureProofs
+	Reports                  ReportRenderer
+	Schools                  SchoolIdentity
+	SettingsService          TenantSettings
+	StudentAuditService      StudentChangeHistory
+	StudentAccidentReports   careplan.StudentAccidentReports
+	StudentConsents          StudentConsentCapability
+	StudentDocumentService   careplan.StudentDocuments
+	StudentPhotos            StudentPhotoLifecycle
+	UserContextService       CallerContext
+	WeekdayPickupNotes       WeekdayPickupNoteReplacer
+	RespondCreatedStudent    func(http.ResponseWriter, *http.Request, *peopleModule.StudentState, *peopleModule.Person)
+	RespondUpdatedStudent    func(http.ResponseWriter, *http.Request, int64, *peopleModule.Person, bool, bool, time.Time)
+	ApplyProfileStatusChange func(context.Context, *peopleModule.StudentState, *bool, *bool, time.Time, *string) error
+	NotifyAbsenceReported    func(context.Context, int64, []int64, string, []calendar.Date, bool, int64) error
+	IsPartialAbsenceConflict func(error) bool
+	WriteCareDecision        func(http.ResponseWriter, *http.Request, *careplan.CareScheduleReviewItem)
+	WriteCareDetail          func(http.ResponseWriter, *http.Request, *carerequests.HistoryItem)
+	WriteMasterDataDecision  func(http.ResponseWriter, *http.Request, *masterdatarequests.ReviewItem)
+	WriteExcusedDecision     func(http.ResponseWriter, *http.Request, *excusedrequests.ReviewItem)
+	OfferingDiffLabel        func(string, []string) string
 }
 
 type Resource struct{ ResourceConfig }
@@ -124,6 +128,8 @@ func (rs *Resource) Register(r chi.Router, withTx common.Middleware) {
 	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Put("/{id}/pickup-notes/{noteId}", rs.updateStudentPickupNote)
 	r.With(common.RequiresPermission(permissions.UsersUpdate), withTx).Delete("/{id}/pickup-notes/{noteId}", rs.deleteStudentPickupNote)
 	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/pickup-times/bulk", rs.getBulkPickupTimes)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Get("/pickup-change-notices", rs.listPickupChangeNotices)
+	r.With(common.RequiresPermission(permissions.UsersRead), withTx).Post("/{id}/pickup-change-notices/read", rs.readPickupChangeNotices)
 	rs.registerArrivalRoutes(r, withTx)
 	rs.registerDocumentRoutes(r, withTx)
 }

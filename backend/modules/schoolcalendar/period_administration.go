@@ -20,6 +20,11 @@ var (
 	// would leave a child or a supervisor with two active assignments to
 	// the same group. The storage error stays in the chain.
 	ErrCalendarPeriodRosterConflict = errors.New("calendar period removal conflicts with active roster assignments")
+	// ErrCalendarPeriodUsedByShiftSeries is returned when Dienstplan series
+	// still use the period: their FK has no ON DELETE action, so the period
+	// stays until they end or use another period (#6845). The storage error
+	// stays in the chain.
+	ErrCalendarPeriodUsedByShiftSeries = errors.New("calendar period is still used by staff shift series")
 )
 
 // CalendarPeriodOverlapError wraps ErrCalendarPeriodOverlapConflict and

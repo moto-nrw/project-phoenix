@@ -1,7 +1,7 @@
 # Modulschalter je Schule
 
 **Stand:** 24.10.2026\
-**Quelle für:** gebuchte Module einer Schule, Leistungskatalog Schleswig-Holstein 4.16. Entscheidungen: Kommentar vom 24.10.2026 in [#4812](https://github.com/moto-nrw/project-phoenix/issues/4812). Umsetzung der Grundlage: [#4892](https://github.com/moto-nrw/project-phoenix/issues/4892). Folge-Issues: Routen [#4893](https://github.com/moto-nrw/project-phoenix/issues/4893), Navigation [#4894](https://github.com/moto-nrw/project-phoenix/issues/4894), Jobs und Portale [#4895](https://github.com/moto-nrw/project-phoenix/issues/4895), Geräte [#4896](https://github.com/moto-nrw/project-phoenix/issues/4896).
+**Quelle für:** gebuchte Module einer Schule, Leistungskatalog Schleswig-Holstein 4.16. Entscheidungen: Kommentar vom 24.10.2026 in [#4812](https://github.com/moto-ogs/project-phoenix/issues/4812). Umsetzung der Grundlage: [#4892](https://github.com/moto-ogs/project-phoenix/issues/4892). Folge-Issues: Routen [#4893](https://github.com/moto-ogs/project-phoenix/issues/4893), Navigation [#4894](https://github.com/moto-ogs/project-phoenix/issues/4894), Jobs und Portale [#4895](https://github.com/moto-ogs/project-phoenix/issues/4895), Geräte [#4896](https://github.com/moto-ogs/project-phoenix/issues/4896).
 
 moto Basis hat jede Schule. Dazu bucht eine Schule Zusatzmodule. Je Zusatzmodul gibt es einen Schalter je Schule, den nur das moto-Team im Operator-Portal umlegt. Schul-Admins sehen ihre Module lesend unter Einstellungen, Reiter „Module“.
 
@@ -49,7 +49,7 @@ Beim Schalten prüft moto beide Richtungen. Wer ein Modul ohne seine Voraussetzu
 
 ## Leistungskatalog Schleswig-Holstein 4.1 bis 4.15
 
-Katalogpunkt 4.16 fragt, ob sich die Funktionen 4.1 bis 4.15 modular hinzufügen und entfernen lassen ([#2899](https://github.com/moto-nrw/project-phoenix/issues/2899)). Jede Funktion gehört zu genau einem Modul oder zur Basis. Was Basis ist, kann eine Schule nicht abbestellen, weil moto ohne diese Funktion keine OGS führen kann.
+Katalogpunkt 4.16 fragt, ob sich die Funktionen 4.1 bis 4.15 modular hinzufügen und entfernen lassen ([#2899](https://github.com/moto-ogs/project-phoenix/issues/2899)). Jede Funktion gehört zu genau einem Modul oder zur Basis. Was Basis ist, kann eine Schule nicht abbestellen, weil moto ohne diese Funktion keine OGS führen kann.
 
 | Katalog | Funktion | Zuordnung | Begründung |
 |---|---|---|---|

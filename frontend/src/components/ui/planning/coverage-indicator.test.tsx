@@ -2,6 +2,8 @@ import { render, screen } from "@testing-library/react";
 import { describe, expect, it } from "vitest";
 import "@testing-library/jest-dom/vitest";
 
+import { contrastOnWhite } from "~/test/contrast";
+
 import { CoverageIndicator } from "./coverage-indicator";
 
 describe("CoverageIndicator", () => {
@@ -91,13 +93,23 @@ describe("CoverageIndicator", () => {
     expect(screen.getByText("18/20,25 h")).toHaveStyle({ color: "#DC2626" });
   });
 
-  it("colors a free-form label amber for tone=over (Überdeckung, text only)", () => {
+  it("colors a free-form label dark amber for tone=over (Überdeckung, text only)", () => {
     render(
       <CoverageIndicator state="covered" label="22/20,25 h" tone="over" />,
     );
 
-    expect(screen.getByText("22/20,25 h")).toHaveStyle({ color: "#EAB308" });
+    expect(screen.getByText("22/20,25 h")).toHaveStyle({ color: "#92400E" });
   });
+
+  it.each(["under", "over"] as const)(
+    "keeps a tone=%s label readable on white (at least 4.5:1)",
+    (tone) => {
+      render(<CoverageIndicator state="covered" label="20 h" tone={tone} />);
+
+      const color = screen.getByText("20 h").style.color;
+      expect(contrastOnWhite(color)).toBeGreaterThanOrEqual(4.5);
+    },
+  );
 
   it("leaves the free-form label its default gray for tone=neutral", () => {
     render(

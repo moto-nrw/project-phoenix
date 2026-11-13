@@ -42,6 +42,8 @@ POST /api/active/supervisors/ -> basis
 POST /api/active/supervisors/{id}/end -> basis
 POST /api/active/tracking-indicators -> basis
 POST /api/active/visits/ -> basis
+POST /api/active/visits/check-in-to-group -> basis
+POST /api/active/visits/check-in-to-room -> basis
 POST /api/active/visits/move-to-group -> basis
 POST /api/active/visits/move-to-room -> basis
 POST /api/active/visits/move-to-transit -> basis

@@ -230,6 +230,7 @@ type SessionPickupExceptionFilter struct {
 	StudentIDs []int64
 	Date       string
 	From       string
+	To         string
 }
 
 type SessionStudentStatusDay struct {
@@ -244,6 +245,7 @@ type SessionStudentStatusDayFilter struct {
 	StudentIDs []int64
 	Date       string
 	From       string
+	To         string
 	ActiveOnly bool
 	LatestOnly bool
 }
@@ -262,4 +264,17 @@ type SessionCarePlanDirectory interface {
 type SessionCareDayLocker interface {
 	LockStudentAndExceptionDay(context.Context, int64, string) error
 	LockExceptionDay(context.Context, int64, string) error
+}
+
+// SourcedRosterAttendance applies the day rules to a batch of newly planned
+// participants. Every supplied instance belongs to the supplied calendar date.
+type SourcedRosterAttendance interface {
+	ApplySourcedRosterAttendance(context.Context, map[int64]string) error
+	ApplyActiveStatusDaysForInstances(context.Context, []int64, string) (int, error)
+	ApplyActivePartialAbsencesForInstances(context.Context, []int64, string) (int, error)
+}
+
+// SessionRosterDayLocker holds a complete student/date set before batch reads.
+type SessionRosterDayLocker interface {
+	LockRosterDays(context.Context, map[int64][]string) error
 }

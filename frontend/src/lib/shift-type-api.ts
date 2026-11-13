@@ -8,7 +8,15 @@ import {
   mapShiftType,
   type BackendShiftType,
   type ShiftType,
+  type ShiftTypeRemoval,
 } from "./shift-type-helpers";
+
+interface ShiftTypeListOptions {
+  /** Also the removed types that planned shifts still carry (Dienstplan). */
+  includeArchived?: boolean;
+  /** Count the planned shifts and series per type (removal dialog). */
+  withUsage?: boolean;
+}
 
 interface ShiftTypePayload {
   name: string;
@@ -62,8 +70,14 @@ async function readOne(response: Response): Promise<ShiftType> {
 }
 
 class ShiftTypeService {
-  async getShiftTypes(): Promise<ShiftType[]> {
-    const response = await sessionFetch("/api/staff/shift-types");
+  async getShiftTypes(
+    options: ShiftTypeListOptions = {},
+  ): Promise<ShiftType[]> {
+    const query = new URLSearchParams();
+    if (options.includeArchived) query.set("include_archived", "true");
+    if (options.withUsage) query.set("with_usage", "true");
+    const suffix = query.size > 0 ? `?${query.toString()}` : "";
+    const response = await sessionFetch(`/api/staff/shift-types${suffix}`);
     return readList(response);
   }
 
@@ -88,13 +102,22 @@ class ShiftTypeService {
     return readOne(response);
   }
 
-  async deleteShiftType(id: string): Promise<void> {
+  /**
+   * Removes a type. One that planned shifts or series still carry is
+   * archived instead of deleted, so they keep it (#6845).
+   */
+  async deleteShiftType(id: string): Promise<ShiftTypeRemoval> {
     const response = await sessionFetch(`/api/staff/shift-types/${id}`, {
       method: "DELETE",
     });
     if (!response.ok) {
       throw await readError(response, "Dienstart konnte nicht gelöscht werden");
     }
+    if (response.status === 204) return "deleted";
+    const json = (await response.json()) as {
+      data?: { outcome?: string } | null;
+    };
+    return json.data?.outcome === "archived" ? "archived" : "deleted";
   }
 
   /** Seeds the example shift types (idempotent) and returns the full list. */

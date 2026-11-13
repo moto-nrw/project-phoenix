@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
 )
 
 // CalendarPeriods is the slice of the School Calendar the period editor
@@ -37,6 +37,9 @@ type CalendarPeriodUsageCounts struct {
 	StudentEnrollments int
 	Supervisors        int
 	ActivityInstances  int
+	// StaffShiftSeries are the Dienstplan series planned in the period; they
+	// block its deletion (#6845).
+	StaffShiftSeries int
 }
 
 // CalendarPeriodUsage answers the reference counts per period of the

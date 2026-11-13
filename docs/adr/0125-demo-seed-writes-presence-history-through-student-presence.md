@@ -5,7 +5,7 @@ status: accepted
 # The demo seed writes the presence history through Student Presence
 
 Decision of 2026-10-27 for
-[#5031](https://github.com/moto-nrw/project-phoenix/issues/5031). It adds no
+[#5031](https://github.com/moto-ogs/project-phoenix/issues/5031). It adds no
 owner, no policy rule, no route, no command-effect entry and no runtime
 exception. It raises the compose LOC budget of
 `modules/studentpresence/compose` by exactly 7 LOC (ADR 0057 point 5).

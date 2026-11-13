@@ -44,3 +44,30 @@ export const NoLabel: Story = {
     label: undefined,
   },
 };
+
+/** Pflichtfeld mit Hinweis und Fehler unter dem Feld. */
+export const RequiredWithHintAndError: Story = {
+  args: {
+    required: true,
+    hint: "So, wie er im Ausweis steht.",
+    error: "Bitte geben Sie einen Namen ein.",
+  },
+};
+
+/** Einzelnes Feld im Telefon-Layout: 44 px unter `lg`. */
+export const Touch: Story = {
+  args: {
+    controlSize: "touch",
+  },
+};
+
+/** Passwortfeld mit Augen-Knopf. */
+export const Revealable: Story = {
+  args: {
+    label: "Passwort",
+    type: "password",
+    revealable: true,
+    value: "geheim",
+    readOnly: true,
+  },
+};

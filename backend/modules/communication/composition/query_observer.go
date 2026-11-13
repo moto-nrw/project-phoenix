@@ -1,7 +1,7 @@
 package compose
 
 import (
-	communicationPostgres "github.com/moto-nrw/project-phoenix/modules/communication/internal/adapters/postgres"
+	communicationPostgres "github.com/moto-ogs/project-phoenix/modules/communication/internal/adapters/postgres"
 	"github.com/uptrace/bun"
 )
 

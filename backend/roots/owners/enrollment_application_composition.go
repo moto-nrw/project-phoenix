@@ -8,18 +8,18 @@ import (
 	"net/url"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	deliveryModule "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // EnrollmentSettingsReads is the slice of the settings service the
@@ -404,4 +404,17 @@ func (b enrollmentPhaseBookings) FollowPhaseBookingBounds(ctx context.Context, m
 		return &enrollmentOwner.PhaseBookingBoundsConflictError{RequestChildID: conflict.RequestChildID}
 	}
 	return err
+}
+
+func (o enrollmentPhaseOfferings) HasTraegerCopiesForPhase(ctx context.Context, id int64) (bool, error) {
+	rows, err := o.carePlan.ListCareOfferings(ctx, careplan.CareOfferingFilter{PhaseIDs: []int64{id}})
+	if err != nil {
+		return false, err
+	}
+	for _, row := range rows {
+		if row.Traeger != nil {
+			return true, nil
+		}
+	}
+	return false, nil
 }

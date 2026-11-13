@@ -3,8 +3,8 @@ package api
 import (
 	"context"
 
-	communicationCompose "github.com/moto-nrw/project-phoenix/modules/communication/composition"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	communicationCompose "github.com/moto-ogs/project-phoenix/modules/communication/composition"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // communicationViewerNames binds Communication's viewer-name port to People

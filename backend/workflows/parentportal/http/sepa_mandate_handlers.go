@@ -7,15 +7,16 @@ import (
 	"github.com/go-chi/chi/v5"
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 )
 
 // The SEPA mandate of the family on a care contract of the inbox (#4696):
 // the parents read it, read the text they confirm, give it and revoke it.
 // The account comes from the claims; the service checks the relationship
 // right, the address and the Träger's switch. The writes share the auth
-// limiter: they take bank data. No answer or log line carries the IBAN.
+// limiter: they take bank data, so refused attempts count against the
+// address like refused logins. No answer or log line carries the IBAN.
 
 const sepaMandatePath = "/me/documents/{organizationId}/contracts/{contractId}/sepa-mandate"
 

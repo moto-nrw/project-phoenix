@@ -39,3 +39,20 @@ function Example() {
 }
 
 export const Default: StoryObj = { render: () => <Example /> };
+
+/** Hinweis und Fehler unter den Tagen; ein Feiertag ist gesperrt. */
+export const WithHintAndError: StoryObj = {
+  render: () => (
+    <WeekdayToggleGroup
+      ariaLabel="Wochentage"
+      days={DAYS.map((day) =>
+        day.value === 3 ? { ...day, disabled: true } : day,
+      )}
+      value={[1]}
+      onToggle={() => undefined}
+      hint="Mittwoch ist ein Feiertag."
+      error="Bitte wählen Sie mindestens zwei Tage."
+      name="weekdays"
+    />
+  ),
+};

@@ -18,7 +18,10 @@
  *      viewport — so in practice one edge is always flush with the field.
  */
 
-export const CALENDAR_PANEL_MARGIN = 8;
+import { PANEL_GAP, PANEL_VIEWPORT_MARGIN } from "./panel-geometry";
+
+/** The shared viewport margin of every floating panel (`panel-geometry`). */
+export const CALENDAR_PANEL_MARGIN = PANEL_VIEWPORT_MARGIN;
 
 /**
  * Narrowest a stretchable calendar gets. The day grid itself fits into less,
@@ -72,9 +75,9 @@ export function computeCalendarPanelPosition(
   viewport: { width: number; height: number },
   height = CALENDAR_PANEL_HEIGHT,
 ): PanelGeometry {
-  let top = trigger.bottom + 4;
+  let top = trigger.bottom + PANEL_GAP;
   if (top + height > viewport.height - CALENDAR_PANEL_MARGIN) {
-    const above = trigger.top - 4 - height;
+    const above = trigger.top - PANEL_GAP - height;
     top =
       above >= CALENDAR_PANEL_MARGIN
         ? above

@@ -10,7 +10,7 @@ import (
 	"errors"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 func (w *Workflow) countOtherStudentRecords(ctx context.Context, studentID int64) (int, error) {

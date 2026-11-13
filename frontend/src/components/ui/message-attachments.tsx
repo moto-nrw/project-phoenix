@@ -3,7 +3,6 @@
 import { useState } from "react";
 import { Download } from "lucide-react";
 
-import { fetchMessageAttachmentFile } from "~/lib/message-attachments";
 import { cn } from "~/lib/utils";
 import {
   AttachmentViewer,
@@ -13,6 +12,7 @@ import {
   type AttachmentViewerLabels,
   type ViewerItem,
 } from "./attachment-viewer";
+import { ActionHint } from "./action-hint";
 import { buttonClassName } from "./button";
 import { FileTypeIcon } from "./file-type-icon";
 
@@ -33,6 +33,8 @@ export interface MessageAttachmentLabels {
   readonly openFile: (filename: string) => string;
   /** "Herunterladen: {name}" */
   readonly downloadFile: (filename: string) => string;
+  /** What the download button does (#6744). */
+  readonly downloadHint: string;
   /** "+3 weitere Bilder" */
   readonly moreImages: (count: number) => string;
   readonly lightbox?: AttachmentViewerLabels;
@@ -42,6 +44,7 @@ const GERMAN_LABELS: MessageAttachmentLabels = {
   openImage: (filename) => `Bild öffnen: ${filename}`,
   openFile: (filename) => `Datei öffnen: ${filename}`,
   downloadFile: (filename) => `Herunterladen: ${filename}`,
+  downloadHint: "Speichert die Datei auf Ihrem Gerät.",
   moreImages: (count) =>
     count === 1 ? "1 weiteres Bild" : `${count} weitere Bilder`,
 };
@@ -66,6 +69,7 @@ export function MessageAttachments({
   attachments,
   downloadUrl,
   align = "start",
+  loadFile,
   labels = GERMAN_LABELS,
 }: Readonly<{
   attachments: readonly MessageAttachmentItem[];
@@ -73,6 +77,8 @@ export function MessageAttachments({
   downloadUrl: (attachmentId: string) => string;
   /** Which edge the block hugs: the sender's own messages sit at the end. */
   align?: "start" | "end";
+  /** Loads a PDF's bytes for the viewer; see `AttachmentViewer` `loadFile`. */
+  loadFile?: (src: string) => Promise<Blob>;
   labels?: MessageAttachmentLabels;
 }>) {
   const [viewing, setViewing] = useState<number | null>(null);
@@ -175,19 +181,21 @@ export function MessageAttachments({
                 {formatAttachmentSize(item.size_bytes)}
               </span>
             </span>
-            <a
-              href={downloadUrl(item.id)}
-              download={item.filename}
-              aria-label={labels.downloadFile(item.filename)}
-              data-icon-only=""
-              className={buttonClassName({
-                variant: "ghost",
-                size: "icon",
-                className: "relative shrink-0",
-              })}
-            >
-              <Download className="h-4 w-4" aria-hidden="true" />
-            </a>
+            <ActionHint text={labels.downloadHint}>
+              <a
+                href={downloadUrl(item.id)}
+                download={item.filename}
+                aria-label={labels.downloadFile(item.filename)}
+                data-icon-only=""
+                className={buttonClassName({
+                  variant: "ghost",
+                  size: "icon",
+                  className: "relative shrink-0",
+                })}
+              >
+                <Download className="h-4 w-4" aria-hidden="true" />
+              </a>
+            </ActionHint>
           </div>
         );
       })}
@@ -196,7 +204,7 @@ export function MessageAttachments({
         index={viewing}
         onIndexChange={setViewing}
         onClose={() => setViewing(null)}
-        loadFile={fetchMessageAttachmentFile}
+        loadFile={loadFile}
         labels={labels.lightbox}
       />
     </div>

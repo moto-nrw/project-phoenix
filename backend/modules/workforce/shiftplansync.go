@@ -9,11 +9,41 @@ import "context"
 // note may carry private medical detail.
 const SickShiftChangeReason = "Krankheit"
 
-// SickCascadeInput identifies one sick report and the range it covers
-// (#1843). Both cascade directions take the same shape. DateStart and
-// DateEnd are calendar days in DateLayout.
+// AbsenceShiftChangeReason is the neutral change reason of a shift every
+// other absence cancels (#6847): Urlaub, Fortbildung, Freizeitausgleich,
+// Sonstige and the school's own Abwesenheitsarten. The plan never names the
+// art, because a school-defined name may be private.
+const AbsenceShiftChangeReason = "Abwesenheit"
+
+// ShiftChangeReasonFor is the change reason an absence of the canonical type
+// writes on the shifts it cancels.
+func ShiftChangeReasonFor(absenceType string) string {
+	if absenceType == AbsenceTypeSick {
+		return SickShiftChangeReason
+	}
+	return AbsenceShiftChangeReason
+}
+
+// IsAbsenceShiftChangeReason reports whether reason is a label the plan
+// cascade writes, which a reactivated shift drops again.
+func IsAbsenceShiftChangeReason(reason string) bool {
+	return reason == SickShiftChangeReason || reason == AbsenceShiftChangeReason
+}
+
+// PlanEffectiveAbsenceStatuses are the statuses with which an absence takes
+// plan effect: a reported entry and an approved request (#6847). A pending,
+// questioned, declined or canceled request leaves the plans alone.
+func PlanEffectiveAbsenceStatuses() []string {
+	return []string{AbsenceStatusReported, AbsenceStatusApproved}
+}
+
+// SickCascadeInput identifies one absence and the range it covers (#1843).
+// Since #6847 every absence with plan effect cascades, not only a sick
+// report; AbsenceType decides the labels. Both cascade directions take the
+// same shape. DateStart and DateEnd are calendar days in DateLayout.
 type SickCascadeInput struct {
 	SubjectStaffID int64
+	AbsenceType    string
 	DateStart      string
 	DateEnd        string
 	// SkipStartDay/SkipEndDay mirror start_half_day/end_half_day: a half sick
@@ -74,7 +104,12 @@ type SickCascadePlan []SickCascadeStep
 // into the plans. Each runs in the caller's tenant transaction and returns
 // the plan it asks for beside its result; only the shift-plan-sync workflow
 // calls them, and it applies the plan before the transaction commits.
+//
+// Since #6847 these are all absence writes with plan effect: an approval
+// cascades the approved request, a withdrawal reverses it.
 type SickReportWrites interface {
+	ApproveAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, note string) (*StaffAbsenceResponse, SickCascadePlan, error)
+	CancelAbsence(ctx context.Context, staffID, actorAccountID, absenceID int64) (SickCascadePlan, error)
 	CreateOwnAbsence(ctx context.Context, staffID int64, actorAccountID *int64, request CreateAbsenceRequest) (*StaffAbsenceResponse, SickCascadePlan, error)
 	CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request CreateAbsenceRequest) (*StaffAbsenceResponse, SickCascadePlan, error)
 	UpdateAbsence(ctx context.Context, staffID int64, actorAccountID *int64, absenceID int64, request UpdateAbsenceRequest) (*StaffAbsenceResponse, SickCascadePlan, error)

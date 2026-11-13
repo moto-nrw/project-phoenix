@@ -189,7 +189,7 @@ function EffectiveDateField(props: PickupAdjustmentDecisionProps) {
       id="pickup-offering-effective-from"
       label="Gilt ab"
       ariaLabel="Gilt ab"
-      controlSize="md"
+      controlSize="compact"
       value={props.effectiveFrom}
       min={props.preview.offering_catalog?.earliest_effective_from}
       max={props.preview.offering_catalog?.latest_effective_from}
