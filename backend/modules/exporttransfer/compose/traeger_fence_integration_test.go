@@ -35,10 +35,14 @@ func requestTx(t *testing.T, ctx context.Context) bun.Tx {
 
 func (f traegerFixture) intent(t *testing.T) int64 {
 	t.Helper()
+	recipient := f.readyInput()
+	recipient.Name = fmt.Sprintf("Zaun %d", testpkg.UniqueTestTenantID(t))
+	recipientID := f.add(t, f.org, recipient)
 	var id int64
 	require.NoError(t, tenant.WithinTraeger(f.ctx, f.org, func(ctx context.Context) error {
 		var err error
-		id, err = traegerStore().Begin(ctx, domain.TraegerJournalEntry{OrganizationID: f.org, Kind: exporttransfer.KindParentBillingFinance,
+		id, err = traegerStore().Begin(ctx, domain.TraegerJournalEntry{OrganizationID: f.org, RecipientID: recipientID, RecipientName: recipient.Name,
+			Kind:   exporttransfer.KindParentBillingFinance,
 			Format: "sollstellung", Filename: "zaun.csv", TargetHost: "kaemmerei.example.org", TargetPort: 22, TargetDirectory: "/eingang",
 			Reason: domain.ReasonInternal})
 		return err
@@ -195,7 +199,9 @@ func TestTraegerHandoverLogsNoPasswordAnEchoingCounterpartReturns(t *testing.T) 
 	transfers, err := NewTraegerTransfers(contextCipher{}, slog.New(slog.NewTextHandler(&logs, nil)),
 		sftp.WithAddressPolicy(sftptest.AllowLoopbackPolicy{}))
 	require.NoError(t, err)
-	_, err = transfers.SaveRecipient(f.ctx, f.org, 0, f.readyInput())
+	recipient, err := transfers.CreateRecipient(f.ctx, f.org, 0, f.readyInput())
+	require.NoError(t, err)
+	_, err = transfers.AssignFormats(f.ctx, f.org, 0, []exporttransfer.TraegerAssignment{{Format: "sollstellung", RecipientID: &recipient.ID}})
 	require.NoError(t, err)
 	var settled []exporttransfer.Outcome
 	outcome, err := transfers.Transfer(f.ctx, financeRequest(f.org, "echo.csv", &settled))

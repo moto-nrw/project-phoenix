@@ -17,8 +17,8 @@ vi.mock("~/lib/traeger-sepa-debits-api", async (importOriginal) => ({
   ...api,
 }));
 vi.mock("~/lib/file-download", () => ({ downloadBlob: vi.fn() }));
-// The recipient of the handover (ADR 0218) is tested on its own.
-const handoverApi = vi.hoisted(() => ({ fetchExportRecipient: vi.fn() }));
+// The recipients of the handover (ADR 0218, ADR 0222) is tested on its own.
+const handoverApi = vi.hoisted(() => ({ fetchExportRecipients: vi.fn() }));
 vi.mock("~/lib/traeger-export-handovers-api", async (importOriginal) => ({
   ...(await importOriginal<object>()),
   ...handoverApi,
@@ -56,13 +56,13 @@ beforeEach(() => {
     filename: "downloaded-id.xml",
   });
   api.submitSepaDebits.mockResolvedValue({ ...RUN, count: 0 });
-  handoverApi.fetchExportRecipient.mockReturnValue(
+  handoverApi.fetchExportRecipients.mockReturnValue(
     new Promise(() => undefined),
   );
 });
 
 it("offers the handover of the debit file without the right to read the recipient", async () => {
-  handoverApi.fetchExportRecipient.mockRejectedValue(
+  handoverApi.fetchExportRecipients.mockRejectedValue(
     new ApiError("forbidden", 403, { code: "general.forbidden" }),
   );
   render(
@@ -71,7 +71,7 @@ it("offers the handover of the debit file without the right to read the recipien
     </ToastProvider>,
   );
   fireEvent.click(
-    await screen.findByRole("button", { name: /an den Empfänger übergeben/ }),
+    await screen.findByRole("button", { name: /an die Empfänger übergeben/ }),
   );
   expect(
     screen.getByRole("menuitem", { name: /Lastschriftdatei übergeben/ }),

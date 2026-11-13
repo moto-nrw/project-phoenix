@@ -474,7 +474,7 @@
     },
     {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.FinanceExportTransfer.Handover",
-      "binding_digest": "213e842adc790edded77ae18c1dbbcd4",
+      "binding_digest": "6103ff8f050ac7d5b3042b77fe710798",
       "port": "github.com/moto-ogs/project-phoenix/modules/parentbilling.FinanceExportTransfer.Handover",
       "source_owner": "parent-billing",
       "target": "github.com/moto-ogs/project-phoenix/modules/exporttransfer.TraegerTransfers.Transfer",

@@ -12,6 +12,7 @@ import { type ReactNode, useCallback, useEffect, useState } from "react";
 import { formatEuro } from "~/components/traeger/contribution-format";
 import {
   HandoverMenu,
+  recipientOfFormat,
   useFinanceHandover,
 } from "~/components/traeger/finance-export-handover";
 import {
@@ -305,7 +306,7 @@ export function SepaDebitCard({
                 <HandoverMenu
                   run={handoverRun}
                   size="md"
-                  recipient={handover.recipient}
+                  recipients={handover.recipients}
                   recipientHidden={handover.recipientHidden}
                   formats={["pain008"]}
                   busy={downloading || handover.running !== null}
@@ -359,7 +360,8 @@ export function SepaDebitCard({
           ) : null}
           {pending && !downloadedId ? (
             <p className="text-sm text-gray-600">
-              {handover.recipient?.ready || handover.recipientHidden
+              {recipientOfFormat(handover.recipients, "pain008")?.ready ||
+              handover.recipientHidden
                 ? "Laden Sie zuerst die Datei herunter oder übergeben Sie sie. Danach können Sie das Einreichen bestätigen."
                 : "Laden Sie zuerst die Datei herunter. Danach können Sie das Einreichen bestätigen."}
             </p>

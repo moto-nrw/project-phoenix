@@ -23,7 +23,7 @@ test('encrypted daily backup restores an isolated cluster and files, prunes by a
   writeFileSync(join(root, '.env'), `PRIVATE_MARKER=${credential}\nPOSTGRES_PASSWORD=${credential}\n`);
   writeFileSync(compose, `services:
   postgres:
-    image: postgres:17-alpine
+    image: postgres:17.12-alpine3.24@sha256:34261f594522cf41dfcb76aefd42b9d201098b0e6b23c9c68733f169e4218b6f
     network_mode: none
     environment:
       POSTGRES_PASSWORD: ${credential}
@@ -34,7 +34,7 @@ test('encrypted daily backup restores an isolated cluster and files, prunes by a
       interval: 1s
       retries: 60
   server:
-    image: postgres:17-alpine
+    image: postgres:17.12-alpine3.24@sha256:34261f594522cf41dfcb76aefd42b9d201098b0e6b23c9c68733f169e4218b6f
     network_mode: none
     entrypoint: [sleep, infinity]
 volumes:
@@ -135,7 +135,7 @@ ALTER TABLE records ENABLE ROW LEVEL SECURITY;
 CREATE POLICY school_scope ON records USING (tenant_id = current_setting('test.school_id')::bigint);
 GRANT SELECT ON records TO tenant_scope;
 INSERT INTO records VALUES (41, '${marker}'), (42, '${marker}');`);
-  docker('run', '--rm', '-v', `${volume}:/uploads`, 'postgres:17-alpine', 'sh', '-c',
+  docker('run', '--rm', '-v', `${volume}:/uploads`, 'postgres:17.12-alpine3.24@sha256:34261f594522cf41dfcb76aefd42b9d201098b0e6b23c9c68733f169e4218b6f', 'sh', '-c',
     'mkdir -p /uploads/documents/41 /uploads/documents/42; printf first > /uploads/documents/41/file; printf second > /uploads/documents/42/file; printf hidden > /uploads/.hidden');
   const old = 'daily-20000101T000000Z-0000000000000000.tar.age';
   writeFileSync(join(remote, old), 'expired synthetic bundle');
@@ -275,8 +275,8 @@ exec '${realDocker}' "$@"
   assert.equal(sql("SET ROLE tenant_scope; SET test.school_id='41'; SELECT count(*) FROM records;" ).split('\n').at(-1), '1');
   assert.equal(sql("SET ROLE tenant_scope; SET test.school_id='42'; SELECT count(*) FROM records;" ).split('\n').at(-1), '1');
   for (const [file, value] of [['documents/41/file', 'first'], ['documents/42/file', 'second'], ['.hidden', 'hidden']]) {
-    assert.equal(docker('run', '--rm', '-v', `${restoredVolume}:/uploads:ro`, 'postgres:17-alpine', 'cat', `/uploads/${file}`), value);
-    assert.equal(docker('run', '--rm', '-v', `${restoredVolume}:/uploads:ro`, 'postgres:17-alpine', 'sha256sum', `/uploads/${file}`).split(' ')[0], createHash('sha256').update(value).digest('hex'));
+    assert.equal(docker('run', '--rm', '-v', `${restoredVolume}:/uploads:ro`, 'postgres:17.12-alpine3.24@sha256:34261f594522cf41dfcb76aefd42b9d201098b0e6b23c9c68733f169e4218b6f', 'cat', `/uploads/${file}`), value);
+    assert.equal(docker('run', '--rm', '-v', `${restoredVolume}:/uploads:ro`, 'postgres:17.12-alpine3.24@sha256:34261f594522cf41dfcb76aefd42b9d201098b0e6b23c9c68733f169e4218b6f', 'sha256sum', `/uploads/${file}`).split(' ')[0], createHash('sha256').update(value).digest('hex'));
   }
   assert.equal(dc('ps', '--status', 'running', '--services'), 'postgres');
   assert.notEqual(restore(name).status, 0); // Refuse populated database / existing volume.

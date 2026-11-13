@@ -47,7 +47,7 @@ vi.mock("~/lib/file-download", () => ({ downloadBlob }));
 // The recipient of the handover (ADR 0218) is tested on its own.
 vi.mock("~/lib/traeger-export-handovers-api", async (importOriginal) => ({
   ...(await importOriginal<object>()),
-  fetchExportRecipient: () => new Promise(() => undefined),
+  fetchExportRecipients: () => new Promise(() => undefined),
 }));
 
 vi.mock("~/lib/traeger-billing-api", () => api);

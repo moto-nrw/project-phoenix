@@ -358,7 +358,8 @@ const exportFileListQuery = `SELECT file.*,
 	CASE WHEN handover.state = 'pending' AND handover.started_at < CURRENT_TIMESTAMP - INTERVAL '` + handoverUnknownAfter + `'
 		THEN 'unknown' WHEN handover.state = 'pending' THEN 'in_progress' ELSE handover.state END AS handover_state,
 	NULLIF(handover.failure_reason, '') AS handover_reason, handover.target_host AS handover_host,
-	handover.target_directory AS handover_directory, handover.started_at AS handover_started_at,
+	handover.target_directory AS handover_directory, NULLIF(handover.recipient_name, '') AS handover_recipient,
+	handover.started_at AS handover_started_at,
 	handover.settled_at AS handover_settled_at,
 	COUNT(*) OVER () AS total_files
 FROM parent_billing.export_files AS file

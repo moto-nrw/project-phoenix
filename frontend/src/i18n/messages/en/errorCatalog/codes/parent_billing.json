@@ -121,7 +121,10 @@
   "sepa_mandate_text_changed": "The mandate text has changed. Please read and confirm it again.",
   "cost_center_date_taken": "There is already a cost center from this day. Choose another day or delete the old one.",
   "sollstellung_revenue_account_missing": "{count} invoices have no revenue account. Enter a standard revenue account in the DATEV settings.",
-  "export_recipient_not_ready": "The recipient is missing or incomplete. Please complete it under “Recipient”. No file was created.",
+  "export_recipient_not_ready": "This file has no ready recipient. Please assign one under “Export recipients”. No file was created.",
   "export_already_handed_over": "This file already reached the recipient or is still on its way. No new file was created.",
-  "export_recipient_invalid": "The recipient was not saved. Please check the marked fields."
+  "export_recipient_invalid": "The recipient was not saved. Please check the marked fields.",
+  "export_recipient_not_found": "This recipient no longer exists. Please reload the page.",
+  "export_recipient_name_taken": "A recipient with this name already exists. Please choose another name.",
+  "export_formats_invalid": "The assignment was not saved. Please reload the page and try again."
 }

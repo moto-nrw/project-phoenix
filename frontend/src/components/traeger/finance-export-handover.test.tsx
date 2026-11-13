@@ -3,13 +3,16 @@ import { beforeEach, expect, it, vi } from "vitest";
 import TraegerFinanceExportsPage from "~/app/traeger/abrechnung/exporte/page";
 import { ToastProvider } from "~/contexts/ToastContext";
 import { ApiError } from "~/lib/api-error";
-import type { ExportRecipient } from "~/lib/traeger-export-handovers-api";
+import type {
+  ExportRecipient,
+  ExportRecipientsPage,
+} from "~/lib/traeger-export-handovers-api";
 import type { ExportRun } from "~/lib/traeger-finance-exports-api";
 
-// The handover of a run's file to the recipient of the Träger (#6824, ADR
-// 0218) on the export page: the menu „Übergeben“, the result of a handover,
-// the question before a second handover of the same content, and the way to
-// the recipient when none is ready.
+// The handover of a run's file to the recipient of its format (#6824, ADR
+// 0218; #6911, ADR 0222) on the export page: the menu „Übergeben“ per
+// format, the result of a handover, the question before a second handover of
+// the same content, and the way to the recipients when a file has none.
 
 const exportsApi = vi.hoisted(() => ({
   fetchExportRuns: vi.fn(),
@@ -18,7 +21,7 @@ const exportsApi = vi.hoisted(() => ({
   fetchDatevRunStates: vi.fn(),
 }));
 const handoverApi = vi.hoisted(() => ({
-  fetchExportRecipient: vi.fn(),
+  fetchExportRecipients: vi.fn(),
   handOverRunFile: vi.fn(),
 }));
 vi.mock("~/lib/traeger-finance-exports-api", async (importOriginal) => ({
@@ -45,7 +48,8 @@ const RUN: ExportRun = {
 };
 
 const READY: ExportRecipient = {
-  configured: true,
+  id: "7",
+  name: "Kämmerei",
   enabled: true,
   ready: true,
   host: "dateien.kaemmerei-beispiel.de",
@@ -55,8 +59,26 @@ const READY: ExportRecipient = {
   hostKeyFingerprint: "SHA256:AbCdEfGhIjKlMnOpQrStUvWxYz0123456789+/AbCdE",
   passwordSet: true,
   missingFields: [],
+  formats: ["sollstellung", "datev", "pain008"],
+  lastHandover: null,
   updatedAt: "2026-11-12T08:00:00Z",
 };
+
+/** Every format goes to the given recipient. */
+function pageOf(...recipients: ExportRecipient[]): ExportRecipientsPage {
+  return {
+    recipients,
+    assignments: (["sollstellung", "datev", "pain008"] as const).map(
+      (format) => ({
+        format,
+        recipientId:
+          recipients.find((recipient) => recipient.formats.includes(format))
+            ?.id ?? null,
+      }),
+    ),
+    handovers: [],
+  };
+}
 
 beforeEach(() => {
   vi.resetAllMocks();
@@ -79,10 +101,7 @@ beforeEach(() => {
     ready: false,
     runs: new Map(),
   });
-  handoverApi.fetchExportRecipient.mockResolvedValue({
-    recipient: READY,
-    handovers: [],
-  });
+  handoverApi.fetchExportRecipients.mockResolvedValue(pageOf(READY));
 });
 
 function renderPage() {
@@ -97,7 +116,7 @@ async function chooseSollstellung() {
   fireEvent.click(
     (
       await screen.findAllByRole("button", {
-        name: "Dateien von Monatsbeiträge Oktober 2026 an den Empfänger übergeben",
+        name: "Dateien von Monatsbeiträge Oktober 2026 an die Empfänger übergeben",
       })
     )[0]!,
   );
@@ -111,6 +130,7 @@ it("hands the Sollstellung over and names where it arrived", async () => {
     fileName: "sollstellung-110.csv",
     state: "transferred",
     reason: "",
+    recipientName: "Kämmerei",
     targetHost: "dateien.kaemmerei-beispiel.de",
     targetDirectory: "/eingang",
   });
@@ -126,7 +146,7 @@ it("hands the Sollstellung over and names where it arrived", async () => {
   );
   expect(
     await screen.findByText(
-      "sollstellung-110.csv ist bei dateien.kaemmerei-beispiel.de, Ordner /eingang angekommen.",
+      "sollstellung-110.csv ist bei Kämmerei angekommen.",
     ),
   ).toBeInTheDocument();
   await waitFor(() =>
@@ -194,26 +214,65 @@ it("asks before the same file goes to the recipient again", async () => {
   );
 });
 
-it("leads to the recipient while none is ready and keeps the download", async () => {
-  handoverApi.fetchExportRecipient.mockResolvedValue({
-    recipient: {
-      ...READY,
-      ready: false,
-      passwordSet: false,
-      missingFields: ["password"],
-    },
-    handovers: [],
+it("names the recipient of each file and leads to the recipients for a file without a ready one", async () => {
+  exportsApi.fetchExportSettings.mockResolvedValue({
+    nextFileNumber: 110,
+    datev: { ready: true, missingSettings: [], invalidSettings: [] },
   });
+  handoverApi.fetchExportRecipients.mockResolvedValue(
+    pageOf(
+      { ...READY, formats: ["sollstellung", "pain008"] },
+      {
+        ...READY,
+        id: "8",
+        name: "Steuerbüro",
+        ready: false,
+        missingFields: ["password"],
+        formats: ["datev"],
+      },
+    ),
+  );
   renderPage();
   fireEvent.click(
     (
       await screen.findAllByRole("button", {
-        name: "Dateien von Monatsbeiträge Oktober 2026 an den Empfänger übergeben",
+        name: "Dateien von Monatsbeiträge Oktober 2026 an die Empfänger übergeben",
       })
     )[0]!,
   );
   expect(
-    screen.getByRole("menuitem", { name: /Empfänger eintragen/ }),
+    screen.getByRole("menuitem", { name: /Sollstellung übergeben/ }),
+  ).toHaveTextContent("Kämmerei");
+  expect(
+    screen.queryByRole("menuitem", { name: /DATEV-Datei übergeben/ }),
+  ).not.toBeInTheDocument();
+  const assign = screen.getByRole("menuitem", { name: /Empfänger zuordnen/ });
+  expect(assign).toHaveAttribute(
+    "href",
+    "/traeger/abrechnung/exporte/empfaenger",
+  );
+  expect(assign).toHaveTextContent("Steuerbüro: Es fehlen noch Angaben.");
+});
+
+it("leads to the recipients while no file has a ready one and keeps the download", async () => {
+  handoverApi.fetchExportRecipients.mockResolvedValue(
+    pageOf({
+      ...READY,
+      ready: false,
+      passwordSet: false,
+      missingFields: ["password"],
+    }),
+  );
+  renderPage();
+  fireEvent.click(
+    (
+      await screen.findAllByRole("button", {
+        name: "Dateien von Monatsbeiträge Oktober 2026 an die Empfänger übergeben",
+      })
+    )[0]!,
+  );
+  expect(
+    screen.getByRole("menuitem", { name: /Empfänger einrichten/ }),
   ).toHaveAttribute("href", "/traeger/abrechnung/exporte/empfaenger");
   expect(
     screen.queryByRole("menuitem", { name: /Sollstellung übergeben/ }),
@@ -239,7 +298,7 @@ it("says that nothing is new when a DATEV handover has no new bookings", async (
   fireEvent.click(
     (
       await screen.findAllByRole("button", {
-        name: "Dateien von Monatsbeiträge Oktober 2026 an den Empfänger übergeben",
+        name: "Dateien von Monatsbeiträge Oktober 2026 an die Empfänger übergeben",
       })
     )[0]!,
   );
@@ -287,7 +346,7 @@ it("hands every DATEV booking over again for a lost file, in the chosen fiscal y
   fireEvent.click(
     (
       await screen.findAllByRole("button", {
-        name: "Dateien von Monatsbeiträge Oktober 2026 an den Empfänger übergeben",
+        name: "Dateien von Monatsbeiträge Oktober 2026 an die Empfänger übergeben",
       })
     )[0]!,
   );
@@ -333,7 +392,7 @@ it("names the invoices DATEV would refuse when a DATEV handover makes no file", 
   fireEvent.click(
     (
       await screen.findAllByRole("button", {
-        name: "Dateien von Monatsbeiträge Oktober 2026 an den Empfänger übergeben",
+        name: "Dateien von Monatsbeiträge Oktober 2026 an die Empfänger übergeben",
       })
     )[0]!,
   );
