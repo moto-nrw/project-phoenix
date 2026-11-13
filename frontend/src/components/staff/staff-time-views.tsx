@@ -5,8 +5,10 @@
 // time-tracking-helpers formatters, so the visual treatment stays consistent
 // regardless of where the cards or calendar are rendered.
 
-import { MISSING_TARGET_OWNER } from "~/components/staff/missing-target-notice";
-import { Button, ButtonLink } from "~/components/ui/button";
+import {
+  MISSING_TARGET_OWNER,
+  SetTargetAction,
+} from "~/components/staff/missing-target-notice";
 import { OriginChip } from "~/components/ui/planning/origin-chip";
 import { StatusBadge } from "~/components/ui/status-badge";
 import {
@@ -86,25 +88,12 @@ export function TargetOriginChip({
         <span className="text-xs text-gray-600">
           Krankheit und Urlaub zählen deshalb 0 Stunden.
         </span>
-        {setTargetHref ? (
-          <ButtonLink
+        {setTargetHref || onSetTarget ? (
+          <SetTargetAction
             href={setTargetHref}
-            variant="link"
-            size="compact"
-            tooltip="Öffnet das Arbeitszeitmodell dieser Person."
-          >
-            Soll festlegen
-          </ButtonLink>
-        ) : onSetTarget ? (
-          <Button
-            type="button"
-            variant="link"
-            size="compact"
             onClick={onSetTarget}
-            tooltip="Öffnet das Arbeitszeitmodell dieser Person."
-          >
-            Soll festlegen
-          </Button>
+            variant="link"
+          />
         ) : (
           <span className="text-xs text-gray-600">{MISSING_TARGET_OWNER}</span>
         )}

@@ -435,6 +435,16 @@ for path in 'scripts/test-changed.sh' 'scripts/test-changed_test.sh' 'scripts/te
 done
 assert_workflow_output_contains run-ci-scripts "steps.filter.outputs.backend-local-test-scripts == 'true'"
 assert_workflow_output_contains toolchain-changed "steps.filter.outputs.backend-local-test-scripts == 'true'"
+# The script self-tests left the backend test job: the ratchets suite must
+# start wherever that job ran them, on every full backend suite.
+for output in run-ci-scripts toolchain-changed; do
+  assert_workflow_output_contains "$output" "steps.backend-size.outputs.full == 'true'"
+  assert_workflow_output_contains "$output" "steps.filter.outputs.backend-test-infra == 'true'"
+  assert_workflow_output_contains "$output" "github.event_name == 'push'"
+  assert_workflow_output_contains "$output" "steps.scope.outputs.release == 'true'"
+done
+grep -qF 'scripts/backend-test-matrix_test.sh' <(sed -n '/- name: Verify backend test scripts/,/^  [a-z-]*:$/p' "$repo_root/.github/workflows/main.yml") ||
+  { echo 'the ratchets suite must run the test matrix self-test' >&2; exit 1; }
 for path in 'scripts/backend-source-ratchets.mjs' 'backend/test/*_test.go'; do
   assert_workflow_filter script-tests "$path" present
   # Do not buy the release-restore or extra toolchain-ratchet jobs for these.
@@ -554,6 +564,25 @@ for manifest in go.mod go.sum; do
   grep -qx 'full=true' "$fixture/scope-size"
   rm "$fixture/scope-size"
 done
+# The runner is sized before the import graph is known: only test files in at
+# most 15 directories prove a selection of at most 16 packages (with ./test).
+assert_small_runner() {
+  expected=$1
+  files=$2
+  CHANGED_COUNT=$(jq length <<<"$files") CHANGED_FILES="$files" GITHUB_OUTPUT="$fixture/scope-size" bash -euo pipefail <<<"$size_script"
+  grep -qx "small=$expected" "$fixture/scope-size" ||
+    { echo "backend runner size: expected small=$expected for $files" >&2; exit 1; }
+  rm "$fixture/scope-size"
+}
+assert_small_runner false '[]'
+assert_small_runner true '["backend/api/a_test.go","backend/api/b_test.go"]'
+assert_small_runner true "$(jq -cn '[range(0; 15) | "backend/package\(.)/source_test.go"]')"
+assert_small_runner false "$(jq -cn '[range(0; 16) | "backend/package\(.)/source_test.go"]')"
+assert_small_runner false '["backend/api/a_test.go","backend/api/a.go"]'
+assert_small_runner false '["backend/api/a_test.go","backend/api/testdata/a.json"]'
+assert_small_runner false '["backend/go.sum"]'
+grep -qF "backend-small-runner: \${{ needs.detect-changes.outputs.small-backend-suite == 'true' && needs.detect-changes.outputs.full-backend-suite != 'true' }}" "$repo_root/.github/workflows/main.yml" ||
+  { echo 'a full backend suite must not run on the small runner' >&2; exit 1; }
 # A release-sized list never reaches the environment (128 KiB per value), so
 # the guard decides from the count alone and must not read the empty list.
 for count in 499 500; do

@@ -264,6 +264,7 @@ export const payrollKeys = {
   dispatch: () => "payroll-dispatch",
   sftpStatus: () => "payroll-sftp-status",
   rules: () => "payroll-rules",
+  targetCoverage: () => "payroll-target-coverage",
 } as const;
 
 export const databaseKeys = {
