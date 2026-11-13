@@ -31,7 +31,11 @@ skill is how to measure and decide.
    suites; `main.yml` or `lint.yml` runs all lint jobs (`detect-changes` in
    `main.yml`). A changed cache key makes the first run cold: rerun the job
    once (`gh run rerun <run> --job <job>`) and report warm and cold
-   separately. Runner noise is large; one run is not a measurement. Done when
+   separately. Runner noise is large; one run is not a measurement. A cache
+   only development writes is cold in every run of the PR that changes its
+   key or paths: a temporary commit that saves it from the PR makes reruns
+   warm. A rerun keeps the workflow of its run's commit, so rerunning two
+   variant runs in turn compares them on the same cache (#7032). Done when
    a before/after table covers every change type the edit affects.
 5. **Write the PR** with that table (vCPU-minutes, dollars, critical-path
    wall-clock) and the options you measured and rejected, with numbers.
@@ -61,7 +65,10 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   request runs cancelled.
 - **Cheap checkouts.** `fetch-depth: 1` with `filter: blob:none` unless the
   job reads history or blobs; t3code checks out only the manifests its change
-  detection reads.
+  detection reads. A comparison with one fixed commit needs only that commit:
+  `git fetch --depth=1 origin <sha>`. Only merge-base and ancestry checks need
+  history; the architecture ratchet's fetch took 30–45 s with `--unshallow`
+  and 0–1 s flat (#7032).
 - **Cache what downloads, not what links.** Cache toolchains and browsers by
   version. t3code measured a pnpm store on a sticky disk slower than a cache
   tarball (pnpm copies across filesystems instead of hard-linking).
@@ -96,7 +103,7 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   visible; the image pulls slow checkout and cache restore by 1-5 s, because
   hosted setup shares one network link (#6985). setup-go's cache beside an own
   Go cache loads the build cache twice: `cache: false` with the modules in the
-  own cache saved 4-8 s.
+  own cache saved 4-8 s, in the architecture ratchet 10 s (#7032).
 - The seed smoke stalled on Blacksmith once (run 38232330367) and runs on a
   fresh hosted VM; test it repeatedly before moving it.
 - The nightly race run keeps four backend shards (`SPLIT_SUITES`): race
@@ -139,6 +146,10 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   the ratchet tolerance is 2 % or 10 KiB.
 - Two cold Next.js builds started side by side on four cores took as long as
   one after the other (207 s against 210 s).
+- The architecture ratchet's projections (25–33 s) beside its check on four
+  vCPU, alternating reruns with a warm cache: 43–76 s against 59–86 s one
+  after the other. The check itself slowed down, the pair still gained 7–16 s
+  (#7032).
 - The script suite "restore" took 303–313 s on a hosted runner, 232 s of it
   the encrypted daily backup restore test; a change to
   `scripts/posthog-dashboards.mjs` alone waited for it. Pull requests now

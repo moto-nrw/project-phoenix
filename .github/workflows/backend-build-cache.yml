@@ -138,13 +138,13 @@ jobs:
           fetch-depth: 1
           persist-credentials: false
 
-      - name: Setup Go with cache
+      # The modules travel in the architecture cache, as in the ratchet job.
+      - name: Setup Go
         id: go
         uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           go-version-file: backend/go.mod
-          cache: true
-          cache-dependency-path: backend/go.sum
+          cache: false
 
       - name: Compute architecture build cache key
         id: build-cache-key
@@ -159,7 +159,9 @@ jobs:
         id: build-cache
         uses: actions/cache/restore@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/go-build
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
           key: ${{ steps.build-cache-key.outputs.key }}
           restore-keys: ${{ steps.build-cache-key.outputs.prefix }}
 
@@ -181,11 +183,15 @@ jobs:
         if: steps.build-cache.outputs.cache-hit != 'true' && steps.check.outcome == 'success'
         run: scripts/go-cache-sweep.sh sweep "$RUNNER_TEMP/architecture-cache-marker" ~/.cache/go-build
 
+      # The sweep leaves the module cache alone: go.sum of both modules is
+      # part of the key prefix, so it holds one module set.
       - name: Save architecture build cache
         if: steps.build-cache.outputs.cache-hit != 'true'
         uses: actions/cache/save@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
         with:
-          path: ~/.cache/go-build
+          path: |
+            ~/.cache/go-build
+            ~/go/pkg/mod
           key: ${{ steps.build-cache-key.outputs.key }}
 
   # The lint cache pull requests restore in "Backend lint" (lint.yml). The
