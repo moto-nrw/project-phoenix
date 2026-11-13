@@ -52,8 +52,11 @@ export function SchoolSearchTrigger({
 }: Readonly<SchoolSearchTriggerProps>) {
   const [isOpen, setIsOpen] = useState(false);
   const shortcut = useShortcutLabel();
+  // The shortcut listener reads the open state without re-subscribing.
   const openRef = useRef(isOpen);
-  openRef.current = isOpen;
+  useEffect(() => {
+    openRef.current = isOpen;
+  }, [isOpen]);
 
   useEffect(() => {
     // One listener for the page: only the header owns the shortcut.
