@@ -361,5 +361,5 @@ func TestParentOverviewListsStaffAndOwnEntriesButCountsEveryone(t *testing.T) {
 	}
 	assert.Equal(t, []int64{1, 2}, ids)
 
-	assert.Equal(t, AppointmentResponseCounts{Accepted: 2, Declined: 1, Pending: 1, Total: 5}, countResponses(recipients))
+	assert.Equal(t, AppointmentResponseCounts{Accepted: 2, Declined: 1, Pending: 1}, countResponses(recipients))
 }

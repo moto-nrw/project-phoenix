@@ -292,8 +292,11 @@ export function ParentCalendarPage() {
     setRespondingId(event.id);
     try {
       await respondParentCalendar(event.recipient_id, status);
+      // One answer covers every date of the invitation, also in a series
+      // (#6846), so every occurrence of the same recipient takes it.
+      const recipientId = event.recipient_id;
       const update = (candidate: CalendarEvent) =>
-        candidate.id === event.id
+        candidate.recipient_id === recipientId
           ? { ...candidate, response_status: status }
           : candidate;
       setEvents((current) => current.map(update));

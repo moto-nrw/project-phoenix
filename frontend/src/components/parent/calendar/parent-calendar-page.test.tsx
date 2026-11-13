@@ -363,7 +363,7 @@ describe("ParentCalendarPage", () => {
       appointment_id: "appointment-1",
       delivery_mode: "rsvp_required",
       overview_visibility: "all",
-      counts: { accepted: 12, declined: 3, pending: 5, total: 20 },
+      counts: { accepted: 12, declined: 3, pending: 5 },
       attendees: [],
     });
     renderPage();
@@ -397,6 +397,43 @@ describe("ParentCalendarPage", () => {
     // Die eigene Antwort ändert die Zahlen, also laden sie neu.
     fireEvent.click(within(dialog).getByRole("button", { name: "Zusagen" }));
     await waitFor(() => expect(mockedOverview).toHaveBeenCalledTimes(2));
+  });
+
+  // #6846: eine Antwort gilt für die ganze Reihe, also zeigen alle Termine
+  // derselben Einladung sie sofort.
+  it("übernimmt die Antwort für alle Termine derselben Reihe", async () => {
+    const series = {
+      can_respond: true,
+      recurring: true,
+      response_status: "pending",
+      recipient_id: "77",
+    };
+    mockedCalendar.mockResolvedValue(
+      calendarResponse([
+        event({ ...series, id: "appointment:1:2026-08-19" }),
+        event({
+          ...series,
+          id: "appointment:1:2026-08-26",
+          start_date: "2026-08-26",
+          end_date: "2026-08-26",
+        }),
+      ]),
+    );
+    renderPage();
+
+    const rows = await screen.findAllByRole("article", { name: "Elternabend" });
+    expect(rows).toHaveLength(2);
+    fireEvent.click(within(rows[0]!).getByRole("button", { name: "Zusagen" }));
+
+    await waitFor(() =>
+      expect(mockedRespond).toHaveBeenCalledWith("77", "accepted"),
+    );
+    for (const row of screen.getAllByRole("article", { name: "Elternabend" })) {
+      expect(await within(row).findByText("Zugesagt")).toBeInTheDocument();
+      expect(
+        within(row).queryByRole("button", { name: "Zusagen" }),
+      ).not.toBeInTheDocument();
+    }
   });
 
   it("speichert eine Rückmeldung direkt in der Terminzeile", async () => {

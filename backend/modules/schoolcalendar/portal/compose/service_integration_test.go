@@ -1533,7 +1533,7 @@ func TestCalendarServiceIntegration_AttendeeOverviewVisibility(t *testing.T) {
 	assert.Contains(t, staffOverview.Attendees[2].Name, "Teacher")
 	assert.Equal(t, appointments.ResponseStatusAccepted, staffOverview.Attendees[2].Status)
 	require.NotNil(t, staffOverview.Attendees[2].RespondedAt)
-	wantCounts := calendarSvc.AppointmentResponseCounts{Accepted: 1, Declined: 1, Pending: 1, Total: 3}
+	wantCounts := calendarSvc.AppointmentResponseCounts{Accepted: 1, Declined: 1, Pending: 1}
 	assert.Equal(t, wantCounts, staffOverview.Counts)
 
 	// A parent sees the staff and their own entry by name, never another

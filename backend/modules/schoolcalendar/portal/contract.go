@@ -323,13 +323,11 @@ type AppointmentOverview struct {
 	Attendees          []AppointmentAttendee     `json:"attendees"`
 }
 
-// AppointmentResponseCounts sums the answers of all recipients. Total also
-// counts informational recipients, who never answer.
+// AppointmentResponseCounts sums the answers of all recipients.
 type AppointmentResponseCounts struct {
 	Accepted int `json:"accepted"`
 	Declined int `json:"declined"`
 	Pending  int `json:"pending"`
-	Total    int `json:"total"`
 }
 
 type AppointmentAttendee struct {

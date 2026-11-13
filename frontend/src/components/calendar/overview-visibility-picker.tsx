@@ -72,7 +72,7 @@ export function OverviewVisibilityPicker({
                     <VisibilityBadge
                       audience="parents"
                       label="Eltern sehen Zahlen"
-                      hint="Eltern sehen nur die Zahl der Zusagen und Absagen, keine Namen."
+                      hint="Namen und Antworten anderer Eltern bleiben verborgen."
                     />
                   ) : null}
                 </span>

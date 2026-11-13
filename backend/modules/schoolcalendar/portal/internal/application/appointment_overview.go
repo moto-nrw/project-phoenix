@@ -82,7 +82,7 @@ func (s *service) buildAppointmentOverview(ctx context.Context, appointment *app
 }
 
 func countResponses(recipients []*appointmentcap.AppointmentRecipient) AppointmentResponseCounts {
-	counts := AppointmentResponseCounts{Total: len(recipients)}
+	var counts AppointmentResponseCounts
 	for _, recipient := range recipients {
 		switch recipient.Status {
 		case appointmentcap.ResponseStatusAccepted:
@@ -100,30 +100,19 @@ func countResponses(recipients []*appointmentcap.AppointmentRecipient) Appointme
 // staff member and the parent's own guardian entries for their visible
 // children. Other parents stay in the counts only (#6846).
 func parentListedRecipients(recipients []*appointmentcap.AppointmentRecipient, guardianProfileIDs, studentIDs []int64) []*appointmentcap.AppointmentRecipient {
-	ownProfiles := int64Set(guardianProfileIDs)
 	visibleStudents := int64Set(studentIDs)
 	listed := make([]*appointmentcap.AppointmentRecipient, 0, len(recipients))
 	for _, recipient := range recipients {
-		if recipient.StaffID != nil || isOwnGuardianRecipient(recipient, ownProfiles, visibleStudents) {
+		if recipient.StaffID != nil {
+			listed = append(listed, recipient)
+		}
+	}
+	for _, recipient := range recipientsOfGuardians(recipients, int64Set(guardianProfileIDs)) {
+		if recipientHasStudent(recipient, visibleStudents) {
 			listed = append(listed, recipient)
 		}
 	}
 	return listed
-}
-
-func isOwnGuardianRecipient(recipient *appointmentcap.AppointmentRecipient, ownProfiles, visibleStudents map[int64]struct{}) bool {
-	if recipient.GuardianProfileID == nil {
-		return false
-	}
-	if _, ok := ownProfiles[*recipient.GuardianProfileID]; !ok {
-		return false
-	}
-	for _, studentID := range recipient.StudentIDs {
-		if _, ok := visibleStudents[studentID]; ok {
-			return true
-		}
-	}
-	return false
 }
 
 // recipientPersonIDs splits the recipients into the staff and guardian

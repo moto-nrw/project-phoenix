@@ -164,8 +164,6 @@ export interface CalendarResponseCounts {
   readonly accepted: number;
   readonly declined: number;
   readonly pending: number;
-  /** Every recipient, informational ones included. */
-  readonly total: number;
 }
 
 /**
