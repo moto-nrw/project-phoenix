@@ -115,6 +115,10 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   long job selects for itself, as t3code's does.
 - Two cold Next.js builds started side by side on four cores took as long as
   one after the other (207 s against 210 s).
+- The script suite "restore" took 303–313 s on a hosted runner, 232 s of it
+  the encrypted daily backup restore test; a change to
+  `scripts/posthog-dashboards.mjs` alone waited for it. Pull requests now
+  start it only for its own inputs (`restore-suite` filter, #6962).
 - A pull request run with the full suites cost about $0.18–0.27 after #5770
   (check "CI cost"); the backend tests alone, warm, about $0.05.
 
