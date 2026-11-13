@@ -2128,7 +2128,7 @@ function SearchPageContent() {
       },
       {
         title: "Anmeldung",
-        icon: DetailIcons.document,
+        icon: DetailIcons.notes,
         filterIds: ["enrollmentAnswer"],
       },
       {
