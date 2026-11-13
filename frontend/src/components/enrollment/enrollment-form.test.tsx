@@ -601,6 +601,42 @@ describe("EnrollmentForm", () => {
     expect(submit).toBeEnabled();
   });
 
+  it("retries an unavailable submission only once the captcha is solved again (#6739)", async () => {
+    captchaConfigFixture.mockResolvedValue({
+      enabled: true,
+      site_key: "test-site-key",
+    });
+    phaseOfferingsFixture.mockResolvedValue({
+      offerings: [],
+      careOfferingSelectionMode: "optional",
+      careRequired: false,
+    });
+    mockSubmitEnrollment
+      .mockRejectedValueOnce(new ApiError("unavailable", 503))
+      .mockResolvedValueOnce({ request_id: "1", status_url: "/status/abc" });
+    const onSubmitted = vi.fn();
+    await renderForm({ onSubmitted });
+    await waitForLoaded();
+    await fillRequiredFields();
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    fireEvent.click(screen.getByRole("button", { name: "Anmeldung absenden" }));
+    expect(
+      await screen.findByText(
+        catalogText("general.unavailable", "die Anmeldung"),
+      ),
+    ).toBeInTheDocument();
+
+    // The failed attempt used up the captcha response; the retry waits for
+    // a new one instead of sending without it.
+    fireEvent.click(screen.getByRole("button", { name: "Wiederholen" }));
+    fireEvent.click(screen.getByRole("button", { name: "Solve captcha" }));
+    await waitFor(() => expect(onSubmitted).toHaveBeenCalled());
+    expect(mockSubmitEnrollment).toHaveBeenCalledTimes(2);
+    expect(mockSubmitEnrollment.mock.calls[1]?.[1].captcha_token).toBe(
+      "test-captcha-response",
+    );
+  });
+
   it("does not mount Turnstile or block submission when captcha is disabled with a site key", async () => {
     phaseOfferingsFixture.mockResolvedValue({
       offerings: [],

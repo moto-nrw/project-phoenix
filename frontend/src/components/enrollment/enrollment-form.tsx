@@ -539,6 +539,14 @@ export function EnrollmentForm({
   const captchaRef = useRef<TurnstileInstance>(undefined);
   const [captchaToken, setCaptchaToken] = useState("");
   const captchaRequired = !skipCaptcha && captchaConfig?.enabled === true;
+  // A failed attempt used up its captcha response, so "Wiederholen" waits
+  // for the next one instead of sending without it (#6739).
+  const [retryPending, setRetryPending] = useState(false);
+  useEffect(() => {
+    if (!retryPending || (captchaRequired && !captchaToken)) return;
+    setRetryPending(false);
+    formRef.current?.requestSubmit();
+  }, [retryPending, captchaRequired, captchaToken]);
   // Which legal block text the parent is currently viewing in the modal.
   const [openLegalDoc, setOpenLegalDoc] = useState<PublicLegalBlock | null>(
     null,
@@ -825,6 +833,7 @@ export function EnrollmentForm({
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault();
+    setRetryPending(false);
     formError.clear();
     setChildOfferingErrors({});
     setOfferingDayErrors({});
@@ -951,7 +960,7 @@ export function EnrollmentForm({
       // sees now, not the draft of the failed attempt.
       const presentation = await formError.show(err, {
         object: tr("errorObject"),
-        retry: () => formRef.current?.requestSubmit(),
+        retry: () => setRetryPending(true),
       });
       if (
         presentation &&

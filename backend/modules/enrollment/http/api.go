@@ -132,6 +132,16 @@ func (rs *Resource) Router(configureSession func(chi.Router)) chi.Router {
 	return r
 }
 
+// PublicRoutes is the table of the parent-facing routes, relative to the
+// mount of Router. The root matches a request against it before routing to
+// give these routes the limit of a public link (#6739); its handlers never
+// run.
+func PublicRoutes() chi.Routes {
+	r := chi.NewRouter()
+	(&Resource{}).mountPublicRoutes(r)
+	return r
+}
+
 // mountPublicRoutes registers the parent-facing routes.
 func (rs *Resource) mountPublicRoutes(r chi.Router) {
 	r.Get("/phases/public/{tenantSlug}", rs.listPublicPhases)

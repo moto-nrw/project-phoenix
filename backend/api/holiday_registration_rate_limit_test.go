@@ -19,11 +19,11 @@ func TestHolidayRegistrationLimitsAreNeverTighterThanTheGeneralLimiter(t *testin
 		{600, 100},   // production and staging
 		{5000, 1000}, // a general limit above the floor of the link
 	} {
-		limit, burst := holidayRegistrationLimits(general.limit, general.burst)
+		limit, burst := publicLinkLimits(general.limit, general.burst)
 		assert.GreaterOrEqual(t, limit, general.limit, "requests per minute beside a general limit of %d", general.limit)
 		assert.GreaterOrEqual(t, burst, general.burst, "burst beside a general burst of %d", general.burst)
-		assert.GreaterOrEqual(t, limit, holidayRegistrationRequestsPerMinute)
-		assert.GreaterOrEqual(t, burst, holidayRegistrationBurst)
+		assert.GreaterOrEqual(t, limit, publicLinkRequestsPerMinute)
+		assert.GreaterOrEqual(t, burst, publicLinkBurst)
 	}
 }
 
@@ -39,7 +39,7 @@ func TestHolidayRegistrationRateLimitLetsItsBurstThrough(t *testing.T) {
 		limited.ServeHTTP(rec, httptest.NewRequest(method, holidayRegistrationPath+"/token", nil))
 		return rec.Code
 	}
-	_, burst := holidayRegistrationLimits(generalRateLimitFromEnv())
+	_, burst := publicLinkLimits(generalRateLimitFromEnv())
 	for i := range burst {
 		if code := send(http.MethodGet); code != http.StatusOK {
 			t.Fatalf("read %d of the burst of %d: status %d", i+1, burst, code)

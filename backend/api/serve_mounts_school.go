@@ -235,6 +235,10 @@ func newTimetableResource(
 	})
 }
 
+// enrollmentMount is the school's online enrollment below /api. Its
+// parent-facing routes have the limit of a public link (#6739).
+const enrollmentMount = "/enrollment"
+
 // mountSchoolRoutes serves the school's rooms, groups, activities, schedules,
 // enrollment, settings, info-point displays and data administration under
 // /api.
@@ -259,7 +263,7 @@ func mountSchoolRoutes(
 	tenant.Mount("/groups", groupsHTTP.NewResource(education, active, peopleCompose.NewGroupRoutePeople(users), caller, newGroupStudentsInClassDay(settings), transactionFailures.IsConstraintViolation).Router(ProtectedTenantRoutes))
 	tenant.Mount("/activities", timetableHTTPAdapter.NewResource(activities, timetableOwner, NewTimetableSupervisorDirectory(users), caller, TimetableHTTPTransactions).Router(ProtectedTenantRoutes))
 	// Parent enrollment (PR 5+).
-	tenant.Mount("/enrollment", enrollment.Router(TenantSessionChain))
+	tenant.Mount(enrollmentMount, enrollment.Router(TenantSessionChain))
 	// The hosting school's holiday participant lists (#4665) and holiday
 	// guests (#4666).
 	mountHolidayHostRoutes(tenant, holidaySchools, persons, holidayStudents, holidayCare, holidayAccessLog, healthData)
