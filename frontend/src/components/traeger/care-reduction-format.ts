@@ -18,7 +18,8 @@ export const CARE_RULE_KIND_LABELS: Record<CareRuleKind, string> = {
 export const CARE_RULE_KIND_PURPOSE: Record<CareRuleKind, string> = {
   income_level:
     "Stufen laut Satzung. Ein Kind bekommt die Stufe über einen Nachweis.",
-  sibling: "Ab dem 2. oder 3. Kind einer Familie zahlt die Familie weniger.",
+  sibling:
+    "Für den Monatsbeitrag: Ab dem 2. oder 3. Kind einer Familie zahlt die Familie weniger.",
   single_parent: "Weniger für Kinder mit Nachweis „alleinerziehend“.",
   cap: "So viel zahlt eine Familie höchstens im Monat.",
 };

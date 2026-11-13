@@ -10,6 +10,7 @@ const mocks = vi.hoisted(() => ({
   acceptTraegerInvitation: vi.fn(),
   traegerLogin: vi.fn(),
   signIn: vi.fn(),
+  query: { value: "token=abc" },
 }));
 
 vi.mock("~/lib/traeger-api", () => ({
@@ -19,7 +20,7 @@ vi.mock("~/lib/traeger-api", () => ({
 }));
 vi.mock("next-auth/react", () => ({ signIn: mocks.signIn }));
 vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams("token=abc"),
+  useSearchParams: () => new URLSearchParams(mocks.query.value),
 }));
 
 import TraegerInvitePage from "./page";
@@ -44,7 +45,11 @@ describe("TraegerInvitePage", () => {
   let assign: ReturnType<typeof vi.spyOn>;
 
   beforeEach(() => {
-    for (const fn of Object.values(mocks)) fn.mockReset();
+    mocks.fetchTraegerInvitation.mockReset();
+    mocks.acceptTraegerInvitation.mockReset();
+    mocks.traegerLogin.mockReset();
+    mocks.signIn.mockReset();
+    mocks.query.value = "token=abc";
     vi.stubEnv("NEXT_PUBLIC_TRAEGER_HOSTNAME", window.location.host);
     _resetTraegerHostCache();
     assign = vi
@@ -56,6 +61,21 @@ describe("TraegerInvitePage", () => {
     vi.restoreAllMocks();
     vi.unstubAllEnvs();
     _resetTraegerHostCache();
+  });
+
+  // A link without its token: waiting does not repair it, so the page asks
+  // no server and names the way forward.
+  it("names an incomplete link without asking the server", async () => {
+    mocks.query.value = "";
+    renderPage();
+
+    expect(
+      await screen.findByText(/Der Link ist unvollständig\./),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("link", { name: "Zur Anmeldung" }),
+    ).toBeInTheDocument();
+    expect(mocks.fetchTraegerInvitation).not.toHaveBeenCalled();
   });
 
   it("creates the account with a new password and signs the person in", async () => {

@@ -43,8 +43,8 @@ export const MAX_CHILDREN = 3;
 // Mirrors HolidayRegistrationMaxEmergencyContacts / MaxPickupPersons in
 // backend/modules/enrollment/internal/application/holiday_registrations.go.
 // The offer does not expose these limits.
-const MAX_EMERGENCY_CONTACTS = 3;
-const MAX_PICKUP_PERSONS = 5;
+export const MAX_EMERGENCY_CONTACTS = 3;
+export const MAX_PICKUP_PERSONS = 5;
 export const MAX_CONTACTS = MAX_EMERGENCY_CONTACTS + MAX_PICKUP_PERSONS;
 
 /** The school choice of a child who attends no school of the Träger. */
@@ -143,6 +143,13 @@ export interface ContactDraft {
   readonly name: string;
   readonly phone: string;
   readonly relationship: string;
+  /** The guardian of a known child this contact came from (#6682). */
+  readonly knownGuardianId?: string;
+  /** What the prefill wrote, to keep the parent's own changes (#6682). */
+  readonly prefilled?: Pick<
+    ContactDraft,
+    "name" | "phone" | "relationship" | "emergency" | "pickup"
+  >;
 }
 
 export interface AddressDraft {
@@ -161,8 +168,21 @@ export interface RegistrationDraft {
   /** Postal address of the parent, when the form asks for it (#5625). */
   readonly guardianAddress: AddressDraft;
   readonly secondGuardian: RegistrationDraft["guardian"];
+  /**
+   * The custodian the prefill wrote into the second guardian (#6682); gone
+   * once nothing of the prefill is left there.
+   */
+  readonly secondGuardianPrefill?: {
+    readonly guardianId: string;
+    readonly values: RegistrationDraft["guardian"];
+  };
   readonly children: readonly ChildDraft[];
   readonly contacts: readonly ContactDraft[];
+  /**
+   * Persons from the account the parent removed from the contacts, by name
+   * in lower case as the prefill joins them (#6682).
+   */
+  readonly dismissedContacts?: readonly string[];
   readonly legalAcceptances?: Readonly<Record<string, boolean>>;
   readonly privacyConsent: boolean;
   readonly healthConsent: boolean;
@@ -271,17 +291,20 @@ export function emptyRegistration(): RegistrationDraft {
 }
 
 /**
- * A registration of a parent with an account (#4662): the parent fields come
- * from what the school knows. Without a family the registration starts empty.
+ * A registration of a parent with an account (#4662): the parent fields and
+ * the postal address (#6682) come from what the school knows. Without a
+ * family the registration starts empty.
  */
 export function registrationFromFamily(
   family: HolidayKnownFamily | null,
 ): RegistrationDraft {
   const draft = emptyRegistration();
   if (!family) return draft;
+  const { address, ...guardian } = family.guardian;
   return {
     ...draft,
-    guardian: { ...family.guardian },
+    guardian,
+    ...(address ? { guardianAddress: { ...address } } : {}),
     ...(family.accountProof ? { parentAccountProof: family.accountProof } : {}),
   };
 }
@@ -612,6 +635,11 @@ export function bookedDayCount(
 const SECOND_EMAIL = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+[.][A-Za-z]+$/;
 const PHONE = /^(\+[0-9]{1,3}\s?)?[0-9\s-]{7,15}$/;
 
+/** Whether the form takes this as the second custodian's phone. */
+export function looksLikePhone(phone: string): boolean {
+  return PHONE.test(phone.trim());
+}
+
 export function hasSecondGuardian(draft: RegistrationDraft): boolean {
   return Object.values(draft.secondGuardian).some(
     (value) => value.trim() !== "",
@@ -778,7 +806,7 @@ export function validateRegistration(
     if (second.email.trim() && !SECOND_EMAIL.test(second.email.trim())) {
       errors["second_guardian.email"] = "email";
     }
-    if (second.phone.trim() && !PHONE.test(second.phone.trim())) {
+    if (second.phone.trim() && !looksLikePhone(second.phone)) {
       errors["second_guardian.phone"] = "phone";
     }
   }

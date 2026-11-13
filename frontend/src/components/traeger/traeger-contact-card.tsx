@@ -38,7 +38,7 @@ export function TraegerContactCard({
   // The reload after saving stands above the card as a load error, never as
   // an error of the form (#6652).
   const afterSave = useRefreshAfterWrite(
-    "die Anzeige des Ansprechpartners",
+    "die Anzeige der Ansprechperson",
     onSaved,
   );
 
@@ -73,19 +73,19 @@ export function TraegerContactCard({
         error: err instanceof Error ? err.message : String(err),
       });
       void formErrors.show(err, {
-        object: "die Änderung des Ansprechpartners",
+        object: "die Änderung der Ansprechperson",
       });
       setSaving(false);
       return;
     }
     setSaving(false);
-    success("Der Ansprechpartner ist gespeichert.");
+    success("Die Ansprechperson ist gespeichert.");
     await afterSave.refresh();
   };
 
   return (
     <SectionCard
-      title="Ansprechpartner"
+      title="Ansprechperson"
       description="An diese Person wenden sich Eltern und Schulen bei Fragen zu einem Brief. Leere Felder stehen nicht auf dem Brief."
     >
       <form
@@ -101,7 +101,7 @@ export function TraegerContactCard({
         <FormErrorAlert message={formErrors.error} />
         <div className="grid gap-4 md:grid-cols-3">
           <Input
-            controlSize="compact"
+            controlSize="touch"
             id="traeger-contact-name"
             label="Name"
             name="name"
@@ -112,7 +112,7 @@ export function TraegerContactCard({
             disabled={!canEdit}
           />
           <Input
-            controlSize="compact"
+            controlSize="touch"
             id="traeger-contact-phone"
             label="Telefon"
             name="phone"
@@ -124,7 +124,7 @@ export function TraegerContactCard({
             disabled={!canEdit}
           />
           <Input
-            controlSize="compact"
+            controlSize="touch"
             id="traeger-contact-email"
             label="E-Mail-Adresse"
             name="email"

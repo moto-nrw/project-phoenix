@@ -8,7 +8,10 @@
 import { SepaMandateStatusCard } from "~/components/traeger/sepa-mandate-status-card";
 import { useParams, useRouter } from "next/navigation";
 import { useCallback, useEffect, useState } from "react";
-import { findFamilyBilling } from "~/components/traeger/billing-payment-format";
+import {
+  findFamilyBilling,
+  runDueDatesText,
+} from "~/components/traeger/billing-payment-format";
 import { formatMonth } from "~/components/traeger/care-billing-format";
 import { FamilyBillingForm } from "~/components/traeger/family-billing-form";
 import { useDebtorNumberFormat } from "~/components/traeger/use-debtor-number-format";
@@ -75,7 +78,7 @@ export default function TraegerFamilyBillingPage() {
         error: err instanceof Error ? err.message : String(err),
       });
       await showLoadError(err, {
-        object: "Empfänger und Zahlung",
+        object: "die Angabe zu Empfänger und Zahlung",
         retry: () => void load(),
       });
     }
@@ -109,7 +112,7 @@ export default function TraegerFamilyBillingPage() {
       loading={!pageLoad.error && !loaded}
     >
       {loaded ? (
-        <SectionCard title="Rechnung an und Zahlung">
+        <SectionCard title="Empfänger und Zahlung">
           <FamilyBillingForm
             target={{
               contractId,
@@ -122,6 +125,7 @@ export default function TraegerFamilyBillingPage() {
             }}
             format={debtorNumberFormat}
             existing={loaded.existing}
+            runDueText={runDueDatesText(loaded.run.dueDates ?? [])}
             onCancel={() => router.push(runHref)}
             onSaved={() => router.push(runHref)}
           />

@@ -291,12 +291,12 @@ describe("Speiseplan: Allergene je Gericht (#4777)", () => {
 
     // Every dish card carries its own choice; the Monday dish shows its
     // letters, and its name spells the allergens out for screen readers.
-    const trigger = await screen.findByRole("button", {
+    const trigger = await screen.findByRole("combobox", {
       name: "Allergene: Glutenhaltiges Getreide, Fisch",
     });
     expect(trigger).toHaveTextContent("A, D");
     expect(
-      screen.getAllByRole("button", { name: "Allergene wählen" }),
+      screen.getAllByRole("combobox", { name: "Allergene wählen" }),
     ).toHaveLength(4);
     // The legend under the plan explains the letters used this week.
     const legend = screen.getByRole("list", { name: "Allergene" });

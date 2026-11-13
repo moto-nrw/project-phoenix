@@ -4,6 +4,7 @@ import {
   render,
   screen,
   waitFor,
+  within,
 } from "@testing-library/react";
 import { deferred } from "~/test/helpers/form-modal-pending";
 import { beforeEach, describe, expect, it, vi } from "vitest";
@@ -182,7 +183,9 @@ describe("TraegerVertraegePage", () => {
       });
     renderPage();
     fireEvent.click(
-      await screen.findByRole("button", { name: "Weitere Verträge laden" }),
+      await screen.findByRole("button", {
+        name: "Weitere Verträge laden (1 von 1101)",
+      }),
     );
     expect((await screen.findAllByText("Lina Muster"))[0]).toBeInTheDocument();
     expect(screen.getAllByText("Ben Muster")[0]).toBeInTheDocument();
@@ -284,7 +287,45 @@ describe("TraegerVertraegePage", () => {
     ).toBeInTheDocument();
     expect(
       screen.getByRole("link", { name: "In den Einstellungen ändern" }),
-    ).toHaveAttribute("href", "/einstellungen");
+    ).toHaveAttribute("href", "/einstellungen?bereich=enrollment");
+  });
+
+  it("marks a school whose accepted children got no contract for lack of consent", async () => {
+    api.fetchConclusionModes.mockResolvedValue([
+      { schoolId: "3", schoolName: "OGS Am Lindenhof", mode: "bei_annahme" },
+      { schoolId: "4", schoolName: "OGS Nord", mode: "nachtraeglich" },
+    ]);
+    api.fetchContractCandidates.mockResolvedValue([
+      CANDIDATE,
+      {
+        ...CANDIDATE,
+        requestChildId: "44",
+        acceptanceIssue: "acceptance_missing",
+      },
+      {
+        ...CANDIDATE,
+        requestChildId: "45",
+        acceptanceIssue: "acceptance_changed",
+      },
+      {
+        ...CANDIDATE,
+        schoolId: "4",
+        requestChildId: "46",
+        acceptanceIssue: "acceptance_missing",
+      },
+    ]);
+    renderPage();
+
+    const list = await screen.findByRole("list", {
+      name: "Abschluss je Schule",
+    });
+    const [lindenhof, nord] = within(list).getAllByRole("listitem");
+    expect(lindenhof).toHaveTextContent(
+      "OGS Am Lindenhof2 Kinder ohne Zustimmung, kein VertragBei der Annahme",
+    );
+    // A school that sends its contracts later has no consent to miss.
+    expect(nord).toHaveTextContent("OGS NordSpäter verschicken");
+    expect(nord).not.toHaveTextContent(/kein Vertrag/);
   });
 
   it("does not offer manual drafts for schools concluding at acceptance and says why each child waits", async () => {

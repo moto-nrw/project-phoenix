@@ -33,10 +33,7 @@ export const CONTRACT_STATUS_LABELS: Record<CareContractStatus, string> = {
   beendet: "Beendet",
 };
 
-export const CONTRACT_STATUS_TONES: Record<
-  CareContractStatus,
-  StatusBadgeTone
-> = {
+const CONTRACT_STATUS_TONES: Record<CareContractStatus, StatusBadgeTone> = {
   entwurf: "gray",
   versendet: "blue",
   aktiv: "green",
@@ -44,6 +41,16 @@ export const CONTRACT_STATUS_TONES: Record<
   widerrufen: "red",
   beendet: "outline",
 };
+
+/**
+ * The tone of a contract's status pill: the colour of its state. A notice
+ * stays orange until the contract has ended, with or without an end date.
+ */
+export function contractStatusTone(
+  contract: Readonly<{ status: CareContractStatus; endsOn?: string | null }>,
+): StatusBadgeTone {
+  return CONTRACT_STATUS_TONES[contract.status];
+}
 
 /** The order of the status filter: what the office works on first. */
 export const CONTRACT_STATUS_ORDER: readonly CareContractStatus[] = [

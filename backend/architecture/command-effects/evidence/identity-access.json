@@ -19529,6 +19529,38 @@
       "target_owner": "tenant-runtime"
     },
     {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.MFAMailer.NotifyLoginAddressChanged",
+      "binding_digest": "6bf3979ba43bbb347287adba72aa6ef4",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.AccountSecurityNotice.NotifyLoginAddressChanged",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.MFAMailer.NotifyLoginAddressChanged",
+      "binding_digest": "0454a0a69ebc2bdffa6a4a51507255b3",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.AccountSecurityNotice.NotifyLoginAddressChanged",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.Capability.EnqueueSystemEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.MFAMailer.NotifyMFAResetByAdmin",
+      "binding_digest": "c4abfcb27b948e62cf6d2efbb9cb4015",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.AccountSecurityNotice.NotifyMFAResetByAdmin",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.Capability.EnqueueEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
+      "binding": "github.com/moto-ogs/project-phoenix/roots/owners.MFAMailer.NotifyMFAResetByAdmin",
+      "binding_digest": "ec97775e5b567b362cf8106880a81f68",
+      "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.AccountSecurityNotice.NotifyMFAResetByAdmin",
+      "source_owner": "identity-access",
+      "target": "github.com/moto-ogs/project-phoenix/modules/delivery/runtime.Capability.EnqueueSystemEmail",
+      "target_owner": "delivery-platform"
+    },
+    {
       "binding": "github.com/moto-ogs/project-phoenix/roots/owners.AuthAudit.ClaimPendingAccountWideWipes",
       "binding_digest": "eee7f0c5e7c6de6e8c70f62ebbf4d627",
       "port": "github.com/moto-ogs/project-phoenix/modules/identityaccess/ports.AuthAudit.ClaimPendingAccountWideWipes",

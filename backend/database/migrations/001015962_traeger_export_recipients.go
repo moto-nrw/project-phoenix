@@ -14,8 +14,8 @@ func init() {
 		Version:     traegerExportRecipientsVersion,
 		Description: "Export Transfer mit mehreren Empfängern je Träger und einem Empfänger je Exportformat (#6911, ADR 0221)",
 		DependsOn: []string{
-			pickupChangeTeamNoticesVersion, // the newest migration on development (1.15.960)
-			traegerExportTransferVersion,   // the one recipient, the journal and the handovers this one extends
+			accountTraegerParentAccessFactVersion, // the newest migration on development (1.15.961)
+			traegerExportTransferVersion,          // the one recipient, the journal and the handovers this one extends
 		},
 	})
 	Migrations.MustRegister(traegerExportRecipientsUp, traegerExportRecipientsDown)

@@ -28,7 +28,7 @@
   "addChild": "Dodaj rodzeństwo",
   "removeChild": "Usuń dziecko",
   "knownChildrenTitle": "Pani/Pana dzieci z konta rodzica",
-  "knownChildrenText": "Proszę wybrać dziecko. Jego dane pojawią się wtedy w formularzu. Można je zmienić przed wysłaniem. Zmiana dotyczy tylko tego zgłoszenia.",
+  "knownChildrenText": "Proszę wybrać dziecko. Jego dane, Państwa adres i kontakty ze szkoły pojawią się wtedy w formularzu. Wszystko można zmienić przed wysłaniem. Zmiana dotyczy tylko tego zgłoszenia.",
   "knownChildMeta": "{school} · urodzone {birthDate}",
   "knownChildrenFull": "Można zgłosić razem najwyżej troje dzieci.",
   "firstName": "Imię",
@@ -195,5 +195,13 @@
   },
   "doneAccountTitle": "Następny krok: Państwa konto rodzica",
   "doneAccountText": "Wysłaliśmy drugi e-mail na adres {email}. Proszę otworzyć link w nim. Tam ustawią Państwo hasło lub się zalogują.",
-  "doneToRegistrations": "Do Państwa zgłoszeń na ferie"
+  "doneToRegistrations": "Do Państwa zgłoszeń na ferie",
+  "fromAccountHint": "Z konta rodzica",
+  "healthNotPrefilled": "Nie przenosimy informacji o zdrowiu. Proszę wpisać je tutaj.",
+  "knownContactPhoneHint": "Szkoła nie ma numeru tej osoby. Proszę go wpisać.",
+  "relationshipTypes": {
+    "parent": "Rodzic",
+    "guardian": "Opiekun prawny",
+    "relative": "Krewny"
+  }
 }

@@ -46,7 +46,8 @@ import {
 } from "~/lib/traeger-api";
 import { TRAEGER_ROLE_LABELS } from "~/lib/traeger-roles";
 import { traegerPath } from "~/lib/traeger-url";
-import { Button } from "~/components/ui/button";
+import { Alert } from "~/components/ui/alert";
+import { Button, ButtonLink } from "~/components/ui/button";
 
 const logger = createLogger({ component: "TraegerInvitePage" });
 
@@ -203,7 +204,7 @@ function InviteForm({
           id="password"
           name="password"
           type="password"
-          controlSize="compact"
+          controlSize="touch"
           autoComplete={existing ? "current-password" : "new-password"}
           required
           disabled={submitting}
@@ -231,7 +232,7 @@ function InviteForm({
               name="confirm_password"
               type={showPassword ? "text" : "password"}
               label="Passwort wiederholen"
-              controlSize="compact"
+              controlSize="touch"
               autoComplete="new-password"
               required
               disabled={submitting}
@@ -278,6 +279,12 @@ function InviteContent() {
   const { show: showLoadError, clear: clearLoadError } = invitationLoad;
 
   const load = useCallback(async () => {
+    // A link without its token cannot be repaired by waiting; the page says
+    // so instead of asking the server.
+    if (!token) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       setInvitation(await fetchTraegerInvitation(token));
@@ -297,6 +304,24 @@ function InviteContent() {
     void load();
   }, [load]);
 
+  if (!token) {
+    return (
+      <div className="space-y-4 text-left">
+        <Alert
+          type="warning"
+          message="Der Link ist unvollständig. Öffnen Sie den Link aus Ihrer Einladungs-Mail noch einmal. Klappt das nicht, bitten Sie das Träger-Büro um eine neue Einladung."
+        />
+        <ButtonLink
+          href={traegerPath("/traeger/login")}
+          variant="outline"
+          size="field"
+          className="w-full"
+        >
+          Zur Anmeldung
+        </ButtonLink>
+      </div>
+    );
+  }
   if (loading) {
     return <Loading message="Einladung wird geprüft …" />;
   }

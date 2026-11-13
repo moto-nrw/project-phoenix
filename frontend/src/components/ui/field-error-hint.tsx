@@ -31,7 +31,7 @@ export function FieldErrorHint({
     <Tag
       id={id}
       role={live ? "alert" : undefined}
-      className={`text-moto-red-strong mt-1 block text-xs ${className}`.trim()}
+      className={`text-moto-red-strong mt-1 block text-sm ${className}`.trim()}
     >
       {message}
     </Tag>

@@ -232,7 +232,7 @@ describe("TraegerBriefkopfPage", () => {
 
     expect(
       await screen.findByText(
-        "Sie können die Angaben nur ansehen. Ändern kann, wer im Träger-Büro das Recht „Einstellungen“ hat.",
+        "Sie können die Angaben nur ansehen. Ändern kann, wer im Träger-Büro die Rolle „Verwaltung“ hat.",
       ),
     ).toBeInTheDocument();
     expect(

@@ -120,7 +120,9 @@ describe("Holiday form legal blocks", () => {
     );
     for (let i = 0; i < 2; i++) {
       fireEvent.click(
-        screen.getByRole("button", { name: "Eigene Zustimmung hinzufügen" }),
+        screen.getByRole("button", {
+          name: "Hinweis oder Einwilligung hinzufügen",
+        }),
       );
       fireEvent.change(screen.getAllByLabelText("Titel")[i]!, {
         target: { value: `Hinweis ${i + 1}` },
@@ -140,7 +142,9 @@ describe("Holiday form legal blocks", () => {
       );
     }
     fireEvent.click(
-      screen.getByRole("button", { name: "Eigene Zustimmung hinzufügen" }),
+      screen.getByRole("button", {
+        name: "Hinweis oder Einwilligung hinzufügen",
+      }),
     );
     fireEvent.change(screen.getAllByLabelText("Titel")[2]!, {
       target: { value: "Fotos" },
@@ -197,7 +201,9 @@ describe("Holiday form legal blocks", () => {
       </ToastProvider>,
     );
     fireEvent.click(
-      screen.getByRole("button", { name: "Eigene Zustimmung hinzufügen" }),
+      screen.getByRole("button", {
+        name: "Hinweis oder Einwilligung hinzufügen",
+      }),
     );
     fireEvent.change(screen.getByLabelText("PDF-Dateien auswählen"), {
       target: {

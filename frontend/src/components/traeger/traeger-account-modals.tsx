@@ -33,7 +33,7 @@ export interface TraegerInvitationInput {
 }
 
 const TRAEGER_INVITATION_HINT =
-  "Die Person bekommt eine E-Mail mit einem Link zum Träger-Portal. Bis wann der Link gilt, steht danach bei den offenen Einladungen.";
+  "Die Person bekommt einen Link per E-Mail. Bis wann er gilt, steht danach bei den offenen Einladungen.";
 
 /**
  * Invites a person into the Träger-Büro by e-mail (#4650). The person gets a
@@ -108,7 +108,7 @@ export function InviteTraegerAccountModal({
       pending={save}
       isBackdropDismissDisabled
       title={title}
-      size="md"
+      size="lg"
       error={formErrors.error}
       footer={
         <EditActions
@@ -132,7 +132,7 @@ export function InviteTraegerAccountModal({
       >
         <p className="text-sm text-gray-600">{hint}</p>
         <Input
-          controlSize="compact"
+          controlSize="touch"
           id="invite-traeger-account-email"
           label="E-Mail-Adresse"
           name="email"
@@ -210,7 +210,7 @@ export function ChangeTraegerRolesModal({
           error: err instanceof Error ? err.message : String(err),
         });
         if (!op.isCurrent()) return;
-        void formErrors.show(err, { object: "die Rollen" });
+        void formErrors.show(err, { object: "die Rollenvergabe" });
         return;
       }
       if (op.isCurrent()) onClose();
@@ -225,7 +225,7 @@ export function ChangeTraegerRolesModal({
       onClose={onClose}
       pending={save}
       title="Rollen ändern"
-      size="md"
+      size="lg"
       error={formErrors.error}
       footer={
         <EditActions

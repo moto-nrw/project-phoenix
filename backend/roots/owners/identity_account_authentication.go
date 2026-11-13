@@ -82,6 +82,9 @@ func NewIdentityAccessWithSessions(base identityaccessCompose.Dependencies, repo
 		Push:                PushSubscriptionCleanup{Subscriptions: repos.pushSubscriptions},
 		Logger:              logger,
 	}
+	if base.MFA != nil {
+		base.Sessions.SecurityNotice = base.MFA.SecurityNotice
+	}
 	if base.Traeger != nil {
 		// The history reads the ledger on the account management's
 		// administrative unit (#5474).

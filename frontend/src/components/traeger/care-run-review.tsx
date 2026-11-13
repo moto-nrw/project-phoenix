@@ -8,6 +8,7 @@
 // Datei erst in der Prüfphase (care-run-review-lazy.tsx), die Dialoge erst,
 // wenn jemand sie öffnet.
 
+import { Ban, Pencil, Wallet } from "lucide-react";
 import { useState } from "react";
 import { Button, ButtonLink } from "~/components/ui/button";
 import {
@@ -18,12 +19,12 @@ import {
 import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
 import { ResponsiveActionList } from "~/components/ui/responsive-action-list";
 import { SectionCard } from "~/components/ui/section-card";
+import { SectionLabel } from "~/components/ui/section-label";
 import { useApiErrorDisplay } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { downloadBlob } from "~/lib/file-download";
 import { createLogger } from "~/lib/logger";
 import type { BillingDocument } from "~/lib/traeger-billing-api";
-import type { InvoicePayment } from "~/lib/traeger-billing-terms-api";
 import type { CareInvoice } from "~/lib/traeger-care-billing-api";
 import {
   type CareReviewFormat,
@@ -32,7 +33,16 @@ import {
 import { traegerPath } from "~/lib/traeger-url";
 import { invoiceCountLabel } from "./care-billing-format";
 import { invoiceKindLabel } from "./care-review-format";
+import {
+  type DebitHint,
+  type DebitItem,
+  careDebitItems,
+  debitHints,
+  holidayDebitItems,
+} from "./care-debit-hints";
+export { careDebitItems, debitHints, holidayDebitItems };
 import { formatEuro } from "./contribution-format";
+import { familiesLabel } from "./release-open-points";
 
 const logger = createLogger({ component: "CareRunReview" });
 
@@ -66,19 +76,21 @@ export function ExclusionMenu({
   return (
     <OverflowMenu
       ariaLabel={`Aktionen für die Rechnung von ${childName(invoice)}`}
-      triggerSize="sm"
       items={[
         ...(onAmend
           ? [
               {
                 label: "Rechnung ändern",
-                description: "Betrag, Empfänger, Anschrift oder Positionen",
+                icon: <Pencil className="size-4" aria-hidden />,
+                description:
+                  "Nur diese Rechnung: Betrag, Positionen, Empfänger, Anschrift",
                 onClick: () => onAmend(invoice),
               },
             ]
           : []),
         {
           label: "Ausschließen",
+          icon: <Ban className="size-4" aria-hidden />,
           description: "Nur diese Rechnung. Sie bekommt keine Nummer.",
           onClick: () => onExclude(invoice),
         },
@@ -86,6 +98,7 @@ export function ExclusionMenu({
           ? [
               {
                 label: "Empfänger und Zahlung",
+                icon: <Wallet className="size-4" aria-hidden />,
                 description: "Für alle Rechnungen dieser Familie",
                 onClick: () => onFamilyBilling(invoice),
               },
@@ -116,8 +129,7 @@ export function CareReviewExport({ runId }: Readonly<{ runId: string }>) {
   };
   return (
     <ExportMenu
-      label="Prüfliste"
-      ariaLabel="Prüfliste herunterladen"
+      label="Prüfliste herunterladen"
       options={REVIEW_FORMATS}
       busyKey={busy}
       onSelect={(option) => {
@@ -178,7 +190,7 @@ export function CareExcludedCard({
                 Grund: {invoice.exclusion?.reason}
               </p>
               {invoice.exclusion ? (
-                <p className="mt-0.5 text-xs text-gray-500">
+                <p className="mt-0.5 text-sm text-gray-500">
                   Ausgeschlossen am {formatDate(invoice.exclusion.excludedAt)}
                 </p>
               ) : null}
@@ -204,134 +216,128 @@ export function CareExcludedCard({
   );
 }
 
-/** Why a family that pays by direct debit is not collected (#4695). Kept
- * here so the run page does not load the mandate forms' module. */
-const DEBIT_GAP_LABELS = {
-  mandate_missing: "Kein gültiges Mandat",
-  creditor_missing: "Gläubiger-ID fehlt",
-  creditor_changed: "Mandat für eine frühere Gläubiger-ID",
-  mandate_expired: "Mandat verfallen: 36 Monate ohne Abbuchung",
-} as const;
-
 /** At most this many hints show before „weitere anzeigen“. */
 const DEBIT_HINTS_SHOWN = 5;
-
-/** A family's invoice as the hints need it, from a care or a holiday run. */
-export interface DebitItem {
-  readonly key: string;
-  readonly name: string;
-  /** Names the family for screen readers. */
-  readonly family: string;
-  readonly detail?: string;
-  readonly totalCents: number;
-  readonly payment?: InvoicePayment | null;
-  /** Where its mandate is managed. */
-  readonly href: string;
-  readonly excluded?: boolean;
-}
-
-interface DebitHint {
-  readonly item: DebitItem;
-  readonly text: string;
-}
-
-/** The SEPA hints of a preview (#4695): direct debits without a valid
- * mandate or creditor identifier, and debits sooner than the
- * pre-notification days of the Träger. */
-export function debitHints(items: readonly DebitItem[]): DebitHint[] {
-  const hints: DebitHint[] = [];
-  for (const item of items) {
-    // An excluded invoice is not issued; one of 0 € collects nothing.
-    if (item.excluded || item.totalCents <= 0) continue;
-    const payment = item.payment;
-    if (payment?.debitGap) {
-      hints.push({
-        item,
-        text:
-          payment.method === "transfer"
-            ? `${DEBIT_GAP_LABELS[payment.debitGap]}. Geht als Überweisung, fällig am ${formatDate(payment.dueOn)}.`
-            : `${DEBIT_GAP_LABELS[payment.debitGap]}. Die Freigabe ist angehalten.`,
-      });
-    } else if (payment?.mandate?.noticeShort) {
-      hints.push({
-        item,
-        text: `Abbuchung schon am ${formatDate(payment.dueOn)}. Das ist früher als Ihre Vorabankündigung erlaubt.`,
-      });
-    }
-  }
-  return hints;
-}
-
-/** The invoices of a care run as debit items. */
-export function careDebitItems(invoices: readonly CareInvoice[]): DebitItem[] {
-  return invoices.map((invoice) => ({
-    key: `${invoice.contractId}-${invoice.service}`,
-    name: childName(invoice),
-    family: `Familie von ${childName(invoice)}`,
-    detail: invoice.schoolName,
-    totalCents: invoice.totalCents,
-    payment: invoice.payment,
-    href: `/traeger/abrechnung/lastschrift/${invoice.contractId}`,
-    excluded: Boolean(invoice.exclusion),
-  }));
-}
-
-/** The invoices of a holiday run as debit items: a holiday invoice has no
- * contract, so its way leads to the mandate overview. */
-export function holidayDebitItems(
-  documents: readonly BillingDocument[],
-): DebitItem[] {
-  return documents
-    .filter((document) => document.kind === "invoice")
-    .map((document) => {
-      const name =
-        `${document.recipientFirstName} ${document.recipientLastName}`.trim();
-      return {
-        key: document.registrationId,
-        name,
-        family: name,
-        totalCents: document.totalCents,
-        payment: document.payment,
-        href: "/traeger/abrechnung/lastschrift",
-      };
-    });
-}
 
 /** The hints card of a holiday run preview. */
 export function HolidayDebitHintsCard({
   documents,
-}: Readonly<{ documents: readonly BillingDocument[] }>) {
-  return <DebitHintsCard items={holidayDebitItems(documents)} />;
+  dueDatesHref,
+  earliest,
+}: Readonly<{
+  documents: readonly BillingDocument[];
+  /** The run's due-date page, for a debit that comes too early. */
+  dueDatesHref?: string;
+  earliest?: string | null;
+}>) {
+  return (
+    <DebitHintsCard
+      items={holidayDebitItems(documents)}
+      dueDatesHref={dueDatesHref}
+      earliest={earliest}
+    />
+  );
 }
 
 /** The hints card of a care run preview. */
 export function CareDebitHintsCard({
   invoices,
-}: Readonly<{ invoices: readonly CareInvoice[] }>) {
-  return <DebitHintsCard items={careDebitItems(invoices)} />;
+  dueDatesHref,
+  earliest,
+}: Readonly<{
+  invoices: readonly CareInvoice[];
+  /** The run's due-date page, for a debit that comes too early. */
+  dueDatesHref?: string;
+  /** The first day the pre-notification allows, when the run knows it. */
+  earliest?: string | null;
+}>) {
+  return (
+    <DebitHintsCard
+      items={careDebitItems(invoices)}
+      dueDatesHref={dueDatesHref}
+      earliest={earliest}
+    />
+  );
 }
 
-function DebitHintsCard({ items }: Readonly<{ items: readonly DebitItem[] }>) {
+function DebitHintsCard({
+  items,
+  dueDatesHref,
+  earliest = null,
+}: Readonly<{
+  items: readonly DebitItem[];
+  dueDatesHref?: string;
+  /** The first day the pre-notification allows, when the run knows it. */
+  earliest?: string | null;
+}>) {
   const [expanded, setExpanded] = useState(false);
   const hints = debitHints(items);
   if (hints.length === 0) return null;
   const creditorMissing = hints.some(
     (hint) => hint.item.payment?.debitGap === "creditor_missing",
   );
-  const shown = expanded ? hints : hints.slice(0, DEBIT_HINTS_SHOWN);
+  // A missing mandate is entered, any other gap is checked.
+  const mandateAction = (item: DebitItem) =>
+    item.payment?.debitGap === "mandate_missing"
+      ? "Mandat erfassen"
+      : "Mandat prüfen";
+  // Open rows first; a family that pays by transfer is information only.
+  const isTransfer = (hint: DebitHint) =>
+    !hint.dueTooSoon && hint.item.payment?.method === "transfer";
+  const ordered = [
+    ...hints.filter((hint) => !isTransfer(hint)),
+    ...hints.filter(isTransfer),
+  ];
+  const shown = expanded ? ordered : ordered.slice(0, DEBIT_HINTS_SHOWN);
+  // A debit that comes too early is fixed once for the whole run, by a later
+  // date: the card says it once and carries the one way there. A family
+  // that falls back to a transfer needs nothing before the release: it is
+  // named, but not counted as open.
+  const tooSoon = hints.filter((hint) => hint.dueTooSoon).length;
+  const transfers = hints.filter(
+    (hint) => !hint.dueTooSoon && hint.item.payment?.method === "transfer",
+  ).length;
+  const halted = hints.length - tooSoon - transfers;
+  const open = tooSoon + halted;
+  const subject = (count: number) =>
+    count === hints.length
+      ? "Bei diesen Familien"
+      : `Bei ${familiesLabel(count)}`;
+  const description = creditorMissing
+    ? "Ohne Gläubiger-ID buchen Sie bei keiner Familie ab. Tragen Sie sie unter Einstellungen → Abrechnungsvorgaben ein."
+    : [
+        // Short: each row names its own date and its earliest day.
+        tooSoon > 0
+          ? `${subject(tooSoon)} ist die Abbuchung zu früh für Ihre Vorabankündigung. Legen Sie eine spätere Fälligkeit fest.`
+          : null,
+        halted > 0
+          ? `${subject(halted)} fehlt ein gültiges Mandat. Klären Sie das vor der Freigabe.`
+          : null,
+        // A transfer needs nothing before the release: beside open points
+        // its rows under „Zur Information“ say it already.
+        transfers > 0 && open === 0
+          ? transfers === hints.length
+            ? "Diese Familien zahlen per Überweisung, weil ein gültiges Mandat fehlt."
+            : `${familiesLabel(transfers)} ${transfers === 1 ? "zahlt" : "zahlen"} per Überweisung, weil ein gültiges Mandat fehlt.`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(" ");
   return (
     <SectionCard
       title="Lastschrift"
       titleBadge={
-        <span className="text-sm font-normal text-gray-600 tabular-nums">
-          {hints.length === 1 ? "1 Familie" : `${hints.length} Familien`}
-        </span>
+        open > 0 ? (
+          <span className="text-moto-orange-strong text-sm font-medium tabular-nums">
+            {`${familiesLabel(open)} offen`}
+          </span>
+        ) : (
+          <span className="text-sm font-normal text-gray-600 tabular-nums">
+            {familiesLabel(hints.length)}
+          </span>
+        )
       }
-      description={
-        creditorMissing
-          ? "Ohne Gläubiger-ID buchen Sie bei keiner Familie ab. Tragen Sie sie unter Einstellungen → Abrechnung ein."
-          : "Bei diesen Familien klappt die Abbuchung so nicht. Prüfen Sie das Mandat vor der Freigabe."
-      }
+      description={description}
       actions={
         creditorMissing ? (
           <ButtonLink
@@ -341,11 +347,21 @@ function DebitHintsCard({ items }: Readonly<{ items: readonly DebitItem[] }>) {
           >
             Gläubiger-ID eintragen
           </ButtonLink>
+        ) : tooSoon > 0 && dueDatesHref ? (
+          <ButtonLink
+            href={traegerPath(dueDatesHref)}
+            variant="outline"
+            size="md"
+          >
+            Fälligkeiten ändern
+          </ButtonLink>
         ) : null
       }
     >
-      <ResponsiveActionList>
-        {shown.map(({ item, text }) => (
+      {(() => {
+        // Open rows first; a family that pays by transfer pays all the
+        // same, so it stands apart as information.
+        const renderRow = ({ item, text, dueTooSoon }: DebitHint) => (
           <li
             key={item.key}
             className="flex flex-col gap-2 py-3 first:pt-0 last:pb-0 sm:col-span-2 sm:grid sm:grid-cols-subgrid sm:items-center"
@@ -360,21 +376,51 @@ function DebitHintsCard({ items }: Readonly<{ items: readonly DebitItem[] }>) {
                   {formatEuro(item.totalCents)}
                 </span>
               </p>
-              <p className="mt-0.5 text-sm text-gray-700">{text}</p>
+              <p className="mt-0.5 text-sm text-gray-700">
+                {dueTooSoon && dueDatesHref && item.payment
+                  ? `Abbuchung am ${formatDate(item.payment.dueOn)}: zu früh${earliest ? `, frühestens am ${formatDate(earliest)}` : ""}.`
+                  : text}
+              </p>
             </div>
+            {/* The mandate stays one click away also when only the date is
+                too early: the central „Fälligkeiten ändern“ fixes the date,
+                this link checks the family's mandate. */}
             <div className="flex w-full flex-col gap-2 min-[480px]:w-auto min-[480px]:flex-row sm:justify-end">
               <ButtonLink
                 href={traegerPath(item.href)}
                 variant="surface"
                 size="compact"
-                aria-label={`Mandat prüfen: ${item.family}`}
+                aria-label={`${mandateAction(item)}: ${item.family}`}
               >
-                Mandat prüfen
+                {mandateAction(item)}
               </ButtonLink>
             </div>
           </li>
-        ))}
-      </ResponsiveActionList>
+        );
+        const openRows = shown.filter((hint) => !isTransfer(hint));
+        const infoRows = shown.filter(isTransfer);
+        return (
+          <>
+            {openRows.length > 0 ? (
+              <ResponsiveActionList>
+                {openRows.map(renderRow)}
+              </ResponsiveActionList>
+            ) : null}
+            {infoRows.length > 0 ? (
+              <>
+                {openRows.length > 0 ? (
+                  <SectionLabel as="h3" className="mt-5 mb-2">
+                    Zur Information
+                  </SectionLabel>
+                ) : null}
+                <ResponsiveActionList>
+                  {infoRows.map(renderRow)}
+                </ResponsiveActionList>
+              </>
+            ) : null}
+          </>
+        );
+      })()}
       {hints.length > DEBIT_HINTS_SHOWN ? (
         <Button
           type="button"

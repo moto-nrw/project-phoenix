@@ -2,7 +2,12 @@ import { cn } from "~/lib/utils";
 
 const TRIGGER_BASE_CLASS =
   "flex items-center justify-between gap-2 rounded-lg border px-3 text-left text-sm transition-colors focus-visible:outline-2 focus-visible:outline-gray-400 disabled:cursor-not-allowed disabled:bg-gray-100! disabled:text-gray-500 disabled:opacity-80";
-const TRIGGER_HEIGHT_CLASS = { default: "h-10", compact: "h-9" } as const;
+const TRIGGER_HEIGHT_CLASS = {
+  // By finger the default select reaches 44 px and 16-px text, like the
+  // kit's fields and buttons; the compact one stays for dense toolbars.
+  default: "h-10 pointer-coarse:h-11 pointer-coarse:text-base",
+  compact: "h-9",
+} as const;
 // `moto-content-surface` is unlayered: it beats the red invalid tint and the
 // grey disabled fill, so it sits on the neutral, enabled branch only.
 const TRIGGER_SURFACE_CLASS = "moto-content-surface moto-hover-elevated";

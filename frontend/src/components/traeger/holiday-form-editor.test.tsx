@@ -8,6 +8,7 @@ import {
 import { useState } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { ToastProvider } from "~/contexts/ToastContext";
+import { usePhoneViewport } from "~/test/helpers/viewport";
 import germanMessages from "~/i18n/messages/de/holidayRegistration.json";
 import { ApiError } from "~/lib/api-error";
 import type {
@@ -663,5 +664,55 @@ describe("HolidayFormEditor (#5198)", () => {
     expect(
       screen.getByRole("button", { name: "Als neue Version speichern" }),
     ).toBeDisabled();
+  });
+});
+
+describe("HolidayFormEditor on a phone", () => {
+  usePhoneViewport();
+  beforeEach(() => {
+    mockSave.mockReset();
+  });
+
+  // The long form stays walkable: each question folds to its head with a
+  // summary; a new one opens, and so does one the check marks.
+  it("folds the questions to their heads and opens a new one", () => {
+    renderEditor(form(TEMPLATE));
+
+    expect(
+      screen.getByText(
+        "Mehrzeiliger Text · freiwillig · pro Kind · Gesundheitsangabe",
+      ),
+    ).toBeInTheDocument();
+    expect(
+      screen.queryByRole("textbox", { name: "Frage im Elternformular" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("button", { name: "Frage 1 ausklappen" }));
+    expect(questionInputs().map((input) => input.value)).toEqual([
+      "Lebensmittelunverträglichkeiten",
+    ]);
+
+    fireEvent.click(screen.getByRole("button", { name: /Frage hinzufügen/ }));
+    expect(questionInputs()).toHaveLength(2);
+    expect(
+      screen.getByRole("button", { name: "Frage 3 einklappen" }),
+    ).toHaveAttribute("aria-expanded", "true");
+  });
+
+  it("opens a folded question the check marks", () => {
+    renderEditor(form(TEMPLATE));
+    fireEvent.click(screen.getByRole("button", { name: /Frage hinzufügen/ }));
+    fireEvent.click(screen.getByRole("button", { name: "Frage 3 einklappen" }));
+    expect(
+      screen.queryByRole("textbox", { name: "Frage im Elternformular" }),
+    ).not.toBeInTheDocument();
+
+    fireEvent.click(
+      screen.getByRole("button", { name: "Als neue Version speichern" }),
+    );
+
+    expect(questionInputs()).toHaveLength(1);
+    expect(questionInputs()[0]).toHaveAttribute("aria-invalid", "true");
+    expect(mockSave).not.toHaveBeenCalled();
   });
 });

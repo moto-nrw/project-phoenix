@@ -115,28 +115,33 @@ export const ProfileTrigger = forwardRef<
   }: ProfileTriggerProps,
   ref,
 ) {
+  // The name comes from screen-reader text, not aria-label: the decorative
+  // avatar initial is visible text too, so no aria-label could contain all
+  // of it (WCAG 2.5.3). The visible lines repeat the name for sight only and
+  // the name stays the same on every width, also where only the avatar shows.
   return (
     <button
       ref={ref}
       type="button"
       onClick={onClick}
-      aria-label={ariaLabel}
       aria-haspopup="dialog"
       aria-expanded={isOpen}
       aria-controls={menuId}
       className="flex touch-manipulation items-center space-x-2 rounded-lg px-1.5 py-1 transition-colors duration-200 hover:bg-gray-100 active:bg-gray-200"
     >
+      <span className="sr-only">{ariaLabel}</span>
       <UserAvatar avatarUrl={displayAvatar} userName={displayName} size="sm" />
 
       {/* Ein langer Name (Träger-Konten: bis 100 Zeichen, #6870) endet mit
           „…“, statt die Kopfzeile zu sprengen; das Menü zeigt ihn zweizeilig. */}
       <div
+        aria-hidden="true"
         className={`hidden max-w-48 min-w-0 text-left ${compactOnTablet ? "lg:block" : "md:block"}`}
       >
         <div className="truncate text-sm leading-tight font-medium text-gray-900">
           {displayName}
         </div>
-        <div className="text-xs leading-tight text-gray-500">{userRole}</div>
+        <div className="text-xs leading-tight text-gray-600">{userRole}</div>
       </div>
 
       <ChevronDownIcon isOpen={isOpen} />
@@ -161,11 +166,17 @@ export function ProfileDropdownHeader({
       <UserAvatar avatarUrl={displayAvatar} userName={displayName} size="md" />
       <div className="min-w-0 flex-1">
         {/* Bis zu zwei Zeilen: der Trigger kürzt den Namen, hier steht er
-            lesbar (#6870). */}
-        <div className="line-clamp-2 font-semibold wrap-anywhere text-gray-900">
+            lesbar (#6870). An address shown as the name wraps in full
+            instead of being cut: it is the only line that says which
+            account is signed in. */}
+        <div
+          className={`font-semibold wrap-anywhere text-gray-900 ${displayName === userEmail ? "" : "line-clamp-2"}`}
+        >
           {displayName}
         </div>
-        {userEmail ? (
+        {/* An account without a name shows its address as the name; the
+            same address once more would say nothing new. */}
+        {userEmail && userEmail !== displayName ? (
           <div className="truncate text-xs text-gray-500" title={userEmail}>
             {userEmail}
           </div>
@@ -229,7 +240,7 @@ export function ProfileDropdownMenu({
             onClose();
             onStartPreview();
           }}
-          className="group flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-700 transition-[background-color,color] duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-400 focus-visible:outline-none active:bg-gray-900 active:text-white"
+          className="group flex w-full items-center rounded-xl px-3 py-2.5 text-left text-sm font-medium text-gray-700 transition-[background-color,color] duration-200 ease-out hover:bg-gray-100 hover:text-gray-900 focus-visible:ring-2 focus-visible:ring-gray-600 focus-visible:outline-none active:bg-gray-900 active:text-white"
         >
           <EyeIcon
             aria-hidden="true"

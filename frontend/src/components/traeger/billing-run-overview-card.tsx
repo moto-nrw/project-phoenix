@@ -15,8 +15,17 @@
 // zeigt „Versand und Exporte ansehen“ im Menü der Zeile im Seitenpanel
 // (#4693); gelesen wird erst beim Öffnen.
 
-import { FileText } from "lucide-react";
+import {
+  Download,
+  Eye,
+  FileText,
+  Pencil,
+  ReceiptText,
+  Undo2,
+} from "lucide-react";
 import { useEffect, useRef, useState } from "react";
+import { ContributionBreakdown } from "~/components/holiday-contribution/contribution-breakdown";
+import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { EmptyState } from "~/components/ui/empty-state";
 import {
@@ -24,7 +33,11 @@ import {
   exportFormatOptions,
   exportMenuItems,
 } from "~/components/ui/export-menu";
-import { OverflowMenu } from "~/components/ui/page-header/OverflowMenu";
+import { useIsMobile } from "~/components/ui/hooks/useIsMobile";
+import {
+  OverflowMenu,
+  type OverflowMenuItem,
+} from "~/components/ui/page-header/OverflowMenu";
 import { SectionCard } from "~/components/ui/section-card";
 import {
   SlideOver,
@@ -52,6 +65,7 @@ import {
 import { BillingLetterPreview } from "./billing-letter-preview";
 import {
   BILLING_DOCUMENT_KIND_LABELS,
+  billingPositionLabel,
   billingReferenceText,
   isCancelled,
   isCredited,
@@ -100,13 +114,47 @@ function leftForChild(
 
 function invoicesDescription(released: boolean, canPreview: boolean) {
   if (!released) {
-    return "Je Familie eine Rechnung. Die Aufschlüsselung je Kind steht im Menü der Zeile.";
+    // From md on the card's „Aufschlüsselung zeigen“ opens it for every row;
+    // a phone row keeps it in its menu, so the phone names that place.
+    return (
+      <>
+        Je Familie eine Rechnung.
+        <span className="md:hidden">
+          {" "}
+          Die Aufschlüsselung je Kind steht im Menü der Zeile.
+        </span>
+      </>
+    );
   }
   const overview =
     "Die Übersicht für die Kämmerei enthält jede Position, die Summe je Rechnung und die Gesamtsumme. Storno und Gutschrift stehen als eigene Zeilen mit Minusbetrag.";
   return canPreview
     ? `${overview} Wählen Sie eine Zeile, um ihr Schreiben als PDF zu sehen.`
     : overview;
+}
+
+/** The positions of a row's children, opened in place under the row. */
+function InlineBreakdown({
+  document,
+}: Readonly<{ document: BillingDocument }>) {
+  return (
+    <div className="max-w-xl py-1">
+      <ContributionBreakdown
+        items={document.children.map((child) => ({
+          key: child.childId,
+          name: `${child.firstName} ${child.lastName}`,
+          lines: child.positions.map((position) => ({
+            label: billingPositionLabel(position),
+            amount: formatEuro(position.amountCents),
+          })),
+          total: formatEuro(child.totalCents),
+        }))}
+        childTotalLabel="Summe"
+        totalLabel="Rechnungsbetrag"
+        total={formatEuro(document.totalCents)}
+      />
+    </div>
+  );
 }
 
 /**
@@ -198,6 +246,10 @@ export function BillingRunOverviewCard({
   // Gemerkt wird die Zeile, nicht die Rechnung: nach einer Korrektur zeigt das
   // Panel die neuen Beträge.
   const [shownKey, setShownKey] = useState<string | null>(null);
+  // Below md the table shows its rows stacked, with the row menu in the
+  // row's head (DataTable `stackedOnMobile`).
+  const isPhoneRow = useIsMobile();
+  const [breakdownShown, setBreakdownShown] = useState(false);
   // The issued document whose letter shows beside the list (#5692).
   const [previewId, setPreviewId] = useState<string | null>(null);
   const previewRef = useRef<HTMLDivElement>(null);
@@ -281,10 +333,11 @@ export function BillingRunOverviewCard({
     if (!released || document.kind !== "invoice" || isCancelled(document)) {
       return [];
     }
-    const items: { label: string; onClick: () => void }[] = [];
+    const items: OverflowMenuItem[] = [];
     if (onCancel && !isCredited(document)) {
       items.push({
         label: "Rechnung stornieren",
+        icon: <Undo2 className="size-4" aria-hidden />,
         onClick: () => onCancel(document),
       });
     }
@@ -294,6 +347,7 @@ export function BillingRunOverviewCard({
         if (left <= 0) continue;
         items.push({
           label: `Gutschrift für ${child.firstName}`,
+          icon: <ReceiptText className="size-4" aria-hidden />,
           onClick: () => onCredit(document, child, left),
         });
       }
@@ -326,7 +380,13 @@ export function BillingRunOverviewCard({
               </span>
             ) : null}
             {document.kind === "invoice" && document.payment ? (
-              <InvoicePaymentLine payment={document.payment} />
+              document.totalCents <= 0 ? (
+                <span className="mt-0.5 block text-sm text-gray-600">
+                  Nichts zu zahlen
+                </span>
+              ) : (
+                <InvoicePaymentLine payment={document.payment} />
+              )
             ) : null}
           </span>
         );
@@ -390,6 +450,7 @@ export function BillingRunOverviewCard({
       ),
       sortValue: (document) => document.totalCents,
       stacked: "meta",
+      stackedTone: "figure",
     },
     {
       key: "actions",
@@ -406,16 +467,20 @@ export function BillingRunOverviewCard({
         >
           <OverflowMenu
             ariaLabel={rowMenuLabel(document)}
-            triggerSize="sm"
+            // On a phone the menu sits in the row's head: opened upwards it
+            // leaves the invoice's due date and number in view.
+            preferredSide={isPhoneRow ? "above" : "below"}
             items={[
               {
-                label: "Aufschlüsselung ansehen",
+                label: "Aufschlüsselung zeigen",
+                icon: <Eye className="size-4" aria-hidden />,
                 onClick: () => setShownKey(rowKey(document)),
               },
               ...(canPreview && document.id
                 ? [
                     {
                       label: "Schreiben ansehen",
+                      icon: <Eye className="size-4" aria-hidden />,
                       onClick: () => openPreview(document),
                     },
                   ]
@@ -431,6 +496,7 @@ export function BillingRunOverviewCard({
               ...(onCorrect
                 ? document.children.map((child) => ({
                     label: `Betrag für ${child.firstName} korrigieren`,
+                    icon: <Pencil className="size-4" aria-hidden />,
                     onClick: () => onCorrect(document, child),
                   }))
                 : []),
@@ -439,6 +505,7 @@ export function BillingRunOverviewCard({
                 ? [
                     {
                       label: "Schreiben herunterladen",
+                      icon: <Download className="size-4" aria-hidden />,
                       onClick: () => onDownloadLetter(document),
                     },
                   ]
@@ -456,6 +523,22 @@ export function BillingRunOverviewCard({
       rows={[...run.documents]}
       getRowKey={rowKey}
       onRowClick={canPreview ? openPreview : undefined}
+      // Before the release one switch shows every row's breakdown in place,
+      // so checking the run needs no menu per row; afterwards a row opens
+      // its letter.
+      renderSubRows={
+        breakdownShown && !canPreview
+          ? (document) =>
+              document.children.length > 0
+                ? [
+                    {
+                      key: `${rowKey(document)}-breakdown`,
+                      content: <InlineBreakdown document={document} />,
+                    },
+                  ]
+                : []
+          : undefined
+      }
       activeRowKey={previewed ? rowKey(previewed) : null}
       rowHasInteractiveControls
       stackedOnMobile
@@ -492,6 +575,21 @@ export function BillingRunOverviewCard({
               },
             })}
           />
+        ) : !canPreview && run.documents.length > 0 ? (
+          // Table only: the phone rows keep the breakdown in their menu.
+          // The label names the next step; a second state attribute would
+          // make screen readers say it twice.
+          <Button
+            type="button"
+            variant="outline"
+            size="md"
+            className="max-md:hidden"
+            onClick={() => setBreakdownShown((shown) => !shown)}
+          >
+            {breakdownShown
+              ? "Aufschlüsselung ausblenden"
+              : "Aufschlüsselung zeigen"}
+          </Button>
         ) : null
       }
     >

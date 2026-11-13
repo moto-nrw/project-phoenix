@@ -23,8 +23,8 @@ type AccountAdministrationStore interface {
 	// holder's own business.
 	FindAccountRecord(ctx context.Context, id int64) (domain.ManagedAccountRecord, bool, domain.OperationStats, error)
 	// FindManageableAccountRecord reads one account within the caller's
-	// visibility.
-	FindManageableAccountRecord(ctx context.Context, id int64, visibility domain.AccountVisibility) (domain.ManagedAccountRecord, bool, domain.OperationStats, error)
+	// visibility; forUpdate locks its row until the caller's transaction ends.
+	FindManageableAccountRecord(ctx context.Context, id int64, visibility domain.AccountVisibility, forUpdate bool) (domain.ManagedAccountRecord, bool, domain.OperationStats, error)
 	// ListManageableAccountRecords lists the accounts within the caller's
 	// visibility that match the filter, ascending by account id.
 	ListManageableAccountRecords(ctx context.Context, filter domain.AccountListFilter, visibility domain.AccountVisibility) ([]domain.ManagedAccountRecord, domain.OperationStats, error)

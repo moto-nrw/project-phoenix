@@ -143,6 +143,11 @@ export function ChildHealthFields({
         {t(required ? "healthTitleRequired" : "healthTitle")}
       </legend>
       <p className="text-sm text-gray-600">{t("healthText")}</p>
+      {/* Gesundheit kommt nie aus der Schule (#6682, Art. 9 DSGVO):
+          der Satz erklärt die leeren Felder neben den vollen. */}
+      {child.knownStudentId ? (
+        <p className="text-sm text-gray-600">{t("healthNotPrefilled")}</p>
+      ) : null}
       {required ? (
         <>
           <RequiredHealthQuestion

@@ -59,6 +59,18 @@ import { GuardianAddressFields } from "./holiday-guardian-address-fields";
 import { ChildHealthFields } from "./holiday-registration-health";
 import { HolidayQuestions } from "./holiday-registration-questions";
 import { useCareTermTranslations } from "~/lib/care-facility-term";
+import { fromAccount } from "./holiday-registration-prefill";
+
+/**
+ * The line under a field that still holds the value of the parent account
+ * (#6682). It names the source, so a parent checks the value instead of
+ * typing it again; once the parent changes the field, the line goes.
+ */
+function useFromAccountHint() {
+  const t = useTranslations("holidayRegistration");
+  return (value: string, known: string | undefined) =>
+    fromAccount(value, known) ? t("fromAccountHint") : undefined;
+}
 
 export function useWeekLabels() {
   const t = useTranslations("holidayRegistration");
@@ -527,6 +539,7 @@ export function ContactList({
   onChange: (contacts: readonly ContactDraft[]) => void;
 }>) {
   const t = useTranslations("holidayRegistration");
+  const accountHint = useFromAccountHint();
   const setContact = (index: number, contact: ContactDraft) =>
     onChange(contacts.map((current, i) => (i === index ? contact : current)));
 
@@ -536,7 +549,9 @@ export function ContactList({
         {contacts.map((contact, index) => (
           <fieldset
             key={contact.key}
-            className="grid grid-cols-1 gap-3 sm:grid-cols-3"
+            // A line between people: with the prefill a list holds several
+            // contacts at once (#6682).
+            className="grid grid-cols-1 gap-3 border-t border-gray-100 pt-4 first:border-t-0 first:pt-0 sm:grid-cols-3"
           >
             <legend className="sr-only">
               {t("contactTitle", { number: index + 1 })}
@@ -546,6 +561,7 @@ export function ContactList({
               label={t("name")}
               required
               maxLength={120}
+              hint={accountHint(contact.name, contact.prefilled?.name)}
               value={contact.name}
               error={fieldError(`contacts.${index}.name`)}
               onChange={(event) =>
@@ -557,6 +573,17 @@ export function ContactList({
               type="tel"
               label={contact.emergency ? t("phone") : t("phoneOptional")}
               required={contact.emergency}
+              // A contact from the account for whom the school knows no
+              // number still needs one (#6682). A number the parent cleared
+              // was known, so the hint would be wrong there.
+              hint={
+                contact.knownGuardianId &&
+                contact.emergency &&
+                !contact.prefilled?.phone &&
+                contact.phone.trim() === ""
+                  ? t("knownContactPhoneHint")
+                  : accountHint(contact.phone, contact.prefilled?.phone)
+              }
               maxLength={40}
               value={contact.phone}
               error={fieldError(`contacts.${index}.phone`)}
@@ -564,27 +591,61 @@ export function ContactList({
                 setContact(index, { ...contact, phone: event.target.value })
               }
             />
-            <div className="flex items-end gap-2">
-              <div className="min-w-0 flex-1">
-                <Input
-                  name={`contacts.${index}.relationship`}
-                  label={t("relationship")}
-                  maxLength={60}
-                  error={fieldError(`contacts.${index}.relationship`)}
-                  value={contact.relationship}
-                  onChange={(event) =>
-                    setContact(index, {
-                      ...contact,
-                      relationship: event.target.value,
-                    })
-                  }
-                />
+            <Input
+              name={`contacts.${index}.relationship`}
+              label={t("relationship")}
+              maxLength={60}
+              hint={accountHint(
+                contact.relationship,
+                contact.prefilled?.relationship,
+              )}
+              error={fieldError(`contacts.${index}.relationship`)}
+              value={contact.relationship}
+              onChange={(event) =>
+                setContact(index, {
+                  ...contact,
+                  relationship: event.target.value,
+                })
+              }
+            />
+            {/* Roles left, removal at the end of the row: the three fields
+                keep one width and line up (#6682). */}
+            <div className="flex items-start justify-between gap-3 sm:col-span-3">
+              <div className="space-y-2">
+                {(["emergency", "pickup"] as const).map((role) => {
+                  const name = `contacts.${index}.${role}`;
+                  const error = fieldError(name);
+                  const hintId = `${contact.key}-${role}-error`;
+                  return (
+                    <div key={role}>
+                      <label className="flex items-center gap-2 text-sm text-gray-700">
+                        <Checkbox
+                          name={name}
+                          checked={contact[role]}
+                          aria-invalid={error ? true : undefined}
+                          aria-describedby={error ? hintId : undefined}
+                          onChange={(event) =>
+                            setContact(index, {
+                              ...contact,
+                              [role]: event.target.checked,
+                            })
+                          }
+                        />
+                        {t(
+                          role === "emergency" ? "emergencyRole" : "pickupRole",
+                        )}
+                      </label>
+                      <FieldErrorHint id={hintId} message={error} />
+                    </div>
+                  );
+                })}
               </div>
               {contacts.length === 1 ? null : (
                 <Button
                   type="button"
                   variant="ghost"
                   size="compact"
+                  className="shrink-0"
                   onClick={() =>
                     onChange(contacts.filter((_, i) => i !== index))
                   }
@@ -592,33 +653,6 @@ export function ContactList({
                   {t("remove")}
                 </Button>
               )}
-            </div>
-            <div className="space-y-2 sm:col-span-3">
-              {(["emergency", "pickup"] as const).map((role) => {
-                const name = `contacts.${index}.${role}`;
-                const error = fieldError(name);
-                const hintId = `${contact.key}-${role}-error`;
-                return (
-                  <div key={role}>
-                    <label className="flex items-center gap-2 text-sm text-gray-700">
-                      <Checkbox
-                        name={name}
-                        checked={contact[role]}
-                        aria-invalid={error ? true : undefined}
-                        aria-describedby={error ? hintId : undefined}
-                        onChange={(event) =>
-                          setContact(index, {
-                            ...contact,
-                            [role]: event.target.checked,
-                          })
-                        }
-                      />
-                      {t(role === "emergency" ? "emergencyRole" : "pickupRole")}
-                    </label>
-                    <FieldErrorHint id={hintId} message={error} />
-                  </div>
-                );
-              })}
             </div>
           </fieldset>
         ))}
@@ -722,14 +756,18 @@ export function KnownChildPicker({
 /** Exactly one optional co-guardian; the registering parent's data stays separate. */
 export function SecondGuardianCard({
   guardian,
+  known,
   fieldError,
   onChange,
 }: Readonly<{
   guardian: RegistrationDraft["guardian"];
+  /** What the prefill wrote: the custodian the school knows (#6682). */
+  known?: RegistrationDraft["guardian"];
   fieldError: FieldError;
   onChange: (guardian: RegistrationDraft["guardian"]) => void;
 }>) {
   const t = useTranslations("holidayRegistration");
+  const accountHint = useFromAccountHint();
   const namesRequired = Object.values(guardian).some(
     (value) => value.trim() !== "",
   );
@@ -746,6 +784,7 @@ export function SecondGuardianCard({
           autoComplete="section-second-guardian given-name"
           maxLength={100}
           value={guardian.firstName}
+          hint={accountHint(guardian.firstName, known?.firstName)}
           error={fieldError("second_guardian.first_name")}
           onChange={(event) =>
             onChange({ ...guardian, firstName: event.target.value })
@@ -758,6 +797,7 @@ export function SecondGuardianCard({
           autoComplete="section-second-guardian family-name"
           maxLength={100}
           value={guardian.lastName}
+          hint={accountHint(guardian.lastName, known?.lastName)}
           error={fieldError("second_guardian.last_name")}
           onChange={(event) =>
             onChange({ ...guardian, lastName: event.target.value })
@@ -770,6 +810,7 @@ export function SecondGuardianCard({
           autoComplete="section-second-guardian email"
           maxLength={254}
           value={guardian.email}
+          hint={accountHint(guardian.email, known?.email)}
           error={fieldError("second_guardian.email")}
           onChange={(event) =>
             onChange({ ...guardian, email: event.target.value })
@@ -782,6 +823,7 @@ export function SecondGuardianCard({
           autoComplete="section-second-guardian tel"
           maxLength={40}
           value={guardian.phone}
+          hint={accountHint(guardian.phone, known?.phone)}
           error={fieldError("second_guardian.phone")}
           onChange={(event) =>
             onChange({ ...guardian, phone: event.target.value })
@@ -799,15 +841,19 @@ export function SecondGuardianCard({
 export function GuardianAddressCard({
   address,
   required,
+  known,
   fieldError,
   onChange,
 }: Readonly<{
   address: AddressDraft;
   required: boolean;
+  /** The address the school knows (#6682). */
+  known?: AddressDraft | null;
   fieldError: FieldError;
   onChange: (address: AddressDraft) => void;
 }>) {
   const t = useTranslations("holidayRegistration");
+  const accountHint = useFromAccountHint();
   return (
     <SectionCard
       title={required ? t("addressTitle") : t("addressTitleOptional")}
@@ -820,6 +866,11 @@ export function GuardianAddressCard({
           street: t("street"),
           postalCode: t("postalCode"),
           city: t("city"),
+        }}
+        hints={{
+          street: accountHint(address.street, known?.street),
+          postalCode: accountHint(address.postalCode, known?.postalCode),
+          city: accountHint(address.city, known?.city),
         }}
         fieldError={fieldError}
         onChange={onChange}
