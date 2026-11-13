@@ -1053,7 +1053,9 @@ func TestSetValue_WithExistingOverride_RecordsOldValue(t *testing.T) {
 	assert.Equal(t, json.RawMessage(`30`), auditRepo.entries[0].NewValue)
 }
 
-func TestSetValue_AuditError_DoesNotFail(t *testing.T) {
+// The change and its audit entry commit together (#6844): a failed audit
+// write fails the change, and the surrounding transaction rolls it back.
+func TestSetValue_AuditError_FailsTheChange(t *testing.T) {
 	t.Parallel()
 	registry := setupTest(t)
 	registerTestSetting(registry, "test.val", config.FieldText, "default")
@@ -1061,9 +1063,8 @@ func TestSetValue_AuditError_DoesNotFail(t *testing.T) {
 	auditRepo := &mockAuditRepo{err: fmt.Errorf("audit write failed")}
 	svc := createService(registry, newMockValueRepo(), auditRepo)
 
-	// Should succeed even if audit fails (audit is best-effort)
 	err := svc.SetValue(tenantCtx(1), "test.val", "new", nil, nil)
-	require.NoError(t, err)
+	require.ErrorContains(t, err, "audit write failed")
 }
 
 func TestResetValue_NilChangedBy(t *testing.T) {
@@ -1322,7 +1323,7 @@ func TestSetValue_NilChangedBy(t *testing.T) {
 	assert.Nil(t, auditRepo.entries[0].ChangedBy)
 }
 
-func TestResetValue_AuditError_DoesNotFail(t *testing.T) {
+func TestResetValue_AuditError_FailsTheChange(t *testing.T) {
 	t.Parallel()
 	registry := setupTest(t)
 	registerTestSetting(registry, "test.val", config.FieldText, "default")
@@ -1330,9 +1331,8 @@ func TestResetValue_AuditError_DoesNotFail(t *testing.T) {
 	auditRepo := &mockAuditRepo{err: fmt.Errorf("audit write failed")}
 	svc := createService(registry, newMockValueRepo(), auditRepo)
 
-	// Should succeed even if audit fails
 	err := svc.ResetValue(tenantCtx(1), "test.val", nil, nil)
-	require.NoError(t, err)
+	require.ErrorContains(t, err, "audit write failed")
 }
 
 // =============================================================================

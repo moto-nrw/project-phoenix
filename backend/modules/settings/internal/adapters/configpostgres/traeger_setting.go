@@ -5,7 +5,6 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"time"
 
 	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 	"github.com/uptrace/bun"
@@ -170,7 +169,7 @@ func (r *TraegerSettingRepository) Delete(ctx context.Context, organizationID in
 
 // RecordChange appends one change of a Träger value and drops the Träger's
 // changes older than the retention in the same transaction.
-func (r *TraegerSettingRepository) RecordChange(ctx context.Context, entry *config.TraegerSettingAuditEntry, retainedSince time.Time) error {
+func (r *TraegerSettingRepository) RecordChange(ctx context.Context, entry *config.TraegerSettingAuditEntry) error {
 	if entry == nil || entry.OrganizationID <= 0 || entry.SettingKey == "" || (entry.Action != "set" && entry.Action != "reset") {
 		return fmt.Errorf("record Träger setting change: Träger, key and action set or reset are required")
 	}
@@ -181,12 +180,9 @@ func (r *TraegerSettingRepository) RecordChange(ctx context.Context, entry *conf
 	if _, err = db.NewInsert().Model(entry).ModelTableExpr(tableTraegerSettingAudit).Exec(ctx); err != nil {
 		return fmt.Errorf("record Träger setting change: %w", err)
 	}
-	_, err = db.NewDelete().
-		TableExpr(tableTraegerSettingAudit).
-		Where("organization_id = ?", entry.OrganizationID).
-		Where("changed_at < ?", retainedSince).
-		Exec(ctx)
-	if err != nil {
+	// The tenant role holds no DELETE on the change log (#6844); the fixed
+	// function drops the Träger's changes older than three years.
+	if _, err = db.NewRaw(`SELECT config.delete_expired_traeger_setting_audit(?)`, entry.OrganizationID).Exec(ctx); err != nil {
 		return fmt.Errorf("delete expired Träger setting changes: %w", err)
 	}
 	return nil

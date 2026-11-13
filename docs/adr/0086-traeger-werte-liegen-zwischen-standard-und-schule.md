@@ -26,7 +26,7 @@ Das Settings-System kennt zwei Ebenen: Standard der Registry und Zeile in
 Eine neue Schule bekommt keine Zeilen und läuft auf den Standards
 ([ADR 0043](0043-einrichtungs-assistent-zustand-bei-settings-fortschritt-als-projektion.md)).
 Änderungen landen in `config.setting_audit` je Schule; scheitert der Eintrag,
-wird das nur geloggt.
+wurde das bis #6844 nur geloggt. Seitdem scheitert mit ihm die Änderung.
 
 Der Träger hat nur `platform.organizations` mit einer JSONB-Spalte `settings`,
 die nichts liest (#934). Jede Schule hat genau einen Träger
