@@ -8,8 +8,8 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/parentbilling"
 )
 
-// The handover of a finance export to the recipient of the Träger (#6824,
-// ADR 0218). A handover is an export like a download: the same producer
+// The handover of a finance export to the recipient of its format (#6824,
+// ADR 0218; #6911, ADR 0222). A handover is an export like a download: the same producer
 // makes the file, takes the next file number and writes the protocol entry.
 // Only the target differs. Export Transfer runs the producer in the Träger
 // transaction of its transfer intent and the settlement in the one that
@@ -19,10 +19,10 @@ import (
 // method runs in the Träger transaction of organizationID.
 type ExportHandoverStore interface {
 	// SameContentHandedOver tells whether another file of the same run and
-	// format with the same content was handed over, is under way or has an
-	// unknown outcome.
-	SameContentHandedOver(ctx context.Context, organizationID, exportFileID int64) (bool, error)
-	InsertExportFileHandover(ctx context.Context, organizationID, exportFileID int64, host, directory string) error
+	// format with the same content was handed over to the same recipient,
+	// is under way there or has an unknown outcome there.
+	SameContentHandedOver(ctx context.Context, organizationID, exportFileID, recipientID int64) (bool, error)
+	InsertExportFileHandover(ctx context.Context, organizationID, exportFileID int64, destination parentbilling.HandoverDestination) error
 	SettleExportFileHandover(ctx context.Context, organizationID, exportFileID int64, state, reason string) error
 }
 
@@ -52,8 +52,8 @@ type producedFile struct {
 	exportFileID int64
 	fileName     string
 	data         []byte
-	// host and directory are where the recipient puts it.
-	host, directory string
+	// destination is the recipient and where it puts the file.
+	destination parentbilling.HandoverDestination
 }
 
 // producer makes the file of the request in the given Träger transaction.
@@ -94,8 +94,8 @@ func (h *ExportHandovers) HandOver(ctx context.Context, reviewer parentbilling.H
 	var made producedFile
 	outcome, err := h.transfer.Handover(ctx, parentbilling.FinanceHandoverRequest{
 		OrganizationID: reviewer.OrganizationID, AccountID: reviewer.AccountID, Format: request.Format,
-		Prepare: func(txCtx context.Context, host, directory string) (string, []byte, error) {
-			file, err := h.prepare(txCtx, reviewer.OrganizationID, request.Repeat, produce, host, directory)
+		Prepare: func(txCtx context.Context, destination parentbilling.HandoverDestination) (string, []byte, error) {
+			file, err := h.prepare(txCtx, reviewer.OrganizationID, request.Repeat, produce, destination)
 			made = file
 			return file.fileName, file.data, err
 		},
@@ -116,10 +116,11 @@ func (h *ExportHandovers) HandOver(ctx context.Context, reviewer parentbilling.H
 	return handoverResult(made, outcome), nil
 }
 
-// prepare makes the file, refuses a repeated content without Repeat and
-// records the pending handover, all in the transfer intent's transaction.
+// prepare makes the file, refuses a content the recipient already has
+// without Repeat and records the pending handover, all in the transfer
+// intent's transaction.
 func (h *ExportHandovers) prepare(ctx context.Context, organizationID int64, repeat bool,
-	produce func(context.Context) (producedFile, error), host, directory string,
+	produce func(context.Context) (producedFile, error), destination parentbilling.HandoverDestination,
 ) (producedFile, error) {
 	file, err := produce(ctx)
 	if err != nil {
@@ -129,7 +130,7 @@ func (h *ExportHandovers) prepare(ctx context.Context, organizationID int64, rep
 		return producedFile{}, errors.New("parent billing: the handed over file has no protocol entry")
 	}
 	if !repeat {
-		repeated, err := h.store.SameContentHandedOver(ctx, organizationID, file.exportFileID)
+		repeated, err := h.store.SameContentHandedOver(ctx, organizationID, file.exportFileID, destination.RecipientID)
 		if err != nil {
 			return producedFile{}, fmt.Errorf("parent billing: check earlier handovers: %w", err)
 		}
@@ -138,16 +139,16 @@ func (h *ExportHandovers) prepare(ctx context.Context, organizationID int64, rep
 			return producedFile{}, parentbilling.ErrExportAlreadyHandedOver
 		}
 	}
-	if err := h.store.InsertExportFileHandover(ctx, organizationID, file.exportFileID, host, directory); err != nil {
+	if err := h.store.InsertExportFileHandover(ctx, organizationID, file.exportFileID, destination); err != nil {
 		return producedFile{}, fmt.Errorf("parent billing: record the handover: %w", err)
 	}
-	file.host, file.directory = host, directory
+	file.destination = destination
 	return file, nil
 }
 
 func handoverResult(made producedFile, outcome parentbilling.FinanceHandoverOutcome) parentbilling.HandoverResult {
-	result := parentbilling.HandoverResult{FileName: made.fileName, Reason: outcome.Reason,
-		TargetHost: made.host, TargetDirectory: made.directory}
+	result := parentbilling.HandoverResult{FileName: made.fileName, Reason: outcome.Reason, RecipientName: made.destination.RecipientName,
+		TargetHost: made.destination.Host, TargetDirectory: made.destination.Directory}
 	switch {
 	case outcome.Uncertain:
 		result.State, result.Reason = parentbilling.HandoverUnknown, ""

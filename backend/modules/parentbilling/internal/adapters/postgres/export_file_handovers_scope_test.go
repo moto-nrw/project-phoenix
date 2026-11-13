@@ -15,6 +15,10 @@ import (
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
+// kaemmerei is the recipient the handovers of these tests go to; its id is
+// Export Transfer's, without a reference across the owners.
+var kaemmerei = parentbilling.HandoverDestination{RecipientID: 41, RecipientName: "Kämmerei", Host: "kaemmerei.example.org", Directory: "/eingang"}
+
 // The handovers of protocol entries (ADR 0218) keep a Träger to its rows
 // below row level security: the Träger transaction drops its request role,
 // so each assertion holds only because the adapter names the Träger in its
@@ -42,11 +46,14 @@ func TestExportHandoversKeepTheTraegerBelowRLS(t *testing.T) {
 			return id
 		}
 		ownFirst, ownSecond, foreign := file(own, 110), file(own, 111), file(other, 110)
+		// Every row names the same recipient id: only the Träger keeps them
+		// apart.
 		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.export_file_transfers (organization_id, export_file_id, target_host,
-			target_directory, state, settled_at) VALUES (?, ?, 'fremd.example.org', '/x', 'transferred', NOW())`, other, foreign)
+			target_directory, recipient_id, recipient_name, state, settled_at)
+			VALUES (?, ?, 'fremd.example.org', '/x', ?, 'Fremd', 'transferred', NOW())`, other, foreign, kaemmerei.RecipientID)
 		require.NoError(t, err)
 
-		repeated, err := store.SameContentHandedOver(ctx, own, ownSecond)
+		repeated, err := store.SameContentHandedOver(ctx, own, ownSecond, kaemmerei.RecipientID)
 		require.NoError(t, err)
 		assert.False(t, repeated, "another Träger's handover of the same run and content does not count")
 
@@ -54,7 +61,8 @@ func TestExportHandoversKeepTheTraegerBelowRLS(t *testing.T) {
 		_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = replica`)
 		require.NoError(t, err)
 		_, err = tx.ExecContext(ctx, `INSERT INTO parent_billing.export_file_transfers (organization_id, export_file_id, target_host,
-			target_directory) VALUES (?, ?, 'fremd.example.org', '/x'), (?, ?, 'fremd.example.org', '/x')`, other, ownFirst, other, ownSecond)
+			target_directory, recipient_id) VALUES (?, ?, 'fremd.example.org', '/x', ?), (?, ?, 'fremd.example.org', '/x', ?)`,
+			other, ownFirst, kaemmerei.RecipientID, other, ownSecond, kaemmerei.RecipientID)
 		require.NoError(t, err)
 		_, err = tx.ExecContext(ctx, `SET LOCAL session_replication_role = origin`)
 		require.NoError(t, err)
@@ -66,10 +74,24 @@ func TestExportHandoversKeepTheTraegerBelowRLS(t *testing.T) {
 			assert.Nil(t, entry.Handover, "ExportFiles shows no handover of another Träger")
 		}
 
-		require.NoError(t, store.InsertExportFileHandover(ctx, own, ownFirst, "kaemmerei.example.org", "/eingang"))
-		repeated, err = store.SameContentHandedOver(ctx, own, ownSecond)
+		require.Error(t, store.InsertExportFileHandover(ctx, own, ownFirst, parentbilling.HandoverDestination{Host: "x.example.org"}),
+			"a handover without its recipient could never be checked for a repeat")
+		require.NoError(t, store.InsertExportFileHandover(ctx, own, ownFirst, kaemmerei))
+		repeated, err = store.SameContentHandedOver(ctx, own, ownSecond, kaemmerei.RecipientID)
 		require.NoError(t, err)
-		assert.True(t, repeated, "the own pending handover of the same content counts")
+		assert.True(t, repeated, "the own pending handover of the same content to the same recipient counts")
+		repeated, err = store.SameContentHandedOver(ctx, own, ownSecond, kaemmerei.RecipientID+1)
+		require.NoError(t, err)
+		assert.False(t, repeated, "another recipient never had the file: the repeat is a question per recipient (ADR 0222)")
+		// A pending handover keeps its recipient: no write points it at
+		// another one, which would move the repeat check (ADR 0222).
+		_, err = tx.ExecContext(ctx, `SAVEPOINT keep_recipient`)
+		require.NoError(t, err)
+		_, err = tx.ExecContext(ctx, `UPDATE parent_billing.export_file_transfers SET recipient_id = recipient_id + 1
+			WHERE organization_id = ? AND export_file_id = ?`, own, ownFirst)
+		require.Error(t, err, "the database keeps the recipient of a handover")
+		_, err = tx.ExecContext(ctx, `ROLLBACK TO SAVEPOINT keep_recipient`)
+		require.NoError(t, err)
 
 		require.NoError(t, store.SettleExportFileHandover(ctx, own, ownFirst, parentbilling.HandoverFailed, "connection_failed"))
 		var pending int
@@ -89,6 +111,7 @@ func TestExportHandoversKeepTheTraegerBelowRLS(t *testing.T) {
 		assert.Equal(t, parentbilling.HandoverFailed, settled.State)
 		assert.Equal(t, "connection_failed", settled.Reason)
 		assert.Equal(t, "kaemmerei.example.org", settled.TargetHost)
+		assert.Equal(t, "Kämmerei", settled.RecipientName, "the protocol names the recipient of the handover")
 		require.Error(t, store.SettleExportFileHandover(ctx, own, ownFirst, parentbilling.HandoverTransferred, ""),
 			"a settled handover settles once")
 		// Last, because the refusal aborts the transaction: no write turns a
@@ -151,7 +174,7 @@ func TestFailedHandoverReleasesItsDatevBookings(t *testing.T) {
 		_, err = tx.ExecContext(ctx, `SET LOCAL ROLE phoenix_tenant`)
 		require.NoError(t, err)
 		for _, id := range []int64{failed, arrived, lost} {
-			require.NoError(t, store.InsertExportFileHandover(ctx, own, id, "kaemmerei.example.org", "/eingang"))
+			require.NoError(t, store.InsertExportFileHandover(ctx, own, id, kaemmerei))
 		}
 		require.NoError(t, store.SettleExportFileHandover(ctx, own, lost, parentbilling.HandoverFailed, "connection_failed"))
 		require.NoError(t, store.SettleExportFileHandover(ctx, own, failed, parentbilling.HandoverFailed, "connection_failed"))

@@ -1,10 +1,11 @@
 "use client";
 
-// Handover of a finance export to the recipient of the Träger (#6824, ADR
-// 0218) on the export page and on the page of the debit file: the menu
-// „Übergeben“ of a run, the result of the last handover above the list, and
-// the question before a file goes to the recipient a second time. The file
-// is made like a download, with its own number and protocol entry.
+// Handover of a finance export to the recipient of its format (#6824, ADR
+// 0218; #6911, ADR 0222) on the export page and on the page of the debit
+// file: the menu „Übergeben“ of a run, the result of the last handover above
+// the list, and the question before a file goes to the same recipient a
+// second time. The file is made like a download, with its own number and
+// protocol entry.
 
 import {
   ChevronDown,
@@ -36,7 +37,8 @@ import { ApiError } from "~/lib/api-error";
 import { createLogger } from "~/lib/logger";
 import {
   type ExportRecipient,
-  fetchExportRecipient,
+  type ExportRecipientsPage,
+  fetchExportRecipients,
   type HandoverFormat,
   type HandoverOptions,
   type HandoverResult,
@@ -88,12 +90,18 @@ function fileLabel(attempt: HandoverAttempt): string {
   return `${HANDOVER_FORMAT_LABELS[attempt.format]} von ${attempt.run.label}`;
 }
 
-/**
- * The recipient of the Träger and the handover of a run's file. Without the
- * right „Finanz-Export“ the recipient stays hidden (recipientHidden): the
- * menu still offers the PAIN.008 handover, which needs only „Lastschriften
- * verwalten“, and the server names a missing recipient.
- */
+/** The recipient a format goes to, or null for the download. */
+export function recipientOfFormat(
+  page: ExportRecipientsPage | null,
+  format: HandoverFormat,
+): ExportRecipient | null {
+  const id = page?.assignments.find(
+    (assignment) => assignment.format === format,
+  )?.recipientId;
+  if (!page || !id) return null;
+  return page.recipients.find((recipient) => recipient.id === id) ?? null;
+}
+
 /** What the export page shows itself for a DATEV handover, as for the download. */
 export interface DatevHandoverNotices {
   /** No new bookings, or another file took them first. */
@@ -105,11 +113,19 @@ export interface DatevHandoverNotices {
   ) => void;
 }
 
+/**
+ * The recipients of the Träger and the handover of a run's file. Without the
+ * right „Finanz-Export“ the recipients stay hidden (recipientHidden): the
+ * menu still offers the PAIN.008 handover, which needs only „Lastschriften
+ * verwalten“, and the server names a missing recipient.
+ */
 export function useFinanceHandover(
   onHandedOver: (arrived: HandoverResult | null) => void,
   datev?: DatevHandoverNotices,
 ) {
-  const [recipient, setRecipient] = useState<ExportRecipient | null>(null);
+  const [recipients, setRecipients] = useState<ExportRecipientsPage | null>(
+    null,
+  );
   const [recipientHidden, setRecipientHidden] = useState(false);
   const [running, setRunning] = useState<string | null>(null);
   const [notice, setNotice] = useState<HandoverNotice | null>(null);
@@ -119,9 +135,9 @@ export function useFinanceHandover(
 
   useEffect(() => {
     let current = true;
-    fetchExportRecipient()
+    fetchExportRecipients()
       .then((page) => {
-        if (current) setRecipient(page.recipient);
+        if (current) setRecipients(page);
       })
       .catch((err: unknown) => {
         if (current && err instanceof ApiError && err.status === 403)
@@ -152,7 +168,7 @@ export function useFinanceHandover(
         if (result.state === "transferred") {
           arrived = result;
           success(
-            `${result.fileName} ist bei ${destinationText(result.targetHost, result.targetDirectory)} angekommen.`,
+            `${result.fileName} ist bei ${result.recipientName || destinationText(result.targetHost, result.targetDirectory)} angekommen.`,
           );
         } else {
           setNotice({
@@ -212,7 +228,7 @@ export function useFinanceHandover(
   );
 
   return {
-    recipient,
+    recipients,
     recipientHidden,
     running,
     handOver,
@@ -244,7 +260,7 @@ export function useFinanceHandover(
       >
         <p className="text-sm text-gray-700">
           {repeat
-            ? `${fileLabel(repeat)} ist schon beim Empfänger angekommen, ist noch unterwegs oder ihr Ergebnis ist unklar.`
+            ? `${fileLabel(repeat)} ist schon bei ${recipientOfFormat(recipients, repeat.format)?.name ?? "diesem Empfänger"} angekommen, ist noch unterwegs oder ihr Ergebnis ist unklar.`
             : null}{" "}
           Übergeben Sie sie nur noch einmal, wenn der Empfänger sie nicht hat.
           Sonst bucht er sie vielleicht doppelt.
@@ -269,8 +285,8 @@ function HandoverNoticeAlert({
     return (
       <Alert
         type="warning"
-        title="Für die Übergabe fehlt der Empfänger"
-        message={`${label} wurde nicht erstellt. Tragen Sie zuerst ein, wohin moto die Dateien übergeben soll.`}
+        title={`Für die ${HANDOVER_FORMAT_LABELS[notice.attempt.format]} fehlt der Empfänger`}
+        message={`${label} wurde nicht erstellt. Ordnen Sie der Datei zuerst einen bereiten Empfänger zu.`}
         onDismiss={onDismiss}
         action={
           <ButtonLink
@@ -278,17 +294,20 @@ function HandoverNoticeAlert({
             variant="ghost_tone"
             size="compact"
           >
-            Empfänger eintragen
+            Empfänger zuordnen
           </ButtonLink>
         }
       />
     );
   }
+  const at = notice.result.recipientName
+    ? ` bei ${notice.result.recipientName}`
+    : "";
   if (notice.kind === "unknown") {
     return (
       <Alert
         type="warning"
-        title={`${notice.result.fileName}: Ergebnis unklar`}
+        title={`${notice.result.fileName}: Ergebnis${at} unklar`}
         message={HANDOVER_UNKNOWN_TEXT}
         onDismiss={onDismiss}
       />
@@ -297,7 +316,7 @@ function HandoverNoticeAlert({
   return (
     <Alert
       type="warning"
-      title={`${label} ist nicht angekommen`}
+      title={`${label} ist${at} nicht angekommen`}
       message={`${handoverReasonText(notice.result.reason)} Die Datei ${notice.result.fileName} steht trotzdem im Exportprotokoll.`}
       onDismiss={onDismiss}
       actionLayout="responsive"
@@ -325,10 +344,23 @@ function HandoverNoticeAlert({
   );
 }
 
+/** Why a format cannot go out yet, in a few words for the menu. */
+function blockedText(
+  page: ExportRecipientsPage,
+  format: HandoverFormat,
+): string {
+  const recipient = recipientOfFormat(page, format);
+  const file = HANDOVER_FORMAT_LABELS[format];
+  if (page.recipients.length === 0) return "Noch kein Empfänger eingetragen.";
+  if (!recipient) return `${file}: noch kein Empfänger zugeordnet.`;
+  if (!recipient.enabled) return `${recipient.name}: Übergabe ausgeschaltet.`;
+  return `${recipient.name}: Es fehlen noch Angaben.`;
+}
+
 /** The menu „Übergeben“ of one run: one entry per file the run has. */
 export function HandoverMenu({
   run,
-  recipient,
+  recipients,
   formats,
   busy,
   running,
@@ -340,60 +372,74 @@ export function HandoverMenu({
   /** The size of the actions beside it: compact in a table row, md in a card head. */
   size?: "compact" | "md";
   run: HandoverRun;
-  recipient: ExportRecipient | null;
+  recipients: ExportRecipientsPage | null;
   formats: readonly HandoverFormat[];
   busy: boolean;
   running: boolean;
   onHandOver: (format: HandoverFormat) => void;
   /** DATEV: every booking again, for a file the recipient lost. */
   onHandOverAll?: () => void;
-  /** The recipient exists for the Träger but this account may not read it. */
+  /** The recipients exist for the Träger but this account may not read them. */
   recipientHidden?: boolean;
 }>) {
-  if ((!recipient && !recipientHidden) || formats.length === 0) return null;
-  const target = recipient
-    ? destinationText(recipient.host, recipient.remoteDirectory)
-    : "dem Empfänger Ihres Trägers";
+  if ((!recipients && !recipientHidden) || formats.length === 0) return null;
   const icons: Record<HandoverFormat, ReactNode> = {
     sollstellung: <FileSpreadsheet className="h-4 w-4" aria-hidden />,
     datev: <FileSpreadsheet className="h-4 w-4" aria-hidden />,
     pain008: <Landmark className="h-4 w-4" aria-hidden />,
   };
-  const items: OverflowMenuItem[] =
-    !recipient || recipient.ready
+  // Without the right to read the recipients every file is offered; the
+  // server names a missing recipient.
+  const ready = recipients
+    ? formats.filter((format) => recipientOfFormat(recipients, format)?.ready)
+    : formats;
+  const blocked = recipients
+    ? formats.filter((format) => !ready.includes(format))
+    : [];
+  const target = (format: HandoverFormat) => {
+    const recipient = recipientOfFormat(recipients, format);
+    return recipient
+      ? `${recipient.name} (${destinationText(recipient.host, recipient.remoteDirectory)})`
+      : "dem Empfänger Ihres Trägers";
+  };
+  const items: OverflowMenuItem[] = [
+    ...ready.map((format) => ({
+      label: `${HANDOVER_FORMAT_LABELS[format]} übergeben`,
+      description: `Erstellt die Datei und legt sie bei ${target(format)} ab.`,
+      icon: icons[format],
+      onClick: () => onHandOver(format),
+    })),
+    ...(onHandOverAll && ready.includes("datev")
       ? [
-          ...formats.map((format) => ({
-            label: `${HANDOVER_FORMAT_LABELS[format]} übergeben`,
-            description: `Erstellt die Datei und legt sie bei ${target} ab.`,
-            icon: icons[format],
-            onClick: () => onHandOver(format),
-          })),
-          ...(onHandOverAll
-            ? [
-                {
-                  label: "Alle DATEV-Buchungen erneut übergeben",
-                  description: "Nur für eine verlorene Datei",
-                  icon: <RotateCcw className="h-4 w-4" aria-hidden />,
-                  onClick: onHandOverAll,
-                },
-              ]
-            : []),
-        ]
-      : [
           {
-            label: "Empfänger eintragen",
-            description:
-              recipient.configured && !recipient.enabled
-                ? "Die Übergabe ist ausgeschaltet."
-                : "Für die Übergabe fehlen noch Angaben.",
+            label: "Alle DATEV-Buchungen erneut übergeben",
+            description: "Nur für eine verlorene Datei",
+            icon: <RotateCcw className="h-4 w-4" aria-hidden />,
+            onClick: onHandOverAll,
+          },
+        ]
+      : []),
+    ...(recipients && blocked.length > 0
+      ? [
+          {
+            label:
+              ready.length === 0
+                ? "Empfänger einrichten"
+                : "Empfänger zuordnen",
+            description: blocked
+              .map((format) => blockedText(recipients, format))
+              .filter((text, index, all) => all.indexOf(text) === index)
+              .join(" "),
             icon: <Settings2 className="h-4 w-4" aria-hidden />,
             href: traegerPath(EXPORT_RECIPIENT_PATH),
             onClick: () => undefined,
           },
-        ];
+        ]
+      : []),
+  ];
   return (
     <OverflowMenu
-      ariaLabel={`Dateien von ${run.label} an den Empfänger übergeben`}
+      ariaLabel={`Dateien von ${run.label} an die Empfänger übergeben`}
       disabled={busy}
       items={items}
       triggerButton={{ variant: size === "md" ? "outline" : "surface", size }}
@@ -427,14 +473,20 @@ export function HandoverBadge({
   handover,
 }: Readonly<{ handover: ProtocolHandover }>) {
   const target = destinationText(handover.targetHost, handover.targetDirectory);
-  let title = `Ziel: ${target}`;
+  let title = handover.recipientName
+    ? `Empfänger: ${handover.recipientName}, ${target}`
+    : `Ziel: ${target}`;
   if (handover.state === "failed")
     title += `. ${handoverReasonText(handover.reason)}`;
   if (handover.state === "unknown") title += `. ${HANDOVER_UNKNOWN_TEXT}`;
   return (
     <StatusBadge
       wrap
-      label={PROTOCOL_LABELS[handover.state]}
+      label={
+        handover.state === "transferred" && handover.recipientName
+          ? `An ${handover.recipientName} übergeben`
+          : PROTOCOL_LABELS[handover.state]
+      }
       tone={HANDOVER_STATE_TONES[handover.state]}
       icon={Send}
       title={title}

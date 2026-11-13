@@ -31,7 +31,8 @@ const traegerBueroOnly = "Träger-Büro of the shared demo Träger: the seed ass
 // which drops by trigger with its debits. ADR 0212 adds
 // users.message_attachments and users.message_attachment_cleanup, which stay
 // with the messages of the school. ADR 0218 adds the recipient and the
-// handover journal of the Träger-Büro, which no visitor reaches.
+// handover journal of the Träger-Büro, which no visitor reaches; ADR 0222
+// the format each of its recipients receives.
 var demoErasureExceptions = map[string]string{
 	"active.activity_session_attendance":             schoolContentUntil5559,
 	"active.activity_sessions":                       schoolContentUntil5559,
@@ -121,7 +122,8 @@ var demoErasureExceptions = map[string]string{
 	"enrollment.holiday_guest_contacts":              schoolContentUntil5559,
 	"enrollment.holiday_guests":                      schoolContentUntil5559,
 	"enrollment.holiday_host_groups":                 schoolContentUntil5559,
-	"config.traeger_export_recipients":               traegerBueroOnly + "; only the Träger-Büro keeps the recipient of the finance exports (ADR 0218)",
+	"config.traeger_export_recipients":               traegerBueroOnly + "; only the Träger-Büro keeps the recipients of the finance exports (ADR 0218, ADR 0222)",
+	"config.traeger_export_recipient_formats":        traegerBueroOnly + "; only the Träger-Büro sends a finance export format to one of its recipients (ADR 0222)",
 	"enrollment.holiday_registration_deletions":      "counts per holiday period of the demo Träger, no name",
 	"enrollment.holiday_registration_rate_limits":    "abuse counter of the public holiday form, expires after a day",
 	"enrollment.late_invites":                        schoolContentUntil5559,
@@ -232,7 +234,8 @@ var demoErasureExceptions = map[string]string{
 // ADR 0212: the photos and files of chat messages and their cleanup intents
 // stay with the messages they belong to (+2).
 // ADR 0218: the recipient and the handover journal of the Träger-Büro (+2).
-const demoErasureExceptionBudget = 191
+// ADR 0222: the format each recipient of the Träger-Büro receives (+1).
+const demoErasureExceptionBudget = 192
 
 func TestDemoErasureExceptionsKeepTheirBudget(t *testing.T) {
 	t.Parallel()

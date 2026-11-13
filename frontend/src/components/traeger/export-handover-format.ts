@@ -7,13 +7,23 @@
 
 import type { StatusBadgeTone } from "~/components/ui/status-badge";
 import type {
+  ExportRecipient,
+  HandoverFormat,
   HandoverState,
   RecipientField,
 } from "~/lib/traeger-export-handovers-api";
 import type { ExportFormat } from "~/lib/traeger-finance-exports-api";
 
-/** The page of the recipient, below the exports. */
+/** The page of the recipients, below the exports. */
 export const EXPORT_RECIPIENT_PATH = "/traeger/abrechnung/exporte/empfaenger";
+
+/** The page that adds a recipient. */
+export const NEW_EXPORT_RECIPIENT_PATH = `${EXPORT_RECIPIENT_PATH}/neu`;
+
+/** The page of one recipient. */
+export function exportRecipientPath(id: string): string {
+  return `${EXPORT_RECIPIENT_PATH}/${encodeURIComponent(id)}`;
+}
 
 export const HANDOVER_STATE_LABELS: Record<HandoverState, string> = {
   transferred: "Angekommen",
@@ -62,6 +72,7 @@ export const HANDOVER_UNKNOWN_TEXT =
   "Ob die Datei angekommen ist, ist unklar. Fragen Sie beim Empfänger nach, bevor Sie sie noch einmal übergeben.";
 
 const RECIPIENT_FIELD_LABELS: Record<RecipientField, string> = {
+  name: "Name",
   host: "Adresse",
   port: "Port",
   username: "Benutzername",
@@ -70,11 +81,37 @@ const RECIPIENT_FIELD_LABELS: Record<RecipientField, string> = {
   host_key_fingerprint: "Fingerabdruck",
 };
 
-/** „Adresse, Passwort und Zielordner“ for the missing fields. */
-export function missingFieldsText(fields: readonly RecipientField[]): string {
-  const labels = fields.map((field) => RECIPIENT_FIELD_LABELS[field]);
+/** „A, B und C“. */
+function listText(labels: readonly string[]): string {
   if (labels.length <= 1) return labels.join("");
   return `${labels.slice(0, -1).join(", ")} und ${labels.at(-1)}`;
+}
+
+/** „Adresse, Passwort und Zielordner“ for the missing fields. */
+export function missingFieldsText(fields: readonly RecipientField[]): string {
+  return listText(fields.map((field) => RECIPIENT_FIELD_LABELS[field]));
+}
+
+/** „Sollstellung und Lastschriftdatei“ for the formats of a recipient. */
+export function formatsText(formats: readonly HandoverFormat[]): string {
+  return listText(formats.map((format) => HANDOVER_FORMAT_LABELS[format]));
+}
+
+/**
+ * The state of a recipient in one short pill: whether it can take a file,
+ * and otherwise what blocks it or how its last handover ended.
+ */
+export function recipientStatus(recipient: ExportRecipient): {
+  readonly label: string;
+  readonly tone: StatusBadgeTone;
+} {
+  if (!recipient.enabled) return { label: "Ausgeschaltet", tone: "gray" };
+  if (!recipient.ready) return { label: "Angaben fehlen", tone: "warning" };
+  if (recipient.lastHandover?.state === "failed")
+    return { label: "Nicht angekommen", tone: "red" };
+  if (recipient.lastHandover?.state === "unknown")
+    return { label: "Ergebnis unklar", tone: "warning" };
+  return { label: "Bereit", tone: "green" };
 }
 
 /** Where a file goes, as one line: „dateien.beispiel.de, Ordner /eingang“. */

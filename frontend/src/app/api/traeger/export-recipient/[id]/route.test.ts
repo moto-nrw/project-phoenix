@@ -1,10 +1,10 @@
 import { beforeEach, expect, it, vi } from "vitest";
 import { NextRequest } from "next/server";
 
-// The recipient of the finance exports (ADR 0218) on the Träger session:
-// read and save pass through, removing answers the emptied recipient, so the
-// page can show it at once. Not a pure proxy route, so the proxy table does
-// not cover it.
+// One recipient of the finance exports (ADR 0218, ADR 0222) on the Träger
+// session: read and save pass through, removing answers the page without
+// it, so the list can show it at once. Not a pure proxy route, so the proxy
+// table does not cover it.
 
 const { mockTraegerAuth, mockUncachedAuth, mockFetch } = vi.hoisted(() => ({
   mockTraegerAuth: vi.fn(),
@@ -30,23 +30,25 @@ beforeEach(() => {
   mockTraegerAuth.mockResolvedValue({ user: { token: "org-token" } });
 });
 
-it("answers the emptied recipient of the backend", async () => {
-  const emptied = { configured: false, ready: false, password_set: false };
+const params = { params: Promise.resolve({ id: "7" }) };
+
+it("answers the page without the removed recipient", async () => {
+  const emptied = { recipients: [], assignments: [], handovers: [] };
   mockFetch.mockResolvedValueOnce(
     Response.json({ status: "success", data: emptied, message: "ok" }),
   );
 
   const response = await DELETE(
-    new NextRequest("http://localhost:3000/api/traeger/export-recipient", {
+    new NextRequest("http://localhost:3000/api/traeger/export-recipient/7", {
       method: "DELETE",
     }),
-    { params: Promise.resolve({}) },
+    params,
   );
 
   expect(response.status).toBe(200);
   expect(await response.json()).toMatchObject({ data: emptied });
   expect(mockFetch).toHaveBeenCalledWith(
-    "http://localhost:8080/traeger/export-recipient/",
+    "http://localhost:8080/traeger/export-recipient/7",
     expect.objectContaining({
       method: "DELETE",
       headers: expect.objectContaining({ Authorization: "Bearer org-token" }),
@@ -55,26 +57,26 @@ it("answers the emptied recipient of the backend", async () => {
 });
 
 it("reads and saves the recipient on the Träger session", async () => {
-  const recipient = { configured: true, ready: true, password_set: true };
+  const recipient = { id: 7, ready: true, password_set: true };
   mockFetch.mockImplementation(async () =>
     Response.json({ status: "success", data: recipient, message: "ok" }),
   );
-  const url = "http://localhost:3000/api/traeger/export-recipient";
+  const url = "http://localhost:3000/api/traeger/export-recipient/7";
 
-  const read = await GET(new NextRequest(url), { params: Promise.resolve({}) });
+  const read = await GET(new NextRequest(url), params);
   const saved = await PUT(
     new NextRequest(url, {
       method: "PUT",
       body: JSON.stringify({ host: "h" }),
     }),
-    { params: Promise.resolve({}) },
+    params,
   );
 
   expect(read.status).toBe(200);
   expect(saved.status).toBe(200);
   expect(mockFetch).toHaveBeenNthCalledWith(
     1,
-    "http://localhost:8080/traeger/export-recipient/",
+    "http://localhost:8080/traeger/export-recipient/7",
     expect.objectContaining({
       method: "GET",
       headers: expect.objectContaining({ Authorization: "Bearer org-token" }),
@@ -82,7 +84,7 @@ it("reads and saves the recipient on the Träger session", async () => {
   );
   expect(mockFetch).toHaveBeenNthCalledWith(
     2,
-    "http://localhost:8080/traeger/export-recipient/",
+    "http://localhost:8080/traeger/export-recipient/7",
     expect.objectContaining({
       method: "PUT",
       body: JSON.stringify({ host: "h" }),

@@ -106,7 +106,7 @@ func TestFailedHandoverWaitsForARunningExport(t *testing.T) {
 	var first int64
 	race.within(func(ctx context.Context) {
 		first = race.datevFile(ctx, false)
-		require.NoError(t, race.store.InsertExportFileHandover(ctx, race.own, first, "kaemmerei.example.org", "/eingang"))
+		require.NoError(t, race.store.InsertExportFileHandover(ctx, race.own, first, kaemmerei))
 	})
 	locked, release := make(chan struct{}), make(chan struct{})
 	exported := make(chan int64, 1)
@@ -136,7 +136,7 @@ func TestConcurrentFailedHandoversReleaseTheBooking(t *testing.T) {
 		first = race.datevFile(ctx, false)
 		repeat = race.datevFile(ctx, true)
 		for _, file := range []int64{first, repeat} {
-			require.NoError(t, race.store.InsertExportFileHandover(ctx, race.own, file, "kaemmerei.example.org", "/eingang"))
+			require.NoError(t, race.store.InsertExportFileHandover(ctx, race.own, file, kaemmerei))
 		}
 	})
 	locked, release := make(chan struct{}), make(chan struct{})

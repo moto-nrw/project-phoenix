@@ -764,6 +764,24 @@
       "class": "input",
       "parameters": [],
       "legacy": "parent_billing.export_recipient_invalid"
+    },
+    {
+      "code": "parent_billing.export_recipient_not_found",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.export_recipient_not_found"
+    },
+    {
+      "code": "parent_billing.export_recipient_name_taken",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "parent_billing.export_recipient_name_taken"
+    },
+    {
+      "code": "parent_billing.export_formats_invalid",
+      "class": "input",
+      "parameters": [],
+      "legacy": "parent_billing.export_formats_invalid"
     }
   ]
 }

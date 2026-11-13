@@ -249,7 +249,7 @@ export default function TraegerFinanceExportsPage() {
     [runs],
   );
 
-  // Handover to the recipient of the Träger (ADR 0218); a handover reloads
+  // Handover to the recipient of each format (ADR 0218, ADR 0222); a handover reloads
   // the runs and the protocol like a download.
   const handover = useFinanceHandover(
     () => void load(data?.runs.items.length, data?.protocol.items.length),
@@ -461,7 +461,7 @@ export default function TraegerFinanceExportsPage() {
               renderRunActions={(run) => (
                 <HandoverMenu
                   run={run}
-                  recipient={handover.recipient}
+                  recipients={handover.recipients}
                   formats={
                     data.datev.ready
                       ? ["sollstellung", "datev"]
