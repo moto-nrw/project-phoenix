@@ -1,11 +1,10 @@
-package compose_test
+package compose
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	scheduler "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/compose"
 	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
@@ -22,7 +21,7 @@ func TestWorkerLeaseStoreBindsTheDatabaseLeaseToTheSchedulerPort(t *testing.T) {
 	t.Cleanup(func() { require.NoError(t, authDB.Close()) })
 	ctx := context.Background()
 
-	store, err := scheduler.NewWorkerLeaseStore(testpkg.TenantRuntime(t, authDB))
+	store, err := NewWorkerLeaseStore(testpkg.TenantRuntime(t, authDB))
 	require.NoError(t, err)
 
 	first, acquired, err := store.Acquire(ctx, "worker", "holder-a", time.Minute)

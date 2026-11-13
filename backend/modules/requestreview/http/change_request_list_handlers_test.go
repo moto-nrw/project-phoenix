@@ -12,6 +12,7 @@ import (
 	"time"
 
 	reviewbindings "github.com/moto-ogs/project-phoenix/roots/requestreviewbinding"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 
 	"github.com/moto-ogs/project-phoenix/modules/careplan"
 	"github.com/moto-ogs/project-phoenix/modules/careplan/excusedrequests"
@@ -348,7 +349,7 @@ func aggRequest(t *testing.T, rawQuery string, perms []string) *http.Request {
 	}
 	ctx := context.WithValue(req.Context(), sessiontoken.CtxClaims, sessiontoken.AppClaims{ID: 55})
 	ctx = context.WithValue(ctx, sessiontoken.CtxPermissions, perms)
-	principal, err := permissions.NewPrincipal(permissions.PrincipalInput{AccountID: 55, TenantID: 1, Permissions: perms})
+	principal, err := permissions.NewPrincipal(permissions.PrincipalInput{AccountID: 55, TenantID: testpkg.UniqueTestTenantID(t), Permissions: perms})
 	require.NoError(t, err)
 	return req.WithContext(permissions.WithPrincipal(ctx, principal))
 }

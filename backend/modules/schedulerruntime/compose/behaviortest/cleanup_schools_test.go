@@ -1,4 +1,4 @@
-package compose_test
+package behaviortest_test
 
 import (
 	"bytes"
@@ -11,7 +11,7 @@ import (
 	"testing"
 	"time"
 
-	scheduler "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/compose"
+	cleanuprunner "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/compose/behaviortest"
 	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
 	"github.com/moto-ogs/project-phoenix/roots/owners"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
@@ -83,12 +83,12 @@ func TestNightlyCleanupIncludesInactiveAndSoftDeletedSchools(t *testing.T) {
 	deps, err := owners.NewSchedulerCleanupTestDependencies(db, testpkg.TenantRuntime(t, serve), func() time.Time { return now })
 	require.NoError(t, err)
 
-	activeSchools := scheduler.ActiveSchoolsForTest(deps)
+	activeSchools := cleanuprunner.ActiveSchoolsForTest(deps)
 	assert.Contains(t, activeSchools, active.id)
 	assert.NotContains(t, activeSchools, inactive.id)
 	assert.NotContains(t, activeSchools, deleted.id)
 
-	scheduler.NewCleanupTestRunner(deps)()
+	cleanuprunner.NewCleanupTestRunner(deps)()
 
 	for _, school := range []cleanupSchool{active, inactive, deleted} {
 		assert.False(t, visitExists(t, admin, school.expired), "school %d: overdue visits must be deleted regardless of school status", school.id)
@@ -142,14 +142,14 @@ func TestNightlyCleanupCatchesUpInactiveAndDeletedSchoolsAcrossRestart(t *testin
 	for _, school := range schools {
 		seedMissedCleanup(t, admin, school.id, now.Add(-48*time.Hour))
 	}
-	scheduler.NewCleanupTestRunner(deps)()
+	cleanuprunner.NewCleanupTestRunner(deps)()
 	for _, school := range schools {
 		assert.False(t, visitExists(t, admin, school.expired), "a missed run must catch up outside the configured minute")
 		assert.True(t, lastCleanupSuccess(t, admin, school.id).Equal(now))
 	}
 
 	now = now.Add(time.Minute)
-	scheduler.NewCleanupTestRunner(deps)()
+	cleanuprunner.NewCleanupTestRunner(deps)()
 	for _, school := range schools {
 		assert.True(t, lastCleanupSuccess(t, admin, school.id).Equal(now.Add(-time.Minute)), "a restarted process must not repeat today's successful run")
 	}
@@ -200,7 +200,7 @@ func testCleanupSchoolFailure(t *testing.T, failure string) {
 	}
 	var outcome string
 	deps.Tracer.Run = func(_ ports.JobID, result string, _ time.Duration) { outcome = result }
-	scheduler.NewCleanupTestRunner(deps)()
+	cleanuprunner.NewCleanupTestRunner(deps)()
 	assert.Equal(t, "failed", outcome, "a partial run must not report overall success")
 	assert.True(t, visitExists(t, admin, failed.expired), "a failed school's deletions must roll back")
 	assert.True(t, lastCleanupSuccess(t, admin, failed.id).Equal(previous))
@@ -211,7 +211,7 @@ func testCleanupSchoolFailure(t *testing.T, failure string) {
 	require.NoError(t, err)
 	deps.ActiveCleanup = goodCleanup
 	now = now.Add(time.Hour)
-	scheduler.NewCleanupTestRunner(deps)()
+	cleanuprunner.NewCleanupTestRunner(deps)()
 	assert.Equal(t, "completed", outcome)
 	assert.False(t, visitExists(t, admin, failed.expired), "the failed run stays due across a restart")
 }
@@ -241,7 +241,7 @@ func TestFileCleanupIncludesInactiveAndSoftDeletedSchools(t *testing.T) {
 	deleted := seedCleanupSchool(t, admin, true, true, 0)
 	staff, students, files := &recordingFileCleanup{}, &recordingFileCleanup{}, &recordingFileCleanup{}
 	deps.StaffDocumentCleaner, deps.StudentDocumentCleaner, deps.FileStoreCleaner = staff, students, files
-	scheduler.NewFileCleanupTestRunner(deps)()
+	cleanuprunner.NewFileCleanupTestRunner(deps)()
 	for name, cleaner := range map[string]*recordingFileCleanup{"staff": staff, "students": students, "files and photos": files} {
 		for _, school := range []int64{active.id, inactive.id, deleted.id} {
 			assert.Contains(t, cleaner.schools, school, "%s must drain cleanup intents regardless of school status", name)
@@ -300,7 +300,7 @@ func TestNightlyCleanupStepFailureKeepsVisitRetention(t *testing.T) {
 	workSessions := &failingWorkSessionCleanup{}
 	deps.WorkSessionCleanup = workSessions
 
-	scheduler.NewCleanupTestRunner(deps)()
+	cleanuprunner.NewCleanupTestRunner(deps)()
 
 	require.Contains(t, workSessions.schools, school.id)
 	assert.False(t, visitExists(t, admin, school.expired), "the failed work-session step must not roll back the visit retention")
@@ -320,7 +320,7 @@ func TestNightlyCleanupRequiredStepFailureStaysDue(t *testing.T) {
 	feedback := &failingFeedbackCleanup{}
 	deps.FeedbackCleaner = feedback
 
-	scheduler.NewCleanupTestRunner(deps)()
+	cleanuprunner.NewCleanupTestRunner(deps)()
 
 	require.Contains(t, feedback.schools, school.id)
 	assert.False(t, visitExists(t, admin, school.expired), "the visit retention of the school commits")
@@ -488,7 +488,7 @@ func runCleanupScenario(t *testing.T, fail, partial string) cleanupScenario {
 	}}}
 	deps.RetentionLog = func(context.Context, string, ports.RetentionOutcome) error { return nil }
 
-	scheduler.NewCleanupTestRunner(deps)()
+	cleanuprunner.NewCleanupTestRunner(deps)()
 	return cleanupScenario{admin: admin, school: school, probe: probe, logs: logs}
 }
 
@@ -660,7 +660,7 @@ func TestNightlyCleanupFailureStreakIsPerSchool(t *testing.T) {
 	// run starts a new Worker after the given time since the first run.
 	run := func(after time.Duration) {
 		now = start.Add(after)
-		scheduler.NewCleanupTestRunner(deps)()
+		cleanuprunner.NewCleanupTestRunner(deps)()
 	}
 	alerts := func(msg string) []map[string]any {
 		var matched []map[string]any
@@ -727,7 +727,7 @@ func TestNightlyCleanupStoresTheStreakOfAnUnreadableSwitch(t *testing.T) {
 
 	for _, after := range []time.Duration{0, time.Hour, 3 * time.Hour} {
 		now = start.Add(after)
-		scheduler.NewCleanupTestRunner(deps)()
+		cleanuprunner.NewCleanupTestRunner(deps)()
 	}
 
 	assert.Equal(t, storedCleanupRun{Failures: 3}, storedRun(t, admin, school.id))
@@ -751,7 +751,7 @@ func TestNightlyCleanupStoresTheStreakOfAnUnreadableCleanupTime(t *testing.T) {
 
 	for _, after := range []time.Duration{0, 30 * time.Minute, time.Hour, 3 * time.Hour} {
 		now = start.Add(after)
-		scheduler.NewCleanupTestRunner(deps)()
+		cleanuprunner.NewCleanupTestRunner(deps)()
 		assert.Equal(t, "failed", outcome, "the job run fails while the cleanup time cannot be read")
 	}
 
@@ -796,7 +796,7 @@ func TestNightlyCleanupStreakWriteErrorKeepsTheCommittedSteps(t *testing.T) {
 	var outcome string
 	deps.Tracer.Run = func(_ ports.JobID, result string, _ time.Duration) { outcome = result }
 
-	scheduler.NewCleanupTestRunner(deps)()
+	cleanuprunner.NewCleanupTestRunner(deps)()
 
 	assert.Equal(t, "failed", outcome, "the incomplete run still fails the job")
 	assert.False(t, visitExists(t, admin, school.expired), "the visit retention commits although the streak write failed")
@@ -816,7 +816,7 @@ func TestNightlyCleanupPendingFailureWriteErrorKeepsTheJobRunning(t *testing.T) 
 	school := seedCleanupSchool(t, admin, false, false, 10)
 	var outcome string
 	deps.Tracer.Run = func(_ ports.JobID, result string, _ time.Duration) { outcome = result }
-	run := scheduler.NewCleanupTestRunner(deps) // one Worker for both ticks
+	run := cleanuprunner.NewCleanupTestRunner(deps) // one Worker for both ticks
 
 	// The success write fails: the whole run rolls back and its failure
 	// stays with the process.

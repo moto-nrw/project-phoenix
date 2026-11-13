@@ -1,4 +1,4 @@
-package compose_test
+package behaviortest_test
 
 import (
 	"context"
@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	scheduler "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/compose"
+	cleanuprunner "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/compose/behaviortest"
 	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
@@ -42,7 +42,7 @@ func TestNightlyCleanupWritesOneAuditRowPerType(t *testing.T) {
 		}
 		return result, nil
 	}
-	scheduler.NewCleanupTestRunner(deps)()
+	cleanuprunner.NewCleanupTestRunner(deps)()
 	for kind, want := range map[string]int{"feedback_retention": 2, "pwa_usage_retention": 3, "staff_message_retention": 5} {
 		var counts []int
 		require.NoError(t, admin.NewRaw(`SELECT records_deleted FROM audit.data_deletions WHERE tenant_id = ? AND deletion_type = ? ORDER BY id`, school.id, kind).Scan(t.Context(), &counts))
@@ -63,7 +63,7 @@ func TestNightlyCleanupAuditFailureDoesNotRecordSuccess(t *testing.T) {
 		}
 		return originalLog(ctx, kind, outcome)
 	}
-	scheduler.NewCleanupTestRunner(deps)()
+	cleanuprunner.NewCleanupTestRunner(deps)()
 	require.Zero(t, cleanupRunCount(t, admin, school.id), "an unaudited deletion is not a successful nightly run")
 	require.Equal(t, 1, storedRun(t, admin, school.id).Failures)
 	var auditRows int

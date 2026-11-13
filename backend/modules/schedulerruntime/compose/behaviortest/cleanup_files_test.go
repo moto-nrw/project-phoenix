@@ -1,4 +1,4 @@
-package compose_test
+package behaviortest_test
 
 import (
 	"context"
@@ -8,7 +8,7 @@ import (
 	"testing"
 	"time"
 
-	scheduler "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/compose"
+	cleanuprunner "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/compose/behaviortest"
 	"github.com/moto-ogs/project-phoenix/roots/owners"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
@@ -56,13 +56,13 @@ func TestSoftDeletedSchoolRetentionRemovesSickNoteFile(t *testing.T) {
 	require.NoError(t, err)
 	var workerErr error
 	deps.Tracer.Failure = func(_ context.Context, _, _ string, err error) { workerErr = err }
-	scheduler.NewCleanupTestRunner(deps)()
+	cleanuprunner.NewCleanupTestRunner(deps)()
 	assert.NoError(t, workerErr)
 	var exists bool
 	require.NoError(t, admin.NewRaw(`SELECT EXISTS (SELECT 1 FROM users.staff_documents WHERE id = ?)`, expired).Scan(context.Background(), &exists))
 	require.False(t, exists, "nightly retention removes the overdue sick note metadata")
 	require.FileExists(t, expiredPath, "file removal follows in the recovery pass")
-	scheduler.NewFileCleanupTestRunner(deps)()
+	cleanuprunner.NewFileCleanupTestRunner(deps)()
 	assert.NoError(t, workerErr)
 	assert.NoFileExists(t, expiredPath, "a soft-deleted school's sick note must lose its stored bytes")
 	var pending int

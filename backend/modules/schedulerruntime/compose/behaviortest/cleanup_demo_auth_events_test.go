@@ -1,11 +1,11 @@
-package compose_test
+package behaviortest_test
 
 import (
 	"context"
 	"testing"
 	"time"
 
-	scheduler "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/compose"
+	cleanuprunner "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/compose/behaviortest"
 	"github.com/moto-ogs/project-phoenix/roots/owners"
 	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
@@ -74,7 +74,7 @@ func TestNightlyCleanupDeletesSignInEventsOfARetiredDemoSchoolAfterNinetyDays(t 
 	require.NoError(t, err)
 	var workerErr error
 	deps.Tracer.Failure = func(_ context.Context, _, _ string, err error) { workerErr = err }
-	scheduler.NewCleanupTestRunner(deps)()
+	cleanuprunner.NewCleanupTestRunner(deps)()
 	require.NoError(t, workerErr)
 
 	assert.False(t, authEventExists(t, admin, expired), "the nightly run deletes a retired demo school's sign-in event older than 90 days")

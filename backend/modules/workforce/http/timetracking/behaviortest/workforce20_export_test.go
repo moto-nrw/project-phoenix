@@ -1,6 +1,7 @@
 package behaviortest
 
 import (
+	"context"
 	"fmt"
 	"net/http"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/moto-ogs/project-phoenix/modules/workforce/http/absencetypes"
 	timetracking "github.com/moto-ogs/project-phoenix/modules/workforce/http/timetracking"
 	"github.com/moto-ogs/project-phoenix/modules/workforce/workforcetest"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/uptrace/bun"
 )
@@ -47,4 +49,11 @@ func newWorkforce20RebookFixture(t *testing.T, n int) workforcetest.RebookFixtur
 		f.absences = append(f.absences, insertAbsenceRow(t, f.tc, map[string]any{"staff_id": f.subjectID, "absence_type": "comp_time", "date_start": fmt.Sprintf("2026-08-%02d", day), "date_end": fmt.Sprintf("2026-08-%02d", day), "status": "reported", "created_by": f.subjectID, "requested_at": time.Now()}))
 	}
 	return workforcetest.RebookFixture{DB: f.tc.db, Router: f.tc.router, SubjectID: f.subjectID, TypeID: f.typeID, Absences: f.absences, Rebook: f.rebook, Body: f.body, AugustBalance: f.augustBalance, StoredTypes: f.storedTypes}
+}
+
+// testWithinTenant runs the routes' tenant transactions over db.
+func testWithinTenant(db *bun.DB) timetracking.TenantTransaction {
+	return func(ctx context.Context, tenantID int64, run func(context.Context) error) error {
+		return tenant.WithTenantTx(ctx, db, tenantID, func(txCtx context.Context, _ bun.Tx) error { return run(txCtx) })
+	}
 }
