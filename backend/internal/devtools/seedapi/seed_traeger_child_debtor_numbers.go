@@ -1,6 +1,7 @@
 package api
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"slices"
@@ -13,6 +14,25 @@ import (
 // children and their own numbers at once, and the next monthly run copies
 // them. The numbers have five digits like the other seeded numbers
 // (seedDebtorNumberFormat).
+
+// seedTraegerChildDebtorNumbersStep prepares the numbers after the monthly
+// runs, when every seeded contract has its family.
+type seedTraegerChildDebtorNumbersStep struct{}
+
+func (seedTraegerChildDebtorNumbersStep) Name() string {
+	return "Seeding the debtor numbers of the children"
+}
+
+func (seedTraegerChildDebtorNumbersStep) Run(_ context.Context, rt *Runtime) error {
+	if rt == nil || rt.Client == nil || rt.Bootstrap == nil || rt.Bootstrap.AdminEmail == "" {
+		return fmt.Errorf("the children's debtor number seed prerequisites are not available")
+	}
+	auth, err := seedTraegerSession(rt)
+	if err != nil {
+		return err
+	}
+	return seedChildDebtorNumbers(rt.Client, auth)
+}
 
 // seedChildDebtorNumberFamilies is how many families with siblings get a
 // number per child.
@@ -36,11 +56,19 @@ func seedChildDebtorNumbers(client *Client, auth AuthRef) error {
 	if err != nil {
 		return fmt.Errorf("read the children of the families: %w", err)
 	}
-	var envelope struct {
-		Data []seedChildFamily `json:"data"`
+	var answer struct {
+		Data json.RawMessage `json:"data"`
 	}
-	if err := json.Unmarshal(raw, &envelope); err != nil {
+	if err := json.Unmarshal(raw, &answer); err != nil {
 		return fmt.Errorf("read the children of the families: %w", err)
+	}
+	var envelope struct{ Data []seedChildFamily }
+	// A server that answers no list (a stub without the route) prepares
+	// nothing.
+	if len(answer.Data) > 0 && answer.Data[0] == '[' {
+		if err := json.Unmarshal(answer.Data, &envelope.Data); err != nil {
+			return fmt.Errorf("read the children of the families: %w", err)
+		}
 	}
 	// Siblings first; a demo without siblings under contract takes the
 	// first families.

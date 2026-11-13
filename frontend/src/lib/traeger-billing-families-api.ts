@@ -65,7 +65,7 @@ export interface BillingFamily extends BillingAmounts {
 }
 
 /** Whom the Träger's debtor numbers name (#7007). */
-export type DebtorNumberScope = "payer" | "child";
+type DebtorNumberScope = "payer" | "child";
 
 /** A child of a family with its own debtor number, "" for none (#7007). */
 export interface FamilyChild {
@@ -282,11 +282,6 @@ export async function fetchDebtorNumberSettings(): Promise<DebtorNumberSettings>
     format: debtorNumberFormatOf(raw),
     scope: raw?.scope === "child" ? "child" : "payer",
   };
-}
-
-/** The format of the Träger's debtor numbers (#6675). */
-export async function fetchDebtorNumberFormat(): Promise<DebtorNumberFormat> {
-  return (await fetchDebtorNumberSettings()).format;
 }
 
 interface BackendFamilyChild {

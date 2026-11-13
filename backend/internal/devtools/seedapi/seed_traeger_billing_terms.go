@@ -48,9 +48,6 @@ func seedBillingTerms(client *Client, auth AuthRef, runID int64, month calendar.
 	if err := seedFamilyBilling(client, auth, invoices); err != nil {
 		return err
 	}
-	if err := seedChildDebtorNumbers(client, auth); err != nil {
-		return err
-	}
 	return seedSEPAMandates(client, auth, invoices)
 }
 
