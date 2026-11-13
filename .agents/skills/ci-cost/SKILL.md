@@ -81,6 +81,12 @@ Proven here (#5700, #5762, #5770) or in pingdotgg/t3code (#14025, #19587,
   Blacksmith.
 - Sticky disks (`build.yml` Docker layer cache) bill bytes ever written;
   `sticky-disk-cleanup.yml` deletes them nightly.
+- Service containers start before the first step: 9-11 s in the seed
+  smoke. Started in the background of its first step, they cost nothing
+  visible; the image pulls slow checkout and cache restore by 1-5 s, because
+  hosted setup shares one network link (#6985). setup-go's cache beside an own
+  Go cache loads the build cache twice: `cache: false` with the modules in the
+  own cache saved 4-8 s.
 - The seed smoke stalled on Blacksmith once (run 38232330367) and runs on a
   fresh hosted VM; test it repeatedly before moving it.
 - The nightly race run keeps four backend shards (`SPLIT_SUITES`): race
