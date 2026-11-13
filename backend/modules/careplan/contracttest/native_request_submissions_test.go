@@ -48,7 +48,7 @@ func TestNativeRequestSubmissionRollsBackEffectsAndRejectsDuplicates(t *testing.
 	student := testpkg.CreateTestStudent(t, db, "Request", "Submission", "1a")
 	account := testpkg.CreateTestAccount(t, db, "parent")
 	effects := &submissionEffects{failure: errors.New("submission effect failed")}
-	service, err := compose.NewRequestSubmissions(owner, nil, effects, func() calendar.Date { return "2026-09-20" })
+	service, err := compose.NewRequestSubmissions(owner, nil, effects, nil, func() calendar.Date { return "2026-09-20" })
 	require.NoError(t, err)
 	payload := json.RawMessage(`{"weekdays":[{"weekday":1,"pickup":"16:00","ignored":true}]}`)
 	create := func() error {

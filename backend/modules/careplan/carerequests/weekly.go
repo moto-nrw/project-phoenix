@@ -21,6 +21,10 @@ type DiffEntry struct {
 	CareKind string
 	OldModes []string
 	NewMode  string
+	// SubmittedOld is the value the family saw when it submitted or last
+	// edited a weekly request, set only when the plan has changed since
+	// (#6990). Empty means Old is still what the family saw.
+	SubmittedOld string
 }
 
 type WeekdayChange struct {
@@ -70,6 +74,11 @@ func WeeklyImpactContent(entries []DiffEntry) []byte {
 		content.WriteByte(0)
 		content.WriteString(entry.New)
 		content.WriteByte(0)
+		// The hint is part of what the reviewer decides on (#6990).
+		if entry.SubmittedOld != "" {
+			content.WriteString(entry.SubmittedOld)
+			content.WriteByte(1)
+		}
 	}
 	return []byte(content.String())
 }

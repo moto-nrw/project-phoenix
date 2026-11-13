@@ -15,8 +15,10 @@ import {
   decideCareScheduleChangeRequest,
   downloadCareRequestProofPdf,
 } from "~/lib/care-request-review-api";
+import { Alert } from "~/components/ui/alert";
 import { Button } from "~/components/ui/button";
 import { SectionLabel } from "~/components/ui/section-label";
+import { StatusBadge } from "~/components/ui/status-badge";
 import type { RequestDiffEntry } from "~/lib/messaging-status";
 import {
   fetchPickupExtensions,
@@ -304,6 +306,16 @@ function CareRequestDetails({ row }: Readonly<{ row: StaffCareRequest }>) {
             {row.request_reason}
           </p>
         )}
+        {/* Der Plan hat sich seit der Anfrage geändert (#6990): einmal oben
+            sagen, was die Marken bedeuten. */}
+        {row.diff.some((entry) => entry.submitted_old) && (
+          <Alert
+            type="warning"
+            size="compact"
+            className="mb-3"
+            message="Der Plan wurde nach der Anfrage geändert. Die Eltern kannten noch die markierten Werte."
+          />
+        )}
         <RequestDiffRows diff={row.diff} />
         {/* Nur eine neue Abholzeit verschiebt Termine; eine Abholart allein
             ändert am Betreuungsplan nichts (#3945). */}
@@ -368,9 +380,29 @@ function RequestDiffRows({
           →
         </span>
         <span className="font-medium text-gray-900">{entry.new}</span>
+        <ParentsSawBadge entry={entry} />
       </div>
     </div>
   ));
+}
+
+/**
+ * Was die Eltern beim Anfragen gesehen haben, wenn der Plan sich seitdem
+ * geändert hat (#6990). Sonst liest sich „16:30 → 16:00" als frühere
+ * Abholung, obwohl die Eltern 15:00 → 16:00 wollten.
+ */
+export function ParentsSawBadge({
+  entry,
+}: Readonly<{ entry: RequestDiffEntry }>) {
+  if (!entry.submitted_old) return null;
+  return (
+    <StatusBadge
+      tone="warning"
+      compact
+      wrap
+      label={`Eltern sahen ${entry.submitted_old}`}
+    />
+  );
 }
 
 function PickupImpact({ row }: Readonly<{ row: StaffCareRequest }>) {
