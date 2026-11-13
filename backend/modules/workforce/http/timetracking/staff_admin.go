@@ -25,7 +25,7 @@ type AdminAbsenceWrites interface {
 	ApproveAbsence(ctx context.Context, absenceID, actorAccountID, decidedByStaffID int64, note string) (*workforce.StaffAbsenceResponse, error)
 	CreateAbsenceFor(ctx context.Context, subjectStaffID, createdByStaffID int64, actorAccountID *int64, request workforce.CreateAbsenceRequest) (*workforce.StaffAbsenceResponse, error)
 	DeleteAbsenceFor(ctx context.Context, subjectStaffID, actorStaffID int64, actorAccountID *int64, absenceID int64) error
-	// AbsencePlanGaps and SyncAbsencePlans serve the take-over of absences
+	// AbsencePlanGaps and SyncAbsencePlan serve the take-over of absences
 	// whose plan effect predates #6847 (#7021).
 	AbsencePlanGaps(ctx context.Context) ([]workforce.AbsencePlanGap, error)
 	SyncAbsencePlan(ctx context.Context, absenceID, actorStaffID int64, actorAccountID *int64) (bool, error)

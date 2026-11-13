@@ -43,24 +43,35 @@ func (s *sickCascade) AbsencePlanGaps(ctx context.Context) ([]workforce.AbsenceP
 	openShifts := openShiftDays(shifts)
 	openBlocks := openBlockDays(rows, instances)
 	gaps := make([]workforce.AbsencePlanGap, 0)
+	// Two absences of one person may overlap; each day's rows count once,
+	// for the first absence that covers it, as the first take-over stamps
+	// them for that absence.
+	claimed := make(map[staffDay]bool)
 	for _, report := range reports {
-		gap := workforce.AbsencePlanGap{
-			AbsenceID: report.absenceID, StaffID: report.subjectStaffID, AbsenceType: report.absenceType,
-			DateStart: report.dateStart.String(), DateEnd: report.dateEnd.String(),
-		}
-		for _, day := range sickCascadeDays(report, today) {
-			if day.Before(today) {
-				continue
-			}
-			key := staffDay{staffID: report.subjectStaffID, day: day}
-			gap.OpenShifts += openShifts[key]
-			gap.OpenBlocks += openBlocks[key]
-		}
-		if gap.OpenShifts > 0 || gap.OpenBlocks > 0 {
+		if gap := planGapOf(report, today, openShifts, openBlocks, claimed); gap.OpenShifts > 0 || gap.OpenBlocks > 0 {
 			gaps = append(gaps, gap)
 		}
 	}
 	return gaps, nil
+}
+
+// planGapOf counts the open rows on the absence's full days from today on
+// that no earlier absence of the person claimed.
+func planGapOf(report sickReport, today calendar.Date, openShifts, openBlocks map[staffDay]int, claimed map[staffDay]bool) workforce.AbsencePlanGap {
+	gap := workforce.AbsencePlanGap{
+		AbsenceID: report.absenceID, StaffID: report.subjectStaffID, AbsenceType: report.absenceType,
+		DateStart: report.dateStart.String(), DateEnd: report.dateEnd.String(),
+	}
+	for _, day := range sickCascadeDays(report, today) {
+		key := staffDay{staffID: report.subjectStaffID, day: day}
+		if day.Before(today) || claimed[key] {
+			continue
+		}
+		claimed[key] = true
+		gap.OpenShifts += openShifts[key]
+		gap.OpenBlocks += openBlocks[key]
+	}
+	return gap
 }
 
 // MarkAbsenceInForce re-applies the cascade of one stored absence on behalf

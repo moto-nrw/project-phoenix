@@ -657,6 +657,7 @@ function DienstplanContent() {
       {/* Abwesenheiten von vor #6847, deren Tage noch im Plan stehen
           (#7021). Über dem Raster, weil sie jede Ansicht betreffen. */}
       <AbsencePlanGaps
+        enabled={sessionStatus === "authenticated" && canEdit}
         staffById={staffById}
         onPlansChanged={refreshAfterPlanMutation}
         onShowWeek={(day) => updateUrlParams({ d: day, view: null })}

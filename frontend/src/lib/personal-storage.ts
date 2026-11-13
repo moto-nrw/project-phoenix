@@ -109,6 +109,10 @@ export const KEPT_STORAGE_KEYS: readonly string[] = [
   "schulhof-banner-dismissed",
   "moto-pwa-install-hint-*",
   "moto-demo-*",
+  // Im Dienstplan ausgeblendete Abwesenheiten (#7021): nur Abwesenheits-IDs
+  // der Schule, keine Namen. Eine Entscheidung zum Plan der Schule, nicht der
+  // Person; gelöscht stünden die Zeilen nach jeder Anmeldung wieder offen.
+  "moto:absence-plan-gaps:hidden:*",
 ];
 
 export function isPersonalStorageKey(key: string): boolean {

@@ -334,6 +334,8 @@ describe("useDienstplanData", () => {
     expect(mocks.useTenantMutateMatching).toHaveBeenCalledWith([
       "dienstplan-overview-",
       "dienstplan-shifts-",
+      // Abwesenheiten, die noch im Plan fehlen (#7021).
+      "absence-plan-gaps",
       "vertretung-week-",
       "vertretung-gaps-",
       "staff-pending-absences-",

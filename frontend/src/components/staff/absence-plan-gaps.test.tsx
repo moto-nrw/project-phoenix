@@ -39,6 +39,10 @@ vi.mock("~/contexts/ToastContext", async (importOriginal) => ({
   useApiErrorDisplay: () => ({ show: mockShowError }),
 }));
 
+vi.mock("~/lib/tenant-context", () => ({
+  useTenantSlugSafe: () => "sonnenhof",
+}));
+
 vi.mock("next-auth/react", () => ({
   useSession: () => ({ data: null, status: "unauthenticated" }),
 }));
@@ -77,6 +81,7 @@ const onShowWeek = vi.fn();
 function renderGaps(onPlansChanged = vi.fn()) {
   render(
     <AbsencePlanGaps
+      enabled
       staffById={staffById}
       onPlansChanged={onPlansChanged}
       onShowWeek={onShowWeek}
@@ -87,6 +92,7 @@ function renderGaps(onPlansChanged = vi.fn()) {
 
 describe("AbsencePlanGaps", () => {
   beforeEach(() => {
+    globalThis.localStorage.clear();
     mockGaps.current = [];
     mockLoadError.current = undefined;
     mockSyncPlan.mockReset();
@@ -98,6 +104,7 @@ describe("AbsencePlanGaps", () => {
   it("shows nothing while every absence is in the plan", () => {
     const { container } = render(
       <AbsencePlanGaps
+        enabled
         staffById={staffById}
         onPlansChanged={vi.fn()}
         onShowWeek={vi.fn()}
@@ -137,9 +144,11 @@ describe("AbsencePlanGaps", () => {
       screen.getByText("Fortbildung · 07.12.2026 · noch im Plan: 1 Block"),
     ).toBeInTheDocument();
     // Der gemeinsame Hinweis steht einmal, nicht je Zeile.
-    expect(screen.getAllByText(/Von Hand geplante Tage bleiben/)).toHaveLength(
-      1,
-    );
+    expect(
+      screen.getAllByText(
+        /Abgesagte Schichten und Vertretungen bleiben, wie sie sind/,
+      ),
+    ).toHaveLength(1);
   });
 
   it("shows the first week of an absence in the Dienstplan", () => {
@@ -223,6 +232,70 @@ describe("AbsencePlanGaps", () => {
     );
     expect(mockToastSuccess).not.toHaveBeenCalled();
     expect(onPlansChanged).toHaveBeenCalled();
+  });
+
+  it("hides an absence the Leitung keeps in the plan and shows it again", () => {
+    mockGaps.current = [gap("1", "11"), gap("2", "12")];
+    renderGaps();
+
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Abwesenheit von Mia Krüger ausblenden",
+      }),
+    );
+
+    expect(screen.getByText("1 offen")).toBeInTheDocument();
+    expect(
+      screen.getByText("Ausgeblendete Abwesenheiten (1)"),
+    ).toBeInTheDocument();
+    // Ein einzelner offener Eintrag braucht kein „Alle übernehmen“.
+    expect(
+      screen.queryByRole("button", { name: "Alle übernehmen" }),
+    ).toBeNull();
+    expect(
+      globalThis.localStorage.getItem(
+        "moto:absence-plan-gaps:hidden:sonnenhof",
+      ),
+    ).toBe('["1"]');
+
+    fireEvent.click(
+      screen.getByRole("button", { name: /Ausgeblendete Abwesenheiten/ }),
+    );
+    fireEvent.click(
+      screen.getByRole("button", {
+        name: "Abwesenheit von Mia Krüger wieder zeigen",
+      }),
+    );
+    expect(screen.getByText("2 offen")).toBeInTheDocument();
+    expect(
+      globalThis.localStorage.getItem(
+        "moto:absence-plan-gaps:hidden:sonnenhof",
+      ),
+    ).toBeNull();
+  });
+
+  it("takes only the shown absences over and names the skipped ones", async () => {
+    mockGaps.current = [gap("1", "11"), gap("2", "12"), gap("3", "11")];
+    globalThis.localStorage.setItem(
+      "moto:absence-plan-gaps:hidden:sonnenhof",
+      '["3"]',
+    );
+    mockSyncPlan.mockResolvedValueOnce(true).mockResolvedValueOnce(false);
+    renderGaps();
+
+    fireEvent.click(screen.getByRole("button", { name: "Alle übernehmen" }));
+    const dialog = await screen.findByRole("dialog");
+    const confirm = screen
+      .getAllByRole("button", { name: "Alle übernehmen" })
+      .find((button) => dialog.contains(button));
+    fireEvent.click(confirm!);
+
+    await waitFor(() =>
+      expect(mockToastSuccess).toHaveBeenCalledWith(
+        "1 Abwesenheit steht jetzt im Plan. 1 gilt nicht mehr.",
+      ),
+    );
+    expect(mockSyncPlan.mock.calls).toEqual([["1"], ["2"]]);
   });
 
   it("shows a load error instead of an empty list", async () => {

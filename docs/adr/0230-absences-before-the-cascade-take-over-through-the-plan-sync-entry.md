@@ -39,8 +39,13 @@ day locks, and a batch transaction would hold every day lock of the school.
 The screen takes several absences over one after the other. An absence no
 longer in force or not of the school is skipped.
 
-The cascade keeps every hand decision: a cancelled shift, a cover, an already
-absent block row and past days stay as they are. Both routes take
+The cascade keeps every hand decision it can see: a cancelled shift, a cover,
+an already absent block row and past days stay as they are. It cannot see a
+row the Leitung put back to present after an earlier cascade; such a row is a
+gap again. The screen therefore lets the Leitung hide an absence it keeps in
+the plan. The hidden list is a per-browser convenience, not a record: a
+server-side marker would need a new data object for a list that empties once
+the absences from before #6847 are over. Both routes take
 `vacation:approve` or `time_tracking:manage`, the permissions whose writes
 cascade absences today.
 

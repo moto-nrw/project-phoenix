@@ -68,11 +68,15 @@ func TestAbsencePlanGaps_PreCascadeVacationIsShownAndTakenOver(t *testing.T) {
 	_, handAbsent := e.createBlock(t, vacationDay, timetable.InstanceStatusPlanned, "10:00", requester.staffID, testpkg.InstanceStaffOpts{IsAbsent: true})
 	approved := e.storeAbsenceWithoutCascade(t, requester.staffID, vacationDay, workforce.AbsenceStatusApproved)
 
+	// An overlapping absence of the same person claims no row twice.
+	overlap := e.storeAbsenceWithoutCascade(t, requester.staffID, vacationDay, workforce.AbsenceStatusApproved)
+
 	requested := e.createShift(t, other.staffID, vacationDay, "08:00", "12:00", nil)
 	pending := e.storeAbsenceWithoutCascade(t, other.staffID, vacationDay, workforce.AbsenceStatusRequested)
 
 	gaps := e.planGaps(t)
-	require.Len(t, gaps, 1, "only the approved absence has plan effect")
+	require.Len(t, gaps, 1, "only an approved absence has plan effect, and each row counts once")
+	assert.NotEqual(t, overlap, gaps[0].AbsenceID)
 	assert.Equal(t, workforce.AbsencePlanGap{
 		AbsenceID: approved, StaffID: requester.staffID, AbsenceType: workforce.AbsenceTypeVacation,
 		DateStart: vacationDay.String(), DateEnd: vacationDay.String(), OpenShifts: 1, OpenBlocks: 1,
@@ -82,7 +86,7 @@ func TestAbsencePlanGaps_PreCascadeVacationIsShownAndTakenOver(t *testing.T) {
 		var applied bool
 		e.inTx(t, func(ctx context.Context) error {
 			var err error
-			applied, err = e.absences.SickReports.SyncAbsencePlan(ctx, absenceID, e.admin.ID, &requester.accountID)
+			applied, err = e.absences.SickReports.SyncAbsencePlan(ctx, absenceID, e.admin.ID, nil)
 			return err
 		})
 		return applied
