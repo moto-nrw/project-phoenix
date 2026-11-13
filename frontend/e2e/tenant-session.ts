@@ -48,6 +48,7 @@ export async function loginToTenant(
   // `domcontentloaded` statt `load`: der Next-Dev-Server hält über SSE
   // Verbindungen offen, das `load`-Event kann dadurch hängen.
   await loginToLocalTenant(page, base, access);
+  await waitForSignedInRedirect(page);
 
   const res = await page.request.get(`${base}/api/auth/session`);
   expect(res.ok(), `Session laden fehlgeschlagen (${res.status()})`).toBe(true);
@@ -59,6 +60,22 @@ export async function loginToTenant(
     localStorage.setItem(storageKey, JSON.stringify({ done: true }));
   }, key);
   await page.reload({ waitUntil: "domcontentloaded" });
+  await waitForSignedInRedirect(page);
+}
+
+/**
+ * Wartet, bis die Tenant-Wurzel `/` ein angemeldetes Konto weitergeleitet hat.
+ * Die Wurzel ist die Login-Maske; mit Sitzung zeigt sie „Sie sind bereits
+ * angemeldet“ und leitet erst im Browser weiter (SmartRedirect, nach /home oder
+ * zur Schul-Übergabe, für jedes Konto weg von `/`). Auf einem kalten
+ * Next-Dev-Server dauert das samt erster Übersetzung der Zielseite länger als
+ * die 5 s eines expect: Ohne dieses Warten zerstörte die Weiterleitung den
+ * Kontext von page.evaluate, oder die erste Spec eines Shards prüfte noch die
+ * Login-Maske. Seit #6937 laufen die Shards in eigenen Jobs mit kaltem Server,
+ * und „Rest 2/2“ fiel deshalb in planung-navigation.spec.ts.
+ */
+async function waitForSignedInRedirect(page: Page): Promise<void> {
+  await page.waitForURL((url) => url.pathname !== "/", { timeout: 30_000 });
 }
 
 /**
