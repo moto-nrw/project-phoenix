@@ -29,7 +29,7 @@ func NewStudentHTTPResources(
 	presence := presenceStudentsHTTP.NewResource(presenceCfg)
 	careCfg.RespondCreatedStudent = projection.RespondCreatedStudent
 	careCfg.RespondUpdatedStudent = projection.RespondUpdatedStudent
-	careCfg.PersistStudentStatusHistory = presence.PersistStudentStatusHistory
+	careCfg.ApplyProfileStatusChange = presence.ApplyProfileStatusChange
 	careCfg.NotifyAbsenceReported = presence.NotifyAbsenceReported
 	careCfg.IsPartialAbsenceConflict = func(err error) bool { return errors.Is(err, studentpresence.ErrStudentStatusDayPartialAbsenceConflict) }
 	careCfg.WriteCareDecision = reviewStudentsHTTP.WriteCareDecision

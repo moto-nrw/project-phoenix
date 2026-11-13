@@ -70,8 +70,8 @@ func applyStudentFieldUpdates(req *UpdateStudentRequest, student *peopleModule.S
 		student.SchoolClass = *req.SchoolClass
 	}
 	applyOptionalStudentFields(req, student)
-	applySickStatus(req, student)
-	applyExcusedStatus(req, student)
+	// sick/excused are not applied here: the status-day path derives the live
+	// flags in writeStudentUpdate (#6959).
 }
 
 func reconcilePhotoConsentRequest(requested *bool, snapshot, fresh *peopleModule.StudentState) *bool {
@@ -128,38 +128,6 @@ func applyOptionalStudentFields(req *UpdateStudentRequest, student *peopleModule
 	// not clear a note against a possibly-unpopulated scanonly field.
 	if req.AllowedDepartureModes != nil || req.DepartureDays != nil {
 		normalizeDepartureCompanionNote(student)
-	}
-}
-
-// applySickStatus handles sick status updates with SickSince timestamp logic
-func applySickStatus(req *UpdateStudentRequest, student *peopleModule.StudentState) {
-	if req.Sick == nil {
-		return
-	}
-	student.Sick = req.Sick
-	if *req.Sick {
-		if student.SickSince == nil {
-			now := time.Now()
-			student.SickSince = &now
-		}
-	} else {
-		student.SickSince = nil
-	}
-}
-
-// applyExcusedStatus handles excused status updates with ExcusedSince timestamp logic
-func applyExcusedStatus(req *UpdateStudentRequest, student *peopleModule.StudentState) {
-	if req.Excused == nil {
-		return
-	}
-	student.Excused = req.Excused
-	if *req.Excused {
-		if student.ExcusedSince == nil {
-			now := time.Now()
-			student.ExcusedSince = &now
-		}
-	} else {
-		student.ExcusedSince = nil
 	}
 }
 
@@ -391,7 +359,6 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	// leave a partial write behind either — checking first keeps the refusal
 	// cheap, the rollback makes it safe.
 	applyStudentFieldUpdates(req, fresh)
-	reportedStatus := newlyReportedAbsenceStatus(fresh, update.wasSick, update.wasExcused)
 	authorizedExtensions, err := rs.checkCompanionConflicts(ctx, fresh, req, userPermissions)
 	if err != nil {
 		return false, err
@@ -402,6 +369,7 @@ func (rs *Resource) applyStudentUpdate(ctx context.Context, tenantID int64, stud
 	if err != nil {
 		return false, err
 	}
+	reportedStatus := newlyReportedAbsenceStatus(fresh, update.wasSick, update.wasExcused)
 
 	// Broadcast after the OUTER tx commits. Broadcasting now would race
 	// subscribers into refetching the still-pre-commit row.
@@ -464,7 +432,9 @@ func (rs *Resource) writeStudentUpdate(ctx context.Context, update *studentUpdat
 		return false, err
 	}
 
-	if err := rs.PersistStudentStatusHistory(ctx, fresh, req.Sick, req.Excused, update.wasSick, update.wasExcused, update.now, trimPtrToNil(req.SickReason)); err != nil {
+	// The status-day path writes today's status days and derives the live
+	// flags onto fresh before the row is saved below; it is their only writer.
+	if err := rs.ApplyProfileStatusChange(ctx, fresh, req.Sick, req.Excused, update.now, trimPtrToNil(req.SickReason)); err != nil {
 		rs.logStatusHistoryError(update.snapshot.ID, err)
 		return false, err
 	}
@@ -545,6 +515,8 @@ func (rs *Resource) updateStudentTxErrorRenderer(err error) render.Renderer {
 			errors.New("a student cannot be both sick and excused at the same time"),
 			common.CodeStudentsSickExcusedConflict,
 		)
+	case errors.Is(err, absencerecords.ErrStatusDayOccupied):
+		return common.ErrorConflictWithCode(err, common.CodeStudentsStatusDayConflict)
 	case errors.Is(err, errStudentReassigned):
 		return common.ErrorForbidden(errors.New("insufficient permissions to update this student's data"))
 	case errors.Is(err, errStudentNotFoundUnderLock):

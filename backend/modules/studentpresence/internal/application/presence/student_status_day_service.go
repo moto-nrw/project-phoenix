@@ -61,7 +61,8 @@ func (s *StudentStatusDayService) lockStatusDate(ctx context.Context, studentID 
 }
 
 // ValidateProfileStatusChange preserves the explicit-switch contract even
-// when a parent/planned/school report has no corresponding live flag.
+// when a parent/planned/school report has no corresponding live flag, and
+// refuses a status on a day a class trip holds.
 func (s *StudentStatusDayService) ValidateProfileStatusChange(ctx context.Context, studentID int64, day calendar.Date, sick, excused *bool) error {
 	setsSick := sick != nil && *sick
 	setsExcused := excused != nil && *excused
@@ -79,6 +80,11 @@ func (s *StudentStatusDayService) ValidateProfileStatusChange(ctx context.Contex
 		if (setsSick && row.Status == absencerecords.StudentStatusDayExcused && (excused == nil || *excused)) ||
 			(setsExcused && row.Status == absencerecords.StudentStatusDaySick && (sick == nil || *sick)) {
 			return absencerecords.ErrSickExcusedConflict
+		}
+		// The profile has no switch for a class trip, so reporting over one
+		// is refused like the status-day write refuses it (#6959).
+		if row.Status == absencerecords.StudentStatusDayClassTrip {
+			return absencerecords.ErrStatusDayOccupied
 		}
 	}
 	return nil
