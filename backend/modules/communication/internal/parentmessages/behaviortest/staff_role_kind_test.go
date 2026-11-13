@@ -1,0 +1,76 @@
+package messaging_test
+
+import (
+	"context"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+)
+
+// assignSystemRole attaches the named platform system role to the account at
+// the test's tenant (the admin sibling of testpkg.AssignLehrkraftSystemRole).
+func assignSystemRole(t *testing.T, db *bun.DB, accountID int64, roleName string) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+
+	var roleID int64
+	require.NoError(t, db.NewSelect().
+		ColumnExpr("id").TableExpr("auth.roles").
+		Where("name = ?", roleName).Where("is_system = TRUE").
+		Scan(ctx, &roleID), "seeded %s system role must exist", roleName)
+
+	_, err := db.NewRaw("INSERT INTO auth.account_roles (account_id, role_id, tenant_id) VALUES (?, ?, ?)",
+		accountID, roleID, testpkg.Tenant(t)).Exec(ctx)
+	require.NoError(t, err)
+}
+
+// TestRecipientRoleKinds pins the coarse "who is this" label next to every
+// name (#2208): a Lehrkraft, an admin (OGS leadership), a plain colleague, and
+// a dual-role account, which reads as admin because that is the side it
+// answers for.
+func TestRecipientRoleKinds(t *testing.T) {
+	t.Parallel()
+	db := testpkg.SetupTestDB(t)
+	svc := newService(t, db)
+
+	_, viewer := testpkg.CreateTestStaffWithAccount(t, db, "Viewer", "Konto")
+	_, teacher := testpkg.CreateTestStaffWithAccount(t, db, "Lena", "Lehrkraft")
+	_, leader := testpkg.CreateTestStaffWithAccount(t, db, "Lars", "Leitung")
+	_, colleague := testpkg.CreateTestStaffWithAccount(t, db, "Ben", "Betreuung")
+	_, both := testpkg.CreateTestStaffWithAccount(t, db, "Dana", "Doppelrolle")
+
+	testpkg.AssignLehrkraftSystemRole(t, db, teacher.ID, testpkg.Tenant(t))
+	assignSystemRole(t, db, leader.ID, "admin")
+	testpkg.AssignLehrkraftSystemRole(t, db, both.ID, testpkg.Tenant(t))
+	assignSystemRole(t, db, both.ID, "admin")
+
+	recipients, err := testpkg.TenantQuery0(t, asAccount(t, viewer.ID), db, svc.ListMessageableStaff)
+	require.NoError(t, err)
+
+	kinds := make(map[int64]string, len(recipients))
+	for _, r := range recipients {
+		kinds[r.AccountID] = r.RoleKind
+	}
+	assert.Equal(t, "lehrkraft", kinds[teacher.ID])
+	assert.Equal(t, "admin", kinds[leader.ID])
+	assert.Equal(t, "staff", kinds[colleague.ID])
+	assert.Equal(t, "admin", kinds[both.ID], "admin wins over lehrkraft for a dual-role account")
+
+	// The same classification travels on the inbox row and the thread detail.
+	opened, err := testpkg.TenantQuery1(t, asAccount(t, viewer.ID), db, svc.OpenThread, teacher.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "lehrkraft", opened.CounterpartRoleKind)
+
+	_, err = testpkg.TenantQuery2(t, asAccount(t, teacher.ID), db, svc.PostMessage, opened.ThreadID, "Hallo aus der Schule")
+	require.NoError(t, err)
+	inbox, err := testpkg.TenantQuery1(t, asAccount(t, viewer.ID), db, svc.ListInbox, false)
+	require.NoError(t, err)
+	require.Len(t, inbox, 1)
+	assert.Equal(t, "lehrkraft", inbox[0].CounterpartRoleKind)
+}

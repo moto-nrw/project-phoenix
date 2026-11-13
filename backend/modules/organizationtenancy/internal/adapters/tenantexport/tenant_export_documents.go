@@ -14,7 +14,7 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 )
 
 // The Löschkonzept (§5) asks the return to hand over the documents

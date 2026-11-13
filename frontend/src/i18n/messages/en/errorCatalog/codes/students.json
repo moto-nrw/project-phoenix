@@ -75,6 +75,7 @@
   "pickup_change_conflict": "{object} could not be changed. Please check its current status.",
   "pickup_change_expired": "{object} could not be changed. Please check its current status.",
   "pickup_change_impact_changed": "{object} could not be changed. Please check its current status.",
+  "care_request_plan_changed": "The care plan has just changed. Please reload the page. Then check the request again.",
   "pickup_permission_contact_gone": "{object} could not be changed. Please check the current state.",
   "pickup_proof_not_found": "{object} could not be changed. Please check the current state.",
   "pickup_reset_requires_offering": "{object} could not be changed. Please check its current status.",
@@ -88,7 +89,9 @@
   "staff_value_invalid": "{object} could not be saved. Please check your entries.",
   "staff_value_unsupported": "{object} could not be saved. Please check your entries.",
   "status_day_conflict": "Some days already have an entry. These days were not changed.",
+  "status_day_occupied": "A class trip is entered for today. Remove the class trip first.",
   "guardian_email_block_needs_review": "{object} could not be saved. Please check your entries.",
   "guardian_email_block_lift_failed": "{object} could not be saved. Please check your entries.",
-  "guardian_email_block_stays": "{object} could not be saved. Please check your entries."
+  "guardian_email_block_stays": "{object} could not be saved. Please check your entries.",
+  "person_has_active_profile": "This person is still registered as a child or staff member. Please delete the child or record the staff member's exit first."
 }

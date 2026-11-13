@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	values "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
+	values "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
 )
 
 func NewRepository(source values.StaffAnnouncementSource) values.ParentAnnouncementRepository {
@@ -67,6 +67,9 @@ func (r *nativeAnnouncementRepository) ReplaceTargets(ctx context.Context, tenan
 		return (*values.ParentAnnouncementTarget)(v)
 	})))
 	return err
+}
+func (r *nativeAnnouncementRepository) RecordRecipients(ctx context.Context, tenantID, id int64) error {
+	return r.source.AnnouncementRecordRecipients(ctx, tenantID, id)
 }
 func (r *nativeAnnouncementRepository) SetPublished(ctx context.Context, id int64, publishedAt *time.Time) error {
 	err := r.source.AnnouncementSetPublished(ctx, id, publishedAt)

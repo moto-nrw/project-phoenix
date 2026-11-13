@@ -28,22 +28,34 @@ export const OVERLAY_PANEL_STYLE = {
 } as const;
 
 /**
- * Stacking order of everything that floats above the page, lowest first.
- * Every kit overlay takes its level from here instead of writing a number;
- * a new level goes here with the reason it sits where it does.
- *
- * Literal class strings so Tailwind finds them. `Z_INDEX` carries the same
- * levels for inline `style.zIndex` (portaled menus, positioned popovers).
- */
-/**
  * Klebt am unteren Rand einer Seite. Unter `lg` liegt dort die untere
  * Navigation, die Leiste steht dann darüber.
  */
 export const STICKY_ABOVE_BOTTOM_NAV =
   "sticky bottom-[calc(6rem+env(safe-area-inset-bottom))] lg:bottom-4";
 
+/**
+ * Stacking order of everything that floats above the page, lowest first:
+ * the one token set for levels in the kit. Every kit surface takes its level
+ * from here instead of writing a number; a new level goes here with the
+ * reason it sits where it does. `ui-kit/no-raw-z-index` fails a `z-…` class
+ * anywhere else in the kit.
+ *
+ * Literal class strings so Tailwind finds them. `Z_INDEX` reads the numbers
+ * for inline `style.zIndex` from these classes, and the overlay stack orders
+ * open overlays by them (`overlay-stack.ts`).
+ */
 export const Z_LAYER = {
-  /** Mobile bottom navigation. */
+  /** Background layer of the portal shell, below its content. */
+  base: "z-0",
+  /**
+   * Above the siblings inside the same component: sticky table columns,
+   * scroll fades, the close X over a dialog body, the portal content.
+   */
+  raised: "z-10",
+  /** Sticky bars at the bottom of a page and tooltips, below the nav. */
+  sticky: "z-20",
+  /** Mobile bottom navigation; a selection bar sticking to the top. */
   nav: "z-30",
   /** Sticky portal header. */
   header: "z-40",
@@ -64,21 +76,43 @@ export const Z_LAYER = {
   modal: "z-[9999]",
   /** Guided-tour coach mark: above open dialogs, below popovers. */
   coach: "z-[10000]",
+  /** Portaled select menus: above dialogs, below calendars. */
+  menu: "z-[10000]",
   /** Calendars and anchored popovers, also when opened from a dialog. */
   popover: "z-[10001]",
+  /**
+   * Menus opened from inside a popover or calendar (overflow menu in an
+   * `AnchoredPopover`, month/year select in the calendar).
+   */
+  popoverMenu: "z-[10002]",
+  /**
+   * Action hints of buttons (`ActionHint`), topmost: they also belong to
+   * buttons inside dialogs, popovers and menus, and never take a click.
+   */
+  tooltip: "z-[10003]",
 } as const;
+
+export type ZLayer = keyof typeof Z_LAYER;
+
+/** The number behind a `Z_LAYER` class (`z-50`, `z-[9999]`). */
+export function zLayerValue(layer: ZLayer): number {
+  return Number(/\d+/.exec(Z_LAYER[layer])?.[0]);
+}
 
 /** `Z_LAYER` levels as numbers for inline `style.zIndex`. */
 export const Z_INDEX = {
   /** Portaled select menus: above dialogs, below calendars. */
-  menu: 10000,
+  menu: zLayerValue("menu"),
   /** Anchored popover panels and calendars. */
-  popover: 10001,
-  /** Menus opened from inside a popover (month/year select in the calendar). */
-  popoverMenu: 10002,
+  popover: zLayerValue("popover"),
+  /**
+   * Menus opened from inside a popover or calendar (overflow menu in an
+   * `AnchoredPopover`, month/year select in the calendar).
+   */
+  popoverMenu: zLayerValue("popoverMenu"),
   /**
    * Action hints of buttons (`ActionHint`): they also belong to buttons inside
    * dialogs, popovers and menus, and never take a click.
    */
-  tooltip: 10003,
+  tooltip: zLayerValue("tooltip"),
 } as const;

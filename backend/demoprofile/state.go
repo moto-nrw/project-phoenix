@@ -11,7 +11,7 @@ import (
 	"time"
 	"unicode"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/textnorm"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/textnorm"
 )
 
 const DefaultSeedStatePath = ".seed-state.json"

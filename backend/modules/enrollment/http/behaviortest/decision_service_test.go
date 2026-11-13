@@ -1,0 +1,4772 @@
+package enrollmenthttp_test
+
+import (
+	"context"
+	"encoding/json"
+	"errors"
+	"fmt"
+	"log/slog"
+	"sync"
+	"testing"
+	"time"
+
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
+
+	"github.com/moto-ogs/project-phoenix/api"
+	enrollmentAPI "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uptrace/bun"
+)
+
+// Decision service integration tests. These hit the real test DB
+// (testpkg.SetupTestDB) so they run only in CI environments where
+// the test DB is wired. Locally they skip via SetupTestDB's contract.
+//
+// Coverage focus: the public surface of DecisionService (List, Get,
+// Decide, ListChildOfferings) plus the downstream-record-creation
+// behaviour of the approval branch (the most load-bearing path in
+// the enrollment workflow).
+
+// decisionTestEnv augments rolloverTestEnv with a wired DecisionService
+// so we don't have to repeat the dependency injection in every test.
+// Reuses the rollover env's tenant + schema + source-phase fixture.
+type decisionTestEnv struct {
+	*rolloverTestEnv
+	decision enrollmentAPI.DecisionService
+	// bookings is Care Plan's booking materialization the decision drives
+	// (#3560): the roster resyncs, the offering-source editor and the pickup
+	// reset the suites call directly.
+	bookings careplan.BookingMaterializationCapability
+}
+
+// stubActivationSettings is a fake DecisionSettingsResolver returning a
+// fixed enrollment.default_activation_mode, so the immediate/scheduled
+// approval paths can be exercised without writing config.setting_values
+// rows. Any other key resolves to "" (registry-default behaviour).
+type stubActivationSettings struct {
+	mode                  string
+	notificationMode      string
+	careOfferingsEnabled  *bool
+	bookingsAuthoritative *bool
+}
+
+const decisionTestToday calendar.Date = "2026-08-24"
+
+func (s stubActivationSettings) ResolveString(_ context.Context, key string) (string, error) {
+	if key == settingKeyDefaultActivationMode {
+		return s.mode, nil
+	}
+	if key == settingKeyNotifyPerDecision {
+		if s.notificationMode != "" {
+			return s.notificationMode, nil
+		}
+		return settingValueNotifyImmediate, nil
+	}
+	return "", nil
+}
+
+func (s stubActivationSettings) ResolveBool(_ context.Context, key string) (bool, error) {
+	if key == settingKeyCareOfferingsEnabled && s.careOfferingsEnabled != nil {
+		return *s.careOfferingsEnabled, nil
+	}
+	if key == settingKeyBookingsAuthoritative {
+		return s.bookingsAuthoritative != nil && *s.bookingsAuthoritative, nil
+	}
+	return true, nil
+}
+
+func setupDecisionTest(t *testing.T) *decisionTestEnv {
+	// The harness supplies explicit scheduled-mode fixture settings.
+	return setupDecisionTestWithSettings(t, nil)
+}
+
+func setupDecisionTestWithSettings(
+	t *testing.T,
+	settings owners.EnrollmentDecisionSettings,
+) *decisionTestEnv {
+	t.Helper()
+	env := setupRolloverTest(t)
+	bookings := newBookingsForTest(env, settings, nil, nil)
+	decision := newDecisionServiceForTestWithBookings(nil, env, bookings, settings, nil, nil, nil)
+	return &decisionTestEnv{rolloverTestEnv: env, decision: decision, bookings: bookings}
+}
+
+func newDecisionServiceForTest(
+	env *rolloverTestEnv,
+	settings owners.EnrollmentDecisionSettings,
+	lockTemplateRecurrence func(context.Context) error,
+) enrollmentAPI.DecisionService {
+	return newDecisionServiceForTestWithDependencies(env, settings, lockTemplateRecurrence, nil, nil)
+}
+
+func newDecisionServiceForTestWithConsentAuditor(
+	env *rolloverTestEnv,
+	studentConsents owners.EnrollmentConsentAuditor,
+) enrollmentAPI.DecisionService {
+	return newDecisionServiceForTestWithDependencies(env, nil, nil, nil, studentConsents)
+}
+
+func newDecisionServiceForTestWithDependencies(
+	env *rolloverTestEnv,
+	settings owners.EnrollmentDecisionSettings,
+	lockTemplateRecurrence func(context.Context) error,
+	careWithdrawal TestCareWithdrawalReconciler,
+	studentConsents owners.EnrollmentConsentAuditor,
+	outboxes ...testMailOutbox,
+) enrollmentAPI.DecisionService {
+	return newDecisionServiceForTestWithPickupExtensions(nil, env, settings, lockTemplateRecurrence, careWithdrawal, studentConsents, outboxes...)
+}
+
+func newDecisionServiceForTestWithPickupExtensions(
+	t *testing.T,
+	env *rolloverTestEnv,
+	settings owners.EnrollmentDecisionSettings,
+	lockTemplateRecurrence func(context.Context) error,
+	careWithdrawal TestCareWithdrawalReconciler,
+	studentConsents owners.EnrollmentConsentAuditor,
+	outboxes ...testMailOutbox,
+) enrollmentAPI.DecisionService {
+	if careWithdrawal == nil {
+		careWithdrawal = newTestCareLifecycle(env.db, api.CareLifecycleTestConfig{
+			BookingsAuthoritative: testBookingsAuthority(settings),
+		})
+	}
+	bookings := newBookingsForTest(env, settings, lockTemplateRecurrence, careWithdrawal)
+	return newDecisionServiceForTestWithBookings(t, env, bookings, settings, lockTemplateRecurrence, careWithdrawal, studentConsents, outboxes...)
+}
+
+// newBookingsForTest composes Care Plan's booking materialization (#3560)
+// with the collaborators the decision suites used to hand the decision
+// service: the env's catalog, the settings, the recurrence lock, the
+// withdrawal follow-up and the fixed decision day.
+func newBookingsForTest(
+	env *rolloverTestEnv,
+	settings owners.EnrollmentDecisionSettings,
+	lockTemplateRecurrence func(context.Context) error,
+	careWithdrawal TestCareWithdrawalReconciler,
+) careplan.BookingMaterializationCapability {
+	if careWithdrawal == nil {
+		careWithdrawal = newTestCareLifecycle(env.db, api.CareLifecycleTestConfig{
+			BookingsAuthoritative: testBookingsAuthority(settings),
+		})
+	}
+	var bookingSettings owners.EnrollmentDecisionSettings = registryDefaultDecisionSettings{}
+	if settings != nil {
+		bookingSettings = settings
+	}
+	options := []api.BookingMaterializationOption{
+		api.WithBookingCatalog(env.offeringCatalog),
+		api.WithBookingToday(func() calendar.Date { return decisionTestToday }),
+		api.WithBookingSettings(bookingSettings),
+		api.WithBookingWithdrawals(careWithdrawal),
+	}
+	if lockTemplateRecurrence != nil {
+		options = append(options, api.WithBookingRecurrenceLock(lockTemplateRecurrence))
+	}
+	return newBookingMaterialization(env.tb, env.db, options...).Bookings
+}
+
+// registryDefaultDecisionSettings answers the registry defaults a decision
+// service without settings always applied: care offerings on, bookings not
+// authoritative.
+type registryDefaultDecisionSettings struct{}
+
+func (registryDefaultDecisionSettings) ResolveString(context.Context, string) (string, error) {
+	return "", nil
+}
+
+func (registryDefaultDecisionSettings) ResolveBool(_ context.Context, key string) (bool, error) {
+	return key == settingKeyCareOfferingsEnabled || key == settingKeyModuleOnlineAnmeldung, nil
+}
+
+// testBookings composes the booking materialization over the env's catalog
+// with the suite's settings, on the real calendar day, for suites that build
+// their own decision service.
+func testBookings(t *testing.T, env *rolloverTestEnv, settings owners.EnrollmentDecisionSettings) careplan.BookingMaterializationCapability {
+	t.Helper()
+	options := []api.BookingMaterializationOption{api.WithBookingCatalog(env.offeringCatalog)}
+	if settings != nil {
+		options = append(options, api.WithBookingSettings(settings))
+	}
+	return newBookingMaterialization(t, env.db, options...).Bookings
+}
+
+func newDecisionServiceForTestWithBookings(
+	t *testing.T,
+	env *rolloverTestEnv,
+	bookings TestDecisionBookings,
+	settings owners.EnrollmentDecisionSettings,
+	lockTemplateRecurrence func(context.Context) error,
+	careWithdrawal TestCareWithdrawalReconciler,
+	studentConsents owners.EnrollmentConsentAuditor,
+	outboxes ...testMailOutbox,
+) enrollmentAPI.DecisionService {
+	return newFlowDecisionService(newDecisionsForTestWithBookings(t, env, bookings, settings, lockTemplateRecurrence, careWithdrawal, studentConsents, outboxes...))
+}
+
+// newDecisionsForTestWithBookings composes the decision flow the suites drive,
+// the way the root binds it.
+func newDecisionsForTestWithBookings(
+	t *testing.T,
+	env *rolloverTestEnv,
+	bookings TestDecisionBookings,
+	settings owners.EnrollmentDecisionSettings,
+	lockTemplateRecurrence func(context.Context) error,
+	careWithdrawal TestCareWithdrawalReconciler,
+	studentConsents owners.EnrollmentConsentAuditor,
+	outboxes ...testMailOutbox,
+) *TestDecisions {
+	repoFactory := env.repos
+	repoFactoryCare := env.reposCare
+	repoFactoryTimetable := env.reposTimetable
+	repoFactoryAudit := env.reposAudit
+	var outbox testMailOutbox = env.outbox
+	if len(outboxes) > 0 {
+		outbox = outboxes[0]
+	}
+	if careWithdrawal == nil {
+		careWithdrawal = newTestCareLifecycle(env.db, api.CareLifecycleTestConfig{
+			BookingsAuthoritative: testBookingsAuthority(settings),
+		})
+	}
+	var pickupAutoExcusal careplan.PickupAutoExcusal
+	if t != nil {
+		pickupBaselines := newPickupBaselineService(repoFactoryCare.CarePlan, approvedOfferingTestProjection(repoFactory))
+		pickupAutoExcusal = newPickupExcusal(t, env.db, repoFactoryCare.CarePlan, pickupBaselines, env.timetable, true)
+	}
+	studentEnrollment := testStudentEnrollment(env.db)
+	return newTestDecisions(enrollmentCompose.DecisionDependencies{
+		Requests:       repoFactory.Enrollment(),
+		Children:       repoFactory.Enrollment(),
+		Guardians:      repoFactory.Enrollment(),
+		LateInvites:    repoFactory.Enrollment(),
+		Phases:         repoFactory.Enrollment(),
+		Schemas:        repoFactory.Enrollment(),
+		Offerings:      enrollmentCompose.NewCareOfferingRecords(repoFactoryCare.CarePlan),
+		Bookings:       bookings,
+		GuardianAccess: testGuardianAccess(env.db), GuardianAuthorizer: repoFactory.StudentGuardian, GuardianHold: testGuardianHold(env.db, repoFactory),
+		People: owners.EnrollmentDecisionPeopleDirectory(
+			repoFactory.Person, repoFactory.Staff, repoFactory.Student, repoFactory.StudentGuardian, repoFactory.GuardianProfile, repoFactory.GuardianPhoneNumber, studentEnrollment,
+		),
+		StudentEnrollment:      studentEnrollment,
+		Companions:             owners.EnrollmentDecisionCompanions(owners.NewStudentCompanionRepository(repoFactoryCare.CarePlan), repoFactoryCare.CarePlan.DeleteCompanionEdges),
+		PickupSchedules:        repoFactoryTimetable.EnrollmentPickupSchedules(),
+		ArrivalSchedules:       repoFactoryTimetable.EnrollmentArrivalSchedules(),
+		Adjustments:            owners.EnrollmentDecisionAdjustments(repoFactoryAudit.EnrollmentOfferingAdjustment),
+		Restorations:           owners.EnrollmentDecisionRestorations(repoFactoryAudit.EnrollmentRestorationAudit),
+		StudentAudit:           owners.EnrollmentDecisionStudentAudit(api.NewEnrollmentFlowStudentAudit(testpkg.MustDatabase(env.db), testpkg.RequestAuditActor)),
+		StudentConsents:        owners.EnrollmentDecisionStudentConsents(studentConsents),
+		CareWithdrawal:         careWithdrawal,
+		ParentsURL:             owners.EnrollmentDecisionParentsURL("http://parents.localhost:3000", "http://localhost:3000"),
+		LockTemplateRecurrence: lockTemplateRecurrence,
+		FollowClassChanges:     api.MustEnrollmentTestClassFollowUp(testpkg.MustDatabase(env.db)),
+		Pickups: TestWeeklyPickupHooks{
+			Snapshot:      snapshotPickupWeekdayChanges(pickupAutoExcusal),
+			RecordChanges: recordPickupWeekdayChanges(pickupAutoExcusal),
+		},
+		Logger: slog.Default(),
+		Today:  func() calendar.Date { return decisionTestToday },
+	}, settings, outbox)
+}
+
+func snapshotPickupWeekdayChanges(syncer careplan.PickupAutoExcusal) func(context.Context, int64, calendar.Date) (map[int]string, error) {
+	if syncer == nil {
+		return nil
+	}
+	return func(ctx context.Context, studentID int64, date calendar.Date) (map[int]string, error) {
+		return syncer.SnapshotWeeklyPickups(ctx, studentID, date)
+	}
+}
+
+func recordPickupWeekdayChanges(syncer careplan.PickupAutoExcusal) func(context.Context, int64, calendar.Date, map[int]string) error {
+	if syncer == nil {
+		return nil
+	}
+	return func(ctx context.Context, studentID int64, date calendar.Date, before map[int]string) error {
+		return syncer.RecordWeeklyPickupChanges(ctx, studentID, date, careplan.WeeklyPickupSnapshot(before))
+	}
+}
+
+type failingStudentConsentAuditor struct {
+	err error
+}
+
+func (a failingStudentConsentAuditor) RecordTransitions(
+	context.Context,
+	*peopledirectory.StudentState,
+	*peopledirectory.StudentState,
+	string,
+	*int64,
+	time.Time,
+) error {
+	return a.err
+}
+
+func testBookingsAuthority(settings owners.EnrollmentDecisionSettings) func(context.Context) (bool, error) {
+	return func(ctx context.Context) (bool, error) {
+		if settings == nil {
+			return false, nil
+		}
+		return settings.ResolveBool(ctx, settingKeyBookingsAuthoritative)
+	}
+}
+
+func changeRequestApplierForTest(t *testing.T, env *decisionTestEnv) ChangeRequestDecisionApplier {
+	t.Helper()
+	return ChangeRequestApplierForTest(decisionOwner(t, env.decision))
+}
+
+// flowDecisionService is the decoded decision flow together with the owner
+// it decodes, so the change-request suites apply approved changes through the
+// same owner, the way the root binds both.
+type flowDecisionService struct {
+	enrollmentAPI.DecisionService
+	owner *TestDecisions
+}
+
+func newFlowDecisionService(owner *TestDecisions) enrollmentAPI.DecisionService {
+	return flowDecisionService{
+		DecisionService: decisionFixtureRoot{enrollmentAPI.NewDecisionService(enrollmentCompose.PublicDecisions(owner))},
+		owner:           owner,
+	}
+}
+
+func decisionOwner(t *testing.T, svc enrollmentAPI.DecisionService) *TestDecisions {
+	t.Helper()
+	flow, ok := svc.(flowDecisionService)
+	require.True(t, ok, "the decision service must come from the flow suites' composition")
+	return flow.owner
+}
+
+func assertOfferingAdjustmentWaitsForRecurrenceGate(
+	t *testing.T,
+	env *decisionTestEnv,
+	decision enrollmentAPI.DecisionService,
+	input enrollmentAPI.UpdateChildOfferingsInput,
+) {
+	t.Helper()
+
+	holderAcquired := make(chan struct{})
+	releaseHolder := make(chan struct{})
+	holderDone := make(chan error, 1)
+	go func() {
+		holderDone <- testpkg.WithTenantTx(t, testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			if err := owners.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, env.db)).LockRecurrenceWrites(txCtx); err != nil {
+				return err
+			}
+			close(holderAcquired)
+			<-releaseHolder
+			return nil
+		})
+	}()
+
+	select {
+	case <-holderAcquired:
+	case err := <-holderDone:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "timed out acquiring recurrence gate in holder transaction")
+	}
+
+	adjustmentDone := make(chan error, 1)
+	go func() {
+		adjustmentDone <- testpkg.WithTenantTx(t, testpkg.Ctx(t), env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+			_, err := testpkg.TenantQuery1(t, txCtx, testpkg.SetupTestDB(t), decision.UpdateChildOfferings, input)
+			return err
+		})
+	}()
+
+	select {
+	case err := <-adjustmentDone:
+		close(releaseHolder)
+		require.NoError(t, <-holderDone)
+		require.FailNow(t, "offering adjustment bypassed the recurrence gate", "returned early with %v", err)
+	case <-time.After(200 * time.Millisecond):
+		// Expected: the adjustment is waiting on the advisory transaction lock.
+	}
+
+	close(releaseHolder)
+	require.NoError(t, <-holderDone)
+	select {
+	case err := <-adjustmentDone:
+		require.NoError(t, err)
+	case <-time.After(5 * time.Second):
+		require.FailNow(t, "offering adjustment did not resume after recurrence gate release")
+	}
+}
+
+// submitOneChild submits a single-child enrollment in the source
+// phase and returns the resulting request + child ids so tests can
+// drive Decide against a known row.
+func submitOneChild(t *testing.T, env *decisionTestEnv, guardianEmail, childFirst, childLast string) (requestID, childID int64) {
+	t.Helper()
+	return submitOneChildWithCustomData(t, env, guardianEmail, childFirst, childLast, nil)
+}
+
+func submitOneChildWithCustomData(
+	t *testing.T,
+	env *decisionTestEnv,
+	guardianEmail string,
+	childFirst string,
+	childLast string,
+	customData map[string]any,
+) (requestID, childID int64) {
+	t.Helper()
+	ctx := testpkg.Ctx(t)
+	grade := int16(2)
+	res, err := env.requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
+		TenantID:          testpkg.Tenant(t),
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Test",
+		GuardianEmail:     guardianEmail,
+		ConsentFlags: testFormValues(map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		}),
+		Children: []enrollmentAPI.SubmitChild{
+			{
+				FirstName:        childFirst,
+				LastName:         childLast,
+				DateOfBirth:      calendar.NewDate(2018, 4, 15),
+				TargetGradeLevel: &grade,
+				CustomData:       testFormValues(customData),
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Children, 1)
+	return res.Request.ID, res.Children[0].ID
+}
+
+func submitDecisionSiblings(t *testing.T, env *decisionTestEnv, guardianEmail string) *enrollmentAPI.SubmitResult {
+	t.Helper()
+	grade := int16(2)
+	result, err := env.requestSvc.Submit(testpkg.Ctx(t), enrollmentAPI.SubmitRequest{
+		TenantID:          testpkg.Tenant(t),
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Digest",
+		GuardianEmail:     guardianEmail,
+		ConsentFlags: testFormValues(map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		}),
+		Children: []enrollmentAPI.SubmitChild{
+			{
+				FirstName:        "Lina",
+				LastName:         "Digest",
+				DateOfBirth:      calendar.NewDate(2018, 4, 15),
+				TargetGradeLevel: &grade,
+			},
+			{
+				FirstName:        "Noah",
+				LastName:         "Digest",
+				DateOfBirth:      calendar.NewDate(2019, 7, 2),
+				TargetGradeLevel: &grade,
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, result.Children, 2)
+	return result
+}
+
+func publishDecisionScheduleSchema(t *testing.T, env *decisionTestEnv, key, target string) {
+	t.Helper()
+	ctx := testpkg.Ctx(t)
+	schemaSvc := NewTestFormSchemas(env.repos.Enrollment())
+	field := enrollmentNative.FormField{
+		Key:         key,
+		Label:       "Schedule",
+		Type:        enrollmentNative.FormFieldWeekdaySchedule,
+		AppliesToCh: true,
+		Target:      target,
+		SortOrder:   0,
+	}
+	if target == enrollmentNative.TargetSchedulePickup {
+		field.AllowedTimes = []string{
+			"07:45",
+			"14:45",
+			"16:00",
+		}
+	}
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung", []enrollmentNative.FormField{
+		field,
+	}, env.creatorID)
+	require.NoError(t, err)
+	env.sourcePhase.FormSchemaID = &schema.ID
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, OwnerPhaseForTest(env.sourcePhase)))
+}
+
+func publishLegacyDuplicateTargetSchema(t *testing.T, env *decisionTestEnv, name string, fields []enrollmentNative.FormField) {
+	t.Helper()
+	ctx := testpkg.Ctx(t)
+	schema := &enrollmentNative.FormSchema{
+		Name:      name,
+		Version:   1,
+		CreatedBy: env.creatorID,
+		Fields:    fields,
+	}
+	schema.TenantID = testpkg.Tenant(t)
+	fieldsJSON, err := json.Marshal(schema.Fields)
+	require.NoError(t, err)
+	err = env.db.NewRaw(`INSERT INTO enrollment.form_schemas
+		(tenant_id, name, version, created_by, fields) VALUES (?, ?, ?, ?, ?::jsonb) RETURNING id`,
+		schema.TenantID, schema.Name, schema.Version, schema.CreatedBy, string(fieldsJSON)).Scan(ctx, &schema.ID)
+	require.NoError(t, err)
+	require.Greater(t, schema.ID, int64(0))
+
+	env.sourcePhase.FormSchemaID = &schema.ID
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, OwnerPhaseForTest(env.sourcePhase)))
+}
+
+func publishDecisionContactListSchema(t *testing.T, env *decisionTestEnv) {
+	t.Helper()
+	ctx := testpkg.Ctx(t)
+	schemaSvc := NewTestFormSchemas(env.repos.Enrollment())
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 2", []enrollmentNative.FormField{{
+		Key:         "contacts",
+		Label:       "Weitere Kontakte",
+		Type:        enrollmentNative.FormFieldContactList,
+		Target:      enrollmentNative.TargetStudentContacts,
+		AppliesToCh: true,
+		SortOrder:   0,
+	}}, env.creatorID)
+	require.NoError(t, err)
+	env.sourcePhase.FormSchemaID = &schema.ID
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, OwnerPhaseForTest(env.sourcePhase)))
+}
+
+func phoneOnlyContactEntry(firstName, lastName, phone string, isEmergencyContact, canPickup bool) map[string]any {
+	return map[string]any{
+		"first_name": firstName,
+		"last_name":  lastName,
+		"phone_numbers": []any{map[string]any{
+			"phone_number": phone,
+			"phone_type":   "mobile",
+			"is_primary":   true,
+		}},
+		"is_emergency_contact": isEmergencyContact,
+		"can_pickup":           canPickup,
+	}
+}
+
+func contactSnapshot(childID int64, contacts []any) map[string]any {
+	return map[string]any{
+		"children": []any{map[string]any{
+			"id": childID,
+			"custom_data": map[string]any{
+				"contacts": contacts,
+			},
+		}},
+	}
+}
+
+func createReviewerStaffWithDistinctAccount(t *testing.T, env *decisionTestEnv) (*testpkg.Staff, int64) {
+	t.Helper()
+	for i := 0; i < 5; i++ {
+		_ = testpkg.CreateTestStaff(t, env.db, "ReviewerOffset", "Staff")
+		staff, account := testpkg.CreateTestStaffWithAccount(t, env.db, "Reviewer", "Schedule")
+		if staff.ID != account.ID {
+			return staff, account.ID
+		}
+	}
+	staff, account := testpkg.CreateTestStaffWithAccount(t, env.db, "Reviewer", "ScheduleFinal")
+	require.NotEqual(t, staff.ID, account.ID, "test setup must prove account id and staff id are not interchangeable")
+	return staff, account.ID
+}
+
+func setSourcePhaseServiceStartDate(t *testing.T, env *decisionTestEnv, serviceStartDate calendar.Date) {
+	t.Helper()
+	ctx := testpkg.Ctx(t)
+	env.sourcePhase.ServiceStartDate = enrollmentNative.Date(serviceStartDate)
+	if !calendar.Date(env.sourcePhase.ServiceEndDate).After(serviceStartDate) {
+		env.sourcePhase.ServiceEndDate = enrollmentNative.Date(calendar.NewDate(serviceStartDate.Year(), serviceStartDate.Month()+10, serviceStartDate.Day()))
+	}
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, OwnerPhaseForTest(env.sourcePhase)))
+}
+
+// ---- Get ----------------------------------------------------------------
+
+func TestDecisionService_Get_NotFound(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Get, 99_999_999)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentNative.ErrDecisionRequestNotFound),
+		"missing id must surface ErrDecisionRequestNotFound")
+}
+
+func TestDecisionService_Get_ReturnsRequestPhaseAndChildren(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, _ := submitOneChild(t, env, "get-happy@example.com", "Lina", "Get")
+
+	summary, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Get, reqID)
+	require.NoError(t, err)
+	require.NotNil(t, summary.Request)
+	assert.Equal(t, reqID, summary.Request.ID)
+	require.NotNil(t, summary.Phase)
+	assert.Equal(t, env.sourcePhase.ID, summary.Phase.ID)
+	require.Len(t, summary.Children, 1)
+	assert.Equal(t, "Lina", summary.Children[0].FirstName)
+}
+
+func TestDecisionService_Get_LoadsLateInviteUsedForRequest(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	invite, err := env.requestSvc.CreateLateInvite(ctx, enrollmentAPI.CreateLateInviteInput{
+		PhaseID:       env.sourcePhase.ID,
+		GuardianEmail: "invited@example.com",
+		CreatedBy:     env.creatorID,
+	})
+	require.NoError(t, err)
+	grade := int16(2)
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
+		TenantID:          testpkg.Tenant(t),
+		PhaseID:           env.sourcePhase.ID,
+		LateInviteToken:   invite.Token,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Test",
+		GuardianEmail:     "submitted@example.com",
+		ConsentFlags:      testFormValues(map[string]any{"agb": true, "data_processing": true, "email_contact": true, "photo": true}),
+		Children: []enrollmentAPI.SubmitChild{{
+			FirstName: "Lina", LastName: "GetInvite",
+			DateOfBirth: calendar.NewDate(2018, 4, 15), TargetGradeLevel: &grade,
+		}},
+	})
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentNative.RequestSourceLateInvite, submitted.Request.SubmissionSource)
+
+	summary, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Get, submitted.Request.ID)
+
+	require.NoError(t, err)
+	require.NotNil(t, summary.LateInvite)
+	assert.Equal(t, invite.Invite.ID, summary.LateInvite.ID)
+	assert.Equal(t, "invited@example.com", summary.LateInvite.GuardianEmail)
+}
+
+// ---- Decide: validation -------------------------------------------------
+
+func TestDecisionService_Decide_RejectsZeroRequestID(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID: 0,
+		ChildID:   1,
+		Status:    enrollmentNative.DecisionApproved,
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentNative.ErrDecisionInvalidStatus))
+}
+
+func TestDecisionService_Decide_RejectsZeroChildID(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, _ := submitOneChild(t, env, "decide-zero-child@example.com", "X", "Y")
+	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID: reqID,
+		ChildID:   0,
+		Status:    enrollmentNative.DecisionApproved,
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentNative.ErrDecisionInvalidStatus))
+}
+
+func TestDecisionService_Decide_RejectsUnknownStatus(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "decide-bad-status@example.com", "X", "Y")
+	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID: reqID,
+		ChildID:   childID,
+		Status:    enrollmentAPI.DecisionStatus("garbage"),
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentNative.ErrDecisionInvalidStatus))
+}
+
+func TestDecisionService_Decide_RequestNotFound(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID: 99_999_999,
+		ChildID:   1,
+		Status:    enrollmentNative.DecisionApproved,
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentNative.ErrDecisionRequestNotFound))
+}
+
+func TestDecisionService_Decide_ChildNotFound(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, _ := submitOneChild(t, env, "decide-child-nf@example.com", "X", "Y")
+	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID: reqID,
+		ChildID:   99_999_999,
+		Status:    enrollmentNative.DecisionApproved,
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentNative.ErrDecisionChildNotFound))
+}
+
+// ---- Decide: non-terminal status transitions ----------------------------
+
+func TestDecisionService_Decide_WaitlistedSetsStatus(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "decide-wait@example.com", "Will", "Wait")
+	outcome, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionWaitlisted,
+		Reason:     "voll ausgebucht",
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child)
+	assert.Equal(t, enrollmentNative.ChildStatusWaitlisted, outcome.Child.Status)
+	require.NotNil(t, outcome.Child.StatusReason)
+	assert.Equal(t, "voll ausgebucht", *outcome.Child.StatusReason)
+}
+
+func TestDecisionService_Decide_RejectedSetsStatus(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "decide-rej@example.com", "Will", "Reject")
+	outcome, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionRejected,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentNative.ChildStatusRejected, outcome.Child.Status)
+}
+
+func TestDecisionService_Decide_UnderReviewSetsStatus(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "decide-review@example.com", "Will", "Review")
+	outcome, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionUnderReview,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentNative.ChildStatusUnderReview, outcome.Child.Status)
+}
+
+func TestDecisionService_Decide_TerminalTransitionRejected(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "decide-term@example.com", "Will", "Term")
+	// First decide → rejected (terminal).
+	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionRejected,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	// Second decide → trying to move to under_review must fail.
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionUnderReview,
+		ReviewedBy: env.creatorID,
+	})
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, enrollmentNative.ErrDecisionAlreadyTerminal))
+}
+
+func TestDecisionService_Decide_ConcurrentSiblingResolutionsEnqueueOneCompleteDigest(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{
+		notificationMode: settingValueNotifyDigest,
+	})
+	submitted := submitDecisionSiblings(t, env, "concurrent-digest@example.com")
+
+	start := make(chan struct{})
+	errs := make(chan error, 2)
+	var wg sync.WaitGroup
+	for _, child := range submitted.Children {
+		childID := child.ID
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			<-start
+			errs <- testpkg.WithTenantTx(t, context.Background(), env.db, testpkg.Tenant(t), func(ctx context.Context, _ bun.Tx) error {
+				_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+					RequestID:  submitted.Request.ID,
+					ChildID:    childID,
+					Status:     enrollmentNative.DecisionRejected,
+					ReviewedBy: env.creatorID,
+				})
+				return err
+			})
+		}()
+	}
+	close(start)
+	wg.Wait()
+	close(errs)
+	for err := range errs {
+		require.NoError(t, err)
+	}
+
+	digests := env.outbox.ByKind(enrollmentNative.MailKindDecisionDigest)
+	require.Len(t, digests, 1)
+	rejectedNames, ok := digests[0].Payload["rejected_names"].([]string)
+	require.True(t, ok)
+	assert.ElementsMatch(t, []string{"Lina Digest", "Noah Digest"}, rejectedNames)
+}
+
+func TestDecisionService_Decide_PinsDigestModeAcrossSettingChange(t *testing.T) {
+	t.Parallel()
+
+	settings := newStubRequestSettings()
+	settings.stringValues[settingKeyNotifyPerDecision] = settingValueNotifyDigest
+	env := setupDecisionTestWithSettings(t, settings)
+	ctx := testpkg.Ctx(t)
+	submitted := submitDecisionSiblings(t, env, "pinned-digest@example.com")
+
+	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID: submitted.Request.ID, ChildID: submitted.Children[0].ID,
+		Status: enrollmentNative.DecisionRejected, ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	assert.Empty(t, env.outbox.ByKind(enrollmentNative.MailKindDecisionDigest))
+
+	settings.mu.Lock()
+	settings.stringValues[settingKeyNotifyPerDecision] = settingValueNotifyImmediate
+	settings.mu.Unlock()
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID: submitted.Request.ID, ChildID: submitted.Children[1].ID,
+		Status: enrollmentNative.DecisionRejected, ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	assert.Len(t, env.outbox.ByKind(enrollmentNative.MailKindDecisionDigest), 1)
+	assert.Empty(t, env.outbox.ByKind(enrollmentNative.MailKindRejected))
+	stored, err := ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), submitted.Request.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.DecisionNotificationMode)
+	assert.Equal(t, settingValueNotifyDigest, *stored.DecisionNotificationMode)
+}
+
+func TestDecisionService_Decide_PinsImmediateModeAcrossSettingChange(t *testing.T) {
+	t.Parallel()
+
+	settings := newStubRequestSettings()
+	settings.stringValues[settingKeyNotifyPerDecision] = settingValueNotifyImmediate
+	env := setupDecisionTestWithSettings(t, settings)
+	ctx := testpkg.Ctx(t)
+	submitted := submitDecisionSiblings(t, env, "pinned-immediate@example.com")
+
+	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID: submitted.Request.ID, ChildID: submitted.Children[0].ID,
+		Status: enrollmentNative.DecisionRejected, ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	settings.mu.Lock()
+	settings.stringValues[settingKeyNotifyPerDecision] = settingValueNotifyDigest
+	settings.mu.Unlock()
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID: submitted.Request.ID, ChildID: submitted.Children[1].ID,
+		Status: enrollmentNative.DecisionRejected, ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	assert.Len(t, env.outbox.ByKind(enrollmentNative.MailKindRejected), 2)
+	assert.Empty(t, env.outbox.ByKind(enrollmentNative.MailKindDecisionDigest))
+	stored, err := ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), submitted.Request.ID)
+	require.NoError(t, err)
+	require.NotNil(t, stored.DecisionNotificationMode)
+	assert.Equal(t, settingValueNotifyImmediate, *stored.DecisionNotificationMode)
+}
+
+func TestDecisionService_Decide_WaitlistedPromotionVersionsDigestState(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{
+		notificationMode: settingValueNotifyDigest,
+	})
+	ctx := testpkg.Ctx(t)
+	submitted := submitDecisionSiblings(t, env, "digest-transition@example.com")
+
+	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentNative.DecisionRejected,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[1].ID,
+		Status:     enrollmentNative.DecisionWaitlisted,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	_, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[1].ID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	// Same-state retry remains a no-op and must not enqueue another digest.
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[1].ID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	digests := env.outbox.ByKind(enrollmentNative.MailKindDecisionDigest)
+	require.Len(t, digests, 2)
+	assert.NotEqual(t, digests[0].IdempotencyKey, digests[1].IdempotencyKey)
+	assert.NotEmpty(t, digests[0].IdempotencyKey)
+	assert.NotEmpty(t, digests[1].IdempotencyKey)
+}
+
+func TestDecisionService_Decide_ReopenedSameStatusVersionsParentNotification(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		mode string
+		kind string
+	}{
+		{name: "digest", mode: settingValueNotifyDigest, kind: enrollmentNative.MailKindDecisionDigest},
+		{name: "immediate", mode: settingValueNotifyImmediate, kind: enrollmentNative.MailKindRejected},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			env := setupDecisionTestWithSettings(t, stubActivationSettings{notificationMode: tt.mode})
+			ctx := testpkg.Ctx(t)
+			requestID, childID := submitOneChild(t, env, "repeated-decision-"+tt.name+"@example.com", "Lina", "Wiederholt")
+
+			_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+				RequestID: requestID, ChildID: childID, Status: enrollmentNative.DecisionRejected, ReviewedBy: env.creatorID,
+			})
+			require.NoError(t, err)
+			// Approved change-request application uses this same repository
+			// transition when a rejected child's stored data materially changes.
+			require.NoError(t, testpkg.TenantCommand4(t, ctx, env.db, env.repos.Enrollment().UpdateChildStatus, childID, enrollmentNative.ChildStatusUnderReview, nil, env.creatorID))
+			_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+				RequestID: requestID, ChildID: childID, Status: enrollmentNative.DecisionRejected, ReviewedBy: env.creatorID,
+			})
+			require.NoError(t, err)
+
+			notifications := env.outbox.ByKind(tt.kind)
+			require.Len(t, notifications, 2)
+			assert.NotEqual(t, notifications[0].IdempotencyKey, notifications[1].IdempotencyKey)
+		})
+	}
+}
+
+// ---- Decide: approval (the heavy path) ----------------------------------
+
+func TestDecisionService_Decide_ApprovedCreatesDownstreamRecords(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "decide-approve@example.com", "Anna", "Approved")
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child)
+	assert.Equal(t, enrollmentNative.ChildStatusApproved, outcome.Child.Status)
+
+	// applyApproval must link the new student.id onto request_children.created_student_id
+	// (or equivalent) so the admin UI can navigate to the new student.
+	require.NotNil(t, outcome.Child.CreatedStudentID,
+		"approval must stamp the created student id on the request_child row")
+	studentID := *outcome.Child.CreatedStudentID
+	assert.Positive(t, studentID)
+
+	// The student row must exist and carry the school class derived
+	// from the grade level the parent supplied.
+	student, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(studentID))
+	require.NoError(t, err)
+	require.NotNil(t, student)
+	assert.NotEmpty(t, student.SchoolClass, "school class must be derived from target_grade_level")
+
+	links, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.StudentGuardian.FindByStudentID, studentID)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, securityruntime.GuardianRolePrimaryGuardian, links[0].GuardianRole)
+	assert.True(t, guardianLinkHasPermission(links[0], careplan.GuardianPermissionPortalAccess))
+	assert.True(t, guardianLinkHasPermission(links[0], careplan.GuardianPermissionEnrollmentSubmit))
+}
+
+// TestDecisionService_Decide_ApprovedLinksAdditionalGuardians verifies the
+// "GENAUSO" mapping: on approval every co-guardian stored on the request is
+// linked to the created student as an additional relationship
+// (IsPrimary=false, but emergency-contact + can-pickup like the primary),
+// and the resolved guardian_profiles id is stamped back on the request row.
+// The email-less co-guardian must resolve to a contact profile with NULL email.
+func TestDecisionService_Decide_ApprovedLinksAdditionalGuardians(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "primary-guardian@example.com", "Kjell", "Approved")
+
+	// Two co-guardians: one contact-only (no email), one with an email.
+	opaPhone := "012345678"
+	omaEmail := "oma@example.com"
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().CreateRequestGuardian, &enrollmentNative.RequestGuardian{
+		RequestID: reqID, FirstName: "Opa", LastName: "Schmidt", Phone: &opaPhone, SortOrder: 0,
+	}))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().CreateRequestGuardian, &enrollmentNative.RequestGuardian{
+		RequestID: reqID, FirstName: "Oma", LastName: "Schmidt", Email: &omaEmail, SortOrder: 1,
+	}))
+
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	// THREE guardian links: primary + two co-guardians.
+	links, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.StudentGuardian.FindByStudentID, studentID)
+	require.NoError(t, err)
+	require.Len(t, links, 3, "primary + two co-guardians must all be linked")
+	primaryCount := 0
+	for _, l := range links {
+		if l.IsPrimary {
+			primaryCount++
+			assert.Equal(t, securityruntime.GuardianRolePrimaryGuardian, l.GuardianRole)
+			assert.True(t, guardianLinkHasPermission(l, careplan.GuardianPermissionPortalAccess))
+			assert.True(t, guardianLinkHasPermission(l, careplan.GuardianPermissionEnrollmentSubmit))
+			continue
+		}
+		assert.True(t, l.IsEmergencyContact, "co-guardians mapped like primary: emergency contact")
+		assert.True(t, l.CanPickup, "co-guardians mapped like primary: can pick up")
+		assert.Equal(t, securityruntime.GuardianRoleEmergency, l.GuardianRole)
+		assert.False(t, guardianLinkHasPermission(l, careplan.GuardianPermissionPortalAccess))
+		assert.False(t, guardianLinkHasPermission(l, careplan.GuardianPermissionEnrollmentSubmit))
+	}
+	assert.Equal(t, 1, primaryCount, "exactly one primary guardian")
+
+	// Both co-guardian rows must be stamped with their resolved profile id,
+	// and the email-less one must resolve to a profile with NULL email.
+	extras, err := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Enrollment().RequestGuardians, []int64{reqID})
+	require.NoError(t, err)
+	require.Len(t, extras, 2)
+	for _, ex := range extras {
+		require.NotNil(t, ex.GuardianProfileID, "approval must stamp the resolved profile id")
+		profile, perr := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.FindByID, *ex.GuardianProfileID)
+		require.NoError(t, perr)
+		require.NotNil(t, profile)
+		assert.Equal(t, ex.LastName, profile.LastName)
+		if ex.Email == nil {
+			assert.Nil(t, profile.Email, "email-less co-guardian creates a contact profile with NULL email")
+		} else {
+			require.NotNil(t, profile.Email)
+			assert.Equal(t, *ex.Email, *profile.Email)
+		}
+	}
+}
+
+func TestDecisionService_SyncApprovedChildData_RelinksPrimaryGuardian(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "old-primary@example.com", "Lina", "PrimaryRelink")
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	beforeLinks, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.StudentGuardian.FindByStudentID, studentID)
+	require.NoError(t, err)
+	require.Len(t, beforeLinks, 1)
+	oldProfileID := beforeLinks[0].GuardianProfileID
+
+	req, err := ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), reqID)
+	require.NoError(t, err)
+	req.GuardianFirstName = "Neue"
+	req.GuardianLastName = "Hauptperson"
+	req.GuardianEmail = "new-primary@example.com"
+	require.NoError(t, UpdateOwnerRequestGuardianForTest(ctx, env.repos.Enrollment(), req, true))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+		// The change request's base snapshot carries the address before the
+		// edit; the family it names still holds the relationship (#6173).
+		PreviousSnapshot: map[string]any{"guardian_email": "old-primary@example.com"},
+	})
+	require.NoError(t, err)
+
+	afterLinks, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.StudentGuardian.FindByStudentID, studentID)
+	require.NoError(t, err)
+	require.Len(t, afterLinks, 1)
+	assert.True(t, afterLinks[0].IsPrimary)
+	assert.NotEqual(t, oldProfileID, afterLinks[0].GuardianProfileID)
+	assert.Equal(t, securityruntime.GuardianRolePrimaryGuardian, afterLinks[0].GuardianRole)
+	assert.True(t, guardianLinkHasPermission(afterLinks[0], careplan.GuardianPermissionPortalAccess))
+
+	newProfile, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.FindByEmail, "new-primary@example.com")
+	require.NoError(t, err)
+	assert.Equal(t, newProfile.ID, afterLinks[0].GuardianProfileID)
+}
+
+func TestDecisionService_SyncApprovedChildData_UpdatesStandalonePrimaryGuardianName(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "primary-name-correction@example.com", "Lina", "NameCorrection")
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	before, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.FindByEmail, "primary-name-correction@example.com")
+	require.NoError(t, err)
+	assert.Equal(t, "Eltern", before.FirstName)
+	assert.Equal(t, "Test", before.LastName)
+
+	req, err := ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), reqID)
+	require.NoError(t, err)
+	req.GuardianFirstName = "Mara"
+	req.GuardianLastName = "Korrigiert"
+	require.NoError(t, UpdateOwnerRequestGuardianForTest(ctx, env.repos.Enrollment(), req, true))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	after, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.FindByEmail, "primary-name-correction@example.com")
+	require.NoError(t, err)
+	assert.Equal(t, "Mara", after.FirstName)
+	assert.Equal(t, "Korrigiert", after.LastName)
+}
+
+func TestDecisionService_SyncApprovedChildData_DoesNotOverwriteAccountLinkedPrimaryGuardianName(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "primary-account-name@example.com", "Lina", "AccountName")
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	profile, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.FindByEmail, "primary-account-name@example.com")
+	require.NoError(t, err)
+	_, account := testpkg.CreateTestPersonWithAccount(t, env.db, "Portal", "Parent")
+	require.NoError(t, testpkg.TenantCommand2(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.LinkAccount, profile.ID, account.ID))
+
+	req, err := ReadOwnerRequestForTest(ctx, env.repos.Enrollment(), reqID)
+	require.NoError(t, err)
+	req.GuardianFirstName = "Nicht"
+	req.GuardianLastName = "Ueberschreiben"
+	require.NoError(t, UpdateOwnerRequestGuardianForTest(ctx, env.repos.Enrollment(), req, true))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	after, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.FindByID, profile.ID)
+	require.NoError(t, err)
+	assert.Equal(t, "Eltern", after.FirstName)
+	assert.Equal(t, "Test", after.LastName)
+	require.NotNil(t, after.AccountID)
+	assert.Equal(t, account.ID, *after.AccountID)
+}
+
+func TestDecisionService_SyncApprovedChildData_ReconcilesRemovedAdditionalGuardians(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "primary-reconcile@example.com", "Lina", "CoGuardian")
+	oldEmail := "old-co-guardian@example.com"
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().CreateRequestGuardian, &enrollmentNative.RequestGuardian{
+		RequestID: reqID,
+		FirstName: "Old",
+		LastName:  "Guardian",
+		Email:     &oldEmail,
+		SortOrder: 0,
+	}))
+
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	previousGuardians, err := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Enrollment().RequestGuardians, []int64{reqID})
+	require.NoError(t, err)
+	require.Len(t, previousGuardians, 1)
+	require.NotNil(t, previousGuardians[0].GuardianProfileID)
+	oldProfileID := *previousGuardians[0].GuardianProfileID
+	previous := previousGuardians[0]
+	previousSnapshot := &enrollmentNative.RequestGuardian{
+		RequestID: previous.RequestID, FirstName: previous.FirstName, LastName: previous.LastName,
+		Email: previous.Email, Phone: previous.Phone, GuardianProfileID: previous.GuardianProfileID,
+		SortOrder: previous.SortOrder,
+	}
+	previousSnapshot.ID = previous.ID
+	previousSnapshot.TenantID = previous.TenantID
+	previousSnapshot.CreatedAt = previous.CreatedAt
+	previousSnapshot.UpdatedAt = previous.UpdatedAt
+
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().DeleteRequestGuardians, reqID))
+	newEmail := "new-co-guardian@example.com"
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().CreateRequestGuardian, &enrollmentNative.RequestGuardian{
+		RequestID: reqID,
+		FirstName: "New",
+		LastName:  "Guardian",
+		Email:     &newEmail,
+		SortOrder: 0,
+	}))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, SyncApprovedChildDataInput{
+		RequestID:                reqID,
+		ChildID:                  childID,
+		ActorAccountID:           env.creatorID,
+		ReplaceTargetedData:      true,
+		PreviousRequestGuardians: []*enrollmentNative.RequestGuardian{previousSnapshot},
+	})
+	require.NoError(t, err)
+
+	newProfile, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.FindByEmail, newEmail)
+	require.NoError(t, err)
+	links, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.StudentGuardian.FindByStudentID, studentID)
+	require.NoError(t, err)
+	var oldLinked bool
+	var newLinked bool
+	for _, link := range links {
+		if link.GuardianProfileID == oldProfileID {
+			oldLinked = true
+		}
+		if link.GuardianProfileID == newProfile.ID {
+			newLinked = true
+			assert.False(t, link.IsPrimary)
+			assert.True(t, link.IsEmergencyContact)
+			assert.True(t, link.CanPickup)
+		}
+	}
+	assert.False(t, oldLinked, "removed co-guardian must lose the approved child link")
+	assert.True(t, newLinked, "new co-guardian must be linked to the approved child")
+}
+
+func TestDecisionService_SyncApprovedChildData_UpgradesExistingContactListLinkForCoGuardian(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	publishDecisionContactListSchema(t, env)
+
+	contactEmail := "weak-contact-to-coguardian@example.com"
+	weakContact := map[string]any{
+		"first_name":           "Weak",
+		"last_name":            "Contact",
+		"email":                contactEmail,
+		"is_emergency_contact": false,
+		"can_pickup":           false,
+	}
+	reqID, childID := submitOneChildWithCustomData(t, env, "primary-upgrade-coguardian@example.com", "Lina", "Upgrade", map[string]any{
+		"contacts": []any{weakContact},
+	})
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	profile, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.FindByEmail, contactEmail)
+	require.NoError(t, err)
+	links, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.StudentGuardian.FindByStudentID, studentID)
+	require.NoError(t, err)
+	var weakLink *peopledirectory.GuardianRelationshipSnapshot
+	for _, link := range links {
+		if link != nil && link.GuardianProfileID == profile.ID {
+			weakLink = link
+			break
+		}
+	}
+	require.NotNil(t, weakLink)
+	require.False(t, weakLink.IsEmergencyContact)
+	require.False(t, weakLink.CanPickup)
+
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().CreateRequestGuardian, &enrollmentNative.RequestGuardian{
+		RequestID: reqID,
+		FirstName: "Weak",
+		LastName:  "Contact",
+		Email:     &contactEmail,
+		SortOrder: 0,
+	}))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	links, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.StudentGuardian.FindByStudentID, studentID)
+	require.NoError(t, err)
+	var upgraded *peopledirectory.GuardianRelationshipSnapshot
+	for _, link := range links {
+		if link != nil && link.GuardianProfileID == profile.ID {
+			upgraded = link
+			break
+		}
+	}
+	require.NotNil(t, upgraded)
+	assert.False(t, upgraded.IsPrimary)
+	assert.True(t, upgraded.IsEmergencyContact)
+	assert.True(t, upgraded.CanPickup)
+	assert.Equal(t, securityruntime.GuardianRoleEmergency, upgraded.GuardianRole)
+	assert.False(t, guardianLinkHasPermission(upgraded, careplan.GuardianPermissionPortalAccess))
+}
+
+func TestDecisionService_Decide_UpdatesStandaloneCoGuardianNameWhenReusingEmail(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "primary-coguardian-name@example.com", "Kjell", "CoGuardianName")
+	email := "coguardian-name-correction@example.com"
+	profile := &peopledirectory.GuardianProfileSnapshot{
+		FirstName:              "Old",
+		LastName:               "Name",
+		Email:                  &email,
+		PreferredContactMethod: "email",
+		LanguagePreference:     "de",
+	}
+	profile.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.Create, profile))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().CreateRequestGuardian, &enrollmentNative.RequestGuardian{
+		RequestID: reqID,
+		FirstName: "New",
+		LastName:  "Name",
+		Email:     &email,
+		SortOrder: 0,
+	}))
+
+	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	updated, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.FindByEmail, email)
+	require.NoError(t, err)
+	assert.Equal(t, profile.ID, updated.ID)
+	assert.Equal(t, "New", updated.FirstName)
+	assert.Equal(t, "Name", updated.LastName)
+}
+
+// TestDecisionService_Decide_PersistsCoGuardianPhone verifies that on
+// approval a co-guardian's phone number is written to
+// users.guardian_phone_numbers, mirroring the primary guardian. The
+// phone-only contact (no email) is the critical case: that number is the
+// ONLY way to reach the approved emergency contact, so dropping it would
+// leave them unreachable.
+func TestDecisionService_Decide_PersistsCoGuardianPhone(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "primary-phone@example.com", "Kjell", "Approved")
+
+	// One phone-only co-guardian (no email) and one with both email + phone.
+	opaPhone := "0151-9990001"
+	omaEmail := "oma-phone@example.com"
+	omaPhone := "0151-9990002"
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().CreateRequestGuardian, &enrollmentNative.RequestGuardian{
+		RequestID: reqID, FirstName: "Opa", LastName: "Phone", Phone: &opaPhone, SortOrder: 0,
+	}))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().CreateRequestGuardian, &enrollmentNative.RequestGuardian{
+		RequestID: reqID, FirstName: "Oma", LastName: "Phone", Email: &omaEmail, Phone: &omaPhone, SortOrder: 1,
+	}))
+
+	_, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	// Each co-guardian's resolved profile must carry the submitted phone.
+	extras, err := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Enrollment().RequestGuardians, []int64{reqID})
+	require.NoError(t, err)
+	require.Len(t, extras, 2)
+
+	wantPhone := map[string]string{"Opa": "0151-9990001", "Oma": "0151-9990002"}
+	for _, ex := range extras {
+		require.NotNil(t, ex.GuardianProfileID, "approval stamps the resolved profile id")
+		phones, perr := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianPhoneNumber.FindByGuardianID, *ex.GuardianProfileID)
+		require.NoError(t, perr)
+		require.Len(t, phones, 1, "co-guardian %s must have exactly one phone persisted", ex.FirstName)
+		assert.Equal(t, wantPhone[ex.FirstName], phones[0].PhoneNumber)
+		assert.True(t, phones[0].IsPrimary, "the co-guardian's only number is their primary")
+	}
+}
+
+func TestDecisionService_SyncApprovedChildData_ReplacesRemovedContactList(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	schemaSvc := NewTestFormSchemas(env.repos.Enrollment())
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 3", []enrollmentNative.FormField{{
+		Key:         "contacts",
+		Label:       "Weitere Kontakte",
+		Type:        enrollmentNative.FormFieldContactList,
+		Target:      enrollmentNative.TargetStudentContacts,
+		AppliesToCh: true,
+		SortOrder:   0,
+	}}, env.creatorID)
+	require.NoError(t, err)
+	env.sourcePhase.FormSchemaID = &schema.ID
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, OwnerPhaseForTest(env.sourcePhase)))
+
+	oldEmail := "old-contact-list@example.com"
+	reqID, childID := submitOneChildWithCustomData(t, env, "primary-contact-list@example.com", "Lina", "Contacts", map[string]any{
+		"contacts": []any{map[string]any{
+			"first_name":           "Old",
+			"last_name":            "Contact",
+			"email":                oldEmail,
+			"is_emergency_contact": true,
+			"can_pickup":           true,
+		}},
+	})
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	oldProfile, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.FindByEmail, oldEmail)
+	require.NoError(t, err)
+	links, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.StudentGuardian.FindByStudentID, studentID)
+	require.NoError(t, err)
+	require.GreaterOrEqual(t, len(links), 2)
+
+	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	child.CustomData = testFormValues(map[string]any{})
+	require.NoError(t, UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+		PreviousSnapshot: map[string]any{
+			"children": []any{map[string]any{
+				"id": childID,
+				"custom_data": map[string]any{
+					"contacts": []any{map[string]any{
+						"first_name":           "Old",
+						"last_name":            "Contact",
+						"email":                oldEmail,
+						"is_emergency_contact": true,
+						"can_pickup":           true,
+					}},
+				},
+			}},
+		},
+	})
+	require.NoError(t, err)
+
+	links, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.StudentGuardian.FindByStudentID, studentID)
+	require.NoError(t, err)
+	for _, link := range links {
+		assert.NotEqual(t, oldProfile.ID, link.GuardianProfileID, "removed contact-list guardian must lose the approved child link")
+	}
+}
+
+func TestDecisionService_SyncApprovedChildData_ReplacesRemovedPhoneOnlyContactList(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	publishDecisionContactListSchema(t, env)
+
+	contact := phoneOnlyContactEntry("Phone", "Only", "0176 111222", true, true)
+	reqID, childID := submitOneChildWithCustomData(t, env, "primary-phone-remove@example.com", "Lina", "PhoneRemove", map[string]any{
+		"contacts": []any{contact},
+	})
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	links, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.StudentGuardian.FindByStudentID, studentID)
+	require.NoError(t, err)
+	var oldProfileID int64
+	for _, link := range links {
+		if link != nil && !link.IsPrimary {
+			oldProfileID = link.GuardianProfileID
+			break
+		}
+	}
+	require.NotZero(t, oldProfileID, "initial approval must create a phone-only contact link")
+
+	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	child.CustomData = testFormValues(map[string]any{})
+	require.NoError(t, UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+		PreviousSnapshot:    contactSnapshot(childID, []any{contact}),
+	})
+	require.NoError(t, err)
+
+	links, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.StudentGuardian.FindByStudentID, studentID)
+	require.NoError(t, err)
+	for _, link := range links {
+		assert.NotEqual(t, oldProfileID, link.GuardianProfileID, "removed phone-only contact must lose the approved child link")
+	}
+}
+
+func TestDecisionService_SyncApprovedChildData_ReusesUnchangedPhoneOnlyContactList(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	publishDecisionContactListSchema(t, env)
+
+	contact := phoneOnlyContactEntry("Phone", "Stable", "0176 333444", true, true)
+	reqID, childID := submitOneChildWithCustomData(t, env, "primary-phone-reuse@example.com", "Lina", "PhoneReuse", map[string]any{
+		"contacts": []any{contact},
+	})
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	child.CustomData = testFormValues(map[string]any{"contacts": []any{contact}})
+	require.NoError(t, UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+		PreviousSnapshot:    contactSnapshot(childID, []any{contact}),
+	})
+	require.NoError(t, err)
+
+	links, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.StudentGuardian.FindByStudentID, studentID)
+	require.NoError(t, err)
+	nonPrimary := 0
+	for _, link := range links {
+		if link != nil && !link.IsPrimary {
+			nonPrimary++
+		}
+	}
+	assert.Equal(t, 1, nonPrimary, "unchanged phone-only contact must reuse the existing profile/link instead of duplicating it")
+}
+
+func TestDecisionService_SyncApprovedChildData_UpdatesExistingContactListPermissions(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	publishDecisionContactListSchema(t, env)
+
+	contactEmail := "toggle-contact-list@example.com"
+	oldContact := map[string]any{
+		"first_name":           "Toggle",
+		"last_name":            "Contact",
+		"email":                contactEmail,
+		"is_emergency_contact": true,
+		"can_pickup":           true,
+	}
+	reqID, childID := submitOneChildWithCustomData(t, env, "primary-contact-toggle@example.com", "Lina", "ContactToggle", map[string]any{
+		"contacts": []any{oldContact},
+	})
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	profile, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.FindByEmail, contactEmail)
+	require.NoError(t, err)
+
+	newContact := map[string]any{
+		"first_name":           "Toggle",
+		"last_name":            "Contact",
+		"email":                contactEmail,
+		"is_emergency_contact": false,
+		"can_pickup":           false,
+	}
+	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	child.CustomData = testFormValues(map[string]any{"contacts": []any{newContact}})
+	require.NoError(t, UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+		PreviousSnapshot:    contactSnapshot(childID, []any{oldContact}),
+	})
+	require.NoError(t, err)
+
+	links, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.StudentGuardian.FindByStudentID, studentID)
+	require.NoError(t, err)
+	var contactLink *peopledirectory.GuardianRelationshipSnapshot
+	for _, link := range links {
+		if link != nil && link.GuardianProfileID == profile.ID {
+			contactLink = link
+			break
+		}
+	}
+	require.NotNil(t, contactLink)
+	assert.False(t, contactLink.CanPickup)
+	assert.False(t, contactLink.IsEmergencyContact)
+	assert.Equal(t, securityruntime.GuardianRoleCustom, contactLink.GuardianRole)
+	assert.False(t, guardianLinkHasPermission(contactLink, careplan.GuardianPermissionPortalAccess))
+}
+
+func TestDecisionService_Decide_ContactListSelfGuardianDoesNotAbortApproval(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	schemaSvc := NewTestFormSchemas(env.repos.Enrollment())
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 4", []enrollmentNative.FormField{{
+		Key:         "contacts",
+		Label:       "Weitere Kontakte",
+		Type:        enrollmentNative.FormFieldContactList,
+		Target:      enrollmentNative.TargetStudentContacts,
+		AppliesToCh: true,
+		SortOrder:   0,
+	}}, env.creatorID)
+	require.NoError(t, err)
+	env.sourcePhase.FormSchemaID = &schema.ID
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, OwnerPhaseForTest(env.sourcePhase)))
+
+	guardianEmail := "self-contact@example.com"
+	guardianPhone := "015126829060"
+	grade := int16(2)
+	res, err := env.requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
+		TenantID:          testpkg.Tenant(t),
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Franziska",
+		GuardianLastName:  "Bahnemann",
+		GuardianEmail:     guardianEmail,
+		GuardianPhone:     &guardianPhone,
+		ConsentFlags: testFormValues(map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		}),
+		Children: []enrollmentAPI.SubmitChild{{
+			FirstName:        "Self",
+			LastName:         "Contact",
+			DateOfBirth:      calendar.NewDate(2018, 4, 15),
+			TargetGradeLevel: &grade,
+			CustomData: testFormValues(map[string]any{
+				"contacts": []any{map[string]any{
+					"first_name":           "Franziska",
+					"last_name":            "Bahnemann",
+					"email":                guardianEmail,
+					"relationship_type":    "parent",
+					"is_emergency_contact": true,
+					"can_pickup":           true,
+				}},
+			}),
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Children, 1)
+
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  res.Request.ID,
+		ChildID:    res.Children[0].ID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	links, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.StudentGuardian.FindByStudentID, *outcome.Child.CreatedStudentID)
+	require.NoError(t, err)
+	require.Len(t, links, 1, "self-contact must reuse the primary guardian link instead of aborting the tx")
+	assert.True(t, links[0].IsPrimary)
+
+	phones, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianPhoneNumber.FindByGuardianID, links[0].GuardianProfileID)
+	require.NoError(t, err, "auto guardian_phone runs after contact dispatch; this proves the tx stayed usable")
+	require.Len(t, phones, 1)
+	assert.Equal(t, guardianPhone, phones[0].PhoneNumber)
+}
+
+// TestDecisionService_Decide_AppliesDepartureField verifies the unified
+// weekday_mode departure field (#1610) flows from the enrollment submission
+// onto the approved student's departure_days, deriving the legacy mirrors.
+func TestDecisionService_Decide_AppliesDepartureField(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	// Pin a schema that carries the unified departure field onto the phase.
+	schemaSvc := NewTestFormSchemas(env.repos.Enrollment())
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 5", []enrollmentNative.FormField{{
+		Key:         "departure",
+		Label:       "Geh- und Abholregelung",
+		Type:        enrollmentNative.FormFieldWeekdayMode,
+		Target:      enrollmentNative.TargetStudentDeparture,
+		AppliesToCh: true,
+		SortOrder:   0,
+	}}, env.creatorID)
+	require.NoError(t, err)
+	env.sourcePhase.FormSchemaID = &schema.ID
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, OwnerPhaseForTest(env.sourcePhase)))
+
+	// Submit a child whose custom_data carries the per-day departure plan.
+	grade := int16(2)
+	res, err := env.requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
+		TenantID:          testpkg.Tenant(t),
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Test",
+		GuardianEmail:     "dep-approve@example.com",
+		ConsentFlags: testFormValues(map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		}),
+		Children: []enrollmentAPI.SubmitChild{{
+			FirstName:        "Dep",
+			LastName:         "Child",
+			DateOfBirth:      calendar.NewDate(2018, 4, 15),
+			TargetGradeLevel: &grade,
+			CustomData: testFormValues(map[string]any{
+				"departure": map[string]any{"mon": "bus", "wed": "pickup"},
+			}),
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Children, 1)
+
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  res.Request.ID,
+		ChildID:    res.Children[0].ID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	student, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(*outcome.Child.CreatedStudentID))
+	require.NoError(t, err)
+	assert.Equal(t, peopledirectory.DepartureBus, student.DepartureDays.ModeFor(peopledirectory.PickupDayMonday))
+	assert.Equal(t, peopledirectory.DeparturePickup, student.DepartureDays.ModeFor(peopledirectory.PickupDayWednesday))
+	assert.True(t, student.BusDays[peopledirectory.BusDayMonday], "derived bus_days mirror")
+	assert.True(t, student.PickupDays[peopledirectory.PickupDayWednesday], "derived pickup_days mirror")
+}
+
+// TestDecisionService_Decide_AppliesCoupledCompanionNote verifies the "mit wem"
+// note (#1694) that the enrollment form couples onto the allowed-departure-modes
+// field via a reserved custom-data key (not a separate schema field) lands on
+// the approved student's departure_companion_note.
+func TestDecisionService_Decide_AppliesCoupledCompanionNote(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	schemaSvc := NewTestFormSchemas(env.repos.Enrollment())
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 6", []enrollmentNative.FormField{{
+		Key:         "allowed_modes",
+		Label:       "Erlaubte Heimwege",
+		Type:        enrollmentNative.FormFieldWeekdayMultiMode,
+		Target:      enrollmentNative.TargetStudentAllowedDepartureModes,
+		AppliesToCh: true,
+		SortOrder:   0,
+	}}, env.creatorID)
+	require.NoError(t, err)
+	env.sourcePhase.FormSchemaID = &schema.ID
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, OwnerPhaseForTest(env.sourcePhase)))
+
+	grade := int16(2)
+	res, err := env.requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
+		TenantID:          testpkg.Tenant(t),
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Test",
+		GuardianEmail:     "companion-note@example.com",
+		ConsentFlags: testFormValues(map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		}),
+		Children: []enrollmentAPI.SubmitChild{{
+			FirstName:        "Comp",
+			LastName:         "Child",
+			DateOfBirth:      calendar.NewDate(2018, 4, 15),
+			TargetGradeLevel: &grade,
+			CustomData: testFormValues(map[string]any{
+				"allowed_modes": map[string]any{"mon": []any{"accompanied"}},
+				// Reserved coupled key carrying the free-text companion note.
+				enrollmentNative.TargetStudentDepartureCompanionNote: "Geschwisterkind Mia (1b)",
+			}),
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Children, 1)
+
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  res.Request.ID,
+		ChildID:    res.Children[0].ID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	student, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(*outcome.Child.CreatedStudentID))
+	require.NoError(t, err)
+	assert.Equal(t, peopledirectory.DepartureAccompanied,
+		student.AllowedDepartureModes.DepartureDays().ModeFor(peopledirectory.PickupDayMonday),
+		"accompanied mode must reach the student")
+	require.NotNil(t, student.DepartureCompanionNote, "coupled companion note must be applied")
+	assert.Equal(t, "Geschwisterkind Mia (1b)", *student.DepartureCompanionNote)
+}
+
+// TestDecisionService_Decide_SkipsCompanionNoteWithoutAccompanied verifies the
+// coupled "mit wem" note is NOT applied when the child's submitted modes contain
+// no accompanied day, so a stale/crafted note never lands on a child with no
+// "Mit anderem Kind" plan (#1694). The server guard is the authority here — the
+// client's hasAccompanied gate cannot be trusted.
+func TestDecisionService_Decide_SkipsCompanionNoteWithoutAccompanied(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	schemaSvc := NewTestFormSchemas(env.repos.Enrollment())
+	schema, err := schemaSvc.CreateSchema(ctx, "Testformular Entscheidung 7", []enrollmentNative.FormField{{
+		Key:         "allowed_modes",
+		Label:       "Erlaubte Heimwege",
+		Type:        enrollmentNative.FormFieldWeekdayMultiMode,
+		Target:      enrollmentNative.TargetStudentAllowedDepartureModes,
+		AppliesToCh: true,
+		SortOrder:   0,
+	}}, env.creatorID)
+	require.NoError(t, err)
+	env.sourcePhase.FormSchemaID = &schema.ID
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, OwnerPhaseForTest(env.sourcePhase)))
+
+	grade := int16(2)
+	res, err := env.requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
+		TenantID:          testpkg.Tenant(t),
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Test",
+		GuardianEmail:     "no-accompanied@example.com",
+		ConsentFlags: testFormValues(map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		}),
+		Children: []enrollmentAPI.SubmitChild{{
+			FirstName:        "Solo",
+			LastName:         "Child",
+			DateOfBirth:      calendar.NewDate(2018, 4, 15),
+			TargetGradeLevel: &grade,
+			CustomData: testFormValues(map[string]any{
+				// No accompanied day, yet a companion note rides along.
+				"allowed_modes": map[string]any{"mon": []any{"bus"}},
+				enrollmentNative.TargetStudentDepartureCompanionNote: "Geschwisterkind Mia (1b)",
+			}),
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Children, 1)
+
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  res.Request.ID,
+		ChildID:    res.Children[0].ID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	student, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(*outcome.Child.CreatedStudentID))
+	require.NoError(t, err)
+	assert.Nil(t, student.DepartureCompanionNote,
+		"companion note must not be applied without an accompanied day")
+}
+
+// TestDecisionService_Decide_MergesDuplicateAllowedDepartureFields covers the
+// last-field-wins data loss (#1694): a legacy schema (created before
+// FormSchema.Validate rejected duplicate targets) carries TWO fields targeting
+// student.allowed_departure_modes — the first allows accompanied, the later one
+// only bus. Validation/sanitization accept the submission on any-field semantics,
+// so approval must MERGE the fields (union) rather than let the later bus-only
+// field silently drop the accompanied mode and its companion note. The schema is
+// inserted raw to reproduce the pre-validation shape that the model now forbids.
+func TestDecisionService_Decide_MergesDuplicateAllowedDepartureFields(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	// Raw insert bypasses FormSchema.Validate (which now rejects duplicate
+	// targets), reproducing a legacy schema already persisted in the DB.
+	schema := &enrollmentNative.FormSchema{
+		Name:      "legacy-dup-departure",
+		Version:   1,
+		CreatedBy: env.creatorID,
+		Fields: []enrollmentNative.FormField{
+			{Key: "modes_a", Label: "Erlaubte Heimwege", Type: enrollmentNative.FormFieldWeekdayMultiMode, Target: enrollmentNative.TargetStudentAllowedDepartureModes, AppliesToCh: true, SortOrder: 0},
+			{Key: "modes_b", Label: "Heimwege (Kopie)", Type: enrollmentNative.FormFieldWeekdayMultiMode, Target: enrollmentNative.TargetStudentAllowedDepartureModes, AppliesToCh: true, SortOrder: 1},
+		},
+	}
+	schema.TenantID = testpkg.Tenant(t)
+	fieldsJSON, err := json.Marshal(schema.Fields)
+	require.NoError(t, err)
+	err = env.db.NewRaw(`INSERT INTO enrollment.form_schemas
+		(tenant_id, name, version, created_by, fields) VALUES (?, ?, ?, ?, ?::jsonb) RETURNING id`,
+		schema.TenantID, schema.Name, schema.Version, schema.CreatedBy, string(fieldsJSON)).Scan(ctx, &schema.ID)
+	require.NoError(t, err)
+	require.Greater(t, schema.ID, int64(0))
+	// The schema row stays in the test tenant: requests created below hold an
+	// FK to it, mirroring the other schema-creating tests in this file.
+
+	env.sourcePhase.FormSchemaID = &schema.ID
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, OwnerPhaseForTest(env.sourcePhase)))
+
+	grade := int16(2)
+	res, err := env.requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
+		TenantID:          testpkg.Tenant(t),
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Test",
+		GuardianEmail:     "dup-departure@example.com",
+		ConsentFlags: testFormValues(map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		}),
+		Children: []enrollmentAPI.SubmitChild{{
+			FirstName:        "Merge",
+			LastName:         "Child",
+			DateOfBirth:      calendar.NewDate(2018, 4, 15),
+			TargetGradeLevel: &grade,
+			CustomData: testFormValues(map[string]any{
+				// Earlier field allows accompanied; later field only bus. The later
+				// field must NOT erase the accompanied mode from the earlier one.
+				"modes_a": map[string]any{"mon": []any{"accompanied"}},
+				"modes_b": map[string]any{"mon": []any{"bus"}},
+				enrollmentNative.TargetStudentDepartureCompanionNote: "Geschwisterkind Mia (1b)",
+			}),
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Children, 1)
+
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  res.Request.ID,
+		ChildID:    res.Children[0].ID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	student, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(*outcome.Child.CreatedStudentID))
+	require.NoError(t, err)
+	assert.True(t, student.AllowedDepartureModes.HasMode(peopledirectory.DepartureAccompanied),
+		"accompanied mode from the earlier field must survive the merge")
+	require.NotNil(t, student.DepartureCompanionNote, "companion note must survive the merge")
+	assert.Equal(t, "Geschwisterkind Mia (1b)", *student.DepartureCompanionNote)
+	require.NotNil(t, student.PickupStatus)
+	assert.Equal(t, peopledirectory.PickupStatusAccompanied, *student.PickupStatus,
+		"legacy pickup_status must reflect accompanied, not collapse to self-goer")
+}
+
+// ---- Decide: activation mode (enrollment.default_activation_mode) -------
+
+// Default / "scheduled": an approved child becomes a PENDING student
+// pinned to the phase's service-start date, so the activate-students
+// scheduler flips it to active when that date arrives. Uses the nil-
+// Settings setup, which must behave identically to an explicit
+// "scheduled" override (the safe default).
+func TestDecisionService_Decide_ApprovedScheduledKeepsStudentPending(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "activation-scheduled@example.com", "Sched", "Uled")
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	student, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(*outcome.Child.CreatedStudentID))
+	require.NoError(t, err)
+	assert.Equal(t, peopledirectory.StudentStatusPending, student.Status,
+		"scheduled mode must create the student as pending")
+	require.NotNil(t, student.EnrolledFrom)
+	assert.Equal(t,
+		calendar.Date(env.sourcePhase.ServiceStartDate).Format("2006-01-02"),
+		student.EnrolledFrom.Format("2006-01-02"),
+		"enrolled_from must be pinned to the phase service-start date")
+	assert.Equal(t, calendar.Date(env.sourcePhase.ServiceStartDate), membershipFirstCareFrom(t, *outcome.Child.CreatedStudentID),
+		"School Membership bounds a scheduled new child's first care by its start (#6041)")
+
+	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentNative.ChildActivationScheduled, child.ActivationMode)
+	require.NotNil(t, child.ActivateOn)
+	assert.Equal(t,
+		calendar.Date(env.sourcePhase.ServiceStartDate).Format("2006-01-02"),
+		string(*child.ActivateOn),
+		"scheduled approval must stamp the planned activation date")
+}
+
+// "immediate": an approved child becomes an ACTIVE student right away so
+// it appears in lists/attendance/check-in immediately. enrolled_from is
+// still pinned to the phase's service-start date (the mode changes only
+// the status, never the dates).
+func TestDecisionService_Decide_ApprovedImmediateActivatesStudent(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{
+		mode: settingValueActivationImmediate,
+	})
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "activation-immediate@example.com", "Immo", "Diate")
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	student, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(*outcome.Child.CreatedStudentID))
+	require.NoError(t, err)
+	assert.Equal(t, peopledirectory.StudentStatusActive, student.Status,
+		"immediate mode must activate the student on approval")
+	require.NotNil(t, student.EnrolledFrom)
+	assert.Equal(t,
+		calendar.Date(env.sourcePhase.ServiceStartDate).Format("2006-01-02"),
+		student.EnrolledFrom.Format("2006-01-02"),
+		"enrolled_from must stay the phase service-start date even in immediate mode")
+	assert.Empty(t, membershipFirstCareFrom(t, *outcome.Child.CreatedStudentID),
+		"an immediately activated child may take part before its start (#6041)")
+
+	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentNative.ChildActivationImmediate, child.ActivationMode)
+	assert.Nil(t, child.ActivateOn)
+}
+
+func TestDecisionService_Decide_ApprovedScheduledPastStartActivatesStudent(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{
+		mode: settingValueActivationScheduled,
+	})
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "activation-scheduled-past@example.com", "Past", "Start")
+	startDate := calendar.NewDate(2026, 8, 24).AddDays(-1)
+	setSourcePhaseServiceStartDate(t, env, startDate)
+
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	student, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(*outcome.Child.CreatedStudentID))
+	require.NoError(t, err)
+	assert.Equal(t, peopledirectory.StudentStatusActive, student.Status,
+		"scheduled mode must activate immediately when service_start_date is today or already past")
+
+	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentNative.ChildActivationScheduled, child.ActivationMode)
+	require.NotNil(t, child.ActivateOn)
+	assert.Equal(t, startDate.Format("2006-01-02"), string(*child.ActivateOn))
+}
+
+func TestDecisionService_Decide_ApprovedUnknownActivationModeFallsBackToScheduled(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTestWithSettings(t, stubActivationSettings{mode: "bogus"})
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "activation-unknown@example.com", "Safe", "Default")
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	student, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(*outcome.Child.CreatedStudentID))
+	require.NoError(t, err)
+	assert.Equal(t, peopledirectory.StudentStatusPending, student.Status,
+		"unknown setting values must not activate students")
+
+	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentNative.ChildActivationScheduled, child.ActivationMode)
+	require.NotNil(t, child.ActivateOn)
+}
+
+func TestDecisionService_Decide_ApprovedStampsConsentTimestamps(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "decide-consents@example.com", "Anna", "Consents")
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	student, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(*outcome.Child.CreatedStudentID))
+	require.NoError(t, err)
+	// All four consent flags were submitted true; the decision service
+	// stamps all four _accepted_at columns at approval time.
+	assert.NotNil(t, student.AGBAcceptedAt, "AGB consent must be stamped")
+	assert.NotNil(t, student.DataProcessingAcceptedAt, "DSGVO consent must be stamped")
+	assert.NotNil(t, student.EmailContactAcceptedAt, "Email-contact consent must be stamped")
+	assert.NotNil(t, student.PhotoConsentGivenAt, "Photo consent must be stamped")
+	require.NotNil(t, student.PhotoConsentGivenBy)
+	assert.Equal(t, env.creatorID, *student.PhotoConsentGivenBy,
+		"photo_consent_given_by must reference the reviewer account")
+}
+
+func TestDecisionService_Decide_ConsentAuditFailureRollsBackFreshStudent(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	auditErr := errors.New("consent audit unavailable")
+	env.decision = newDecisionServiceForTestWithConsentAuditor(
+		env.rolloverTestEnv,
+		failingStudentConsentAuditor{err: auditErr},
+	)
+
+	studentCountBefore, err := env.db.NewSelect().
+		TableExpr("users.student_profiles").
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Count(ctx)
+	require.NoError(t, err)
+
+	reqID, childID := submitOneChild(t, env, "audit-failure@example.com", "Anna", "Auditfehler")
+	decideErr := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		_, decisionErr := testpkg.TenantQuery1(t, txCtx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+			RequestID:  reqID,
+			ChildID:    childID,
+			Status:     enrollmentNative.DecisionApproved,
+			ReviewedBy: env.creatorID,
+		})
+		return decisionErr
+	})
+	require.ErrorIs(t, decideErr, auditErr)
+
+	studentCountAfter, err := env.db.NewSelect().
+		TableExpr("users.student_profiles").
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, studentCountBefore, studentCountAfter, "student creation must roll back with the missing consent audit")
+
+	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentNative.ChildStatusSubmitted, child.Status)
+	assert.Nil(t, child.CreatedStudentID)
+}
+
+// A fresh approval whose targeted field cannot be taken over must fail
+// instead of creating a student without that master data and reporting
+// success (#6839).
+func TestDecisionService_Decide_TargetedFieldFailureRollsBackFreshStudent(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentNative.TargetSchedulePickup)
+	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "targeted-failure@example.com", "Anna", "Abholfehler", map[string]any{
+		"pickup_times": map[string]any{"mon": "14:45"},
+	})
+	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	child.CustomData = testFormValues(map[string]any{
+		"pickup_times": map[string]any{"sat": "14:45"},
+	})
+	require.NoError(t, UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
+
+	studentCountBefore, err := env.db.NewSelect().
+		TableExpr("users.student_profiles").
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Count(ctx)
+	require.NoError(t, err)
+
+	decideErr := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		_, decisionErr := testpkg.TenantQuery1(t, txCtx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+			RequestID:  reqID,
+			ChildID:    childID,
+			Status:     enrollmentNative.DecisionApproved,
+			ReviewedBy: reviewerAccountID,
+		})
+		return decisionErr
+	})
+	require.ErrorIs(t, decideErr, enrollmentNative.ErrDecisionInvalidData,
+		"an unusable pickup plan must surface as invalid request data, not as a silent success")
+
+	studentCountAfter, err := env.db.NewSelect().
+		TableExpr("users.student_profiles").
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, studentCountBefore, studentCountAfter, "the student must not exist without its pickup plan")
+
+	child, err = ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentNative.ChildStatusSubmitted, child.Status)
+	assert.Nil(t, child.CreatedStudentID)
+}
+
+// A legacy request whose guardian phone fails the format check must not end
+// as a child without the phone number, nor as an opaque server error (#6839).
+func TestDecisionService_Decide_InvalidGuardianPhoneRollsBackFreshStudent(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentNative.TargetSchedulePickup)
+	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "legacy-phone@example.com", "Anna", "Telefon", map[string]any{
+		"pickup_times": map[string]any{"mon": "14:45"},
+	})
+	_, err := env.db.NewRaw("UPDATE enrollment.requests SET guardian_phone = 'keine Nummer' WHERE tenant_id = ? AND id = ?",
+		testpkg.Tenant(t), reqID).Exec(ctx)
+	require.NoError(t, err)
+
+	decideErr := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		_, decisionErr := testpkg.TenantQuery1(t, txCtx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+			RequestID:  reqID,
+			ChildID:    childID,
+			Status:     enrollmentNative.DecisionApproved,
+			ReviewedBy: reviewerAccountID,
+		})
+		return decisionErr
+	})
+	require.ErrorIs(t, decideErr, enrollmentNative.ErrDecisionInvalidData)
+
+	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	assert.Nil(t, child.CreatedStudentID, "the student must not exist without the guardian phone")
+}
+
+func TestDecisionService_Decide_SchedulePickupUsesReviewerStaffID(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentNative.TargetSchedulePickup)
+	reviewerStaff, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "pickup-schedule-author@example.com", "Anna", "Pickup", map[string]any{
+		"pickup_times": map[string]any{"mon": "14:45", "wed": "16:00"},
+	})
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: reviewerAccountID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	rows, err := env.reposTimetable.StudentPickupSchedule.FindByStudentID(ctx, *outcome.Child.CreatedStudentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+	for _, row := range rows {
+		assert.Equal(t, reviewerStaff.ID, row.CreatedBy,
+			"pickup schedule created_by must reference the staff membership, not the reviewer account")
+		assert.NotEqual(t, reviewerAccountID, row.CreatedBy,
+			"the regression requires account id and staff id to stay distinct")
+	}
+}
+
+func TestDecisionService_SyncApprovedChildData_ReplacesRemovedPickupSchedule(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentNative.TargetSchedulePickup)
+	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "pickup-sync@example.com", "Anna", "PickupSync", map[string]any{
+		"pickup_times": map[string]any{"mon": "14:45", "wed": "16:00"},
+	})
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: reviewerAccountID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	rows, err := env.reposTimetable.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+
+	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	child.CustomData = testFormValues(map[string]any{})
+	require.NoError(t, UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      reviewerAccountID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	rows, err = env.reposTimetable.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	assert.Empty(t, rows, "replacement sync must delete pickup schedules removed from the approved snapshot")
+}
+
+func TestDecisionService_SyncApprovedChildData_RecordsLaterPickupExtension(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	env.decision = newDecisionServiceForTestWithPickupExtensions(t, env.rolloverTestEnv, nil, nil, nil, nil)
+	ctx := testpkg.Ctx(t)
+	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentNative.TargetSchedulePickup)
+	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "pickup-extension-approval@example.com", "Anna", "PickupExtension", map[string]any{
+		"pickup_times": map[string]any{"mon": "14:45"},
+	})
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID: reqID, ChildID: childID, Status: enrollmentNative.DecisionApproved, ReviewedBy: reviewerAccountID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	child.CustomData = testFormValues(map[string]any{"pickup_times": map[string]any{"mon": "16:00"}})
+	require.NoError(t, UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, SyncApprovedChildDataInput{
+		RequestID: reqID, ChildID: childID, ActorAccountID: reviewerAccountID, ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	var task struct {
+		Weekday        int    `bun:"weekday"`
+		PreviousPickup string `bun:"previous_pickup"`
+		Pickup         string `bun:"pickup"`
+	}
+	err = env.db.NewSelect().TableExpr(`schedule.pickup_extension_tasks`).
+		ColumnExpr(`weekday, to_char(previous_pickup_time, 'HH24:MI') AS previous_pickup, to_char(pickup_time, 'HH24:MI') AS pickup`).
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Where("student_id = ?", *outcome.Child.CreatedStudentID).
+		Scan(ctx, &task)
+	require.NoError(t, err)
+	assert.Equal(t, timetable.WeekdayMonday, task.Weekday)
+	assert.Equal(t, "14:45", task.PreviousPickup)
+	assert.Equal(t, "16:00", task.Pickup)
+}
+
+func TestDecisionService_Decide_ExistingStudentRecordsLaterPickupExtension(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	env.decision = newDecisionServiceForTestWithPickupExtensions(t, env.rolloverTestEnv, nil, nil, nil, nil)
+	ctx := testpkg.Ctx(t)
+	// A renewal whose care has started applies the weekly plan at approval;
+	// a future one applies it at the start (#6043).
+	env.sourcePhase.ServiceStartDate = enrollmentNative.Date(decisionTestToday)
+	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentNative.TargetSchedulePickup)
+	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+	existing := testpkg.CreateTestStudent(t, env.db, "Mara", "Bestand", "2a")
+	author := testpkg.CreateTestStaff(t, env.db, "Betreuer", "Bestand")
+	testpkg.CreateTestPickupSchedule(t, env.db, existing.ID, timetable.WeekdayMonday, author.ID, "14:45")
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "pickup-extension-existing@example.com", "Mara", "Bestand", map[string]any{
+		"pickup_times": map[string]any{"mon": "16:00"},
+	})
+	matchChildToExistingStudent(t, env, childID, existing.ID)
+	_, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID: reqID, ChildID: childID, Status: enrollmentNative.DecisionApproved, ReviewedBy: reviewerAccountID,
+	})
+	require.NoError(t, err)
+
+	var taskCount int
+	err = env.db.NewSelect().TableExpr(`schedule.pickup_extension_tasks`).ColumnExpr("COUNT(*)").
+		Where("tenant_id = ?", testpkg.Tenant(t)).
+		Where("student_id = ?", existing.ID).
+		Where("weekday = ?", timetable.WeekdayMonday).
+		Scan(ctx, &taskCount)
+	require.NoError(t, err)
+	assert.Equal(t, 1, taskCount)
+}
+
+func TestDecisionService_SyncApprovedChildData_DuplicatePickupTargetDeletesOnce(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	publishLegacyDuplicateTargetSchema(t, env, "legacy-dup-pickup", []enrollmentNative.FormField{
+		{
+			Key: "pickup_visible", Label: "Abholzeiten",
+			Type: enrollmentNative.FormFieldWeekdaySchedule, AppliesToCh: true,
+			Target: enrollmentNative.TargetSchedulePickup, AllowedTimes: []string{"14:45", "16:00"}, SortOrder: 0,
+		},
+		{
+			Key: "pickup_hidden", Label: "Abholzeiten alt",
+			Type: enrollmentNative.FormFieldWeekdaySchedule, AppliesToCh: true,
+			Target: enrollmentNative.TargetSchedulePickup, AllowedTimes: []string{"14:45", "16:00"}, SortOrder: 1,
+		},
+	})
+	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "pickup-duplicate-target@example.com", "Anna", "PickupDup", map[string]any{
+		"pickup_visible": map[string]any{"mon": "14:45", "wed": "16:00"},
+	})
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: reviewerAccountID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	rows, err := env.reposTimetable.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 2)
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      reviewerAccountID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	rows, err = env.reposTimetable.StudentPickupSchedule.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	assert.Len(t, rows, 2, "omitted duplicate pickup target must not delete rows recreated by the visible target")
+}
+
+func TestDecisionService_SyncApprovedChildData_DuplicateArrivalTargetDeletesOnce(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	publishLegacyDuplicateTargetSchema(t, env, "legacy-dup-arrival", []enrollmentNative.FormField{
+		{
+			Key: "arrival_visible", Label: "Ankunftszeiten",
+			Type: enrollmentNative.FormFieldWeekdaySchedule, AppliesToCh: true,
+			Target: enrollmentNative.TargetScheduleArrival, SortOrder: 0,
+		},
+		{
+			Key: "arrival_hidden", Label: "Ankunftszeiten alt",
+			Type: enrollmentNative.FormFieldWeekdaySchedule, AppliesToCh: true,
+			Target: enrollmentNative.TargetScheduleArrival, SortOrder: 1,
+		},
+	})
+	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "arrival-duplicate-target@example.com", "Anna", "ArrivalDup", map[string]any{
+		"arrival_visible": map[string]any{"mon": "07:45"},
+	})
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: reviewerAccountID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	rows, err := env.reposTimetable.StudentArrivalSchedule.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      reviewerAccountID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	rows, err = env.reposTimetable.StudentArrivalSchedule.FindByStudentID(ctx, studentID)
+	require.NoError(t, err)
+	assert.Len(t, rows, 1, "omitted duplicate arrival target must not delete rows recreated by the visible target")
+}
+
+func TestDecisionService_SyncApprovedChildData_DuplicateStudentTargetKeepsSubmittedSiblingValue(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	publishLegacyDuplicateTargetSchema(t, env, "legacy-dup-health", []enrollmentNative.FormField{
+		{
+			Key: "health_visible", Label: "Gesundheit",
+			Type: enrollmentNative.FormFieldTextarea, AppliesToCh: true,
+			Target: enrollmentNative.TargetStudentHealthInfo, SortOrder: 0,
+		},
+		{
+			Key: "health_hidden", Label: "Gesundheit alt",
+			Type: enrollmentNative.FormFieldTextarea, AppliesToCh: true,
+			Target: enrollmentNative.TargetStudentHealthInfo, SortOrder: 1,
+		},
+	})
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "health-duplicate-target@example.com", "Anna", "HealthDup", map[string]any{
+		"health_visible": "Asthma",
+	})
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	student, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(studentID))
+	require.NoError(t, err)
+	require.NotNil(t, student.HealthInfo)
+	assert.Equal(t, "Asthma", *student.HealthInfo)
+}
+
+func TestDecisionService_SyncApprovedChildData_AuditsTrackedStudentChanges(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	publishLegacyDuplicateTargetSchema(t, env, "student-health-audit", []enrollmentNative.FormField{{
+		Key:         "health_info",
+		Label:       "Gesundheit",
+		Type:        enrollmentNative.FormFieldTextarea,
+		AppliesToCh: true,
+		Target:      enrollmentNative.TargetStudentHealthInfo,
+		SortOrder:   0,
+	}})
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "health-audit@example.com", "Anna", "Audit", map[string]any{
+		"health_info": "synthetic-value-a",
+	})
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	child.CustomData = testFormValues(map[string]any{"health_info": "synthetic-value-b"})
+	require.NoError(t, UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
+
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, SyncApprovedChildDataInput{
+		RequestID:           reqID,
+		ChildID:             childID,
+		ActorAccountID:      env.creatorID,
+		ReplaceTargetedData: true,
+	})
+	require.NoError(t, err)
+
+	history, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.reposAudit.StudentFieldEdit.GetByStudentID, studentID)
+	require.NoError(t, err)
+	require.Len(t, history, 1)
+	assert.Equal(t, peopledirectory.StudentFieldHealthInfo, history[0].FieldName)
+	assert.Equal(t, env.creatorID, history[0].EditedBy)
+	require.NotNil(t, history[0].OldValue)
+	require.NotNil(t, history[0].NewValue)
+	assert.Equal(t, "Angabe vorhanden", *history[0].OldValue)
+	assert.Equal(t, "Angabe geändert", *history[0].NewValue)
+}
+
+func TestDecisionService_SyncApprovedChildData_AuditsPersistedChangeDespiteTargetError(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	publishLegacyDuplicateTargetSchema(t, env, "partial-student-health-audit", []enrollmentNative.FormField{
+		{
+			Key:         "health_info",
+			Label:       "Gesundheit",
+			Type:        enrollmentNative.FormFieldTextarea,
+			AppliesToCh: true,
+			Target:      enrollmentNative.TargetStudentHealthInfo,
+			SortOrder:   0,
+		},
+		{
+			Key:          "pickup_times",
+			Label:        "Abholzeiten",
+			Type:         enrollmentNative.FormFieldWeekdaySchedule,
+			AppliesToCh:  true,
+			Target:       enrollmentNative.TargetSchedulePickup,
+			AllowedTimes: []string{"14:45"},
+			SortOrder:    1,
+		},
+	})
+	_, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "partial-health-audit@example.com", "Anna", "Audit", map[string]any{
+		"health_info":  "synthetic-value-a",
+		"pickup_times": map[string]any{"mon": "14:45"},
+	})
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: reviewerAccountID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+	studentID := *outcome.Child.CreatedStudentID
+
+	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	child.CustomData = testFormValues(map[string]any{
+		"health_info":  "synthetic-value-b",
+		"pickup_times": map[string]any{"mon": "14:45"},
+	})
+	require.NoError(t, UpdateOwnerChildForTest(ctx, env.repos.Enrollment(), child))
+
+	actor := testpkg.CreateTestAccount(t, env.db, "partial-health-audit-reviewer")
+	applier := changeRequestApplierForTest(t, env)
+	_, err = applier.SyncApprovedChildData(ctx, SyncApprovedChildDataInput{
+		RequestID:      reqID,
+		ChildID:        childID,
+		ActorAccountID: actor.ID,
+	})
+	require.NoError(t, err, "a best-effort schedule error must not discard a persisted student update")
+
+	student, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(studentID))
+	require.NoError(t, err)
+	require.NotNil(t, student.HealthInfo)
+	assert.Equal(t, "synthetic-value-b", *student.HealthInfo)
+
+	history, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.reposAudit.StudentFieldEdit.GetByStudentID, studentID)
+	require.NoError(t, err)
+	require.Len(t, history, 1)
+	assert.Equal(t, peopledirectory.StudentFieldHealthInfo, history[0].FieldName)
+	assert.Equal(t, actor.ID, history[0].EditedBy)
+	require.NotNil(t, history[0].OldValue)
+	require.NotNil(t, history[0].NewValue)
+	assert.Equal(t, "Angabe vorhanden", *history[0].OldValue)
+	assert.Equal(t, "Angabe geändert", *history[0].NewValue)
+}
+
+func TestDecisionService_Decide_ScheduleArrivalUsesReviewerStaffID(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	publishDecisionScheduleSchema(t, env, "arrival_times", enrollmentNative.TargetScheduleArrival)
+	reviewerStaff, reviewerAccountID := createReviewerStaffWithDistinctAccount(t, env)
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "arrival-schedule-author@example.com", "Anna", "Arrival", map[string]any{
+		"arrival_times": map[string]any{"mon": "07:45"},
+	})
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: reviewerAccountID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	rows, err := env.reposTimetable.StudentArrivalSchedule.FindByStudentID(ctx, *outcome.Child.CreatedStudentID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1)
+	assert.Equal(t, reviewerStaff.ID, rows[0].CreatedBy,
+		"arrival schedule created_by must reference the staff membership, not the reviewer account")
+	assert.NotEqual(t, reviewerAccountID, rows[0].CreatedBy,
+		"the regression requires account id and staff id to stay distinct")
+	assert.True(t, rows[0].ExpectedArrival.IsZero(),
+		"enrollment rows mark the care day and inherit later class-time changes")
+}
+
+// A reviewer without a staff membership cannot author the weekly pickup rows.
+// The approval must fail like the renewal path does, instead of creating the
+// student without the submitted pickup plan (#6839).
+func TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffRollsBackApproval(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentNative.TargetSchedulePickup)
+	reviewerAccount := testpkg.CreateTestAccount(t, env.db, "reviewer-without-staff")
+
+	reqID, childID := submitOneChildWithCustomData(t, env, "pickup-no-staff@example.com", "Anna", "NoStaff", map[string]any{
+		"pickup_times": map[string]any{"mon": "14:45"},
+	})
+	decideErr := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		_, decisionErr := testpkg.TenantQuery1(t, txCtx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+			RequestID:  reqID,
+			ChildID:    childID,
+			Status:     enrollmentNative.DecisionApproved,
+			ReviewedBy: reviewerAccount.ID,
+		})
+		return decisionErr
+	})
+	require.ErrorIs(t, decideErr, enrollmentNative.ErrDecisionReviewerStaffRequired,
+		"a pickup plan without a staff author must abort the approval, not vanish")
+
+	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentNative.ChildStatusSubmitted, child.Status)
+	assert.Nil(t, child.CreatedStudentID)
+}
+
+// TestDecisionService_Decide_ExistingStudentScheduleReplacementFailureRollsBack
+// locks in the #1663 fix. The existing-student re-enrollment path runs
+// applyTargetedFields with ReplaceSchedules, which DELETES the matched
+// student's live arrival/pickup rows before re-inserting the resubmitted
+// weekdays. A dispatch failure AFTER that delete must be fatal so the
+// surrounding tenant tx rolls the whole approval back: the live schedule must
+// never be committed deleted-but-not-rebuilt. The fresh-create path aborts the
+// same way since #6839 (TestDecisionService_Decide_ScheduleTargetWithoutReviewerStaffRollsBackApproval).
+func TestDecisionService_Decide_ExistingStudentScheduleReplacementFailureRollsBack(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	// A pickup-schedule form field so approval takes the ReplaceSchedules
+	// delete-then-reinsert path. The renewal's care has started, so the
+	// approval replaces the weekly plan at once; the future renewal applies
+	// it at the start and rolls back there (#6043,
+	// TestDecisionService_ApplyDueWeeklyPlans_FailureRollsBackCompletely).
+	env.sourcePhase.ServiceStartDate = enrollmentNative.Date(decisionTestToday)
+	publishDecisionScheduleSchema(t, env, "pickup_times", enrollmentNative.TargetSchedulePickup)
+
+	// The already-enrolled student, carrying a live pickup schedule row.
+	existing := testpkg.CreateTestStudent(t, env.db, "Mara", "Bestand", "2a")
+	scheduleAuthor := testpkg.CreateTestStaff(t, env.db, "Betreuer", "Bestand")
+	seededPickup := testpkg.CreateTestPickupSchedule(t, env.db, existing.ID, timetable.WeekdayMonday, scheduleAuthor.ID, "14:45")
+
+	// A fresh submission carrying a resubmitted pickup schedule, matched to the
+	// existing student so approval renews it instead of creating a duplicate.
+	reqID, childID := submitOneChildWithCustomData(t, env, "existing-reenroll@example.com", "Mara", "Bestand", map[string]any{
+		"pickup_times": map[string]any{"mon": "16:00"},
+	})
+	matchChildToExistingStudent(t, env, childID, existing.ID)
+
+	// Reviewer account with no linked staff → resolveReviewerStaffID fails, so
+	// dispatchWeekdaySchedule errors AFTER DeleteByStudentID has already run.
+	reviewerNoStaff := testpkg.CreateTestAccount(t, env.db, "reviewer-no-staff-existing")
+
+	// Drive Decide inside a tenant tx (production wraps it via middleware) so a
+	// returned error actually rolls the schedule delete back.
+	decideErr := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		_, err := testpkg.TenantQuery1(t, txCtx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+			RequestID:  reqID,
+			ChildID:    childID,
+			Status:     enrollmentNative.DecisionApproved,
+			ReviewedBy: reviewerNoStaff.ID,
+		})
+		return err
+	})
+	require.Error(t, decideErr, "a schedule-replacement dispatch failure must abort the existing-student approval")
+
+	// The rollback must preserve the student's original pickup schedule.
+	rows, err := env.reposTimetable.StudentPickupSchedule.FindByStudentID(ctx, existing.ID)
+	require.NoError(t, err)
+	require.Len(t, rows, 1, "the live pickup schedule must survive the rolled-back approval")
+	assert.Equal(t, seededPickup.Weekday, rows[0].Weekday)
+
+	// The child must not be left approved — the whole decision rolled back.
+	child, err := ReadOwnerChildForTest(ctx, env.repos.Enrollment(), childID)
+	require.NoError(t, err)
+	assert.Equal(t, enrollmentNative.ChildStatusSubmitted, child.Status,
+		"a rolled-back approval must leave the child in its pre-decision status")
+}
+
+// matchChildToExistingStudent pins matched_student_id on a submitted child, the
+// way an existing_students phase does at submission time, so approval takes the
+// re-enrollment branch instead of creating a second Person + Student.
+func matchChildToExistingStudent(t *testing.T, env *decisionTestEnv, childID, studentID int64) {
+	t.Helper()
+	require.NoError(t, testpkg.TenantCommand2(t, testpkg.Ctx(t), env.db, env.repos.Enrollment().UpdateMatchedStudent, childID, &studentID))
+}
+
+func TestDecisionService_Decide_ExistingStudentCareRenewalObsoletesWithdrawalWithoutGap(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	existing := testpkg.CreateTestStudent(t, env.db, "Lina", "Verlaengert", "2a")
+	requestID, childID := submitReEnrollment(
+		t, env,
+		"Eltern", "Verlaengert", "renewal-with-care@example.com", nil,
+		"Lina", "Verlaengert", map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		},
+	)
+	matchChildToExistingStudent(t, env, childID, existing.ID)
+	care := createAdjustmentCareOfferingWith(t, env, "Betreuung Verlaengerung", func(offering *offeringContract.CareOfferingRecord) {
+		offering.CountsAsCare = true
+		offering.CountsAsCareSet = true
+	})
+	createChildOfferingLink(t, env, childID, care.ID, nil, nil)
+
+	studentID := existing.ID
+	actorID := env.creatorID
+	repo := env.repos.CareWithdrawal
+	require.NoError(t, api.SeedPendingCareWithdrawal(ctx, repo, &careplan.WithdrawalCompletion{
+		StudentID: &studentID, FirstBookinglessDay: calendar.Date(env.sourcePhase.ServiceStartDate),
+		Trigger:               careplan.WithdrawalTriggerDirectSchool,
+		WithdrawalConfirmedBy: &actorID, WithdrawalConfirmedRole: "admin",
+		WithdrawalConfirmedAt: time.Now(),
+	}))
+
+	err := testpkg.WithTenantTx(t, ctx, env.db, testpkg.Tenant(t), func(txCtx context.Context, _ bun.Tx) error {
+		_, decideErr := testpkg.TenantQuery1(t, txCtx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+			RequestID: requestID, ChildID: childID,
+			Status: enrollmentNative.DecisionApproved, ReviewedBy: actorID,
+		})
+		return decideErr
+	})
+	require.NoError(t, err)
+	pending, err := pendingWithdrawalForStudent(ctx, repo, existing.ID)
+	require.NoError(t, err)
+	assert.Nil(t, pending, "a renewal starting on the first bookingless day leaves no care gap")
+}
+
+// submitReEnrollment submits a full renewal form for an already-enrolled child.
+// Consent flags are caller-supplied because withdrawal is the point of one of
+// the tests below.
+func submitReEnrollment(
+	t *testing.T,
+	env *decisionTestEnv,
+	guardianFirst, guardianLast, guardianEmail string,
+	guardianPhone *string,
+	childFirst, childLast string,
+	consentFlags map[string]any,
+) (requestID, childID int64) {
+	t.Helper()
+	grade := int16(2)
+	res, err := env.requestSvc.Submit(testpkg.Ctx(t), enrollmentAPI.SubmitRequest{
+		TenantID:          testpkg.Tenant(t),
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: guardianFirst,
+		GuardianLastName:  guardianLast,
+		GuardianEmail:     guardianEmail,
+		GuardianPhone:     guardianPhone,
+		ConsentFlags:      testFormValues(consentFlags),
+		Children: []enrollmentAPI.SubmitChild{{
+			FirstName:        childFirst,
+			LastName:         childLast,
+			DateOfBirth:      calendar.NewDate(2018, 4, 15),
+			TargetGradeLevel: &grade,
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, res.Children, 1)
+	return res.Request.ID, res.Children[0].ID
+}
+
+// TestDecisionService_Decide_ExistingStudentAppliesWithdrawnConsent locks in the
+// #1663 fix for consent withdrawal. The re-enrollment form re-asks every
+// configured consent, so a box the guardian leaves unchecked must CLEAR the
+// timestamp the matched student still carries from the original enrollment —
+// otherwise the school keeps acting on a consent that was explicitly withdrawn.
+func TestDecisionService_Decide_ExistingStudentAppliesWithdrawnConsent(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	existing := testpkg.CreateTestStudent(t, env.db, "Nele", "Widerruf", "2a")
+
+	// Consent recorded by the ORIGINAL enrollment.
+	stamped := time.Now().Add(-24 * time.Hour)
+	_, err := env.db.NewUpdate().
+		Model((*peopledirectory.StudentState)(nil)).
+		ModelTableExpr(`users.student_profiles AS "student"`).
+		Set("photo_consent_given_at = ?", stamped).
+		Set("photo_consent_given_by = ?", env.creatorID).
+		Set("email_contact_accepted_at = ?", stamped).
+		Where(`"student".id = ?`, existing.ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	// The renewal withdraws photo + email contact and keeps the required ones.
+	reqID, childID := submitReEnrollment(t, env, "Nina", "Widerruf", "withdraw-consent@example.com", nil,
+		"Nele", "Widerruf", map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   false,
+			"photo":           false,
+		})
+	matchChildToExistingStudent(t, env, childID, existing.ID)
+
+	_, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	student, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Student.FindByID, any(existing.ID))
+	require.NoError(t, err)
+	assert.Nil(t, student.PhotoConsentGivenAt, "withdrawn photo consent must be cleared on approval")
+	assert.Nil(t, student.PhotoConsentGivenBy, "the photo-consent author must be cleared with the consent")
+	assert.Nil(t, student.EmailContactAcceptedAt, "withdrawn email-contact consent must be cleared on approval")
+	assert.NotNil(t, student.AGBAcceptedAt, "accepted consent must still be stamped")
+	assert.NotNil(t, student.DataProcessingAcceptedAt, "accepted consent must still be stamped")
+}
+
+// TestDecisionService_Decide_ExistingStudentLinksSubmittedGuardian locks in the
+// #1663 fix for guardian reconciliation. A matched student can be imported,
+// manually created, or enrolled before guardian links existed — assuming it
+// already carries the submitted guardian silently discards that guardian, their
+// phone number and their portal access.
+func TestDecisionService_Decide_ExistingStudentLinksSubmittedGuardian(t *testing.T) {
+	t.Parallel()
+
+	for _, bookingsAuthoritative := range []bool{false, true} {
+		t.Run(fmt.Sprintf("bookings_authoritative=%t", bookingsAuthoritative), func(t *testing.T) {
+			testpkg.OwnTenant(t)
+			t.Parallel()
+			env := setupDecisionTestWithSettings(t, stubActivationSettings{bookingsAuthoritative: &bookingsAuthoritative})
+			ctx := testpkg.Ctx(t)
+
+			// An imported child: enrolled, but with no guardian relationship at all.
+			existing := testpkg.CreateTestStudent(t, env.db, "Milo", "Import", "3b")
+
+			guardianEmail := fmt.Sprintf("reenroll-guardian-%t@example.com", bookingsAuthoritative)
+			guardianPhone := "015126829060"
+			reqID, childID := submitReEnrollment(t, env, "Mara", "Import", guardianEmail, &guardianPhone,
+				"Milo", "Import", map[string]any{
+					"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+				})
+			matchChildToExistingStudent(t, env, childID, existing.ID)
+
+			outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+				RequestID:  reqID,
+				ChildID:    childID,
+				Status:     enrollmentNative.DecisionApproved,
+				ReviewedBy: env.creatorID,
+			})
+			require.NoError(t, err)
+
+			links, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.StudentGuardian.FindByStudentID, existing.ID)
+			require.NoError(t, err)
+			require.Len(t, links, 1, "the submitted guardian must be linked to the matched student")
+			assert.True(t, links[0].IsPrimary, "the submitted guardian becomes the primary relationship")
+			assert.True(t, links[0].CanPickup)
+
+			profile, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.FindByID, links[0].GuardianProfileID)
+			require.NoError(t, err)
+			require.NotNil(t, profile.Email)
+			assert.Equal(t, guardianEmail, *profile.Email)
+
+			phones, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianPhoneNumber.FindByGuardianID, profile.ID)
+			require.NoError(t, err)
+			require.Len(t, phones, 1, "the submitted phone number must reach the guardian profile")
+			assert.Equal(t, guardianPhone, phones[0].PhoneNumber)
+
+			require.NotNil(t, outcome.PendingInvite,
+				"a guardian without a portal account must be invited, or the renewal grants no portal access")
+			assert.Equal(t, profile.ID, outcome.PendingInvite.GuardianProfileID)
+		})
+	}
+}
+
+func TestDecisionService_Decide_LateInviteRenewalLinksInviteRecipient(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	unrelatedParent := testpkg.CreateTestParentGuardianChain(t, env.db)
+	existing := testpkg.CreateTestStudent(t, env.db, "Milo", "Nachzuegler", "3b")
+
+	// Submission pins only for an invitee whose relationship authorizes the
+	// renewal; the approval asks again (#6173).
+	invited := testpkg.CreateTestGuardianProfileNamed(t, env.db, "Mara", "Nachzuegler", "invited-renewal")
+	testpkg.CreateTestStudentGuardianLink(t, env.db, existing.ID, invited.ID, securityruntime.GuardianRolePrimaryGuardian)
+	invitedEmail := *invited.Email
+	invite, err := env.requestSvc.CreateLateInvite(ctx, enrollmentAPI.CreateLateInviteInput{
+		PhaseID: env.sourcePhase.ID, GuardianEmail: invitedEmail, CreatedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	grade := int16(2)
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
+		TenantID: testpkg.Tenant(t), PhaseID: env.sourcePhase.ID, LateInviteToken: invite.Token,
+		GuardianFirstName: "Mara", GuardianLastName: "Nachzuegler", GuardianEmail: unrelatedParent.Email,
+		ConsentFlags: testFormValues(map[string]any{"agb": true, "data_processing": true, "email_contact": true, "photo": true}),
+		Children: []enrollmentAPI.SubmitChild{{
+			FirstName: "Milo", LastName: "Nachzuegler",
+			DateOfBirth: calendar.NewDate(2018, 4, 15), TargetGradeLevel: &grade,
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+	reqID, childID := submitted.Request.ID, submitted.Children[0].ID
+	assert.Equal(t, enrollmentNative.RequestSourceLateInvite, submitted.Request.SubmissionSource)
+	matchChildToExistingStudent(t, env, childID, existing.ID)
+
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	links, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.StudentGuardian.FindByStudentID, existing.ID)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.NotEqual(t, unrelatedParent.GuardianProfileID, links[0].GuardianProfileID,
+		"the editable contact address must not grant an unrelated account access")
+	profile, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.GuardianProfile.FindByID, links[0].GuardianProfileID)
+	require.NoError(t, err)
+	require.NotNil(t, profile.Email)
+	assert.Equal(t, invitedEmail, *profile.Email)
+
+	request, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().RequestByID, reqID, false)
+	require.NoError(t, err)
+	assert.Equal(t, unrelatedParent.Email, request.GuardianEmail, "the submitted contact remains on the enrollment, not the student")
+
+	require.NotNil(t, outcome.PendingInvite)
+	assert.Equal(t, profile.ID, outcome.PendingInvite.GuardianProfileID)
+}
+
+// TestDecisionService_Decide_ExistingStudentKeepsForeignPrimaryGuardianLink is
+// the counterweight to the test above: the submitted guardian becomes primary,
+// but a guardian who held that link from a DIFFERENT source (last year's
+// approval, an import, the other parent) keeps their relationship. Deleting it
+// would strip a real guardian of pickup authority and parent-portal access just
+// because the other parent filed this year's renewal (#1663).
+func TestDecisionService_Decide_ExistingStudentKeepsForeignPrimaryGuardianLink(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	existing := testpkg.CreateTestStudent(t, env.db, "Jonte", "Zweitkind", "1a")
+
+	// The other parent, primary since the original enrollment.
+	otherParent := testpkg.CreateTestGuardianProfile(t, env.db, "other-parent")
+	otherLink := &peopledirectory.GuardianRelationshipSnapshot{
+		StudentID:          existing.ID,
+		GuardianProfileID:  otherParent.ID,
+		RelationshipType:   "guardian",
+		IsPrimary:          true,
+		IsEmergencyContact: true,
+		CanPickup:          true,
+	}
+	otherLink.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, env.repos.StudentGuardian.Create(ctx, otherLink))
+	testpkg.SetTestStudentGuardianLinkRole(t, env.db, otherLink.ID, securityruntime.GuardianRolePrimaryGuardian)
+
+	reqID, childID := submitReEnrollment(t, env, "Sven", "Zweitkind", "submitting-parent@example.com", nil,
+		"Jonte", "Zweitkind", map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		})
+	matchChildToExistingStudent(t, env, childID, existing.ID)
+
+	_, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+
+	links, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.StudentGuardian.FindByStudentID, existing.ID)
+	require.NoError(t, err)
+	require.Len(t, links, 2, "the pre-existing guardian must survive the renewal")
+
+	var kept, submitted *peopledirectory.GuardianRelationshipSnapshot
+	for _, link := range links {
+		if link.GuardianProfileID == otherParent.ID {
+			kept = link
+			continue
+		}
+		submitted = link
+	}
+	require.NotNil(t, kept, "the pre-existing guardian link must not be deleted")
+	require.NotNil(t, submitted, "the submitted guardian must be linked")
+	assert.False(t, kept.IsPrimary, "only one primary link may remain")
+	assert.True(t, kept.CanPickup, "demotion must not strip the kept guardian's pickup authority")
+	assert.True(t, submitted.IsPrimary, "the submitted guardian becomes the primary relationship")
+}
+
+func TestDecisionService_Decide_ApprovedIsIdempotent(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "decide-idem@example.com", "Anna", "Idem")
+	first, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, first.Child.CreatedStudentID)
+	firstStudentID := *first.Child.CreatedStudentID
+
+	// Second call with the same status must be a no-op — no new
+	// student should be created.
+	second, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, second.Child.CreatedStudentID)
+	assert.Equal(t, firstStudentID, *second.Child.CreatedStudentID,
+		"second approve must not duplicate the student row")
+}
+
+func TestDecisionService_Decide_ApprovedUsesFixedOfferingDaysForActivityEnrollment(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Fixed-Days")
+	room := testpkg.CreateTestRoom(t, env.db, "Decision-Fixed-Days")
+	group := &careTemplateGroup{
+		Name:            "Decision Fixed Days",
+		Type:            timetable.GroupTypeCare,
+		CategoryID:      category.ID,
+		MaxParticipants: 20,
+		IsOpen:          true,
+		IsTemplate:      true,
+		PlannedRoomID:   &room.ID,
+	}
+	group.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, createCareTemplateGroupRow(ctx, env.db, group))
+	period := createCareOfferingTestPeriod(t, env.db, "decision-fixed-days",
+		calendar.NewDate(2026, 8, 1),
+		calendar.NewDate(2027, 8, 31))
+	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayTuesday, &period.ID)
+	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayThursday, &period.ID)
+
+	offering := &offeringContract.CareOfferingRecord{
+		PhaseID:         env.sourcePhase.ID,
+		ActivityGroupID: &group.ID,
+		Name:            "Fixed Tue Thu",
+		DaysOfWeekMode:  offeringContract.DaysOfWeekModeFixed,
+		AvailableDays:   []string{"tue", "thu"},
+		IsActive:        true,
+	}
+	offering.TenantID = testpkg.Tenant(t)
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Create(ctx, offering))
+
+	req := enrollmentAPI.SubmitRequest{
+		TenantID:          testpkg.Tenant(t),
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Fixed",
+		GuardianEmail:     "fixed-days@example.com",
+		ConsentFlags: testFormValues(map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		}),
+		Children: []enrollmentAPI.SubmitChild{
+			{
+				FirstName:        "Fina",
+				LastName:         "Fixed",
+				DateOfBirth:      calendar.NewDate(2018, 4, 15),
+				TargetGradeLevel: testpkg.Int16Ptr(2),
+				OfferingIDs:      []int64{offering.ID},
+			},
+		},
+	}
+	submitted, err := env.requestSvc.Submit(ctx, req)
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	var rows []studentEnrollment
+	require.NoError(t, env.db.NewSelect().
+		Model(&rows).
+		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
+		Where(`"student_enrollment".tenant_id = ?`, testpkg.Tenant(t)).
+		Where(`"student_enrollment".student_id = ?`, *outcome.Child.CreatedStudentID).
+		Where(`"student_enrollment".activity_group_id = ?`, group.ID).
+		Scan(ctx))
+	require.Len(t, rows, 1)
+	assert.Equal(t, []int{2, 4}, rows[0].SelectedWeekdays,
+		"fixed offering approval must constrain enrollment to available_days")
+	require.NotNil(t, rows[0].CalendarPeriodID)
+	assert.Equal(t, period.ID, *rows[0].CalendarPeriodID)
+}
+
+func TestDecisionService_UpdateChildOfferings_RebuildsEverySplitSeriesSegment(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	period := &calendarPeriod{
+		Name: "decision-split-series-" + t.Name(), PeriodType: schoolcalendar.PeriodTypeCustom,
+		StartDate: calendar.NewDate(2026, 8, 1), EndDate: calendar.NewDate(2027, 8, 31),
+		WeekCycleLength: 1, IsActive: true,
+	}
+	period.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, createCalendarPeriodRow(ctx, env.db, period))
+	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Split-Series")
+	rootRoom := testpkg.CreateTestRoom(t, env.db, "Decision-Split-Root")
+	successorRoom := testpkg.CreateTestRoom(t, env.db, "Decision-Split-Successor")
+	timeframe := testpkg.CreateTestTimeframeForTenant(t, env.db, testpkg.Tenant(t), "Decision Split")
+	root := &careTemplateGroup{
+		Name: "Decision Split Root", Type: timetable.GroupTypeCare,
+		CategoryID: category.ID, MaxParticipants: 20, IsOpen: true,
+		IsTemplate: true, CalendarPeriodID: &period.ID, PlannedRoomID: &rootRoom.ID,
+	}
+	root.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, createCareTemplateGroupRow(ctx, env.db, root))
+	successor := &careTemplateGroup{
+		Name: "Decision Split Successor", Type: timetable.GroupTypeCare,
+		CategoryID: category.ID, MaxParticipants: 20, IsOpen: true,
+		IsTemplate: true, CalendarPeriodID: &period.ID, SeriesRootID: &root.ID, PlannedRoomID: &successorRoom.ID,
+	}
+	successor.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, createCareTemplateGroupRow(ctx, env.db, successor))
+	boundary := calendar.NewDate(2027, 1, 1)
+	rootSchedule := &careTemplateSchedule{
+		Weekday: timetable.WeekdayMonday, ActivityGroupID: root.ID,
+		ValidUntil: &boundary, TimeframeID: &timeframe.ID,
+	}
+	rootSchedule.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, createCareTemplateScheduleRow(ctx, env.db, rootSchedule))
+	successorSchedule := &careTemplateSchedule{
+		Weekday: timetable.WeekdayMonday, ActivityGroupID: successor.ID,
+		ValidFrom: &boundary, TimeframeID: &timeframe.ID,
+	}
+	successorSchedule.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, createCareTemplateScheduleRow(ctx, env.db, successorSchedule))
+
+	offering := &offeringContract.CareOfferingRecord{
+		PhaseID: env.sourcePhase.ID, ActivityGroupID: &root.ID,
+		Name: "Split Series Care", DaysOfWeekMode: offeringContract.DaysOfWeekModeFixed,
+		AvailableDays: []string{"mon"}, IsActive: true,
+	}
+	offering.TenantID = testpkg.Tenant(t)
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Create(ctx, offering))
+
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
+		TenantID: testpkg.Tenant(t), PhaseID: env.sourcePhase.ID,
+		GuardianFirstName: "Eltern", GuardianLastName: "SplitSeries",
+		GuardianEmail: "split-series-roster@example.com",
+		ConsentFlags: testFormValues(map[string]any{
+			"agb": true, "data_processing": true, "email_contact": true, "photo": true,
+		}),
+		Children: []enrollmentAPI.SubmitChild{{
+			FirstName: "Sina", LastName: "SplitSeries",
+			DateOfBirth:      calendar.NewDate(2018, 4, 15),
+			TargetGradeLevel: testpkg.Int16Ptr(2), OfferingIDs: []int64{offering.ID},
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+	childID := submitted.Children[0].ID
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID: submitted.Request.ID, ChildID: childID,
+		Status: enrollmentNative.DecisionApproved, ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	assertSeriesRoster := func() {
+		rows := listStudentEnrollmentRowsForDecisionTest(t, env, *outcome.Child.CreatedStudentID)
+		byGroup := make(map[int64]studentEnrollment, len(rows))
+		for _, row := range rows {
+			if row.EnrollmentRequestChildID != nil && *row.EnrollmentRequestChildID == childID {
+				byGroup[row.ActivityGroupID] = row
+			}
+		}
+		require.Contains(t, byGroup, root.ID)
+		require.Contains(t, byGroup, successor.ID)
+		assert.Equal(t, []int{timetable.WeekdayMonday}, byGroup[root.ID].SelectedWeekdays)
+		assert.Equal(t, []int{timetable.WeekdayMonday}, byGroup[successor.ID].SelectedWeekdays)
+	}
+	assertSeriesRoster()
+
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentAPI.UpdateChildOfferingsInput{
+		RequestID: submitted.Request.ID, ChildID: childID,
+		ActorAccountID: env.creatorID, ActorRole: "admin",
+		Reason: "Serienzuordnung erneut speichern",
+		Offerings: []enrollmentAPI.OfferingAdjustmentSelection{{
+			OfferingID: offering.ID,
+		}},
+	})
+	require.NoError(t, err)
+	assertSeriesRoster()
+
+	lockedDecision := newDecisionServiceForTest(
+		env.rolloverTestEnv,
+		nil,
+		func(lockCtx context.Context) error {
+			return owners.MustNewTimetableRecurrenceLock(testpkg.NewDatabase(t, env.db)).LockRecurrenceWrites(lockCtx)
+		},
+	)
+	assertOfferingAdjustmentWaitsForRecurrenceGate(t, env, lockedDecision, enrollmentAPI.UpdateChildOfferingsInput{
+		RequestID: submitted.Request.ID, ChildID: childID,
+		ActorAccountID: env.creatorID, ActorRole: "admin",
+		Reason: "Serienzuordnung unter Sperre erneut speichern",
+		Offerings: []enrollmentAPI.OfferingAdjustmentSelection{{
+			OfferingID: offering.ID,
+		}},
+	})
+	assertSeriesRoster()
+}
+
+func TestDecisionService_Decide_ApprovedPreservesLegacyNonTemplateLinkedOffering(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Legacy-Linked")
+	group := &careTemplateGroup{
+		Name:            "Decision Legacy Linked",
+		Type:            timetable.GroupTypeCare,
+		CategoryID:      category.ID,
+		MaxParticipants: 20,
+		IsOpen:          true,
+		IsTemplate:      false,
+	}
+	group.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, createCareTemplateGroupRow(ctx, env.db, group))
+
+	offering := &offeringContract.CareOfferingRecord{
+		PhaseID:         env.sourcePhase.ID,
+		ActivityGroupID: &group.ID,
+		Name:            "Legacy Linked",
+		DaysOfWeekMode:  offeringContract.DaysOfWeekModeFixed,
+		AvailableDays:   []string{"mon", "wed"},
+		IsActive:        true,
+	}
+	offering.TenantID = testpkg.Tenant(t)
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Create(ctx, offering))
+
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
+		TenantID:          testpkg.Tenant(t),
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Legacy",
+		GuardianEmail:     "legacy-linked@example.com",
+		ConsentFlags: testFormValues(map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		}),
+		Children: []enrollmentAPI.SubmitChild{
+			{
+				FirstName:        "Lina",
+				LastName:         "Legacy",
+				DateOfBirth:      calendar.NewDate(2018, 4, 15),
+				TargetGradeLevel: testpkg.Int16Ptr(2),
+				OfferingIDs:      []int64{offering.ID},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	var rows []studentEnrollment
+	require.NoError(t, env.db.NewSelect().
+		Model(&rows).
+		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
+		Where(`"student_enrollment".tenant_id = ?`, testpkg.Tenant(t)).
+		Where(`"student_enrollment".student_id = ?`, *outcome.Child.CreatedStudentID).
+		Where(`"student_enrollment".activity_group_id = ?`, group.ID).
+		Scan(ctx))
+	require.Len(t, rows, 1)
+	assert.Nil(t, rows[0].CalendarPeriodID)
+	assert.Empty(t, rows[0].SelectedWeekdays)
+}
+
+// Since #2249 the rollover clones the offering catalog into the target
+// phase and remaps the carried booking onto the clone — including a
+// historical non-template activity-group link, which the clone carries
+// verbatim so Decide keeps materializing it for the target window.
+func TestDecisionService_Decide_RolloverApprovalMaterializesClonedOffering(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Rollover-Linked")
+	group := &careTemplateGroup{
+		Name:            "Decision Rollover Linked",
+		Type:            timetable.GroupTypeCare,
+		CategoryID:      category.ID,
+		MaxParticipants: 20,
+		IsOpen:          true,
+		IsTemplate:      false,
+	}
+	group.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, createCareTemplateGroupRow(ctx, env.db, group))
+
+	offering := &offeringContract.CareOfferingRecord{
+		PhaseID:         env.sourcePhase.ID,
+		ActivityGroupID: &group.ID,
+		Name:            "Rollover Source Linked",
+		DaysOfWeekMode:  offeringContract.DaysOfWeekModeFixed,
+		AvailableDays:   []string{"mon", "wed"},
+		IsActive:        true,
+	}
+	offering.TenantID = testpkg.Tenant(t)
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Create(ctx, offering))
+
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
+		TenantID:          testpkg.Tenant(t),
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "Rollover",
+		GuardianEmail:     "rollover-linked@example.com",
+		ConsentFlags: testFormValues(map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		}),
+		Children: []enrollmentAPI.SubmitChild{
+			{
+				FirstName:        "Rina",
+				LastName:         "Rollover",
+				DateOfBirth:      calendar.NewDate(2018, 4, 15),
+				TargetGradeLevel: testpkg.Int16Ptr(2),
+				OfferingIDs:      []int64{offering.ID},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+
+	sourceOutcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, sourceOutcome.Child.CreatedStudentID)
+	studentID := *sourceOutcome.Child.CreatedStudentID
+
+	result, err := env.rolloverSvc.CreatePhaseFromSource(ctx,
+		validRolloverRequest(env.rolloverTestEnv, enrollmentNative.PhaseRolloverModeOptOut, true))
+	require.NoError(t, err)
+	require.NotNil(t, result.Phase)
+
+	rolledChildren, err := testpkg.TenantQuery2(t, ctx, env.db, env.repos.Enrollment().ChildrenByPhaseStatuses, result.Phase.ID, []string{enrollmentNative.ChildStatusAutoRenewed})
+	require.NoError(t, err)
+	require.Len(t, rolledChildren, 1)
+	rolled := rolledChildren[0]
+	require.NotNil(t, rolled.RolloverSourceChildID)
+	assert.Equal(t, submitted.Children[0].ID, *rolled.RolloverSourceChildID)
+
+	clones, err := newCareOfferingFixtures(env.reposCare.CarePlan).ListByPhase(ctx, result.Phase.ID)
+	require.NoError(t, err)
+	require.Len(t, clones, 1)
+	clone := clones[0]
+	assert.NotEqual(t, offering.ID, clone.ID)
+	require.NotNil(t, clone.ActivityGroupID)
+	assert.Equal(t, group.ID, *clone.ActivityGroupID,
+		"a historical non-template link is carried verbatim onto the clone")
+
+	rolledLinks, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Enrollment().RequestChildOfferingHistory, rolled.ID)
+	require.NoError(t, err)
+	require.Len(t, rolledLinks, 1)
+	assert.Equal(t, clone.ID, rolledLinks[0].CareOfferingID,
+		"the carried booking must reference the target-phase clone (#2249)")
+
+	rolloverOutcome, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  rolled.RequestID,
+		ChildID:    rolled.ID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, rolloverOutcome.Child.CreatedStudentID)
+	assert.Equal(t, studentID, *rolloverOutcome.Child.CreatedStudentID)
+
+	count, err := env.db.NewSelect().
+		Model((*studentEnrollment)(nil)).
+		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
+		Where(`"student_enrollment".tenant_id = ?`, testpkg.Tenant(t)).
+		Where(`"student_enrollment".student_id = ?`, studentID).
+		Where(`"student_enrollment".activity_group_id = ?`, group.ID).
+		Where(`"student_enrollment".valid_from = ?`, result.Phase.ServiceStartDate).
+		Count(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 1, int(count),
+		"rollover approval must materialize the copied source-phase offering for the target phase window")
+
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentAPI.UpdateChildOfferingsInput{
+		RequestID:      rolled.RequestID,
+		ChildID:        rolled.ID,
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+		Reason:         "Rollover-Angebot unverändert gespeichert",
+		Offerings: []enrollmentAPI.OfferingAdjustmentSelection{
+			{OfferingID: clone.ID},
+		},
+	})
+	require.NoError(t, err)
+	rolledLinks, err = testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Enrollment().RequestChildOfferingHistory, rolled.ID)
+	require.NoError(t, err)
+	require.Len(t, rolledLinks, 1)
+	assert.Equal(t, clone.ID, rolledLinks[0].CareOfferingID,
+		"adjustment save must keep the target-phase clone reference")
+}
+
+func TestDecisionService_Decide_ApprovedRejectsEmptyDaysForTemplateOffering(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	category := testpkg.CreateTestActivityCategory(t, env.db, "Decision-Empty-Days")
+	room := testpkg.CreateTestRoom(t, env.db, "Decision-Empty-Days")
+	group := &careTemplateGroup{
+		Name:            "Decision Empty Days",
+		Type:            timetable.GroupTypeCare,
+		CategoryID:      category.ID,
+		MaxParticipants: 20,
+		IsOpen:          true,
+		IsTemplate:      true,
+		PlannedRoomID:   &room.ID,
+	}
+	group.SetTenantID(testpkg.Tenant(t))
+	require.NoError(t, createCareTemplateGroupRow(ctx, env.db, group))
+	period := createCareOfferingTestPeriod(t, env.db, "decision-empty-days",
+		calendar.NewDate(2026, 8, 1),
+		calendar.NewDate(2027, 8, 31))
+	createCareOfferingTemplateSchedule(t, env.db, group.ID, timetable.WeekdayTuesday, &period.ID)
+
+	offering := &offeringContract.CareOfferingRecord{
+		PhaseID:         env.sourcePhase.ID,
+		ActivityGroupID: &group.ID,
+		Name:            "Empty Template Days",
+		DaysOfWeekMode:  offeringContract.DaysOfWeekModeFixed,
+		AvailableDays:   []string{"tue"},
+		IsActive:        true,
+	}
+	offering.TenantID = testpkg.Tenant(t)
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Create(ctx, offering))
+	// Simulate a legacy row saved before #1885 made available_days
+	// mandatory: clear the days directly, bypassing Validate. Such rows
+	// still exist in production and Decide must keep rejecting them.
+	_, updErr := env.db.NewUpdate().
+		TableExpr("enrollment.care_offerings").
+		Set("available_days = '[]'::jsonb").
+		Where("id = ?", offering.ID).
+		Exec(ctx)
+	require.NoError(t, updErr)
+
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
+		TenantID:          testpkg.Tenant(t),
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "EmptyDays",
+		GuardianEmail:     "empty-days@example.com",
+		ConsentFlags: testFormValues(map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		}),
+		Children: []enrollmentAPI.SubmitChild{
+			{
+				FirstName:        "Emil",
+				LastName:         "EmptyDays",
+				DateOfBirth:      calendar.NewDate(2018, 4, 15),
+				TargetGradeLevel: testpkg.Int16Ptr(2),
+				OfferingIDs:      []int64{offering.ID},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "has no selected or available days")
+}
+
+// ---- ListChildOfferings -------------------------------------------------
+
+func TestDecisionService_ListChildOfferings_InvalidRequestID(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.ListChildOfferings, 0)
+	require.Error(t, err)
+}
+
+func TestDecisionService_ListChildOfferings_EmptyWhenNoOfferingsPicked(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "lco-empty@example.com", "Lina", "NoCare")
+
+	rows, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.ListChildOfferings, reqID)
+	require.NoError(t, err)
+	// Child exists in the map with both groups empty; no offerings selected.
+	assert.Empty(t, rows[childID].Current)
+	assert.Empty(t, rows[childID].Upcoming)
+}
+
+// #2185: the parent portal shows lunch/holiday/price and the validity of every
+// booking, including one that only takes effect later. Staff answering a
+// guardian's question must see the same facts, so ListChildOfferings carries
+// the offering attributes and keeps future rows (flagged), dropping only rows
+// whose interval has already ended.
+func TestDecisionService_ListChildOfferings_CarriesAttributesAndFutureBookings(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	today := calendar.NewDate(2026, 8, 24)
+	setSourcePhaseServiceStartDate(t, env, today.AddDays(-30))
+	reqID, childID := submitOneChild(t, env, "lco-attrs@example.com", "Lina", "Attrs")
+
+	price := 8550
+	current := createAdjustmentCareOfferingWith(t, env, "Ganztag aktuell", func(o *offeringContract.CareOfferingRecord) {
+		o.IncludesLunch = true
+		o.IncludesHolidayCare = true
+		o.PriceCents = &price
+	})
+	upcoming := createAdjustmentCareOfferingWith(t, env, "Ganztag ab Herbst", nil)
+	ended := createAdjustmentCareOfferingWith(t, env, "Randstunde beendet", nil)
+
+	futureStart := today.AddDays(30)
+	endedUntil := today
+	createChildOfferingLink(t, env, childID, current.ID, nil, nil)
+	createChildOfferingLink(t, env, childID, upcoming.ID, &futureStart, nil)
+	createChildOfferingLink(t, env, childID, ended.ID, nil, &endedUntil)
+
+	rows, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.ListChildOfferings, reqID)
+	require.NoError(t, err)
+
+	byOffering := map[int64]enrollmentAPI.ChildOfferingRow{}
+	for _, row := range rows[childID].Current {
+		byOffering[row.OfferingID] = row
+	}
+	require.Len(t, byOffering, 1, "only the effective booking is the selection on file")
+	require.Len(t, rows[childID].Upcoming, 1, "the future booking is kept, separately")
+	assert.Equal(t, upcoming.ID, rows[childID].Upcoming[0].OfferingID)
+
+	currentRow := byOffering[current.ID]
+	assert.True(t, currentRow.IncludesLunch)
+	assert.True(t, currentRow.IncludesHolidayCare)
+	require.NotNil(t, currentRow.PriceCents)
+	assert.Equal(t, price, *currentRow.PriceCents)
+	assert.False(t, currentRow.StartsLater)
+
+	upcomingRow := rows[childID].Upcoming[0]
+	assert.True(t, upcomingRow.StartsLater, "a booking starting in the future must be flagged")
+	require.NotNil(t, upcomingRow.ValidFrom)
+	assert.Equal(t, futureStart, *upcomingRow.ValidFrom)
+}
+
+// #2185 parity guard: the editor seeds from ListChildOfferings' Current
+// group, the save replaces whatever UpdateChildOfferings reads as current.
+// If those two ever answer differently, an untouched save deletes the
+// difference.
+//
+// Scope, honestly: this pins agreement for the states reachable today. It
+// does NOT by itself prove the read path may re-derive the rule — a
+// hand-written predicate passes this test, because the repository's
+// pre-phase-start fallback is unreachable while currentOfferingSelectionDate
+// clamps up to the service start (see
+// TestRequestChildOfferingRepo_AtDateBeforeServiceStart for the branch a
+// copy would miss). That is exactly why the read path asks the repository
+// instead of copying the predicate: the two are then the same code, and no
+// future change to the clamp can separate them.
+func TestDecisionService_ListChildOfferings_MatchesWritePathSelection(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	today := decisionTestToday
+	for _, tc := range []struct {
+		name         string
+		slug         string
+		serviceStart calendar.Date
+	}{
+		{"phase still ahead", "ahead", today.AddDays(45)},
+		{"phase running", "running", today.AddDays(-30)},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setSourcePhaseServiceStartDate(t, env, tc.serviceStart)
+			reqID, childID := submitOneChild(t, env,
+				"lco-parity-"+tc.slug+"@example.com", "Lina", "Parity")
+
+			current := createAdjustmentCareOfferingWith(t, env, "Aktuell "+tc.name, nil)
+			later := createAdjustmentCareOfferingWith(t, env, "Später "+tc.name, nil)
+			laterStart := today.AddDays(5)
+			if laterStart.Before(tc.serviceStart) {
+				laterStart = tc.serviceStart.AddDays(60)
+			}
+			createChildOfferingLink(t, env, childID, current.ID, nil, &laterStart)
+			createChildOfferingLink(t, env, childID, later.ID, &laterStart, nil)
+
+			rows, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.ListChildOfferings, reqID)
+			require.NoError(t, err)
+
+			// What the save would replace, read exactly as the write path reads it.
+			phase, err := testpkg.TenantQuery1(t, ctx, env.db, env.repos.Enrollment().Phase, env.sourcePhase.ID)
+			require.NoError(t, err)
+			writeLinks, err := testpkg.TenantQuery2(t, ctx, testpkg.SetupTestDB(t), env.repos.Enrollment().RequestChildOfferingsAtDate, childID, enrollmentNative.Date(WriteSelectionDateForTest(phase, today)))
+			require.NoError(t, err)
+
+			readIDs := make([]int64, 0, len(rows[childID].Current))
+			for _, row := range rows[childID].Current {
+				readIDs = append(readIDs, row.OfferingID)
+			}
+			writeIDs := make([]int64, 0, len(writeLinks))
+			for _, link := range writeLinks {
+				writeIDs = append(writeIDs, link.CareOfferingID)
+			}
+			assert.ElementsMatch(t, writeIDs, readIDs,
+				"the editor must seed exactly the selection the save replaces")
+		})
+	}
+}
+
+// catalogFailureRepo makes only the catalog batch lookup fail; every other
+// method keeps the real behaviour through the embedded repository.
+type catalogFailureRepo struct {
+	careOfferingReads
+}
+
+func (catalogFailureRepo) ListByIDs(_ context.Context, _ []int64) ([]*offeringContract.CareOfferingRecord, error) {
+	return nil, errors.New("synthetic catalog outage")
+}
+
+// #2185: a catalog outage must NOT swallow the child's bookings. The admin
+// detail handler treats ListChildOfferings as best-effort, so an error there
+// renders the child with no Betreuungsangebote at all — the admin then
+// corrects on top of an empty selection and the save deletes the family's
+// real bookings. Degrading to rows without catalog data keeps that from
+// happening.
+func TestDecisionService_ListChildOfferings_DegradesOnCatalogFailure(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "lco-catalog@example.com", "Lina", "Catalog")
+	offering := createAdjustmentCareOffering(t, env, "Randstunde Katalogausfall")
+	createChildOfferingLink(t, env, childID, offering.ID, nil, nil)
+
+	repoFactory, repoFactoryCare, _, _, _, _ := flowRepositories(t, env.db)
+	degraded := newTestDecisionService(enrollmentCompose.DecisionDependencies{
+		Requests:  repoFactory.Enrollment(),
+		Children:  repoFactory.Enrollment(),
+		Phases:    repoFactory.Enrollment(),
+		Offerings: catalogFailureRepo{enrollmentCompose.NewCareOfferingRecords(repoFactoryCare.CarePlan)},
+	}, nil)
+
+	rows, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), degraded.ListChildOfferings, reqID)
+	require.NoError(t, err, "a catalog outage must not fail the whole lookup")
+	require.Len(t, rows[childID].Current, 1,
+		"the booking must survive without its catalog entry")
+	assert.Equal(t, offering.ID, rows[childID].Current[0].OfferingID)
+}
+
+func createChildOfferingLink(
+	t *testing.T,
+	env *decisionTestEnv,
+	requestChildID, careOfferingID int64,
+	validFrom, validUntil *calendar.Date,
+) {
+	t.Helper()
+	ctx := testpkg.Ctx(t)
+	link := &enrollmentNative.RequestChildOffering{
+		RequestChildID: requestChildID,
+		CareOfferingID: careOfferingID,
+		SelectedDays:   []string{"mon"},
+		ValidFrom:      (*enrollmentNative.Date)(validFrom),
+		ValidUntil:     (*enrollmentNative.Date)(validUntil),
+	}
+	link.TenantID = testpkg.Tenant(t)
+	require.NoError(t, api.NewEnrollmentBookingFixtureWithin(testpkg.WithinCurrentTenant).InsertRequestChildOffering(ctx, link))
+}
+
+// #2185: the staff view and the parent portal must judge "starts later" from
+// the SAME day. Clamping the staff reference date up to the service start
+// (what reportOfferingDate does, for reports) hid exactly the badge the
+// parents app shows during the whole pre-start review period — a guardian on
+// the phone saw "ab 06.10." on every booking, staff saw none.
+//
+// Only the badge half of that divergence is reachable: a row cannot end
+// before the service start (the repository defaults valid_from to the phase
+// start and request_child_offerings_nonempty_validity requires
+// valid_from < valid_until), so no pre-start row can be dropped either way.
+func TestDecisionService_ListChildOfferings_UsesTodayBeforeServiceStart(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	today := decisionTestToday
+	serviceStart := today.AddDays(45)
+	setSourcePhaseServiceStartDate(t, env, serviceStart)
+	reqID, childID := submitOneChild(t, env, "lco-prestart@example.com", "Lina", "PreStart")
+
+	fromStart := createAdjustmentCareOfferingWith(t, env, "Ab Periodenstart", nil)
+	createChildOfferingLink(t, env, childID, fromStart.ID, &serviceStart, nil)
+
+	rows, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.ListChildOfferings, reqID)
+	require.NoError(t, err)
+
+	// The write path clamps its selection date up to the service start, so
+	// this very row IS what a correction replaces. Grouping it as "upcoming"
+	// would let the editor seed empty and the save delete the family's
+	// bookings.
+	require.Len(t, rows[childID].Current, 1,
+		"a pre-start booking is not yet in effect but is still the selection on file")
+	assert.Equal(t, fromStart.ID, rows[childID].Current[0].OfferingID)
+	assert.True(t, rows[childID].Current[0].StartsLater,
+		"a booking effective from the service start has not started while the phase is still ahead")
+	assert.Empty(t, rows[childID].Upcoming)
+}
+
+func TestBookingViewDate(t *testing.T) {
+	t.Parallel()
+
+	today := calendar.NewDate(2026, 8, 8)
+
+	assert.Equal(t, today, careplan.BookingViewDate(today, calendar.NewDate(2027, 7, 31)),
+		"inside or ahead of the period the reference date is simply today")
+	assert.Equal(t, today, careplan.BookingViewDate(today, calendar.Date("")),
+		"a missing period end must not move the reference date")
+	assert.Equal(t, calendar.NewDate(2026, 7, 31),
+		careplan.BookingViewDate(today, calendar.NewDate(2026, 7, 31)),
+		"after the period ended the final state is what a reader needs")
+}
+
+// ---- Offering adjustments ----------------------------------------------
+
+func TestDecisionService_UpdateChildOfferings_RejectsNonApprovedChild(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "adjust-pending@example.com", "Lina", "Pending")
+	offering := createAdjustmentCareOffering(t, env, "Randstunde Pending")
+
+	_, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentAPI.UpdateChildOfferingsInput{
+		RequestID:      reqID,
+		ChildID:        childID,
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+		Reason:         "Testkorrektur",
+		Offerings: []enrollmentAPI.OfferingAdjustmentSelection{
+			{OfferingID: offering.ID, SelectedDays: []string{"fri"}},
+		},
+	})
+	require.ErrorIs(t, err, enrollmentNative.ErrOfferingAdjustmentInvalid)
+}
+
+func TestDecisionService_UpdateChildOfferings_ReplacesLinksAndWritesAudit(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "adjust-approved@example.com", "Lina", "Approved")
+	offering := createAdjustmentCareOffering(t, env, "Randstunde Approved")
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	updated, err := testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentAPI.UpdateChildOfferingsInput{
+		RequestID:      reqID,
+		ChildID:        childID,
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+		Reason:         "Randstunde nachgetragen",
+		Offerings: []enrollmentAPI.OfferingAdjustmentSelection{
+			{OfferingID: offering.ID, SelectedDays: []string{"fri"}},
+		},
+	})
+	require.NoError(t, err)
+	require.Equal(t, enrollmentNative.ChildStatusApproved, updated.Child.Status)
+
+	links, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Enrollment().RequestChildOfferingHistory, childID)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, offering.ID, links[0].CareOfferingID)
+	assert.Equal(t, []string{"fri"}, links[0].SelectedDays)
+	assert.Equal(t, []string{"fri"}, links[0].ManualSelectedDays)
+
+	adjustments, err := testpkg.TenantQuery2(t, ctx, env.db, env.decision.ListOfferingAdjustments, reqID, childID)
+	require.NoError(t, err)
+	require.Len(t, adjustments, 1)
+	assert.Equal(t, "Randstunde nachgetragen", adjustments[0].Reason)
+	assert.Equal(t, reqID, adjustments[0].RequestID)
+	assert.Equal(t, childID, adjustments[0].RequestChildID)
+	assert.Equal(t, *outcome.Child.CreatedStudentID, adjustments[0].StudentID)
+	assert.JSONEq(t, `[]`, string(adjustments[0].Before))
+	assert.Contains(t, string(adjustments[0].After), "Randstunde Approved")
+}
+
+func TestDecisionService_UpdateChildOfferings_RejectsGroupRuleViolation(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "adjust-group-rule@example.com", "Lina", "GroupRule")
+	first := createAdjustmentCareOfferingWith(t, env, "Frühbetreuung", func(o *offeringContract.CareOfferingRecord) {
+		o.SelectionGroup = "randzeiten"
+		o.SelectionRule = offeringContract.SelectionRuleAtMostOne
+		o.SortOrder = 101
+	})
+	second := createAdjustmentCareOfferingWith(t, env, "Spätbetreuung", func(o *offeringContract.CareOfferingRecord) {
+		o.SelectionGroup = "randzeiten"
+		o.SelectionRule = offeringContract.SelectionRuleAtMostOne
+		o.SortOrder = 102
+	})
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentAPI.UpdateChildOfferingsInput{
+		RequestID:      reqID,
+		ChildID:        childID,
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+		Reason:         "Ungültige Randzeiten",
+		Offerings: []enrollmentAPI.OfferingAdjustmentSelection{
+			{OfferingID: first.ID, SelectedDays: []string{"mon"}},
+			{OfferingID: second.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+
+	require.ErrorIs(t, err, enrollmentNative.ErrOfferingAdjustmentInvalid)
+}
+
+func TestDecisionService_UpdateChildOfferings_RematerializesRequiredAutomaticLunch(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "adjust-lunch@example.com", "Lina", "Lunch")
+	care := createAdjustmentCareOfferingWith(t, env, "Ganztag", func(o *offeringContract.CareOfferingRecord) {
+		o.CountsAsCare = true
+		o.CountsAsCareSet = true
+		o.SortOrder = 101
+	})
+	lunch := createAdjustmentCareOfferingWith(t, env, "Mittagessen", func(o *offeringContract.CareOfferingRecord) {
+		o.IsRequired = true
+		o.IncludesLunch = true
+		o.CountsAsCare = false
+		o.CountsAsCareSet = true
+		o.SortOrder = 102
+	})
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentAPI.UpdateChildOfferingsInput{
+		RequestID:      reqID,
+		ChildID:        childID,
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+		Reason:         "Ganztag nachgetragen",
+		Offerings: []enrollmentAPI.OfferingAdjustmentSelection{
+			{OfferingID: care.ID, SelectedDays: []string{"mon", "wed"}},
+		},
+	})
+	require.NoError(t, err)
+
+	links, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Enrollment().RequestChildOfferingHistory, childID)
+	require.NoError(t, err)
+	require.Len(t, links, 2)
+	linksByOfferingID := map[int64]*enrollmentNative.RequestChildOffering{}
+	for _, link := range links {
+		linksByOfferingID[link.CareOfferingID] = link
+	}
+	assert.Equal(t, []string{"mon", "wed"}, linksByOfferingID[care.ID].ManualSelectedDays)
+	require.Contains(t, linksByOfferingID, lunch.ID)
+	assert.Equal(t, []string{"mon", "wed"}, linksByOfferingID[lunch.ID].AutomaticSelectedDays)
+	assert.Empty(t, linksByOfferingID[lunch.ID].ManualSelectedDays)
+}
+
+func TestDecisionService_UpdateChildOfferings_IgnoresInactiveOfferingsDuringValidation(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	reqID, childID := submitOneChild(t, env, "adjust-inactive@example.com", "Lina", "Inactive")
+	active := createAdjustmentCareOfferingWith(t, env, "Aktive Betreuung", func(o *offeringContract.CareOfferingRecord) {
+		o.SortOrder = 101
+	})
+	createAdjustmentCareOfferingWith(t, env, "Inaktive Pflichtbetreuung", func(o *offeringContract.CareOfferingRecord) {
+		o.IsActive = false
+		o.IsRequired = true
+		o.SortOrder = 102
+	})
+	createAdjustmentCareOfferingWith(t, env, "Inaktive Automatik", func(o *offeringContract.CareOfferingRecord) {
+		o.IsActive = false
+		o.AutoAddTriggerOfferingIDs = []int64{active.ID}
+		o.SortOrder = 103
+	})
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  reqID,
+		ChildID:    childID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentAPI.UpdateChildOfferingsInput{
+		RequestID:      reqID,
+		ChildID:        childID,
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+		Reason:         "Aktive Betreuung korrigiert",
+		Offerings: []enrollmentAPI.OfferingAdjustmentSelection{
+			{OfferingID: active.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+
+	links, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.repos.Enrollment().RequestChildOfferingHistory, childID)
+	require.NoError(t, err)
+	require.Len(t, links, 1)
+	assert.Equal(t, active.ID, links[0].CareOfferingID)
+}
+
+func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterOfferingGroupChange(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "AdjustOldGroup")
+	newGroup := testpkg.CreateTestActivityGroup(t, env.db, "AdjustNewGroup")
+	offering := createAdjustmentCareOfferingWith(t, env, "Ganztag Gruppe", func(o *offeringContract.CareOfferingRecord) {
+		o.ActivityGroupID = &oldGroup.ID
+		o.SortOrder = 101
+	})
+
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
+		TenantID:          testpkg.Tenant(t),
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "GroupChange",
+		GuardianEmail:     "adjust-group-change@example.com",
+		ConsentFlags: testFormValues(map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		}),
+		Children: []enrollmentAPI.SubmitChild{
+			{
+				FirstName:        "Lina",
+				LastName:         "GroupChange",
+				DateOfBirth:      calendar.NewDate(2018, 4, 15),
+				TargetGradeLevel: testpkg.Int16Ptr(2),
+				OfferingIDs:      []int64{offering.ID},
+				OfferingDays:     []enrollmentAPI.SubmitOfferingDays{{OfferingID: offering.ID, SelectedDays: []string{"mon"}}},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	rows := listStudentEnrollmentRowsForDecisionTest(t, env, *outcome.Child.CreatedStudentID)
+	require.Len(t, rows, 1)
+	assert.Equal(t, oldGroup.ID, rows[0].ActivityGroupID)
+	require.NotNil(t, rows[0].EnrollmentRequestChildID)
+	assert.Equal(t, submitted.Children[0].ID, *rows[0].EnrollmentRequestChildID)
+
+	manualValidUntil := string(env.sourcePhase.ServiceEndDate)
+	manualEnrollment, err := env.timetable.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
+		StudentID:       *outcome.Child.CreatedStudentID,
+		ActivityGroupID: oldGroup.ID,
+		ValidFrom:       string(env.sourcePhase.ServiceStartDate),
+		ValidUntil:      &manualValidUntil,
+	})
+	require.NoError(t, err)
+	_, err = env.db.NewRaw(`
+		UPDATE activities.student_enrollments
+		SET created_at = NOW() + INTERVAL '10 minutes',
+			updated_at = NOW() + INTERVAL '10 minutes'
+		WHERE id = ?
+	`, manualEnrollment.ID).Exec(ctx)
+	require.NoError(t, err)
+	offering.ActivityGroupID = &newGroup.ID
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Update(ctx, offering))
+
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentAPI.UpdateChildOfferingsInput{
+		RequestID:      submitted.Request.ID,
+		ChildID:        submitted.Children[0].ID,
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+		Reason:         "Gruppe korrigiert",
+		Offerings: []enrollmentAPI.OfferingAdjustmentSelection{
+			{OfferingID: offering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+
+	rows = listStudentEnrollmentRowsForDecisionTest(t, env, *outcome.Child.CreatedStudentID)
+	require.Len(t, rows, 2)
+	byGroupID := map[int64]studentEnrollment{}
+	for _, row := range rows {
+		byGroupID[row.ActivityGroupID] = row
+	}
+	oldRow, ok := byGroupID[oldGroup.ID]
+	require.True(t, ok, "manual old-group enrollment must survive adjustment")
+	assert.Nil(t, oldRow.EnrollmentRequestChildID)
+	newRow, ok := byGroupID[newGroup.ID]
+	require.True(t, ok, "adjustment must materialize the corrected group")
+	require.NotNil(t, newRow.EnrollmentRequestChildID)
+	assert.Equal(t, submitted.Children[0].ID, *newRow.EnrollmentRequestChildID)
+}
+
+func TestDecisionService_UpdateChildOfferings_RemovesLegacyUnsourcedEnrollmentAfterOfferingGroupChange(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	oldGroup := testpkg.CreateTestActivityGroup(t, env.db, "AdjustLegacyOldGroup")
+	newGroup := testpkg.CreateTestActivityGroup(t, env.db, "AdjustLegacyNewGroup")
+	offering := createAdjustmentCareOfferingWith(t, env, "Ganztag Legacy Gruppe", func(o *offeringContract.CareOfferingRecord) {
+		o.ActivityGroupID = &oldGroup.ID
+		o.SortOrder = 101
+	})
+
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
+		TenantID:          testpkg.Tenant(t),
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "LegacyGroupChange",
+		GuardianEmail:     "adjust-legacy-group-change@example.com",
+		ConsentFlags: testFormValues(map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		}),
+		Children: []enrollmentAPI.SubmitChild{
+			{
+				FirstName:        "Lina",
+				LastName:         "LegacyGroupChange",
+				DateOfBirth:      calendar.NewDate(2018, 4, 15),
+				TargetGradeLevel: testpkg.Int16Ptr(2),
+				OfferingIDs:      []int64{offering.ID},
+				OfferingDays:     []enrollmentAPI.SubmitOfferingDays{{OfferingID: offering.ID, SelectedDays: []string{"mon"}}},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	initialRows := listStudentEnrollmentRowsForDecisionTest(t, env, *outcome.Child.CreatedStudentID)
+	require.Len(t, initialRows, 1)
+	require.NotNil(t, initialRows[0].EnrollmentRequestChildID)
+	_, err = env.db.NewUpdate().
+		TableExpr("activities.student_enrollments").
+		Set("enrollment_request_child_id = NULL").
+		Where("id = ?", initialRows[0].ID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	manualValidUntil := string(env.sourcePhase.ServiceEndDate)
+	manualEnrollment, err := env.timetable.CreateStudentEnrollment(ctx, timetable.StudentEnrollmentInput{
+		StudentID:       *outcome.Child.CreatedStudentID,
+		ActivityGroupID: oldGroup.ID,
+		ValidFrom:       string(env.sourcePhase.ServiceStartDate),
+		ValidUntil:      &manualValidUntil,
+	})
+	require.NoError(t, err)
+	_, err = env.db.NewRaw(`
+		UPDATE activities.student_enrollments
+		SET created_at = NOW() + INTERVAL '10 minutes',
+			updated_at = NOW() + INTERVAL '10 minutes'
+		WHERE id = ?
+	`, manualEnrollment.ID).Exec(ctx)
+	require.NoError(t, err)
+
+	offering.ActivityGroupID = &newGroup.ID
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Update(ctx, offering))
+
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentAPI.UpdateChildOfferingsInput{
+		RequestID:      submitted.Request.ID,
+		ChildID:        submitted.Children[0].ID,
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+		Reason:         "Legacy-Gruppe korrigiert",
+		Offerings: []enrollmentAPI.OfferingAdjustmentSelection{
+			{OfferingID: offering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+
+	rows := listStudentEnrollmentRowsForDecisionTest(t, env, *outcome.Child.CreatedStudentID)
+	require.Len(t, rows, 2)
+	for _, row := range rows {
+		assert.NotEqual(t, initialRows[0].ID, row.ID, "legacy materialized row must be removed")
+	}
+	manual, err := env.reposTimetable.StudentEnrollment.FindStudentEnrollment(ctx, manualEnrollment.ID)
+	require.NoError(t, err)
+	assert.Nil(t, manual.EnrollmentRequestChildID)
+	newRows := 0
+	for _, row := range rows {
+		if row.ActivityGroupID == newGroup.ID {
+			newRows++
+			require.NotNil(t, row.EnrollmentRequestChildID)
+			assert.Equal(t, submitted.Children[0].ID, *row.EnrollmentRequestChildID)
+		}
+	}
+	assert.Equal(t, 1, newRows)
+}
+
+func TestDecisionService_UpdateChildOfferings_RemovesSourcedEnrollmentAfterPhaseWindowChange(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	group := testpkg.CreateTestActivityGroup(t, env.db, "AdjustWindowGroup")
+	offering := createAdjustmentCareOfferingWith(t, env, "Ganztag Zeitraum", func(o *offeringContract.CareOfferingRecord) {
+		o.ActivityGroupID = &group.ID
+		o.SortOrder = 101
+	})
+
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
+		TenantID:          testpkg.Tenant(t),
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "WindowChange",
+		GuardianEmail:     "adjust-window-change@example.com",
+		ConsentFlags: testFormValues(map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		}),
+		Children: []enrollmentAPI.SubmitChild{
+			{
+				FirstName:        "Lina",
+				LastName:         "WindowChange",
+				DateOfBirth:      calendar.NewDate(2018, 4, 15),
+				TargetGradeLevel: testpkg.Int16Ptr(2),
+				OfferingIDs:      []int64{offering.ID},
+				OfferingDays:     []enrollmentAPI.SubmitOfferingDays{{OfferingID: offering.ID, SelectedDays: []string{"mon"}}},
+			},
+		},
+	})
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	initialRows := listStudentEnrollmentRowsForDecisionTest(t, env, *outcome.Child.CreatedStudentID)
+	require.Len(t, initialRows, 1)
+	initialFrom := initialRows[0].ValidFrom
+	require.NotNil(t, initialRows[0].ValidUntil)
+	initialUntil := *initialRows[0].ValidUntil
+
+	env.sourcePhase.ServiceStartDate = enrollmentNative.Date(calendar.NewDate(2026, 10, 1))
+	env.sourcePhase.ServiceEndDate = enrollmentNative.Date(calendar.NewDate(2027, 8, 15))
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, OwnerPhaseForTest(env.sourcePhase)))
+	// This test isolates a phase-window correction, not a planned individual
+	// care end. Keep the student's master interval aligned with the corrected
+	// phase; otherwise enrolled_until must win and cap every rematerialization.
+	_, err = env.db.NewUpdate().
+		TableExpr("users.student_school_memberships").
+		Set("enrolled_until = ?", env.sourcePhase.ServiceEndDate).
+		Where("student_profile_id = ? AND deleted_at IS NULL", *outcome.Child.CreatedStudentID).
+		Exec(ctx)
+	require.NoError(t, err)
+
+	_, err = testpkg.TenantQuery1(t, ctx, env.db, env.decision.UpdateChildOfferings, enrollmentAPI.UpdateChildOfferingsInput{
+		RequestID:      submitted.Request.ID,
+		ChildID:        submitted.Children[0].ID,
+		ActorAccountID: env.creatorID,
+		ActorRole:      "admin",
+		Reason:         "Zeitraum korrigiert",
+		Offerings: []enrollmentAPI.OfferingAdjustmentSelection{
+			{OfferingID: offering.ID, SelectedDays: []string{"mon"}},
+		},
+	})
+	require.NoError(t, err)
+
+	rows := listStudentEnrollmentRowsForDecisionTest(t, env, *outcome.Child.CreatedStudentID)
+	require.Len(t, rows, 1)
+	assert.NotEqual(t, initialFrom, rows[0].ValidFrom)
+	assert.NotEqual(t, initialUntil, *rows[0].ValidUntil)
+	assert.Equal(t, calendar.Date(env.sourcePhase.ServiceStartDate), rows[0].ValidFrom)
+	require.NotNil(t, rows[0].ValidUntil)
+	assert.Equal(t, calendar.Date(calendar.Date(env.sourcePhase.ServiceEndDate).AddDays(1)), *rows[0].ValidUntil)
+}
+
+func TestDecisionService_ApprovalUsesExclusiveEndForOneDayPhase(t *testing.T) {
+	t.Parallel()
+
+	env := setupDecisionTest(t)
+	ctx := testpkg.Ctx(t)
+
+	serviceDay := calendar.NewDate(2027, time.April, 5)
+	env.sourcePhase.ServiceStartDate = enrollmentNative.Date(serviceDay)
+	env.sourcePhase.ServiceEndDate = enrollmentNative.Date(serviceDay)
+	require.NoError(t, testpkg.TenantCommand1(t, ctx, env.db, env.repos.Enrollment().UpdatePhase, OwnerPhaseForTest(env.sourcePhase)))
+
+	group := testpkg.CreateTestActivityGroup(t, env.db, "OneDayExclusiveEndGroup")
+	offering := createAdjustmentCareOfferingWith(t, env, "Eintagesbetreuung", func(o *offeringContract.CareOfferingRecord) {
+		o.ActivityGroupID = &group.ID
+	})
+
+	submitted, err := env.requestSvc.Submit(ctx, enrollmentAPI.SubmitRequest{
+		TenantID:          testpkg.Tenant(t),
+		PhaseID:           env.sourcePhase.ID,
+		GuardianFirstName: "Eltern",
+		GuardianLastName:  "OneDay",
+		GuardianEmail:     "decision-one-day-exclusive-end@example.com",
+		ConsentFlags: testFormValues(map[string]any{
+			"agb":             true,
+			"data_processing": true,
+			"email_contact":   true,
+			"photo":           true,
+		}),
+		Children: []enrollmentAPI.SubmitChild{{
+			FirstName:        "Lina",
+			LastName:         "OneDay",
+			DateOfBirth:      calendar.NewDate(2018, time.April, 15),
+			TargetGradeLevel: testpkg.Int16Ptr(2),
+			OfferingIDs:      []int64{offering.ID},
+			OfferingDays: []enrollmentAPI.SubmitOfferingDays{{
+				OfferingID:   offering.ID,
+				SelectedDays: []string{"mon"},
+			}},
+		}},
+	})
+	require.NoError(t, err)
+	require.Len(t, submitted.Children, 1)
+
+	outcome, err := testpkg.TenantQuery1(t, ctx, testpkg.SetupTestDB(t), env.decision.Decide, enrollmentAPI.DecideInput{
+		RequestID:  submitted.Request.ID,
+		ChildID:    submitted.Children[0].ID,
+		Status:     enrollmentNative.DecisionApproved,
+		ReviewedBy: env.creatorID,
+	})
+	require.NoError(t, err)
+	require.NotNil(t, outcome.Child.CreatedStudentID)
+
+	rows := listStudentEnrollmentRowsForDecisionTest(t, env, *outcome.Child.CreatedStudentID)
+	require.Len(t, rows, 1)
+	assert.Equal(t, calendar.Date(serviceDay), rows[0].ValidFrom)
+	require.NotNil(t, rows[0].ValidUntil)
+	assert.Equal(t, calendar.Date(serviceDay.AddDays(1)), *rows[0].ValidUntil)
+}
+
+func listStudentEnrollmentRowsForDecisionTest(t *testing.T, env *decisionTestEnv, studentID int64) []studentEnrollment {
+	t.Helper()
+	ctx := testpkg.Ctx(t)
+	var rows []studentEnrollment
+	require.NoError(t, env.db.NewSelect().
+		Model(&rows).
+		ModelTableExpr(`activities.student_enrollments AS "student_enrollment"`).
+		Where(`"student_enrollment".tenant_id = ?`, testpkg.Tenant(t)).
+		Where(`"student_enrollment".student_id = ?`, studentID).
+		OrderExpr(`"student_enrollment".id`).
+		Scan(ctx))
+	return rows
+}
+
+func createAdjustmentCareOffering(t *testing.T, env *decisionTestEnv, name string) *offeringContract.CareOfferingRecord {
+	t.Helper()
+	return createAdjustmentCareOfferingWith(t, env, name, nil)
+}
+
+func createAdjustmentCareOfferingWith(t *testing.T, env *decisionTestEnv, name string, mutate func(*offeringContract.CareOfferingRecord)) *offeringContract.CareOfferingRecord {
+	t.Helper()
+	ctx := testpkg.Ctx(t)
+	offering := &offeringContract.CareOfferingRecord{
+		PhaseID:        env.sourcePhase.ID,
+		Name:           name,
+		DaysOfWeekMode: offeringContract.DaysOfWeekModeParentChoice,
+		AvailableDays:  []string{"mon", "tue", "wed", "thu", "fri"},
+		IsActive:       true,
+		CountsAsCare:   false,
+		SortOrder:      100,
+	}
+	if mutate != nil {
+		mutate(offering)
+	}
+	require.NoError(t, newCareOfferingFixtures(env.reposCare.CarePlan).Create(ctx, offering))
+	return offering
+}
+
+type offeringStudentTestDirectory struct {
+	students interface {
+		FindByIDs(context.Context, []int64) (map[int64]*peopledirectory.StudentState, error)
+	}
+}
+
+func (d offeringStudentTestDirectory) ListOfferingStudents(ctx context.Context, ids []int64) ([]TestOfferingStudent, error) {
+	students, err := d.students.FindByIDs(ctx, ids)
+	if err != nil {
+		return nil, err
+	}
+	rows := make([]TestOfferingStudent, 0, len(students))
+	for _, student := range students {
+		rows = append(rows, TestOfferingStudent{ID: student.ID, SchoolClass: student.SchoolClass, Alumnus: student.IsAlumnus()})
+	}
+	return rows, nil
+}
+
+func approvedOfferingTestProjection(repos *owners.EnrollmentFlowTestRepositories) *TestApprovedOfferingProjection {
+	return NewTestApprovedOfferingProjection(repos.Enrollment(), offeringStudentTestDirectory{repos.Student})
+}
+
+// newPickupExcusal uses the same configured Timetable instance as the fixture's
+// repositories, including its Care Plan reads and student-before-day locks.
+func newPickupExcusal(t *testing.T, db *bun.DB, records careplan.Capability, baselines careplan.PickupBaselineReader, tt timetable.Capability, extensions bool) careplan.PickupAutoExcusal {
+	t.Helper()
+	service, err := api.NewEnrollmentFlowPickupExcusal(testpkg.NewDatabase(t, db), records, baselines, tt, extensions)
+	require.NoError(t, err)
+	return service
+}
+
+// newTestCareLifecycle composes Care Plan's lifecycle over the test database,
+// with its owners bound the way the production graph binds them. The care-end
+// history goes to the ordinary student audit unless the config names another.
+func newTestCareLifecycle(db *bun.DB, config api.CareLifecycleTestConfig) careplan.CareLifecycle {
+	repos, err := api.NewCareLifecycleTestRepositories(testpkg.MustDatabase(db), nil)
+	if err != nil {
+		panic(err)
+	}
+	if config.Audit == nil {
+		config.Audit = api.NewEnrollmentFlowStudentAudit(testpkg.MustDatabase(db), testpkg.RequestAuditActor)
+	}
+	lifecycle, err := repos.NewCareLifecycle(config)
+	if err != nil {
+		panic(err)
+	}
+	return lifecycle
+}
+
+// defaultDecisionSettings explicitly supplies the former fixture defaults.
+// Missing production dependencies must never stand in for these values.
+type defaultDecisionSettings struct{}
+
+func (defaultDecisionSettings) ResolveBool(context.Context, string) (bool, error) { return true, nil }
+func (defaultDecisionSettings) ResolveString(_ context.Context, key string) (string, error) {
+	switch key {
+	case settingKeyDefaultActivationMode:
+		return "scheduled", nil
+	case settingKeyNotifyPerDecision:
+		return "digest", nil
+	default:
+		return "", nil
+	}
+}
+
+// membershipFirstCareFrom reads School Membership's first-care bound of the
+// child's membership (#6041, ADR 0166); empty when unknown.
+func membershipFirstCareFrom(t *testing.T, studentID int64) calendar.Date {
+	t.Helper()
+	var bound *calendar.Date
+	require.NoError(t, testpkg.SetupTestDB(t).NewRaw(`SELECT first_care_from FROM users.student_school_memberships
+		WHERE tenant_id = ? AND student_profile_id = ? AND deleted_at IS NULL`, testpkg.Tenant(t), studentID).Scan(testpkg.Ctx(t), &bound))
+	if bound == nil {
+		return ""
+	}
+	return *bound
+}

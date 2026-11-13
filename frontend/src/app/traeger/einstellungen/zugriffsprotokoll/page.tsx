@@ -7,7 +7,6 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { ScrollText } from "lucide-react";
 import type { DateRange } from "react-day-picker";
-import { Button } from "~/components/ui/button";
 import { DataTable, type DataTableColumn } from "~/components/ui/data-table";
 import { DateRangePicker } from "~/components/ui/date-range-picker";
 import { EmptyState } from "~/components/ui/empty-state";
@@ -77,7 +76,9 @@ const COLUMNS: DataTableColumn<TraegerAccessLogEntry>[] = [
         {BERLIN_TIME.format(new Date(entry.occurredAt))} Uhr
       </span>
     ),
-    stacked: "meta",
+    // On a phone the time leads the line under the name, so the name keeps
+    // the full width.
+    stacked: "hidden",
   },
   {
     key: "person",
@@ -90,6 +91,8 @@ const COLUMNS: DataTableColumn<TraegerAccessLogEntry>[] = [
       </span>
     ),
     stacked: "title",
+    // The log has no detail page: the whole address stays visible.
+    stackedClamp: false,
   },
   {
     key: "school",
@@ -112,7 +115,32 @@ const COLUMNS: DataTableColumn<TraegerAccessLogEntry>[] = [
     key: "data",
     header: "Daten",
     render: (entry) => entry.dataLabel,
-    stacked: "field",
+    // On a phone one line under the name carries time and kind, then school and
+    // data with their names in front (not in a right-aligned column), as the
+    // OGS lists compose a record.
+    stackedLabel: false,
+    stackedRender: (entry) => (
+      <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-gray-600">
+        <span className="whitespace-nowrap text-gray-900">
+          {formatBerlinDate(entry.occurredAt)},{" "}
+          {BERLIN_TIME.format(new Date(entry.occurredAt))} Uhr
+        </span>
+        <StatusBadge
+          tone={entry.kind === "change" ? "orange" : "blue"}
+          label={KIND_LABELS[entry.kind]}
+        />
+        {entry.schoolName ? (
+          <span className="basis-full">
+            <span className="text-gray-500">Schule </span>
+            <span className="text-gray-900">{entry.schoolName}</span>
+          </span>
+        ) : null}
+        <span className="basis-full">
+          <span className="text-gray-500">Daten </span>
+          <span className="text-gray-900">{entry.dataLabel}</span>
+        </span>
+      </span>
+    ),
   },
 ];
 
@@ -134,7 +162,7 @@ function rangePresets() {
     { label: "Letzte 7 Tage", range: () => ({ from: daysBack(6), to: today }) },
     { label: "Letzte 30 Tage", range: lastThirtyDays },
     {
-      label: "Letztes Jahr",
+      label: "Letzte 12 Monate",
       range: () => ({ from: daysBack(365), to: today }),
     },
   ];
@@ -249,7 +277,9 @@ export default function TraegerAccessLogPage() {
       logger.error("traeger_access_log_load_more_failed", {
         error: err instanceof Error ? err.message : String(err),
       });
-      await showActionError(err, { object: "die weiteren Einträge" });
+      await showActionError(err, {
+        object: "die nächste Seite des Protokolls",
+      });
     } finally {
       if (generation === listGeneration.current) setLoadingMore(false);
     }
@@ -386,6 +416,20 @@ export default function TraegerAccessLogPage() {
         isLoading={loading}
         loadingRowCount={5}
         stackedOnMobile
+        stackedLayout="row"
+        stackedDetailKey="data"
+        // Older entries load inside the list's surface, like every list.
+        moreAction={
+          hasMore
+            ? {
+                label: "Weitere Einträge laden",
+                onClick: () => void loadMore(),
+                tooltip: "Zeigt weitere Einträge unten in der Liste an.",
+                loading: loadingMore,
+                loadingText: "Lädt …",
+              }
+            : undefined
+        }
         emptyState={
           <EmptyState
             icon={<ScrollText className="h-12 w-12" aria-hidden="true" />}
@@ -398,21 +442,6 @@ export default function TraegerAccessLogPage() {
           />
         }
       />
-      {hasMore ? (
-        <div className="flex justify-center">
-          <Button
-            type="button"
-            variant="outline"
-            size="md"
-            tooltip="Zeigt weitere Einträge unten in der Liste an."
-            isLoading={loadingMore}
-            loadingText="Lädt …"
-            onClick={() => void loadMore()}
-          >
-            Weitere Einträge laden
-          </Button>
-        </div>
-      ) : null}
     </TenantPage>
   );
 }

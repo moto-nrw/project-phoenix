@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	enrollmentOwner "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentOwner "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // PhaseResponse is the wire shape returned to admin UIs. Int64 IDs are
@@ -605,6 +605,14 @@ func (rs *Resource) deletePhase(w http.ResponseWriter, r *http.Request) {
 			common.RenderError(w, r, common.ErrorConflictWithCode(enrollmentOwner.ErrPhaseHasEffectiveBookings, common.CodeEnrollmentPhaseHasEffectiveBookings))
 			return
 		}
+		if errors.Is(err, enrollmentOwner.ErrPhaseHasRequests) {
+			common.RenderError(w, r, common.ErrorConflictWithCode(enrollmentOwner.ErrPhaseHasRequests, common.CodeEnrollmentPhaseHasRequests))
+			return
+		}
+		if errors.Is(err, enrollmentOwner.ErrTraegerCopyDelete) {
+			common.RenderError(w, r, common.ErrorConflictWithCode(enrollmentOwner.ErrTraegerCopyDelete, common.CodeEnrollmentTraegerCopyDelete))
+			return
+		}
 		common.RenderError(w, r, common.ErrorInternalServer(err))
 		return
 	}
@@ -612,8 +620,9 @@ func (rs *Resource) deletePhase(w http.ResponseWriter, r *http.Request) {
 }
 
 // PhaseDeleteImpactResponse is the delete-confirmation preview the admin
-// UI fetches before deleting. Requests + CareOfferings will be
-// permanently removed; StudentsKept survive the delete.
+// UI fetches before deleting. Requests block the delete (#6836);
+// CareOfferings are removed with the phase; StudentsKept counts the
+// students created from its requests.
 type PhaseDeleteImpactResponse struct {
 	Requests      int `json:"requests"`
 	CareOfferings int `json:"care_offerings"`

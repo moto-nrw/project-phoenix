@@ -9,8 +9,8 @@ import (
 	"testing"
 
 	"github.com/go-chi/chi/v5"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

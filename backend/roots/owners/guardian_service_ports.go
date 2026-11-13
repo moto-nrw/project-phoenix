@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
 )
 
 // guardianPaymentFields maps the port's field values to the audit trail's

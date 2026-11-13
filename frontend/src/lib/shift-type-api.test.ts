@@ -23,6 +23,7 @@ const mappedShiftType = {
   color: "#83CD2D",
   description: "Zeit am Kind",
   isActive: true,
+  archivedAt: null,
 };
 
 describe("shiftTypeService requests", () => {
@@ -177,15 +178,60 @@ describe("shiftTypeService requests", () => {
     expect(body).not.toHaveProperty("category_ids");
   });
 
-  it("returns cleanly after a successful delete", async () => {
-    mockSessionFetch.mockResolvedValueOnce(new Response(null, { status: 204 }));
+  it("reports a deletion after a successful delete", async () => {
+    mockSessionFetch.mockResolvedValueOnce(
+      Response.json({ data: { id: 12, outcome: "deleted" } }, { status: 200 }),
+    );
 
-    await expect(
-      shiftTypeService.deleteShiftType("12"),
-    ).resolves.toBeUndefined();
+    await expect(shiftTypeService.deleteShiftType("12")).resolves.toBe(
+      "deleted",
+    );
     expect(mockSessionFetch).toHaveBeenCalledWith("/api/staff/shift-types/12", {
       method: "DELETE",
     });
+  });
+
+  it("reports an archived type that planned shifts still carry (#6845)", async () => {
+    mockSessionFetch.mockResolvedValueOnce(
+      Response.json({ data: { id: 12, outcome: "archived" } }, { status: 200 }),
+    );
+
+    await expect(shiftTypeService.deleteShiftType("12")).resolves.toBe(
+      "archived",
+    );
+  });
+
+  it("asks for archived types and usage only when requested", async () => {
+    mockSessionFetch.mockResolvedValueOnce(
+      Response.json(
+        {
+          data: [
+            {
+              ...backendShiftType,
+              archived_at: "2026-11-13T09:00:00Z",
+              usage: { shifts: 4, series: 1 },
+            },
+          ],
+        },
+        { status: 200 },
+      ),
+    );
+
+    await expect(
+      shiftTypeService.getShiftTypes({
+        includeArchived: true,
+        withUsage: true,
+      }),
+    ).resolves.toEqual([
+      {
+        ...mappedShiftType,
+        archivedAt: "2026-11-13T09:00:00Z",
+        usage: { shifts: 4, series: 1 },
+      },
+    ]);
+    expect(mockSessionFetch).toHaveBeenCalledWith(
+      "/api/staff/shift-types?include_archived=true&with_usage=true",
+    );
   });
 
   it("seeds the defaults and returns the full list", async () => {

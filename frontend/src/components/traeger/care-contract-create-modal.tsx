@@ -10,9 +10,10 @@
 import { SectionLabel } from "~/components/ui/section-label";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Alert } from "~/components/ui/alert";
-import { Button } from "~/components/ui/button";
+import { Button, ButtonLink } from "~/components/ui/button";
 import { Checkbox } from "~/components/ui/checkbox";
 import { ChoiceTile } from "~/components/ui/choice-tile";
+import { InsetPanel } from "~/components/ui/inset-panel";
 import { EditActions } from "~/components/ui/edit-actions";
 import { EmptyState } from "~/components/ui/empty-state";
 import { FormModal } from "~/components/ui/form-modal";
@@ -21,6 +22,7 @@ import { StatusBadge } from "~/components/ui/status-badge";
 import { useApiFormError } from "~/contexts/ToastContext";
 import { formatDate } from "~/lib/date-helpers";
 import { createLogger } from "~/lib/logger";
+import { traegerPath } from "~/lib/traeger-url";
 import {
   type ContractCandidate,
   type CreateResult,
@@ -170,7 +172,7 @@ export function CareContractCreateModal({
           error: err instanceof Error ? err.message : String(err),
         });
         if (!op.isCurrent()) return;
-        void formErrors.show(err, { object: "die Verträge" });
+        void formErrors.show(err, { object: "das Erstellen der Entwürfe" });
       }
     });
   };
@@ -192,7 +194,11 @@ export function CareContractCreateModal({
           saving={saving}
           disabled={count === 0}
           saveLabel={
-            count === 1 ? "1 Entwurf erstellen" : `${count} Entwürfe erstellen`
+            count === 0
+              ? "Entwürfe erstellen"
+              : count === 1
+                ? "1 Entwurf erstellen"
+                : `${count} Entwürfe erstellen`
           }
           savingLabel="Wird erstellt …"
         />
@@ -208,11 +214,11 @@ export function CareContractCreateModal({
         }}
       >
         <p className="text-sm text-gray-600">
-          Diese Kinder sind angenommen und haben Betreuung gebucht. moto
-          übernimmt Kind, Eltern, Beginn und die Module je Wochentag aus der
-          Anmeldung. Ein Vertrag umfasst alle Module eines Kindes. Sie prüfen
-          jeden Entwurf, bevor Sie ihn senden. Für „Bei der Annahme“ sind hier
-          keine Entwürfe nötig.
+          Diese angenommenen Kinder haben noch keinen Vertrag. Ein Vertrag
+          umfasst alle Module eines Kindes. moto übernimmt Kind, Eltern, Beginn
+          und die Module je Wochentag aus der Anmeldung; Sie prüfen jeden
+          Entwurf vor dem Senden. Für „Bei der Annahme“ sind hier keine Entwürfe
+          nötig, wenn die Eltern im Anmeldeformular zugestimmt haben.
         </p>
         {candidates.length === 0 ? (
           <EmptyState
@@ -220,6 +226,50 @@ export function CareContractCreateModal({
             description="Neue Anmeldungen erscheinen hier, sobald die Schule sie annimmt."
           />
         ) : null}
+        {(() => {
+          const acceptanceIssue = candidates.some(
+            (candidate) =>
+              candidate.templateIssue === "acceptance_missing" ||
+              candidate.templateIssue === "acceptance_changed",
+          );
+          const settingsLink = (
+            // Under the message on a phone: -ml-2.5 takes back the
+            // padding, so the label starts with the text.
+            <ButtonLink
+              href={traegerPath("/traeger/einstellungen?bereich=enrollment")}
+              variant="ghost_tone"
+              size="compact"
+              className="max-sm:-ml-2.5"
+            >
+              Einstellung öffnen
+            </ButtonLink>
+          );
+          // One notice, so the children stay in view: first whether the
+          // dialog can create anything, then the school-wide switch.
+          if (candidates.length > 0 && ready.length === 0) {
+            return (
+              <Alert
+                type="info"
+                title="Gerade lässt sich kein Entwurf erstellen."
+                message={
+                  acceptanceIssue
+                    ? "Bei jedem Kind steht, was noch fehlt. Mit „Später verschicken“ erstellen und senden Sie alle Verträge der Schule hier."
+                    : "Bei jedem Kind steht, was noch fehlt. Ist das erledigt, erstellen Sie die Entwürfe hier."
+                }
+                actionLayout="responsive"
+                action={acceptanceIssue ? settingsLink : undefined}
+              />
+            );
+          }
+          return acceptanceIssue ? (
+            <Alert
+              type="info"
+              message="„Später verschicken“ gilt für jede spätere Annahme der Schule: Danach erstellen und senden Sie alle Verträge dieser Schule hier."
+              actionLayout="responsive"
+              action={settingsLink}
+            />
+          ) : null;
+        })()}
         {missing + differing > 0 ? (
           <Alert
             type="warning"
@@ -230,6 +280,7 @@ export function CareContractCreateModal({
                 type="button"
                 variant="ghost_tone"
                 size="compact"
+                className="max-sm:-ml-2.5"
                 onClick={onOpenConditions}
               >
                 Bedingungen festlegen
@@ -270,56 +321,72 @@ export function CareContractCreateModal({
             {group.candidates.map((candidate) => {
               const key = candidateKey(candidate);
               const isSelected = selected.has(key);
-              return (
+              const blocked = candidate.templateIssue !== null;
+              const details = (
+                <span className="min-w-0 flex-1">
+                  <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                    <span className="font-medium text-gray-900">
+                      {childName(candidate)}
+                    </span>
+                    {candidate.templateIssue === null ? null : (
+                      <StatusBadge
+                        tone={
+                          candidate.templateIssue === "conclusion_automatic"
+                            ? "green"
+                            : "warning"
+                        }
+                        label={TEMPLATE_ISSUE_LABELS[candidate.templateIssue]}
+                      />
+                    )}
+                  </span>
+                  {candidate.templateIssue !== null &&
+                  TEMPLATE_ISSUE_REASONS[candidate.templateIssue] ? (
+                    <span className="mt-0.5 block text-sm text-gray-700">
+                      {TEMPLATE_ISSUE_REASONS[candidate.templateIssue]}
+                    </span>
+                  ) : null}
+                  <span className="mt-0.5 block text-sm text-gray-600">
+                    {candidate.modulesText || "–"} · ab{" "}
+                    {formatDate(candidate.effectiveFrom)}
+                  </span>
+                  <span className="block text-sm text-gray-600">
+                    {formatServiceDays(candidate.services)}
+                  </span>
+                  <span className="block text-sm wrap-anywhere text-gray-500">
+                    {candidate.guardianName}
+                    {candidate.guardianEmail
+                      ? ` · ${candidate.guardianEmail}`
+                      : ""}
+                  </span>
+                </span>
+              );
+              // A child that cannot get a draft yet is a to-do, not a faded
+              // choice: its reason stays fully readable.
+              return blocked ? (
+                <InsetPanel key={key} framed padding="md">
+                  <label className="flex items-start gap-3">
+                    <Checkbox
+                      checked={false}
+                      disabled
+                      onChange={() => undefined}
+                      aria-label={`${childName(candidate)} auswählen`}
+                    />
+                    {details}
+                  </label>
+                </InsetPanel>
+              ) : (
                 <ChoiceTile
                   key={key}
-                  selected={isSelected && candidate.templateIssue === null}
-                  disabled={candidate.templateIssue !== null}
+                  selected={isSelected}
                   tone="blue"
                   className="flex items-start gap-3 px-4 py-3"
                 >
                   <Checkbox
-                    checked={isSelected && candidate.templateIssue === null}
-                    disabled={candidate.templateIssue !== null}
+                    checked={isSelected}
                     onChange={() => toggle(key)}
                     aria-label={`${childName(candidate)} auswählen`}
                   />
-                  <span className="min-w-0 flex-1">
-                    <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="font-medium text-gray-900">
-                        {childName(candidate)}
-                      </span>
-                      {candidate.templateIssue === null ? null : (
-                        <StatusBadge
-                          tone={
-                            candidate.templateIssue === "conclusion_automatic"
-                              ? "green"
-                              : "warning"
-                          }
-                          label={TEMPLATE_ISSUE_LABELS[candidate.templateIssue]}
-                        />
-                      )}
-                    </span>
-                    {candidate.templateIssue !== null &&
-                    TEMPLATE_ISSUE_REASONS[candidate.templateIssue] ? (
-                      <span className="mt-0.5 block text-sm text-gray-700">
-                        {TEMPLATE_ISSUE_REASONS[candidate.templateIssue]}
-                      </span>
-                    ) : null}
-                    <span className="mt-0.5 block text-sm text-gray-600">
-                      {candidate.modulesText || "–"} · ab{" "}
-                      {formatDate(candidate.effectiveFrom)}
-                    </span>
-                    <span className="block text-sm text-gray-600">
-                      {formatServiceDays(candidate.services)}
-                    </span>
-                    <span className="block text-sm wrap-anywhere text-gray-500">
-                      {candidate.guardianName}
-                      {candidate.guardianEmail
-                        ? ` · ${candidate.guardianEmail}`
-                        : ""}
-                    </span>
-                  </span>
+                  {details}
                 </ChoiceTile>
               );
             })}

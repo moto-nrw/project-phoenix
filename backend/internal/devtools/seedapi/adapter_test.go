@@ -6,7 +6,7 @@ import (
 	"errors"
 	"fmt"
 
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 type seedHTTPRequest = testpkg.HTTPRequest

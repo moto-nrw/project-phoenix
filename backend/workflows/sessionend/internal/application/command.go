@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/workflows/sessionend"
-	"github.com/moto-nrw/project-phoenix/workflows/sessionend/ports"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/workflows/sessionend"
+	"github.com/moto-ogs/project-phoenix/workflows/sessionend/ports"
 )
 
 // Dependencies are the owner capabilities and runtime the command coordinates.

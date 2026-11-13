@@ -3,7 +3,7 @@ package application
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/enrollment"
+	"github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 func (m *Service) observeOfferingStorage(operation, kind string, started time.Time, inputRows, outputRows int64, err error) {

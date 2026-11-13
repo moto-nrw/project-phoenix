@@ -113,7 +113,7 @@ them to nested commands. Explicit caller values remain intact.
 lets worktrees share the Go build cache. Without it, Go adds each package's
 absolute directory to the cache key, so every new worktree compiles the
 backend again and stores a second copy. With it, `runtime.Caller` reports
-module-relative paths such as `github.com/moto-nrw/project-phoenix/api/...`.
+module-relative paths such as `github.com/moto-ogs/project-phoenix/api/...`.
 Code that locates repository files must therefore walk up from the working
 directory to `go.mod` (see `routetest.BackendRoot`), not from its source file.
 

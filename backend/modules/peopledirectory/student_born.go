@@ -1,6 +1,6 @@
 package peopledirectory
 
-import "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+import "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 
 // StudentBorn is a child of the school born on a queried date, also one
 // whose care has ended, with the interval it belonged to the school

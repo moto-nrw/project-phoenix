@@ -10,8 +10,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	parentModels "github.com/moto-ogs/project-phoenix/modules/careplan/internal/rows"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // insertEnrollablePhase makes a minimal phase row directly so we don't

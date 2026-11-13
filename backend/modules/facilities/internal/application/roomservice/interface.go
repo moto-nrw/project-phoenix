@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
 )
 
 // Service is the compatibility surface for callers not yet converted to the

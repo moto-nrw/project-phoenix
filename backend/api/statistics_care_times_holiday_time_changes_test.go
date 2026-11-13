@@ -12,15 +12,15 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	enrollmentCompose "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
-	enrollmentHTTP "github.com/moto-nrw/project-phoenix/modules/enrollment/http"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	enrollmentCompose "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
+	enrollmentHTTP "github.com/moto-ogs/project-phoenix/modules/enrollment/http"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Drive the production PUT handler and owner with a fixed Berlin change day.
@@ -37,7 +37,7 @@ func editHolidayTimesOn(t *testing.T, db *bun.DB, org, account int64, booking ow
 			TimeModels: []holidayTimeModelBody{{ID: model, Name: "Ganztag", StartsAt: start, EndsAt: end, PriceCents: 4500}}}}}
 	principal, err := permissions.NewPrincipal(permissions.PrincipalInput{AccountID: account, OrganizationID: org, Scope: tenant.ScopeOrg, Permissions: []string{identityaccess.TraegerRightEnrollmentManage}})
 	require.NoError(t, err)
-	review, places, allocation, records := enrollmentCompose.NewHolidayRegistrationReview(testHealthCipher(), nil, nil, owners.HolidayTestSchoolCalendar{})
+	review, places, allocation, records := enrollmentCompose.NewHolidayRegistrationReview(testHealthCipher(), nil, nil, owners.HolidayTestSchoolCalendar{}, nil)
 	_, wishes := enrollmentCompose.NewHolidayWishes(testHealthCipher())
 	resource := enrollmentHTTP.NewHolidayPeriodResource(enrollmentCompose.NewHolidayPeriods(func() calendar.Date { return on }, owners.HolidayTestSchoolCalendar{}),
 		review, records, wishes, places, allocation, allocation, holidaySchoolNames{},

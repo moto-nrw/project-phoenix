@@ -6,12 +6,12 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 
 	"github.com/go-chi/render"
 	validation "github.com/go-ozzo/ozzo-validation"
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Staff Stammdaten (#1423). Section-scoped sub-resources under

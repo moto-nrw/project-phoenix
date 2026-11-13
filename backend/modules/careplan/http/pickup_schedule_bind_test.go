@@ -1,4 +1,4 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"fmt"
@@ -8,11 +8,13 @@ import (
 	"time"
 
 	"github.com/go-chi/render"
-	careplan "github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	careplan "github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 func TestPickupScheduleRequest_Bind(t *testing.T) {
@@ -21,7 +23,7 @@ func TestPickupScheduleRequest_Bind(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 
 	t.Run("valid request", func(t *testing.T) {
-		r := &PickupScheduleRequest{
+		r := &careplanhttp.PickupScheduleRequest{
 			Weekday:    1,
 			PickupTime: "15:30",
 		}
@@ -31,7 +33,7 @@ func TestPickupScheduleRequest_Bind(t *testing.T) {
 
 	t.Run("valid request with notes", func(t *testing.T) {
 		notes := "Parent pickup only"
-		r := &PickupScheduleRequest{
+		r := &careplanhttp.PickupScheduleRequest{
 			Weekday:    3,
 			PickupTime: "14:00",
 			Notes:      &notes,
@@ -41,7 +43,7 @@ func TestPickupScheduleRequest_Bind(t *testing.T) {
 	})
 
 	t.Run("weekday too low", func(t *testing.T) {
-		r := &PickupScheduleRequest{
+		r := &careplanhttp.PickupScheduleRequest{
 			Weekday:    0,
 			PickupTime: "15:30",
 		}
@@ -51,7 +53,7 @@ func TestPickupScheduleRequest_Bind(t *testing.T) {
 	})
 
 	t.Run("weekday too high", func(t *testing.T) {
-		r := &PickupScheduleRequest{
+		r := &careplanhttp.PickupScheduleRequest{
 			Weekday:    6,
 			PickupTime: "15:30",
 		}
@@ -61,7 +63,7 @@ func TestPickupScheduleRequest_Bind(t *testing.T) {
 	})
 
 	t.Run("missing pickup_time", func(t *testing.T) {
-		r := &PickupScheduleRequest{
+		r := &careplanhttp.PickupScheduleRequest{
 			Weekday:    1,
 			PickupTime: "",
 		}
@@ -71,7 +73,7 @@ func TestPickupScheduleRequest_Bind(t *testing.T) {
 	})
 
 	t.Run("invalid pickup_time format", func(t *testing.T) {
-		r := &PickupScheduleRequest{
+		r := &careplanhttp.PickupScheduleRequest{
 			Weekday:    1,
 			PickupTime: "invalid",
 		}
@@ -82,7 +84,7 @@ func TestPickupScheduleRequest_Bind(t *testing.T) {
 
 	t.Run("notes too long", func(t *testing.T) {
 		longNotes := string(make([]byte, 501))
-		r := &PickupScheduleRequest{
+		r := &careplanhttp.PickupScheduleRequest{
 			Weekday:    1,
 			PickupTime: "15:30",
 			Notes:      &longNotes,
@@ -99,8 +101,8 @@ func TestBulkPickupScheduleRequest_Bind(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 
 	t.Run("valid request", func(t *testing.T) {
-		r := &BulkPickupScheduleRequest{
-			Schedules: []PickupScheduleRequest{
+		r := &careplanhttp.BulkPickupScheduleRequest{
+			Schedules: []careplanhttp.PickupScheduleRequest{
 				{Weekday: 1, PickupTime: "15:30"},
 				{Weekday: 3, PickupTime: "14:00"},
 			},
@@ -110,16 +112,16 @@ func TestBulkPickupScheduleRequest_Bind(t *testing.T) {
 	})
 
 	t.Run("empty schedules", func(t *testing.T) {
-		r := &BulkPickupScheduleRequest{
-			Schedules: []PickupScheduleRequest{},
+		r := &careplanhttp.BulkPickupScheduleRequest{
+			Schedules: []careplanhttp.PickupScheduleRequest{},
 		}
 		err := r.Bind(req)
 		require.NoError(t, err)
 	})
 
 	t.Run("invalid weekday in schedule", func(t *testing.T) {
-		r := &BulkPickupScheduleRequest{
-			Schedules: []PickupScheduleRequest{
+		r := &careplanhttp.BulkPickupScheduleRequest{
+			Schedules: []careplanhttp.PickupScheduleRequest{
 				{Weekday: 1, PickupTime: "15:30"},
 				{Weekday: 7, PickupTime: "14:00"},
 			},
@@ -130,8 +132,8 @@ func TestBulkPickupScheduleRequest_Bind(t *testing.T) {
 	})
 
 	t.Run("missing pickup_time in schedule", func(t *testing.T) {
-		r := &BulkPickupScheduleRequest{
-			Schedules: []PickupScheduleRequest{
+		r := &careplanhttp.BulkPickupScheduleRequest{
+			Schedules: []careplanhttp.PickupScheduleRequest{
 				{Weekday: 1, PickupTime: ""},
 			},
 		}
@@ -141,8 +143,8 @@ func TestBulkPickupScheduleRequest_Bind(t *testing.T) {
 	})
 
 	t.Run("invalid pickup_time format in schedule", func(t *testing.T) {
-		r := &BulkPickupScheduleRequest{
-			Schedules: []PickupScheduleRequest{
+		r := &careplanhttp.BulkPickupScheduleRequest{
+			Schedules: []careplanhttp.PickupScheduleRequest{
 				{Weekday: 1, PickupTime: "25:00"},
 			},
 		}
@@ -153,8 +155,8 @@ func TestBulkPickupScheduleRequest_Bind(t *testing.T) {
 
 	t.Run("notes too long in schedule", func(t *testing.T) {
 		longNotes := string(make([]byte, 501))
-		r := &BulkPickupScheduleRequest{
-			Schedules: []PickupScheduleRequest{
+		r := &careplanhttp.BulkPickupScheduleRequest{
+			Schedules: []careplanhttp.PickupScheduleRequest{
 				{Weekday: 1, PickupTime: "15:30", Notes: &longNotes},
 			},
 		}
@@ -169,8 +171,8 @@ func TestBulkArrivalScheduleRequest_BindRejectsLongNotesWithoutTime(t *testing.T
 
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 	longNotes := string(make([]byte, 501))
-	arrival := &BulkArrivalScheduleRequest{
-		Schedules: []ArrivalScheduleRequestItem{{
+	arrival := &careplanhttp.BulkArrivalScheduleRequest{
+		Schedules: []careplanhttp.ArrivalScheduleRequestItem{{
 			Weekday:         1,
 			ExpectedArrival: "",
 			Notes:           &longNotes,
@@ -189,7 +191,7 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 
 	t.Run("valid request", func(t *testing.T) {
 		pickupTime := "12:00"
-		r := &PickupExceptionRequest{
+		r := &careplanhttp.PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    &pickupTime,
 			Reason:        testpkg.StrPtr("Doctor appointment"),
@@ -200,7 +202,7 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 
 	t.Run("missing exception_date", func(t *testing.T) {
 		pickupTime := "12:00"
-		r := &PickupExceptionRequest{
+		r := &careplanhttp.PickupExceptionRequest{
 			ExceptionDate: "",
 			PickupTime:    &pickupTime,
 			Reason:        testpkg.StrPtr("Test reason"),
@@ -212,7 +214,7 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 
 	t.Run("invalid exception_date format", func(t *testing.T) {
 		pickupTime := "12:00"
-		r := &PickupExceptionRequest{
+		r := &careplanhttp.PickupExceptionRequest{
 			ExceptionDate: "15-02-2026",
 			PickupTime:    &pickupTime,
 			Reason:        testpkg.StrPtr("Test reason"),
@@ -223,7 +225,7 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 	})
 
 	t.Run("nil pickup_time is valid (absent student)", func(t *testing.T) {
-		r := &PickupExceptionRequest{
+		r := &careplanhttp.PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    nil,
 			Reason:        testpkg.StrPtr("Student is sick"),
@@ -234,7 +236,7 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 
 	t.Run("empty pickup_time is valid (absent student)", func(t *testing.T) {
 		emptyTime := ""
-		r := &PickupExceptionRequest{
+		r := &careplanhttp.PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    &emptyTime,
 			Reason:        testpkg.StrPtr("Student is sick"),
@@ -245,7 +247,7 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 
 	t.Run("invalid pickup_time format", func(t *testing.T) {
 		invalidTime := "invalid"
-		r := &PickupExceptionRequest{
+		r := &careplanhttp.PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    &invalidTime,
 			Reason:        testpkg.StrPtr("Test reason"),
@@ -257,7 +259,7 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 
 	t.Run("empty reason is valid (reason is optional)", func(t *testing.T) {
 		pickupTime := "12:00"
-		r := &PickupExceptionRequest{
+		r := &careplanhttp.PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    &pickupTime,
 			Reason:        nil,
@@ -269,7 +271,7 @@ func TestPickupExceptionRequest_Bind(t *testing.T) {
 	t.Run("reason too long", func(t *testing.T) {
 		pickupTime := "12:00"
 		longReason := string(make([]byte, 256))
-		r := &PickupExceptionRequest{
+		r := &careplanhttp.PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    &pickupTime,
 			Reason:        &longReason,
@@ -286,7 +288,7 @@ func TestBulkPickupTimeRequest_Bind(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 
 	t.Run("valid request", func(t *testing.T) {
-		r := &BulkEffectiveTimeRequest{
+		r := &careplanhttp.BulkEffectiveTimeRequest{
 			StudentIDs: []int64{1, 2, 3},
 		}
 		err := r.Bind(req)
@@ -295,7 +297,7 @@ func TestBulkPickupTimeRequest_Bind(t *testing.T) {
 
 	t.Run("valid request with date", func(t *testing.T) {
 		date := "2026-01-27"
-		r := &BulkEffectiveTimeRequest{
+		r := &careplanhttp.BulkEffectiveTimeRequest{
 			StudentIDs: []int64{1, 2, 3},
 			Date:       &date,
 		}
@@ -304,7 +306,7 @@ func TestBulkPickupTimeRequest_Bind(t *testing.T) {
 	})
 
 	t.Run("empty student_ids", func(t *testing.T) {
-		r := &BulkEffectiveTimeRequest{
+		r := &careplanhttp.BulkEffectiveTimeRequest{
 			StudentIDs: []int64{},
 		}
 		err := r.Bind(req)
@@ -317,7 +319,7 @@ func TestBulkPickupTimeRequest_Bind(t *testing.T) {
 		for i := range ids {
 			ids[i] = int64(i + 1)
 		}
-		r := &BulkEffectiveTimeRequest{
+		r := &careplanhttp.BulkEffectiveTimeRequest{
 			StudentIDs: ids,
 		}
 		err := r.Bind(req)
@@ -327,7 +329,7 @@ func TestBulkPickupTimeRequest_Bind(t *testing.T) {
 
 	t.Run("invalid date format", func(t *testing.T) {
 		invalidDate := "27-01-2026"
-		r := &BulkEffectiveTimeRequest{
+		r := &careplanhttp.BulkEffectiveTimeRequest{
 			StudentIDs: []int64{1, 2, 3},
 			Date:       &invalidDate,
 		}
@@ -338,7 +340,7 @@ func TestBulkPickupTimeRequest_Bind(t *testing.T) {
 
 	t.Run("empty date is valid", func(t *testing.T) {
 		emptyDate := ""
-		r := &BulkEffectiveTimeRequest{
+		r := &careplanhttp.BulkEffectiveTimeRequest{
 			StudentIDs: []int64{1, 2, 3},
 			Date:       &emptyDate,
 		}
@@ -351,21 +353,21 @@ func TestParseTimeOnly(t *testing.T) {
 	t.Parallel()
 
 	t.Run("valid time", func(t *testing.T) {
-		result, err := parseTimeOnly("15:30")
+		result, err := careplanhttp.ParseTimeOnlyForTest("15:30")
 		require.NoError(t, err)
 		assert.Equal(t, 15, result.Hour())
 		assert.Equal(t, 30, result.Minute())
 	})
 
 	t.Run("midnight", func(t *testing.T) {
-		result, err := parseTimeOnly("00:00")
+		result, err := careplanhttp.ParseTimeOnlyForTest("00:00")
 		require.NoError(t, err)
 		assert.Equal(t, 0, result.Hour())
 		assert.Equal(t, 0, result.Minute())
 	})
 
 	t.Run("end of day", func(t *testing.T) {
-		result, err := parseTimeOnly("23:59")
+		result, err := careplanhttp.ParseTimeOnlyForTest("23:59")
 		require.NoError(t, err)
 		assert.Equal(t, 23, result.Hour())
 		assert.Equal(t, 59, result.Minute())
@@ -373,7 +375,7 @@ func TestParseTimeOnly(t *testing.T) {
 
 	for _, invalid := range []string{"invalid", "25:00", "12:60", "12-30", ""} {
 		t.Run("rejects "+invalid, func(t *testing.T) {
-			_, err := parseTimeOnly(invalid)
+			_, err := careplanhttp.ParseTimeOnlyForTest(invalid)
 			require.Error(t, err)
 		})
 	}
@@ -384,7 +386,7 @@ func TestMapScheduleToResponse(t *testing.T) {
 
 	t.Run("maps schedule without notes", func(t *testing.T) {
 		schedule := createTestScheduleModel(1, 1, "15:30", nil)
-		resp := mapScheduleToResponse(schedule)
+		resp := careplanhttp.MapScheduleToResponseForTest(schedule)
 
 		assert.Equal(t, schedule.ID, resp.ID)
 		assert.Equal(t, schedule.StudentID, resp.StudentID)
@@ -397,7 +399,7 @@ func TestMapScheduleToResponse(t *testing.T) {
 	t.Run("maps schedule with notes", func(t *testing.T) {
 		notes := "Parent pickup only"
 		schedule := createTestScheduleModel(1, 3, "14:00", &notes)
-		resp := mapScheduleToResponse(schedule)
+		resp := careplanhttp.MapScheduleToResponseForTest(schedule)
 
 		assert.Equal(t, "14:00", resp.PickupTime)
 		assert.NotNil(t, resp.Notes)
@@ -411,7 +413,7 @@ func TestMapScheduleToResponse(t *testing.T) {
 		row.CareOfferingID = &offeringID
 		row.CareOfferingName = "Ganztag bis 14:30 Uhr"
 
-		resp := mapScheduleToResponse(row)
+		resp := careplanhttp.MapScheduleToResponseForTest(row)
 
 		require.NotNil(t, resp.CareOfferingID)
 		assert.Equal(t, "42", *resp.CareOfferingID)
@@ -424,7 +426,7 @@ func TestMapExceptionToResponse(t *testing.T) {
 
 	t.Run("maps exception with pickup time", func(t *testing.T) {
 		exception := createTestExceptionModel(1, "2026-02-15", "12:00", "Doctor appointment")
-		resp := mapExceptionToResponse(exception)
+		resp := careplanhttp.MapExceptionToResponseForTest(exception)
 
 		assert.Equal(t, exception.ID, resp.ID)
 		assert.Equal(t, exception.StudentID, resp.StudentID)
@@ -437,7 +439,7 @@ func TestMapExceptionToResponse(t *testing.T) {
 
 	t.Run("maps exception without pickup time (absent)", func(t *testing.T) {
 		exception := createTestExceptionModelAbsent(1, "2026-02-15", "Student is sick")
-		resp := mapExceptionToResponse(exception)
+		resp := careplanhttp.MapExceptionToResponseForTest(exception)
 
 		assert.Equal(t, "2026-02-15", resp.ExceptionDate)
 		assert.Nil(t, resp.PickupTime)
@@ -447,7 +449,7 @@ func TestMapExceptionToResponse(t *testing.T) {
 }
 
 func createTestScheduleModel(studentID int64, weekday int, pickupTime string, notes *string) *careplan.PickupSchedule {
-	parsedTime, _ := parseTimeOnly(pickupTime)
+	parsedTime, _ := careplanhttp.ParseTimeOnlyForTest(pickupTime)
 	return &careplan.PickupSchedule{
 		StudentID:  studentID,
 		Weekday:    weekday,
@@ -459,7 +461,7 @@ func createTestScheduleModel(studentID int64, weekday int, pickupTime string, no
 
 func createTestExceptionModel(studentID int64, date, pickupTime, reason string) *careplan.PickupException {
 	parsedDate, _ := calendar.ParseDate(date)
-	parsedTime, _ := parseTimeOnly(pickupTime)
+	parsedTime, _ := careplanhttp.ParseTimeOnlyForTest(pickupTime)
 	return &careplan.PickupException{
 		StudentID:     studentID,
 		ExceptionDate: careplan.Date(parsedDate),
@@ -486,7 +488,7 @@ func TestPickupScheduleRequest_Bind_EdgeCases(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 
 	t.Run("weekday_boundary_monday", func(t *testing.T) {
-		r := &PickupScheduleRequest{
+		r := &careplanhttp.PickupScheduleRequest{
 			Weekday:    1,
 			PickupTime: "08:00",
 		}
@@ -495,7 +497,7 @@ func TestPickupScheduleRequest_Bind_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("weekday_boundary_friday", func(t *testing.T) {
-		r := &PickupScheduleRequest{
+		r := &careplanhttp.PickupScheduleRequest{
 			Weekday:    5,
 			PickupTime: "17:00",
 		}
@@ -518,7 +520,7 @@ func TestPickupScheduleRequest_Bind_EdgeCases(t *testing.T) {
 			{"12:30:00", false}, // Seconds not allowed
 		}
 		for _, tc := range testCases {
-			r := &PickupScheduleRequest{
+			r := &careplanhttp.PickupScheduleRequest{
 				Weekday:    1,
 				PickupTime: tc.time,
 			}
@@ -533,7 +535,7 @@ func TestPickupScheduleRequest_Bind_EdgeCases(t *testing.T) {
 
 	t.Run("notes_boundary_500_chars", func(t *testing.T) {
 		exactNotes := string(make([]byte, 500))
-		r := &PickupScheduleRequest{
+		r := &careplanhttp.PickupScheduleRequest{
 			Weekday:    1,
 			PickupTime: "15:30",
 			Notes:      &exactNotes,
@@ -549,8 +551,8 @@ func TestBulkPickupScheduleRequest_Bind_EdgeCases(t *testing.T) {
 	req := httptest.NewRequest(http.MethodPost, "/", nil)
 
 	t.Run("all_weekdays", func(t *testing.T) {
-		r := &BulkPickupScheduleRequest{
-			Schedules: []PickupScheduleRequest{
+		r := &careplanhttp.BulkPickupScheduleRequest{
+			Schedules: []careplanhttp.PickupScheduleRequest{
 				{Weekday: 1, PickupTime: "15:30"},
 				{Weekday: 2, PickupTime: "15:30"},
 				{Weekday: 3, PickupTime: "15:30"},
@@ -563,8 +565,8 @@ func TestBulkPickupScheduleRequest_Bind_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("single_schedule", func(t *testing.T) {
-		r := &BulkPickupScheduleRequest{
-			Schedules: []PickupScheduleRequest{
+		r := &careplanhttp.BulkPickupScheduleRequest{
+			Schedules: []careplanhttp.PickupScheduleRequest{
 				{Weekday: 3, PickupTime: "12:00"},
 			},
 		}
@@ -573,8 +575,8 @@ func TestBulkPickupScheduleRequest_Bind_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("error_index_reporting", func(t *testing.T) {
-		r := &BulkPickupScheduleRequest{
-			Schedules: []PickupScheduleRequest{
+		r := &careplanhttp.BulkPickupScheduleRequest{
+			Schedules: []careplanhttp.PickupScheduleRequest{
 				{Weekday: 1, PickupTime: "15:30"},
 				{Weekday: 2, PickupTime: "15:30"},
 				{Weekday: 6, PickupTime: "15:30"}, // Invalid at index 2
@@ -594,7 +596,7 @@ func TestPickupExceptionRequest_Bind_EdgeCases(t *testing.T) {
 	t.Run("reason_boundary_255_chars", func(t *testing.T) {
 		pickupTime := "12:00"
 		exactReason := string(make([]byte, 255))
-		r := &PickupExceptionRequest{
+		r := &careplanhttp.PickupExceptionRequest{
 			ExceptionDate: "2026-02-15",
 			PickupTime:    &pickupTime,
 			Reason:        &exactReason,
@@ -613,7 +615,7 @@ func TestPickupExceptionRequest_Bind_EdgeCases(t *testing.T) {
 			"2026-02-5",  // Missing leading zero
 		}
 		for _, date := range invalidDates {
-			r := &PickupExceptionRequest{
+			r := &careplanhttp.PickupExceptionRequest{
 				ExceptionDate: date,
 				PickupTime:    &pickupTime,
 				Reason:        testpkg.StrPtr("Test"),
@@ -641,7 +643,7 @@ func TestMapScheduleToResponse_WeekdayNames(t *testing.T) {
 	for _, wd := range weekdays {
 		t.Run(wd.name, func(t *testing.T) {
 			schedule := createTestScheduleModel(1, wd.day, "15:30", nil)
-			resp := mapScheduleToResponse(schedule)
+			resp := careplanhttp.MapScheduleToResponseForTest(schedule)
 			assert.Equal(t, wd.name, resp.WeekdayName)
 		})
 	}
@@ -657,7 +659,7 @@ func TestBulkPickupTimeRequest_Bind_EdgeCases(t *testing.T) {
 		for i := range ids {
 			ids[i] = int64(i + 1)
 		}
-		r := &BulkEffectiveTimeRequest{
+		r := &careplanhttp.BulkEffectiveTimeRequest{
 			StudentIDs: ids,
 		}
 		err := r.Bind(req)
@@ -665,7 +667,7 @@ func TestBulkPickupTimeRequest_Bind_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("single_student_id", func(t *testing.T) {
-		r := &BulkEffectiveTimeRequest{
+		r := &careplanhttp.BulkEffectiveTimeRequest{
 			StudentIDs: []int64{1},
 		}
 		err := r.Bind(req)
@@ -673,7 +675,7 @@ func TestBulkPickupTimeRequest_Bind_EdgeCases(t *testing.T) {
 	})
 
 	t.Run("nil_date_is_valid", func(t *testing.T) {
-		r := &BulkEffectiveTimeRequest{
+		r := &careplanhttp.BulkEffectiveTimeRequest{
 			StudentIDs: []int64{1, 2},
 			Date:       nil,
 		}
@@ -700,7 +702,7 @@ func TestMapScheduleToResponse_ResponseFormat(t *testing.T) {
 		sched.CreatedAt = now
 		sched.UpdatedAt = now
 
-		resp := mapScheduleToResponse(sched)
+		resp := careplanhttp.MapScheduleToResponseForTest(sched)
 
 		assert.Equal(t, schedID, resp.ID)
 		assert.Equal(t, studentID, resp.StudentID)
@@ -719,7 +721,7 @@ func TestMapScheduleToResponse_ResponseFormat(t *testing.T) {
 			PickupTime: time.Date(2000, 1, 1, 15, 30, 0, 0, time.UTC),
 			CreatedBy:  createdBy,
 		}
-		resp := mapScheduleToResponse(sched)
+		resp := careplanhttp.MapScheduleToResponseForTest(sched)
 
 		assert.Equal(t, 99, resp.Weekday)
 		// GetWeekdayName returns empty string for invalid weekdays
@@ -748,7 +750,7 @@ func TestMapExceptionToResponse_ResponseFormat(t *testing.T) {
 		exc.CreatedAt = now
 		exc.UpdatedAt = now
 
-		resp := mapExceptionToResponse(exc)
+		resp := careplanhttp.MapExceptionToResponseForTest(exc)
 
 		assert.Equal(t, excID, resp.ID)
 		assert.Equal(t, studentID, resp.StudentID)
@@ -764,7 +766,7 @@ func TestPickupScheduleDateRange(t *testing.T) {
 
 	t.Run("accepts inclusive week", func(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/?from=2026-08-17&to=2026-08-21", nil)
-		from, to, ok, err := pickupScheduleDateRange(r)
+		from, to, ok, err := careplanhttp.PickupScheduleDateRangeForTest(r)
 		require.NoError(t, err)
 		require.True(t, ok)
 		assert.Equal(t, "2026-08-17", from.String())
@@ -773,13 +775,13 @@ func TestPickupScheduleDateRange(t *testing.T) {
 
 	t.Run("requires both bounds", func(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/?from=2026-08-17", nil)
-		_, _, _, err := pickupScheduleDateRange(r)
+		_, _, _, err := careplanhttp.PickupScheduleDateRangeForTest(r)
 		require.Error(t, err)
 	})
 
 	t.Run("rejects oversized range", func(t *testing.T) {
 		r := httptest.NewRequest(http.MethodGet, "/?from=2026-08-01&to=2026-09-02", nil)
-		_, _, _, err := pickupScheduleDateRange(r)
+		_, _, _, err := careplanhttp.PickupScheduleDateRangeForTest(r)
 		require.Error(t, err)
 	})
 }
@@ -788,7 +790,7 @@ func TestBuildPickupDataResponse_PreservesExplicitEmptyDate(t *testing.T) {
 	t.Parallel()
 
 	date := calendar.NewDate(2026, 8, 18)
-	response := buildPickupDataResponse(&careplan.StudentPickupData{
+	response := careplanhttp.BuildPickupDataResponseForTest(&careplan.StudentPickupData{
 		EffectiveSchedules: []careplan.DatedPickupSchedule{{Date: date}},
 	})
 
@@ -801,14 +803,14 @@ func TestResetOfferingPickupRequest_Bind(t *testing.T) {
 	t.Parallel()
 
 	t.Run("accepts matching date and weekday", func(t *testing.T) {
-		req := &ResetOfferingPickupRequest{Weekday: 1, Date: "2026-08-17"}
+		req := &careplanhttp.ResetOfferingPickupRequest{Weekday: 1, Date: "2026-08-17"}
 		err := req.Bind(httptest.NewRequest(http.MethodPost, "/", nil))
 		require.NoError(t, err)
-		assert.Equal(t, "2026-08-17", req.date.String())
+		assert.Equal(t, "2026-08-17", req.DateForTest().String())
 	})
 
 	t.Run("rejects a mismatched date", func(t *testing.T) {
-		req := &ResetOfferingPickupRequest{Weekday: 2, Date: "2026-08-17"}
+		req := &careplanhttp.ResetOfferingPickupRequest{Weekday: 2, Date: "2026-08-17"}
 		err := req.Bind(httptest.NewRequest(http.MethodPost, "/", nil))
 		require.Error(t, err)
 	})
@@ -819,7 +821,7 @@ func TestPickupResetErrorRenderer_NoOfferingIsConflict(t *testing.T) {
 
 	w := httptest.NewRecorder()
 	r := httptest.NewRequest(http.MethodPost, "/", nil)
-	require.NoError(t, render.Render(w, r, pickupResetErrorRenderer(ErrPickupResetNoOffering)))
+	require.NoError(t, render.Render(w, r, careplanhttp.PickupResetErrorRendererForTest(careplanhttp.ErrPickupResetNoOffering)))
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 	assert.Contains(t, w.Body.String(), `"code":"students.pickup_reset_requires_offering"`)
@@ -833,7 +835,7 @@ func TestPickupResetErrorRenderer_StillNeededNamesDates(t *testing.T) {
 	err := fmt.Errorf("reset: %w", &careplan.PickupResetStillNeededError{
 		NeededUntil: calendar.NewDate(2026, 11, 9), PossibleFrom: calendar.NewDate(2026, 11, 10),
 	})
-	require.NoError(t, render.Render(w, r, pickupResetErrorRenderer(err)))
+	require.NoError(t, render.Render(w, r, careplanhttp.PickupResetErrorRendererForTest(err)))
 
 	assert.Equal(t, http.StatusConflict, w.Code)
 	body := w.Body.String()

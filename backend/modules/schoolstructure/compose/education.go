@@ -1,7 +1,7 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure/internal/application/groups"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure/internal/application/groups"
 )
 
 type Actor = groups.Actor

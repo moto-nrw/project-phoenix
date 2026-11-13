@@ -1,8 +1,8 @@
 package owners
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // parseCapabilityDate reads a public YYYY-MM-DD day the way Workforce

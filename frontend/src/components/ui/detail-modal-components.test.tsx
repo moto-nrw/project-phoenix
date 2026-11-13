@@ -96,9 +96,9 @@ describe("InfoSection", () => {
     expect(section).toBeInTheDocument();
   });
 
-  it("stays on the neutral surface regardless of accentColor (no colored backgrounds behind icons)", () => {
+  it("stays on the neutral surface (no colored backgrounds behind icons)", () => {
     const { container } = render(
-      <InfoSection title="Test" icon={DetailIcons.person} accentColor="blue">
+      <InfoSection title="Test" icon={DetailIcons.person}>
         Content
       </InfoSection>,
     );

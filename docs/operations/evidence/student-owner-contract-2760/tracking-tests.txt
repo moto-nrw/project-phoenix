@@ -187,4 +187,4 @@
 --- PASS: TestStudentContractFreshReplayRefusesUnexpectedStudentData (10.81s)
 --- PASS: TestStudentContractQuerySnapshotDetectsDirectArchiveAccess (10.82s)
 PASS
-ok  	github.com/moto-nrw/project-phoenix/database/migrations	11.336s
+ok  	github.com/moto-ogs/project-phoenix/database/migrations	11.336s

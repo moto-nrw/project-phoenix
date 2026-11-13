@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"log/slog"
 
-	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
+	deliveryPorts "github.com/moto-ogs/project-phoenix/modules/delivery/internal/ports"
 
-	"github.com/moto-nrw/project-phoenix/modules/delivery/devices"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/devices"
 
-	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	deliveryModels "github.com/moto-ogs/project-phoenix/modules/delivery/subscriptions"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 )
 

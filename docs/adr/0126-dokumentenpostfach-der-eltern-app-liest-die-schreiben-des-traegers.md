@@ -4,8 +4,8 @@ status: accepted
 
 # Dokumentenpostfach der Eltern-App liest die Schreiben des Trägers
 
-Entscheidung vom 27.10.2026 zu [#4671](https://github.com/moto-nrw/project-phoenix/issues/4671),
-Etappe 1 der Spec [#4611](https://github.com/moto-nrw/project-phoenix/issues/4611),
+Entscheidung vom 27.10.2026 zu [#4671](https://github.com/moto-ogs/project-phoenix/issues/4671),
+Etappe 1 der Spec [#4611](https://github.com/moto-ogs/project-phoenix/issues/4611),
 User Stories 93 und 96. Sie ist der fünfte Bau-Schnitt der Elternabrechnung
 aus [ADR 0088](0088-betreuungsvertrag-und-elternabrechnung-sind-eigene-owner-beim-traeger.md)
 nach [ADR 0123](0123-bestaetigungsschreiben-gehen-als-mail-des-traegers-ueber-die-outbox.md).

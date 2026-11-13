@@ -1,5 +1,9 @@
 {
+  "archived": "{object} could not be changed. Please check its current status.",
   "color_already_in_use": "{object} could not be changed. Please check its current status.",
   "not_found": "{object} could not be changed. Please check its current status.",
-  "not_released": "{object} could not be changed. Please check its current status."
+  "not_released": "{object} could not be changed. Please check its current status.",
+  "required_by_care_offering": "{object} could not be changed. Please check its current status.",
+  "session_running": "{object} could not be changed. Please check its current status.",
+  "still_planned": "{object} could not be changed. Please check its current status."
 }

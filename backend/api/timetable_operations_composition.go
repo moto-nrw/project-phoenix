@@ -3,7 +3,7 @@ package api
 import (
 	"context"
 
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 )
 
 // TimetableRequestSession binds the operational day's session port to

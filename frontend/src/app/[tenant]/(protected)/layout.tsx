@@ -6,7 +6,8 @@ import { SessionEndBarrier } from "~/components/auth/session-end-barrier";
 import { GroupAttendanceCountProvider } from "~/lib/group-attendance-count-context";
 import { TeacherShellProvider } from "~/lib/shell-auth-context";
 import { AppShell } from "~/components/dashboard/app-shell";
-import { NotBookedPageProvider } from "~/lib/not-booked-page-context";
+import { NotBookedPageProvider } from "~/components/tenant/module-not-booked-state";
+import { TenantPagePathProvider } from "~/components/tenant/tenant-page-path";
 import { ShellIntlProvider } from "~/components/dashboard/shell-intl-provider";
 import { AnnouncementModal } from "~/components/platform/announcement-modal";
 import { PwaInstallHint } from "~/components/tenant/pwa-install-hint";
@@ -30,8 +31,11 @@ export default function ProtectedLayout({
           <GroupAttendanceCountProvider>
             <TenantDataPrefetch>
               <AppShell>
-                {/* Seiten nicht gebuchter Module erklären sich im Gerüst (#4894). */}
-                <NotBookedPageProvider>{children}</NotBookedPageProvider>
+                {/* Seiten nicht gebuchter Module erklären sich im Gerüst
+                    (#4894); der Rückweg des Gerüsts führt in die Schule. */}
+                <TenantPagePathProvider>
+                  <NotBookedPageProvider>{children}</NotBookedPageProvider>
+                </TenantPagePathProvider>
               </AppShell>
             </TenantDataPrefetch>
           </GroupAttendanceCountProvider>

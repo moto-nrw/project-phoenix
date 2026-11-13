@@ -4,9 +4,9 @@ status: accepted
 
 # Eine Wiederaufnahme führt die frühere Beschäftigung fort
 
-Der Supportfall in [#3376](https://github.com/moto-nrw/project-phoenix/issues/3376)
+Der Supportfall in [#3376](https://github.com/moto-ogs/project-phoenix/issues/3376)
 hat einen zweiten Fehler freigelegt, der in
-[#3394](https://github.com/moto-nrw/project-phoenix/issues/3394) steht: Der
+[#3394](https://github.com/moto-ogs/project-phoenix/issues/3394) steht: Der
 Personalaustritt trennt den Personensatz vom Konto, und wer später erneut
 aufgenommen wird, bekommt einen zweiten Personensatz und einen zweiten
 Staff-Satz. Die Historie bleibt an den alten hängen. Für Kinder ist dieselbe
@@ -91,7 +91,7 @@ liegt eine Ebene tiefer.
 
 8. **Geltungsbereich.** Nur die Einladung im Schulportal bekommt die Wahl. Der
    Staff-Import hat die Zuordnung bereits über den `PersonID`-Pfad aus
-   [#2600](https://github.com/moto-nrw/project-phoenix/issues/2600). Der
+   [#2600](https://github.com/moto-ogs/project-phoenix/issues/2600). Der
    Operator-Weg über Schulzugänge ist der Notfallweg und erbt nur die
    Wiedererkennung, ohne eigene Wahloberfläche.
 
@@ -131,7 +131,7 @@ liegt eine Ebene tiefer.
   zählt nur aktive Beschäftigungen. Bliebe die Bindung einfach stehen,
   scheiterte das Löschen einer Vorlage am Fremdschlüssel. Deshalb löst das
   Löschen einer Vorlage die Bindungen früherer Beschäftigungen mit
-  ([#3400](https://github.com/moto-nrw/project-phoenix/issues/3400)); eine
+  ([#3400](https://github.com/moto-ogs/project-phoenix/issues/3400)); eine
   aktive Beschäftigung blockiert es weiterhin.
 - Mit dem stehenden Kontolink darf das Löschen eines Personensatzes im
   Operator-Portal das Konto einer früheren Beschäftigung nicht mehr
@@ -145,8 +145,8 @@ liegt eine Ebene tiefer.
   Beschäftigung kommen.
 - Der Soft-Delete für Qualifikationen betrifft eine Tabelle, die in genau einer
   Datei gelesen wird (`workforce/internal/adapters/postgres/staffrecord_store.go`).
-- Ausgeliefert wird nach [#3391](https://github.com/moto-nrw/project-phoenix/pull/3391)
-  und [#3392](https://github.com/moto-nrw/project-phoenix/pull/3392), auf deren
+- Ausgeliefert wird nach [#3391](https://github.com/moto-ogs/project-phoenix/pull/3391)
+  und [#3392](https://github.com/moto-ogs/project-phoenix/pull/3392), auf deren
   Einlösepfad beides aufsetzt, und in zwei Stufen: erst die beiden Stellen aus
   Entscheidung 2, dann die Wahl mit Oberfläche. Die zweite Stufe zieht
   Hilfe-Guide und Screenshots nach `.claude/rules/help-guide-sync.md` mit.

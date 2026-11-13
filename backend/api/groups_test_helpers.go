@@ -5,23 +5,24 @@ package api
 import (
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/realtime"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	identityaccessCompose "github.com/moto-nrw/project-phoenix/modules/identityaccess/compose"
+	identityaccessCompose "github.com/moto-ogs/project-phoenix/modules/identityaccess/compose"
 
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	peopleCompose "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
-	peoplePorts "github.com/moto-nrw/project-phoenix/modules/peopledirectory/ports"
-	"github.com/moto-nrw/project-phoenix/modules/schoolstructure"
-	education "github.com/moto-nrw/project-phoenix/modules/schoolstructure/compose"
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence/compose/presenceservice"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	peopleCompose "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
+	peoplePorts "github.com/moto-ogs/project-phoenix/modules/peopledirectory/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolstructure"
+	education "github.com/moto-ogs/project-phoenix/modules/schoolstructure/compose"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence/compose/presenceservice"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // GroupsTestModule is the School Structure side of the group routes; the
@@ -72,6 +73,12 @@ func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 	if err != nil {
 		return GroupsTestModule{}, ActivePresence{}, ActivePeople{}, nil, err
 	}
+	// The presence mode is a tenant setting; production binds it, and without
+	// it every location read fails (#6849).
+	settings, err := owners.NewSettingsTestModule(db, unit)
+	if err != nil {
+		return GroupsTestModule{}, ActivePresence{}, ActivePeople{}, nil, err
+	}
 	sessionGroups, sessionSupervisors := presenceCompose.SessionRepositories(ttPresence.ActiveGroup)
 	presence := presenceservice.NewPresence(presenceservice.PresenceDependencies{
 		PrincipalReader: AttendancePrincipal,
@@ -81,7 +88,7 @@ func NewGroupsTestModule(db transactionruntime.Database, unit tenant.UnitOfWork,
 		EducationGroupRepo: owners.NewAttendanceEducationGroups(owners.NewSchoolStructureSuiteRepositories(db).Group, members.Student),
 		ActivityGroupRepo:  owners.NewSessionActivities(tt.GroupReads()), DB: db.Pool(), Logger: slog.Default(),
 		SchoolPresence: owners.NewLoggedStudentPresence(db, slog.Default()),
-	})
+	}, presenceservice.WithPresenceSettings(settingsCompose.PresenceSettings(settings.Settings)))
 
 	return GroupsTestModule{Education: groups}, ActivePresence{Active: presence}, ActivePeople{Users: persons, People: peopleCompose.NewGroupRoutePeople(persons)}, identity, nil
 }

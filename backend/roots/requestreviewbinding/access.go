@@ -4,8 +4,8 @@ import (
 	"context"
 	"errors"
 
-	reviewidentity "github.com/moto-nrw/project-phoenix/modules/identityaccess/requestreview"
-	"github.com/moto-nrw/project-phoenix/modules/requestreview"
+	reviewidentity "github.com/moto-ogs/project-phoenix/modules/identityaccess/requestreview"
+	"github.com/moto-ogs/project-phoenix/modules/requestreview"
 )
 
 type access struct {

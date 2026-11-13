@@ -40,6 +40,7 @@ var dataLabels = map[string]string{
 	"holiday_guest_transfer":              "Feriengäste in die Feriengruppe übernommen",
 	"holiday_guest_sheet":                 "Betreuung, Notfall, Abholung und Gesundheit eines Feriengasts",
 	"holiday_student_health":              "Gesundheitsangaben aus der Ferienanmeldung eines Kindes",
+	"holiday_home_school_bookings":        "Ferienbuchungen eigener Kinder an anderen OGS",
 	"guardian_email_stop":                 "Mails an einen Elternteil gestoppt oder wieder freigegeben",
 	"guardian_email_lift":                 "Sperre einer Mail-Adresse aufgehoben",
 	"care_contract_applications":          "Angenommene Anmeldungen für Betreuungsverträge",

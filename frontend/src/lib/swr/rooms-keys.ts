@@ -18,3 +18,13 @@ export const roomKeys = {
   // hook and the room sections refresh it via the "room-detail-" prefix.
   detailKey: (id: string) => `room-detail-${encodeURIComponent(id)}`,
 } as const;
+
+// Keys of the check-in target (#6953). The session and supervision keys are
+// the room page's move keys on purpose: one fetch serves both, and a move or
+// a check-in refreshes both lists.
+export const checkinTargetKeys = {
+  activeGroups: () => "room-bulk-active-groups",
+  supervisions: (staffId: string) => `room-bulk-active-supervisions-${staffId}`,
+  activities: () => "checkin-target-activities",
+  roomCandidates: () => "room-checkin-candidates",
+} as const;

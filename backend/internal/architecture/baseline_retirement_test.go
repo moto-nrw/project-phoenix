@@ -8,7 +8,7 @@ import (
 func TestDecodeLegacyManifestAcceptsModuleRootSourcePackage(t *testing.T) {
 	t.Parallel()
 
-	manifest, err := DecodeLegacyManifest(strings.NewReader(`{"scope":"production","rule":"imports.forbidden","source":"example.com","target":"example.com/target","issue":"https://github.com/moto-nrw/project-phoenix/issues/2583"}`))
+	manifest, err := DecodeLegacyManifest(strings.NewReader(`{"scope":"production","rule":"imports.forbidden","source":"example.com","target":"example.com/target","issue":"https://github.com/moto-ogs/project-phoenix/issues/2583"}`))
 	if err != nil {
 		t.Fatalf("module-root source package was rejected: %v", err)
 	}
@@ -24,7 +24,7 @@ func TestDecodeLegacyManifestAcceptsStandardLibraryTarget(t *testing.T) {
 		t.Run(target, func(t *testing.T) {
 			t.Parallel()
 
-			record := `{"scope":"production","rule":"imports.forbidden","source":"example.com/source","target":"` + target + `","issue":"https://github.com/moto-nrw/project-phoenix/issues/2583"}`
+			record := `{"scope":"production","rule":"imports.forbidden","source":"example.com/source","target":"` + target + `","issue":"https://github.com/moto-ogs/project-phoenix/issues/2583"}`
 			manifest, err := DecodeLegacyManifest(strings.NewReader(record))
 			if err != nil {
 				t.Fatalf("standard-library target was rejected: %v", err)
@@ -39,7 +39,7 @@ func TestDecodeLegacyManifestAcceptsStandardLibraryTarget(t *testing.T) {
 func TestDecodeLegacyManifestAcceptsSemanticTarget(t *testing.T) {
 	t.Parallel()
 
-	manifest, err := DecodeLegacyManifest(strings.NewReader(`{"scope":"production","rule":"tables.unresolved","source":"example.com/source","target":"account_permissions_direct","issue":"https://github.com/moto-nrw/project-phoenix/issues/2583"}`))
+	manifest, err := DecodeLegacyManifest(strings.NewReader(`{"scope":"production","rule":"tables.unresolved","source":"example.com/source","target":"account_permissions_direct","issue":"https://github.com/moto-ogs/project-phoenix/issues/2583"}`))
 	if err != nil {
 		t.Fatalf("semantic target was rejected: %v", err)
 	}
@@ -55,7 +55,7 @@ func TestDecodeLegacyManifestRejectsPackageFamilyTargets(t *testing.T) {
 		t.Run(rule, func(t *testing.T) {
 			t.Parallel()
 
-			record := `{"scope":"production","rule":"` + rule + `","source":"example.com/source","target":"services","issue":"https://github.com/moto-nrw/project-phoenix/issues/2583"}`
+			record := `{"scope":"production","rule":"` + rule + `","source":"example.com/source","target":"services","issue":"https://github.com/moto-ogs/project-phoenix/issues/2583"}`
 			_, err := DecodeLegacyManifest(strings.NewReader(record))
 			if err == nil || !strings.Contains(err.Error(), "target \"services\" must be an exact Go package path") {
 				t.Fatalf("package-family target was accepted: %v", err)

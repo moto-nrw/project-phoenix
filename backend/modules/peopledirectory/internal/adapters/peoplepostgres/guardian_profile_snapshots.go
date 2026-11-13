@@ -6,8 +6,8 @@ import (
 	"errors"
 	"fmt"
 
-	directory "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	users "github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/rows"
+	directory "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	users "github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/rows"
 )
 
 // The existing directory store serves the native read facade itself. Each

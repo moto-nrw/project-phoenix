@@ -5,7 +5,7 @@ status: accepted
 # The gocognit upgrade rebaselines the module complexity register
 
 Decision of 2026-10-19 under
-[#4386](https://github.com/moto-nrw/project-phoenix/issues/4386). It raises a
+[#4386](https://github.com/moto-ogs/project-phoenix/issues/4386). It raises a
 register that [ADR 0057](0057-only-the-target-is-a-rule.md) point 5 lets only
 fall.
 
@@ -34,7 +34,7 @@ that grows more complex. Here the code is unchanged and only the measuring
 instrument moved. Refactoring the sixteen affected functions would touch
 seven modules and one workflow for a dependency bump, among them five login,
 MFA, session, invitation and staff-preview flows in Identity & Access. That work
-belongs to [#3423](https://github.com/moto-nrw/project-phoenix/issues/3423),
+belongs to [#3423](https://github.com/moto-ogs/project-phoenix/issues/3423),
 where each function can be cut with its own tests.
 
 ## Decision

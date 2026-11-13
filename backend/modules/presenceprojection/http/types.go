@@ -3,7 +3,7 @@ package presenceprojectionhttp
 import (
 	time "time"
 
-	departure "github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	departure "github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 )
 
 // TeacherHint is a Lehrkraft's hint for the OGS for today (#4795), written in

@@ -11,11 +11,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/devicescan"
-	staffclockAPI "github.com/moto-nrw/project-phoenix/modules/devicescan/http/staffclock"
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/devicescan"
+	staffclockAPI "github.com/moto-ogs/project-phoenix/modules/devicescan/http/staffclock"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // staffClockFixtures links cards to people and sends device-authenticated

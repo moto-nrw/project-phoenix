@@ -8,9 +8,23 @@
       "external_test_role": "adapter-test"
     },
     {
+      "path": "modules/communication/http/parentannouncements/behaviortest",
+      "owner": "communication",
+      "role": "test-support",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
       "path": "modules/communication/http/parentmessages",
       "owner": "communication",
       "role": "http",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "adapter-test"
+    },
+    {
+      "path": "modules/communication/http/parentmessages/behaviortest",
+      "owner": "communication",
+      "role": "test-support",
       "internal_test_role": "adapter-test",
       "external_test_role": "adapter-test"
     },
@@ -36,6 +50,13 @@
       "external_test_role": "workflow-integration-test"
     },
     {
+      "path": "modules/communication/internal/parentmessages/behaviortest",
+      "owner": "communication",
+      "role": "test-support",
+      "internal_test_role": "adapter-test",
+      "external_test_role": "workflow-integration-test"
+    },
+    {
       "path": "modules/communication/internal/staffmessages",
       "owner": "communication",
       "role": "adapter",
@@ -46,6 +67,13 @@
       "path": "modules/communication",
       "owner": "communication",
       "role": "public",
+      "internal_test_role": "module-internal-test",
+      "external_test_role": "module-behavior-test"
+    },
+    {
+      "path": "modules/communication/behaviortest",
+      "owner": "communication",
+      "role": "test-support",
       "internal_test_role": "module-internal-test",
       "external_test_role": "module-behavior-test"
     },

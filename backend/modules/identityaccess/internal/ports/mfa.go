@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/internal/domain"
 )
 
 // The seams the MFA and passkey flows need beyond the record stores (#3331):
@@ -20,6 +20,12 @@ type AccountMFARecords interface {
 	MFAAccountPermissions(ctx context.Context, accountID, tenantID int64) ([]string, error)
 	InvalidateSessionMFA(ctx context.Context, accountID int64) error
 	AccountDirectory
+	// ListActiveTenantIDs returns the schools the account is actively mapped
+	// to (#6862: whether one school alone holds it).
+	ListActiveTenantIDs(ctx context.Context, accountID int64) ([]int64, domain.OperationStats, error)
+	// HoldsTraegerParentAccess reports parents-portal access at any Träger
+	// (#6862: a further holder of the account).
+	HoldsTraegerParentAccess(ctx context.Context, accountID int64) (bool, error)
 	// AccountBelongsToTenant reports an active school mapping.
 	AccountBelongsToTenant(ctx context.Context, accountID, tenantID int64) (bool, error)
 	// LockAccountForOverrideWrite takes the account row FOR UPDATE. A

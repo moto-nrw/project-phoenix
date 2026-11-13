@@ -5,10 +5,10 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/ports"
 )
 
 // BillingCounts are the owners' live figures the billing report captures:

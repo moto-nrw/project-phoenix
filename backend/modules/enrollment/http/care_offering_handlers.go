@@ -10,11 +10,11 @@ import (
 	"strconv"
 	"time"
 
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
 	"github.com/go-chi/render"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/api/common"
 )
 
 // CareOfferingResponse is the wire shape for a single offering. IDs
@@ -490,6 +490,10 @@ func (rs *Resource) deleteCareOffering(w http.ResponseWriter, r *http.Request) {
 		}
 		if rs.Failures.savepointControlFailed(r, err) {
 			common.RenderError(w, r, common.ErrorInternalServer(err))
+			return
+		}
+		if errors.Is(err, capability.ErrTraegerCopyDelete) {
+			common.RenderError(w, r, common.ErrorConflictWithCode(capability.ErrTraegerCopyDelete, common.CodeEnrollmentTraegerCopyDelete))
 			return
 		}
 		// FK violation when a selection or care booking already references

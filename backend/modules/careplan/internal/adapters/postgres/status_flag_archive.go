@@ -6,9 +6,9 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	carePlanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/internal/domain"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	carePlanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/internal/domain"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 
@@ -16,7 +16,8 @@ import (
 // status flags stand for (see careplan.StatusFlagArchive). An archived day
 // keeps the row the report wrote: its status, source and visibility stay as
 // they were (#6291), and a day someone cleared stays cleared. Only a day
-// without any row gets an end-of-day row.
+// without a row of the status gets an end-of-day row, and none while another
+// status stands for the day: a child has one standing status per day (#6958).
 func (s *statusDayStore) ArchiveStudentStatusFlags(ctx context.Context, value careplan.StatusFlagArchive) (int64, carePlanCompose.RequestStoreStats, error) {
 	if !statusFlagColumnsMatch(value) {
 		return 0, carePlanCompose.RequestStoreStats{}, fmt.Errorf("status flag columns do not match status %q", value.Status)
@@ -39,7 +40,7 @@ func (s *statusDayStore) ArchiveStudentStatusFlags(ctx context.Context, value ca
 	rows, ids := statusFlagArchiveRows(value, students)
 	started := time.Now()
 	_, err = db.NewInsert().Model(&rows).ModelTableExpr("active.student_status_days").
-		On("CONFLICT (tenant_id, student_id, date, status) DO NOTHING").Exec(ctx)
+		On("CONFLICT DO NOTHING").Exec(ctx)
 	stats := requestStats(started, int64(len(rows)))
 	if err != nil {
 		return 0, stats, requestDBError("archive status flag", err)
@@ -52,8 +53,9 @@ func (s *statusDayStore) ArchiveStudentStatusFlags(ctx context.Context, value ca
 // day. The row is the OGS's own (manual): the status stands because of the
 // school's clear mode, not because of a new report, so a check-in that clears
 // reported days (planned, parent, school) leaves it alone and the class day
-// does not show it as entered by the school. A day that already has a row
-// keeps it; a new row books the day's slots like any status day.
+// does not show it as entered by the school. A day that already has a row of
+// the status, or another standing status (#6958), keeps it; a new row books
+// the day's slots like any status day.
 func (s *statusDayStore) carryStatusFlags(ctx context.Context, db bun.IDB, tenantID int64, value careplan.StatusFlagArchive, students []StatusStudent) (int64, carePlanCompose.RequestStoreStats, error) {
 	ids := make([]int64, 0, len(students))
 	for _, student := range students {
@@ -79,7 +81,7 @@ func (s *statusDayStore) carryStatusFlags(ctx context.Context, db bun.IDB, tenan
 	}
 	started := time.Now()
 	err := db.NewInsert().Model(&rows).ModelTableExpr("active.student_status_days").
-		On("CONFLICT (tenant_id, student_id, date, status) DO NOTHING").Returning("id, student_id").Scan(ctx, &inserted)
+		On("CONFLICT DO NOTHING").Returning("id, student_id").Scan(ctx, &inserted)
 	writeStats := requestStats(started, int64(len(inserted)))
 	stats.Queries += writeStats.Queries
 	stats.Rows += writeStats.Rows

@@ -36,6 +36,10 @@ vi.mock("next-auth/react", () => ({
   }),
 }));
 
+import {
+  traegerNavGroupsFor,
+  traegerSettingsNavItemsFor,
+} from "./shell/traeger-nav-items";
 import { TraegerShell } from "./traeger-shell";
 import { ToastProvider } from "~/contexts/ToastContext";
 
@@ -145,6 +149,38 @@ describe("TraegerShell", () => {
     expect(header.getByText("Ganztag gGmbH")).toBeInTheDocument();
     expect(header.getAllByText("Allgemein").length).toBeGreaterThan(0);
     expect(header.getByText("Träger-Büro")).toBeInTheDocument();
+  });
+
+  // The header named „Anmeldephasen“, „Schließtage“ and „Länger als
+  // gebucht“ „Home“: every page of the sidebar carries its own title.
+  it("titles every page of the sidebar with its name", () => {
+    const everything = {
+      user: { permissions: ["*:*"] },
+      expires: "",
+    } as unknown as Parameters<typeof traegerNavGroupsFor>[0];
+    const items = [
+      ...traegerNavGroupsFor(everything).flatMap((group) => group.items),
+      ...traegerSettingsNavItemsFor(everything),
+    ];
+    expect(items.length).toBeGreaterThan(10);
+    for (const item of items) {
+      mockPathname.mockReturnValue(item.href);
+      const view = renderPortal();
+      expect(
+        within(screen.getByRole("banner")).getAllByText(item.label).length,
+      ).toBeGreaterThan(0);
+      view.unmount();
+    }
+  });
+
+  // #6872: the content wrapper is a flex column, so the last surface of a
+  // short page grows to the bottom edge like in the staff portal.
+  it("lets the page content fill the height of the screen", () => {
+    renderPortal();
+
+    const wrapper = screen.getByText("Inhalt").parentElement;
+    expect(wrapper?.parentElement?.tagName).toBe("MAIN");
+    expect(wrapper).toHaveClass("flex", "flex-1", "flex-col");
   });
 
   it("offers the holiday periods only to a role that manages enrollment", () => {

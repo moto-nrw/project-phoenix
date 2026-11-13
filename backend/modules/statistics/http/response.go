@@ -3,7 +3,7 @@ package statisticshttp
 import (
 	"strconv"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // int64 IDs travel as strings on the wire (frontend convention).

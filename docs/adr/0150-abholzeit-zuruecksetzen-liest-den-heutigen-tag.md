@@ -4,7 +4,7 @@ status: accepted
 
 # Abholzeit zurücksetzen liest den heutigen Tag
 
-Entscheidung vom 2026-11-03 für [#5643](https://github.com/moto-nrw/project-phoenix/issues/5643).
+Entscheidung vom 2026-11-03 für [#5643](https://github.com/moto-ogs/project-phoenix/issues/5643).
 
 ## Kontext
 

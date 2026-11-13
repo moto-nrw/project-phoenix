@@ -3,7 +3,7 @@ package postgres
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/internal/domain"
 )
 
 func (s *StudentStore) ListCareEnds(ctx context.Context, ids []int64) (map[int64]string, domain.OperationStats, error) {

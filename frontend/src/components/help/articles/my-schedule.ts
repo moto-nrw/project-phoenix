@@ -50,7 +50,9 @@ export function myScheduleTopic(): HelpTopic {
       "Sie haben einen Überblick über Ihre Termine und Einsätze. Das Kalender-Abo übernimmt neue, geänderte und abgesagte Einträge automatisch.",
     notes: [
       "Mit `Sa/So` blenden Sie das Wochenende ein. Eine Zahl zeigt, dass dort Einträge liegen.",
-      "Bei einer Einladung wählen Sie im geöffneten Termin `Zusagen` oder `Absagen`.",
+      "Bei einer Einladung wählen Sie im geöffneten Termin `Zusagen` oder `Absagen`. Bei einer Reihe wählen Sie vorher unter `Ihre Antwort gilt für`, ob die Antwort nur für diesen Termin oder für `Alle Termine` gilt.",
+      "`Teilnehmer` zeigt bei einer Reihe die Antworten für den geöffneten Termin.",
+      "Beim Anlegen und Bearbeiten wählen Sie unter `Wer sieht die Teilnehmerübersicht?`, wer die Antworten sieht. Bei `Alle Eingeladenen` sehen Eltern nur, wie viele zugesagt und abgesagt haben, keine Namen.",
       "Legen Sie einen Termin an und wählen Sie `Alle Lehrkräfte`. Dann sehen die Lehrkräfte ihn in moto schule.",
     ],
     differences: [

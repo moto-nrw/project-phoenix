@@ -5,7 +5,7 @@ import (
 	"encoding/json"
 	"time"
 
-	calendar "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	calendar "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // EditInput cannot change the kind of the locked request. Pickup edits check

@@ -4,9 +4,9 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/ports"
 )
 
 type fakeOwnerStore struct{ engine *fakeEngine }
@@ -16,6 +16,9 @@ func (ownerTestTransaction) RunAdmin(ctx context.Context, fn func(context.Contex
 	return fn(ctx)
 }
 func (ownerTestTransaction) RunAdminRetry(ctx context.Context, fn func(context.Context) error) error {
+	return fn(ctx)
+}
+func (ownerTestTransaction) RunAdminDetached(ctx context.Context, fn func(context.Context) error) error {
 	return fn(ctx)
 }
 func (ownerTestTransaction) RunRead(ctx context.Context, fn func(context.Context) error) error {

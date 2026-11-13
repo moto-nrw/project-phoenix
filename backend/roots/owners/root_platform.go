@@ -7,24 +7,23 @@ import (
 	"strings"
 	"time"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 
-	auditRecords "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	auditRecords "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	deliveryCompose "github.com/moto-nrw/project-phoenix/modules/delivery/compose"
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
-	deliveryModule "github.com/moto-nrw/project-phoenix/modules/delivery/runtime"
-	feedbackCompose "github.com/moto-nrw/project-phoenix/modules/feedback/compose"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	mealplanCompose "github.com/moto-nrw/project-phoenix/modules/mealplan/compose"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	deliveryCompose "github.com/moto-ogs/project-phoenix/modules/delivery/compose"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
+	deliveryModule "github.com/moto-ogs/project-phoenix/modules/delivery/runtime"
+	feedbackCompose "github.com/moto-ogs/project-phoenix/modules/feedback/compose"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	mealplanCompose "github.com/moto-ogs/project-phoenix/modules/mealplan/compose"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // AuditOwner is the Audit Platform as the roots compose it: every retained
@@ -187,10 +186,9 @@ func BuildTraegerSettings(db transactionruntime.Database, unit rootUnitOfWork, l
 		notify = func(context.Context, int64, string) {}
 	}
 	return settingsCompose.NewTraegerSettings(settingsCompose.TraegerSettingsDependencies{
-		AuditRetentionYears: settingsModule.SettingAuditRetentionYears,
-		Values:              settingsCompose.NewTraegerSettingRepository(settingsCompose.NewTenantSettingsRuntime(db.Pool(), nil)),
-		Runtime:             settingsCompose.NewTenantSettingsRuntime(db.Pool(), &unit),
-		Schools:             organizations.ListTraegerSchoolIDs, Notify: notify, Logger: logger, Now: time.Now,
+		Values:  settingsCompose.NewTraegerSettingRepository(settingsCompose.NewTenantSettingsRuntime(db.Pool(), nil)),
+		Runtime: settingsCompose.NewTenantSettingsRuntime(db.Pool(), &unit),
+		Schools: organizations.ListTraegerSchoolIDs, Notify: notify, Logger: logger, Now: time.Now,
 		Rights: map[configModels.TraegerRight]string{
 			configModels.TraegerRightSettings: identityaccess.TraegerRightSettingsManage,
 			configModels.TraegerRightStaff:    identityaccess.TraegerRightStaffManage,

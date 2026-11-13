@@ -249,7 +249,10 @@ describe("Verbraucher entscheiden wie CSS", () => {
           .filter((tab) => tab.getAttribute("tabindex") === "0");
         expect(stops).toHaveLength(1);
         const cssIsPhone = !cssVariantApplies("sm");
-        expect(stops[0]).toHaveAccessibleName(cssIsPhone ? "Personal" : "Mehr");
+        // Steht der aktive Reiter unter „Mehr“, nennt der Auslöser ihn mit.
+        expect(stops[0]).toHaveAccessibleName(
+          cssIsPhone ? "Personal" : "Mehr: Personal",
+        );
         // Der Tabulator-Stopp ist bei dieser Breite per CSS sichtbar.
         const hiddenByCss = cssIsPhone ? "max-sm:hidden" : "sm:hidden";
         expect(stops[0]).not.toHaveClass(hiddenByCss);

@@ -1,12 +1,14 @@
-package careplanhttp
+package careplanhttp_test
 
 import (
 	"encoding/json"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/departure"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/departure"
 	"github.com/stretchr/testify/require"
+
+	careplanhttp "github.com/moto-ogs/project-phoenix/modules/careplan/http"
 )
 
 // TestStudentRequestBind_AccompaniedRequiresCompanionNote pins the create-path
@@ -21,7 +23,7 @@ func TestStudentRequestBind_AccompaniedRequiresCompanionNote(t *testing.T) {
 		modes := departure.AllowedDepartureModes{
 			departure.PickupDayMonday: []departure.DepartureMode{departure.DepartureAccompanied},
 		}
-		req := &StudentRequest{
+		req := &careplanhttp.StudentRequest{
 			FirstName:             "Max",
 			LastName:              "Muster",
 			SchoolClass:           "1a",
@@ -33,7 +35,7 @@ func TestStudentRequestBind_AccompaniedRequiresCompanionNote(t *testing.T) {
 	t.Run("departure_days accompanied with blank note is rejected", func(t *testing.T) {
 		days := departure.DepartureDays{departure.PickupDayMonday: departure.DepartureAccompanied}
 		blank := "   "
-		req := &StudentRequest{
+		req := &careplanhttp.StudentRequest{
 			FirstName:              "Max",
 			LastName:               "Muster",
 			SchoolClass:            "1a",
@@ -48,7 +50,7 @@ func TestStudentRequestBind_AccompaniedRequiresCompanionNote(t *testing.T) {
 			departure.PickupDayMonday: []departure.DepartureMode{departure.DepartureAccompanied},
 		}
 		note := "Geschwisterkind Lena"
-		req := &StudentRequest{
+		req := &careplanhttp.StudentRequest{
 			FirstName:              "Max",
 			LastName:               "Muster",
 			SchoolClass:            "1a",
@@ -62,7 +64,7 @@ func TestStudentRequestBind_AccompaniedRequiresCompanionNote(t *testing.T) {
 		modes := departure.AllowedDepartureModes{
 			departure.PickupDayMonday: []departure.DepartureMode{departure.DepartureBus},
 		}
-		req := &StudentRequest{
+		req := &careplanhttp.StudentRequest{
 			FirstName:             "Max",
 			LastName:              "Muster",
 			SchoolClass:           "1a",
@@ -82,7 +84,7 @@ func TestStudentRequestBind_AccompaniedRequiresCompanionNote(t *testing.T) {
 			departure.PickupDayMonday: []departure.DepartureMode{departure.DepartureBus},
 		}
 		staleDays := departure.DepartureDays{departure.PickupDayMonday: departure.DepartureAccompanied}
-		req := &StudentRequest{
+		req := &careplanhttp.StudentRequest{
 			FirstName:             "Max",
 			LastName:              "Muster",
 			SchoolClass:           "1a",
@@ -101,7 +103,7 @@ func TestStudentRequestBind_AccompaniedRequiresCompanionNote(t *testing.T) {
 			departure.PickupDayMonday: []departure.DepartureMode{departure.DepartureAccompanied},
 		}
 		days := departure.DepartureDays{departure.PickupDayMonday: departure.DepartureBus}
-		req := &StudentRequest{
+		req := &careplanhttp.StudentRequest{
 			FirstName:             "Max",
 			LastName:              "Muster",
 			SchoolClass:           "1a",
@@ -119,10 +121,10 @@ func TestStudentRequestBind_AccompaniedRequiresCompanionNote(t *testing.T) {
 func TestUpdateStudentRequestBind_CompanionCount(t *testing.T) {
 	t.Parallel()
 
-	entries := func(n int) *[]CompanionEntry {
-		list := make([]CompanionEntry, 0, n)
+	entries := func(n int) *[]careplanhttp.CompanionEntry {
+		list := make([]careplanhttp.CompanionEntry, 0, n)
 		for i := range n {
-			list = append(list, CompanionEntry{
+			list = append(list, careplanhttp.CompanionEntry{
 				CompanionStudentID: int64(i + 1),
 				Weekdays:           []string{"mon"},
 			})
@@ -135,7 +137,7 @@ func TestUpdateStudentRequestBind_CompanionCount(t *testing.T) {
 	fingerprint := ""
 
 	t.Run("a list at the cap is accepted", func(t *testing.T) {
-		req := &UpdateStudentRequest{
+		req := &careplanhttp.UpdateStudentRequest{
 			Companions:            entries(careplan.MaxStudentCompanions),
 			CompanionsFingerprint: &fingerprint,
 		}
@@ -143,12 +145,12 @@ func TestUpdateStudentRequestBind_CompanionCount(t *testing.T) {
 	})
 
 	t.Run("a list over the cap is rejected before any lock", func(t *testing.T) {
-		req := &UpdateStudentRequest{Companions: entries(careplan.MaxStudentCompanions + 1)}
+		req := &careplanhttp.UpdateStudentRequest{Companions: entries(careplan.MaxStudentCompanions + 1)}
 		require.ErrorIs(t, req.Bind(nil), careplan.ErrTooManyCompanions)
 	})
 
 	t.Run("no companions key is untouched", func(t *testing.T) {
-		req := &UpdateStudentRequest{}
+		req := &careplanhttp.UpdateStudentRequest{}
 		require.NoError(t, req.Bind(nil))
 	})
 }
@@ -164,21 +166,21 @@ func TestUpdateStudentRequestBind_CompanionCount(t *testing.T) {
 func TestUpdateStudentRequestBind_CompanionsFingerprint(t *testing.T) {
 	t.Parallel()
 
-	list := []CompanionEntry{{CompanionStudentID: 7, Weekdays: []string{"mon"}}}
+	list := []careplanhttp.CompanionEntry{{CompanionStudentID: 7, Weekdays: []string{"mon"}}}
 
 	t.Run("a list without a fingerprint is rejected", func(t *testing.T) {
-		req := &UpdateStudentRequest{Companions: &list}
-		require.ErrorIs(t, req.Bind(nil), errCompanionsFingerprintRequired)
+		req := &careplanhttp.UpdateStudentRequest{Companions: &list}
+		require.ErrorIs(t, req.Bind(nil), careplanhttp.ErrCompanionsFingerprintRequiredForTest)
 	})
 
 	t.Run("the empty fingerprint of an empty list is a claim, not an omission", func(t *testing.T) {
 		empty := ""
-		req := &UpdateStudentRequest{Companions: &[]CompanionEntry{}, CompanionsFingerprint: &empty}
+		req := &careplanhttp.UpdateStudentRequest{Companions: &[]careplanhttp.CompanionEntry{}, CompanionsFingerprint: &empty}
 		require.NoError(t, req.Bind(nil))
 	})
 
 	t.Run("no list needs no fingerprint", func(t *testing.T) {
-		require.NoError(t, (&UpdateStudentRequest{}).Bind(nil))
+		require.NoError(t, (&careplanhttp.UpdateStudentRequest{}).Bind(nil))
 	})
 }
 
@@ -199,26 +201,26 @@ func TestUpdateStudentRequestTouchesCompanions(t *testing.T) {
 	busKind := true
 
 	t.Run("silent for writes that cannot touch the links", func(t *testing.T) {
-		for name, req := range map[string]*UpdateStudentRequest{
+		for name, req := range map[string]*careplanhttp.UpdateStudentRequest{
 			"nothing":   {},
 			"name":      {FirstName: &firstName},
 			"sick flag": {Sick: &sick},
 		} {
-			if req.touchesCompanions() {
+			if req.TouchesCompanionsForTest() {
 				t.Errorf("%s must not announce a companion change", name)
 			}
 		}
 	})
 
 	t.Run("fires for a submitted list and for every plan input", func(t *testing.T) {
-		entries := []CompanionEntry{}
+		entries := []careplanhttp.CompanionEntry{}
 		modes := departure.AllowedDepartureModes{}
 		days := departure.DepartureDays{}
 		pickupDays := departure.PickupDays{}
 		busDays := departure.BusDays{}
 		status := "Geht alleine nach Hause"
 
-		for name, req := range map[string]*UpdateStudentRequest{
+		for name, req := range map[string]*careplanhttp.UpdateStudentRequest{
 			"companions":              {Companions: &entries},
 			"allowed_departure_modes": {AllowedDepartureModes: &modes},
 			"departure_days":          {DepartureDays: &days},
@@ -230,7 +232,7 @@ func TestUpdateStudentRequestTouchesCompanions(t *testing.T) {
 			"bus":           {Bus: &busKind},
 			"bus_days":      {BusDays: &busDays},
 		} {
-			if !req.touchesCompanions() {
+			if !req.TouchesCompanionsForTest() {
 				t.Errorf("%s must announce a companion change", name)
 			}
 		}
@@ -261,7 +263,7 @@ func TestCompanionEntryUnmarshal_AcceptsStringIDs(t *testing.T) {
 	}
 	for name, tc := range cases {
 		t.Run(name, func(t *testing.T) {
-			var entry CompanionEntry
+			var entry careplanhttp.CompanionEntry
 			require.NoError(t, json.Unmarshal([]byte(tc.body), &entry))
 			require.Equal(t, tc.want, entry.CompanionStudentID)
 			require.Equal(t, []string{"mon"}, entry.Weekdays)
@@ -269,13 +271,13 @@ func TestCompanionEntryUnmarshal_AcceptsStringIDs(t *testing.T) {
 	}
 
 	t.Run("a non-numeric id is refused with the German sentinel", func(t *testing.T) {
-		var entry CompanionEntry
+		var entry careplanhttp.CompanionEntry
 		err := json.Unmarshal([]byte(`{"companion_student_id":"abc","weekdays":["mon"]}`), &entry)
 		require.ErrorIs(t, err, careplan.ErrCompanionStudentIDRequired)
 	})
 
 	t.Run("a missing id stays zero for Bind to reject", func(t *testing.T) {
-		var entry CompanionEntry
+		var entry careplanhttp.CompanionEntry
 		require.NoError(t, json.Unmarshal([]byte(`{"weekdays":["mon"]}`), &entry))
 		require.Zero(t, entry.CompanionStudentID)
 	})

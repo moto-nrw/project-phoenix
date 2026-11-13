@@ -10,7 +10,7 @@ import (
 	"slices"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ErrAuditLogInvalid marks a caller mistake in an audit log request — HTTP 400.

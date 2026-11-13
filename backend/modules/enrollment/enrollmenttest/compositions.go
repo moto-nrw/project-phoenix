@@ -1,6 +1,6 @@
 package enrollmenttest
 
-import "github.com/moto-nrw/project-phoenix/modules/enrollment/compose"
+import "github.com/moto-ogs/project-phoenix/modules/enrollment/compose"
 
 // The Enrollment compositions other owners' contract suites drive next to
 // their own owner, bound as the composition binds them: the decision flow

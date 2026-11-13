@@ -54,6 +54,10 @@ func seedHolidayLegalForm(rt *Runtime, auth AuthRef, path string) (int, error) {
 	blocks = append(blocks, map[string]any{"key": "fotos_ferien", "kind": "consent", "source": "custom", "title": "Fotos in der Ferienbetreuung", "label": "Mein Kind darf auf Erinnerungsfotos zu sehen sein.", "text": "Die Fotos bleiben in der OGS.", "enabled": true})
 	raw, err = rt.Client.PutWithAuth(auth, path, map[string]any{
 		"fields": form.Data.Fields, "legal_blocks": blocks, "address_requirement": form.Data.AddressRequirement,
+		// The last version requires allergies and medication (#6686): the
+		// public form shows the questions with „Nein, keine“, the earlier
+		// registrations keep their optional version.
+		"health_requirement": "required",
 	})
 	if err != nil {
 		return 0, err
@@ -107,6 +111,15 @@ func seedHolidayLegalRegistration(rt *Runtime, version int) error {
 		return err
 	}
 	body["guardian"].(map[string]any)["email"] = "hinweise.ferien@example.org"
+	// The version requires both health fields; "Keine" answers a child
+	// without any (#6686).
+	for _, child := range body["children"].([]map[string]any) {
+		for _, field := range []string{"allergies", "medication"} {
+			if value, _ := child[field].(string); value == "" {
+				child[field] = "Keine"
+			}
+		}
+	}
 	body["legal_acceptances"] = map[string]bool{"hinweis_1": true, "hinweis_2": true, "fotos_ferien": false}
 	body["form_version"] = version
 	_, err = rt.Client.PostPublic("/traeger/holiday-registrations/"+token, body)

@@ -3,7 +3,7 @@ package api
 import (
 	"strings"
 
-	settings "github.com/moto-nrw/project-phoenix/modules/settings"
+	settings "github.com/moto-ogs/project-phoenix/modules/settings"
 )
 
 // moduleRouteBasis marks a route of moto Basis: every school has it, no

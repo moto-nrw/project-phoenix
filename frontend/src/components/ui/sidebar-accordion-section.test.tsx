@@ -1,9 +1,11 @@
 import { describe, it, expect, vi } from "vitest";
 import { render, screen, fireEvent } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { groupsConcept } from "~/lib/concepts/groups";
 import { SidebarAccordionSection } from "./sidebar-accordion-section";
 
 const defaultProps = {
-  icon: "M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3",
+  concept: groupsConcept,
   label: "Test Section",
   isExpanded: false,
   onToggle: vi.fn(),
@@ -24,24 +26,29 @@ describe("SidebarAccordionSection", () => {
     expect(onToggle).toHaveBeenCalledOnce();
   });
 
-  it("calls onToggle on Enter key", () => {
+  // Die Kopfzeile ist ein nativer Knopf: Enter und Leertaste lösen ihn ohne
+  // eigenen Tasten-Handler genau einmal aus (#6580).
+  it("calls onToggle on Enter key", async () => {
     const onToggle = vi.fn();
     render(<SidebarAccordionSection {...defaultProps} onToggle={onToggle} />);
-    fireEvent.keyDown(screen.getByRole("button"), { key: "Enter" });
+    screen.getByRole("button").focus();
+    await userEvent.keyboard("{Enter}");
     expect(onToggle).toHaveBeenCalledOnce();
   });
 
-  it("calls onToggle on Space key", () => {
+  it("calls onToggle on Space key", async () => {
     const onToggle = vi.fn();
     render(<SidebarAccordionSection {...defaultProps} onToggle={onToggle} />);
-    fireEvent.keyDown(screen.getByRole("button"), { key: " " });
+    screen.getByRole("button").focus();
+    await userEvent.keyboard(" ");
     expect(onToggle).toHaveBeenCalledOnce();
   });
 
-  it("does not call onToggle on other keys", () => {
+  it("does not call onToggle on other keys", async () => {
     const onToggle = vi.fn();
     render(<SidebarAccordionSection {...defaultProps} onToggle={onToggle} />);
-    fireEvent.keyDown(screen.getByRole("button"), { key: "Tab" });
+    screen.getByRole("button").focus();
+    await userEvent.keyboard("{Tab}");
     expect(onToggle).not.toHaveBeenCalled();
   });
 
@@ -125,55 +132,40 @@ describe("SidebarAccordionSection", () => {
     expect(screen.getByTestId("child-content")).toBeInTheDocument();
   });
 
-  it("applies activeColor when isActive is true", () => {
-    render(
-      <SidebarAccordionSection
-        {...defaultProps}
-        isActive={true}
-        activeColor="text-blue-500"
-      />,
-    );
-    const svg = document.querySelector("svg");
-    expect(svg?.getAttribute("class")).toContain("text-blue-500");
+  // Das Icon zeigt den Aktivzustand farbig im Ton seines Konzepts; vorher
+  // hing das an `activeColor` eines Pfad-Icons, das kein Aufrufer mehr
+  // nutzte (#6580).
+  function iconTone(): string | null {
+    // Anker: das Icon des Bereichs ist gerendert.
+    const icon = document.querySelector("[data-nav-scene]");
+    expect(icon).toBeInTheDocument();
+    return icon?.getAttribute("data-moto-duotone-tone") ?? null;
+  }
+
+  it("colors the icon when isActive is true", () => {
+    render(<SidebarAccordionSection {...defaultProps} isActive={true} />);
+    expect(iconTone()).toBe(groupsConcept.tone);
   });
 
-  it("applies activeColor when isIconActive is true (overrides isActive)", () => {
+  it("colors the icon when isIconActive is true (overrides isActive)", () => {
     render(
       <SidebarAccordionSection
         {...defaultProps}
         isActive={false}
         isIconActive={true}
-        activeColor="text-green-500"
       />,
     );
-    const svg = document.querySelector("svg");
-    expect(svg?.getAttribute("class")).toContain("text-green-500");
+    expect(iconTone()).toBe(groupsConcept.tone);
   });
 
-  it("does not apply activeColor when neither isActive nor isIconActive", () => {
-    render(
-      <SidebarAccordionSection
-        {...defaultProps}
-        isActive={false}
-        isIconActive={false}
-        activeColor="text-red-500"
-      />,
-    );
-    const svg = document.querySelector("svg");
-    const classAttr = svg?.getAttribute("class") ?? "";
-    expect(classAttr).not.toContain("text-red-500");
-  });
-
-  it("does not apply activeColor when activeColor is undefined", () => {
+  it("does not color the icon when neither isActive nor isIconActive", () => {
     render(
       <SidebarAccordionSection
         {...defaultProps}
         isActive={true}
-        activeColor={undefined}
+        isIconActive={false}
       />,
     );
-    // Should not crash and icon should not have any color class beyond base
-    const svg = document.querySelector("svg");
-    expect(svg).toBeInTheDocument();
+    expect(iconTone()).toBeNull();
   });
 });

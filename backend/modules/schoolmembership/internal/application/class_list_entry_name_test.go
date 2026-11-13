@@ -3,7 +3,7 @@ package application
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 )
 
 func TestClassListEntryNamesAreComposed(t *testing.T) {

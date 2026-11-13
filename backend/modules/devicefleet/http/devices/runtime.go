@@ -5,7 +5,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
 )
 
 type Middleware = func(http.Handler) http.Handler

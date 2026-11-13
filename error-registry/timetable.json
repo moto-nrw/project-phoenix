@@ -88,6 +88,12 @@
       "legacy": "timetable.calendar_period_roster_conflict"
     },
     {
+      "code": "timetable.calendar_period_shift_series_conflict",
+      "class": "business_rejection",
+      "parameters": [],
+      "legacy": "timetable.calendar_period_shift_series_conflict"
+    },
+    {
       "code": "timetable.calendar_period_week_cycle_anchor_missing",
       "class": "input",
       "parameters": [],

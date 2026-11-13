@@ -75,6 +75,8 @@ type ClaimedIntent struct {
 	Attempts          int
 	LeaseToken        string
 	LeaseExpiresAt    time.Time
+	// CreatedAt is when the intent was queued.
+	CreatedAt time.Time
 }
 
 type WorkerStats struct {

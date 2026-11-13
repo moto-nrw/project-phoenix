@@ -17,7 +17,7 @@ import { BELOW_SM, useMediaQuery } from "~/lib/hooks/use-media-query";
 import { useSession } from "next-auth/react";
 import { redirect } from "next/navigation";
 import { dispatchAbsencesRefresh } from "~/lib/absence-helpers";
-import { hasPermission } from "~/lib/auth-utils";
+import { hasEffectiveAdminScope, hasPermission } from "~/lib/auth-utils";
 import { useModuleBooked } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useTenantAwarePath } from "~/lib/tenant-path";
@@ -72,6 +72,7 @@ import {
   type ViewMode,
 } from "~/components/staff/staff-time-views";
 import { StaffSessionTable } from "~/components/staff/staff-session-table";
+import { workTimeModelPath } from "~/components/staff/missing-target-notice";
 import { StaffExportButton } from "~/components/staff/staff-export-button";
 import { BetreuungsplanHeuteCard } from "~/components/time-tracking/betreuungsplan-heute-card";
 import { Monatskarte } from "~/components/time-tracking/monatskarte";
@@ -569,6 +570,7 @@ function ClockInCard({
   stampingDisabled,
   saving = false,
   laborDays,
+  setTargetHref,
 }: {
   readonly currentSession: WorkSession | null;
   readonly breaks: WorkSessionBreak[];
@@ -591,6 +593,9 @@ function ClockInCard({
   readonly saving?: boolean;
   /** ArbZG-Sicht der geladenen Arbeitstage vom Server (#4804). */
   readonly laborDays: readonly WorkDayLaborHint[];
+  /** Führt zum eigenen Arbeitszeitmodell, wenn das Soll fehlt und die Person
+   *  es selbst setzen darf (#6887). */
+  readonly setTargetHref?: string;
 }) {
   // Null until the staff member explicitly picks Vor Ort / Homeoffice / Abwesend.
   // No pre-selection per Issue #1368 — silent defaults are unacceptable for an
@@ -1236,7 +1241,11 @@ function ClockInCard({
                 genau einer pro Oberfläche, solange die Soll-Quellen-Frage
                 offen ist. */}
             <div className="mt-3 flex justify-end">
-              <TargetOriginChip hasTargetOverride={metrics.hasTargetOverride} />
+              <TargetOriginChip
+                hasTargetOverride={metrics.hasTargetOverride}
+                hasTarget={metrics.hasTarget}
+                setTargetHref={setTargetHref}
+              />
             </div>
           </div>
         ) : (
@@ -1269,9 +1278,9 @@ function ClockInStatsStrip({
   metrics,
 }: {
   // Every figure is date-valid, straight from the backend month model
-  // (usePeriodMetrics, #1842). Never computeStaffMetrics: that one prices
-  // historical days at the CURRENT schedule and contradicts the Monatskarte
-  // further down the page after a contract change. null = loading.
+  // (usePeriodMetrics, #1842, #6847). Never price days in the browser: a
+  // browser-side calculation contradicted the Monatskarte and the daily rows
+  // after a contract change. null = loading.
   readonly metrics: PeriodMetrics;
 }) {
   const { week, month, accountBalanceMinutes } = metrics;
@@ -1563,6 +1572,7 @@ function OwnZeiterfassungSection({
   viewMode,
   weekAnchor,
   monthAnchor,
+  setTargetHref,
 }: {
   readonly ownStaffId: string | null;
   readonly schedule: import("~/lib/staff-api").StaffSchedule | null;
@@ -1579,6 +1589,8 @@ function OwnZeiterfassungSection({
   readonly viewMode: ViewMode;
   readonly weekAnchor: Date;
   readonly monthAnchor: Date;
+  /** Arbeitszeitmodell der eigenen Person, nur wenn sie das Soll setzen darf. */
+  readonly setTargetHref?: string;
 }) {
   // The Berlin day, not the browser's, and re-rendered on the rollover: this
   // section stays mounted all day, and `new Date()` frozen at mount would keep
@@ -1894,6 +1906,7 @@ function OwnZeiterfassungSection({
             isPreAccountMonth={isPreAccountMonth}
             accountStartsInFuture={accountStartsInFuture}
             accountStartDate={accountStartDate}
+            setTargetHref={setTargetHref}
           />
         </div>
       )}
@@ -3417,6 +3430,8 @@ function TimeTrackingContent() {
   // Betreuungsplan-Schalter. Ohne Buchung erklärt die Zielseite das Modul.
   const dienstplanBooked = useModuleBooked("dienstplan");
   const tenantPath = useTenantAwarePath();
+  // Das eigene Soll setzt nur, wer den Reiter „Arbeitszeitmodell“ sieht.
+  const canSetTarget = hasEffectiveAdminScope(authSession);
 
   const ownMetrics = usePeriodMetrics();
 
@@ -4226,6 +4241,11 @@ function TimeTrackingContent() {
           cancelledShifts={todayCancelledShifts}
           stampingDisabled={stampingDisabled || stampAction.pending}
           saving={stampAction.pending}
+          setTargetHref={
+            canSetTarget && ownStaffId
+              ? tenantPath(workTimeModelPath(ownStaffId))
+              : undefined
+          }
         />
         <WeekChart
           history={history}
@@ -4255,6 +4275,11 @@ function TimeTrackingContent() {
         viewMode={viewMode}
         weekAnchor={weekAnchor}
         monthAnchor={monthAnchor}
+        setTargetHref={
+          canSetTarget && ownStaffId
+            ? tenantPath(workTimeModelPath(ownStaffId))
+            : undefined
+        }
         onEditDay={(date, session, absence, laborDay) =>
           setEditModal({ date, session, absence, laborDay })
         }

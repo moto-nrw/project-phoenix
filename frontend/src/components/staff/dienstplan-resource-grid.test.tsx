@@ -275,6 +275,17 @@ describe("DienstplanResourceGrid status mapping", () => {
     ).not.toBeInTheDocument();
   });
 
+  // Since #6847 a vacation or any other absence cancels shifts too, under a
+  // neutral reason; the row header reads "abwesend", never "krank".
+  it("notes a shift an absence cancelled as abwesend, not krank", () => {
+    const shift = baseShift({ cancelled: true, changeReason: "Abwesenheit" });
+    renderGrid({ shiftsByStaff: shiftMap("2026-07-06", [shift]) });
+
+    expect(screen.getByText("Fällt aus · Abwesenheit")).toBeInTheDocument();
+    expect(screen.getByText("abwesend")).toBeInTheDocument();
+    expect(screen.queryByText("krank")).not.toBeInTheDocument();
+  });
+
   it("labels a replacement shift as Vertretung with its reason", () => {
     const shift = baseShift({ originShiftId: "9", changeReason: "Tausch" });
     renderGrid({ shiftsByStaff: shiftMap("2026-07-06", [shift]) });
@@ -436,14 +447,14 @@ describe("DienstplanResourceGrid weekly summary", () => {
     );
   });
 
-  it("colors an over-contract summary amber", () => {
+  it("colors an over-contract summary dark amber", () => {
     renderGrid({
       summaryByStaff: new Map([
         [member.id, summary({ plannedMinutes: 1350, deltaMinutes: 135 })],
       ]),
     });
 
-    expect(screen.getByText("22,5/20,25 h")).toHaveStyle({ color: "#EAB308" });
+    expect(screen.getByText("22,5/20,25 h")).toHaveStyle({ color: "#92400E" });
   });
 
   it("leaves an exact-match summary neutral (no inline color)", () => {

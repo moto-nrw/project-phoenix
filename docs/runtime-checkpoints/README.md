@@ -1,12 +1,12 @@
 # Runtime checkpoint workload
 
-Issue [#3019](https://github.com/moto-nrw/project-phoenix/issues/3019) measures
+Issue [#3019](https://github.com/moto-ogs/project-phoenix/issues/3019) measures
 the runtime after the Timetable & Activities cutover in
 `ebe8da06033eaa233053c88dcfb7793f512c6990` (PR #3023).
 The measurement does not change product behavior or architecture policy.
 Raw measurements, interpretation, and acceptance belong in the issue, not here.
 
-Since [#3411](https://github.com/moto-nrw/project-phoenix/issues/3411) the
+Since [#3411](https://github.com/moto-ogs/project-phoenix/issues/3411) the
 default workload is `checkpoint-1-v2` (see
 [below](#workload-checkpoint-1-v2)). `checkpoint-1-v1` stays selectable with
 `-runtime-checkpoint-workload=checkpoint-1-v1`, for the comparison with #3019
@@ -14,7 +14,7 @@ and #3020 and for bridge runs.
 
 ## Planner statistics condition
 
-Since [#4410](https://github.com/moto-nrw/project-phoenix/issues/4410), every
+Since [#4410](https://github.com/moto-ogs/project-phoenix/issues/4410), every
 opt-in checkpoint collects **fresh statistics** with a full `ANALYZE` of its
 disposable database after fixture setup and before warm-ups or metric counters.
 The raw evidence records this condition in `environment.planner_statistics`
@@ -24,7 +24,7 @@ writes remain part of the unchanged workload lifecycle; this is a setup-time
 condition, not continuously refreshed statistics or populated-inbox evidence.
 
 This is a measurement-series break, recorded in the
-[checkpoint register](https://github.com/moto-nrw/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/runtime-checkpoints.json).
+[checkpoint register](https://github.com/moto-ogs/project-phoenix/blob/46506b00c695a6f102865cae2dc9f24010371b7c/backend/architecture/runtime-checkpoints.json).
 The accepted #3019, #3020 and #3021 evidence was captured without an explicit
 fixture `ANALYZE` and remains unchanged. Compare across this boundary only with
 a paired bridge or an explicit statistics-condition qualification. Workload
@@ -65,7 +65,7 @@ before the worker scenarios.
 
 ## Compare a later checkpoint with the baseline (`checkpoint-1-v1`)
 
-Checkpoint [#3020](https://github.com/moto-nrw/project-phoenix/issues/3020)
+Checkpoint [#3020](https://github.com/moto-ogs/project-phoenix/issues/3020)
 repeats `checkpoint-1-v1` unchanged after the core-module migrations. Regenerate
 the baseline summary from the lossless raw evidence in #3019 with the current
 reporter, so both summaries carry the same metric set, then compare:
@@ -112,7 +112,7 @@ before that field existed are unmeasured, not empty.
 
 ## Workload `checkpoint-1-v2`
 
-[#3411](https://github.com/moto-nrw/project-phoenix/issues/3411) extends the
+[#3411](https://github.com/moto-ogs/project-phoenix/issues/3411) extends the
 default workload to the flows the #2580 migration rebuilt. The run command is
 the one above without the workload option. Evidence of the bridge run on one
 commit, with the comparisons against #3019 and #3020:
@@ -490,7 +490,7 @@ Besides the production-router checkpoint above, the migration tickets left
 flow-specific measurements: tests that repeat one owner flow over warmups and
 samples on a disposable clone and log latency, statements, rows, pool and
 lock waits, deadlocks or `EXPLAIN (ANALYZE, BUFFERS)` plans. Since
-[#4426](https://github.com/moto-nrw/project-phoenix/issues/4426) they skip
+[#4426](https://github.com/moto-ogs/project-phoenix/issues/4426) they skip
 unless `PHX_TEST_RUNTIME_EVIDENCE=1` is set (`testpkg.RequireRuntimeEvidence`).
 `scripts/test-backend.sh`, `scripts/test-changed.sh` and CI never set it. The
 contracts these tests also asserted (read paths write nothing, query budgets,

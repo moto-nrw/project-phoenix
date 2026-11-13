@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	devicefleetCompose "github.com/moto-ogs/project-phoenix/modules/devicefleet/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/require"
 )
 

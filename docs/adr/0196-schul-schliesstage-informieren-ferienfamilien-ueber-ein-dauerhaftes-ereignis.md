@@ -6,13 +6,13 @@ status: accepted
 
 **Status: Akzeptiert. Freigegeben von Yannick Wenger am 10.11.2026.**
 Die Annahme gegen 21:00 UTC ändert den Kern der bisherigen Fassung zu
-[#6442](https://github.com/moto-nrw/project-phoenix/issues/6442) und
-[#6457](https://github.com/moto-nrw/project-phoenix/issues/6457):
+[#6442](https://github.com/moto-ogs/project-phoenix/issues/6442) und
+[#6457](https://github.com/moto-ogs/project-phoenix/issues/6457):
 „annehmen. nicht automatisch, wird aber vorgeschlagen und dann kann der admin
 das versenden via 1 button klick“. Auf die Frage, wer klickt: „Beide dürfen“.
 Dokumentiert in den Entscheidungen zu
-[#6442](https://github.com/moto-nrw/project-phoenix/issues/6442#issuecomment-6778882126)
-und [#6457](https://github.com/moto-nrw/project-phoenix/issues/6457#issuecomment-6778882759).
+[#6442](https://github.com/moto-ogs/project-phoenix/issues/6442#issuecomment-6778882126)
+und [#6457](https://github.com/moto-ogs/project-phoenix/issues/6457#issuecomment-6778882759).
 
 Eine Schul-Kalenderänderung schlägt einen Elternhinweis vor. Erst ein Klick
 von Schul-Admin oder berechtigtem Träger-Büro beauftragt den Versand.
@@ -22,16 +22,16 @@ sichtbar und dort per erneutem Klick nachholbar. Die Schule bekommt weder
 Elternkontakte noch Familiennamen des Trägers.
 
 Die Entscheidung ersetzt die Regeln der vorausgehenden Fassungen in
-[PR #6497](https://github.com/moto-nrw/project-phoenix/pull/6497) und
-[PR #6540](https://github.com/moto-nrw/project-phoenix/pull/6540) zu automatischem
+[PR #6497](https://github.com/moto-ogs/project-phoenix/pull/6497) und
+[PR #6540](https://github.com/moto-ogs/project-phoenix/pull/6540) zu automatischem
 Schul-Versand, 10-/60-Minuten-Sammlung, reinem Status ohne Knopf,
 ausschließlicher Operator-Wiederaufnahme und Entfernung des Büro-Buttons.
 Der Doku-PR ändert keinen Produktcode und führt keine Migration aus.
 
 ## Kontext und bestehender Code
 
-[PR #6443](https://github.com/moto-nrw/project-phoenix/pull/6443), Merge
-[`75374380c16abd67a28777759d218737e216fac6`](https://github.com/moto-nrw/project-phoenix/commit/75374380c16abd67a28777759d218737e216fac6),
+[PR #6443](https://github.com/moto-ogs/project-phoenix/pull/6443), Merge
+[`75374380c16abd67a28777759d218737e216fac6`](https://github.com/moto-ogs/project-phoenix/commit/75374380c16abd67a28777759d218737e216fac6),
 führt `enrollment.HolidayClosures`, `traegercalendar.HolidayNotices` und
 `enrollment.holiday_closure_notices` ein. Beim Träger-Schließtag entstehen
 Mailauftrag und Vermerk synchron mit dem bestätigten Speichern. Beim
@@ -312,7 +312,7 @@ Versandweg einzuführen. Eine neue Operator-Wiederaufnahmeoberfläche ist keine
 Voraussetzung dieses menschlich ausgelösten Ablaufs.
 
 Codebefund am Ausgangsstand
-[`ffcf0751054ac5265396a1f7605ebb2846d9b4a7`](https://github.com/moto-nrw/project-phoenix/tree/ffcf0751054ac5265396a1f7605ebb2846d9b4a7):
+[`ffcf0751054ac5265396a1f7605ebb2846d9b4a7`](https://github.com/moto-ogs/project-phoenix/tree/ffcf0751054ac5265396a1f7605ebb2846d9b4a7):
 Scheduler Runtime meldet endgültige Jobfehler und Panics an Sentry; für die
 nächtliche Löschung gibt es `nightly-cleanup-failing` in Grafana. Der Alarmweg
 ist damit im Code vorhanden, aber konkrete Überwachung von Schließtag-Aufträgen

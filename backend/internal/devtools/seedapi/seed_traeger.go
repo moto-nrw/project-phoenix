@@ -9,7 +9,7 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // seedTraegerInvitees are the colleagues the seeded Träger-Büro has invited
@@ -72,24 +72,6 @@ func (seedTraegerBueroStep) Run(_ context.Context, rt *Runtime) error {
 	}
 	fmt.Println("  Träger-Büro: operator invited a person with roles Verwaltung, Dokumente and Abrechnung")
 	return seedTraegerInvitation(rt)
-}
-
-// seedTraegerInvitation signs the admin in to the Träger-Portal and invites
-// the seeded colleagues through the Träger route.
-func seedTraegerInvitation(rt *Runtime) error {
-	traeger, err := seedTraegerSession(rt)
-	if err != nil {
-		return err
-	}
-	for _, invitee := range seedTraegerInvitees {
-		if _, err := rt.Client.PostWithAuth(traeger, "/traeger/accounts/invitations", map[string]any{
-			"email": invitee.email, "roles": []string{invitee.role},
-		}); err != nil {
-			return fmt.Errorf("invite into the Träger-Büro: %w", err)
-		}
-	}
-	fmt.Printf("  Träger-Büro: %d colleagues invited\n", len(seedTraegerInvitees))
-	return nil
 }
 
 // seedTraegerHolidayPeriodStep plans a published holiday period for the
@@ -315,14 +297,14 @@ func seedHolidayRegistrations(ctx context.Context, rt *Runtime, auth AuthRef, pe
 	if _, err := rt.Client.GetWithAuth(auth, registrations); err != nil {
 		return "", fmt.Errorf("list the holiday registrations: %w", err)
 	}
-	if _, err := rt.Client.PutWithAuth(auth, "/traeger/settings/values/"+seedDebtorNumberSettingKey, map[string]any{"value": true}); err != nil {
-		return "", fmt.Errorf("ask for the debtor number at the confirmation: %w", err)
+	if err := seedAskForDebtorNumber(rt, auth); err != nil {
+		return "", err
 	}
 	if _, err := rt.Client.PutWithAuth(auth, "/traeger/settings/values/"+seedPaymentTextSettingKey, map[string]any{"value": seedPaymentText}); err != nil {
 		return "", fmt.Errorf("write the payment text of the letters: %w", err)
 	}
 	confirm := fmt.Sprintf("/traeger/holiday-contributions/%d/registrations/%d/confirm", periodID, siblings)
-	if _, err := rt.Client.PostWithAuth(auth, confirm, map[string]any{"benefits_exemption": false, "debtor_number": seedHolidayDebtorNumber}); err != nil {
+	if _, err := rt.Client.PostWithAuth(auth, confirm, seedSiblingsConfirmation); err != nil {
 		return "", fmt.Errorf("confirm the holiday registration: %w", err)
 	}
 	fmt.Println("  Träger-Büro: siblings confirmed with their contribution and debtor number")
@@ -375,21 +357,21 @@ func seedHolidaySiblingGroup(rt *Runtime, auth AuthRef, token string, periodID i
 	return seedHolidayWaitlist(rt, auth, token, periodID, sibling)
 }
 
-// seedHolidayAfterConfirmation corrects the confirmed siblings' details
-// (#5629), confirms the second registration with the cost takeover by a
+// seedHolidayAfterConfirmation switches the Träger to five-digit debtor
+// numbers (#6675), corrects the confirmed siblings' details (#5629), confirms the second registration with the cost takeover by a
 // cost bearer (#5627) and merges a third sibling's registration with the
 // siblings (#5628).
 func seedHolidayAfterConfirmation(rt *Runtime, auth AuthRef, token string, periodID, siblings, duplicate int64, registration map[string]any) error {
+	if err := seedDebtorNumberFormat(rt, auth); err != nil {
+		return err
+	}
 	if err := seedHolidayRegistrationEdit(rt, auth, periodID, siblings, registration); err != nil {
 		return err
 	}
 	if err := seedHolidayCostTakeover(rt, auth, periodID, duplicate); err != nil {
 		return err
 	}
-	if err := seedHolidayKnownChild(rt, auth, token, periodID, registration); err != nil {
-		return err
-	}
-	return seedHolidaySiblingGroup(rt, auth, token, periodID, registration, siblings)
+	return seedHolidayFamilies(rt, auth, token, periodID, registration, siblings)
 }
 
 // seedHolidayRegistrationEdit lets the Träger-Büro correct the confirmed
@@ -454,7 +436,7 @@ func seedHolidayCostTakeover(rt *Runtime, auth AuthRef, periodID, registrationID
 
 // seedCostTakeoverDebtorNumber is the invented debtor number of the family
 // whose contribution the cost bearer pays.
-const seedCostTakeoverDebtorNumber = "10 4712"
+const seedCostTakeoverDebtorNumber = "10472"
 
 // seedDebtorNumberSettingKey is the Träger switch that asks for the debtor
 // number of the family at the confirmation (#5621); the demo Träger works

@@ -1,4 +1,4 @@
-package httpadapter
+package httpadapter_test
 
 import (
 	"encoding/json"
@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/go-chi/render"
+	httpadapter "github.com/moto-ogs/project-phoenix/modules/timetable/http/activities"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -24,8 +25,8 @@ func TestActivityErrorRulesNameProtectedActivities(t *testing.T) {
 		wantStatus int
 		wantCode   string
 	}{
-		{"system activity", systemActivityForbidden, http.StatusForbidden, "timetable.activity_system_protected"},
-		{"timetable template", timetableTemplateConflict, http.StatusConflict, "timetable.activity_template_protected"},
+		{"system activity", httpadapter.SystemActivityForbiddenForTest, http.StatusForbidden, "timetable.activity_system_protected"},
+		{"timetable template", httpadapter.TimetableTemplateConflictForTest, http.StatusConflict, "timetable.activity_template_protected"},
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {

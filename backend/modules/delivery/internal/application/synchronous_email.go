@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
-	"github.com/moto-nrw/project-phoenix/modules/delivery/internal/domain"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/delivery/mail"
 )
 
 type targetedEmailStore interface {
@@ -113,10 +114,7 @@ func (w *Worker) sendEmailAttempts(ctx context.Context, store targetedEmailStore
 		if sendErr == nil || errors.Is(sendErr, domain.ErrCancelled) || attempts >= policy.MaxAttempts {
 			return result, attempts, sendErr
 		}
-		delay := time.Duration(0)
-		if len(policy.Backoff) > 0 {
-			delay = policy.Backoff[min(attempts-1, len(policy.Backoff)-1)]
-		}
+		delay := emailRetryDelay(policy.Backoff, attempts, sendErr)
 		timer := time.NewTimer(delay)
 		select {
 		case <-ctx.Done():
@@ -133,4 +131,15 @@ func (w *Worker) sendEmailAttempts(ctx context.Context, store targetedEmailStore
 		}
 		intent.Attempts = attempts
 	}
+}
+
+// emailRetryDelay is the wait before the next synchronous attempt. A missing
+// transport does not come back within the backoff: the attempts still run to
+// the limit, so the stored outcome and the final delivery record stay as they
+// were, and only the wait is gone.
+func emailRetryDelay(backoff []time.Duration, attempts int, sendErr error) time.Duration {
+	if len(backoff) == 0 || errors.Is(sendErr, mail.ErrDeliveryUnavailable) {
+		return 0
+	}
+	return backoff[min(attempts-1, len(backoff)-1)]
 }

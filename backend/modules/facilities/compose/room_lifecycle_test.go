@@ -4,9 +4,9 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -80,7 +80,7 @@ func TestModulePersistsRoomDeleteAtPublicSeam(t *testing.T) {
 	created, err := module.CreateRoom(ctx, facilities.CreateRoom{Name: "Igelraum"})
 	require.NoError(t, err)
 
-	err = module.DeleteRoom(ctx, created.ID)
+	_, err = module.DeleteRoom(ctx, created.ID)
 	require.NoError(t, err)
 
 	_, err = module.FindRoom(ctx, created.ID)
@@ -120,7 +120,7 @@ func TestSystemRoomCannotBeRenamedOrDeleted(t *testing.T) {
 	_, err = module.UpdateRoom(ctx, facilities.UpdateRoom{ID: created.ID, Name: "Garten"})
 	require.ErrorIs(t, err, facilities.ErrSystemRoomProtected)
 
-	err = module.DeleteRoom(ctx, created.ID)
+	_, err = module.DeleteRoom(ctx, created.ID)
 	require.ErrorIs(t, err, facilities.ErrSystemRoomProtected)
 
 	found, err := module.FindRoom(ctx, created.ID)
@@ -201,13 +201,14 @@ func TestDeleteRoomRunsGuardInsideWriteTransaction(t *testing.T) {
 			assert.True(t, inTransaction)
 			return true
 		}),
-		Observe: func(Observation) {},
+		References: noReferences,
+		Observe:    func(Observation) {},
 	})
 	require.NoError(t, err)
 	created, err := module.CreateRoom(ctx, facilities.CreateRoom{Name: "Igelraum"})
 	require.NoError(t, err)
 
-	err = module.DeleteRoom(ctx, created.ID)
+	_, err = module.DeleteRoom(ctx, created.ID)
 	require.ErrorIs(t, err, facilities.ErrRoomInUse)
 	assert.True(t, guardCalled)
 
@@ -225,6 +226,12 @@ func (f roomUsageFunc) HasActiveSessions(ctx context.Context, _ int64) (bool, er
 
 func (roomUsageFunc) RequiredByCareOffering(context.Context, int64) (bool, error) {
 	return false, nil
+}
+
+// noReferences answers that no other owner references a room; the
+// database still keeps a referenced room as an archive.
+func noReferences(context.Context, int64) (facilities.RoomReferences, error) {
+	return facilities.RoomReferences{}, nil
 }
 
 func TestRoomQuerySupportsLegacyLookupAndCapacityContracts(t *testing.T) {

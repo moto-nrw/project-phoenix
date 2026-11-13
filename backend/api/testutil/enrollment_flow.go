@@ -1,7 +1,7 @@
 package testutil
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/careplantest"
 )
 
 var (

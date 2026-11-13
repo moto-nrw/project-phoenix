@@ -145,7 +145,7 @@ GetLoginImageURL / SetLoginImageURL / ClearLoginImageURL(ctx, tenantID, ...) // 
 
 ### Frontend
 
-The settings page is auto-generated from the backend schema: field components render by `type`, auto-save (debounced for text/number/time, immediate for boolean/select, explicit save for password), conditional visibility via `depends_on`, passwords masked. Exceptions that are hand-written: the personalization tab (login image upload) and the enrollment link panel. For embedding settings tabs in other layouts use `useSettingsTabs()` (exported from `settings-page.tsx`; returns `null` without settings access, else `{ tabs, renderTab }`).
+The settings page is auto-generated from the backend schema: field components render by `type`, auto-save (debounced for text/number/time, immediate for boolean/select, explicit save for password), conditional visibility via `depends_on`, passwords masked. Exceptions that are hand-written: the personalization tab (login image upload), the enrollment link panel, and the Träger's debtor number length (`parent_billing.debtor_number_min_digits` and `_max_digits`, #6675): `components/settings/debtor-number-length-field.tsx` renders both keys as one paired "von … bis … Ziffern" field under `parent_billing.debtor_number_digits_only` with a live example number, which two generated number fields cannot show. The keys are defined only there; it saves each key through the settings API like a generated field. For embedding settings tabs in other layouts use `useSettingsTabs()` (exported from `settings-page.tsx`; returns `null` without settings access, else `{ tabs, renderTab }`).
 
 ### When to Use Settings vs Environment Variables
 
@@ -211,7 +211,7 @@ either read error, and issuance requires a readable, positive lifetime.
 Availability/display hints stay restrictive on read errors. Lockout-policy
 errors remain fatal before code comparison: no consumed challenge, session,
 tokens or cookie. These entries supersede the trusted-device rows in
-[PR #4631's inventory](https://github.com/moto-nrw/project-phoenix/pull/4631#literal-fallback-inventar);
+[PR #4631's inventory](https://github.com/moto-ogs/project-phoenix/pull/4631#literal-fallback-inventar);
 other inventoried debt remains unchanged.
 
 **Known exceptions, not patterns for new code:**
@@ -223,7 +223,7 @@ other inventoried debt remains unchanged.
   not proof that every required port is already checked at startup.
 - Existing operational readers still use literals on errors or nil resolvers.
   The complete per-reader classification, including nil-only cases, lives in
-  [PR #4631, Literal-Fallback-Inventar](https://github.com/moto-nrw/project-phoenix/pull/4631#literal-fallback-inventar).
+  [PR #4631, Literal-Fallback-Inventar](https://github.com/moto-ogs/project-phoenix/pull/4631#literal-fallback-inventar).
   The #3841 device-PIN chain is now removed; other inventoried debt remains.
   The inventory is not permission to add a fallback.
 

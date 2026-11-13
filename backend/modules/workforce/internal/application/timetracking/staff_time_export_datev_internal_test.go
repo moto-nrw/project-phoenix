@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -40,6 +40,10 @@ func (s datevOverviewStub) GetDashboardSummary(context.Context, string) (*Dashbo
 }
 
 func (s datevOverviewStub) GetTimeTrackingOverview(context.Context, OverviewFilters) (*TimeTrackingOverview, error) {
+	return nil, nil
+}
+
+func (s datevOverviewStub) TargetCoverage(context.Context, int, int) (*workforce.TargetCoverage, error) {
 	return nil, nil
 }
 

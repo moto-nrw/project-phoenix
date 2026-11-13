@@ -3,7 +3,7 @@ package application
 import (
 	"context"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 )
 
 // CareOfferingRepository is the DB contract used by the service layer.

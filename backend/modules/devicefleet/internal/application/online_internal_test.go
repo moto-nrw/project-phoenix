@@ -5,9 +5,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/internal/ports"
 )
 
 func timePtr(value time.Time) *time.Time { return &value }

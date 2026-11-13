@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
 )
 
 // TestNewCompanionEdge_NormalizesOrder pins the storage invariant behind the

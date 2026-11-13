@@ -100,7 +100,7 @@ func TestConvertedImportProjectsAsDebtNotTargetPermission(t *testing.T) {
 	// exact import into debt, without hiding Beta -> Gamma's existing debt or
 	// Alpha -> Gamma's new violation.
 	policy.Rules = nil
-	entry := LegacyEntry{Violation: Violation{Scope: ScopeProduction, Rule: "imports.forbidden", Source: policy.ModulePath + "/alpha", Target: policy.ModulePath + "/beta"}, Issue: "https://github.com/moto-nrw/project-phoenix/issues/2743"}
+	entry := LegacyEntry{Violation: Violation{Scope: ScopeProduction, Rule: "imports.forbidden", Source: policy.ModulePath + "/alpha", Target: policy.ModulePath + "/beta"}, Issue: "https://github.com/moto-ogs/project-phoenix/issues/2743"}
 	baseline.Entries = append(baseline.Entries, entry)
 	target := renderValidSVG(t, TargetProjection(policy))
 	if bytes.Contains(target, []byte("alpha -&gt; beta")) {

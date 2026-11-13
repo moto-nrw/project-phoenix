@@ -1,6 +1,7 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
+import { MobilePageHelpTargetContext } from "./mobile-page-help-target";
 import {
   ChoiceTileListSkeleton,
   HistorySkeleton,
@@ -25,6 +26,12 @@ describe("SkeletonRegion", () => {
   });
 });
 
+// Steht die Portalhülle, meldet sich der Platz für die Seitenhilfe hier an.
+const helpRegistration = {
+  registerTarget: vi.fn(),
+  unregisterTarget: vi.fn(),
+};
+
 describe("TenantPageHeaderSkeleton", () => {
   it("drops the status line row for a page without stats", () => {
     const { container: withStats } = render(<TenantPageHeaderSkeleton />);
@@ -43,6 +50,30 @@ describe("TenantPageHeaderSkeleton", () => {
 
     expect(container.querySelectorAll(".animate-pulse")).toHaveLength(2);
     expect(container.querySelector(".h-8.w-8")).toBeInTheDocument();
+  });
+
+  // Unter `lg` steht die Hilfe als 44-px-Knopf im Kopf von `TenantPage`. Ohne
+  // denselben Platz im Ladekopf wächst der Kopf beim Laden um diesen Knopf
+  // (#6568). Das Elternportal behält seinen bisherigen Ladekopf (#6613).
+  it("offers the page help its place in the head, as TenantPage does", () => {
+    const { registerTarget } = helpRegistration;
+    const { rerender } = render(
+      <MobilePageHelpTargetContext.Provider value={helpRegistration}>
+        <TenantPageHeaderSkeleton matches="parent-page" />
+      </MobilePageHelpTargetContext.Provider>,
+    );
+    expect(screen.getByRole("banner")).toBeInTheDocument();
+    expect(registerTarget).not.toHaveBeenCalled();
+
+    rerender(
+      <MobilePageHelpTargetContext.Provider value={helpRegistration}>
+        <TenantPageHeaderSkeleton stats={false} info />
+      </MobilePageHelpTargetContext.Provider>,
+    );
+    expect(registerTarget).toHaveBeenCalledOnce();
+    expect(screen.getByRole("banner")).toContainElement(
+      registerTarget.mock.calls[0]?.[0] as HTMLElement,
+    );
   });
 });
 

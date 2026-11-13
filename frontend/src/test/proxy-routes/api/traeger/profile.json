@@ -1,0 +1,8 @@
+{
+  "api/traeger/profile": [
+    "GET traeger /traeger/profile"
+  ],
+  "api/traeger/profile/name": [
+    "PUT traeger /traeger/profile/name"
+  ]
+}

@@ -1,8 +1,8 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/application"
 )
 
 type CareParticipationResolver = application.CareParticipationResolver

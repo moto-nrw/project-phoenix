@@ -9,9 +9,9 @@ import (
 	"strconv"
 	"strings"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // maxOpeningHours mirrors the ledger's carryover bound (10.000 h).

@@ -16,7 +16,7 @@ name: Sticky disk cleanup
 # following simstudioai/sim's disk-gc workflow.
 #
 # Setup: an org admin mints the token once with
-#   blacksmith org-token create --label sticky-disk-cleanup --organization moto-nrw
+#   blacksmith org-token create --label sticky-disk-cleanup --organization moto-ogs
 # and stores it as the repository secret BLACKSMITH_CLI_TOKEN.
 
 on:
@@ -53,7 +53,7 @@ jobs:
       BLACKSMITH_CLI_SHA256: 089a301ea5cc93a7560c7f1106911547fdfd46fc5c0cef7079e2a62a22e971ce
       # The CLI self-updates on every invocation otherwise, defeating the pin.
       BLACKSMITH_DISABLE_AUTO_UPDATE: '1'
-      BLACKSMITH_ORG: moto-nrw
+      BLACKSMITH_ORG: moto-ogs
       TARGET_REPO: ${{ github.repository }}
       DRY_RUN: ${{ inputs.dry_run || 'false' }}
 

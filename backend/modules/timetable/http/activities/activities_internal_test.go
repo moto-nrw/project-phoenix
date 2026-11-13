@@ -1,32 +1,33 @@
 // Package activities internal tests for pure helper functions.
 // These tests verify logic that doesn't require database access.
-package httpadapter
+package httpadapter_test
 
 import (
 	"testing"
 	"time"
 
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 
+	httpadapter "github.com/moto-ogs/project-phoenix/modules/timetable/http/activities"
 	"github.com/stretchr/testify/assert"
 )
 
 // =============================================================================
-// formatEndTime Tests
+// FormatEndTimeForTest Tests
 // =============================================================================
 
 func TestFormatEndTime_WithTime(t *testing.T) {
 	t.Parallel()
 
 	endTime := time.Date(2024, 1, 15, 14, 30, 0, 0, time.UTC)
-	result := formatEndTime(&endTime)
+	result := httpadapter.FormatEndTimeForTest(&endTime)
 	assert.Equal(t, "14:30", result)
 }
 
 func TestFormatEndTime_NilTime(t *testing.T) {
 	t.Parallel()
 
-	result := formatEndTime(nil)
+	result := httpadapter.FormatEndTimeForTest(nil)
 	assert.Equal(t, "", result)
 }
 
@@ -34,7 +35,7 @@ func TestFormatEndTime_Midnight(t *testing.T) {
 	t.Parallel()
 
 	endTime := time.Date(2024, 1, 15, 0, 0, 0, 0, time.UTC)
-	result := formatEndTime(&endTime)
+	result := httpadapter.FormatEndTimeForTest(&endTime)
 	assert.Equal(t, "00:00", result)
 }
 
@@ -42,7 +43,7 @@ func TestFormatEndTime_BeforeMidnight(t *testing.T) {
 	t.Parallel()
 
 	endTime := time.Date(2024, 1, 15, 23, 59, 0, 0, time.UTC)
-	result := formatEndTime(&endTime)
+	result := httpadapter.FormatEndTimeForTest(&endTime)
 	assert.Equal(t, "23:59", result)
 }
 
@@ -54,7 +55,7 @@ func TestQuickActivityRequest_Fields(t *testing.T) {
 	t.Parallel()
 
 	roomID := int64(10)
-	req := QuickActivityRequest{
+	req := httpadapter.QuickActivityRequest{
 		Name:            "Test Activity",
 		CategoryID:      5,
 		RoomID:          &roomID,
@@ -70,7 +71,7 @@ func TestQuickActivityRequest_Fields(t *testing.T) {
 func TestQuickActivityRequest_NilRoomID(t *testing.T) {
 	t.Parallel()
 
-	req := QuickActivityRequest{
+	req := httpadapter.QuickActivityRequest{
 		Name:            "Test Activity",
 		CategoryID:      5,
 		RoomID:          nil,
@@ -85,7 +86,7 @@ func TestActivityRequest_Fields(t *testing.T) {
 	t.Parallel()
 
 	roomID := int64(20)
-	req := ActivityRequest{
+	req := httpadapter.ActivityRequest{
 		Name:            "Test Activity",
 		MaxParticipants: 30,
 		IsOpen:          true,
@@ -106,7 +107,7 @@ func TestScheduleRequest_Fields(t *testing.T) {
 	t.Parallel()
 
 	timeframeID := int64(5)
-	req := ScheduleRequest{
+	req := httpadapter.ScheduleRequest{
 		Weekday:     1, // Monday
 		TimeframeID: &timeframeID,
 	}
@@ -118,7 +119,7 @@ func TestScheduleRequest_Fields(t *testing.T) {
 func TestScheduleRequest_NilTimeframeID(t *testing.T) {
 	t.Parallel()
 
-	req := ScheduleRequest{
+	req := httpadapter.ScheduleRequest{
 		Weekday:     2, // Tuesday
 		TimeframeID: nil,
 	}
@@ -130,7 +131,7 @@ func TestScheduleRequest_NilTimeframeID(t *testing.T) {
 func TestSupervisorRequest_Fields(t *testing.T) {
 	t.Parallel()
 
-	req := SupervisorRequest{
+	req := httpadapter.SupervisorRequest{
 		StaffID:   123,
 		IsPrimary: true,
 	}
@@ -142,7 +143,7 @@ func TestSupervisorRequest_Fields(t *testing.T) {
 func TestBatchEnrollmentRequest_Fields(t *testing.T) {
 	t.Parallel()
 
-	req := BatchEnrollmentRequest{
+	req := httpadapter.BatchEnrollmentRequest{
 		StudentIDs: []int64{1, 2, 3},
 	}
 
@@ -153,7 +154,7 @@ func TestBatchEnrollmentRequest_Fields(t *testing.T) {
 func TestBatchEnrollmentRequest_EmptyList(t *testing.T) {
 	t.Parallel()
 
-	req := BatchEnrollmentRequest{
+	req := httpadapter.BatchEnrollmentRequest{
 		StudentIDs: []int64{},
 	}
 
@@ -161,14 +162,14 @@ func TestBatchEnrollmentRequest_EmptyList(t *testing.T) {
 }
 
 // =============================================================================
-// addSupervisorsToResponse Tests
+// AddSupervisorsToResponseForTest Tests
 // =============================================================================
 
 func TestAddSupervisorsToResponse_EmptyList(t *testing.T) {
 	t.Parallel()
 
-	response := &ActivityResponse{}
-	addSupervisorsToResponse(response, []*activityContract.SupervisorPlanned{})
+	response := &httpadapter.ActivityResponse{}
+	httpadapter.AddSupervisorsToResponseForTest(response, []*activityContract.SupervisorPlanned{})
 	assert.Nil(t, response.SupervisorIDs)
 	assert.Nil(t, response.Supervisors)
 }
@@ -176,8 +177,8 @@ func TestAddSupervisorsToResponse_EmptyList(t *testing.T) {
 func TestAddSupervisorsToResponse_NilList(t *testing.T) {
 	t.Parallel()
 
-	response := &ActivityResponse{}
-	addSupervisorsToResponse(response, nil)
+	response := &httpadapter.ActivityResponse{}
+	httpadapter.AddSupervisorsToResponseForTest(response, nil)
 	assert.Nil(t, response.SupervisorIDs)
 	assert.Nil(t, response.Supervisors)
 }
@@ -185,7 +186,7 @@ func TestAddSupervisorsToResponse_NilList(t *testing.T) {
 func TestAddSupervisorsToResponse_WithNilSupervisorInList(t *testing.T) {
 	t.Parallel()
 
-	response := &ActivityResponse{}
+	response := &httpadapter.ActivityResponse{}
 	sup := &activityContract.SupervisorPlanned{
 		ID:        1,
 		StaffID:   1,
@@ -196,7 +197,7 @@ func TestAddSupervisorsToResponse_WithNilSupervisorInList(t *testing.T) {
 		sup,
 		nil,
 	}
-	addSupervisorsToResponse(response, supervisors)
+	httpadapter.AddSupervisorsToResponseForTest(response, supervisors)
 	assert.Len(t, response.SupervisorIDs, 1)
 	assert.Equal(t, int64(1), response.SupervisorIDs[0])
 }
@@ -204,13 +205,13 @@ func TestAddSupervisorsToResponse_WithNilSupervisorInList(t *testing.T) {
 func TestAddSupervisorsToResponse_WithPrimarySupervisor(t *testing.T) {
 	t.Parallel()
 
-	response := &ActivityResponse{}
+	response := &httpadapter.ActivityResponse{}
 	supervisors := []*activityContract.SupervisorPlanned{
 		{ID: 1, StaffID: 1, IsPrimary: false},
 		{ID: 2, StaffID: 2, IsPrimary: true},
 		{ID: 3, StaffID: 3, IsPrimary: false},
 	}
-	addSupervisorsToResponse(response, supervisors)
+	httpadapter.AddSupervisorsToResponseForTest(response, supervisors)
 	assert.Len(t, response.SupervisorIDs, 3)
 	assert.NotNil(t, response.SupervisorID)
 	assert.Equal(t, int64(2), *response.SupervisorID)
@@ -219,40 +220,40 @@ func TestAddSupervisorsToResponse_WithPrimarySupervisor(t *testing.T) {
 func TestAddSupervisorsToResponse_NoPrimarySupervisor(t *testing.T) {
 	t.Parallel()
 
-	response := &ActivityResponse{}
+	response := &httpadapter.ActivityResponse{}
 	supervisors := []*activityContract.SupervisorPlanned{
 		{ID: 1, StaffID: 1, IsPrimary: false},
 		{ID: 2, StaffID: 2, IsPrimary: false},
 	}
-	addSupervisorsToResponse(response, supervisors)
+	httpadapter.AddSupervisorsToResponseForTest(response, supervisors)
 	assert.Len(t, response.SupervisorIDs, 2)
 	assert.Nil(t, response.SupervisorID)
 }
 
 // =============================================================================
-// addSchedulesToResponse Tests
+// AddSchedulesToResponseForTest Tests
 // =============================================================================
 
 func TestAddSchedulesToResponse_EmptyList(t *testing.T) {
 	t.Parallel()
 
-	response := &ActivityResponse{Schedules: []ScheduleResponse{}}
-	addSchedulesToResponse(response, []*activityContract.Schedule{})
+	response := &httpadapter.ActivityResponse{Schedules: []httpadapter.ScheduleResponse{}}
+	httpadapter.AddSchedulesToResponseForTest(response, []*activityContract.Schedule{})
 	assert.Empty(t, response.Schedules)
 }
 
 func TestAddSchedulesToResponse_NilList(t *testing.T) {
 	t.Parallel()
 
-	response := &ActivityResponse{Schedules: []ScheduleResponse{}}
-	addSchedulesToResponse(response, nil)
+	response := &httpadapter.ActivityResponse{Schedules: []httpadapter.ScheduleResponse{}}
+	httpadapter.AddSchedulesToResponseForTest(response, nil)
 	assert.Empty(t, response.Schedules)
 }
 
 func TestAddSchedulesToResponse_WithNilScheduleInList(t *testing.T) {
 	t.Parallel()
 
-	response := &ActivityResponse{Schedules: []ScheduleResponse{}}
+	response := &httpadapter.ActivityResponse{Schedules: []httpadapter.ScheduleResponse{}}
 	sch := &activityContract.Schedule{
 		ID:      1,
 		Weekday: 1,
@@ -262,7 +263,7 @@ func TestAddSchedulesToResponse_WithNilScheduleInList(t *testing.T) {
 		sch,
 		nil,
 	}
-	addSchedulesToResponse(response, schedules)
+	httpadapter.AddSchedulesToResponseForTest(response, schedules)
 	assert.Len(t, response.Schedules, 1)
 	assert.Equal(t, int64(1), response.Schedules[0].ID)
 }
@@ -270,47 +271,47 @@ func TestAddSchedulesToResponse_WithNilScheduleInList(t *testing.T) {
 func TestAddSchedulesToResponse_WithMultipleSchedules(t *testing.T) {
 	t.Parallel()
 
-	response := &ActivityResponse{Schedules: []ScheduleResponse{}}
+	response := &httpadapter.ActivityResponse{Schedules: []httpadapter.ScheduleResponse{}}
 	timeframeID := int64(5)
 	schedules := []*activityContract.Schedule{
 		{ID: 1, Weekday: 1, TimeframeID: &timeframeID},
 		{ID: 2, Weekday: 3, TimeframeID: nil},
 	}
-	addSchedulesToResponse(response, schedules)
+	httpadapter.AddSchedulesToResponseForTest(response, schedules)
 	assert.Len(t, response.Schedules, 2)
 }
 
 // =============================================================================
-// addCategoryToResponse Tests
+// AddCategoryToResponseForTest Tests
 // =============================================================================
 
 func TestAddCategoryToResponse_NilCategory(t *testing.T) {
 	t.Parallel()
 
-	response := &ActivityResponse{}
+	response := &httpadapter.ActivityResponse{}
 	group := &activityContract.Group{Category: nil}
-	addCategoryToResponse(response, group)
+	httpadapter.AddCategoryToResponseForTest(response, group)
 	assert.Nil(t, response.Category)
 }
 
 func TestAddCategoryToResponse_WithCategory(t *testing.T) {
 	t.Parallel()
 
-	response := &ActivityResponse{}
+	response := &httpadapter.ActivityResponse{}
 	group := &activityContract.Group{
 		Category: &activityContract.Category{
 			ID:   1,
 			Name: "Test Category",
 		},
 	}
-	addCategoryToResponse(response, group)
+	httpadapter.AddCategoryToResponseForTest(response, group)
 	assert.NotNil(t, response.Category)
 	assert.Equal(t, int64(1), response.Category.ID)
 	assert.Equal(t, "Test Category", response.Category.Name)
 }
 
 // =============================================================================
-// buildBaseActivityResponse Tests
+// BuildBaseActivityResponseForTest Tests
 // =============================================================================
 
 func TestBuildBaseActivityResponse_BasicFields(t *testing.T) {
@@ -327,7 +328,7 @@ func TestBuildBaseActivityResponse_BasicFields(t *testing.T) {
 		PlannedRoomID:   &roomID,
 	}
 
-	response := buildBaseActivityResponse(group, 15)
+	response := httpadapter.BuildBaseActivityResponseForTest(group, 15)
 
 	assert.Equal(t, int64(1), response.ID)
 	assert.Equal(t, "Test Activity", response.Name)
@@ -349,7 +350,7 @@ func TestBuildBaseActivityResponse_UnlimitedCapacity(t *testing.T) {
 		CategoryID:      5,
 	}
 
-	response := buildBaseActivityResponse(group, 75)
+	response := httpadapter.BuildBaseActivityResponseForTest(group, 75)
 
 	assert.Nil(t, response.MaxParticipants)
 }
@@ -363,12 +364,12 @@ func TestBuildBaseActivityResponse_NilRoomID(t *testing.T) {
 		PlannedRoomID: nil,
 	}
 
-	response := buildBaseActivityResponse(group, 0)
+	response := httpadapter.BuildBaseActivityResponseForTest(group, 0)
 	assert.Nil(t, response.PlannedRoomID)
 }
 
 // =============================================================================
-// updateGroupFields Tests
+// UpdateGroupFieldsForTest Tests
 // =============================================================================
 
 func TestUpdateGroupFields_AllFields(t *testing.T) {
@@ -376,7 +377,7 @@ func TestUpdateGroupFields_AllFields(t *testing.T) {
 
 	roomID := int64(25)
 	group := &activityContract.Group{}
-	req := &ActivityRequest{
+	req := &httpadapter.ActivityRequest{
 		Name:            "Updated Name",
 		MaxParticipants: 50,
 		IsOpen:          true,
@@ -384,7 +385,7 @@ func TestUpdateGroupFields_AllFields(t *testing.T) {
 		PlannedRoomID:   &roomID,
 	}
 
-	updateGroupFields(group, req)
+	httpadapter.UpdateGroupFieldsForTest(group, req)
 
 	assert.Equal(t, "Updated Name", group.Name)
 	assert.Equal(t, 50, group.MaxParticipants)
@@ -401,17 +402,17 @@ func TestUpdateGroupFields_NilRoomID(t *testing.T) {
 		PlannedRoomID: &roomID,
 	}
 
-	req := &ActivityRequest{
+	req := &httpadapter.ActivityRequest{
 		Name:          "Test",
 		PlannedRoomID: nil,
 	}
 
-	updateGroupFields(group, req)
+	httpadapter.UpdateGroupFieldsForTest(group, req)
 	assert.Nil(t, group.PlannedRoomID)
 }
 
 // =============================================================================
-// newCategoryResponse Tests
+// NewCategoryResponseForTest Tests
 // =============================================================================
 
 func TestNewCategoryResponse_FullCategory(t *testing.T) {
@@ -424,7 +425,7 @@ func TestNewCategoryResponse_FullCategory(t *testing.T) {
 		Color:       "#FF0000",
 	}
 
-	response := newCategoryResponse(category)
+	response := httpadapter.NewCategoryResponseForTest(category)
 
 	assert.Equal(t, int64(1), response.ID)
 	assert.Equal(t, "Sports", response.Name)
@@ -440,7 +441,7 @@ func TestNewCategoryResponse_MinimalCategory(t *testing.T) {
 		Name: "Minimal",
 	}
 
-	response := newCategoryResponse(category)
+	response := httpadapter.NewCategoryResponseForTest(category)
 
 	assert.Equal(t, int64(1), response.ID)
 	assert.Equal(t, "Minimal", response.Name)
@@ -451,12 +452,12 @@ func TestNewCategoryResponse_MinimalCategory(t *testing.T) {
 func TestNewCategoryResponse_NilCategory(t *testing.T) {
 	t.Parallel()
 
-	response := newCategoryResponse(nil)
+	response := httpadapter.NewCategoryResponseForTest(nil)
 	assert.Equal(t, "Unknown Category", response.Name)
 }
 
 // =============================================================================
-// newScheduleResponse Tests
+// NewScheduleResponseForTest Tests
 // =============================================================================
 
 func TestNewScheduleResponse_Basic(t *testing.T) {
@@ -467,7 +468,7 @@ func TestNewScheduleResponse_Basic(t *testing.T) {
 		Weekday: 1,
 	}
 
-	response := newScheduleResponse(schedule)
+	response := httpadapter.NewScheduleResponseForTest(schedule)
 
 	assert.Equal(t, int64(1), response.ID)
 	assert.Equal(t, 1, response.Weekday)
@@ -483,7 +484,7 @@ func TestNewScheduleResponse_WithTimeframeID(t *testing.T) {
 		TimeframeID: &timeframeID,
 	}
 
-	response := newScheduleResponse(schedule)
+	response := httpadapter.NewScheduleResponseForTest(schedule)
 
 	assert.Equal(t, int64(1), response.ID)
 	assert.NotNil(t, response.TimeframeID)
@@ -493,12 +494,12 @@ func TestNewScheduleResponse_WithTimeframeID(t *testing.T) {
 func TestNewScheduleResponse_NilSchedule(t *testing.T) {
 	t.Parallel()
 
-	response := newScheduleResponse(nil)
+	response := httpadapter.NewScheduleResponseForTest(nil)
 	assert.Equal(t, int64(0), response.ID)
 }
 
 // =============================================================================
-// newSupervisorResponse Tests
+// NewSupervisorResponseForTest Tests
 // =============================================================================
 
 func TestNewSupervisorResponse_Complete(t *testing.T) {
@@ -512,7 +513,7 @@ func TestNewSupervisorResponse_Complete(t *testing.T) {
 		LastName:  "Doe",
 	}
 
-	response := newSupervisorResponse(supervisor)
+	response := httpadapter.NewSupervisorResponseForTest(supervisor)
 
 	assert.Equal(t, int64(1), response.ID)
 	assert.Equal(t, int64(10), response.StaffID)
@@ -530,7 +531,7 @@ func TestNewSupervisorResponse_NilStaff(t *testing.T) {
 		IsPrimary: false,
 	}
 
-	response := newSupervisorResponse(supervisor)
+	response := httpadapter.NewSupervisorResponseForTest(supervisor)
 
 	assert.Equal(t, int64(1), response.ID)
 	assert.Equal(t, int64(10), response.StaffID)
@@ -548,7 +549,7 @@ func TestNewSupervisorResponse_StaffWithNilPerson(t *testing.T) {
 		IsPrimary: false,
 	}
 
-	response := newSupervisorResponse(supervisor)
+	response := httpadapter.NewSupervisorResponseForTest(supervisor)
 
 	assert.Equal(t, int64(1), response.ID)
 	assert.Empty(t, response.FirstName)
@@ -558,7 +559,7 @@ func TestNewSupervisorResponse_StaffWithNilPerson(t *testing.T) {
 func TestNewSupervisorResponse_NilSupervisor(t *testing.T) {
 	t.Parallel()
 
-	response := newSupervisorResponse(nil)
+	response := httpadapter.NewSupervisorResponseForTest(nil)
 	assert.Equal(t, int64(0), response.ID)
 }
 
@@ -569,11 +570,11 @@ func TestNewSupervisorResponse_NilSupervisor(t *testing.T) {
 func TestActivityResponse_DefaultSchedules(t *testing.T) {
 	t.Parallel()
 
-	response := ActivityResponse{}
+	response := httpadapter.ActivityResponse{}
 	assert.Nil(t, response.Schedules)
 
 	// After init with empty slice
-	response.Schedules = []ScheduleResponse{}
+	response.Schedules = []httpadapter.ScheduleResponse{}
 	assert.NotNil(t, response.Schedules)
 	assert.Empty(t, response.Schedules)
 }
@@ -581,7 +582,7 @@ func TestActivityResponse_DefaultSchedules(t *testing.T) {
 func TestCategoryResponse_Fields(t *testing.T) {
 	t.Parallel()
 
-	response := CategoryResponse{
+	response := httpadapter.CategoryResponse{
 		ID:          1,
 		Name:        "Test",
 		Description: "Description",

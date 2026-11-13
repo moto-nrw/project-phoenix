@@ -45,6 +45,20 @@ export function holidayAddressRequirement(
   return value === "optional" || value === "required" ? value : "off";
 }
 
+/**
+ * The building block „Gesundheit“ of a version (#6686): whether parents must
+ * answer allergies and medication of each child. A required field takes
+ * „Keine“ as its answer.
+ */
+export type HolidayHealthRequirement = "optional" | "required";
+
+/** Reads the wire value; anything unknown keeps the fields optional. */
+export function holidayHealthRequirement(
+  value: string | null | undefined,
+): HolidayHealthRequirement {
+  return value === "required" ? value : "optional";
+}
+
 /** One version of the holiday form, as a registration uses it. */
 export interface HolidayFormVersion {
   readonly legalBlocks?: readonly FormLegalBlock[];
@@ -52,6 +66,8 @@ export interface HolidayFormVersion {
   readonly fields: readonly HolidayFormField[];
   /** Missing on versions before #5625: no address is asked. */
   readonly addressRequirement?: HolidayAddressRequirement;
+  /** Missing on versions before #6686: the health fields are optional. */
+  readonly healthRequirement?: HolidayHealthRequirement;
 }
 
 export type HolidayLegalBlockWire = Omit<FormLegalBlock, "attachments"> & {

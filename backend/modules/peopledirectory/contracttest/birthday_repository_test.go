@@ -5,16 +5,16 @@ import (
 	"testing"
 	"time"
 
-	peopleBirthday "github.com/moto-nrw/project-phoenix/modules/peopledirectory/compose"
+	peopleBirthday "github.com/moto-ogs/project-phoenix/modules/peopledirectory/compose"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
+	"github.com/moto-ogs/project-phoenix/api"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The birthday queries of the student and staff repositories (#1542, #2487).

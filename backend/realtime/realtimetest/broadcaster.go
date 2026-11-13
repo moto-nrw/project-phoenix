@@ -6,7 +6,7 @@ import (
 	"sync"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/realtime"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

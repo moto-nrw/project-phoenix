@@ -55,6 +55,7 @@
   "shift_series_no_occurrences": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "shift_series_outside_period": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "shift_series_week_cycle_missing": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "shift_type_archived": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "shift_type_inactive": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "staff_profile_missing": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "stammdaten_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
@@ -75,5 +76,6 @@
   "payroll_wage_type_in_use": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "payroll_wage_type_name_taken": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
   "qualification_type_name_taken": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
-  "qualification_type_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin."
+  "qualification_type_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
+  "work_time_model_archived": "{object} değiştirilemedi. Güncel durumu kontrol edin."
 }

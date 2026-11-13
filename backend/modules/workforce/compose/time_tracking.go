@@ -5,9 +5,9 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/modules/workforce/internal/application"
-	timetracking "github.com/moto-nrw/project-phoenix/modules/workforce/internal/application/timetracking"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce/internal/application"
+	timetracking "github.com/moto-ogs/project-phoenix/modules/workforce/internal/application/timetracking"
 )
 
 // The time-tracking side of Workforce (#3413): the stamps, the session

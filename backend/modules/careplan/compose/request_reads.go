@@ -4,9 +4,9 @@ import (
 	"errors"
 	"log/slog"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/internal/application"
-	careRecordPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/internal/application"
+	careRecordPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
 )
 
 func NewRequestReads(records careRecordPorts.RequestReadRecords, diffs carerequests.Diffs, logger *slog.Logger) (carerequests.Reads, error) {

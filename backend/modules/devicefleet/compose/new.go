@@ -7,13 +7,13 @@ import (
 	"errors"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/adapters/credentials"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/internal/ports"
-	facilitiesModule "github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/internal/adapters/credentials"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/internal/ports"
+	facilitiesModule "github.com/moto-ogs/project-phoenix/modules/facilities"
 	"github.com/uptrace/bun"
 )
 

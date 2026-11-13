@@ -121,7 +121,7 @@
     },
     {
       "build": "production",
-      "evidence": "func (r *SessionRepository) FindActiveSessionsOlderThan(ctx context.Context, cutoffTime time.Time) ([]*ActiveGroupRow, error) {\n\tgroups, err := r.query(ctx, studentpresence.LiveGroupFilter{OpenOnly: true, DeviceManagedOnly: true, LastActivityBefore: \u0026cutoffTime})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tslices.SortStableFunc(groups, func(a, b *ActiveGroupRow) int {\n\t\treturn a.LastActivity.Compare(b.LastActivity)\n\t})\n\tif err := attachDevices(ctx, r.devices, groups); err != nil {\n\t\treturn nil, r.errors.WrapRecordError(\"find active sessions older than\", err)\n\t}\n\treturn groups, nil\n}",
+      "evidence": "func (r *SessionRepository) FindActiveSessionsOlderThan(ctx context.Context, cutoffTime time.Time) ([]*ActiveGroupRow, error) {\n\tgroups, err := r.query(ctx, studentpresence.LiveGroupFilter{OpenOnly: true, DeviceManagedOnly: true, LastActivityBefore: \u0026cutoffTime, WithoutOpenVisitsOnly: true})\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tslices.SortStableFunc(groups, func(a, b *ActiveGroupRow) int {\n\t\treturn a.LastActivity.Compare(b.LastActivity)\n\t})\n\tif err := attachDevices(ctx, r.devices, groups); err != nil {\n\t\treturn nil, r.errors.WrapRecordError(\"find active sessions older than\", err)\n\t}\n\treturn groups, nil\n}",
       "form": "unclassified-evidence",
       "id": "modules/studentpresence/internal/adapters/postgres/SessionRepository.FindActiveSessionsOlderThan",
       "owner": "modules/studentpresence"

@@ -13,6 +13,11 @@ import { HELP_TOPICS } from "~/lib/help-topics";
  * erscheint erst mit einem Bezug: `Gruppenleitung` bei der OGS-Gruppe,
  * `Angebotsleitung` bei einem Angebot. Der Bezug bleibt beim Bearbeiten fest.
  * An keine Einstellung gebunden.
+ *
+ * Team informieren (#6854): `Speichern und Team informieren` steht neben
+ * `Speichern` und geht nur mit `Ganzes Team`. Wer informiert wurde, sieht
+ * oben in der Kopfzeile unter `Neu für Sie` mit rotem Zähler; das Öffnen
+ * der Notizen des Kindes hakt sie ab.
  */
 export function studentNotesTopic(): HelpTopic {
   return {
@@ -36,6 +41,24 @@ export function studentNotesTopic(): HelpTopic {
           "Wählen Sie unter `Bezug`, worum es geht: `Nur das Kind`, die OGS-Gruppe oder ein Angebot.",
           "Wählen Sie unter `Wer sieht die Notiz?` die Reichweite.",
           "Wählen Sie `Speichern`.",
+        ],
+      },
+      {
+        title: "Eine wichtige Notiz mit dem Team teilen",
+        steps: [
+          "Schreiben Sie die Notiz wie oben.",
+          "Wählen Sie unter `Wer sieht die Notiz?` die Reichweite `Ganzes Team`.",
+          "Wählen Sie `Speichern und Team informieren`.",
+          "moto sagt Ihnen danach, wie viele Personen informiert sind.",
+        ],
+      },
+      {
+        title: "Eine geteilte Notiz lesen",
+        steps: [
+          "Oben in der Kopfzeile erscheint ein Zeitungssymbol mit rotem Zähler.",
+          "Tippen Sie darauf. Die Liste `Neu für Sie` zeigt die Notiz.",
+          "Tippen Sie auf das Kind. Die Notizen des Kindes öffnen sich.",
+          "Die geteilte Notiz trägt `Neu`. Der Zähler geht zurück.",
         ],
       },
       {
@@ -80,6 +103,7 @@ export function studentNotesTopic(): HelpTopic {
       "Eltern sehen Notizen nie.",
       "Gesundheitsangaben gehören nicht in eine Notiz, sondern in die `Gesundheitsinformationen` der Stammdaten.",
       "Ändern kann eine Notiz nur, wer sie geschrieben hat.",
+      "`Speichern` allein informiert niemanden. Nur `Speichern und Team informieren` zeigt die Notiz allen im Team als neu. Auf dem Handy kommt zusätzlich eine Mitteilung, wenn Sie Mitteilungen eingeschaltet haben.",
       "Entfernen kann sie die Leitung der Gruppe oder des Angebots.",
       "Eine freigegebene Notiz liest nur die Lehrkraft der Klasse des Kindes, in moto schule. Die Schulverwaltung sieht sie nicht. Ohne Haken bleibt jede Notiz bei der OGS.",
       "Die `Bemerkung` an der Anwesenheit eines Angebots ist nur ein kurzer Satz zur Anwesenheit. Beobachtungen wie Verhalten oder einen Vorfall schreiben Sie als Notiz, mit dem Angebot als `Bezug`.",
@@ -87,11 +111,14 @@ export function studentNotesTopic(): HelpTopic {
     differences: [
       "Sie sehen weniger Notizen als eine Kollegin? Dann hat sie das Kind, Sie nicht. Die Reichweite entscheidet das je Notiz.",
       "Ein Hinweis trägt `Übernommen aus den Betreuernotizen`? Der stammt aus dem früheren Textfeld und hat deshalb keinen Verfasser.",
+      "Auf dem Handy gibt es keine Kopfzeile. Dort trägt `Mehr` unten den roten Zähler, und im Menü steht die Liste `Neu für Sie`.",
     ],
     troubleshootingDetails: [
       "Es fehlt der Reiter `Notizen`? Dann darf Ihre Rolle keine Notizen sehen. Fragen Sie Ihre Leitung.",
       "Ein Angebot fehlt unter `Bezug`? Dort stehen nur Angebote, in denen das Kind heute angemeldet ist.",
       "Es fehlt `Gruppenleitung` oder `Angebotsleitung`? Wählen Sie zuerst unter `Bezug` die Gruppe oder das Angebot.",
+      "`Speichern und Team informieren` lässt sich nicht wählen? Das geht nur mit `Ganzes Team` unter `Wer sieht die Notiz?`.",
+      "moto meldet `Die Notiz ist gespeichert. Das Team ist noch nicht informiert.`? Wählen Sie in der Meldung `Wiederholen`.",
     ],
     related: [HELP_TOPICS.leadManageStudent, HELP_TOPICS.studentSearch],
   };

@@ -34,10 +34,32 @@ func (m SafeMigrationMap) Register(migration *Migration) {
 			migration.Version, existing.Description, migration.Description,
 		))
 	}
+	name, ok := callerBunName()
+	if ok {
+		if err := checkTimestampVersion(name, migration.Version); err != nil {
+			panic(err.Error())
+		}
+	}
 	m[migration.Version] = migration
-	if name, ok := callerBunName(); ok {
+	if ok {
 		migrationsByBunName[name] = migration
 	}
+}
+
+// timestampNameLength is the length of a timestamp migration name:
+// YYYYMMDDHHMMSS in UTC (ADR 0223). The older names are the nine digits of a
+// packed version, 001015963 for 1.15.963.
+const timestampNameLength = 14
+
+// checkTimestampVersion holds a timestamp migration to one identity: its
+// Version is its filename prefix. The older migrations keep two, a filename
+// prefix and a dotted version, which had to be changed together.
+func checkTimestampVersion(bunName, version string) error {
+	if len(bunName) != timestampNameLength || bunName == version {
+		return nil
+	}
+	return fmt.Errorf("MIGRATION VERSION MISMATCH: the file prefix is %s, its Version is %q; "+
+		"a timestamp migration registers its file prefix as its Version", bunName, version)
 }
 
 // migrationsByBunName indexes registered migrations by the name bun knows them
@@ -250,14 +272,13 @@ func DetectVersionCollisions(migrationsDir string) error {
 		if entry.IsDir() || !strings.HasSuffix(name, ".go") || strings.HasSuffix(name, "_test.go") {
 			continue
 		}
-		// Migration files start with 000 or 001
-		if !strings.HasPrefix(name, "000") && !strings.HasPrefix(name, "001") {
+		// Migration files carry a numeric prefix: a packed version (000…,
+		// 001…) or a timestamp. 00_migrations.go matches too and is none.
+		match := filePrefixPattern.FindStringSubmatch(name)
+		if match == nil || name == filepath.Base(registryFile) {
 			continue
 		}
-
-		if match := filePrefixPattern.FindStringSubmatch(name); match != nil {
-			bunNameFiles[match[1]] = append(bunNameFiles[match[1]], name)
-		}
+		bunNameFiles[match[1]] = append(bunNameFiles[match[1]], name)
 
 		content, err := os.ReadFile(filepath.Join(migrationsDir, name))
 		if err != nil {

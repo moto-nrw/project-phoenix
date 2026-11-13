@@ -7,8 +7,8 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	apiCommon "github.com/moto-nrw/project-phoenix/api/common"
-	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
+	apiCommon "github.com/moto-ogs/project-phoenix/api/common"
+	settingsModule "github.com/moto-ogs/project-phoenix/modules/settings"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )

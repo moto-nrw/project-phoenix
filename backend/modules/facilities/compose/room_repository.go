@@ -1,6 +1,6 @@
 package compose
 
-import "github.com/moto-nrw/project-phoenix/modules/facilities/compose/repositoryadapter"
+import "github.com/moto-ogs/project-phoenix/modules/facilities/compose/repositoryadapter"
 
 var (
 	// NewRoomRepository serves the retained room repository contract over the

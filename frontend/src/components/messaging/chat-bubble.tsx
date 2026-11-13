@@ -19,7 +19,10 @@ import {
   MessageAttachments,
   type MessageAttachmentLabels,
 } from "~/components/ui/message-attachments";
-import type { MessageAttachment } from "~/lib/message-attachments";
+import {
+  fetchMessageAttachmentFile,
+  type MessageAttachment,
+} from "~/lib/message-attachments";
 
 /** One chat message bubble. */
 export function ChatBubble({
@@ -116,6 +119,7 @@ export function ChatBubble({
             attachments={attachments}
             downloadUrl={attachmentUrl}
             align={own ? "end" : "start"}
+            loadFile={fetchMessageAttachmentFile}
             labels={attachmentLabels}
           />
         </div>

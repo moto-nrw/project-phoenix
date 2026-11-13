@@ -1,0 +1,223 @@
+package account_test
+
+import (
+	"context"
+	"encoding/json"
+	"fmt"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+	"time"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
+)
+
+// The login address and the second factor hold for a whole account. A school
+// administrator changes them only while their school alone holds the account
+// (#6862); these tests drive the two routes through the composed router.
+
+const sharedAccountCode = "identity.account_shared_across_schools"
+
+// localAccount is an account the fixture maps to the test's school only.
+func (e *accountIsolationEnv) localAccount(t *testing.T, prefix string) (int64, string) {
+	t.Helper()
+	account := testpkg.CreateTestAccount(t, e.tc.db, prefix)
+	testpkg.OwnAccountSecurityNotices(t, e.tc.db, account.ID)
+	return account.ID, account.Email
+}
+
+// accountAtBothSchools is active at the test's school and at a foreign one.
+func (e *accountIsolationEnv) accountAtBothSchools(t *testing.T, prefix string) (int64, string) {
+	t.Helper()
+	id, address := e.localAccount(t, prefix)
+	testpkg.MapAccountToTenant(t, e.tc.db, id, e.foreignTenantID)
+	return id, address
+}
+
+// traegerMember is active at the test's school and in its Träger-Büro.
+func (e *accountIsolationEnv) traegerMember(t *testing.T, prefix string) (int64, string) {
+	t.Helper()
+	id, address := e.localAccount(t, prefix)
+	var organizationID int64
+	require.NoError(t, e.tc.db.NewSelect().Column("organization_id").TableExpr("platform.schools").
+		Where("id = ?", e.tenantID).Scan(context.Background(), &organizationID))
+	testpkg.CreateTestTraegerMember(t, e.tc.db, organizationID, id)
+	return id, address
+}
+
+// traegerParent is active at the test's school and has parents-portal
+// access at its Träger (ADR 0216).
+func (e *accountIsolationEnv) traegerParent(t *testing.T, prefix string) (int64, string) {
+	t.Helper()
+	id, address := e.localAccount(t, prefix)
+	_, err := e.tc.db.NewRaw(`INSERT INTO auth.traeger_parent_access (account_id, organization_id)
+		SELECT ?, organization_id FROM platform.schools WHERE id = ?`, id, e.tenantID).Exec(context.Background())
+	require.NoError(t, err)
+	t.Cleanup(func() {
+		_, err := e.tc.db.NewRaw(`DELETE FROM auth.traeger_parent_access WHERE account_id = ?`, id).Exec(context.Background())
+		require.NoError(t, err)
+	})
+	return id, address
+}
+
+// secondFactorGeneration moves with every reset of the account's second factor.
+func (e *accountIsolationEnv) secondFactorGeneration(t *testing.T, accountID int64) int64 {
+	t.Helper()
+	var generation int64
+	require.NoError(t, testpkg.SetupTestDB(t).NewSelect().Column("mfa_reset_generation").TableExpr("auth.accounts").
+		Where("id = ?", accountID).Scan(context.Background(), &generation))
+	return generation
+}
+
+func (e *accountIsolationEnv) storedAddress(t *testing.T, accountID int64) string {
+	t.Helper()
+	var address string
+	require.NoError(t, testpkg.SetupTestDB(t).NewSelect().Column("email").TableExpr("auth.accounts").
+		Where("id = ?", accountID).Scan(context.Background(), &address))
+	return address
+}
+
+// noticeRecipients lists the addresses the account's notices of one kind go
+// to, in any outbox: the school's or the global one. It reads the package's
+// pool, the database the env's resource writes to.
+func (e *accountIsolationEnv) noticeRecipients(t *testing.T, kind string, accountID int64) []string {
+	t.Helper()
+	recipients := []string{}
+	require.NoError(t, testpkg.SetupTestDB(t).NewRaw(`SELECT recipient->>'address' FROM platform.email_outbox
+		WHERE related_entity_type = ? AND related_entity_id = ? ORDER BY id`, kind, accountID).
+		Scan(context.Background(), &recipients))
+	return recipients
+}
+
+func requireSharedAccountRefusal(t *testing.T, rr *httptest.ResponseRecorder) {
+	t.Helper()
+	require.Equal(t, http.StatusForbidden, rr.Code, rr.Body.String())
+	var body struct {
+		Code string `json:"code"`
+	}
+	require.NoError(t, json.Unmarshal(rr.Body.Bytes(), &body))
+	assert.Equal(t, sharedAccountCode, body.Code)
+}
+
+func TestSchoolAdminCannotChangeLoginAddressOfSharedAccount(t *testing.T) {
+	t.Parallel()
+	e := newAccountIsolationEnv(t)
+
+	for name, shared := range map[string]func(*testing.T, string) (int64, string){
+		"another school":       e.accountAtBothSchools,
+		"Träger-Büro":          e.traegerMember,
+		"Träger parent access": e.traegerParent,
+	} {
+		t.Run(name, func(t *testing.T) {
+			id, address := shared(t, "shared-login-address")
+			rr := e.execute(t, e.claims, http.MethodPut, fmt.Sprintf("/auth/accounts/%d", id),
+				map[string]string{"email": fmt.Sprintf("taken-over-%d@example.test", id)})
+
+			requireSharedAccountRefusal(t, rr)
+			assert.Equal(t, address, e.storedAddress(t, id), "the login address stays")
+			assert.Empty(t, e.noticeRecipients(t, "account_login_address_changed", id))
+		})
+	}
+}
+
+func TestSchoolAdminChangesLoginAddressOfOwnAccountAndPreviousAddressLearnsOfIt(t *testing.T) {
+	t.Parallel()
+	e := newAccountIsolationEnv(t)
+	id, previous := e.localAccount(t, "own-login-address")
+	path := fmt.Sprintf("/auth/accounts/%d", id)
+
+	// A name-only edit keeps the address and tells nobody.
+	assertAccountActionStatus(t, e, e.claims, http.MethodPut, path,
+		map[string]string{"email": previous, "username": fmt.Sprintf("own-login-%d", id)}, http.StatusNoContent)
+	assert.Empty(t, e.noticeRecipients(t, "account_login_address_changed", id))
+
+	changed := fmt.Sprintf("own-login-changed-%d@example.test", id)
+	assertAccountActionStatus(t, e, e.claims, http.MethodPut, path, map[string]string{"email": changed}, http.StatusNoContent)
+
+	assert.Equal(t, changed, e.storedAddress(t, id))
+	assert.Equal(t, []string{previous}, e.noticeRecipients(t, "account_login_address_changed", id),
+		"the notice goes to the address the login left, once")
+}
+
+func TestSchoolAdminCannotResetSecondFactorOfSharedAccount(t *testing.T) {
+	t.Parallel()
+	e := newAccountIsolationEnv(t)
+	// The second-factor routes are served by the composed flows.
+	e.tc.resource.MFAService = setupAuthModuleOn(t, e.tc.db).MFA
+
+	for name, shared := range map[string]func(*testing.T, string) (int64, string){
+		"another school":       e.accountAtBothSchools,
+		"Träger-Büro":          e.traegerMember,
+		"Träger parent access": e.traegerParent,
+	} {
+		t.Run(name, func(t *testing.T) {
+			id, _ := shared(t, "shared-second-factor")
+			before := e.secondFactorGeneration(t, id)
+			rr := e.execute(t, e.claims, http.MethodDelete, fmt.Sprintf("/auth/accounts/%d/mfa", id),
+				map[string]string{"reason": "lost mailbox"})
+
+			requireSharedAccountRefusal(t, rr)
+			assert.Empty(t, e.noticeRecipients(t, "account_mfa_reset", id))
+			assert.Equal(t, before, e.secondFactorGeneration(t, id), "the refused reset leaves the second factor")
+
+			// The override of the administrator's own school stays open.
+			assertAccountActionStatus(t, e, e.claims, http.MethodPut, fmt.Sprintf("/auth/accounts/%d/mfa/override", id),
+				map[string]string{"override": "force_off", "reason": "lost mailbox"}, http.StatusNoContent)
+		})
+	}
+}
+
+func TestSchoolAdminResetsSecondFactorOfOwnAccountAndHolderLearnsOfIt(t *testing.T) {
+	t.Parallel()
+	e := newAccountIsolationEnv(t)
+	// The second-factor routes are served by the composed flows.
+	e.tc.resource.MFAService = setupAuthModuleOn(t, e.tc.db).MFA
+	id, address := e.localAccount(t, "own-second-factor")
+	before := e.secondFactorGeneration(t, id)
+
+	assertAccountActionStatus(t, e, e.claims, http.MethodDelete, fmt.Sprintf("/auth/accounts/%d/mfa", id),
+		map[string]string{"reason": "lost mailbox"}, http.StatusNoContent)
+
+	assert.Equal(t, []string{address}, e.noticeRecipients(t, "account_mfa_reset", id))
+	assert.Greater(t, e.secondFactorGeneration(t, id), before, "the reset reached the account")
+}
+
+// A school that links the account while the administrator changes its
+// address: the change waits for the link and then refuses, instead of
+// rewriting the login of an account that has become shared.
+func TestSchoolAdminAddressChangeWaitsForASchoolLinkingTheAccount(t *testing.T) {
+	t.Parallel()
+	e := newAccountIsolationEnv(t)
+	id, address := e.localAccount(t, "linked-meanwhile")
+	ctx := context.Background()
+
+	link, err := e.tc.db.BeginTx(ctx, nil)
+	require.NoError(t, err)
+	defer func() { _ = link.Rollback() }()
+	var linkPID int
+	require.NoError(t, link.NewRaw(`SELECT pg_backend_pid()`).Scan(ctx, &linkPID))
+	_, err = link.ExecContext(ctx, `INSERT INTO auth.account_tenants (account_id, tenant_id, status, created_at, updated_at)
+		VALUES (?, ?, 'active', NOW(), NOW())`, id, e.foreignTenantID)
+	require.NoError(t, err)
+
+	req := testutil.NewJSONRequest(t, http.MethodPut, fmt.Sprintf("/auth/accounts/%d", id),
+		map[string]string{"email": fmt.Sprintf("linked-meanwhile-%d@example.test", id)})
+	done := make(chan *httptest.ResponseRecorder, 1)
+	go func() { done <- testutil.ExecuteWithAuth(t, e.router, req, e.claims) }()
+
+	// The change reaches the account and waits for the uncommitted link.
+	require.Eventually(t, func() bool {
+		var waiting bool
+		return testpkg.SetupTestDB(t).NewRaw(`SELECT EXISTS (SELECT FROM pg_stat_activity
+			WHERE ? = ANY(pg_blocking_pids(pid)))`, linkPID).Scan(ctx, &waiting) == nil && waiting
+	}, 5*time.Second, 10*time.Millisecond)
+	require.NoError(t, link.Commit())
+
+	requireSharedAccountRefusal(t, <-done)
+	assert.Equal(t, address, e.storedAddress(t, id), "the login address stays")
+	assert.Empty(t, e.noticeRecipients(t, "account_login_address_changed", id))
+}

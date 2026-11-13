@@ -1,5 +1,9 @@
 {
+  "archived": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "color_already_in_use": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-  "not_released": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+  "not_released": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "required_by_care_offering": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "session_running": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "still_planned": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
 }

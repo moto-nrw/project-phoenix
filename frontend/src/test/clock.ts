@@ -1,5 +1,7 @@
 import { vi } from "vitest";
 
+import { TEST_CLOCK_INSTANT } from "./clock-instant";
+
 /**
  * Deterministic test clock (#3101).
  *
@@ -24,13 +26,7 @@ import { vi } from "vitest";
  * weekday in the middle of a week, a month and a DST period. Tests covering
  * Berlin midnight, week changes or the DST switch pick their own instant.
  */
-const TEST_CLOCK_ISO = "2026-09-09T12:00:00+02:00";
-
-/** The frozen instant every test starts on. */
-export const TEST_CLOCK_INSTANT = new Date(TEST_CLOCK_ISO);
-
-/** The Berlin calendar day of {@link TEST_CLOCK_INSTANT}. */
-export const TEST_CLOCK_TODAY = "2026-09-09";
+export { TEST_CLOCK_INSTANT, TEST_CLOCK_TODAY } from "./clock-instant";
 
 /**
  * Move the frozen clock to `instant` (ISO string or `Date`). Works with and

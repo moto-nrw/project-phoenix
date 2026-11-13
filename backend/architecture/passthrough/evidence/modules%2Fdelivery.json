@@ -50,13 +50,6 @@
       "owner": "modules/delivery"
     },
     {
-      "build": "testhooks",
-      "evidence": "func (s *fixtureIntentStore) Claim(ctx context.Context, transport domain.Transport, _ int, now, expires time.Time) ([]domain.Intent, error) {\n\tif transport != domain.TransportEmail {\n\t\treturn nil, nil\n\t}\n\trow, acquired, err := s.exact.ClaimEmail(ctx, s.tenantID, s.id, now, expires)\n\tif err != nil {\n\t\treturn nil, err\n\t}\n\tif acquired {\n\t\treturn []domain.Intent{row}, nil\n\t}\n\ts.finished = row.Status == string(domain.StateSent) || row.Status == string(domain.StateDeadLetter) || row.Status == string(domain.StateCancelled)\n\treturn nil, nil\n}",
-      "form": "unclassified-evidence",
-      "id": "modules/delivery/internal/application/fixtureIntentStore.Claim",
-      "owner": "modules/delivery"
-    },
-    {
       "build": "production",
       "evidence": "func (a DurableEmails) CancelEmail(ctx context.Context, tenantID int64, relatedType string, relatedID int64, reason string) (int64, error) {\n\treturn a.Module.Cancel(ctx, tenantID, deliveryContract.TransportEmail, deliveryContract.RelatedEntity{Type: relatedType, ID: relatedID}, reason)\n}",
       "form": "unclassified-evidence",

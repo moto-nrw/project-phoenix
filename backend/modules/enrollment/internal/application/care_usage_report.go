@@ -6,9 +6,9 @@ import (
 	"sort"
 	"strconv"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // careUsageInputs are the owner reads one care usage report combines.

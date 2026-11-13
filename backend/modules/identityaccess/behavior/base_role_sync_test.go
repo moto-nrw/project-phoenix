@@ -7,7 +7,7 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // TestBaseRoleSyncAcrossLayers ensures ValidBaseRoles, the DB CHECK constraint,

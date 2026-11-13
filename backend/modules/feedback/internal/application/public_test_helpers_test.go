@@ -4,9 +4,9 @@ import (
 	"context"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/feedback"
-	"github.com/moto-nrw/project-phoenix/modules/feedback/internal/domain"
-	"github.com/moto-nrw/project-phoenix/modules/feedback/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/feedback"
+	"github.com/moto-ogs/project-phoenix/modules/feedback/internal/domain"
+	"github.com/moto-ogs/project-phoenix/modules/feedback/internal/ports"
 )
 
 type seamStore struct {

@@ -2,7 +2,7 @@
 
 package api
 
-import userModels "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+import userModels "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 
 // ParentRequestReviewStudent returns a detached student row that belongs to
 // groupID (nil: no group), for the review policy suites that decide over the

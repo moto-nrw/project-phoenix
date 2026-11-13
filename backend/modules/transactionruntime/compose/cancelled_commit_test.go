@@ -9,9 +9,9 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Force database/sql's automatic rollback to win before the callback returns.
@@ -68,6 +68,7 @@ GRANT SELECT, INSERT ON public.cancelled_commit_probe TO phoenix_tenant, phoenix
 						err = tenant.WithinTenant(ctx, schoolID, body)
 					}
 					require.ErrorIs(t, err, target)
+					require.Equal(t, tenant.UnitOfWorkRolledBack, tenant.TransactionResult(err), "the rolled-back unit has a known outcome: %v", err)
 					if hookRan {
 						t.Fatal("a cancelled transaction ran its after-commit hook")
 					}
