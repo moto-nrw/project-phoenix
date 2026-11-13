@@ -1,5 +1,25 @@
 # Changelog
 
+## [1.10.0](https://github.com/moto-ogs/project-phoenix/compare/v1.9.0...v1.10.0) (2026-11-13)
+
+
+### Neue Funktionen
+
+* Arbeitszeitmodell-Vorlagen auf einer eigenen Seite verwalten ([b68137b](https://github.com/moto-ogs/project-phoenix/commit/b68137b2522c3678a7b5885aaf334387e354291d))
+
+
+### Fehlerbehebungen
+
+* **analytics:** Reibungstabellen in PostHog ohne Zeitüberschreitung abfragen ([5a34575](https://github.com/moto-ogs/project-phoenix/commit/5a34575a5a25bb94b694c5eaf394a8f591365032))
+* **analytics:** Reibungstabellen suchen Sitzungen nur über Seitenaufrufe ([6eb4ccc](https://github.com/moto-ogs/project-phoenix/commit/6eb4cccfdc8633ebbcc3c98bddefc95909353fad))
+* Personen der Familie einmal über alle Kinder bestimmen ([bd99775](https://github.com/moto-ogs/project-phoenix/commit/bd99775f164e759dd6b04a7607703825ddcc242c)), closes [#6931](https://github.com/moto-ogs/project-phoenix/issues/6931)
+* Vorbefüllung hält verschiedene Personen mit gleichem Namen auseinander ([fad72cd](https://github.com/moto-ogs/project-phoenix/commit/fad72cd6f9a4a0698f297d785f4d327e32e99b4a)), closes [#6931](https://github.com/moto-ogs/project-phoenix/issues/6931)
+
+
+### Schneller
+
+* **test:** api und roots/owners in 18 weiteren Testbinaries nicht mehr neu übersetzt ([#6940](https://github.com/moto-ogs/project-phoenix/issues/6940)) ([6f3ff76](https://github.com/moto-ogs/project-phoenix/commit/6f3ff76bf991d3e67a3d83083c41cab88d4bf6dd))
+
 ## [1.9.0](https://github.com/moto-ogs/project-phoenix/compare/v1.8.0...v1.9.0) (2026-11-13)
 
 
