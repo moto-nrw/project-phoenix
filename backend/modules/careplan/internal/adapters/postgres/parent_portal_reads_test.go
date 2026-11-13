@@ -9,8 +9,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	parentModels "github.com/moto-nrw/project-phoenix/modules/careplan/internal/rows"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	parentModels "github.com/moto-ogs/project-phoenix/modules/careplan/internal/rows"
 )
 
 type parentChildQuerySource struct {

@@ -27,6 +27,9 @@
   "cost_bearer_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "cost_takeover_with_exemption": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "debtor_number_invalid": "{object} kaydedilemedi. Girdiğiniz bilgileri kontrol edin.",
+  "debtor_number_digits": "Borçlu numarası {digits} rakamdan oluşur, örneğin {example}.",
+  "debtor_number_digit_range": "Borçlu numarası {min_digits} ile {max_digits} arasında rakamdan oluşur, örneğin {example}.",
+  "family_debtor_number_conflict": "Ailenin zaten {family_debtor_number} borçlu numarası var. Lütfen hangi numaranın geçerli olduğunu seçin.",
   "debtor_number_locked": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "family_not_found": "{object} değiştirilemedi. Güncel durumu kontrol edin.",
   "holiday_quote_invalid": "Bu haftalar için ücret hesaplanamıyor. Lütfen sayfayı yeniden yükleyin.",
@@ -117,5 +120,11 @@
   "online_mandate_disabled": "Kurumunuz şu anda otomatik ödeme talimatını uygulamada kabul etmiyor.",
   "sepa_mandate_text_changed": "Talimat metni değişti. Lütfen tekrar okuyup onaylayın.",
   "cost_center_date_taken": "There is already a cost center from this day. Choose another day or delete the old one.",
-  "sollstellung_revenue_account_missing": "{count} invoices have no revenue account. Enter a standard revenue account in the DATEV settings."
+  "sollstellung_revenue_account_missing": "{count} invoices have no revenue account. Enter a standard revenue account in the DATEV settings.",
+  "export_recipient_not_ready": "This file has no ready recipient. Please assign one under “Export recipients”. No file was created.",
+  "export_already_handed_over": "This file already reached the recipient or is still on its way. No new file was created.",
+  "export_recipient_invalid": "The recipient was not saved. Please check the marked fields.",
+  "export_recipient_not_found": "This recipient no longer exists. Please reload the page.",
+  "export_recipient_name_taken": "A recipient with this name already exists. Please choose another name.",
+  "export_formats_invalid": "The assignment was not saved. Please reload the page and try again."
 }

@@ -76,7 +76,9 @@ type WorkTimeModel struct {
 	RotationAnchorDate string
 	CreatedAt          time.Time
 	UpdatedAt          time.Time
-	Entries            []WorkTimeModelEntry
+	// ArchivedAt is nil while the template is offered for new assignments.
+	ArchivedAt *time.Time
+	Entries    []WorkTimeModelEntry
 }
 
 // WorkTimeModelEntryFields is the writable part of one template slot.

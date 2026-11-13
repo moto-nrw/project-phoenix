@@ -1167,6 +1167,7 @@ export function PickupTimeModal({
   reasonRequired = true,
   cutoffTime,
   todayClosed = false,
+  careDayEnded = false,
   onCutoffPassed,
 }: Readonly<{
   studentId?: string;
@@ -1188,7 +1189,12 @@ export function PickupTimeModal({
   cutoffTime?: string;
   /** Die Frist für heute ist vorbei; heute ist für Eltern gesperrt. */
   todayClosed?: boolean;
-  /** Der Server hat die Frist gemeldet: Daten neu laden. */
+  /**
+   * Die Betreuung ist für heute zu Ende (Betreuungsende der Schule, #5710);
+   * heute ist für Eltern gesperrt, auch wenn das Kind noch im Unterricht ist.
+   */
+  careDayEnded?: boolean;
+  /** Der Server hat die Frist oder das Betreuungsende gemeldet: Daten neu laden. */
   onCutoffPassed?: () => void;
 }>) {
   const t = useCareTermTranslations("parentChildCare");
@@ -1200,6 +1206,8 @@ export function PickupTimeModal({
   // Meldet der Server die Frist, bevor die Merkmale neu geladen sind, sperrt
   // der Dialog heute sofort, statt dieselbe Absage noch einmal zu zeigen.
   const [cutoffReported, setCutoffReported] = useState(false);
+  // Dasselbe für das Betreuungsende (#5710).
+  const [careDayEndReported, setCareDayEndReported] = useState(false);
   // Ist das Aendern abgeschaltet, oeffnet der Dialog auf dem einzigen Tag, den
   // die Eltern noch bearbeiten koennen. Ein offener Antrag geht dabei vor: er
   // ist der Tag mit dem Zuruecknehmen-Knopf, und ohne diese Vorauswahl stuende
@@ -1303,7 +1311,11 @@ export function PickupTimeModal({
   const alreadyHome = date === today && childToday?.state === "left";
   // Nach der Frist ist heute für Eltern ganz zu: nicht anfragen, nicht
   // bearbeiten, nicht zurücknehmen. Spätere Tage bleiben offen (#3163).
-  const todayLocked = date === today && (todayClosed || cutoffReported);
+  // Ab Betreuungsende ist heute ebenso zu (#5710); der Server entscheidet das.
+  const todayCareDayEnded =
+    date === today && (careDayEnded || careDayEndReported);
+  const todayLocked =
+    todayCareDayEnded || (date === today && (todayClosed || cutoffReported));
   // Eine offene eigene Anfrage wird geändert, nicht zurückgezogen (#2267).
   const canEditRequest =
     pending && studentId !== undefined && request?.is_self !== false;
@@ -1346,6 +1358,10 @@ export function PickupTimeModal({
           return t("pickup.reasonTooLong");
         case "care.care_request_already_pending":
           return t("pickup.statusPending");
+        case "care.pickup_change_care_day_ended":
+          setCareDayEndReported(true);
+          onCutoffPassed?.();
+          return t("pickup.careDayEnded");
         case "care.pickup_change_cutoff_passed":
           setCutoffReported(true);
           onCutoffPassed?.();
@@ -1668,7 +1684,7 @@ export function PickupTimeModal({
 
         {/* Der Hinweis nennt eine noch offene Möglichkeit; nach der Frist
             würde er an einem anderen Tag falsch klingen. */}
-        {date === today && cutoffTime && !todayClosed && !cutoffReported && (
+        {date === today && cutoffTime && !todayLocked && (
           <p className="text-sm text-gray-600">
             {t("pickup.cutoffHint", { time: cutoffTime })}
           </p>
@@ -1680,9 +1696,11 @@ export function PickupTimeModal({
             framed
             className="text-sm text-gray-600"
           >
-            {cutoffTime
-              ? t("pickup.cutoffClosed", { time: cutoffTime })
-              : t("pickup.cutoffClosedGeneric")}
+            {todayCareDayEnded
+              ? t("pickup.careDayEnded")
+              : cutoffTime
+                ? t("pickup.cutoffClosed", { time: cutoffTime })
+                : t("pickup.cutoffClosedGeneric")}
           </InsetPanel>
         )}
 

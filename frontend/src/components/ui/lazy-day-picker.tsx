@@ -59,9 +59,11 @@ export const DAY_PICKER_CLASSNAMES = {
   // is painted on the inner button rather than the cell: otherwise the cell
   // background bleeds into its own padding and two neighbouring selected days
   // fuse into one continuous dark bar.
-  day: "flex-1 min-w-0 h-9 px-1 text-center text-sm py-0 relative",
+  // By finger a day is 44 px high and the gutter narrower, so the button
+  // itself reaches the touch size; the focus ring is the kit's gray-600.
+  day: "flex-1 min-w-0 h-9 px-1 text-center text-sm py-0 relative pointer-coarse:h-11 pointer-coarse:px-0.5",
   day_button:
-    "w-full h-9 rounded-lg hover:bg-gray-100 focus:outline-none focus:ring-2 focus:ring-gray-200 transition-colors",
+    "w-full h-9 rounded-lg hover:bg-gray-100 focus:outline-none focus-visible:ring-2 focus-visible:ring-gray-600 transition-colors pointer-coarse:h-11",
   // On the button, not the cell: the text colour of `today` sits on the cell.
   selected:
     "[&>button]:bg-gray-900 [&>button]:text-white [&>button:hover]:bg-gray-800",

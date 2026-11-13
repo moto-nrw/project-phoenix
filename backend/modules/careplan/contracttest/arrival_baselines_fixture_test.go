@@ -4,12 +4,12 @@ import (
 	"context"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/careplan/careplantest"
-	careplanCompose "github.com/moto-nrw/project-phoenix/modules/careplan/compose"
-	carePlanPorts "github.com/moto-nrw/project-phoenix/modules/careplan/ports"
-	timetableModule "github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/careplantest"
+	careplanCompose "github.com/moto-ogs/project-phoenix/modules/careplan/compose"
+	carePlanPorts "github.com/moto-ogs/project-phoenix/modules/careplan/ports"
+	timetableModule "github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // newArrivalBaselinesFixture binds native People and Timetable projections to

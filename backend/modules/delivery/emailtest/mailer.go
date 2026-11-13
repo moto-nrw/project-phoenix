@@ -7,9 +7,9 @@ import (
 	"sync"
 	"time"
 
-	transport "github.com/moto-nrw/project-phoenix/modules/delivery/internal/adapters/email"
+	transport "github.com/moto-ogs/project-phoenix/modules/delivery/internal/adapters/email"
 
-	email "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	email "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
 )
 
 // Message and Mailer name the delivery contract a test double sends or

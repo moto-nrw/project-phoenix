@@ -42,7 +42,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // TypeMyActivityStarting is the notification kind of an activity the person

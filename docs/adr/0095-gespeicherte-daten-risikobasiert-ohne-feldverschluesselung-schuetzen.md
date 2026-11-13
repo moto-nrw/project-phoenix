@@ -5,7 +5,7 @@ status: accepted
 # Gespeicherte Daten risikobasiert ohne Feldverschlüsselung schützen
 
 Entscheidung des Nutzers vom 23.10.2026, dokumentiert in Slice 3840-a für
-[#3840](https://github.com/moto-nrw/project-phoenix/issues/3840).
+[#3840](https://github.com/moto-ogs/project-phoenix/issues/3840).
 Für Finanz-, Gesundheits-, Personal- und Kinderdaten gilt Option 1:
 Datenträgerverschlüsselung beim Hoster nachweisen, getrennte verschlüsselte
 Sicherungen nach #3836 betreiben, Diagnosezugriffe ohne Finanz-/Gesundheitsspalten

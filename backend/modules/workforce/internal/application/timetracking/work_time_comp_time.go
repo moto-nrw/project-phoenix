@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"sort"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // GetBalanceReductionCapacity treats adjustments as start-of-day ledger
@@ -370,7 +370,7 @@ func (s *workTimeMonthService) getDailyActualMinutes(
 		return nil, err
 	}
 	for _, session := range sessions {
-		for day, minutes := range netMinutesByDate(session, breaksBySessionID[session.ID], balanceSessionEnd(session, now, s.today()), from, to) {
+		for day, minutes := range creditedNetMinutesByDate(session, breaksBySessionID[session.ID], balanceSessionEnd(session, now, s.today()), from, to) {
 			actualByDate[day] += minutes
 		}
 	}

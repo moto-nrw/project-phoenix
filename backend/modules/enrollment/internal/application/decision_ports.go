@@ -5,14 +5,14 @@ import (
 	"log/slog"
 	"time"
 
-	offeringContract "github.com/moto-nrw/project-phoenix/modules/enrollment/offeringcontract"
+	offeringContract "github.com/moto-ogs/project-phoenix/modules/enrollment/offeringcontract"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	peopleEnrollment "github.com/moto-nrw/project-phoenix/modules/peopledirectory/enrollment"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	peopleEnrollment "github.com/moto-ogs/project-phoenix/modules/peopledirectory/enrollment"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Enrollment owner ports of the decision flow; the root binds the owner.
@@ -245,6 +245,10 @@ type DecisionDependencies struct {
 	// approval rewrites an existing student's class, the same gate Care
 	// Plan's booking materialization serializes its roster writes with.
 	LockTemplateRecurrence func(context.Context) error
+	// FollowClassChanges lets Regeltermine with a Klasse or Jahrgang target
+	// follow the children whose class a decision rewrote, keyed by student
+	// with the class before the write (#6841). Nil skips it (focused tests).
+	FollowClassChanges func(ctx context.Context, previousClasses map[int64]string, from calendar.Date) error
 	// GuardianAuthorizer re-checks a parent's pin for the office's detail
 	// read (#6053). GuardianHold re-checks it behind the parent guard before
 	// an approval or a later edit acts on it (#6638). Without them such a pin

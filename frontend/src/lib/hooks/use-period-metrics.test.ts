@@ -30,8 +30,6 @@ vi.mock("~/lib/time-tracking-api", () => ({
     getConfig: vi.fn(),
     getMonthSummary: vi.fn(),
     getDailyProjection: vi.fn(),
-    getHistory: vi.fn(),
-    getAbsences: vi.fn(),
   },
 }));
 vi.mock("~/lib/staff-api", () => ({
@@ -39,9 +37,9 @@ vi.mock("~/lib/staff-api", () => ({
     getMonthSummary: vi.fn(),
     getDailyProjection: vi.fn(),
   },
-  staffHistoryService: { getHistory: vi.fn(), getHistoryDetails: vi.fn() },
-  staffAbsenceService: { getAbsences: vi.fn() },
 }));
+
+import type { DayProjection } from "~/lib/time-tracking-helpers";
 
 import { usePeriodMetrics } from "./use-period-metrics";
 
@@ -56,21 +54,33 @@ const SUMMARY = {
   creditedTrainingMinutes: 0,
   creditedOtherMinutes: 0,
   trainingDays: 0,
+  sickDaysWithoutTarget: 0,
+  vacationDaysWithoutTarget: 0,
+  trainingDaysWithoutTarget: 0,
+  otherDaysWithoutTarget: 0,
   balanceMinutes: 120,
   closingBalanceMinutes: 300,
 };
 
-type SWROptions = { refreshInterval?: (latest: unknown) => number };
+type SWROptions = { refreshInterval?: number };
+
+function day(overrides: Partial<DayProjection>): DayProjection {
+  return {
+    targetMinutes: 0,
+    creditMinutes: 0,
+    actualMinutes: 0,
+    balanceMinutes: 0,
+    ...overrides,
+  };
+}
 
 /**
  * Routes each useSWRAuth call by key and records the keys it was asked for
  * plus the options each key was requested with.
  */
 function mockSWR(
-  data: Partial<
-    Record<"summary" | "targets" | "sessions" | "absences", unknown>
-  >,
-  errors: Partial<Record<"summary" | "targets" | "absences", unknown>> = {},
+  data: Partial<Record<"summary" | "projection", unknown>>,
+  errors: Partial<Record<"summary" | "projection", unknown>> = {},
 ) {
   const keys: string[] = [];
   const configs = new Map<string, SWROptions>();
@@ -99,48 +109,15 @@ function mockSWR(
         };
       }
       if (typeof key === "string" && key.includes("schedule-targets")) {
-        // Der Key trägt seit #2443 die volle Tagesprojektion. Die Testfälle
-        // beschreiben weiterhin nur das Soll je Tag; hier wird daraus die
-        // Nutzlast gebaut, die der Server liefert.
-        const targets = data.targets as ReadonlyMap<string, number> | undefined;
-        return {
-          data:
-            targets &&
-            new Map(
-              [...targets].map(([date, targetMinutes]) => [
-                date,
-                {
-                  targetMinutes,
-                  creditMinutes: 0,
-                  actualMinutes: 0,
-                  balanceMinutes: 0,
-                },
-              ]),
-            ),
-          isLoading: false,
-          error: errors.targets,
-          mutate,
-        };
-      }
-      if (typeof key === "string" && key.includes("absences")) {
-        // Own portal: raw camelCase StaffAbsence[]; admin: StaffAbsenceRow[].
         return {
           // SWR keeps the last response while a revalidation fails.
-          data: data.absences ?? [],
+          data: data.projection,
           isLoading: false,
-          error: errors.absences,
+          error: errors.projection,
           mutate,
         };
       }
-      // Both history keys are SHARED with the Zeiterfassung tables and carry
-      // their shape: sessions plus weekly sums and ArbZG hints (#4804).
-      return {
-        data: data.sessions
-          ? { sessions: data.sessions, weeklySummaries: [], laborDays: [] }
-          : undefined,
-        isLoading: false,
-        mutate,
-      };
+      return { data: undefined, isLoading: false, mutate };
     },
   );
   return { keys, configs, mutates };
@@ -154,7 +131,7 @@ beforeEach(() => {
 
 describe("usePeriodMetrics", () => {
   it("keys the month and week off the Berlin day, not the browser's", () => {
-    const swr = mockSWR({ summary: SUMMARY, targets: new Map(), sessions: [] });
+    const swr = mockSWR({ summary: SUMMARY, projection: new Map() });
 
     renderHook(() => usePeriodMetrics("42"));
 
@@ -163,23 +140,36 @@ describe("usePeriodMetrics", () => {
     expect(swr.keys).toContain(
       "staff-schedule-targets-42-2026-08-03-2026-08-09",
     );
-    // The Sunday is included so a night block's Monday share reaches the
-    // current-week metrics.
-    expect(swr.keys).toContain("staff-history-42-2026-08-02-2026-08-09");
   });
 
   it("uses own-portal keys when no staffId is passed", () => {
-    const swr = mockSWR({ summary: SUMMARY, targets: new Map(), sessions: [] });
+    const swr = mockSWR({ summary: SUMMARY, projection: new Map() });
 
     renderHook(() => usePeriodMetrics());
 
     expect(swr.keys).toContain("time-tracking-month-summary-2026-8");
     // Same key the own Zeiterfassung table uses → SWR dedupes the overlap.
-    expect(swr.keys).toContain("time-tracking-table-2026-08-02-2026-08-09");
+    expect(swr.keys).toContain(
+      "time-tracking-schedule-targets-2026-08-03-2026-08-09",
+    );
+  });
+
+  // The week used to credit absences from the absence list itself and could
+  // then disagree with the Monatskarte for the same days (#6847). It reads
+  // only the server's day projection now, never sessions or absences.
+  it("loads no sessions or absences of its own", () => {
+    const swr = mockSWR({ summary: SUMMARY, projection: new Map() });
+
+    renderHook(() => usePeriodMetrics("42"));
+
+    expect(
+      swr.keys.filter((key) => /history|absences|table-/.test(key)),
+    ).toEqual([]);
+    expect(swr.keys).toContain("staff-month-summary-42-2026-8");
   });
 
   it("derives the month card from the server summary, credits included", () => {
-    mockSWR({ summary: SUMMARY, targets: new Map(), sessions: [] });
+    mockSWR({ summary: SUMMARY, projection: new Map() });
 
     const { result } = renderHook(() => usePeriodMetrics("42"));
 
@@ -190,135 +180,72 @@ describe("usePeriodMetrics", () => {
     });
   });
 
-  it("computes the week from the date-valid targets, not a schedule", () => {
+  it("sums the week from the server's day projection, credits included", () => {
     mockSWR({
       summary: SUMMARY,
-      targets: new Map([
-        ["2026-08-03", 480],
-        ["2026-08-04", 240],
+      projection: new Map([
+        // Mon worked, Tue on vacation (server credit), Wed today half worked.
+        [
+          "2026-08-03",
+          day({ targetMinutes: 480, actualMinutes: 480, balanceMinutes: 0 }),
+        ],
+        ["2026-08-04", day({ targetMinutes: 240, creditMinutes: 240 })],
+        [
+          "2026-08-05",
+          day({ targetMinutes: 480, actualMinutes: 120, balanceMinutes: -360 }),
+        ],
+        // Future: Soll only, as the server returns it.
+        ["2026-08-06", day({ targetMinutes: 480 })],
       ]),
-      sessions: [
-        {
-          date: "2026-08-03",
-          status: "present",
-          net_minutes: 480,
-          check_in_time: "08:00",
-          check_out_time: "16:00",
-          break_minutes: 0,
-        },
-      ],
     });
 
     const { result } = renderHook(() => usePeriodMetrics("42"));
 
-    // soll = the full week (480 Mon + 240 Tue), delta = Ist against the Soll up
-    // to the mocked Wednesday (also 720, since Wed has no target).
-    expect(result.current.week).toEqual({ soll: 720, ist: 480, delta: -240 });
-  });
-
-  // The own keys are shared with the Zeiterfassung table, and one SWR key is
-  // one cache entry: the hook must read that table's shape rather than expect
-  // its own, or whichever consumer lost the race gets the other's payload.
-  it("reads the own history under the table's shape and adapts it", () => {
-    mockSWR({
-      summary: SUMMARY,
-      targets: new Map([["2026-08-03", 480]]),
-      // camelCase WorkSessionHistory, as the own /history endpoint returns it.
-      sessions: [
-        {
-          id: "1",
-          date: "2026-08-03",
-          status: "present",
-          netMinutes: 300,
-          checkInTime: "08:00",
-          checkOutTime: "13:00",
-          breakMinutes: 0,
-        },
-      ],
+    expect(result.current.week).toEqual({
+      soll: 1680,
+      ist: 480 + 240 + 120,
+      delta: -360,
     });
-
-    const { result } = renderHook(() => usePeriodMetrics());
-
-    // 300 only survives the camelCase -> snake_case adapter.
-    expect(result.current.week?.ist).toBe(300);
   });
 
-  // /history computes an open session's net_minutes at request time only. The
-  // month card and the Stundenkonto poll every minute, so an unpolled week card
-  // would freeze at check-in time and contradict them on the same screen.
-  it("polls the week history while a session is open, and not otherwise", () => {
-    const swr = mockSWR({ summary: SUMMARY, targets: new Map(), sessions: [] });
-
-    renderHook(() => usePeriodMetrics("42"));
-
-    const refresh = swr.configs.get(
-      "staff-history-42-2026-08-02-2026-08-09",
-    )?.refreshInterval;
-    expect(refresh?.({ sessions: [{ check_out_time: null }] })).toBe(60_000);
-    expect(
-      refresh?.({ sessions: [{ check_out_time: "2026-08-03T16:00:00Z" }] }),
-    ).toBe(0);
-    expect(refresh?.(undefined)).toBe(0);
-  });
-
-  it("polls the own week history under the table's shape", () => {
-    const swr = mockSWR({ summary: SUMMARY, targets: new Map(), sessions: [] });
+  // An open session grows the day's Ist server-side. The month card and the
+  // Stundenkonto poll every minute, so an unpolled week card would freeze at
+  // check-in time and contradict them on the same screen.
+  it("polls the week projection like the month card", () => {
+    const swr = mockSWR({ summary: SUMMARY, projection: new Map() });
 
     renderHook(() => usePeriodMetrics());
 
-    const refresh = swr.configs.get(
-      "time-tracking-table-2026-08-02-2026-08-09",
-    )?.refreshInterval;
-    // camelCase, as the own /history endpoint returns it.
-    expect(refresh?.({ sessions: [{ checkOutTime: null }] })).toBe(60_000);
     expect(
-      refresh?.({ sessions: [{ checkOutTime: "2026-08-03T16:00:00Z" }] }),
-    ).toBe(0);
+      swr.configs.get("time-tracking-schedule-targets-2026-08-03-2026-08-09")
+        ?.refreshInterval,
+    ).toBe(60_000);
   });
 
-  it("reports no week rather than pricing Ist against a missing Soll", () => {
-    mockSWR({ summary: SUMMARY, targets: undefined, sessions: [] });
+  it("reports no week while the projection is still loading", () => {
+    mockSWR({ summary: SUMMARY, projection: undefined });
 
     const { result } = renderHook(() => usePeriodMetrics("42"));
 
     expect(result.current.week).toBeNull();
   });
 
-  // A failed refresh still exposes SWR's cached absence response. The week's
-  // figure must nevertheless stay unavailable: a cached empty list might miss
-  // a sick day's credit and read as a reliable value (#3885).
-  it("reports no week when refreshing cached absences fails", async () => {
-    const error = new Error("absences unavailable");
+  // A failed refresh still exposes SWR's cached projection. The week's figure
+  // must nevertheless stay unavailable: the cached days might miss a sick
+  // day's credit and read as a reliable value (#3885).
+  it("reports no week and retries when refreshing the projection fails", async () => {
+    const error = new Error("daily projection unavailable");
     const swr = mockSWR(
       {
         summary: SUMMARY,
-        targets: new Map([["2026-08-03", 480]]),
-        sessions: [],
-        absences: [],
+        projection: new Map([["2026-08-03", day({ targetMinutes: 480 })]]),
       },
-      { absences: error },
+      { projection: error },
     );
 
     const { result } = renderHook(() => usePeriodMetrics());
 
     expect(result.current.week).toBeNull();
-    expect(result.current.error).toBe(error);
-    expect(result.current.failed).toBe(true);
-    await result.current.retry();
-    expect(
-      swr.mutates.get("time-tracking-table-absences-2026-08-03-2026-08-09"),
-    ).toHaveBeenCalledTimes(1);
-  });
-
-  it("exposes a failed metric source with a retry", async () => {
-    const error = new Error("daily projection unavailable");
-    const swr = mockSWR(
-      { summary: SUMMARY, targets: new Map(), sessions: [] },
-      { targets: error },
-    );
-
-    const { result } = renderHook(() => usePeriodMetrics());
-
     expect(result.current.error).toBe(error);
     expect(result.current.failed).toBe(true);
     await result.current.retry();
@@ -330,7 +257,7 @@ describe("usePeriodMetrics", () => {
   it("exposes and retries a failed month summary", async () => {
     const error = new Error("month summary unavailable");
     const swr = mockSWR(
-      { summary: undefined, targets: new Map(), sessions: [] },
+      { summary: undefined, projection: new Map() },
       { summary: error },
     );
 
@@ -346,7 +273,7 @@ describe("usePeriodMetrics", () => {
   });
 
   it("reports no month while the summary is still loading", () => {
-    mockSWR({ summary: undefined, targets: new Map(), sessions: [] });
+    mockSWR({ summary: undefined, projection: new Map() });
 
     const { result } = renderHook(() => usePeriodMetrics("42"));
 

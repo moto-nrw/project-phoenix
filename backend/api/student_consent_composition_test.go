@@ -5,13 +5,13 @@ import (
 	"testing"
 	"time"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	auditModels "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	auditModels "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // The cases below pin the consent seam of this package (#3349): the

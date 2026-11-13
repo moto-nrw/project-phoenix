@@ -3,7 +3,7 @@ package tenantexport
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
 	"github.com/uptrace/bun"
 )
 

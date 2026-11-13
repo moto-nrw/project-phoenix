@@ -7,8 +7,8 @@ import (
 	"strings"
 	"time"
 
-	values "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	values "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
+	"github.com/moto-ogs/project-phoenix/realtime"
 )
 
 // Group chats (#4776): a named conversation with members from the staff and

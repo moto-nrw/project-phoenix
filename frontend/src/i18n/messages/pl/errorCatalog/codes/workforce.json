@@ -55,6 +55,7 @@
   "shift_series_no_occurrences": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "shift_series_outside_period": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "shift_series_week_cycle_missing": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
+  "shift_type_archived": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "shift_type_inactive": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "staff_profile_missing": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "stammdaten_invalid": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
@@ -75,5 +76,6 @@
   "payroll_wage_type_in_use": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "payroll_wage_type_name_taken": "Nie udało się zapisać: {object}. Sprawdź wpisane dane.",
   "qualification_type_name_taken": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-  "qualification_type_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+  "qualification_type_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "work_time_model_archived": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
 }

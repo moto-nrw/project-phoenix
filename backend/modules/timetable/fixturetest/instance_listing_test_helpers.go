@@ -5,7 +5,7 @@ package fixturetest
 import (
 	context "context"
 
-	ports "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	ports "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 )
 
 type InstanceListing interface {

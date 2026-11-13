@@ -3,8 +3,8 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory/inbound/students"
-	schoolMembershipModule "github.com/moto-nrw/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory/inbound/students"
+	schoolMembershipModule "github.com/moto-ogs/project-phoenix/modules/schoolmembership"
 )
 
 // childQuotaStudentsReader adapts the School Membership Kinderkontingent read

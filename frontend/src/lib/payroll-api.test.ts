@@ -9,6 +9,7 @@ import {
   duplicateLohnartNumbers,
   fetchPayrollDispatch,
   fetchPayrollStatus,
+  fetchPayrollTargetCoverage,
   mapPayrollStatus,
   PAYROLL_DISPATCH_EMAIL_PATTERN,
   payrollDispatchReasonText,
@@ -71,6 +72,37 @@ describe("mapPayrollStatus", () => {
     expect(status.categories[1]?.unitSettingKey).toBe("payroll.einheit_krank");
     expect(status.lodasHeaderComplete).toBe(false);
     expect(status.staffWithoutPersonnelNumber).toBe(19);
+  });
+});
+
+describe("fetchPayrollTargetCoverage", () => {
+  beforeEach(() => {
+    vi.clearAllMocks();
+  });
+
+  it("fetches the current month's counts without names", async () => {
+    mockedSessionFetch.mockResolvedValue({
+      ok: true,
+      json: () =>
+        Promise.resolve({
+          data: {
+            year: 2026,
+            month: 9,
+            staff_total: 12,
+            staff_without_target: 3,
+          },
+        }),
+    } as Response);
+
+    await expect(fetchPayrollTargetCoverage()).resolves.toEqual({
+      year: 2026,
+      month: 9,
+      staffTotal: 12,
+      staffWithoutTarget: 3,
+    });
+    expect(mockedSessionFetch).toHaveBeenCalledWith(
+      "/api/staff/time-tracking/target-coverage",
+    );
   });
 });
 

@@ -3,6 +3,7 @@ package sse
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"net/http"
@@ -198,6 +199,21 @@ func writeSSEProblem(w http.ResponseWriter, status int, code, detail string) {
 	if err := json.NewEncoder(w).Encode(sseProblem{Status: status, Detail: detail, Code: code}); err != nil {
 		slog.Default().Error("failed to write SSE refusal", slog.String("error", err.Error()))
 	}
+}
+
+// statusClientClosedRequest is the de-facto status of a request the client
+// gave up on; below 500, it reaches neither Sentry nor the ERROR log.
+const statusClientClosedRequest = 499
+
+// writeClientGone answers a stream whose client went away during setup with
+// 499 instead of a server error: the failure is the disconnect, not a fault.
+// It reports false while the request is still live.
+func writeClientGone(ctx context.Context, w http.ResponseWriter) bool {
+	if !errors.Is(ctx.Err(), context.Canceled) {
+		return false
+	}
+	writeSSEProblem(w, statusClientClosedRequest, codeGeneralUnavailable, "Client closed request")
+	return true
 }
 
 // setupProblemCode is the registered code of a subscription refusal: 401 and

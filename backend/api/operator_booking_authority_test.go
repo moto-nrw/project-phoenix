@@ -12,11 +12,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil"
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	settingsOperatorAPI "github.com/moto-nrw/project-phoenix/modules/settings/inbound/operator"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api/testutil"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	settingsOperatorAPI "github.com/moto-ogs/project-phoenix/modules/settings/inbound/operator"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // The operator switches a school to booking-led care in two steps: Care

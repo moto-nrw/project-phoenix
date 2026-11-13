@@ -15,12 +15,13 @@ import { cn } from "~/lib/utils";
 
 import { AnchoredPopover } from "./anchored-popover";
 import { FieldLabel, isInvalidAria, isRequiredField } from "./field-label";
-import { Input } from "./input";
+import { Input, type InputControlSize } from "./input";
+import { OVERLAY_SCOPE_SELECTOR } from "./overlay-stack";
+import { Z_LAYER } from "./overlay-styles";
 
 // In a dialog or slide-over the list is portaled into its focus scope: a list
 // at the end of the body would sit outside the dialog's focus trap.
-const SUGGEST_PORTAL_SCOPE =
-  '[data-modal-focus-scope="true"], [data-date-picker-focus-trap="true"]';
+const SUGGEST_PORTAL_SCOPE = OVERLAY_SCOPE_SELECTOR;
 
 const OPTION_CLASS =
   "flex w-full cursor-pointer items-center px-4 py-2 text-left text-sm transition-colors pointer-coarse:min-h-11";
@@ -52,7 +53,7 @@ interface SuggestInputProps extends NativeInputProps {
   readonly label?: string;
   readonly hint?: string;
   readonly error?: string;
-  readonly controlSize?: "default" | "compact";
+  readonly controlSize?: Extract<InputControlSize, "large" | "compact">;
   /** Symbol at the start of the field, e.g. a magnifier. */
   readonly leadingIcon?: ReactNode;
   /** Show at most this many matches. */
@@ -77,7 +78,7 @@ export function SuggestInput({
   label,
   hint,
   error,
-  controlSize = "default",
+  controlSize = "large",
   leadingIcon,
   maxSuggestions,
   highlightFirst = false,
@@ -230,7 +231,7 @@ export function SuggestInput({
               <span
                 aria-hidden="true"
                 className={cn(
-                  "pointer-events-none absolute top-0 left-3 z-10 flex items-center text-gray-400 [&>svg]:h-4 [&>svg]:w-4",
+                  `pointer-events-none absolute top-0 left-3 ${Z_LAYER.raised} flex items-center text-gray-400 [&>svg]:h-4 [&>svg]:w-4`,
                   compact ? "h-10" : "h-12",
                 )}
               >

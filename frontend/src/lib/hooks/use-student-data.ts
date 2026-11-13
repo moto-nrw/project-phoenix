@@ -47,7 +47,8 @@ interface StudentDataState {
 }
 
 interface UseStudentDataResult extends StudentDataState {
-  refreshData: () => void;
+  /** Settles once the revalidation is through; it never rejects. */
+  refreshData: () => Promise<void>;
 }
 
 /**
@@ -76,10 +77,12 @@ export function useStudentData(studentId: string): UseStudentDataResult {
   );
 
   // refreshData now uses SWR's mutate
-  const refreshData = useCallback(() => {
+  const refreshData = useCallback(async () => {
     // A failed reload lands in SWR's error state and from there on the
     // page's load error path; this catch only keeps the promise handled.
-    mutate().catch((err) => {
+    // Awaitable, so useRefreshAfterWrite sees a refusal of the shown child
+    // (#6801).
+    await mutate().catch((err: unknown) => {
       logger.debug("swr_revalidation_failed", {
         error: err instanceof Error ? err.message : String(err),
         scope: "student_detail",

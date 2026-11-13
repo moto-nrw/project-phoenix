@@ -156,8 +156,8 @@ vi.mock("~/components/ui/alert", () => ({
   Alert: ({ message }: { message: string }) => <div>{message}</div>,
 }));
 
-vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
-  PageHeaderSearchLayout: ({
+vi.mock("~/components/ui/tenant-page-search-row", () => ({
+  TenantPageSearchRow: ({
     primaryAction,
   }: {
     primaryAction?: React.ReactNode;
@@ -168,11 +168,11 @@ vi.mock("~/components/ui/page-header/PageHeaderSearchLayout", () => ({
   ),
 }));
 
-vi.mock("@/components/ui/location-badge", () => ({
+vi.mock("@/components/students/presence/location-badge", () => ({
   LocationBadge: () => <span />,
 }));
 
-vi.mock("@/components/ui/student-presence-badge", () => ({
+vi.mock("@/components/students/presence/student-presence-badge", () => ({
   StudentPresenceBadge: () => <span />,
 }));
 

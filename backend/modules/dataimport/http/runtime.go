@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport"
 )
 
 type Middleware = func(http.Handler) http.Handler

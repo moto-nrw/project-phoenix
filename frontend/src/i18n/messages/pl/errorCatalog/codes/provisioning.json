@@ -28,5 +28,6 @@
   "device_same_school": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "person_not_found": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
   "person_has_supervisions": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
-  "caregiver_capability_blocked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
+  "caregiver_capability_blocked": "Nie udało się zmienić: {object}. Sprawdź aktualny stan.",
+  "person_has_active_profile": "Nie udało się zmienić: {object}. Sprawdź aktualny stan."
 }

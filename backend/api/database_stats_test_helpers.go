@@ -6,14 +6,14 @@ import (
 	"context"
 	"log/slog"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	databasestats "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
-	stats "github.com/moto-nrw/project-phoenix/modules/transactionruntime/stats"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	databasestats "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
+	stats "github.com/moto-ogs/project-phoenix/modules/transactionruntime/stats"
 )
 
 func NewDatabaseStatsTestReader(db transactionruntime.Database) (DatabaseStatsReader, error) {

@@ -5,7 +5,7 @@ import (
 	"errors"
 	"testing"
 
-	stats "github.com/moto-nrw/project-phoenix/modules/transactionruntime/stats"
+	stats "github.com/moto-ogs/project-phoenix/modules/transactionruntime/stats"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

@@ -13,7 +13,7 @@ import {
 const ICON = <svg data-testid="icon" aria-hidden="true" />;
 const BADGE = {
   count: 3,
-  tone: "staff",
+  tone: "orange",
   ariaLabel: "3 offene Anfragen",
 } as const;
 

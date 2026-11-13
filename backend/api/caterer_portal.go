@@ -6,19 +6,19 @@ import (
 
 	"github.com/go-chi/chi/v5"
 
-	"github.com/moto-nrw/project-phoenix/api/common"
-	"github.com/moto-nrw/project-phoenix/auth/authorize/permissions"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/catererauth"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/inbound/portalauth"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/sessiontoken"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
-	mealplanModule "github.com/moto-nrw/project-phoenix/modules/mealplan"
-	mealplanAPI "github.com/moto-nrw/project-phoenix/modules/mealplan/http"
-	"github.com/moto-nrw/project-phoenix/modules/organizationtenancy"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	catererPortalCompose "github.com/moto-nrw/project-phoenix/workflows/catererportal/compose"
-	catererPortalHTTP "github.com/moto-nrw/project-phoenix/workflows/catererportal/http"
+	"github.com/moto-ogs/project-phoenix/api/common"
+	"github.com/moto-ogs/project-phoenix/auth/authorize/permissions"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/catererauth"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/inbound/portalauth"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/sessiontoken"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/tokenprimitives"
+	mealplanModule "github.com/moto-ogs/project-phoenix/modules/mealplan"
+	mealplanAPI "github.com/moto-ogs/project-phoenix/modules/mealplan/http"
+	"github.com/moto-ogs/project-phoenix/modules/organizationtenancy"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	catererPortalCompose "github.com/moto-ogs/project-phoenix/workflows/catererportal/compose"
+	catererPortalHTTP "github.com/moto-ogs/project-phoenix/workflows/catererportal/http"
 )
 
 // CatererScopeMiddleware accepts caterer-portal tokens only and binds no

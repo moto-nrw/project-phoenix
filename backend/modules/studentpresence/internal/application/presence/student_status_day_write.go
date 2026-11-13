@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // CreateForDates records the reported status for one student across the given
@@ -291,7 +291,7 @@ func (s *StudentStatusDayService) DeleteByID(ctx context.Context, wc StatusDayWr
 			return err
 		}
 
-		if err := s.repo.MarkClearedByID(ctx, row.ID, now, absencerecords.StudentStatusSourceManual); err != nil {
+		if err := s.repo.MarkClearedByID(ctx, row.ID, now, statusDayClearSource(wc), wc.ActorAccountID); err != nil {
 			return err
 		}
 		if row.Date == today {
@@ -308,17 +308,18 @@ func (s *StudentStatusDayService) DeleteByID(ctx context.Context, wc StatusDayWr
 
 func (s *StudentStatusDayService) writeStatusForStudent(ctx context.Context, wc StatusDayWriteContext, fresh *StudentRecord, status string, dates []calendar.Date, notePtr *string, now time.Time, today calendar.Date) (bool, error) {
 	notifyAbsence := isNewReportableAbsence(fresh, status, dates, today)
-	if err := s.clearOtherStatusDaysForDates(ctx, fresh.ID, status, dates, now); err != nil {
+	if err := s.clearOtherStatusDaysForDates(ctx, fresh.ID, status, dates, now, wc); err != nil {
 		return false, err
 	}
 	for _, date := range dates {
 		if err := s.repo.UpsertReported(ctx, &absencerecords.StudentStatusDay{
-			StudentID:  fresh.ID,
-			Date:       date,
-			Status:     status,
-			ReportedAt: now,
-			Source:     statusDayWriteSource(wc),
-			Note:       notePtr,
+			StudentID:           fresh.ID,
+			Date:                date,
+			Status:              status,
+			ReportedAt:          now,
+			Source:              statusDayWriteSource(wc),
+			Note:                notePtr,
+			ReportedByAccountID: wc.ActorAccountID,
 		}); err != nil {
 			return false, err
 		}
@@ -341,6 +342,15 @@ func statusDayWriteSource(wc StatusDayWriteContext) string {
 	return absencerecords.StudentStatusSourcePlanned
 }
 
+// statusDayClearSource is the source a write context clears with: the
+// school's own, or the OGS's manual one (#6842).
+func statusDayClearSource(wc StatusDayWriteContext) string {
+	if wc.Source == absencerecords.StudentStatusSourceSchool {
+		return wc.Source
+	}
+	return absencerecords.StudentStatusSourceManual
+}
+
 func isNewReportableAbsence(student *StudentRecord, status string, dates []calendar.Date, today calendar.Date) bool {
 	if !slices.Contains(dates, today) {
 		return false
@@ -355,9 +365,9 @@ func isNewReportableAbsence(student *StudentRecord, status string, dates []calen
 	}
 }
 
-func (s *StudentStatusDayService) clearOtherStatusDaysForDates(ctx context.Context, studentID int64, status string, dates []calendar.Date, now time.Time) error {
+func (s *StudentStatusDayService) clearOtherStatusDaysForDates(ctx context.Context, studentID int64, status string, dates []calendar.Date, now time.Time, wc StatusDayWriteContext) error {
 	for _, otherStatus := range absencerecords.StudentStatusDayStatusesExcept(status) {
-		if err := s.repo.MarkClearedForDates(ctx, studentID, otherStatus, dates, now, absencerecords.StudentStatusSourceManual); err != nil {
+		if err := s.repo.MarkClearedForDates(ctx, studentID, otherStatus, dates, now, statusDayClearSource(wc), wc.ActorAccountID); err != nil {
 			return err
 		}
 	}

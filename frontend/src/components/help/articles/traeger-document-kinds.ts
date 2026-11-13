@@ -3,7 +3,7 @@ import { HELP_TOPICS } from "~/lib/help-topics";
 
 /**
  * `/traeger/einstellungen/dokumentarten` (#4688): Rechnung, Gebührenbescheid
- * oder Bestätigung mit Rechnung je Leistung; die Rechtsbehelfsbelehrung des
+ * oder Bestätigung und Rechnung je Leistung; die Rechtsbehelfsbelehrung des
  * Bescheids schreibt der Träger in der Vorlage „Bescheid“.
  */
 export function traegerDocumentKindsTopic(): HelpTopic {
@@ -13,7 +13,7 @@ export function traegerDocumentKindsTopic(): HelpTopic {
     question:
       "Wie lege ich fest, ob Familien eine Rechnung oder einen Bescheid bekommen?",
     summary:
-      "Je Leistung wählen Sie das Schreiben: Rechnung, Gebührenbescheid oder bei den Ferien die Bestätigung mit Rechnung. Ein Gebührenbescheid braucht Ihre Rechtsbehelfsbelehrung.",
+      "Je Leistung wählen Sie das Schreiben: Rechnung, Gebührenbescheid oder bei den Ferien die Bestätigung und Rechnung. Ein Gebührenbescheid braucht Ihre Rechtsbehelfsbelehrung.",
     group: "konfiguration",
     audience: "traeger",
     icon: "ClipboardList",
@@ -23,17 +23,17 @@ export function traegerDocumentKindsTopic(): HelpTopic {
       {
         title: "Dokumentart wählen",
         description:
-          "Ohne Ihre Wahl bekommen Familien bei den Ferien die Bestätigung mit Rechnung und beim Monatsbeitrag eine Rechnung.",
+          "Ohne Ihre Wahl bekommen Familien bei den Ferien die Bestätigung und Rechnung und beim Monatsbeitrag eine Rechnung.",
         steps: [
           "Wählen Sie unten in der Navigation `Einstellungen` und dann `Dokumentarten`.",
-          "In der Karte `Ferienbetreuung` oder `Monatsbeitrag` wählen Sie eine Art: `Rechnung`, `Gebührenbescheid` oder `Bestätigung mit Rechnung`.",
+          "In der Karte `Ferienbetreuung` oder `Monatsbeitrag` wählen Sie eine Art: `Rechnung`, `Gebührenbescheid` oder `Bestätigung und Rechnung`.",
           "Wählen Sie `Speichern`.",
         ],
       },
       {
         title: "Rechtsbehelfsbelehrung eintragen",
         description:
-          "Den Text ändert, wer das Recht `Einstellungen` hat. moto gibt keinen Rechtstext vor.",
+          "Den Text ändert, wer die Rolle `Verwaltung` hat. moto gibt keinen Rechtstext vor.",
         steps: [
           "Wählen Sie auf der Seite `Dokumentarten` in der Karte `Rechtsbehelfsbelehrung` den Knopf `Belehrung eintragen`.",
           "Schreiben Sie den Text in das Feld `Rechtsbehelfsbelehrung`. Nennen Sie Frist, Stelle und Form des Widerspruchs.",
@@ -50,8 +50,8 @@ export function traegerDocumentKindsTopic(): HelpTopic {
       "Ändern Sie die Dokumentart nach der Prüfung eines Laufs, lehnt moto die Freigabe ab. Laden Sie den Lauf neu und prüfen Sie ihn noch einmal.",
     ],
     troubleshootingDetails: [
-      "Statt `Belehrung eintragen` sehen Sie `Vorlage ansehen`? Ihnen fehlt das Recht `Einstellungen`. Bitten Sie eine Person mit diesem Recht, die Belehrung einzutragen.",
-      "Im Lauf steht `Rechtsbehelfsbelehrung fehlt` und `Freigeben` geht nicht? Tragen Sie die Belehrung in der Vorlage `Bescheid` ein. Danach können Sie freigeben.",
+      "Statt `Belehrung eintragen` sehen Sie `Vorlage ansehen`? Ihnen fehlt die Rolle `Verwaltung`. Bitten Sie eine Person mit dieser Rolle, die Belehrung einzutragen.",
+      "Im Lauf steht `Rechtsbehelfsbelehrung fehlt` und `Freigeben` geht nicht? Tragen Sie die Belehrung in der Vorlage `Gebührenbescheid` ein. Danach können Sie freigeben.",
       "Die Seite `Dokumentarten` fehlt? Ihnen fehlt die Rolle `Abrechnung`.",
     ],
     related: [

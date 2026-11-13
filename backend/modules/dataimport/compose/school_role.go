@@ -1,9 +1,9 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/dataimport"
-	binding "github.com/moto-nrw/project-phoenix/modules/dataimport/internal/adapters/runtimebinding"
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport"
+	binding "github.com/moto-ogs/project-phoenix/modules/dataimport/internal/adapters/runtimebinding"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
 )
 
 // NewSchoolRolePolicy binds the public facts to the Identity & Access

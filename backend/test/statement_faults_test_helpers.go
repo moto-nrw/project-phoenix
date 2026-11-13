@@ -57,6 +57,8 @@ type armedFault struct {
 	prefix string
 	err    error
 	fired  bool
+	// held keeps the statement until its context ends before it fails.
+	held bool
 }
 
 // Arm replaces the armed failures with one: the next step at site fails
@@ -73,6 +75,16 @@ func (f *StatementFaults) AlsoFailStatement(prefix string, err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	f.armed = append(f.armed, &armedFault{site: faultStatementPrefix, prefix: prefix, err: err})
+}
+
+// AlsoFailStatementWhenCancelled arms one more failure: the next statement
+// starting with prefix is held until its caller cancels its context, then
+// fails with err instead of the cancellation, once. It is a statement that
+// broke while its caller was stopping it.
+func (f *StatementFaults) AlsoFailStatementWhenCancelled(prefix string, err error) {
+	f.mu.Lock()
+	defer f.mu.Unlock()
+	f.armed = append(f.armed, &armedFault{site: faultStatementPrefix, prefix: prefix, err: err, held: true})
 }
 
 // AlsoFail arms one more failure at site.
@@ -96,9 +108,21 @@ func (f *StatementFaults) Fired() bool {
 
 const faultStatementPrefix FaultSite = "statement"
 
-func (f *StatementFaults) take(site FaultSite) error { return f.takeStatement(site, "") }
+func (f *StatementFaults) take(site FaultSite) error {
+	_, err := f.takeStatement(site, "")
+	return err
+}
 
-func (f *StatementFaults) takeStatement(site FaultSite, query string) error {
+// statementFault is the failure armed for query, after its hold.
+func (f *StatementFaults) statementFault(ctx context.Context, query string) error {
+	held, err := f.takeStatement(faultStatementPrefix, strings.TrimSpace(query))
+	if held {
+		<-ctx.Done()
+	}
+	return err
+}
+
+func (f *StatementFaults) takeStatement(site FaultSite, query string) (held bool, err error) {
 	f.mu.Lock()
 	defer f.mu.Unlock()
 	for _, fault := range f.armed {
@@ -109,9 +133,9 @@ func (f *StatementFaults) takeStatement(site FaultSite, query string) error {
 			continue
 		}
 		fault.fired = true
-		return fault.err
+		return fault.held, fault.err
 	}
-	return nil
+	return false, nil
 }
 
 // NewStatementFaultPool opens a private pool on the isolated test database of
@@ -175,7 +199,7 @@ func (c *faultingConn) ExecContext(ctx context.Context, query string, args []dri
 			return nil, fault
 		}
 	}
-	if fault := c.faults.takeStatement(faultStatementPrefix, strings.TrimSpace(query)); fault != nil {
+	if fault := c.faults.statementFault(ctx, query); fault != nil {
 		return nil, fault
 	}
 	result, err := c.Conn.(driver.ExecerContext).ExecContext(ctx, query, args)
@@ -192,7 +216,7 @@ func (c *faultingConn) ExecContext(ctx context.Context, query string, args []dri
 
 func (c *faultingConn) QueryContext(ctx context.Context, query string, args []driver.NamedValue) (driver.Rows, error) {
 	faults := c.faults
-	if fault := faults.takeStatement(faultStatementPrefix, strings.TrimSpace(query)); fault != nil {
+	if fault := faults.statementFault(ctx, query); fault != nil {
 		return nil, fault
 	}
 	return c.Conn.(driver.QueryerContext).QueryContext(ctx, query, args)

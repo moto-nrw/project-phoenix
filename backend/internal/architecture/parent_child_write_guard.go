@@ -519,7 +519,7 @@ func calleeName(info *types.Info, fun ast.Expr) string {
 // package.Interface.Method; "" for any other function.
 func interfaceMethodName(fn *types.Func) string {
 	recv := fn.Type().(*types.Signature).Recv()
-	if recv == nil || fn.Pkg() == nil || !strings.HasPrefix(fn.Pkg().Path(), "github.com/moto-nrw/project-phoenix/") {
+	if recv == nil || fn.Pkg() == nil || !strings.HasPrefix(fn.Pkg().Path(), "github.com/moto-ogs/project-phoenix/") {
 		return ""
 	}
 	named := namedOf(recv.Type())

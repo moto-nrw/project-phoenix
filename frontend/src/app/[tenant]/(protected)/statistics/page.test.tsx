@@ -159,7 +159,7 @@ function futureISODate(): string {
  * gibt es nichts zu wählen und das Feld bleibt gesperrt.
  */
 async function openFilter(name: "Gruppen" | "Klassen") {
-  const filter = await screen.findByRole("button", { name });
+  const filter = await screen.findByRole("combobox", { name });
   await waitFor(() => expect(filter).toBeEnabled());
   fireEvent.click(filter);
 }
@@ -462,7 +462,7 @@ describe("Statistik — Filterkatalog", () => {
     render(<StatisticsPage />);
     await openFilter("Gruppen");
     fireEvent.click(await screen.findByRole("option", { name: "Bärengruppe" }));
-    fireEvent.click(screen.getByRole("button", { name: "Klassen" }));
+    fireEvent.click(screen.getByRole("combobox", { name: "Klassen" }));
     fireEvent.click(await screen.findByRole("option", { name: "2a" }));
 
     fireEvent.click(
@@ -478,15 +478,15 @@ describe("Statistik — Filterkatalog", () => {
       ),
     );
     await waitFor(() =>
-      expect(screen.getByRole("button", { name: "Gruppen" })).toHaveTextContent(
-        "Alle Gruppen",
-      ),
+      expect(
+        screen.getByRole("combobox", { name: "Gruppen" }),
+      ).toHaveTextContent("Alle Gruppen"),
     );
-    expect(screen.getByRole("button", { name: "Klassen" })).toHaveTextContent(
+    expect(screen.getByRole("combobox", { name: "Klassen" })).toHaveTextContent(
       "Alle Klassen",
     );
 
-    const groupFilter = screen.getByRole("button", { name: "Gruppen" });
+    const groupFilter = screen.getByRole("combobox", { name: "Gruppen" });
     if (groupFilter.getAttribute("aria-expanded") !== "true") {
       fireEvent.click(groupFilter);
     }
@@ -495,7 +495,7 @@ describe("Statistik — Filterkatalog", () => {
     ).toBeVisible();
     fireEvent.keyDown(groupFilter, { key: "Escape" });
 
-    const classFilter = screen.getByRole("button", { name: "Klassen" });
+    const classFilter = screen.getByRole("combobox", { name: "Klassen" });
     if (classFilter.getAttribute("aria-expanded") !== "true") {
       fireEvent.click(classFilter);
     }
@@ -600,7 +600,7 @@ describe("Statistik — Kinder nach Uhrzeit (#4764)", () => {
         ["attendance", "rooms", "courses"],
       ),
     );
-    expect(screen.getByRole("button", { name: "Klassen" })).toHaveTextContent(
+    expect(screen.getByRole("combobox", { name: "Klassen" })).toHaveTextContent(
       "2a",
     );
   });

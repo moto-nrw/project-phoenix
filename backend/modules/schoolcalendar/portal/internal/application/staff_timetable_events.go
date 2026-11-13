@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	appointmentcap "github.com/moto-nrw/project-phoenix/modules/appointments"
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar/portal/internal/ports"
+	appointmentcap "github.com/moto-ogs/project-phoenix/modules/appointments"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar/portal/internal/ports"
 )
 
 // staffTimetableAssignment pairs a timetable instance with the staff row that

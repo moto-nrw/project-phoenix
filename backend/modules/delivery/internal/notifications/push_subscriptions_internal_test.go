@@ -6,12 +6,12 @@ import (
 	"fmt"
 	"testing"
 
-	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/delivery/internal/ports"
+	deliveryPorts "github.com/moto-ogs/project-phoenix/modules/delivery/internal/ports"
 
 	sqlmock "github.com/DATA-DOG/go-sqlmock"
-	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	deliveryModels "github.com/moto-ogs/project-phoenix/modules/delivery/subscriptions"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"

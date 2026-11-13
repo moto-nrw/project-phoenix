@@ -173,6 +173,16 @@ describe("redactSensitiveLogData", () => {
     );
   });
 
+  it("redacts holiday registration status link tokens (#6676)", () => {
+    expect(
+      redactSensitiveLogString(
+        "GET /ferienanmeldung/status/page-secret proxy=/api/holiday-registrations/status/bff-secret backend=/traeger/holiday-registrations/status/backend-secret period=/ferienanmeldung/period-link",
+      ),
+    ).toBe(
+      "GET /ferienanmeldung/status/[REDACTED] proxy=/api/holiday-registrations/status/[REDACTED] backend=/traeger/holiday-registrations/status/[REDACTED] period=/ferienanmeldung/period-link",
+    );
+  });
+
   it("redacts complete quoted credential values with spaces and escapes", () => {
     expect(
       redactSensitiveLogString(

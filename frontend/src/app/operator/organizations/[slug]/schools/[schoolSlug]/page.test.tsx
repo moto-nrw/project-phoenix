@@ -950,7 +950,9 @@ describe("OperatorSchoolDetailPage", () => {
 
     it("opens the soft-delete person modal when delete is requested", async () => {
       currentSearchParams = new URLSearchParams("tab=personen");
-      setupSWR({ persons: [mockPerson] });
+      // A bare person: a child or a live staff member is deleted by the
+      // school, so the table offers no deletion for them (#6840).
+      setupSWR({ persons: [{ ...mockPerson, isStaff: false }] });
 
       await renderPage();
 

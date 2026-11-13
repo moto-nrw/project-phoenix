@@ -37,7 +37,7 @@ func (a semanticAnalyzer) rawSQLViolations(pkg *packages.Package, classification
 }
 
 func tenantLifecycleDynamicRead(source string, classification Package, functionName, method string) bool {
-	return source == "github.com/moto-nrw/project-phoenix/modules/organizationtenancy/internal/adapters/tenantexport" &&
+	return source == "github.com/moto-ogs/project-phoenix/modules/organizationtenancy/internal/adapters/tenantexport" &&
 		classification.Owner == "organization-tenancy" && classification.Role == "postgres" &&
 		functionName == "exportRun.exportTable" && method == "QueryContext"
 }
@@ -46,7 +46,7 @@ func tenantLifecycleDynamicRead(source string, classification Package, functionN
 // domain owner, without creating a projection owner. This exact read-only
 // grant is not a general exemption for domain persistence packages.
 func (p *Policy) isTenantLifecycleRead(projection ReadProjection, pkg Package) bool {
-	return p.ModulePath == "github.com/moto-nrw/project-phoenix" &&
+	return p.ModulePath == "github.com/moto-ogs/project-phoenix" &&
 		projection.ID == "organization-tenancy.tenant-data-lifecycle" &&
 		projection.Package == "modules/organizationtenancy/internal/adapters/tenantexport" &&
 		pkg.Owner == "organization-tenancy" && pkg.Role == "postgres"

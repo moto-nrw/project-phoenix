@@ -3,13 +3,14 @@ package application
 import (
 	"context"
 	"errors"
+	"strconv"
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
-	"github.com/moto-nrw/project-phoenix/workflows/openroommove/ports"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/workflows/openroommove"
+	"github.com/moto-ogs/project-phoenix/workflows/openroommove/ports"
 )
 
 // These decision tests pin the workflow's own choices (release gate, which
@@ -102,10 +103,12 @@ type fakeMoves struct {
 	sessionID  int64
 	studentIDs []int64
 	actor      openroommove.Actor
-	calls      int
-	outcome    ports.MoveOutcome
-	err        error
-	order      *[]string
+	// checkedInBy is the staff member a check-in names.
+	checkedInBy int64
+	calls       int
+	outcome     ports.MoveOutcome
+	err         error
+	order       *[]string
 }
 
 func (f *fakeMoves) MoveIntoRoomSession(_ context.Context, sessionID int64, studentIDs []int64, actor openroommove.Actor) (ports.MoveOutcome, error) {
@@ -113,6 +116,15 @@ func (f *fakeMoves) MoveIntoRoomSession(_ context.Context, sessionID int64, stud
 		*f.order = append(*f.order, "MoveIntoRoomSession")
 	}
 	f.sessionID, f.studentIDs, f.actor = sessionID, studentIDs, actor
+	f.calls++
+	return f.outcome, f.err
+}
+
+func (f *fakeMoves) CheckInIntoRoomSession(_ context.Context, sessionID int64, studentIDs []int64, staffID int64, _ bool, actor openroommove.Actor) (ports.MoveOutcome, error) {
+	if f.order != nil {
+		*f.order = append(*f.order, "CheckInIntoRoomSession")
+	}
+	f.sessionID, f.studentIDs, f.actor, f.checkedInBy = sessionID, studentIDs, actor, staffID
 	f.calls++
 	return f.outcome, f.err
 }
@@ -437,3 +449,74 @@ func equalStrings(got, want []string) bool {
 }
 
 func (f *fakeMoves) PrepareOpenRoomMove(context.Context, []int64, int64) error { return nil }
+
+func checkIn(roomID, staffID int64, studentIDs ...int64) openroommove.CheckIn {
+	return openroommove.CheckIn{RoomID: roomID, StudentIDs: studentIDs, CheckedInBy: staffID, Actor: openroommove.Actor{StaffID: staffID}}
+}
+
+func TestCheckInToOpenRoomNeedsTheStaffMemberItNames(t *testing.T) {
+	t.Parallel()
+	h := newHarness(releasedRoom(7, "Turnhalle"))
+
+	_, err := h.command.CheckInToOpenRoom(context.Background(), checkIn(7, 0, 1))
+
+	if !errors.Is(err, openroommove.ErrInvalidMove) {
+		t.Fatalf("error = %v, want ErrInvalidMove", err)
+	}
+	if h.txCalls != 0 || h.moves.calls != 0 {
+		t.Fatalf("a check-in without staff opened %d transactions and moved %d times", h.txCalls, h.moves.calls)
+	}
+}
+
+func TestCheckInToOpenRoomRequiresTheReleaseBeforeCheckingAnyoneIn(t *testing.T) {
+	t.Parallel()
+	h := newHarness(facilities.Room{ID: 7, Name: "Turnhalle", IsOpenRoom: false})
+
+	_, err := h.command.CheckInToOpenRoom(context.Background(), checkIn(7, 9, 1))
+
+	if !errors.Is(err, openroommove.ErrRoomNotReleased) {
+		t.Fatalf("error = %v, want ErrRoomNotReleased", err)
+	}
+	if h.moves.calls != 0 {
+		t.Fatalf("an unreleased room checked %d times", h.moves.calls)
+	}
+}
+
+func TestCheckInToOpenRoomPlacesChildrenInTheSameUnitAsTheMove(t *testing.T) {
+	t.Parallel()
+	// The check-in keeps every step and lock of the move; only the Student
+	// Presence step also opens the attendance of the absent children.
+	h := newHarness(releasedRoom(7, "Turnhalle"))
+	h.activities.listResults = [][]timetable.Group{{sharedActivity(23)}}
+	h.moves.outcome = ports.MoveOutcome{Moved: []int64{1, 2}, CheckedIn: []int64{1}}
+
+	result, err := h.command.CheckInToOpenRoom(context.Background(), checkIn(7, 9, 1, 2, 1))
+	if err != nil {
+		t.Fatalf("CheckInToOpenRoom: %v", err)
+	}
+
+	want := []string{"FindRoom", "EnsureOpenRoomSession", "CheckInIntoRoomSession", "FindRoomForUpdate"}
+	if !equalStrings(h.order, want) {
+		t.Fatalf("order = %v, want %v", h.order, want)
+	}
+	if h.txCalls != 1 {
+		t.Fatalf("the check-in opened %d units, want one", h.txCalls)
+	}
+	if h.moves.sessionID != 555 || h.moves.checkedInBy != 9 || !equalStrings(idStrings(h.moves.studentIDs), []string{"1", "2"}) {
+		t.Fatalf("checked in %v into session %d by %d", h.moves.studentIDs, h.moves.sessionID, h.moves.checkedInBy)
+	}
+	if len(result.CheckedIn) != 1 || result.CheckedIn[0] != 1 || len(result.Moved) != 2 || result.RoomSessionID != 555 {
+		t.Fatalf("result = %+v", result)
+	}
+	if len(h.observed) != 1 || h.observed[0].Operation != "check_in_to_open_room" {
+		t.Fatalf("observed = %+v", h.observed)
+	}
+}
+
+func idStrings(ids []int64) []string {
+	out := make([]string, 0, len(ids))
+	for _, id := range ids {
+		out = append(out, strconv.FormatInt(id, 10))
+	}
+	return out
+}

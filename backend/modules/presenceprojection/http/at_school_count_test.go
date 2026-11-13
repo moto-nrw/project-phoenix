@@ -3,7 +3,7 @@ package presenceprojectionhttp
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // CountAtSchoolToday counts the given students who read "Schule" right now.

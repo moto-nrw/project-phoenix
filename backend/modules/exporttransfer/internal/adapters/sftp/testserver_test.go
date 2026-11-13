@@ -3,8 +3,8 @@ package sftp_test
 import (
 	"testing"
 
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/adapters/sftp"
-	"github.com/moto-nrw/project-phoenix/modules/exporttransfer/internal/adapters/sftp/sftptest"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/adapters/sftp"
+	"github.com/moto-ogs/project-phoenix/modules/exporttransfer/internal/adapters/sftp/sftptest"
 )
 
 // The in-process counterpart these tests drive lives in sftptest, so the

@@ -4,10 +4,10 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/traegerview"
-	"github.com/moto-nrw/project-phoenix/modules/traegerview/internal/adapters/postgres"
-	"github.com/moto-nrw/project-phoenix/modules/traegerview/internal/application"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/traegerview"
+	"github.com/moto-ogs/project-phoenix/modules/traegerview/internal/adapters/postgres"
+	"github.com/moto-ogs/project-phoenix/modules/traegerview/internal/application"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // New builds the Träger projection.

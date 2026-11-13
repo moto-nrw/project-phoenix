@@ -13,9 +13,9 @@ import (
 	time "time"
 
 	render "github.com/go-chi/render"
-	common "github.com/moto-nrw/project-phoenix/api/common"
-	peopleModule "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
-	studentpresence "github.com/moto-nrw/project-phoenix/modules/studentpresence"
+	common "github.com/moto-ogs/project-phoenix/api/common"
+	peopleModule "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
+	studentpresence "github.com/moto-ogs/project-phoenix/modules/studentpresence"
 )
 
 // schoolCheckinRequest is the payload for POST /api/students/{id}/school-checkin.

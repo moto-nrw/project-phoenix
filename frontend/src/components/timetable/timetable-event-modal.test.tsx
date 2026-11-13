@@ -2522,15 +2522,13 @@ describe("TimetableEventModal", () => {
         expect.objectContaining({ name: "Yoga", room_id: 3 }),
       ),
     );
-    // Template edits rebuild future planned instances: chunked scoped
-    // re-plan from today (2026-05-04) through the period end (2026-12-31).
-    await waitFor(() => expect(mockReplanWeek).toHaveBeenCalledTimes(5));
-    expect(mockReplanWeek).toHaveBeenNthCalledWith(
-      1,
-      "2026-05-04",
-      "2026-06-28",
+    // Template edits rebuild future planned instances inside the update
+    // (#6838); the client no longer re-plans afterwards.
+    expect(mockUpdateTemplate).toHaveBeenCalledWith(
       "7",
+      expect.objectContaining({ replan_future: true }),
     );
+    expect(mockReplanWeek).not.toHaveBeenCalled();
     expect(onSeriesSaved).toHaveBeenCalledWith({
       kind: "series",
       seriesId: "7",
@@ -3863,16 +3861,11 @@ describe("TimetableEventModal", () => {
           room_id: 3,
           weekdays: [1],
           category_id: 2,
+          replan_future: true,
         }),
       ),
     );
-    await waitFor(() => expect(mockReplanWeek).toHaveBeenCalledTimes(5));
-    expect(mockReplanWeek).toHaveBeenNthCalledWith(
-      1,
-      "2026-05-04",
-      "2026-06-28",
-      "7",
-    );
+    expect(mockReplanWeek).not.toHaveBeenCalled();
     expect(mockSplitTemplate).not.toHaveBeenCalled();
     expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" });
   });
@@ -4032,16 +4025,11 @@ describe("TimetableEventModal", () => {
     await waitFor(() =>
       expect(mockUpdateTemplate).toHaveBeenCalledWith(
         "7",
-        expect.objectContaining({ calendar_period_id: 6 }),
+        // The server re-plans through the end of this pinned period (#6838).
+        expect.objectContaining({ calendar_period_id: 6, replan_future: true }),
       ),
     );
-    await waitFor(() => expect(mockReplanWeek).toHaveBeenCalledTimes(2));
-    expect(mockReplanWeek).toHaveBeenNthCalledWith(
-      2,
-      "2026-06-29",
-      "2026-07-31",
-      "7",
-    );
+    expect(mockReplanWeek).not.toHaveBeenCalled();
   });
 
   it("preserves the fetched template roster for 'Alle Termine der Serie' without users:read", async () => {
@@ -5297,10 +5285,12 @@ describe("TimetableEventModal", () => {
     expect(mockToastError).not.toHaveBeenCalled();
   });
 
-  it("warns but still saves and closes when replanning fails after the template update", async () => {
-    vi.useFakeTimers({ toFake: ["Date"] });
-    vi.setSystemTime(new Date("2026-05-04T10:00:00"));
-    mockReplanWeek.mockRejectedValue(new Error("replan down"));
+  it("keeps the panel open when the template update and its re-plan fail together (#6838)", async () => {
+    // The re-plan runs in the update's transaction: a failure saves nothing,
+    // so the form stays open instead of claiming a saved Regeltermin.
+    mockUpdateTemplate.mockRejectedValue(
+      new ApiError("update template failed", 500, { code: "general.server" }),
+    );
     const { onClose, onSaved } = renderModal({
       initialInstance: { ...savedInstance, activityGroupId: "7" },
     });
@@ -5313,13 +5303,20 @@ describe("TimetableEventModal", () => {
     await waitFor(() => expect(screen.getByLabelText("Raum")).toBeEnabled());
     await clickSave();
 
-    await waitFor(() => expect(onClose).toHaveBeenCalledOnce());
-    expect(mockUpdateTemplate).toHaveBeenCalledTimes(1);
-    expect(mockToastWarning).toHaveBeenCalledWith(
-      "Der Regeltermin ist gespeichert. Einige Termine fehlen noch im Plan. Sie werden später automatisch ergänzt.",
+    expect(
+      await screen.findByText(
+        catalogText("general.server", "die Änderung des Regeltermins"),
+      ),
+    ).toBeInTheDocument();
+    expect(mockUpdateTemplate).toHaveBeenCalledWith(
+      "7",
+      expect.objectContaining({ replan_future: true }),
     );
-    expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "7" });
-    expect(mockToastError).not.toHaveBeenCalled();
+    expect(mockReplanWeek).not.toHaveBeenCalled();
+    expect(mockToastWarning).not.toHaveBeenCalled();
+    expect(mockToastSuccess).not.toHaveBeenCalled();
+    expect(onSaved).not.toHaveBeenCalled();
+    expect(onClose).not.toHaveBeenCalled();
   });
 
   it("shows a rejected series split in the panel with the catalog text (#2516)", async () => {
@@ -5615,6 +5612,8 @@ describe("TimetableEventModal", () => {
             // ...restricted to the child the user actually added — everyone
             // else keeps their predecessor rows.
             series_roster_scope_student_ids: [21],
+            // The re-plan rides on the RESOLVED id's update, not "87".
+            replan_future: true,
           }),
         ),
       );
@@ -5622,11 +5621,7 @@ describe("TimetableEventModal", () => {
       expect(mockSplitTemplate).not.toHaveBeenCalled();
       // The template was fetched via the occurrence's own (stale) id.
       expect(mockGetTemplate).toHaveBeenCalledWith("87", "5");
-      // The follow-up re-plan runs against the RESOLVED id, not "87".
-      await waitFor(() => expect(mockReplanWeek).toHaveBeenCalled());
-      for (const call of mockReplanWeek.mock.calls) {
-        expect(call[2]).toBe("88");
-      }
+      expect(mockReplanWeek).not.toHaveBeenCalled();
       expect(onSaved).toHaveBeenCalledWith({ kind: "series", seriesId: "88" });
     });
 

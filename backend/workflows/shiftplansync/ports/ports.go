@@ -6,7 +6,7 @@ package ports
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
 )
 
 // Shifts is the Dienstplan surface the sick cascade writes through. Compose

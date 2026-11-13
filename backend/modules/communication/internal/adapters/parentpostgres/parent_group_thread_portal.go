@@ -3,7 +3,7 @@ package parentpostgres
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // GroupThreadPortal is the guardian side of the group threads in the public

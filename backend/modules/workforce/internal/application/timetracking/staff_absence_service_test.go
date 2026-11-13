@@ -8,9 +8,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/workforce"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/tenant/tenanttest"
+	"github.com/moto-ogs/project-phoenix/modules/workforce"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/tenant/tenanttest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -1867,10 +1867,12 @@ func TestAbsApproveAbsence_WritesAudit(t *testing.T) {
 	absRepo := &absStaffAbsenceRepoMock{}
 	auditRepo := &absStaffAbsenceAuditRepoMock{}
 	broadcaster := &recordingTimeTrackingPublisher{}
+	syncer := &absShiftPlanSyncerMock{}
 	svc := &staffAbsenceService{
-		absenceRepo: absRepo,
-		auditRepo:   auditRepo,
-		broadcaster: broadcaster,
+		absenceRepo:     absRepo,
+		auditRepo:       auditRepo,
+		broadcaster:     broadcaster,
+		shiftPlanSyncer: syncer,
 	}
 	absenceID := int64(1000)
 	actorAccountID := int64(2000)
@@ -1911,6 +1913,14 @@ func TestAbsApproveAbsence_WritesAudit(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, AbsenceStatusApproved, result.Status)
+	// The approved vacation is in force and leaves the plans (#6847), on the
+	// deciding manager's behalf.
+	require.Len(t, syncer.markCalls, 1)
+	assert.Equal(t, SickCascadeInput{
+		SubjectStaffID: 4000, AbsenceType: AbsenceTypeVacation, AbsenceID: absenceID,
+		DateStart: "2027-02-15", DateEnd: "2027-02-16",
+		ActorStaffID: decidedByStaffID, ActorAccountID: &actorAccountID,
+	}, syncer.markCalls[0])
 
 	commit()
 
@@ -1968,9 +1978,11 @@ func TestAbsCancelAbsence_WritesAudit(t *testing.T) {
 
 	absRepo := &absStaffAbsenceRepoMock{}
 	auditRepo := &absStaffAbsenceAuditRepoMock{}
+	syncer := &absShiftPlanSyncerMock{}
 	svc := &staffAbsenceService{
-		absenceRepo: absRepo,
-		auditRepo:   auditRepo,
+		absenceRepo:     absRepo,
+		auditRepo:       auditRepo,
+		shiftPlanSyncer: syncer,
 	}
 	staffID := int64(4002)
 	absenceID := int64(1002)
@@ -2002,6 +2014,10 @@ func TestAbsCancelAbsence_WritesAudit(t *testing.T) {
 	err := svc.CancelAbsence(context.Background(), staffID, actorAccountID, absenceID)
 
 	require.NoError(t, err)
+	// Withdrawing the approved vacation gives its days back (#6847).
+	require.Len(t, syncer.clearCalls, 1)
+	assert.Equal(t, absenceID, syncer.clearCalls[0].AbsenceID)
+	assert.Equal(t, AbsenceTypeVacation, syncer.clearCalls[0].AbsenceType)
 }
 
 func TestAbsVacationCutoffUsesBerlinCalendarDay(t *testing.T) {
@@ -2174,7 +2190,10 @@ func TestAbsCreateAbsenceFor_SickCascadesWithActor(t *testing.T) {
 	assert.Equal(t, "2026-02-12", call.DateEnd)
 }
 
-func TestAbsCreateAbsenceFor_HalfDayAndNonSickSkipCascade(t *testing.T) {
+// A single half day never cascades, whatever its type: the person works the
+// other half, and which shift or block that touches is the admin's call
+// (#1843, kept by #6847).
+func TestAbsCreateAbsenceFor_HalfDaySkipsCascade(t *testing.T) {
 	t.Parallel()
 
 	for _, tc := range []struct {
@@ -2182,7 +2201,7 @@ func TestAbsCreateAbsenceFor_HalfDayAndNonSickSkipCascade(t *testing.T) {
 		req  CreateAbsenceRequest
 	}{
 		{name: "half day sick", req: CreateAbsenceRequest{AbsenceType: AbsenceTypeSick, DateStart: "2026-02-10", DateEnd: "2026-02-10", HalfDay: true}},
-		{name: "training", req: CreateAbsenceRequest{AbsenceType: AbsenceTypeTraining, DateStart: "2026-02-10", DateEnd: "2026-02-12"}},
+		{name: "half day training", req: CreateAbsenceRequest{AbsenceType: AbsenceTypeTraining, DateStart: "2026-02-10", DateEnd: "2026-02-10", HalfDay: true}},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			svc, absRepo, syncer := absSetupServiceWithSyncer()
@@ -2194,6 +2213,30 @@ func TestAbsCreateAbsenceFor_HalfDayAndNonSickSkipCascade(t *testing.T) {
 			assert.Empty(t, syncer.markCalls, "cascade must not fire")
 		})
 	}
+}
+
+// A reported training is in force at once: its full days leave the plans
+// like a sick report's, under the neutral label of its type (#6847).
+func TestAbsCreateAbsenceFor_NonSickAbsenceCascades(t *testing.T) {
+	t.Parallel()
+
+	svc, absRepo, syncer := absSetupServiceWithSyncer()
+	absRepo.getByStaffAndDateRangeFunc = func(context.Context, int64, Date, Date) ([]*StaffAbsence, error) { return nil, nil }
+	absRepo.createFunc = func(_ context.Context, entity *StaffAbsence) error {
+		entity.ID = 556
+		return nil
+	}
+
+	_, err := svc.CreateAbsenceFor(context.Background(), 100, 200, nil, CreateAbsenceRequest{
+		AbsenceType: AbsenceTypeTraining, DateStart: "2026-02-10", DateEnd: "2026-02-12",
+	})
+
+	require.NoError(t, err)
+	require.Len(t, syncer.markCalls, 1)
+	assert.Equal(t, SickCascadeInput{
+		SubjectStaffID: 100, AbsenceType: AbsenceTypeTraining, DateStart: "2026-02-10", DateEnd: "2026-02-12",
+		AbsenceID: 556, ActorStaffID: 200,
+	}, syncer.markCalls[0])
 }
 
 func TestAbsCreateAbsenceFor_RejectsMultiDayHalfDaySickReport(t *testing.T) {
@@ -2569,6 +2612,53 @@ func TestAbsUpdateAbsence_ReconcilesSickDateDifference(t *testing.T) {
 	assert.Equal(t, actorAccountID, *syncer.reconcileCalls[0][0].ActorAccountID)
 	require.NotNil(t, syncer.reconcileCalls[0][1].ActorAccountID)
 	assert.Equal(t, actorAccountID, *syncer.reconcileCalls[0][1].ActorAccountID)
+}
+
+// Every absence in force stamps the plans since #6847, so an edit that adds
+// or drops full days reconciles them whatever the type; an edit that keeps
+// the days asks for nothing.
+func TestAbsUpdateAbsence_ReconcilesTheFullDaysOfAnyType(t *testing.T) {
+	t.Parallel()
+
+	newEnd, halfDay, note := "2026-02-13", true, "neuer Hinweis"
+	for name, tc := range map[string]struct {
+		req       UpdateAbsenceRequest
+		reconcile bool
+		skipEnds  bool
+	}{
+		"moved end":     {req: UpdateAbsenceRequest{DateEnd: &newEnd}, reconcile: true},
+		"half day flip": {req: UpdateAbsenceRequest{HalfDay: &halfDay}, reconcile: true, skipEnds: true},
+		"note only":     {req: UpdateAbsenceRequest{Note: &note}},
+	} {
+		t.Run(name, func(t *testing.T) {
+			svc, absRepo, syncer := absSetupServiceWithSyncer()
+			existing := &StaffAbsence{
+				StaffID: 100, CreatedBy: 100, AbsenceType: AbsenceTypeTraining,
+				DateStart: NewDate(2026, 2, 10), DateEnd: NewDate(2026, 2, 12), Status: AbsenceStatusReported,
+			}
+			existing.ID = 43
+			absRepo.findByIDFunc = func(_ context.Context, _ any) (*StaffAbsence, error) {
+				copyOf := *existing
+				return &copyOf, nil
+			}
+			absRepo.getByStaffAndDateRangeFunc = func(_ context.Context, _ int64, _, _ Date) ([]*StaffAbsence, error) {
+				return []*StaffAbsence{existing}, nil
+			}
+
+			_, err := svc.UpdateAbsence(context.Background(), 100, nil, 43, tc.req)
+
+			require.NoError(t, err)
+			if !tc.reconcile {
+				assert.Empty(t, syncer.reconcileCalls)
+				return
+			}
+			require.Len(t, syncer.reconcileCalls, 1)
+			before, after := syncer.reconcileCalls[0][0], syncer.reconcileCalls[0][1]
+			assert.Equal(t, AbsenceTypeTraining, after.AbsenceType)
+			assert.False(t, before.SkipStartDay || before.SkipEndDay)
+			assert.Equal(t, tc.skipEnds, after.SkipStartDay && after.SkipEndDay)
+		})
+	}
 }
 
 func TestAbsUpdateAbsence_ReconcileFailurePropagates(t *testing.T) {
@@ -2968,7 +3058,7 @@ func TestAbsApproveAbsence_FromQuestion(t *testing.T) {
 
 	absRepo := &absStaffAbsenceRepoMock{}
 	auditRepo := &absStaffAbsenceAuditRepoMock{}
-	svc := &staffAbsenceService{absenceRepo: absRepo, auditRepo: auditRepo}
+	svc := &staffAbsenceService{absenceRepo: absRepo, auditRepo: auditRepo, shiftPlanSyncer: noopShiftPlanSyncer{}}
 	decidedByStaffID := int64(3103)
 
 	absRepo.findByIDFunc = func(_ context.Context, _ any) (*StaffAbsence, error) {
@@ -3368,7 +3458,10 @@ func TestAbsCreateAbsenceFor_AllowsCompTimeAboveBalance(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, result)
 	assert.Equal(t, int64(89), result.ID)
-	assert.Empty(t, syncer.markCalls)
+	// Freizeitausgleich is an absence like any other: its days leave the
+	// plans (#6847).
+	require.Len(t, syncer.markCalls, 1)
+	assert.Equal(t, AbsenceTypeCompTime, syncer.markCalls[0].AbsenceType)
 }
 
 // #2873: an already negative Stundenkonto does not block a further half-day
@@ -3731,7 +3824,7 @@ func TestStaffAbsenceCapability_ReturnsTheSickCascadePlan(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, int64(555), created.ID)
 	assert.Equal(t, workforce.SickCascadePlan{{Kind: workforce.SickCascadeMark, Report: workforce.SickCascadeInput{
-		SubjectStaffID: 100, DateStart: "2026-02-10", DateEnd: "2026-02-12", AbsenceID: 555, ActorStaffID: 200, ActorAccountID: &accountID,
+		SubjectStaffID: 100, AbsenceType: AbsenceTypeSick, DateStart: "2026-02-10", DateEnd: "2026-02-12", AbsenceID: 555, ActorStaffID: 200, ActorAccountID: &accountID,
 	}}}, plan)
 
 	sick := &StaffAbsence{StaffID: 100, AbsenceType: AbsenceTypeSick, DateStart: NewDate(2026, 2, 10), DateEnd: NewDate(2026, 2, 11), Status: AbsenceStatusReported}

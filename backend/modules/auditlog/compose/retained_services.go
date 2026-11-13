@@ -1,8 +1,8 @@
 package compose
 
 import (
-	auditScans "github.com/moto-nrw/project-phoenix/modules/auditlog/internal/adapters/auditpostgres"
-	auditService "github.com/moto-nrw/project-phoenix/modules/auditlog/internal/application"
+	auditScans "github.com/moto-ogs/project-phoenix/modules/auditlog/internal/adapters/auditpostgres"
+	auditService "github.com/moto-ogs/project-phoenix/modules/auditlog/internal/application"
 )
 
 type (

@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"sync/atomic"
 
-	mailcontract "github.com/moto-nrw/project-phoenix/modules/delivery/mail"
+	mailcontract "github.com/moto-ogs/project-phoenix/modules/delivery/mail"
 )
 
 // MockMailer is a mock Mailer

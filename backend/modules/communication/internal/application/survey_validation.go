@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication"
+	"github.com/moto-ogs/project-phoenix/modules/communication"
 )
 
 // Limits of a survey (#4781). A questionnaire is meant to take minutes, not

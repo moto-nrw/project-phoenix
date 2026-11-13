@@ -3,7 +3,7 @@ package application
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/modules/filestorage/internal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/filestorage/internal/ports"
 )
 
 // AttachmentPurgerDependencies are the seams of the announcement side of the

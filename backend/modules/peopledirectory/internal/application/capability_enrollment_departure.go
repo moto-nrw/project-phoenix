@@ -4,7 +4,7 @@ import (
 	"strings"
 	utf8 "unicode/utf8"
 
-	"github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	"github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 func normalizeEnrollmentDeparture(input *peopledirectory.EnrollmentProfilePatch) error {

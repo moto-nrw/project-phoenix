@@ -3,7 +3,7 @@ package careplan
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/carerequests"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/carerequests"
 )
 
 // CareScheduleRequestQuery is the bounded storage read used by staff review.
@@ -16,6 +16,7 @@ type CareScheduleReviewQuery interface {
 	GetForReview(context.Context, int64) (*carerequests.HistoryItem, error)
 	ListPending(context.Context, RequestQueueFilter) ([]*CareScheduleReviewItem, *RequestCursor, error)
 	ListHistory(context.Context, RequestQueueFilter) ([]*CareScheduleHistoryItem, *RequestCursor, error)
+	carerequests.WeeklyImpact
 }
 
 type CareScheduleReviewItem = carerequests.ReviewItem

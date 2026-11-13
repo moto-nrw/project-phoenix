@@ -45,7 +45,11 @@ import {
   type SeriesRule,
 } from "~/lib/shift-api";
 import type { StaffScheduleStaff, StaffShift } from "~/lib/shift-helpers";
-import type { ShiftType } from "~/lib/shift-type-helpers";
+import {
+  isShiftTypeOffered,
+  shiftTypeOptionLabel,
+  type ShiftType,
+} from "~/lib/shift-type-helpers";
 import {
   latestISODate,
   materializedRecurrenceDates,
@@ -496,11 +500,8 @@ export function ShiftEditModal({
       { value: "", label: "Keine Dienstart" },
     ];
     for (const type of shiftTypes) {
-      if (type.isActive || type.id === shift?.shiftTypeId) {
-        opts.push({
-          value: type.id,
-          label: type.isActive ? type.name : `${type.name} (inaktiv)`,
-        });
+      if (isShiftTypeOffered(type) || type.id === shift?.shiftTypeId) {
+        opts.push({ value: type.id, label: shiftTypeOptionLabel(type) });
       }
     }
     return opts;

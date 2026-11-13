@@ -8,8 +8,8 @@ import (
 	"fmt"
 	"time"
 
-	deliveryModels "github.com/moto-nrw/project-phoenix/modules/delivery/subscriptions"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	deliveryModels "github.com/moto-ogs/project-phoenix/modules/delivery/subscriptions"
+	"github.com/moto-ogs/project-phoenix/tenant"
 	"github.com/uptrace/bun"
 	"github.com/uptrace/bun/dialect/pgdialect"
 )

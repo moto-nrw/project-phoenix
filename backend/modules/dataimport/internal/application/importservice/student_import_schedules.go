@@ -6,9 +6,9 @@ import (
 	"strings"
 	"time"
 
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/modules/dataimport/ports"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/modules/dataimport/ports"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 func parseWallClock(value string) (time.Time, error) {

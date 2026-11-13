@@ -6,12 +6,12 @@ import (
 	"encoding/json"
 	"log/slog"
 
-	deliveryPorts "github.com/moto-nrw/project-phoenix/modules/communication/internal/application"
+	deliveryPorts "github.com/moto-ogs/project-phoenix/modules/communication/internal/application"
 
-	eventContract "github.com/moto-nrw/project-phoenix/modules/communication/eventcontract"
+	eventContract "github.com/moto-ogs/project-phoenix/modules/communication/eventcontract"
 
-	"github.com/moto-nrw/project-phoenix/modules/communication/internal/application/parentmessaging"
-	"github.com/moto-nrw/project-phoenix/realtime"
+	"github.com/moto-ogs/project-phoenix/modules/communication/internal/application/parentmessaging"
+	"github.com/moto-ogs/project-phoenix/realtime"
 )
 
 // EventEmitter is Communication's side of the parent-event emitter: it owns

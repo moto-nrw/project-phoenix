@@ -3,8 +3,8 @@ package care
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan/absencerecords"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan/absencerecords"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // The read ports below are the rows the child flows read and lock. They name
@@ -59,6 +59,7 @@ type GuardianPhoneReads interface {
 // StudentGuardianReads reads and locks the guardian relationships.
 type StudentGuardianReads interface {
 	FindByStudentID(ctx context.Context, studentID int64) ([]*GuardianRelationship, error)
+	FindByStudentIDs(ctx context.Context, studentIDs []int64) ([]*GuardianRelationship, error)
 	FindByGuardianProfileID(ctx context.Context, guardianProfileID int64) ([]*GuardianRelationship, error)
 	FindByStudentAndGuardianForUpdate(ctx context.Context, studentID, guardianProfileID int64) (*GuardianRelationship, error)
 	ListLinkedChildrenForGuardians(ctx context.Context, guardianProfileIDs []int64) ([]*GuardianLinkedChild, error)

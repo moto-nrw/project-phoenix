@@ -3,7 +3,7 @@ package peopledirectory
 import (
 	"time"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // ExternalCaregiverRecord makes a staff member an external caregiver (ADR 0091).

@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/moto-nrw/project-phoenix/api/testutil/routetest"
-	capability "github.com/moto-nrw/project-phoenix/modules/enrollment"
-	transactionFailures "github.com/moto-nrw/project-phoenix/modules/transactionruntime"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/api/testutil/routetest"
+	capability "github.com/moto-ogs/project-phoenix/modules/enrollment"
+	transactionFailures "github.com/moto-ogs/project-phoenix/modules/transactionruntime"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // guardianProfilesStub answers the autofill port and records the account and

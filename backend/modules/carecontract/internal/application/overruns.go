@@ -6,8 +6,8 @@ import (
 	"slices"
 	"strings"
 
-	"github.com/moto-nrw/project-phoenix/modules/carecontract"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/carecontract"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // Overruns serves carecontract.OverrunEvaluations (#4683, ADR 0156). It

@@ -11,10 +11,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uptrace/bun"
 
-	"github.com/moto-nrw/project-phoenix/api"
-	importModels "github.com/moto-nrw/project-phoenix/modules/dataimport"
-	"github.com/moto-nrw/project-phoenix/tenant"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	"github.com/moto-ogs/project-phoenix/api"
+	importModels "github.com/moto-ogs/project-phoenix/modules/dataimport"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 )
 
 // Failure in row k (ADR 0067 addendum of 2026-11-08, "Jeder Schritt prüft"):
@@ -97,13 +97,19 @@ func countIn(t *testing.T, db *bun.DB, query string, args ...any) int {
 	return n
 }
 
-// TestImportBatchesRefusedRowKeepsTheRowPathOutcome runs every owner table at
-// k = 1, 5, 10 of 10 and k = 1, 55, 101, 110 of 110.
+// TestImportBatchesRefusedRowKeepsTheRowPathOutcome refuses row k of n in every
+// owner table. The first table of each import kind runs every position
+// (k = 1, 5, 10 of 10 and k = 1, 55, 101, 110 of 110); where the refused row
+// sits is decided by the chunk executor, not by the table, so every other
+// table runs one position of each file size in rotation. The full cross held
+// an isolated clone for 140 uploads, 80 of them with 110 rows (#6784).
 func TestImportBatchesRefusedRowKeepsTheRowPathOutcome(t *testing.T) {
 	t.Parallel()
 	db := testpkg.SetupIsolatedTestDB(t)
 	installRefusedMarkers(t, db)
-	positions := []struct{ n, k int }{{10, 1}, {10, 5}, {10, 10}, {110, 1}, {110, 55}, {110, 101}, {110, 110}}
+	type position struct{ n, k int }
+	small := []position{{10, 1}, {10, 5}, {10, 10}}
+	large := []position{{110, 1}, {110, 55}, {110, 101}, {110, 110}}
 	cases := []struct {
 		name, table, code string
 		run               func(t *testing.T, n, k int) positionOutcome
@@ -139,7 +145,13 @@ func TestImportBatchesRefusedRowKeepsTheRowPathOutcome(t *testing.T) {
 	// while they wait for that clone, a deadlock until the test timeout.
 	slots := make(chan struct{}, 4)
 	var running sync.WaitGroup
-	for _, c := range cases {
+	fullCross := map[string]bool{}
+	for i, c := range cases {
+		positions := []position{small[i%len(small)], large[i%len(large)]}
+		if !fullCross[c.name] {
+			fullCross[c.name] = true
+			positions = append(append([]position{}, small...), large...)
+		}
 		for _, p := range positions {
 			slots <- struct{}{}
 			running.Add(1)

@@ -4,11 +4,13 @@ package common
 const CodePresenceActivityParticipantLimitReached = "presence.activity_participant_limit_reached"
 const CodePresenceRoomCapacityExceeded = "presence.room_capacity_exceeded"
 const CodePresenceStatisticsRangeInvalid = "presence.statistics_range_invalid"
+const CodePresenceVisitOverlap = "presence.visit_overlap"
 
 var errorCodeClassesPresence = []errorCodeClass{
 	{CodePresenceActivityParticipantLimitReached, "business_rejection"},
 	{CodePresenceRoomCapacityExceeded, "business_rejection"},
 	{CodePresenceStatisticsRangeInvalid, "input"},
+	{CodePresenceVisitOverlap, "business_rejection"},
 }
 
 func init() {

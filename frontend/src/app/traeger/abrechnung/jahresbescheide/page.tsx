@@ -200,7 +200,7 @@ export default function TraegerJahresbescheidePage() {
             suggestedYear={data.list.suggestedYear}
             onClose={() => setStarting(false)}
             onStart={startCareNoticeRun}
-            onStarted={(run) => {
+            onStarted={(run: CareNoticeRun) => {
               setStarting(false);
               openRun(run);
             }}

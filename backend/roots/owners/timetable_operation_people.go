@@ -3,9 +3,9 @@ package owners
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/schoolmembership"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	timetablePorts "github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolmembership"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	timetablePorts "github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 )
 
 // TimetableOperationPeople binds the timetable operations' person port. Its

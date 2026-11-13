@@ -4,8 +4,8 @@ import (
 	"context"
 	"testing"
 
-	presenceCompose "github.com/moto-nrw/project-phoenix/modules/studentpresence/compose"
-	testpkg "github.com/moto-nrw/project-phoenix/test"
+	presenceCompose "github.com/moto-ogs/project-phoenix/modules/studentpresence/compose"
+	testpkg "github.com/moto-ogs/project-phoenix/test"
 	"github.com/uptrace/bun"
 )
 

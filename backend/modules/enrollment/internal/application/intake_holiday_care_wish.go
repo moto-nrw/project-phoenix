@@ -3,7 +3,7 @@ package application
 import (
 	"fmt"
 
-	enrollmentNative "github.com/moto-nrw/project-phoenix/modules/enrollment"
+	enrollmentNative "github.com/moto-ogs/project-phoenix/modules/enrollment"
 )
 
 // holidayCareWishAsked reports whether the form asks the holiday care wish

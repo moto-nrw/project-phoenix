@@ -6,9 +6,9 @@ import (
 	"fmt"
 	"time"
 
-	presenceContract "github.com/moto-nrw/project-phoenix/modules/presenceprojection/presencecontract"
+	presenceContract "github.com/moto-ogs/project-phoenix/modules/presenceprojection/presencecontract"
 
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 	"github.com/uptrace/bun"
 )
 

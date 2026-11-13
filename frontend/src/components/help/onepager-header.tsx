@@ -1,10 +1,8 @@
 import Link from "next/link";
 import { ArrowLeft, Download } from "lucide-react";
 import { buttonStyles } from "~/components/ui/button-styles";
-import {
-  SECTION_CARD_PADDING,
-  SectionCardSurface,
-} from "~/components/ui/section-card-surface";
+import { CARD_SURFACE_PADDING } from "~/components/ui/card-surface";
+import { SectionCardSurface } from "~/components/ui/section-card-surface";
 
 /**
  * Kopf der gedruckten NFC-Kurzanleitung.
@@ -29,7 +27,7 @@ export function OnepagerHeader({
     <header className="sticky top-3 z-30 print:hidden">
       <SectionCardSurface
         overflow="visible"
-        className={`${SECTION_CARD_PADDING} sm:relative`}
+        className={`${CARD_SURFACE_PADDING} sm:relative`}
       >
         <div className="flex items-center justify-between gap-3">
           <Link

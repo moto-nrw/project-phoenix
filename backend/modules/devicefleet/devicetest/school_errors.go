@@ -1,6 +1,6 @@
 package devicetest
 
-import devicefleetCompose "github.com/moto-nrw/project-phoenix/modules/devicefleet/compose"
+import devicefleetCompose "github.com/moto-ogs/project-phoenix/modules/devicefleet/compose"
 
 // SchoolErrors returns the same owner classifier Root binds in production.
 func SchoolErrors() interface {

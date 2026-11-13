@@ -170,6 +170,25 @@ describe("ActionHint on kit buttons", () => {
     expect(bubble()).toBeNull();
   });
 
+  it("stays closed when a key other than Tab moved the focus (#6744)", () => {
+    // Enter öffnet einen Dialog, der sein X selbst fokussiert: Escape muss
+    // dann den Dialog schließen, nicht erst eine Blase.
+    render(
+      <Button type="button" tooltip={HINT}>
+        Schließen
+      </Button>,
+    );
+    const button = screen.getByRole("button", { name: "Schließen" });
+
+    fireEvent.keyDown(document, { key: "Tab" });
+    fireEvent.keyDown(document, { key: "Enter" });
+    act(() => {
+      button.focus();
+    });
+    expect(button).toHaveFocus();
+    expect(bubble()).toBeNull();
+  });
+
   it("cancels a pending hover hint when focus moves to another control", () => {
     vi.useFakeTimers();
     render(

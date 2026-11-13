@@ -3,9 +3,9 @@
 package api
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/auditlog"
-	auditCompose "github.com/moto-nrw/project-phoenix/modules/auditlog/compose"
-	transactionruntime "github.com/moto-nrw/project-phoenix/modules/transactionruntime/compose"
+	"github.com/moto-ogs/project-phoenix/modules/auditlog"
+	auditCompose "github.com/moto-ogs/project-phoenix/modules/auditlog/compose"
+	transactionruntime "github.com/moto-ogs/project-phoenix/modules/transactionruntime/compose"
 )
 
 // NewUnobservedCorrectionQueries builds the Audit Platform's correction query

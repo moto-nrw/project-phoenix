@@ -1,10 +1,10 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/schoolcalendar"
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/timetable/ports"
+	"github.com/moto-ogs/project-phoenix/modules/schoolcalendar"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/timetable/ports"
 )
 
 // The legacy School Calendar repositories the Timetable planner reads are

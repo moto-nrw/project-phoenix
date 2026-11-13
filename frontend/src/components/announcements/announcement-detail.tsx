@@ -191,6 +191,85 @@ export function RecipientList({
   );
 }
 
+/** One figure of the read statistics: „3 / 12 gelesen“ over its bar. */
+function ReachMeter({
+  label,
+  value,
+  total,
+  tone,
+}: {
+  readonly label: string;
+  readonly value: number;
+  readonly total: number;
+  readonly tone: "dark" | "green";
+}) {
+  return (
+    <div className="min-w-0">
+      <div className="flex flex-wrap items-baseline gap-x-1.5">
+        <span className="text-2xl font-semibold text-gray-900 tabular-nums">
+          {value}
+        </span>
+        <span className="text-base text-gray-500 tabular-nums">/ {total}</span>
+        <span className="text-sm text-gray-600">{label}</span>
+      </div>
+      <ProgressBar
+        value={value}
+        max={total}
+        label={`${value} von ${total} ${label}`}
+        tone={tone}
+        className="mt-2"
+      />
+    </div>
+  );
+}
+
+/**
+ * The read statistics of a published announcement. Its denominator is the
+ * parents of the children the publication reached (#6988): a child who
+ * changes class later adds nobody and removes nobody, so the sentence names
+ * that moment.
+ */
+export function ReachSummary({
+  stats,
+  requiresAcknowledgement,
+  publishedAt,
+}: {
+  readonly stats: AnnouncementStats;
+  readonly requiresAcknowledgement: boolean;
+  readonly publishedAt?: string;
+}) {
+  return (
+    <div className="space-y-3 pb-2">
+      <div
+        className={
+          requiresAcknowledgement ? "grid gap-4 sm:grid-cols-2" : undefined
+        }
+      >
+        <ReachMeter
+          label="gelesen"
+          value={stats.read_count}
+          total={stats.target_count}
+          tone="dark"
+        />
+        {requiresAcknowledgement && (
+          <ReachMeter
+            label="bestätigt"
+            value={stats.acknowledged_count}
+            total={stats.target_count}
+            tone="green"
+          />
+        )}
+      </div>
+      {stats.recorded && publishedAt && (
+        <p className="text-sm text-gray-600">
+          Gezählt werden die Eltern der Kinder, die die Mitteilung am{" "}
+          {formatBerlinDate(publishedAt)} erreicht hat.
+        </p>
+      )}
+    </div>
+  );
+}
+
 /**
  * Poll evaluation: one bar per option over the children with an eligible
  * respondent, plus the full per-child list so staff can distinguish open
@@ -665,20 +744,20 @@ export function AnnouncementDetail({
             </SkeletonRegion>
           ) : (
             <>
-              <p className="text-sm text-gray-700">
-                {isPublished ? (
-                  <>
-                    {stats.read_count} von {stats.target_count} gelesen
-                    {announcement.requires_acknowledgement &&
-                      ` · ${stats.acknowledged_count} von ${stats.target_count} bestätigt`}
-                  </>
-                ) : (
-                  <>
-                    Erreicht aktuell {stats.target_count}{" "}
-                    {stats.target_count === 1 ? "Elternteil" : "Eltern"}.
-                  </>
-                )}
-              </p>
+              {isPublished ? (
+                <ReachSummary
+                  stats={stats}
+                  requiresAcknowledgement={
+                    announcement.requires_acknowledgement
+                  }
+                  publishedAt={announcement.published_at}
+                />
+              ) : (
+                <p className="text-sm text-gray-700">
+                  Erreicht aktuell {stats.target_count}{" "}
+                  {stats.target_count === 1 ? "Elternteil" : "Eltern"}.
+                </p>
+              )}
               {recipients.length > 0 && (
                 <RecipientList
                   recipients={recipients}

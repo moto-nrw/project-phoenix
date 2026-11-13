@@ -6,10 +6,10 @@ import (
 	"context"
 	"errors"
 
-	"github.com/moto-nrw/project-phoenix/tenant"
-	"github.com/moto-nrw/project-phoenix/workflows/openroommove"
-	"github.com/moto-nrw/project-phoenix/workflows/openroommove/internal/application"
-	"github.com/moto-nrw/project-phoenix/workflows/openroommove/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/workflows/openroommove"
+	"github.com/moto-ogs/project-phoenix/workflows/openroommove/internal/application"
+	"github.com/moto-ogs/project-phoenix/workflows/openroommove/ports"
 )
 
 type Observation = ports.Observation

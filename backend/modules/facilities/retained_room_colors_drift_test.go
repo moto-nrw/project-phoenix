@@ -28,12 +28,15 @@ import (
 func TestReservedRoomColors_MatchesFrontendLOCATION_COLORS(t *testing.T) {
 	t.Parallel()
 
-	frontendPath := findFrontendLocationHelper(t)
+	frontendPath := findFrontendFile(t, "src", "lib", "location-helper.ts")
+	palettePath := findFrontendFile(t, "src", "lib", "kit-palette.ts")
 
 	bytes, err := os.ReadFile(frontendPath) // #nosec G304 — path computed inside repo
 	require.NoError(t, err, "could not read %s", frontendPath)
+	paletteBytes, err := os.ReadFile(palettePath) // #nosec G304 — path computed inside repo
+	require.NoError(t, err, "could not read %s", palettePath)
 
-	frontendHexes := extractLocationColorsHexes(t, string(bytes))
+	frontendHexes := extractLocationColorsHexes(t, string(bytes), string(paletteBytes))
 	backendHexes := exposedReservedHexes(t)
 
 	require.NotEmpty(t, frontendHexes,
@@ -56,19 +59,20 @@ func TestReservedRoomColors_MatchesFrontendLOCATION_COLORS(t *testing.T) {
 	}
 }
 
-// findFrontendLocationHelper walks up from the package's working directory
-// to the repo root, then down to frontend/src/lib/location-helper.ts. We
-// can't hard-code the relative path because Go test working directory is
-// the package dir, not the repo root, and depth varies depending on which
-// package the test runs from.
-func findFrontendLocationHelper(t *testing.T) string {
+// findFrontendFile walks up from the package's working directory to the repo
+// root, then down to the given path below frontend/. We can't hard-code the
+// relative path because Go test working directory is the package dir, not
+// the repo root, and depth varies depending on which package the test runs
+// from.
+func findFrontendFile(t *testing.T, parts ...string) string {
 	t.Helper()
 
 	dir, err := os.Getwd()
 	require.NoError(t, err)
+	rel := filepath.Join(append([]string{"frontend"}, parts...)...)
 
 	for i := 0; i < 10; i++ {
-		candidate := filepath.Join(dir, "frontend", "src", "lib", "location-helper.ts")
+		candidate := filepath.Join(dir, rel)
 		if _, statErr := os.Stat(candidate); statErr == nil {
 			return candidate
 		}
@@ -79,15 +83,17 @@ func findFrontendLocationHelper(t *testing.T) string {
 		dir = parent
 	}
 
-	t.Fatalf("could not locate frontend/src/lib/location-helper.ts walking up from %s", dir)
+	t.Fatalf("could not locate %s walking up from %s", rel, dir)
 	return ""
 }
 
 // extractLocationColorsHexes pulls every hex literal that appears inside the
 // `export const LOCATION_COLORS = { ... } as const;` block. We deliberately
-// scope the search to that block so unrelated hex literals elsewhere in the
-// file (e.g. GROUP_ROOM_SHADES) don't pollute the comparison set.
-func extractLocationColorsHexes(t *testing.T, source string) map[string]struct{} {
+// scope the search to that block so unrelated values elsewhere in the file
+// (e.g. GROUP_ROOM_SHADES) don't pollute the comparison set. Palette
+// references resolve against MOTO_COLOR_PALETTE in paletteSource
+// (frontend/src/lib/kit-palette.ts, #6573).
+func extractLocationColorsHexes(t *testing.T, source, paletteSource string) map[string]struct{} {
 	t.Helper()
 
 	startMarker := "export const LOCATION_COLORS"
@@ -105,7 +111,7 @@ func extractLocationColorsHexes(t *testing.T, source string) map[string]struct{}
 	literalMatches := hexPattern.FindAllStringSubmatch(block, -1)
 	palettePattern := regexp.MustCompile(`MOTO_COLOR_PALETTE\.([A-Za-z][A-Za-z0-9]*)\.base`)
 	paletteMatches := palettePattern.FindAllStringSubmatch(block, -1)
-	paletteBaseHexes := extractPaletteBaseHexes(t, source)
+	paletteBaseHexes := extractPaletteBaseHexes(t, paletteSource)
 
 	out := make(map[string]struct{}, len(literalMatches)+len(paletteMatches))
 	for _, m := range literalMatches {

@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	peopleValues "github.com/moto-nrw/project-phoenix/modules/peopledirectory"
+	peopleValues "github.com/moto-ogs/project-phoenix/modules/peopledirectory"
 )
 
 // PhotoSettings is the narrow settings surface the photo feature gate needs.

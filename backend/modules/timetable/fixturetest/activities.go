@@ -5,8 +5,8 @@ package fixturetest
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/timetable"
-	activityContract "github.com/moto-nrw/project-phoenix/modules/timetable/activitycontract"
+	"github.com/moto-ogs/project-phoenix/modules/timetable"
+	activityContract "github.com/moto-ogs/project-phoenix/modules/timetable/activitycontract"
 )
 
 // EnrollmentWriter creates the retained protected roster rows exercised by integration suites.

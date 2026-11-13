@@ -1,8 +1,8 @@
 # Checkpoint workload `checkpoint-1-v2`: bridge run (#3411)
 
-[#3411](https://github.com/moto-nrw/project-phoenix/issues/3411) replaces the
+[#3411](https://github.com/moto-ogs/project-phoenix/issues/3411) replaces the
 default checkpoint workload before
-[#3021](https://github.com/moto-nrw/project-phoenix/issues/3021). The workload
+[#3021](https://github.com/moto-ogs/project-phoenix/issues/3021). The workload
 contract is in [README.md](README.md#workload-checkpoint-1-v2). This page holds
 the bridge run: `checkpoint-1-v1` and `checkpoint-1-v2` on one commit, and the
 comparison of that `checkpoint-1-v1` run with #3019 and #3020. It measures; it

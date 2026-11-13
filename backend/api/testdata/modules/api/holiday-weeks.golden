@@ -1,4 +1,5 @@
 GET /api/holiday-weeks/ -> basis
+GET /api/holiday-weeks/home-school-children -> basis
 GET /api/holiday-weeks/students/{studentId}/health -> basis
 GET /api/holiday-weeks/students/{studentId}/registration -> basis
 GET /api/holiday-weeks/{weekId}/own-children -> basis

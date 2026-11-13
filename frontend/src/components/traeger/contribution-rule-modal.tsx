@@ -194,7 +194,7 @@ export function ContributionRuleModal({
 
   const set = (patch: Partial<Draft>) =>
     setDraft((current) => (current ? { ...current, ...patch } : current));
-  const title = `${sibling ? "Geschwisterregel" : "Befreiungsregel"} ${edit?.kind === "change" ? "ändern" : "hinzufügen"}`;
+  const title = `${sibling ? "Geschwisterregel" : "Befreiungsregel"} ${edit?.kind === "change" ? "ändern" : "anlegen"}`;
 
   return (
     <FormModal
@@ -273,7 +273,7 @@ export function ContributionRuleModal({
                   ariaLabel="Wie viel weniger"
                 />
                 <Input
-                  controlSize="compact"
+                  controlSize="touch"
                   id="contribution-rule-value"
                   name={
                     draft.mode === "share"

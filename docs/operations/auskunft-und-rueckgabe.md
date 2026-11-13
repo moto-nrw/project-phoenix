@@ -654,7 +654,7 @@ hat, kann es laden.
    bleibt abrufbar, bis es bereinigt oder der Träger gelöscht wird. Seine
    Unterlagen gehören dem Träger und bleiben auch nach der Schullöschung in
    der Datenbank (ADR 0203,
-   [#6644](https://github.com/moto-nrw/project-phoenix/issues/6644)). Eine
+   [#6644](https://github.com/moto-ogs/project-phoenix/issues/6644)). Eine
    Freigabe für eine Schule oder einen Träger, deren Löschung begonnen hat,
    verweigert die CLI.
 

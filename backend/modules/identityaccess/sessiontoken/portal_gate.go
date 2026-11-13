@@ -4,7 +4,7 @@ import (
 	"context"
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess/tokenprimitives"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess/tokenprimitives"
 )
 
 // TenantScope binds verified claims to the tenant runtime, which implements

@@ -6,7 +6,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/moto-nrw/project-phoenix/modules/facilities"
+	"github.com/moto-ogs/project-phoenix/modules/facilities"
 )
 
 // roomQuery and roomCommand name the Facilities halves the adapters embed;

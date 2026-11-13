@@ -1,7 +1,7 @@
 package defaults
 
 import (
-	config "github.com/moto-nrw/project-phoenix/modules/settings/records"
+	config "github.com/moto-ogs/project-phoenix/modules/settings/records"
 )
 
 // Timetable settings (WP-B7). Per-tenant configuration for the activity

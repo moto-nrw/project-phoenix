@@ -9,7 +9,7 @@ dem Altbestand am 2026-11-09 entschieden. Ergänzt
 [ADR 0092](0092-mandanten-datenlebenszyklus-nutzt-einen-gemeinsamen-katalog.md)
 um einen zweiten Einstieg in die Schullöschung und baut auf
 [ADR 0148](0148-demo-betrieb-loescht-die-dateien-ausgemusterter-demo-schulen.md)
-auf. Entscheidung für [#5559](https://github.com/moto-nrw/project-phoenix/issues/5559).
+auf. Entscheidung für [#5559](https://github.com/moto-ogs/project-phoenix/issues/5559).
 
 ## Kontext
 

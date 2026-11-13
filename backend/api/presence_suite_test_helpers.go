@@ -5,11 +5,11 @@ package api
 import (
 	"context"
 
-	"github.com/moto-nrw/project-phoenix/modules/devicefleet/deviceauth"
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	timetableCompose "github.com/moto-nrw/project-phoenix/modules/timetable/compose"
+	"github.com/moto-ogs/project-phoenix/modules/devicefleet/deviceauth"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	timetableCompose "github.com/moto-ogs/project-phoenix/modules/timetable/compose"
 )
 
 // The owner compositions the Student Presence, Care Plan and Workforce suites

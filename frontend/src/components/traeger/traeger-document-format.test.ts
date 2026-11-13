@@ -38,13 +38,13 @@ describe("releaseAudienceLabel", () => {
     ).toBe("Eltern der Gruppe „Sonnenblumen“ (OGS Nord)");
     expect(
       releaseAudienceLabel(release({ audience: "schools" }), schools),
-    ).toBe("Alle Schulen");
+    ).toBe("OGS-Leitung aller Schulen");
     expect(
       releaseAudienceLabel(
         release({ audience: "schools", schoolId: "7" }),
         schools,
       ),
-    ).toBe("OGS Nord");
+    ).toBe("OGS-Leitung: OGS Nord");
   });
 });
 

@@ -2,7 +2,7 @@
 name: responsive-screenshots
 description: Use when a frontend change needs a responsiveness check across device sizes. Captures every relevant view on iPhone SE, iPhone 12, iPhone 16 Pro Max, iPad Air, iPad Pro and desktop with agent-browser. Triggers on "responsiveness", "mobile check", "alle Auflösungen", "device sweep", or before merging UI work that touches layout.
 metadata:
-  author: moto-nrw
+  author: moto-ogs
   version: "1.0.0"
 ---
 

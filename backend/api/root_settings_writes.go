@@ -4,17 +4,17 @@ import (
 	"context"
 	"errors"
 
-	owners "github.com/moto-nrw/project-phoenix/roots/owners"
+	owners "github.com/moto-ogs/project-phoenix/roots/owners"
 
-	facilitiesCompose "github.com/moto-nrw/project-phoenix/modules/facilities/compose"
+	facilitiesCompose "github.com/moto-ogs/project-phoenix/modules/facilities/compose"
 
-	"github.com/moto-nrw/project-phoenix/modules/careplan"
-	settingsModule "github.com/moto-nrw/project-phoenix/modules/settings"
-	settingsCompose "github.com/moto-nrw/project-phoenix/modules/settings/compose"
-	configModels "github.com/moto-nrw/project-phoenix/modules/settings/records"
-	"github.com/moto-nrw/project-phoenix/modules/studentpresence"
-	"github.com/moto-nrw/project-phoenix/realtime"
-	timezone "github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/modules/careplan"
+	settingsModule "github.com/moto-ogs/project-phoenix/modules/settings"
+	settingsCompose "github.com/moto-ogs/project-phoenix/modules/settings/compose"
+	configModels "github.com/moto-ogs/project-phoenix/modules/settings/records"
+	"github.com/moto-ogs/project-phoenix/modules/studentpresence"
+	"github.com/moto-ogs/project-phoenix/realtime"
+	timezone "github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
 )
 
 // SettingsWrites are the settings side effects the API dispatches on a

@@ -181,4 +181,4 @@
 --- PASS: TestStudentContractQuerySnapshotDetectsDirectArchiveAccess (10.43s)
 --- PASS: TestStudentContractExistingInstallationRequiresEvidence (10.44s)
 PASS
-ok  	github.com/moto-nrw/project-phoenix/database/migrations	11.162s
+ok  	github.com/moto-ogs/project-phoenix/database/migrations	11.162s

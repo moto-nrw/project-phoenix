@@ -19,5 +19,7 @@
   "openInNewTab": "Open in new tab",
   "notViewable": "This file cannot be shown here. Download it to open it.",
   "notViewableOnDevice": "This file cannot be shown here on this device. Open it in a new tab or download it.",
-  "position": "{current} of {total}"
+  "position": "{current} of {total}",
+  "downloadHint": "Saves the file on your device.",
+  "openInNewTabHint": "Opens the file in a new tab."
 }

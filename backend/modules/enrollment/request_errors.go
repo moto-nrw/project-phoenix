@@ -75,4 +75,9 @@ var (
 	// for a child whose student is already settled, or both choices at once.
 	// Mapped to 409 Conflict, since a reload shows the current candidates.
 	ErrExistingChildChoiceInvalid = errors.New("the chosen existing child does not fit this enrollment")
+	// ErrOfferingTermsChanged refuses an approval while a booked offering's
+	// price, days or activity differ from what the parents submitted and
+	// signed (#6837). The office reviews the change and confirms it with
+	// AcceptOfferingChanges. Mapped to 409 Conflict.
+	ErrOfferingTermsChanged = errors.New("care offering terms changed since the submission; confirm the change to approve")
 )

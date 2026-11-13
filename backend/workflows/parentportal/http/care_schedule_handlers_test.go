@@ -6,7 +6,7 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	parentService "github.com/moto-nrw/project-phoenix/workflows/parentportal"
+	parentService "github.com/moto-ogs/project-phoenix/workflows/parentportal"
 	"github.com/stretchr/testify/assert"
 )
 

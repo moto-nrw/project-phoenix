@@ -4,7 +4,7 @@ import (
 	"context"
 	"errors"
 
-	deliveryContract "github.com/moto-nrw/project-phoenix/modules/delivery/contract"
+	deliveryContract "github.com/moto-ogs/project-phoenix/modules/delivery/contract"
 )
 
 // EmailWebhooks takes in one signed delivery of a mail provider. The failures

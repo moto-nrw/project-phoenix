@@ -3,7 +3,7 @@ package api
 import (
 	"net/http"
 
-	"github.com/moto-nrw/project-phoenix/modules/securityruntime"
+	"github.com/moto-ogs/project-phoenix/modules/securityruntime"
 )
 
 // RequestIdentityCacheMiddleware attaches the request-scoped identity memo

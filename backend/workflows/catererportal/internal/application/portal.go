@@ -8,11 +8,11 @@ import (
 	"fmt"
 	"slices"
 
-	"github.com/moto-nrw/project-phoenix/modules/identityaccess"
-	"github.com/moto-nrw/project-phoenix/modules/mealplan"
-	"github.com/moto-nrw/project-phoenix/sharedkernel/calendar"
-	"github.com/moto-nrw/project-phoenix/workflows/catererportal"
-	"github.com/moto-nrw/project-phoenix/workflows/catererportal/ports"
+	"github.com/moto-ogs/project-phoenix/modules/identityaccess"
+	"github.com/moto-ogs/project-phoenix/modules/mealplan"
+	"github.com/moto-ogs/project-phoenix/sharedkernel/calendar"
+	"github.com/moto-ogs/project-phoenix/workflows/catererportal"
+	"github.com/moto-ogs/project-phoenix/workflows/catererportal/ports"
 )
 
 // Dependencies are the owner capabilities and the runtime the portal uses.

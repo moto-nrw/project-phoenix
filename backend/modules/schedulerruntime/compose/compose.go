@@ -4,12 +4,12 @@
 package compose
 
 import (
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/internal/adapters/cleanupruns"
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/internal/adapters/jobruntime"
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/internal/adapters/workerlease"
-	scheduler "github.com/moto-nrw/project-phoenix/modules/schedulerruntime/internal/application"
-	"github.com/moto-nrw/project-phoenix/modules/schedulerruntime/ports"
-	"github.com/moto-nrw/project-phoenix/tenant"
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/internal/adapters/cleanupruns"
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/internal/adapters/jobruntime"
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/internal/adapters/workerlease"
+	scheduler "github.com/moto-ogs/project-phoenix/modules/schedulerruntime/internal/application"
+	"github.com/moto-ogs/project-phoenix/modules/schedulerruntime/ports"
+	"github.com/moto-ogs/project-phoenix/tenant"
 )
 
 // NewWorker builds the Worker; a missing dependency is an error (ADR 0059).

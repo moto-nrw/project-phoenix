@@ -6,7 +6,7 @@ import (
 	"errors"
 	"time"
 
-	audit "github.com/moto-nrw/project-phoenix/modules/auditlog/records"
+	audit "github.com/moto-ogs/project-phoenix/modules/auditlog/records"
 	"github.com/uptrace/bun"
 )
 
