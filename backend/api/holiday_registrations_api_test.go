@@ -11,6 +11,7 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 
 	"github.com/go-chi/chi/v5"
@@ -249,8 +250,10 @@ func TestHolidayRegistrationStoresSiblingsAndAHolidayGuestWithItsReceipt(t *test
 	assert.ElementsMatch(t, []string{"id", "submitted_at", "placements", "status_token"}, keysOf(receipt.Data), "the answer repeats no personal data")
 	statusToken, _ := receipt.Data["status_token"].(string)
 	require.Len(t, statusToken, 43, "32 random bytes, URL-safe")
-	assert.NotContains(t, rec.Body.String(), "Lia", "the placements name no child")
-	assert.NotContains(t, rec.Body.String(), "Muster", "the placements name no family")
+	// The random status token can spell a name by chance (#6974).
+	withoutToken := strings.ReplaceAll(rec.Body.String(), statusToken, "")
+	assert.NotContains(t, withoutToken, "Lia", "the placements name no child")
+	assert.NotContains(t, withoutToken, "Muster", "the placements name no family")
 
 	ctx := context.Background()
 	var children []struct {
