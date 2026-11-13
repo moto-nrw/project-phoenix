@@ -12,7 +12,7 @@ package schoolsearchview
 
 import (
 	"context"
-	"errors"
+	"fmt"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -39,7 +39,7 @@ const (
 )
 
 // ErrInvalidQuery reports a query outside MinQueryRunes..MaxQueryRunes.
-var ErrInvalidQuery = errors.New("school search: the query must have between 2 and 100 characters")
+var ErrInvalidQuery = fmt.Errorf("school search: the query must have between %d and %d characters", MinQueryRunes, MaxQueryRunes)
 
 // Scope is what the account may read without the search. Every field maps to
 // the permission check of the page the hit leads to.

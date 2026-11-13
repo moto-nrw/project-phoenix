@@ -61,7 +61,7 @@ export function schoolSearchTopic(): HelpTopic {
     ],
     notes: [
       "Ohne Eingabe zeigt die Suche die Seiten, die Sie öffnen dürfen.",
-      "Mit `Alle Treffer in „Alle Kinder“` sehen Sie alle Kinder mit diesem Namen.",
+      "Brauchen Sie alle Kinder mit einem Namen? Öffnen Sie `Alle Kinder` und suchen Sie dort.",
     ],
     related: [HELP_TOPICS.studentSearch, HELP_TOPICS.appOverview],
   };

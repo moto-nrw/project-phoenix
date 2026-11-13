@@ -120,7 +120,8 @@ describe("SchoolSearchDialog", () => {
       "0170 1234567",
       expect.any(AbortSignal),
     );
-    expect(screen.queryByText(/Alle Treffer/)).not.toBeInTheDocument();
+    // The typed text never lands in a URL (ADR 0227).
+    expect(document.querySelector('a[href*="0170"]')).toBeNull();
 
     await user.keyboard("{Enter}");
     expect(mockPush).toHaveBeenCalledWith(
@@ -166,6 +167,6 @@ describe("SchoolSearchDialog", () => {
         name: "Mia Sonnenberg, Klasse 3a · Gruppe Füchse · Anmeldung: Seepferdchen vorhanden: Ja",
       }),
     ).toBeInTheDocument();
-    expect(screen.queryByText(/Alle Treffer/)).not.toBeInTheDocument();
+    expect(document.querySelector('a[href*="seepferd"]')).toBeNull();
   });
 });

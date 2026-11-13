@@ -62,7 +62,9 @@ Drei Fragen waren offen:
    sind Freitext. Suche und Speicher werden auf dieselbe Ziffernfolge ohne
    Verkehrsausscheidungs- und Ländervorwahl gebracht
    (`schoolsearchview.PhoneSearchKey` und die gleichlautende SQL-Konstante).
-   Teilnummern treffen als Teil dieser Folge. Eine generierte Spalte oder ein
+   Teilnummern treffen als Teil dieser Folge. Nur Kontaktpersonen werden
+   über diese Folge gesucht; alle anderen Felder vergleichen den Text wie
+   eingegeben, damit Ziffern auch einen Raum „1012“ finden. Eine generierte Spalte oder ein
    Funktionsindex lohnt bei einigen hundert Nummern je Schule nicht und
    bräuchte eine Migration im Owner People Directory.
 4. **Die Suche zeigt nur, was das Konto ohne Suche lesen darf.** Die Route
@@ -71,7 +73,8 @@ Drei Fragen waren offen:
    Elternnotizen, Anmeldeantworten und Kontaktpersonen mit Telefon und
    E-Mail nur mit `users:read`; beides nur für Personal der Schule oder
    Admins (#2329); Mitarbeitende mit dem Recht der Personalliste, Räume mit
-   `rooms:read`, Gruppen mit `groups:read`. Ohne Kontaktrecht sucht die
+   `rooms:read`, Gruppen mit `groups:read` und einem Kinder-Leserecht, weil
+   ein Gruppen-Treffer „Alle Kinder“ mit dieser Gruppe öffnet. Ohne Kontaktrecht sucht die
    Projektion keine Telefonnummer; die Antwort hat dieselbe Form mit leeren
    Listen. Der Filter nach Anmeldeangaben in Liste und Export verlangt
    `users:read`.
@@ -82,7 +85,11 @@ Drei Fragen waren offen:
    die den Text trägt, beginnt deshalb mit `protocol.RedactLiteralsInLog` von
    Transaction Runtime; das Log ersetzt dann alle ihre Textliterale. Der
    Suchdialog trägt `data-analytics-block`, eine Sitzungsaufzeichnung enthält
-   ihn nicht. Die Route ist eine Lesung und kein Kernvorgang der
+   ihn nicht, und kein Link des Dialogs trägt den Text. Offen bleibt das
+   Statement-Log des Datenbankservers: Ist dort `log_min_duration_statement`
+   oder `log_statement` gesetzt, sieht es das SQL mit eingesetzten Werten,
+   wie bei jeder bestehenden Namenssuche. Das betrifft den Betrieb, nicht
+   diese Projektion. Die Route ist eine Lesung und kein Kernvorgang der
    Nutzungsanalyse; die Mitarbeiter-Vorschau darf sie aufrufen.
 
 ## Nicht entschieden

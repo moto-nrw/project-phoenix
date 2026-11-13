@@ -55,15 +55,20 @@ type searchRequest struct {
 	Query string `json:"query"`
 }
 
-func (req *searchRequest) Bind(*http.Request) error {
-	_, err := schoolsearchview.ValidateQueryText(req.Query)
-	return err
-}
+func (req *searchRequest) Bind(*http.Request) error { return nil }
 
 func (rs *Resource) searchSchool(w http.ResponseWriter, r *http.Request) {
 	req := &searchRequest{}
 	if err := render.Bind(r, req); err != nil {
-		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("query must have between 2 and 100 characters")))
+		common.RenderError(w, r, common.ErrorInvalidRequest(errors.New("the body must be a JSON object with a query")))
+		return
+	}
+	if _, err := schoolsearchview.ValidateQueryText(req.Query); err != nil {
+		rendered := common.ErrorInvalidRequest(err)
+		if resp, ok := rendered.(*common.ErrResponse); ok {
+			resp.Details = map[string]any{"min": schoolsearchview.MinQueryRunes, "max": schoolsearchview.MaxQueryRunes}
+		}
+		common.RenderError(w, r, rendered)
 		return
 	}
 	scope, err := rs.scope(r.Context())

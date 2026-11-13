@@ -142,7 +142,6 @@ export async function fetchStudent(id: string): Promise<Student> {
   return bffJson<Student>(`/api/students/${encodeURIComponent(id)}`);
 }
 
-/** The school's active care offerings that count as care (#4571). */
 /** The registration questions the child list can filter by (#6954). */
 export async function fetchEnrollmentAnswerFilters(): Promise<
   EnrollmentAnswerFilter[]
@@ -152,6 +151,7 @@ export async function fetchEnrollmentAnswerFilters(): Promise<
   );
 }
 
+/** The school's active care offerings that count as care (#4571). */
 export async function fetchCareOfferingOptions(): Promise<
   CareOfferingOption[]
 > {

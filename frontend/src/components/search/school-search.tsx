@@ -12,7 +12,6 @@ import {
 import { ConceptIconTile } from "~/components/ui/concept-icon-tile";
 import { EmptyState } from "~/components/ui/empty-state";
 import { LoadErrorAlert } from "~/components/ui/form-error-alert";
-import NavigationLink from "~/components/ui/navigation-link";
 import { Skeleton } from "~/components/ui/skeleton";
 import {
   STAFF_NAV_ITEMS,
@@ -41,7 +40,6 @@ import {
   type SchoolSearchResult,
 } from "~/lib/school-search";
 import { foldForSearch } from "~/lib/search-fold";
-import { STUDENT_READ_PERMISSIONS } from "~/lib/student-access";
 import { useOpenCareGroupMode, usePresenceMode } from "~/lib/tenant-context";
 import { useTenantRouter } from "~/lib/tenant-router";
 import { useApiLoadError } from "~/contexts/ToastContext";
@@ -340,11 +338,6 @@ export function SchoolSearchDialog({
   const isPhone = looksLikePhoneNumber(term);
   const readsContacts =
     hasRole(session, "admin") || hasPermission(session, "users:read");
-  const readsChildren =
-    hasRole(session, "admin") ||
-    STUDENT_READ_PERMISSIONS.some((permission) =>
-      hasPermission(session, permission),
-    );
 
   const close = useCallback(() => {
     setQuery("");
@@ -393,26 +386,15 @@ export function SchoolSearchDialog({
     );
   }
 
-  // „Alle Kinder“ searches names only: the link fits when a name matched.
-  const nameMatched = (result?.children ?? []).some(
-    (child) => child.match.field === "name",
+  // A hint, never a link carrying the text: the typed text stays out of
+  // every URL (ADR 0227).
+  const footer = (
+    <span className="text-gray-500">
+      {readsContacts
+        ? "Auch Telefonnummern und Anmeldeangaben"
+        : "Kinder, Räume, Gruppen und Seiten"}
+    </span>
   );
-  const footer =
-    searching && !isPhone && readsChildren && nameMatched ? (
-      <NavigationLink
-        href={`/students/search?search=${encodeURIComponent(term)}`}
-        onClick={close}
-        className="font-medium text-gray-700 underline-offset-4 hover:underline focus-visible:underline"
-      >
-        Alle Treffer in „Alle Kinder“
-      </NavigationLink>
-    ) : (
-      <span className="text-gray-500">
-        {readsContacts
-          ? "Auch Telefonnummern und Anmeldeangaben"
-          : "Kinder, Räume, Gruppen und Seiten"}
-      </span>
-    );
 
   return (
     <CommandPalette
@@ -430,13 +412,7 @@ export function SchoolSearchDialog({
       busy={busy && hits > 0}
       placeholderContent={placeholderContent}
       footer={footer}
-      status={
-        searching && !busy && !error
-          ? hits === 1
-            ? "1 Treffer"
-            : `${hits} Treffer`
-          : undefined
-      }
+      status={searching && !busy && !error ? `${hits} Treffer` : undefined}
       maxLength={SCHOOL_SEARCH_MAX_LENGTH}
     />
   );

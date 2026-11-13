@@ -165,6 +165,11 @@ func TestStaffRoomsAndGroupsFollowTheirScope(t *testing.T) {
 	require.Len(t, reversed.Staff, 1, "a name matches in either order")
 	require.Equal(t, staff.ID, reversed.Staff[0].ID)
 
+	numbered := testpkg.CreateTestRoom(t, db, "Werkraum 4711")
+	byDigits := search(t, db, tenantID, nil, "4711", fullScope)
+	require.Len(t, byDigits.Rooms, 1, "digits that read like a phone number still find a room")
+	require.Equal(t, numbered.ID, byDigits.Rooms[0].ID)
+
 	none := search(t, db, tenantID, nil, "wiesenthal", schoolsearchview.Scope{Children: true})
 	require.Empty(t, none.Staff)
 	require.Empty(t, none.Rooms)

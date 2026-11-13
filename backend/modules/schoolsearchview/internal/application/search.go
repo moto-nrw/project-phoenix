@@ -59,17 +59,14 @@ func (s *Search) SearchSchool(ctx context.Context, query schoolsearchview.Query)
 	if err := s.searchPeople(ctx, text, phoneKey, scope, &result); err != nil {
 		return result, err
 	}
-	if phoneKey != "" {
-		// A phone number names a family, never a room or a colleague.
-		return result, nil
-	}
-	return result, s.searchPlaces(ctx, text, scope, &result)
+	return result, s.searchDirectory(ctx, text, scope, &result)
 }
 
-// searchPeople fills children and contacts. A phone query searches the
-// contacts only: a child has no number of its own.
+// searchPeople fills children and contacts. Contacts match a phone query by
+// its key; every other field compares the text as typed, so digits still find
+// a room "1012" or a parent note that names a number.
 func (s *Search) searchPeople(ctx context.Context, text, phoneKey string, scope schoolsearchview.Scope, result *schoolsearchview.Result) error {
-	if scope.Children && phoneKey == "" {
+	if scope.Children {
 		children, err := s.reader.Children(ctx, text, scope.ChildDetails, schoolsearchview.ChildLimit)
 		if err != nil {
 			return fmt.Errorf("school search: children: %w", err)
@@ -96,11 +93,13 @@ func (s *Search) searchPeople(ctx context.Context, text, phoneKey string, scope 
 // after the direct hits, up to the child limit. A child already found
 // directly keeps its direct reason.
 func (s *Search) withAnswerHits(ctx context.Context, text string, children []schoolsearchview.Child) ([]schoolsearchview.Child, error) {
-	room := schoolsearchview.ChildLimit - len(children)
-	if room <= 0 {
+	free := schoolsearchview.ChildLimit - len(children)
+	if free <= 0 {
 		return children, nil
 	}
-	hits, err := s.answers.SearchStudentAnswers(ctx, text, schoolsearchview.ChildLimit)
+	// Ask for enough to fill the free slots after the children already found
+	// directly drop out.
+	hits, err := s.answers.SearchStudentAnswers(ctx, text, schoolsearchview.ChildLimit+len(children))
 	if err != nil {
 		return nil, fmt.Errorf("school search: registration answers: %w", err)
 	}
@@ -132,19 +131,19 @@ func (s *Search) withAnswerHits(ctx context.Context, text string, children []sch
 		return slices.Index(ids, a.ID) - slices.Index(ids, b.ID)
 	})
 	for _, row := range rows {
-		if room == 0 {
+		if free == 0 {
 			break
 		}
 		hit := byStudent[row.ID]
 		row.Match = schoolsearchview.Match{Field: schoolsearchview.MatchEnrollmentAnswer, Label: hit.Label, Text: hit.Answer}
 		children = append(children, row)
-		room--
+		free--
 	}
 	return children, nil
 }
 
-// searchPlaces fills staff, rooms and groups.
-func (s *Search) searchPlaces(ctx context.Context, text string, scope schoolsearchview.Scope, result *schoolsearchview.Result) error {
+// searchDirectory fills staff, rooms and groups.
+func (s *Search) searchDirectory(ctx context.Context, text string, scope schoolsearchview.Scope, result *schoolsearchview.Result) error {
 	if scope.Staff {
 		staff, err := s.reader.Staff(ctx, text, schoolsearchview.OtherLimit)
 		if err != nil {
